@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+option go_package = "internal/demo-app";
+
+service SearchService {
+    rpc Search(SearchRequest) returns (SearchResponse);
+    rpc Index(IndexRequest) returns (IndexResponse);
+}
+
+message SearchRequest {
+    string query = 1;
+    int32 page_number = 2;
+    int32 result_per_page = 3;
+}
+
+message SearchResponse {
+    repeated Result results = 1;
+}
+
+message Result {
+    string url = 1;
+    string title = 2;
+    repeated string snippets = 3;
+}
+
+message IndexRequest {
+    Result result = 1;
+    Position position = 2;
+    uint64 additional_copies = 3;
+}
+
+enum Position {
+    POSITION_TOP = 0;
+    POSITION_BOTTOM = 1;
+}
+
+message IndexResponse {
+    Result result = 1;
+}

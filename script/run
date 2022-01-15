@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+protoc --proto_path=./proto --plugin=protoc-gen-kaja-twirp=/app/protoc-gen-kaja-twirp --kaja-twirp_out=. -Iproto/ $(find proto -iname "*.proto")
+/app/kaja-twirp

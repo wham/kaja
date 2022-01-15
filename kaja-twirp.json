@@ -1,0 +1,169 @@
+[
+ {
+  "Path": "google/protobuf/timestamp.proto",
+  "Package": "google.protobuf",
+  "Services": []
+ },
+ {
+  "Path": "quirks.proto",
+  "Package": "quirks.v1",
+  "Services": [
+   {
+    "Name": "Quirks",
+    "Methods": [
+     {
+      "Name": "Map",
+      "Input": {
+       "Fields": [
+        {
+         "Name": "string_string",
+         "Kind": "message",
+         "Type": "textarea",
+         "Serialize": "object",
+         "Value": "{\n  \"key\": \"\"\n}",
+         "Enums": null
+        },
+        {
+         "Name": "string_int32",
+         "Kind": "message",
+         "Type": "textarea",
+         "Serialize": "object",
+         "Value": "{\n  \"key\": 0\n}",
+         "Enums": null
+        },
+        {
+         "Name": "sint64_string",
+         "Kind": "message",
+         "Type": "textarea",
+         "Serialize": "object",
+         "Value": "{\n  \"0\": \"\"\n}",
+         "Enums": null
+        },
+        {
+         "Name": "string_repeated_string",
+         "Kind": "message",
+         "Type": "textarea",
+         "Serialize": "object",
+         "Value": "{\n  \"key\": {\n    \"value\": [\n      \"\"\n    ]\n  }\n}",
+         "Enums": null
+        }
+       ]
+      }
+     },
+     {
+      "Name": "MethodWithAReallyLongNameGmthggupcbmnphflnnvu",
+      "Input": {
+       "Fields": []
+      }
+     },
+     {
+      "Name": "Repeated",
+      "Input": {
+       "Fields": [
+        {
+         "Name": "string",
+         "Kind": "string",
+         "Type": "textarea",
+         "Serialize": "array",
+         "Value": "[\n  \"\"\n]",
+         "Enums": null
+        }
+       ]
+      }
+     },
+     {
+      "Name": "Types",
+      "Input": {
+       "Fields": [
+        {
+         "Name": "timestamp",
+         "Kind": "message",
+         "Type": "text",
+         "Serialize": "text",
+         "Value": "\"google.protobuf.Timestamp\"",
+         "Enums": null
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "Path": "search-service.proto",
+  "Package": "",
+  "Services": [
+   {
+    "Name": "SearchService",
+    "Methods": [
+     {
+      "Name": "Search",
+      "Input": {
+       "Fields": [
+        {
+         "Name": "query",
+         "Kind": "string",
+         "Type": "text",
+         "Serialize": "text",
+         "Value": "\"\"",
+         "Enums": null
+        },
+        {
+         "Name": "page_number",
+         "Kind": "int32",
+         "Type": "text",
+         "Serialize": "text",
+         "Value": "0",
+         "Enums": null
+        },
+        {
+         "Name": "result_per_page",
+         "Kind": "int32",
+         "Type": "text",
+         "Serialize": "text",
+         "Value": "0",
+         "Enums": null
+        }
+       ]
+      }
+     },
+     {
+      "Name": "Index",
+      "Input": {
+       "Fields": [
+        {
+         "Name": "result",
+         "Kind": "message",
+         "Type": "textarea",
+         "Serialize": "object",
+         "Value": "{\n  \"snippets\": [\n    \"\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
+         "Enums": null
+        },
+        {
+         "Name": "position",
+         "Kind": "enum",
+         "Type": "select",
+         "Serialize": "int",
+         "Value": "0",
+         "Enums": {
+          "0": "POSITION_TOP",
+          "1": "POSITION_BOTTOM"
+         }
+        },
+        {
+         "Name": "additional_copies",
+         "Kind": "uint64",
+         "Type": "text",
+         "Serialize": "text",
+         "Value": "0",
+         "Enums": null
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

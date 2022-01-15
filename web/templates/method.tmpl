@@ -1,0 +1,95 @@
+<html>
+	<head>
+		<title>kaja-twirp</title>
+		<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+		<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+		<script defer src="/assets/kaja-twirp.js"></script>
+		<link href="/assets/primer.css" rel="stylesheet" />
+	</head>
+	<body data-color-mode="auto" data-light-theme="light" data-dark-theme="dark_dimmed">
+		{{ template "Header" }}
+		<div class="Layout">
+			<div class="Layout-main">
+				<div class="d-flex flex-column">
+					<div class="Subhead">
+						<h3 class="Subhead-heading py-3">{{ .method.Name }}</h2>
+					</div>
+					<form method="post" action="#response" style="width: 768px">
+						{{ range .method.Input.Fields }}
+							<div class="container-md clearfix">
+								{{ if eq .Type "textarea" }}
+									<div class="form-group col-9">
+										<div class="form-group-header">
+											<label for="{{ .Name }}">{{ .Name }}</label>
+										</div>
+										<div class="form-group-body">
+											<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}">{{ index $.form .Name }}</textarea>
+										</div>
+									</div>
+								{{ else if eq .Type "select" }}
+									<div class="col-4 d-inline-block pb-2">
+										<label for="{{ .Name }}">{{ .Name }}</label>
+									</div>
+									<div class="col-5 d-inline-block pb-2">
+										<select class="form-select" id="{{ .Name }}" name="{{ .Name }}">
+											{{ $cv := index $.form .Name }}
+											{{ range $key, $value := .Enums }}
+												<option value="{{ $key }}"{{ if eq $key $cv }} selected="selected"{{ end }}>{{ $value }}</option>
+											{{ end }}
+										</select>
+									</div>
+								{{ else }}
+									<div class="col-4 d-inline-block pb-2">
+										<label for="{{ .Name }}">{{ .Name }}</label>
+									</div>
+									<div class="col-5 d-inline-block pb-2">
+										<input class="form-control" type="text" id="{{ .Name }}" name="{{ .Name }}" value="{{ index $.form .Name }}" />
+										<span class="px-2">{{ .Kind }}</span>
+									</div>
+								{{ end }}
+							</div>
+						{{ end }}
+						<div class="container-md clearfix">
+							<div class="col-4 d-inline-block"></div>
+							<div class="col-4 d-inline-block">
+								<button class="btn btn-primary" type="submit">Call</button>
+							</div>
+						</div>
+					</form>
+					{{ if or .in .out .err }}
+						<div class="tabnav">
+							<nav class="tabnav-tabs" aria-label="Foo bar">
+								<a class="tabnav-tab" href="#response" aria-current="page">Response</a>
+								<a class="tabnav-tab" href="#request">Request</a>
+							</nav>
+						</div>
+						<div>
+							<div id="response">
+								{{if .out}} <pre>{{ .out }}</pre> {{end}}
+								{{if .err}} <pre style="border: 1px solid red">{{ .err }}</pre> {{end}}
+							</div>
+							<div id="request" style="display: none">
+								{{if .in}} <pre>{{ .in }}</pre> {{end}}
+							</div>
+						</div>
+					{{ end }}
+				</div>
+			</div>
+			<div class="Layout-sidebar m-2">
+				{{ range .files }}
+					{{ range .Services }}
+						<aside class="color-bg-subtle border p-3 mb-2" style="max-width: 360px">
+							<h5 class="color-fg-muted mb-2 pb-1 border-bottom">{{ .Name }}</h5>
+							{{ $service := . }}
+							<nav class="SideNav">
+								{{ range .Methods }}
+									<a class="SideNav-subItem" {{ if and (eq $service.Name $.service.Name) (eq .Name $.method.Name) }}aria-current="page" {{ end }} style="overflow: hidden; text-overflow: ellipsis" href="/services/{{ $service.Name }}/{{ .Name }}">{{ .Name }}</a>
+								{{ end }}
+							</nav>
+						</aside>
+					{{ end }}
+				{{ end }}
+			</div>
+		</div>
+	</body>
+</html>

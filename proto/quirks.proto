@@ -1,0 +1,35 @@
+syntax = "proto3";
+package quirks.v1;
+import "google/protobuf/timestamp.proto";
+
+option go_package = "internal/demo-app";
+
+service Quirks {
+    rpc Map(MapRequest) returns(MapRequest);
+    rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(Void) returns(Void);
+    rpc Repeated(RepeatedRequest) returns(RepeatedRequest);
+    rpc Types(TypesRequest) returns(TypesRequest);
+}
+
+message MapRequest {
+    message RepeatedString {
+        repeated string value = 1;
+    }
+
+    map<string, string> string_string = 1;
+    map<string, int32> string_int32 = 2;
+    map<sint64, string> sint64_string = 3;
+    map<string, RepeatedString> string_repeated_string = 4;
+}
+
+message RepeatedRequest {
+    repeated string string = 1;
+}
+
+message TypesRequest {
+    google.protobuf.Timestamp timestamp = 1;
+}
+
+message Void {
+
+}
