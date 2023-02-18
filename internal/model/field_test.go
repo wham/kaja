@@ -3,15 +3,12 @@ package model
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatTime(t *testing.T) {
-	d, _ := time.Parse(time.RFC3339, "2014-11-12T11:45:26.371Z")
-	
-	e := "2014-11-12T00:00:00Z"
-	a := FormatTime(d)
+	p, _ := time.Parse(time.RFC3339, "2014-11-12T11:45:26.371Z")
 
-	if a != e {
-		t.Fatalf("incorrect result: expected %s, go %s", e, a)
-	}
+	assert.Equal(t, "2014-11-12T00:00:00Z", FormatTime(p))
 }
