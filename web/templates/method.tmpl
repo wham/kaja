@@ -17,12 +17,12 @@
 						{{ range .method.Input.Fields }}
 							<div class="container-md clearfix">
 								{{ if eq .Type "textarea" }}
-									<div class="form-group col-9">
-										<div class="form-group-header">
-											<label for="{{ .Name }}">{{ .Name }}</label>
-										</div>
+									<div class="col-4 d-inline-block pb-2 v-align-top">
+										<label for="{{ .Name }}">{{ .Name }}</label>
+									</div>
+									<div class="col-7 d-inline-block pb-2">
 										<div class="form-group-body">
-											<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}">{{ index $.form .Name }}</textarea>
+										<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}" data-autoresize rows="1" style="resize: none; box-sizing: border-box; height: auto; min-height: 0; width: 100%">{{ index $.form .Name }}</textarea>
 										</div>
 									</div>
 								{{ else if eq .Type "select" }}
@@ -41,9 +41,8 @@
 									<div class="col-4 d-inline-block pb-2">
 										<label for="{{ .Name }}">{{ .Name }}</label>
 									</div>
-									<div class="col-5 d-inline-block pb-2">
-										<input class="form-control" type="text" id="{{ .Name }}" name="{{ .Name }}" value="{{ index $.form .Name }}" />
-										<span class="px-2">{{ .Kind }}</span>
+									<div class="col-7 d-inline-block pb-2">
+										<input class="form-control input-block" type="text" id="{{ .Name }}" name="{{ .Name }}" value="{{ index $.form .Name }}" placeholder="{{ .Kind }}" />
 									</div>
 								{{ end }}
 							</div>
