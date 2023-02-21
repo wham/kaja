@@ -1,82 +1,67 @@
 <html>
 	<head>
-		<title>kaja-twirp</title>
+		<title>{{ .method.Name }}</title>
 		<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
 		<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
 		<script defer src="/assets/kaja-twirp.js"></script>
 		<link href="/assets/primer.css" rel="stylesheet" />
 	</head>
 	<body data-color-mode="auto" data-light-theme="light" data-dark-theme="dark_dimmed">
-		<div class="Layout">
-			<div class="Layout-main">
-				<div class="d-flex flex-column">
-					<div class="Subhead">
-						<h1 class="Subhead-heading pt-2 h3">{{ .method.Name }}</h1>
-					</div>
-					<form method="post" action="#response" style="width: 768px">
-						{{ range .method.Input.Fields }}
-							<div class="container-md clearfix">
-								{{ if eq .Type "textarea" }}
-									<div class="col-4 d-inline-block pb-2 v-align-top">
-										<label for="{{ .Name }}">{{ .Name }}</label>
-									</div>
-									<div class="col-7 d-inline-block pb-2">
-										<div class="form-group-body">
+		<div class="d-flex" style="height: 100vh">
+			<div class="flex-order-2 flex-1 d-flex flex-column">
+				<form class="flex-1 d-flex flex-column m-2" action="#response" method="post" style="overflow: scroll">
+					{{ range .method.Input.Fields }}
+						<div class="d-flex mb-2">
+							<div class="" style="width: 260px">
+								<label for="{{ .Name }}">{{ .Name }}</label>
+							</div>
+							<div class="flex-1">
+								{{ if eq .Type "textarea" }}	
+									<div class="form-group-body">
 										<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}" data-autoresize rows="1" style="resize: none; box-sizing: border-box; height: auto; min-height: 0; width: 100%">{{ index $.form .Name }}</textarea>
-										</div>
 									</div>
 								{{ else if eq .Type "select" }}
-									<div class="col-4 d-inline-block pb-2">
-										<label for="{{ .Name }}">{{ .Name }}</label>
-									</div>
-									<div class="col-5 d-inline-block pb-2">
-										<select class="form-select" id="{{ .Name }}" name="{{ .Name }}">
-											{{ $cv := index $.form .Name }}
-											{{ range $key, $value := .Enums }}
-												<option value="{{ $key }}"{{ if eq $key $cv }} selected="selected"{{ end }}>{{ $value }}</option>
-											{{ end }}
-										</select>
-									</div>
+									<select class="form-select" id="{{ .Name }}" name="{{ .Name }}">
+										{{ $cv := index $.form .Name }}
+										{{ range $key, $value := .Enums }}
+											<option value="{{ $key }}"{{ if eq $key $cv }} selected="selected"{{ end }}>{{ $value }}</option>
+										{{ end }}
+									</select>
 								{{ else }}
-									<div class="col-4 d-inline-block pb-2">
-										<label for="{{ .Name }}">{{ .Name }}</label>
-									</div>
-									<div class="col-7 d-inline-block pb-2">
-										<input class="form-control input-block" type="text" id="{{ .Name }}" name="{{ .Name }}" value="{{ index $.form .Name }}" placeholder="{{ .Kind }}" />
-									</div>
+									<input class="form-control input-block" type="text" id="{{ .Name }}" name="{{ .Name }}" value="{{ index $.form .Name }}" placeholder="{{ .Kind }}" />
 								{{ end }}
-							</div>
-						{{ end }}
-						<div class="container-md clearfix">
-							<div class="col-4 d-inline-block"></div>
-							<div class="col-4 d-inline-block">
-								<button class="btn btn-primary" type="submit">Call</button>
-							</div>
-						</div>
-					</form>
-					{{ if or .in .out .err }}
-						<div class="tabnav">
-							<nav class="tabnav-tabs" aria-label="Foo bar">
-								<a class="tabnav-tab" href="#response" aria-current="page">Response</a>
-								<a class="tabnav-tab" href="#request">Request</a>
-							</nav>
-						</div>
-						<div>
-							<div id="response">
-								{{if .out}} <pre>{{ .out }}</pre> {{end}}
-								{{if .err}} <pre style="border: 1px solid red">{{ .err }}</pre> {{end}}
-							</div>
-							<div id="request" style="display: none">
-								{{if .in}} <pre>{{ .in }}</pre> {{end}}
 							</div>
 						</div>
 					{{ end }}
+					<div class="d-flex">
+						<div style="width: 260px"></div>
+						<div>
+							<button class="btn btn-primary" type="submit">Call</button>
+						</div>
+					</div>
+				</form>
+				<div>
+					<nav class="UnderlineNav">
+						<div class="UnderlineNav-body" role="tablist">
+							<a class="UnderlineNav-item" href="#response" aria-current="page">Response</a>
+							<a class="UnderlineNav-item" href="#request">Request</a>
+						</div>
+					</nav>
+					<div class="m-2" style="height: 400px; overflow: scroll">
+						<div id="response">
+							{{if .out}} <pre>{{ .out }}</pre> {{end}}
+							{{if .err}} <pre style="border: 1px solid red">{{ .err }}</pre> {{end}}
+						</div>
+						<div id="request" style="display: none">
+							{{if .in}} <pre>{{ .in }}</pre> {{end}}
+						</div>
+					</div>
 				</div>
 			</div>
-			<div class="Layout-sidebar m-1">
+			<div class="flex-order-1" style="background-color: var(--color-canvas-subtle)">
 				{{ range .files }}
 					{{ range .Services }}
-						<aside class="color-bg-subtle border p-3 mb-2" style="max-width: 360px">
+						<aside class="color-bg-subtle border p-3 border-0" style="max-width: 360px">
 							<h5 class="color-fg-muted mb-2 pb-1 border-bottom">{{ .Name }}</h5>
 							{{ $service := . }}
 							<nav class="SideNav">
@@ -87,9 +72,9 @@
 						</aside>
 					{{ end }}
 				{{ end }}
-				<div class="px-3">
+				<div class="position-fixed bottom-0 py-1 px-3 color-bg-accent-emphasis color-fg-on-emphasis" style="width: 360px">
 					<svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display: inline-block; user-select: none; vertical-align: text-bottom; overflow: visible;"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-					<a class="pl-1 f6" href="https://github.com/wham/kaja-twirp">GitHub</a>
+					<a class="f6 color-fg-on-emphasis" href="https://github.com/wham/kaja-twirp">kaja-twirp</a>
 				</div>
 			</div>
 		</div>

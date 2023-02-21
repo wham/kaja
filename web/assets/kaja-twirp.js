@@ -23,7 +23,7 @@ function updateTabs() {
 
     tab.style.display = "";
 
-    let tabs = document.getElementsByClassName("tabnav-tabs");
+    let tabs = document.getElementsByClassName("UnderlineNav-body");
 
     for (let i = 0; i < tabs.length; ++i) {
         let c = tabs[i];
