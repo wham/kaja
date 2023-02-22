@@ -8,8 +8,14 @@
 	</head>
 	<body data-color-mode="auto" data-light-theme="light" data-dark-theme="dark_dimmed">
 		<div class="d-flex" style="height: 100vh">
-			<div class="flex-order-2 flex-1 d-flex flex-column">
-				<form class="flex-1 d-flex flex-column m-2" action="#response" method="post" style="overflow: scroll">
+			<form class="flex-order-2 flex-1 d-flex flex-column" action="#response" method="post">
+				<div class="Subhead px-2">
+					<h2 class="Subhead-heading">{{ .method.Name }}</h2>
+					<div class="Subhead-actions">
+						<button class="btn btn-primary" type="submit">Call</button>
+					</div>
+				</div>
+				<div class="flex-1 d-flex flex-column m-2" style="overflow: scroll">
 					{{ range .method.Input.Fields }}
 						<div class="d-flex mb-2">
 							<div class="" style="width: 260px">
@@ -33,13 +39,7 @@
 							</div>
 						</div>
 					{{ end }}
-					<div class="d-flex">
-						<div style="width: 260px"></div>
-						<div>
-							<button class="btn btn-primary" type="submit">Call</button>
-						</div>
-					</div>
-				</form>
+				</div>
 				<div>
 					<nav class="UnderlineNav">
 						<div class="UnderlineNav-body" role="tablist">
@@ -47,7 +47,7 @@
 							<a class="UnderlineNav-item" href="#request">Request</a>
 						</div>
 					</nav>
-					<div class="m-2" style="height: 400px; overflow: scroll">
+					<div class="m-2" style="height: 380px; overflow: scroll">
 						<div id="response">
 							{{if .out}} <pre>{{ .out }}</pre> {{end}}
 							{{if .err}} <pre style="border: 1px solid red">{{ .err }}</pre> {{end}}
@@ -57,11 +57,11 @@
 						</div>
 					</div>
 				</div>
-			</div>
+			</form>
 			<div class="flex-order-1" style="background-color: var(--color-canvas-subtle)">
 				{{ range .files }}
 					{{ range .Services }}
-						<aside class="color-bg-subtle border p-3 border-0" style="max-width: 360px">
+						<aside class="color-bg-subtle border p-3 border-0" style="width: 360px">
 							<h5 class="color-fg-muted mb-2 pb-1 border-bottom">{{ .Name }}</h5>
 							{{ $service := . }}
 							<nav class="SideNav">
