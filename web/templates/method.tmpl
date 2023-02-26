@@ -17,13 +17,13 @@
 				</div>
 				<div class="flex-1 d-flex flex-column m-2" style="overflow: scroll">
 					{{ range .method.Input.Fields }}
-						<div class="d-flex mb-2">
+						<div class="d-flex flex-items-center mb-2">
 							<div class="" style="width: 260px">
 								<label for="{{ .Name }}">{{ .Name }}</label>
 							</div>
 							<div class="flex-1">
 								{{ if eq .Type "textarea" }}	
-									<div class="form-group-body">
+									<div class="form-group-body" style="position: relative; min-height: 39px">
 										<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}" data-autoresize rows="1" style="resize: none; box-sizing: border-box; height: auto; min-height: 0; width: 100%">{{ index $.form .Name }}</textarea>
 									</div>
 								{{ else if eq .Type "select" }}
