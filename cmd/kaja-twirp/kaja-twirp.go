@@ -65,7 +65,8 @@ func main() {
 		methodName := c.Param("method")
 
 		m := model.LoadModel()
-		godotenv.Load()
+		// Use Overload() so the .env file can be dynamically updated
+		godotenv.Overload()
 
 		file, service, method := m.GetMethod(serviceName, methodName)
 
