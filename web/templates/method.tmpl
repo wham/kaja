@@ -4,7 +4,9 @@
 		<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
 		<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
 		<script defer src="/assets/kaja-twirp.js"></script>
+		<script defer src="/assets/prism.js"></script>
 		<link href="/assets/primer.css" rel="stylesheet" />
+		<link href="/assets/kaja-twirp.css" rel="stylesheet" />
 	</head>
 	<body data-color-mode="auto" data-light-theme="light" data-dark-theme="dark_dimmed">
 		<div class="d-flex" style="height: 100vh">
@@ -49,11 +51,11 @@
 					</nav>
 					<div class="m-2" style="height: 380px; overflow: scroll">
 						<div id="response">
-							{{if .out}} <pre>{{ .out }}</pre> {{end}}
-							{{if .err}} <pre style="border: 1px solid red">{{ .err }}</pre> {{end}}
+							{{if .out}} <pre style="background: none; margin: 0; padding: 0"><code class="language-json">{{ .out }}</code></pre> {{end}}
+							{{if .err}} <pre style="color: var(--color-danger-fg)">{{ .err }}</pre> {{end}}
 						</div>
 						<div id="request" style="display: none">
-							{{if .in}} <pre>{{ .in }}</pre> {{end}}
+							{{if .in}} <pre style="background: none; margin: 0; padding: 0"><code class="language-json">{{ .in }}</code></pre> {{end}}
 						</div>
 					</div>
 				</div>

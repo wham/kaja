@@ -1,0 +1,9 @@
+.token.property {
+	color: var(--color-accent-fg);
+}
+
+.token.string,
+.token.boolean,
+.token.number {
+    color: var(--color-attention-fg) !important;
+}
