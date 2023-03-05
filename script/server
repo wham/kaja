@@ -8,6 +8,8 @@ trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 go build -o /tmp/protoc-gen-kaja-twirp ./cmd/protoc-gen-kaja-twirp/protoc-gen-kaja-twirp.go
 protoc --proto_path=./proto --plugin=protoc-gen-kaja-twirp=/tmp/protoc-gen-kaja-twirp --kaja-twirp_out=. --go_out=. --twirp_out=. -Iproto/ $(find proto -iname "*.proto")
 
+protoc --go_out=. ./internal/model/testdata.proto
+
 go build -o /tmp/demo-app ./cmd/demo-app
 /tmp/demo-app &
 

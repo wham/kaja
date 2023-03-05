@@ -90,6 +90,6 @@ type Field struct {
 	Kind string
 	Type string
 	Serialize string
-	Value string
+	DefaultValue string
 	Enums map[string]string
 }

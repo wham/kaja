@@ -15,5 +15,12 @@ docker run -v /my_app/proto:/app/proto -p 41520:41520 -e BASE_URL="http://localh
 sudo apt-get update && sudo apt-get install -y protobuf-compiler
 brew install protobuf
 script/server
+```
+
+## Testing
+
+```
 go test ./...
 ```
+
+Run `script/server` to regenerate model testdata.proto.

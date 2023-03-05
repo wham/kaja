@@ -20,7 +20,7 @@
          "Kind": "message",
          "Type": "textarea",
          "Serialize": "object",
-         "Value": "{\n  \"key\": \"\"\n}",
+         "DefaultValue": "{\n  \"key\": \"\"\n}",
          "Enums": null
         },
         {
@@ -28,7 +28,7 @@
          "Kind": "message",
          "Type": "textarea",
          "Serialize": "object",
-         "Value": "{\n  \"key\": 0\n}",
+         "DefaultValue": "{\n  \"key\": 0\n}",
          "Enums": null
         },
         {
@@ -36,7 +36,7 @@
          "Kind": "message",
          "Type": "textarea",
          "Serialize": "object",
-         "Value": "{\n  \"0\": \"\"\n}",
+         "DefaultValue": "{\n  \"0\": \"\"\n}",
          "Enums": null
         },
         {
@@ -44,7 +44,7 @@
          "Kind": "message",
          "Type": "textarea",
          "Serialize": "object",
-         "Value": "{\n  \"key\": {\n    \"value\": [\n      \"\"\n    ]\n  }\n}",
+         "DefaultValue": "{\n  \"key\": {\n    \"value\": [\n      \"\"\n    ]\n  }\n}",
          "Enums": null
         }
        ]
@@ -65,7 +65,7 @@
          "Kind": "string",
          "Type": "textarea",
          "Serialize": "array",
-         "Value": "[\n  \"\"\n]",
+         "DefaultValue": "[\n  \"\"\n]",
          "Enums": null
         }
        ]
@@ -80,7 +80,7 @@
          "Kind": "message",
          "Type": "text",
          "Serialize": "text",
-         "Value": "\"google.protobuf.Timestamp\"",
+         "DefaultValue": "google.protobuf.Timestamp",
          "Enums": null
         }
        ]
@@ -106,7 +106,7 @@
          "Kind": "string",
          "Type": "text",
          "Serialize": "text",
-         "Value": "\"\"",
+         "DefaultValue": "",
          "Enums": null
         },
         {
@@ -114,7 +114,7 @@
          "Kind": "int32",
          "Type": "text",
          "Serialize": "text",
-         "Value": "0",
+         "DefaultValue": "0",
          "Enums": null
         },
         {
@@ -122,7 +122,7 @@
          "Kind": "int32",
          "Type": "text",
          "Serialize": "text",
-         "Value": "0",
+         "DefaultValue": "0",
          "Enums": null
         }
        ]
@@ -137,7 +137,7 @@
          "Kind": "message",
          "Type": "textarea",
          "Serialize": "object",
-         "Value": "{\n  \"snippets\": [\n    \"\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
+         "DefaultValue": "{\n  \"snippets\": [\n    \"\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
          "Enums": null
         },
         {
@@ -145,7 +145,7 @@
          "Kind": "enum",
          "Type": "select",
          "Serialize": "int",
-         "Value": "0",
+         "DefaultValue": "0",
          "Enums": {
           "0": "POSITION_TOP",
           "1": "POSITION_BOTTOM"
@@ -156,7 +156,7 @@
          "Kind": "uint64",
          "Type": "text",
          "Serialize": "text",
-         "Value": "0",
+         "DefaultValue": "0",
          "Enums": null
         }
        ]
