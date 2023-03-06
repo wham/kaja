@@ -88,8 +88,8 @@ type Message struct {
 type Field struct {
 	Name string
 	Kind string
-	Type string
-	Serialize string
+	Input Input
+	Parse Parse
 	DefaultValue string
 	Enums map[string]string
 }

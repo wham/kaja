@@ -86,21 +86,21 @@ func main() {
 				continue
 			}
 
-			if field.Serialize == "array" {
+			if field.Parse == model.ArrayParse {
 				var j []interface{}
 				if err := json.Unmarshal([]byte(v), &j); err != nil {
 					c.AbortWithError(500, err)
 				}
 				in[field.Name] = j
-			} else if field.Serialize == "object" {
+			} else if field.Parse == model.ObjectParse {
 				var j map[string]interface{}
 				if err := json.Unmarshal([]byte(v), &j); err != nil {
 					c.AbortWithError(500, err)
 				}
 				in[field.Name] = j
-			} else if field.Serialize == "int" {
+			} else if field.Parse == model.IntParse {
 				in[field.Name], _ = strconv.Atoi(v)
-			} else if field.Serialize == "bool" {
+			} else if field.Parse == model.BoolParse {
 				in[field.Name] = v == "true"
 			} else {
 				in[field.Name] = v

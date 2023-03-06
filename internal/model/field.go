@@ -12,6 +12,45 @@ func FormatTime(Time time.Time) string {
 	return Time.Format("2006-01-02") + "T00:00:00Z"
 }
 
+type Input string
+
+const (
+	CheckboxInput Input = "checkbox"
+	SelectInput Input = "select"
+	TextInput Input = "text"
+	TextareaInput Input = "textarea"
+)
+
+type Parse string
+
+const (
+	ArrayParse Parse = "array"
+	BoolParse Parse = "bool"
+	IntParse Parse = "int"
+	ObjectParse Parse = "object"
+	TextParse Parse = "text"
+)
+
+func GetFormTreatment(field protoreflect.FieldDescriptor) (Input, Parse) {
+	if field.Cardinality() == protoreflect.Repeated && !field.IsMap() {
+		return TextareaInput, ArrayParse
+	}
+
+	if field.Kind() == protoreflect.EnumKind {
+		return SelectInput, IntParse
+	} else if field.Kind() == protoreflect.BoolKind {
+		return CheckboxInput, BoolParse
+	} else if field.Kind() == protoreflect.MessageKind {
+		if field.Message().FullName() == "google.protobuf.Timestamp" {
+			return TextInput, TextParse
+		} else {
+			return TextareaInput, ObjectParse
+		}
+	}
+
+	return TextInput, TextParse
+} 
+
 // GetDefaultValue returns string that is used as a default value in the input field
 // The main goal is provide helpful scaffolding for more complex message types.
 func GetDefaultValue(field protoreflect.FieldDescriptor) string {

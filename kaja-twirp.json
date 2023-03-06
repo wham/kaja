@@ -18,32 +18,32 @@
         {
          "Name": "string_string",
          "Kind": "message",
-         "Type": "textarea",
-         "Serialize": "object",
+         "Input": "textarea",
+         "Parse": "object",
          "DefaultValue": "{\n  \"key\": \"\"\n}",
          "Enums": null
         },
         {
          "Name": "string_int32",
          "Kind": "message",
-         "Type": "textarea",
-         "Serialize": "object",
+         "Input": "textarea",
+         "Parse": "object",
          "DefaultValue": "{\n  \"key\": 0\n}",
          "Enums": null
         },
         {
          "Name": "sint64_string",
          "Kind": "message",
-         "Type": "textarea",
-         "Serialize": "object",
+         "Input": "textarea",
+         "Parse": "object",
          "DefaultValue": "{\n  \"0\": \"\"\n}",
          "Enums": null
         },
         {
          "Name": "string_repeated_string",
          "Kind": "message",
-         "Type": "textarea",
-         "Serialize": "object",
+         "Input": "textarea",
+         "Parse": "object",
          "DefaultValue": "{\n  \"key\": {\n    \"value\": [\n      \"\"\n    ]\n  }\n}",
          "Enums": null
         }
@@ -63,8 +63,8 @@
         {
          "Name": "string",
          "Kind": "string",
-         "Type": "textarea",
-         "Serialize": "array",
+         "Input": "textarea",
+         "Parse": "array",
          "DefaultValue": "[\n  \"\"\n]",
          "Enums": null
         }
@@ -78,16 +78,16 @@
         {
          "Name": "timestamp",
          "Kind": "message",
-         "Type": "text",
-         "Serialize": "text",
+         "Input": "text",
+         "Parse": "text",
          "DefaultValue": "google.protobuf.Timestamp",
          "Enums": null
         },
         {
          "Name": "bool",
          "Kind": "bool",
-         "Type": "checkbox",
-         "Serialize": "bool",
+         "Input": "checkbox",
+         "Parse": "bool",
          "DefaultValue": "",
          "Enums": null
         }
@@ -112,24 +112,24 @@
         {
          "Name": "query",
          "Kind": "string",
-         "Type": "text",
-         "Serialize": "text",
+         "Input": "text",
+         "Parse": "text",
          "DefaultValue": "",
          "Enums": null
         },
         {
          "Name": "page_number",
          "Kind": "int32",
-         "Type": "text",
-         "Serialize": "text",
+         "Input": "text",
+         "Parse": "text",
          "DefaultValue": "0",
          "Enums": null
         },
         {
          "Name": "result_per_page",
          "Kind": "int32",
-         "Type": "text",
-         "Serialize": "text",
+         "Input": "text",
+         "Parse": "text",
          "DefaultValue": "0",
          "Enums": null
         }
@@ -143,16 +143,16 @@
         {
          "Name": "result",
          "Kind": "message",
-         "Type": "textarea",
-         "Serialize": "object",
+         "Input": "textarea",
+         "Parse": "object",
          "DefaultValue": "{\n  \"snippets\": [\n    \"\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
          "Enums": null
         },
         {
          "Name": "position",
          "Kind": "enum",
-         "Type": "select",
-         "Serialize": "int",
+         "Input": "select",
+         "Parse": "int",
          "DefaultValue": "0",
          "Enums": {
           "0": "POSITION_TOP",
@@ -162,8 +162,8 @@
         {
          "Name": "additional_copies",
          "Kind": "uint64",
-         "Type": "text",
-         "Serialize": "text",
+         "Input": "text",
+         "Parse": "text",
          "DefaultValue": "0",
          "Enums": null
         }

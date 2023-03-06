@@ -24,13 +24,13 @@
 								<label for="{{ .Name }}">{{ .Name }}</label>
 							</div>
 							<div class="flex-1">
-								{{ if eq .Type "textarea" }}	
+								{{ if eq .Input "textarea" }}	
 									<div class="form-group-body" style="position: relative; min-height: 39px">
 										<textarea class="form-control" id="{{ .Name }}" name="{{ .Name }}" data-autoresize rows="1" style="resize: none; box-sizing: border-box; height: auto; min-height: 0; width: 100%">{{ index $.form .Name }}</textarea>
 									</div>
-								{{ else if eq .Type "checkbox" }}
+								{{ else if eq .Input "checkbox" }}
 									<input type="checkbox" id="{{ .Name }}" name="{{ .Name }}" value="true"{{ if eq (index $.form .Name) "true" }} checked="checked"{{ end }}  />
-								{{ else if eq .Type "select" }}
+								{{ else if eq .Input "select" }}
 									<select class="form-select" id="{{ .Name }}" name="{{ .Name }}">
 										{{ $cv := index $.form .Name }}
 										{{ range $key, $value := .Enums }}

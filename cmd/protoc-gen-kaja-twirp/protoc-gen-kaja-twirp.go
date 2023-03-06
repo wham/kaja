@@ -140,10 +140,9 @@ func field(in protoreflect.FieldDescriptor) model.Field {
 	}
 
 	out.DefaultValue = model.GetDefaultValue(in)
+	out.Input, out.Parse = model.GetFormTreatment(in)
 
 	if in.Kind() == protoreflect.EnumKind {
-		out.Type = "select"
-		out.Serialize = "int"
 		out.Enums = map[string]string{}
 
 		v := in.Enum().Values()
@@ -152,28 +151,6 @@ func field(in protoreflect.FieldDescriptor) model.Field {
 			k := v.Get(i)
 			out.Enums[strconv.Itoa(int(k.Number()))] = string(k.Name())
 		}
-	} else if in.Kind() == protoreflect.BoolKind {
-		out.Type = "checkbox"
-		out.Serialize = "bool"
-	} else if in.Kind() == protoreflect.MessageKind {
-		if in.Message().FullName() == "google.protobuf.Timestamp" {
-			out.Type = "text"
-			out.Serialize = "text"
-		} else if in.IsMap() {
-			out.Type = "textarea"
-			out.Serialize = "object"
-		} else {
-			out.Type = "textarea"
-			out.Serialize = "object"
-		}
-	} else {
-		out.Type = "text"
-		out.Serialize = "text"
-	}
-
-	if in.Cardinality() == protoreflect.Repeated && !in.IsMap() {
-		out.Type = "textarea"
-		out.Serialize = "array"
 	}
 
 	return out
