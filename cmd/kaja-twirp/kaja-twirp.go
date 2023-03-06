@@ -100,6 +100,8 @@ func main() {
 				in[field.Name] = j
 			} else if field.Serialize == "int" {
 				in[field.Name], _ = strconv.Atoi(v)
+			} else if field.Serialize == "bool" {
+				in[field.Name] = v == "true"
 			} else {
 				in[field.Name] = v
 			}

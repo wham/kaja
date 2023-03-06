@@ -82,6 +82,14 @@
          "Serialize": "text",
          "DefaultValue": "google.protobuf.Timestamp",
          "Enums": null
+        },
+        {
+         "Name": "bool",
+         "Kind": "bool",
+         "Type": "checkbox",
+         "Serialize": "bool",
+         "DefaultValue": "",
+         "Enums": null
         }
        ]
       }

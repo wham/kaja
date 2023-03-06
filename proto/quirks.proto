@@ -28,6 +28,7 @@ message RepeatedRequest {
 
 message TypesRequest {
     google.protobuf.Timestamp timestamp = 1;
+    bool bool = 2;
 }
 
 message Void {

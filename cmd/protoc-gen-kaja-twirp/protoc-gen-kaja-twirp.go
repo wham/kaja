@@ -152,6 +152,9 @@ func field(in protoreflect.FieldDescriptor) model.Field {
 			k := v.Get(i)
 			out.Enums[strconv.Itoa(int(k.Number()))] = string(k.Name())
 		}
+	} else if in.Kind() == protoreflect.BoolKind {
+		out.Type = "checkbox"
+		out.Serialize = "bool"
 	} else if in.Kind() == protoreflect.MessageKind {
 		if in.Message().FullName() == "google.protobuf.Timestamp" {
 			out.Type = "text"
