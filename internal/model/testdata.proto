@@ -12,10 +12,17 @@ message TestMessage1 {
         repeated sint32 ids = 1;
     }
 
+    enum Enum {
+        KEY_0 = 0;
+        KEY_1 = 1;
+    }
+
     string string = 1;
     int32 int32 = 2;
     bool bool = 3;
     repeated string repeated_string = 4;
     NestedMessage1 nested_message = 5;
     google.protobuf.Timestamp timestamp = 6;
+    map<string, sint64> map_string_sint64 = 7;
+    Enum enum = 8;
 }

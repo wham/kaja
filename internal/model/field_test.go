@@ -40,6 +40,14 @@ func TestGetFormTreatment(t *testing.T) {
 	input, parse = GetFormTreatment(fields.ByName("timestamp"))
 	assert.Equal(t, TextInput, input)
 	assert.Equal(t, TextParse, parse)
+
+	input, parse = GetFormTreatment(fields.ByName("map_string_sint64"))
+	assert.Equal(t, TextareaInput, input)
+	assert.Equal(t, ObjectParse, parse)
+
+	input, parse = GetFormTreatment(fields.ByName("enum"))
+	assert.Equal(t, SelectInput, input)
+	assert.Equal(t, IntParse, parse)
 }
 
 func TestGetDefaultValue(t *testing.T) {
@@ -66,4 +74,11 @@ func TestGetDefaultValue(t *testing.T) {
 	assert.Equal(t, expected, GetDefaultValue(fields.ByName("nested_message")))
 
 	assert.Equal(t, "google.protobuf.Timestamp", GetDefaultValue(fields.ByName("timestamp")))
+
+	expected = `{
+  "key": 0
+}`
+	assert.Equal(t, expected, GetDefaultValue(fields.ByName("map_string_sint64")))
+
+	assert.Equal(t, "0", GetDefaultValue(fields.ByName("enum")))	
 }
