@@ -23,7 +23,19 @@ message MapRequest {
 }
 
 message RepeatedRequest {
+    enum Enum {
+        KEY_0 = 0;
+        KEY_1 = 1;
+    }
+
+    message Message {
+        string name = 1;
+    }
+    
     repeated string string = 1;
+    repeated int32 int32 = 2;
+    repeated Enum enum = 3;
+    repeated Message message = 4;
 }
 
 message TypesRequest {

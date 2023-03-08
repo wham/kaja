@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"reflect"
+	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -68,16 +69,19 @@ func GetDefaultValue(field protoreflect.FieldDescriptor) string {
 func getDefaultValue(field protoreflect.FieldDescriptor) any {
 	if field.Cardinality() == protoreflect.Repeated && !field.IsMap() {
 		return []any{
-			getSingleValue(field),
+			getSingleValue(field, 1),
+			getSingleValue(field, 2),
 		}
 	}
 
-	return getSingleValue(field)
+	return getSingleValue(field, 0)
 }
 
-func getSingleValue(field protoreflect.FieldDescriptor) any {
-	if field.Kind() == protoreflect.EnumKind || isNumericKind(field.Kind()) {
+func getSingleValue(field protoreflect.FieldDescriptor, pos int) any {
+	if field.Kind() == protoreflect.EnumKind {
 		return 0
+	} else if isNumericKind(field.Kind()) {
+		return pos
 	} else if field.Kind() == protoreflect.MessageKind {
 		if field.Message().FullName() == "google.protobuf.Timestamp" {
 			// This is replaced with a current date on every page load
@@ -108,8 +112,10 @@ func getSingleValue(field protoreflect.FieldDescriptor) any {
 	
 			return m
 		}
+	} else if field.Kind() == protoreflect.StringKind && pos > 0 {
+		return string(field.Name()) + "_" + strconv.Itoa(pos)
 	}
-
+	
 	return ""
 }
 

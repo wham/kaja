@@ -44,7 +44,7 @@
          "Kind": "message",
          "Input": "textarea",
          "Parse": "object",
-         "DefaultValue": "{\n  \"key\": {\n    \"value\": [\n      \"\"\n    ]\n  }\n}",
+         "DefaultValue": "{\n  \"key\": {\n    \"value\": [\n      \"value_1\",\n      \"value_2\"\n    ]\n  }\n}",
          "Enums": null
         }
        ]
@@ -65,7 +65,34 @@
          "Kind": "string",
          "Input": "textarea",
          "Parse": "array",
-         "DefaultValue": "[\n  \"\"\n]",
+         "DefaultValue": "[\n  \"string_1\",\n  \"string_2\"\n]",
+         "Enums": null
+        },
+        {
+         "Name": "int32",
+         "Kind": "int32",
+         "Input": "textarea",
+         "Parse": "array",
+         "DefaultValue": "[\n  1,\n  2\n]",
+         "Enums": null
+        },
+        {
+         "Name": "enum",
+         "Kind": "enum",
+         "Input": "textarea",
+         "Parse": "array",
+         "DefaultValue": "[\n  0,\n  0\n]",
+         "Enums": {
+          "0": "KEY_0",
+          "1": "KEY_1"
+         }
+        },
+        {
+         "Name": "message",
+         "Kind": "message",
+         "Input": "textarea",
+         "Parse": "array",
+         "DefaultValue": "[\n  {\n    \"name\": \"\"\n  },\n  {\n    \"name\": \"\"\n  }\n]",
          "Enums": null
         }
        ]
@@ -145,7 +172,7 @@
          "Kind": "message",
          "Input": "textarea",
          "Parse": "object",
-         "DefaultValue": "{\n  \"snippets\": [\n    \"\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
+         "DefaultValue": "{\n  \"snippets\": [\n    \"snippets_1\",\n    \"snippets_2\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
          "Enums": null
         },
         {

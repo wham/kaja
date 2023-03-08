@@ -33,6 +33,18 @@ func TestGetFormTreatment(t *testing.T) {
 	assert.Equal(t, TextareaInput, input)
 	assert.Equal(t, ArrayParse, parse)
 
+	input, parse = GetFormTreatment(fields.ByName("repeated_int32"))
+	assert.Equal(t, TextareaInput, input)
+	assert.Equal(t, ArrayParse, parse)
+
+	input, parse = GetFormTreatment(fields.ByName("repeated_enum"))
+	assert.Equal(t, TextareaInput, input)
+	assert.Equal(t, ArrayParse, parse)
+
+	input, parse = GetFormTreatment(fields.ByName("repeated_message"))
+	assert.Equal(t, TextareaInput, input)
+	assert.Equal(t, ArrayParse, parse)
+
 	input, parse = GetFormTreatment(fields.ByName("nested_message"))
 	assert.Equal(t, TextareaInput, input)
 	assert.Equal(t, ObjectParse, parse)
@@ -59,14 +71,38 @@ func TestGetDefaultValue(t *testing.T) {
 	assert.Equal(t, "", GetDefaultValue(fields.ByName("bool")))
 
 	expected := `[
-  ""
+  "repeated_string_1",
+  "repeated_string_2"
 ]`
 	assert.Equal(t, expected, GetDefaultValue(fields.ByName("repeated_string")))
+
+	expected = `[
+  1,
+  2
+]`
+	assert.Equal(t, expected, GetDefaultValue(fields.ByName("repeated_int32")))
+
+	expected = `[
+  0,
+  0
+]`
+	assert.Equal(t, expected, GetDefaultValue(fields.ByName("repeated_enum")))
+
+	expected = `[
+  {
+    "name": ""
+  },
+  {
+    "name": ""
+  }
+]`
+	assert.Equal(t, expected, GetDefaultValue(fields.ByName("repeated_message")))
 
 	expected = `{
   "another_nested_message": {
     "ids": [
-      0
+      1,
+      2
     ]
   },
   "name": ""

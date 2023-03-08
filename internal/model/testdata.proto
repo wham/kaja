@@ -3,6 +3,10 @@ import "google/protobuf/timestamp.proto";
 option go_package = "internal/model";
 
 message TestMessage1 {
+    message Message {
+        string name = 1;
+    }
+    
     message NestedMessage1 {
         string name = 1;
         NestedMessage2 another_nested_message = 2;
@@ -21,8 +25,11 @@ message TestMessage1 {
     int32 int32 = 2;
     bool bool = 3;
     repeated string repeated_string = 4;
-    NestedMessage1 nested_message = 5;
-    google.protobuf.Timestamp timestamp = 6;
-    map<string, sint64> map_string_sint64 = 7;
-    Enum enum = 8;
+    repeated int32 repeated_int32 = 5;
+    repeated Enum repeated_enum = 6;
+    repeated Message repeated_message = 7;
+    NestedMessage1 nested_message = 8;
+    google.protobuf.Timestamp timestamp = 9;
+    map<string, sint64> map_string_sint64 = 10;
+    Enum enum = 11;
 }
