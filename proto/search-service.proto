@@ -21,6 +21,7 @@ message Result {
     string url = 1;
     string title = 2;
     repeated string snippets = 3;
+    bool is_ad = 4;
 }
 
 message IndexRequest {

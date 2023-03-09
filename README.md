@@ -6,7 +6,7 @@ development workflow as a Docker container.
 kaja-twirp is in an early prototype stage.
 
 ```
-docker run -v /my_app/proto:/app/proto -p 41520:41520 -e BASE_URL="http://localhost:8080"
+docker run --pull always --name kaja-twirp -d -p 41520:41520 -v /my_app/proto:/app/proto -e BASE_URL="http://host.docker.internal:8080" --add-host=host.docker.internal:host-gateway lilwham/kaja-twirp:latest
 ```
 
 # Development

@@ -5,6 +5,7 @@ option go_package = "internal/model";
 message TestMessage1 {
     message Message {
         string name = 1;
+        bool is_valid = 2;
     }
     
     message NestedMessage1 {

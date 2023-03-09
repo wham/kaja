@@ -90,9 +90,11 @@ func TestGetDefaultValue(t *testing.T) {
 
 	expected = `[
   {
+    "is_valid": false,
     "name": ""
   },
   {
+    "is_valid": false,
     "name": ""
   }
 ]`

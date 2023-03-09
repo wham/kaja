@@ -55,7 +55,7 @@ func GetFormTreatment(field protoreflect.FieldDescriptor) (Input, Parse) {
 // GetDefaultValue returns string that is used as a default value in the input field
 // The main goal is provide helpful scaffolding for more complex message types.
 func GetDefaultValue(field protoreflect.FieldDescriptor) string {
-	v := getDefaultValue(field)
+	v := getDefaultValue(field, 0)
 
 	// String value indicates scalar field, return as is
 	if reflect.TypeOf(v).String() == "string" {
@@ -66,18 +66,18 @@ func GetDefaultValue(field protoreflect.FieldDescriptor) string {
 	return string(j)
 }
 
-func getDefaultValue(field protoreflect.FieldDescriptor) any {
+func getDefaultValue(field protoreflect.FieldDescriptor, depth int) any {
 	if field.Cardinality() == protoreflect.Repeated && !field.IsMap() {
 		return []any{
-			getSingleValue(field, 1),
-			getSingleValue(field, 2),
+			getSingleValue(field, depth + 1, 1),
+			getSingleValue(field, depth + 1, 2),
 		}
 	}
 
-	return getSingleValue(field, 0)
+	return getSingleValue(field, depth, 0)
 }
 
-func getSingleValue(field protoreflect.FieldDescriptor, pos int) any {
+func getSingleValue(field protoreflect.FieldDescriptor, depth int, pos int) any {
 	if field.Kind() == protoreflect.EnumKind {
 		return 0
 	} else if isNumericKind(field.Kind()) {
@@ -92,13 +92,13 @@ func getSingleValue(field protoreflect.FieldDescriptor, pos int) any {
 
 			if isStringKind(k.Kind()) {
 				return map[string]any{
-					"key": getDefaultValue(v),
+					"key": getDefaultValue(v, depth + 1),
 				}
 			}
 
 			if isNumericKind(k.Kind()) {
 				return map[int]any{
-					0: getDefaultValue(v),
+					0: getDefaultValue(v, depth + 1),
 				}
 			}
 		} else {
@@ -107,13 +107,15 @@ func getSingleValue(field protoreflect.FieldDescriptor, pos int) any {
 	
 			for i := 0; i < message.Fields().Len(); i++ {
 				f := message.Fields().Get(i)
-				m[string(f.Name())] = getDefaultValue(f)
+				m[string(f.Name())] = getDefaultValue(f, depth + 1)
 			}
 	
 			return m
 		}
 	} else if field.Kind() == protoreflect.StringKind && pos > 0 {
 		return string(field.Name()) + "_" + strconv.Itoa(pos)
+	} else if field.Kind() == protoreflect.BoolKind && depth > 0 {
+		return false
 	}
 	
 	return ""

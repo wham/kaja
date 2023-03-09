@@ -172,7 +172,7 @@
          "Kind": "message",
          "Input": "textarea",
          "Parse": "object",
-         "DefaultValue": "{\n  \"snippets\": [\n    \"snippets_1\",\n    \"snippets_2\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
+         "DefaultValue": "{\n  \"is_ad\": false,\n  \"snippets\": [\n    \"snippets_1\",\n    \"snippets_2\"\n  ],\n  \"title\": \"\",\n  \"url\": \"\"\n}",
          "Enums": null
         },
         {
