@@ -57,6 +57,12 @@
       }
      },
      {
+      "Name": "Panic",
+      "Input": {
+       "Fields": []
+      }
+     },
+     {
       "Name": "Repeated",
       "Input": {
        "Fields": [

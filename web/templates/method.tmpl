@@ -53,11 +53,11 @@
 					</nav>
 					<div class="m-2" style="height: 380px; overflow: scroll">
 						<div id="response">
-							{{if .out}} <pre style="background: none; margin: 0; padding: 0"><code class="language-json">{{ .out }}</code></pre> {{end}}
-							{{if .err}} <pre style="color: var(--color-danger-fg)">{{ .err }}</pre> {{end}}
+							{{if .out}} <pre style="background: none; margin: 0; padding: 0; white-space: pre-wrap"><code class="language-json">{{ .out }}</code></pre> {{end}}
+							{{if .err}} <pre style="color: var(--color-danger-fg); white-space: pre-wrap">{{ .err }}</pre> {{end}}
 						</div>
 						<div id="request" style="display: none">
-							{{if .in}} <pre style="background: none; margin: 0; padding: 0"><code class="language-json">{{ .in }}</code></pre> {{end}}
+							{{if .in}} <pre style="background: none; margin: 0; padding: 0; white-space: pre-wrap"><code class="language-json">{{ .in }}</code></pre> {{end}}
 						</div>
 					</div>
 				</div>

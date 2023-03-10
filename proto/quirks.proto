@@ -6,7 +6,8 @@ option go_package = "internal/demo-app";
 
 service Quirks {
     rpc Map(MapRequest) returns(MapRequest);
-    rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(Void) returns(Void);
+    rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(Void) returns(Message);
+    rpc Panic(Void) returns(Message);
     rpc Repeated(RepeatedRequest) returns(RepeatedRequest);
     rpc Types(TypesRequest) returns(TypesRequest);
 }
@@ -22,14 +23,14 @@ message MapRequest {
     map<string, RepeatedString> string_repeated_string = 4;
 }
 
+message Message {
+    string name = 1;
+}
+
 message RepeatedRequest {
     enum Enum {
         KEY_0 = 0;
         KEY_1 = 1;
-    }
-
-    message Message {
-        string name = 1;
     }
     
     repeated string string = 1;
