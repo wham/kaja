@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/twitchtv/twirp"
+	"github.com/wham/kaja-twirp/internal/client"
 	"github.com/wham/kaja-twirp/internal/model"
 )
 
@@ -66,12 +66,10 @@ func main() {
 
 		file, service, method := m.GetMethod(serviceName, methodName)
 
-		baseURL := os.Getenv("BASE_URL")
+		serviceURL := client.GetBaseURL()
 		// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
-		serviceURL := sanitizeBaseURL(baseURL)
 		// serviceURL += baseServicePath("twirp", "meuse.services.v1", serviceName)
 		serviceURL += baseServicePath("twirp", file.Package, serviceName)
-
 
 		c.MultipartForm()
 
@@ -340,19 +338,6 @@ type twerrJSON struct {
 	Code string            `json:"code"`
 	Msg  string            `json:"msg"`
 	Meta map[string]string `json:"meta,omitempty"`
-}
-
-// sanitizeBaseURL parses the the baseURL, and adds the "http" scheme if needed.
-// If the URL is unparsable, the baseURL is returned unchaged.
-func sanitizeBaseURL(baseURL string) string {
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return baseURL // invalid URL will fail later when making requests
-	}
-	if u.Scheme == "" {
-		u.Scheme = "http"
-	}
-	return u.String()
 }
 
 // baseServicePath composes the path prefix for the service (without <Method>).
