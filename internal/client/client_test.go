@@ -43,3 +43,16 @@ func TestGetBaseURL(t *testing.T) {
 	t.Setenv("BASE_URL", "http://host.docker.internal:8080")
 	assert.Equal(t, "http://host.docker.internal:8080", GetBaseURL())
 }
+
+func TestGetHeaders(t *testing.T) {
+	assert.Equal(t, map[string]string{}, GetHeaders())
+
+	t.Setenv("HEADER_1", "Authorization: Bearer secret123")
+	t.Setenv("HEADER_3", "Authorization:Bearer secret456 ")
+	t.Setenv("AUTH_HEADER", "X-Token abc")
+	expected := map[string]string{
+		"Authorization": "Bearer secret456",
+		"X-Token abc": "",
+	}
+	assert.Equal(t, expected, GetHeaders())
+}

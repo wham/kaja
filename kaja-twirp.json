@@ -12,6 +12,12 @@
     "Name": "Quirks",
     "Methods": [
      {
+      "Name": "GetAuthentication",
+      "Input": {
+       "Fields": []
+      }
+     },
+     {
       "Name": "Map",
       "Input": {
        "Fields": [

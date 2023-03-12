@@ -33,6 +33,8 @@ const _ = twirp.TwirpPackageMinVersion_8_1_0
 // ================
 
 type Quirks interface {
+	GetAuthentication(context.Context, *Void) (*Message, error)
+
 	Map(context.Context, *MapRequest) (*MapRequest, error)
 
 	MethodWithAReallyLongNameGmthggupcbmnphflnnvu(context.Context, *Void) (*Message, error)
@@ -50,7 +52,7 @@ type Quirks interface {
 
 type quirksProtobufClient struct {
 	client      HTTPClient
-	urls        [5]string
+	urls        [6]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -78,7 +80,8 @@ func NewQuirksProtobufClient(baseURL string, client HTTPClient, opts ...twirp.Cl
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "quirks.v1", "Quirks")
-	urls := [5]string{
+	urls := [6]string{
+		serviceURL + "GetAuthentication",
 		serviceURL + "Map",
 		serviceURL + "MethodWithAReallyLongNameGmthggupcbmnphflnnvu",
 		serviceURL + "Panic",
@@ -92,6 +95,52 @@ func NewQuirksProtobufClient(baseURL string, client HTTPClient, opts ...twirp.Cl
 		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
 		opts:        clientOpts,
 	}
+}
+
+func (c *quirksProtobufClient) GetAuthentication(ctx context.Context, in *Void) (*Message, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "quirks.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "Quirks")
+	ctx = ctxsetters.WithMethodName(ctx, "GetAuthentication")
+	caller := c.callGetAuthentication
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *Void) (*Message, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return c.callGetAuthentication(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Message)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Message) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *quirksProtobufClient) callGetAuthentication(ctx context.Context, in *Void) (*Message, error) {
+	out := new(Message)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
 }
 
 func (c *quirksProtobufClient) Map(ctx context.Context, in *MapRequest) (*MapRequest, error) {
@@ -125,7 +174,7 @@ func (c *quirksProtobufClient) Map(ctx context.Context, in *MapRequest) (*MapReq
 
 func (c *quirksProtobufClient) callMap(ctx context.Context, in *MapRequest) (*MapRequest, error) {
 	out := new(MapRequest)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -171,7 +220,7 @@ func (c *quirksProtobufClient) MethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx
 
 func (c *quirksProtobufClient) callMethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx context.Context, in *Void) (*Message, error) {
 	out := new(Message)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -217,7 +266,7 @@ func (c *quirksProtobufClient) Panic(ctx context.Context, in *Void) (*Message, e
 
 func (c *quirksProtobufClient) callPanic(ctx context.Context, in *Void) (*Message, error) {
 	out := new(Message)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -263,7 +312,7 @@ func (c *quirksProtobufClient) Repeated(ctx context.Context, in *RepeatedRequest
 
 func (c *quirksProtobufClient) callRepeated(ctx context.Context, in *RepeatedRequest) (*RepeatedRequest, error) {
 	out := new(RepeatedRequest)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -309,7 +358,7 @@ func (c *quirksProtobufClient) Types(ctx context.Context, in *TypesRequest) (*Ty
 
 func (c *quirksProtobufClient) callTypes(ctx context.Context, in *TypesRequest) (*TypesRequest, error) {
 	out := new(TypesRequest)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -330,7 +379,7 @@ func (c *quirksProtobufClient) callTypes(ctx context.Context, in *TypesRequest) 
 
 type quirksJSONClient struct {
 	client      HTTPClient
-	urls        [5]string
+	urls        [6]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -358,7 +407,8 @@ func NewQuirksJSONClient(baseURL string, client HTTPClient, opts ...twirp.Client
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "quirks.v1", "Quirks")
-	urls := [5]string{
+	urls := [6]string{
+		serviceURL + "GetAuthentication",
 		serviceURL + "Map",
 		serviceURL + "MethodWithAReallyLongNameGmthggupcbmnphflnnvu",
 		serviceURL + "Panic",
@@ -372,6 +422,52 @@ func NewQuirksJSONClient(baseURL string, client HTTPClient, opts ...twirp.Client
 		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
 		opts:        clientOpts,
 	}
+}
+
+func (c *quirksJSONClient) GetAuthentication(ctx context.Context, in *Void) (*Message, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "quirks.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "Quirks")
+	ctx = ctxsetters.WithMethodName(ctx, "GetAuthentication")
+	caller := c.callGetAuthentication
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *Void) (*Message, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return c.callGetAuthentication(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Message)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Message) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *quirksJSONClient) callGetAuthentication(ctx context.Context, in *Void) (*Message, error) {
+	out := new(Message)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
 }
 
 func (c *quirksJSONClient) Map(ctx context.Context, in *MapRequest) (*MapRequest, error) {
@@ -405,7 +501,7 @@ func (c *quirksJSONClient) Map(ctx context.Context, in *MapRequest) (*MapRequest
 
 func (c *quirksJSONClient) callMap(ctx context.Context, in *MapRequest) (*MapRequest, error) {
 	out := new(MapRequest)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -451,7 +547,7 @@ func (c *quirksJSONClient) MethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx con
 
 func (c *quirksJSONClient) callMethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx context.Context, in *Void) (*Message, error) {
 	out := new(Message)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -497,7 +593,7 @@ func (c *quirksJSONClient) Panic(ctx context.Context, in *Void) (*Message, error
 
 func (c *quirksJSONClient) callPanic(ctx context.Context, in *Void) (*Message, error) {
 	out := new(Message)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -543,7 +639,7 @@ func (c *quirksJSONClient) Repeated(ctx context.Context, in *RepeatedRequest) (*
 
 func (c *quirksJSONClient) callRepeated(ctx context.Context, in *RepeatedRequest) (*RepeatedRequest, error) {
 	out := new(RepeatedRequest)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -589,7 +685,7 @@ func (c *quirksJSONClient) Types(ctx context.Context, in *TypesRequest) (*TypesR
 
 func (c *quirksJSONClient) callTypes(ctx context.Context, in *TypesRequest) (*TypesRequest, error) {
 	out := new(TypesRequest)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -701,6 +797,9 @@ func (s *quirksServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	switch method {
+	case "GetAuthentication":
+		s.serveGetAuthentication(ctx, resp, req)
+		return
 	case "Map":
 		s.serveMap(ctx, resp, req)
 		return
@@ -721,6 +820,186 @@ func (s *quirksServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
 		return
 	}
+}
+
+func (s *quirksServer) serveGetAuthentication(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveGetAuthenticationJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveGetAuthenticationProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *quirksServer) serveGetAuthenticationJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetAuthentication")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(Void)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Quirks.GetAuthentication
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *Void) (*Message, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return s.Quirks.GetAuthentication(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Message)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Message) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *Message
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Message and nil error while calling GetAuthentication. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *quirksServer) serveGetAuthenticationProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetAuthentication")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(Void)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Quirks.GetAuthentication
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *Void) (*Message, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return s.Quirks.GetAuthentication(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Message)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Message) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *Message
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Message and nil error while calling GetAuthentication. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
 }
 
 func (s *quirksServer) serveMap(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
@@ -2204,42 +2483,43 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 582 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0x61, 0x6f, 0xd3, 0x30,
-	0x10, 0x25, 0x6d, 0xd3, 0x2d, 0xd7, 0xb1, 0x75, 0x66, 0x8c, 0x11, 0x81, 0x36, 0x45, 0x68, 0xec,
-	0xc3, 0x96, 0xb2, 0x14, 0xa1, 0xb1, 0x0f, 0x20, 0x26, 0x55, 0x68, 0x62, 0x45, 0x60, 0x2a, 0x10,
-	0x08, 0xa9, 0x72, 0x57, 0x2f, 0x8d, 0x16, 0x3b, 0x59, 0xe2, 0x54, 0xea, 0xef, 0xe2, 0x0f, 0xec,
-	0xa7, 0xa1, 0x38, 0xc9, 0xea, 0x96, 0xb4, 0xe3, 0x4b, 0xeb, 0xbb, 0x7b, 0xf7, 0xf2, 0xfc, 0xee,
-	0x0c, 0x6b, 0x37, 0x89, 0x17, 0x5d, 0xc7, 0x76, 0x18, 0x05, 0x22, 0x40, 0x46, 0x1e, 0x8d, 0x8f,
-	0xcd, 0x5d, 0x37, 0x08, 0x5c, 0x9f, 0xb6, 0x64, 0x61, 0x90, 0x5c, 0xb5, 0x84, 0xc7, 0x68, 0x2c,
-	0x08, 0x0b, 0x33, 0xac, 0xf5, 0x47, 0x07, 0xe8, 0x92, 0x10, 0xd3, 0x9b, 0x84, 0xc6, 0x02, 0x5d,
-	0xc0, 0xc3, 0x58, 0x44, 0x1e, 0x77, 0xfb, 0xd9, 0xdf, 0x8e, 0xb6, 0x57, 0x3d, 0x68, 0x38, 0x2f,
-	0xed, 0x3b, 0x4a, 0x7b, 0x8a, 0xb6, 0xbf, 0x49, 0x4c, 0xf6, 0xdb, 0xe1, 0x22, 0x9a, 0xe0, 0xb5,
-	0x58, 0x49, 0xa1, 0x73, 0xc8, 0xe3, 0xbe, 0xc7, 0x45, 0xdb, 0xd9, 0xa9, 0x48, 0xb2, 0xfd, 0x65,
-	0x64, 0xe7, 0x29, 0x30, 0xe3, 0x6a, 0xc4, 0xd3, 0x8c, 0x14, 0xe6, 0x71, 0xf1, 0xe6, 0x75, 0x21,
-	0xac, 0xba, 0x54, 0x98, 0x84, 0xce, 0x0a, 0x53, 0x52, 0x88, 0xc2, 0x76, 0x2e, 0x2c, 0xa2, 0x21,
-	0x25, 0x82, 0x0e, 0x0b, 0xda, 0x9a, 0xa4, 0x6d, 0x2d, 0x93, 0x88, 0xf3, 0x16, 0x95, 0x7e, 0x2b,
-	0x2e, 0x29, 0x99, 0xfb, 0xb0, 0x3e, 0x9b, 0x41, 0x5b, 0xa0, 0x8f, 0x89, 0x9f, 0x50, 0xe9, 0xab,
-	0x81, 0xb3, 0xc0, 0x7c, 0x0f, 0x9b, 0xff, 0x58, 0x89, 0x9a, 0x50, 0xbd, 0xa6, 0x93, 0x1d, 0x6d,
-	0x4f, 0x3b, 0x30, 0x70, 0x7a, 0x9c, 0x36, 0x57, 0x64, 0x2e, 0x0b, 0x4e, 0x2b, 0x27, 0x9a, 0xf9,
-	0x0e, 0x9a, 0xf3, 0xf6, 0xdd, 0xd7, 0xaf, 0xab, 0xfd, 0xa9, 0x80, 0x79, 0xcb, 0x54, 0x02, 0x74,
-	0x9f, 0x00, 0x06, 0x4f, 0x17, 0x9a, 0x53, 0xa2, 0xe4, 0x54, 0x25, 0x6a, 0x38, 0x2f, 0xca, 0xed,
-	0x9e, 0xe5, 0x52, 0x3e, 0x67, 0x3d, 0x87, 0x95, 0x2e, 0x8d, 0x63, 0xe2, 0x52, 0x84, 0xa0, 0xc6,
-	0x09, 0xa3, 0x39, 0xbb, 0x3c, 0x5b, 0xb7, 0x1a, 0x6c, 0x14, 0xcd, 0xc5, 0x66, 0x6f, 0x43, 0x5d,
-	0x59, 0x69, 0x03, 0xe7, 0x51, 0x7a, 0xa7, 0xe9, 0x72, 0xea, 0x38, 0x0b, 0x50, 0x1b, 0x6a, 0x94,
-	0x27, 0x4c, 0x6e, 0xd9, 0xba, 0xb3, 0xab, 0xe8, 0x9b, 0xe3, 0xb5, 0x3b, 0x3c, 0x61, 0x58, 0x82,
-	0xd1, 0x21, 0xac, 0xb0, 0x4c, 0x55, 0xbe, 0x46, 0x48, 0xbd, 0x57, 0x56, 0xc1, 0x05, 0xc4, 0x7a,
-	0x06, 0xb5, 0xb4, 0x17, 0x19, 0xa0, 0x7f, 0xea, 0xfc, 0xec, 0xbf, 0x6a, 0x3e, 0x28, 0x8e, 0xc7,
-	0x4d, 0xcd, 0xfa, 0x0d, 0x6b, 0xbd, 0x49, 0x48, 0xe3, 0x42, 0xfe, 0x09, 0x18, 0x77, 0x4f, 0x57,
-	0xde, 0xb5, 0xe1, 0x98, 0x76, 0xf6, 0xb8, 0xed, 0xe2, 0x71, 0xdb, 0xbd, 0x02, 0x81, 0xa7, 0xe0,
-	0xd4, 0xa0, 0x41, 0x10, 0xf8, 0xd2, 0xea, 0x55, 0x2c, 0xcf, 0x56, 0x1d, 0x6a, 0xdf, 0x03, 0x6f,
-	0xe8, 0xdc, 0x56, 0xa0, 0xfe, 0x55, 0x4a, 0x44, 0x6d, 0xa8, 0x76, 0x49, 0x88, 0x1e, 0x97, 0x8e,
-	0xc2, 0x2c, 0x4f, 0xa3, 0x1e, 0x1c, 0x75, 0xa9, 0x18, 0x05, 0xc3, 0x1f, 0x9e, 0x18, 0x7d, 0xc0,
-	0x94, 0xf8, 0xfe, 0xe4, 0x22, 0xe0, 0xee, 0x67, 0xc2, 0xe8, 0x47, 0x26, 0x46, 0xae, 0x9b, 0x84,
-	0x97, 0x03, 0xc6, 0xc3, 0xd1, 0x95, 0xcf, 0xf9, 0x38, 0x41, 0x1b, 0x0a, 0x4f, 0xaa, 0xc0, 0x2c,
-	0xb1, 0x08, 0x1d, 0x82, 0xfe, 0x85, 0x70, 0xef, 0xf2, 0xff, 0xd0, 0x67, 0xb0, 0x5a, 0xcc, 0x04,
-	0x99, 0x8b, 0x07, 0x65, 0x2e, 0xa9, 0xa1, 0xb7, 0xa0, 0x4b, 0xb7, 0xd1, 0x13, 0x05, 0xa4, 0xfa,
-	0x6f, 0x2e, 0x2a, 0x9c, 0x3d, 0xfa, 0xb5, 0xe9, 0x71, 0x41, 0x23, 0x4e, 0xfc, 0xd6, 0x90, 0xb2,
-	0xe0, 0x88, 0x84, 0xe1, 0xa0, 0x2e, 0x47, 0xd2, 0xfe, 0x1b, 0x00, 0x00, 0xff, 0xff, 0xdd, 0x52,
-	0x5f, 0x5f, 0x98, 0x05, 0x00, 0x00,
+	// 603 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0x5f, 0x4f, 0xd3, 0x5e,
+	0x18, 0xfe, 0x75, 0x5b, 0x07, 0x7d, 0xc7, 0x0f, 0xc6, 0x11, 0x71, 0x36, 0x1a, 0x48, 0x63, 0x90,
+	0x0b, 0xe8, 0xa4, 0x33, 0x66, 0x72, 0xa1, 0x81, 0x64, 0x21, 0x44, 0x66, 0xf4, 0xb8, 0x68, 0x34,
+	0x26, 0xcb, 0xd9, 0x76, 0xe8, 0x1a, 0xda, 0xd3, 0xd2, 0x9e, 0x2e, 0xd9, 0xe7, 0xf2, 0x0b, 0xf8,
+	0xb9, 0xbc, 0x32, 0x3d, 0x6d, 0xd9, 0xd9, 0xec, 0x06, 0x37, 0xdb, 0xfb, 0xe7, 0x79, 0x9f, 0x3e,
+	0xef, 0x9f, 0x03, 0x1b, 0xb7, 0xb1, 0x13, 0xde, 0x44, 0x66, 0x10, 0xfa, 0xdc, 0x47, 0x5a, 0xe6,
+	0x4d, 0x4e, 0xf4, 0x3d, 0xdb, 0xf7, 0x6d, 0x97, 0x36, 0x45, 0x62, 0x10, 0x5f, 0x37, 0xb9, 0xe3,
+	0xd1, 0x88, 0x13, 0x2f, 0x48, 0xb1, 0xc6, 0x2f, 0x15, 0xa0, 0x4b, 0x02, 0x4c, 0x6f, 0x63, 0x1a,
+	0x71, 0x74, 0x05, 0xff, 0x47, 0x3c, 0x74, 0x98, 0xdd, 0x4f, 0xff, 0x1a, 0xca, 0x7e, 0xf9, 0xb0,
+	0x66, 0xbd, 0x34, 0xef, 0x28, 0xcd, 0x19, 0xda, 0xfc, 0x22, 0x30, 0xe9, 0x6f, 0x87, 0xf1, 0x70,
+	0x8a, 0x37, 0x22, 0x29, 0x84, 0x2e, 0x21, 0xf3, 0xfb, 0x0e, 0xe3, 0x2d, 0xab, 0x51, 0x12, 0x64,
+	0x07, 0xab, 0xc8, 0x2e, 0x13, 0x60, 0xca, 0x55, 0x8b, 0x66, 0x11, 0x21, 0xcc, 0x61, 0xfc, 0xcd,
+	0xeb, 0x5c, 0x58, 0x79, 0xa5, 0x30, 0x01, 0x9d, 0x17, 0x26, 0x85, 0x10, 0x85, 0xdd, 0x4c, 0x58,
+	0x48, 0x03, 0x4a, 0x38, 0x1d, 0xe5, 0xb4, 0x15, 0x41, 0xdb, 0x5c, 0x25, 0x11, 0x67, 0x25, 0x32,
+	0xfd, 0x4e, 0x54, 0x90, 0xd2, 0x0f, 0x60, 0x73, 0x3e, 0x82, 0x76, 0x40, 0x9d, 0x10, 0x37, 0xa6,
+	0x62, 0xae, 0x1a, 0x4e, 0x1d, 0xfd, 0x3d, 0x6c, 0xff, 0x33, 0x4a, 0x54, 0x87, 0xf2, 0x0d, 0x9d,
+	0x36, 0x94, 0x7d, 0xe5, 0x50, 0xc3, 0x89, 0x39, 0x2b, 0x2e, 0x89, 0x58, 0xea, 0x9c, 0x96, 0xda,
+	0x8a, 0xfe, 0x0e, 0xea, 0x8b, 0xe3, 0xbb, 0xaf, 0x5e, 0x95, 0xeb, 0x13, 0x01, 0x8b, 0x23, 0x93,
+	0x09, 0xd0, 0x7d, 0x02, 0x3c, 0x78, 0xba, 0x74, 0x38, 0x05, 0x4a, 0x4e, 0x65, 0xa2, 0x9a, 0xf5,
+	0xa2, 0x78, 0xdc, 0xf3, 0x5c, 0xd2, 0xe7, 0x8c, 0xe7, 0xb0, 0xd6, 0xa5, 0x51, 0x44, 0x6c, 0x8a,
+	0x10, 0x54, 0x18, 0xf1, 0x68, 0xc6, 0x2e, 0x6c, 0xe3, 0xb7, 0x02, 0x5b, 0x79, 0x71, 0x7e, 0xd9,
+	0xbb, 0x50, 0x95, 0x4e, 0x5a, 0xc3, 0x99, 0x97, 0xf4, 0x34, 0x3b, 0x4e, 0x15, 0xa7, 0x0e, 0x6a,
+	0x41, 0x85, 0xb2, 0xd8, 0x13, 0x57, 0xb6, 0x69, 0xed, 0x49, 0xfa, 0x16, 0x78, 0xcd, 0x0e, 0x8b,
+	0x3d, 0x2c, 0xc0, 0xe8, 0x08, 0xd6, 0xbc, 0x54, 0x55, 0x76, 0x46, 0x48, 0xee, 0x2b, 0xcd, 0xe0,
+	0x1c, 0x62, 0x3c, 0x83, 0x4a, 0x52, 0x8b, 0x34, 0x50, 0x3f, 0x74, 0xbe, 0xf7, 0x5f, 0xd5, 0xff,
+	0xcb, 0xcd, 0x93, 0xba, 0x62, 0xfc, 0x84, 0x8d, 0xde, 0x34, 0xa0, 0x51, 0x2e, 0xbf, 0x0d, 0xda,
+	0xdd, 0xd3, 0x15, 0xbd, 0xd6, 0x2c, 0xdd, 0x4c, 0x1f, 0xb7, 0x99, 0x3f, 0x6e, 0xb3, 0x97, 0x23,
+	0xf0, 0x0c, 0x9c, 0x0c, 0x68, 0xe0, 0xfb, 0xae, 0x18, 0xf5, 0x3a, 0x16, 0xb6, 0x51, 0x85, 0xca,
+	0x57, 0xdf, 0x19, 0x59, 0x7f, 0x4a, 0x50, 0xfd, 0x2c, 0x24, 0xa2, 0x36, 0x6c, 0x5f, 0x50, 0x7e,
+	0x16, 0xf3, 0x31, 0x65, 0xdc, 0x19, 0x12, 0xee, 0xf8, 0x0c, 0x6d, 0x49, 0x0d, 0x24, 0x05, 0x7a,
+	0x41, 0x47, 0xa8, 0x05, 0xe5, 0x2e, 0x09, 0xd0, 0xe3, 0xc2, 0x25, 0xea, 0xc5, 0x61, 0xd4, 0x83,
+	0xe3, 0x2e, 0xe5, 0x63, 0x7f, 0xf4, 0xcd, 0xe1, 0xe3, 0x33, 0x4c, 0x89, 0xeb, 0x4e, 0xaf, 0x7c,
+	0x66, 0x7f, 0x24, 0x1e, 0xbd, 0xf0, 0xf8, 0xd8, 0xb6, 0xe3, 0x60, 0x38, 0xf0, 0x58, 0x30, 0xbe,
+	0x76, 0x19, 0x9b, 0xc4, 0x0f, 0x93, 0x72, 0x04, 0xea, 0x27, 0xc2, 0x9c, 0xe1, 0xc3, 0xd0, 0xe7,
+	0xb0, 0x9e, 0x6f, 0x13, 0xe9, 0xcb, 0x57, 0xac, 0xaf, 0xc8, 0xa1, 0xb7, 0xa0, 0x8a, 0x3d, 0xa1,
+	0x27, 0x12, 0x48, 0xde, 0x9c, 0xbe, 0x2c, 0x71, 0xfe, 0xe8, 0xc7, 0xb6, 0xc3, 0x38, 0x0d, 0x19,
+	0x71, 0x9b, 0x23, 0xea, 0xf9, 0xc7, 0x24, 0x08, 0x06, 0x55, 0xb1, 0xcc, 0xd6, 0xdf, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0x0a, 0xef, 0xc8, 0xea, 0xd2, 0x05, 0x00, 0x00,
 }

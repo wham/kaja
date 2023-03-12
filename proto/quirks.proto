@@ -5,6 +5,7 @@ import "google/protobuf/timestamp.proto";
 option go_package = "internal/demo-app";
 
 service Quirks {
+    rpc GetAuthentication(Void) returns(Message);
     rpc Map(MapRequest) returns(MapRequest);
     rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(Void) returns(Message);
     rpc Panic(Void) returns(Message);

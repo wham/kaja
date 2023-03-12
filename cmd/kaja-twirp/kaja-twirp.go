@@ -8,10 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -212,10 +210,8 @@ func newRequest(ctx context.Context, url string, reqBody io.Reader, contentType 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Twirp-Version", "v8.1.1")
 
-	ah := os.Getenv("AUTH_HEADER")
-
-	if ah != "" {
-		req.Header.Set(strings.Split(ah, ":")[0], strings.Split(ah, ":")[1])
+	for name, value := range client.GetHeaders() {
+		req.Header.Set(name, value)
 	}
 
 	return req, nil

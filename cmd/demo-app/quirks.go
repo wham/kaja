@@ -9,6 +9,12 @@ import (
 
 type QuirksServer struct{}
 
+func (s *QuirksServer) GetAuthentication(ctx context.Context, req *pb.Void) (*pb.Message, error) {
+	return &pb.Message{
+		Name: ctx.Value("authentication").(string),
+	}, nil
+}
+
 func (s *QuirksServer) Map(ctx context.Context, req *pb.MapRequest) (*pb.MapRequest, error) {
 	return req, nil
 }
