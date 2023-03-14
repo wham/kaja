@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"path"
 	"strconv"
 	"time"
 
@@ -64,10 +63,8 @@ func main() {
 
 		file, service, method := m.GetMethod(serviceName, methodName)
 
-		serviceURL := client.GetBaseURL()
-		// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
-		// serviceURL += baseServicePath("twirp", "meuse.services.v1", serviceName)
-		serviceURL += baseServicePath("twirp", file.Package, serviceName)
+		baseURL := client.GetBaseURL()
+		methodURL := client.GetMethodURL(baseURL, file.Package, serviceName, methodName)
 
 		c.MultipartForm()
 
@@ -105,12 +102,12 @@ func main() {
 
 		var out map[string]interface{}
 
-		err := doJSONRequest(context.Background(), &http.Client{}, twirp.ClientOptions{}.Hooks, serviceURL+methodName, in, &out)
+		err := doJSONRequest(context.Background(), &http.Client{}, twirp.ClientOptions{}.Hooks, methodURL, in, &out)
 
 		res, _ := json.MarshalIndent(out, "", "  ");
 		req, _ := json.MarshalIndent(in, "", "  ");
 
-		dump := serviceURL + "\n\n" + string(req)
+		dump := "POST " + methodURL + "\n\n" + string(req)
 
 		c.HTML(http.StatusOK, "method.tmpl", gin.H{
 			"files": m.Files,
@@ -334,20 +331,4 @@ type twerrJSON struct {
 	Code string            `json:"code"`
 	Msg  string            `json:"msg"`
 	Meta map[string]string `json:"meta,omitempty"`
-}
-
-// baseServicePath composes the path prefix for the service (without <Method>).
-// e.g.: baseServicePath("/twirp", "my.pkg", "MyService")
-//
-//	returns => "/twirp/my.pkg.MyService/"
-//
-// e.g.: baseServicePath("", "", "MyService")
-//
-//	returns => "/MyService/"
-func baseServicePath(prefix, pkg, service string) string {
-	fullServiceName := service
-	if pkg != "" {
-		fullServiceName = pkg + "." + service
-	}
-	return path.Join("/", prefix, fullServiceName) + "/"
 }

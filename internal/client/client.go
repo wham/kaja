@@ -4,12 +4,24 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 )
 
 func GetBaseURL() string {
 	baseURL := os.Getenv("BASE_URL")	
 	return sanitizeBaseURL(baseURL)
+}
+
+func GetMethodURL(baseURL string, pkg string, service string, method string) string {
+	prefix := "twirp"
+
+	fullServiceName := service
+	if pkg != "" {
+		fullServiceName = pkg + "." + service
+	}
+
+	return strings.TrimRight(baseURL, "/") + path.Join("/", prefix, fullServiceName, method)
 }
 
 func GetHeaders() map[string]string {

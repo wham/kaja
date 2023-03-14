@@ -44,6 +44,15 @@ func TestGetBaseURL(t *testing.T) {
 	assert.Equal(t, "http://host.docker.internal:8080", GetBaseURL())
 }
 
+func TestGetMethodURL(t *testing.T) {
+	assert.Equal(t, "https://localhost/twirp/Search/Index", GetMethodURL("https://localhost", "", "Search", "Index"))
+	assert.Equal(t, "https://localhost/twirp/Search/Index", GetMethodURL("https://localhost/", "", "Search", "Index"))
+	assert.Equal(t, "https://localhost:8080/twirp/Search/Index", GetMethodURL("https://localhost:8080/", "", "Search", "Index"))
+	assert.Equal(t, "https://localhost:8080/twirp/v1.Search/Index", GetMethodURL("https://localhost:8080/", "v1", "Search", "Index"))
+	assert.Equal(t, "https://localhost:8080/twirp", GetMethodURL("https://localhost:8080/", "", "", ""))
+	assert.Equal(t, "https://localhost:8080/twirp", GetMethodURL("https://localhost:8080/", "", "/", ""))
+}
+
 func TestGetHeaders(t *testing.T) {
 	assert.Equal(t, map[string]string{}, GetHeaders())
 
