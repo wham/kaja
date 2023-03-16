@@ -1,20 +1,5 @@
 package model
 
-import (
-	"encoding/json"
-	"io/ioutil"
-)
-
-func LoadModel() Model {
-	var files []File
-	content, _ := ioutil.ReadFile("kaja-twirp.json")
-	json.Unmarshal(content, &files)
-
-	return Model{
-		Files: files,
-	}
-}
-
 type Model struct {
 	Files []File
 }
