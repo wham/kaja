@@ -68,12 +68,12 @@
 			<div class="flex-order-1" style="background-color: var(--color-canvas-subtle); overflow: scroll">
 				{{ range .files }}
 					{{ range .Services }}
-						<aside class="color-bg-subtle border p-3 border-0" style="width: 320px">
-							<h5 class="color-fg-muted mb-2 pb-1 border-bottom">{{ .Name }}</h5>
+						<aside class="color-bg-subtle border px-2 py-1 border-0" style="width: 320px">
+							<h5 class="color-fg-muted mb-1 pb-1 border-bottom">{{ .Name }}</h5>
 							{{ $service := . }}
 							<nav class="SideNav">
 								{{ range .Methods }}
-									<a class="SideNav-subItem" {{ if and (eq $service.Name $.service.Name) (eq .Name $.method.Name) }}aria-current="page" {{ end }} style="overflow: hidden; text-overflow: ellipsis" href="/services/{{ $service.Name }}/{{ .Name }}">{{ .Name }}</a>
+									<a class="SideNav-subItem pt-0 pb-1" {{ if and (eq $service.Name $.service.Name) (eq .Name $.method.Name) }}aria-current="page" {{ end }} style="overflow: hidden; text-overflow: ellipsis" href="/services/{{ $service.Name }}/{{ .Name }}">{{ .Name }}</a>
 								{{ end }}
 							</nav>
 						</aside>
