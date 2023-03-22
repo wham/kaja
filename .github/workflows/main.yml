@@ -35,4 +35,4 @@ jobs:
           context: .
           push: true
           tags: |
-            lilwham/kaja-twirp:latest
+            kajatools/kaja-twirp:latest
