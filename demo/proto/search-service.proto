@@ -1,0 +1,36 @@
+syntax = "proto3";
+import "proto/lib/enum.proto";
+
+option go_package = "internal/demo-app";
+
+service SearchService {
+    rpc Search(SearchRequest) returns (SearchResponse);
+    rpc Index(IndexRequest) returns (IndexResponse);
+}
+
+message SearchRequest {
+    string query = 1;
+    int32 page_number = 2;
+    int32 result_per_page = 3;
+}
+
+message SearchResponse {
+    repeated Result results = 1;
+}
+
+message Result {
+    string url = 1;
+    string title = 2;
+    repeated string snippets = 3;
+    bool is_ad = 4;
+}
+
+message IndexRequest {
+    Result result = 1;
+    lib.Position position = 2;
+    uint64 additional_copies = 3;
+}
+
+message IndexResponse {
+    Result result = 1;
+}

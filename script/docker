@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+NC='\033[0m' # No Color
+
+cd "$(dirname "$0")/../demo"
+
+# Kill background demo-app when the script exits
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
+export GOBIN=$PWD/bin
+export PATH=$GOBIN:$PATH
+
+go build -o /tmp/demo-app ./cmd/demo-app
+/tmp/demo-app &
+
+# Stop and remove the container if it already exists
+docker rm -f kaja-twirp-dev &> /dev/null || true
+
+cd ".."
+
+docker build . -t kaja-twirp-dev:latest
+
+mkfifo pipe
+
+docker run --name kaja-twirp-dev -a STDOUT -p 41520:41520 \
+    -v $PWD/demo:/workspace \
+    -e BASE_URL="http://host.docker.internal:41521" --add-host=host.docker.internal:host-gateway kaja-twirp-dev:latest > pipe &
+
+while IFS= read -r line
+do
+  echo "$line"
+  if [[ "$line" == *"Server is listening on port"* ]]; then
+    break
+  fi
+done < pipe
+
+rm pipe
+
+# Open kaja-twirp in a default web browser
+echo -e "${GREEN}Opening kaja-twirp URL http://localhost:41520/ in your default web browser${NC}"
+python3 -m webbrowser http://localhost:41520/
+
+cat

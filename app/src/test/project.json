@@ -1,0 +1,173 @@
+{
+  "services": [
+    {
+      "name": "Quirks",
+      "methods": [
+        {
+          "name": "GetAuthentication",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.GetAuthentication({});\n"
+        },
+        {
+          "name": "Map",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.Map({ stringString: { key: \"\" }, stringInt32: { key: 0 }, sint64String: { 0: \"\" }, stringRepeatedString: { key: { value: [\"\"] } } });\n"
+        },
+        {
+          "name": "MethodWithAReallyLongNameGmthggupcbmnphflnnvu",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.MethodWithAReallyLongNameGmthggupcbmnphflnnvu({});\n"
+        },
+        {
+          "name": "Panic",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.Panic({});\n"
+        },
+        {
+          "name": "Repeated",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.Repeated({ string: [\"\"], int32: [0], enum: [Enum.KEY_0], message: [{ name: \"\" }] });\n"
+        },
+        {
+          "name": "Types",
+          "editorCode": "import { Quirks, TypesRequest_NestedEnum, Enum } from \"protoc/quirks\";\n\nQuirks.Types({ timestamp: { seconds: 0n, nanos: 0 }, bool: true, enum: Enum.KEY_0, nestedEnum: TypesRequest_NestedEnum.KEY_0, position: Position.TOP });\n"
+        }
+      ]
+    },
+    {
+      "name": "SearchService",
+      "methods": [
+        {
+          "name": "Search",
+          "editorCode": "import { SearchService } from \"protoc/search-service\";\n\nSearchService.Search({ query: \"\", pageNumber: 0, resultPerPage: 0 });\n"
+        },
+        {
+          "name": "Index",
+          "editorCode": "import { SearchService } from \"protoc/search-service\";\n\nSearchService.Index({ result: { url: \"\", title: \"\", snippets: [\"\"], isAd: true }, position: Position.TOP, additionalCopies: 0n });\n"
+        }
+      ]
+    },
+    {
+      "name": "XXLMethods",
+      "methods": [
+        {
+          "name": "Method1",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method1({});\n"
+        },
+        {
+          "name": "Method2",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method2({});\n"
+        },
+        {
+          "name": "Method3",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method3({});\n"
+        },
+        {
+          "name": "Method4",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method4({});\n"
+        },
+        {
+          "name": "Method5",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method5({});\n"
+        },
+        {
+          "name": "Method6",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method6({});\n"
+        },
+        {
+          "name": "Method7",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method7({});\n"
+        },
+        {
+          "name": "Method8",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method8({});\n"
+        },
+        {
+          "name": "Method9",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method9({});\n"
+        },
+        {
+          "name": "Method10",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method10({});\n"
+        },
+        {
+          "name": "Method11",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method11({});\n"
+        },
+        {
+          "name": "Method12",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method12({});\n"
+        },
+        {
+          "name": "Method13",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method13({});\n"
+        },
+        {
+          "name": "Method14",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method14({});\n"
+        },
+        {
+          "name": "Method15",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method15({});\n"
+        },
+        {
+          "name": "Method16",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method16({});\n"
+        },
+        {
+          "name": "Method17",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method17({});\n"
+        },
+        {
+          "name": "Method18",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method18({});\n"
+        },
+        {
+          "name": "Method19",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method19({});\n"
+        },
+        {
+          "name": "Method20",
+          "editorCode": "import { XXLMethods } from \"protoc/xxl-methods\";\n\nXXLMethods.Method20({});\n"
+        }
+      ]
+    }
+  ],
+  "extraLibs": [
+    {
+      "filePath": "protoc/google/protobuf/timestamp.ts",
+      "content": "declare module \"protoc/google/protobuf/timestamp\" {\n    export interface Timestamp {\n        seconds: bigint;\n        nanos: number;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/lib/enum.ts",
+      "content": "declare module \"protoc/lib/enum\" {\n    enum Position {\n        TOP = 0,\n        BOTTOM = 1\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/lib/message.ts",
+      "content": "declare module \"protoc/lib/message\" {\n    export interface Message {\n        name: string;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/quirks.client.ts",
+      "content": "declare module \"protoc/quirks.client\" {\n    export interface IQuirksClient {\n        getAuthentication(input: Void, options?: RpcOptions): UnaryCall<Void, Message>;\n        map(input: MapRequest, options?: RpcOptions): UnaryCall<MapRequest, MapRequest>;\n        methodWithAReallyLongNameGmthggupcbmnphflnnvu(input: Void, options?: RpcOptions): UnaryCall<Void, Message>;\n        panic(input: Void, options?: RpcOptions): UnaryCall<Void, Message>;\n        repeated(input: RepeatedRequest, options?: RpcOptions): UnaryCall<RepeatedRequest, RepeatedRequest>;\n        types(input: TypesRequest, options?: RpcOptions): UnaryCall<TypesRequest, TypesRequest>;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/quirks.ts",
+      "content": "declare module \"protoc/quirks\" {\n    export const Quirks = { GetAuthentication: async (input: Void) => { }, Map: async (input: MapRequest) => { }, MethodWithAReallyLongNameGmthggupcbmnphflnnvu: async (input: Void) => { }, Panic: async (input: Void) => { }, Repeated: async (input: RepeatedRequest) => { }, Types: async (input: TypesRequest) => { } };\n    export interface MapRequest {\n        stringString: {\n            [key: string]: string;\n        };\n        stringInt32: {\n            [key: string]: number;\n        };\n        sint64String: {\n            [key: string]: string;\n        };\n        stringRepeatedString: {\n            [key: string]: MapRequest_RepeatedString;\n        };\n    }\n    export interface MapRequest_RepeatedString {\n        value: string[];\n    }\n    export interface RepeatedRequest {\n        string: string[];\n        int32: number[];\n        enum: Enum[];\n        message: Message[];\n    }\n    export interface TypesRequest {\n        timestamp?: Timestamp;\n        bool: boolean;\n        enum: Enum;\n        nestedEnum: TypesRequest_NestedEnum;\n        position: Position;\n    }\n    export interface Void {\n    }\n    enum TypesRequest_NestedEnum {\n        KEY_0 = 0,\n        KEY_1 = 1\n    }\n    enum Enum {\n        KEY_0 = 0,\n        KEY_1 = 1\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/search-service.client.ts",
+      "content": "declare module \"protoc/search-service.client\" {\n    export interface ISearchServiceClient {\n        search(input: SearchRequest, options?: RpcOptions): UnaryCall<SearchRequest, SearchResponse>;\n        index(input: IndexRequest, options?: RpcOptions): UnaryCall<IndexRequest, IndexResponse>;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/search-service.ts",
+      "content": "declare module \"protoc/search-service\" {\n    export const SearchService = { Search: async (input: SearchRequest) => { }, Index: async (input: IndexRequest) => { } };\n    export interface SearchRequest {\n        query: string;\n        pageNumber: number;\n        resultPerPage: number;\n    }\n    export interface SearchResponse {\n        results: Result[];\n    }\n    export interface Result {\n        url: string;\n        title: string;\n        snippets: string[];\n        isAd: boolean;\n    }\n    export interface IndexRequest {\n        result?: Result;\n        position: Position;\n        additionalCopies: bigint;\n    }\n    export interface IndexResponse {\n        result?: Result;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/xxl-methods.client.ts",
+      "content": "declare module \"protoc/xxl-methods.client\" {\n    export interface IXXLMethodsClient {\n        method1(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method2(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method3(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method4(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method5(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method6(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method7(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method8(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method9(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method10(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method11(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method12(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method13(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method14(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method15(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method16(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method17(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method18(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method19(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n        method20(input: Request, options?: RpcOptions): UnaryCall<Request, Response>;\n    }\n}\n"
+    },
+    {
+      "filePath": "protoc/xxl-methods.ts",
+      "content": "declare module \"protoc/xxl-methods\" {\n    export const XXLMethods = { Method1: async (input: Request) => { }, Method2: async (input: Request) => { }, Method3: async (input: Request) => { }, Method4: async (input: Request) => { }, Method5: async (input: Request) => { }, Method6: async (input: Request) => { }, Method7: async (input: Request) => { }, Method8: async (input: Request) => { }, Method9: async (input: Request) => { }, Method10: async (input: Request) => { }, Method11: async (input: Request) => { }, Method12: async (input: Request) => { }, Method13: async (input: Request) => { }, Method14: async (input: Request) => { }, Method15: async (input: Request) => { }, Method16: async (input: Request) => { }, Method17: async (input: Request) => { }, Method18: async (input: Request) => { }, Method19: async (input: Request) => { }, Method20: async (input: Request) => { } };\n    export interface Request {\n    }\n    export interface Response {\n    }\n}\n"
+    },
+    {
+      "filePath": "global-imports",
+      "content": "import { Quirks as QuirksX } from \"protoc/quirks\";\nimport { SearchService as SearchServiceX } from \"protoc/search-service\";\nimport { XXLMethods as XXLMethodsX } from \"protoc/xxl-methods\";\nconst Quirks = QuirksX;\nconst SearchService = SearchServiceX;\nconst XXLMethods = XXLMethodsX;\n"
+    }
+  ]
+}

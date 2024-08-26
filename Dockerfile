@@ -1,20 +1,18 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:alpine as builder
-WORKDIR /workspace
-COPY . .
-RUN go mod download
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o protoc-gen-kaja-twirp ./cmd/protoc-gen-kaja-twirp/protoc-gen-kaja-twirp.go
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o kaja-twirp ./cmd/kaja-twirp/kaja-twirp.go
-
-FROM alpine AS runner
+FROM alpine:latest as builder
+COPY app app
+RUN apk add --update nodejs npm
 WORKDIR /app
-COPY --from=builder /workspace/protoc-gen-kaja-twirp .
-COPY --from=builder /workspace/kaja-twirp .
-COPY --from=builder /workspace/script/ ./script
-COPY --from=builder /workspace/web/ ./web
-RUN apk update && apk add --no-cache make protobuf-dev
+RUN npm ci --omit=dev
+RUN npm run clean-modules
+# Both use the same version of typescript but npm can't dedupe them. Patch here with a symlink instead. Saves 50MB of space.
+RUN rm -rf /app/node_modules/@protobuf-ts/plugin-framework/node_modules/typescript
+RUN ln -sf /app/node_modules/@protobuf-ts/plugin/node_modules/typescript /app/node_modules/@protobuf-ts/plugin-framework/node_modules
 
+FROM alpine:latest as runner
+COPY --from=builder /app /app
+RUN apk add --update nodejs npm
+WORKDIR /app
 EXPOSE 41520
-
-CMD [ "./script/run" ]
+CMD ["npm", "start"]

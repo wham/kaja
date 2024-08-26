@@ -1,0 +1,56 @@
+syntax = "proto3";
+package quirks.v1;
+import "google/protobuf/timestamp.proto";
+import "proto/lib/enum.proto";
+import "proto/lib/message.proto";
+
+option go_package = "internal/demo-app";
+
+service Quirks {
+    rpc GetAuthentication(Void) returns(lib.Message);
+    rpc Map(MapRequest) returns(MapRequest);
+    rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(Void) returns(lib.Message);
+    rpc Panic(Void) returns(lib.Message);
+    rpc Repeated(RepeatedRequest) returns(RepeatedRequest);
+    rpc Types(TypesRequest) returns(TypesRequest);
+}
+
+message MapRequest {
+    message RepeatedString {
+        repeated string value = 1;
+    }
+
+    map<string, string> string_string = 1;
+    map<string, int32> string_int32 = 2;
+    map<sint64, string> sint64_string = 3;
+    map<string, RepeatedString> string_repeated_string = 4;
+}
+
+enum Enum {
+    KEY_0 = 0;
+    KEY_1 = 1;
+}
+
+message RepeatedRequest {    
+    repeated string string = 1;
+    repeated int32 int32 = 2;
+    repeated Enum enum = 3;
+    repeated lib.Message message = 4;
+}
+
+message TypesRequest {
+    enum NestedEnum {
+        KEY_0 = 0;
+        KEY_1 = 1;
+    }
+    
+    google.protobuf.Timestamp timestamp = 1;
+    bool bool = 2;
+    Enum enum = 3;
+    NestedEnum nested_enum = 4;
+    lib.Position position = 5;
+}
+
+message Void {
+
+}

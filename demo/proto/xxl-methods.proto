@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option go_package = "internal/demo-app";
+
+service XXLMethods {
+  rpc Method1(Request) returns (Response) {}
+  rpc Method2(Request) returns (Response) {}
+  rpc Method3(Request) returns (Response) {}
+  rpc Method4(Request) returns (Response) {}
+  rpc Method5(Request) returns (Response) {}
+  rpc Method6(Request) returns (Response) {}
+  rpc Method7(Request) returns (Response) {}
+  rpc Method8(Request) returns (Response) {}
+  rpc Method9(Request) returns (Response) {}
+  rpc Method10(Request) returns (Response) {}
+  rpc Method11(Request) returns (Response) {}
+  rpc Method12(Request) returns (Response) {}
+  rpc Method13(Request) returns (Response) {}
+  rpc Method14(Request) returns (Response) {}
+  rpc Method15(Request) returns (Response) {}
+  rpc Method16(Request) returns (Response) {}
+  rpc Method17(Request) returns (Response) {}
+  rpc Method18(Request) returns (Response) {}
+  rpc Method19(Request) returns (Response) {}
+  rpc Method20(Request) returns (Response) {}
+}
+
+message Request {
+}
+
+message Response {
+}

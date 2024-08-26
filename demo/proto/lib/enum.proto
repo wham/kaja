@@ -1,0 +1,9 @@
+syntax = "proto3";
+package lib;
+
+option go_package = "internal/demo-app";
+
+enum Position {
+  TOP = 0;
+  BOTTOM = 1;  
+}

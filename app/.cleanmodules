@@ -1,0 +1,10 @@
+# Empty folder used to install protoc. If removed, the installation fails.
+!@protobuf-ts/protoc/installed/
+
+#
+monaco-editor/dev/*
+monaco-editor/min/*
+monaco-editor/min-maps/*
+
+typescript/lib/*/
+typescript/loc/*
