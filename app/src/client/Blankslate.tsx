@@ -3,6 +3,7 @@ import { Blankslate as PrimerBlankslate } from "@primer/react/drafts";
 import { useEffect, useRef, useState } from "react";
 import { BootstrapStatus, Log } from "../shared/api";
 import { getApiClient } from "./api";
+import { Console } from "./Console";
 
 interface IgnoreToken {
   ignore: boolean;
@@ -44,9 +45,7 @@ export function Blankslate() {
   return (
     <Box sx={{ flexGrow: 1 }}>
       <PrimerBlankslate>
-        <pre>
-          <code style={{ whiteSpace: "pre-wrap" }}>{logs.map((log) => log.message).join("\n")}</code>
-        </pre>
+        <Console logs={logs} />
       </PrimerBlankslate>
     </Box>
   );
