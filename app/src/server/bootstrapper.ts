@@ -14,7 +14,6 @@ export class Bootstrapper {
   }
 
   async bootstrap(request: BootstrapRequest): Promise<BootstrapResponse> {
-    console.log("bootstrap()", this.status, request.logOffset);
     if (this.status !== BootstrapStatus.STATUS_RUNNING && request.logOffset === 0) {
       this.status = BootstrapStatus.STATUS_RUNNING;
       this.logs = [];
@@ -26,57 +25,41 @@ export class Bootstrapper {
   }
 
   private async start(): Promise<void> {
-    this.debug(process.cwd());
-    let protoPath = path.resolve(process.cwd(), "../workspace");
-    if (!fs.existsSync(protoPath)) {
-      protoPath = path.resolve(process.cwd(), "../demo");
+    this.debug("cwd: " + process.cwd());
+    let workspaceDir = path.resolve(process.cwd(), "../workspace");
+    if (!fs.existsSync(workspaceDir)) {
+      workspaceDir = path.resolve(process.cwd(), "../demo");
     }
-    const outPath = path.resolve(process.cwd(), "../app/src/client/protoc");
+    const outputDir = path.resolve(process.cwd(), "../app/src/client/protoc");
     const tempDir = path.join(os.tmpdir(), "temp-protoc");
-    this.debug("protoPath: " + protoPath);
-    this.debug("outPath: " + outPath);
+    this.debug("workspaceDir: " + workspaceDir);
+    this.debug("outputDir: " + outputDir);
     this.debug("tempDir: " + tempDir);
 
     fs.mkdir(tempDir, { recursive: true }, (error) => {
       if (error) {
-        this.error("Failed to create temp output directory", error);
+        this.error(`Failed to create directory ${tempDir}`, error);
       } else {
-        this.debug("Temp output directory created or already exists");
-        const protocCommand = `npx protoc --ts_out ${tempDir} --ts_opt long_type_bigint -I${protoPath} $(find ${protoPath} -iname "*.proto")`;
+        this.debug(`Directory ${tempDir} created successfully or already exists`);
+        const protocCommand = `npx protoc --ts_out ${tempDir} --ts_opt long_type_bigint -I${workspaceDir} $(find ${workspaceDir} -iname "*.proto")`;
+        this.debug("Running protoc");
         this.debug(protocCommand);
-        exec(protocCommand, (error, stdout, stderr) => {
+        exec(protocCommand, (error, stdout) => {
           if (error) {
             this.error("Failed to run protoc", error);
             return;
           }
 
-          this.debug(stdout);
-          for (let line in stdout.split("\n")) {
-            this.debug(line);
+          this.info("Protoc completed successfully");
+          if (fs.existsSync(outputDir)) {
+            this.debug(`Directory ${outputDir} already exists, removing it`);
+            fs.rmdirSync(outputDir, { recursive: true });
           }
-          this.info("Protoc ran successfully");
-          if (fs.existsSync(outPath)) {
-            fs.rmdirSync(outPath, { recursive: true });
-          }
-          fs.renameSync(tempDir, outPath);
-          this.debug("Protoc output moved to client/protoc");
-          if (process.env.NODE_ENV === "production") {
-            this.info("Building client");
-            exec(`npm run build`, (error, stdout, stderr) => {
-              if (error) {
-                this.error("Failed to run npm build", error);
-                return;
-              }
 
-              for (let line in stdout.split("\n")) {
-                this.debug(line);
-              }
-              this.info("Client built successfully");
-              this.status = BootstrapStatus.STATUS_READY;
-            });
-          } else {
-            this.status = BootstrapStatus.STATUS_READY;
-          }
+          fs.renameSync(tempDir, outputDir);
+          this.debug(`Protoc output moved from ${tempDir} to ${outputDir}`);
+          this.info("Bootstrap completed successfully");
+          this.status = BootstrapStatus.STATUS_READY;
         });
       }
     });

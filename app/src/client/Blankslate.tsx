@@ -1,5 +1,4 @@
 import { Box } from "@primer/react";
-import { Blankslate as PrimerBlankslate } from "@primer/react/drafts";
 import { useEffect, useRef, useState } from "react";
 import { BootstrapStatus, Log } from "../shared/api";
 import { getApiClient } from "./api";
@@ -27,7 +26,7 @@ export function Blankslate() {
       if (response.status === BootstrapStatus.STATUS_RUNNING) {
         setTimeout(() => {
           bootstrap(ignoreToken);
-        }, 10000);
+        }, 1000);
       }
     });
   };
@@ -43,10 +42,8 @@ export function Blankslate() {
   }, []);
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <PrimerBlankslate>
-        <Console logs={logs} />
-      </PrimerBlankslate>
+    <Box sx={{ flexGrow: 1, padding: [1, 3] }}>
+      <Console logs={logs} />
     </Box>
   );
 }
