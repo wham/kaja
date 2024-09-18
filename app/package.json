@@ -19,7 +19,7 @@
     "@vitejs/plugin-react": "^3.0.1",
     "clean-modules": "^3.0.5",
     "dotenv": "^16.3.1",
-    "express": "^4.19.2",
+    "express": "^4.21.0",
     "http-proxy-middleware": "^2.0.6",
     "nodemon": "^3.1.4",
     "prettier": "^3.0.3",
