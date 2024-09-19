@@ -1,5 +1,4 @@
-/app/dist
-/app/node_modules
-/app/src/client/protoc
-/app/src/test/protoc
-/demo/bin
+/bin
+/client/node_modules
+/server/web/assets
+/server/web/sources

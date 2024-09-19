@@ -33,25 +33,48 @@ then
     fi
 fi
 
-cd "$(dirname "$0")/../demo"
+# Check if protoc is installed, if not ask for user confirmation to install it using Homebrew
+if ! command -v protoc &> /dev/null
+then
+    echo "protoc is not installed."
+    read -p "Would you like to install protoc using Homebrew? (y/n) " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing protoc using Homebrew..."
+        brew install protobuf
+    else
+        echo "protoc installation skipped. Exiting script."
+        exit 1
+    fi
+fi
 
 # Kill background demo-app when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
+cd "$(dirname "$0")/.."
 export GOBIN=$PWD/bin
 export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
-cd "../app"
-rm -rf ./src/client/protoc
+cd "./client"
 npm i
-npx protoc --proto_path=../demo --plugin=protoc-gen-go=../demo/bin/protoc-gen-go --go_out=../demo --plugin=protoc-gen-twirp=../demo/bin/protoc-gen-twirp --twirp_out=../demo -Iproto/ $(find ../demo -iname "*.proto")
+npm run protoc
 
 cd "../demo"
+protoc --proto_path=. --plugin=protoc-gen-go=../bin/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../bin/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
 go build -o /tmp/demo-app ./cmd/demo-app
 /tmp/demo-app &
 
-cd "../app"
+cd "../server"
+protoc --proto_path=. --plugin=protoc-gen-go=../bin/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../bin/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
+go build -o /tmp/kaja-twirp ./cmd/kaja-twirp
+/tmp/kaja-twirp
 
-npm start
+#cd "../app"
+#rm -rf ./src/client/protoc
+#npm i
+#npx protoc --proto_path=../demo --plugin=protoc-gen-go=../demo/bin/protoc-gen-go --go_out=../demo --plugin=protoc-gen-twirp=../demo/bin/protoc-gen-twirp --twirp_out=../demo -Iproto/ $(find ../demo -iname "*.proto")
+
+#npm start
