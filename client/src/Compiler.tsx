@@ -8,11 +8,11 @@ interface IgnoreToken {
   ignore: boolean;
 }
 
-interface BlankslateProps {
+interface CompilerProps {
   onCompile: (sources: string[]) => void;
 }
 
-export function Blankslate({ onCompile }: BlankslateProps) {
+export function Compiler({ onCompile }: CompilerProps) {
   const [logs, setLogs] = useState<Log[]>([]);
   const logsRef = useRef(logs);
   const client = getServerClient();

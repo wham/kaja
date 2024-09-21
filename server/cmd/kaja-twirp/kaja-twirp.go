@@ -48,6 +48,7 @@ func handlerStaticJs(w http.ResponseWriter, r *http.Request) {
         EntryPoints: []string{"../client/src/main.tsx"},
         Bundle:      true,
         Format:    api.FormatESModule,
+        Sourcemap: api.SourceMapInline,
     })
     
     if len(result.Errors) > 0 {

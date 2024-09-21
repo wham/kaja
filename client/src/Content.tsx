@@ -9,11 +9,11 @@ import prettierPluginTypescript from "prettier/plugins/typescript";
 import React, { useEffect } from "react";
 import { Method, Project, Service } from "./project";
 
-type ContentProps = {
+interface ContentProps {
   project: Project;
   service: Service;
   method: Method;
-};
+}
 
 export function Content({ project, method }: ContentProps) {
   const codeEditorRef = React.useRef<editor.IStandaloneCodeEditor>();

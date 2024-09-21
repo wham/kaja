@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-import App from "./App";
+import { App } from "./App";
 
 export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";

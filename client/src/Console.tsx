@@ -1,8 +1,8 @@
 import { Log, LogLevel } from "./server/server";
 
-type ConsoleProps = {
+interface ConsoleProps {
   logs: Log[];
-};
+}
 
 export function Console({ logs }: ConsoleProps) {
   return (
