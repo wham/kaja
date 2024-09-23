@@ -140,5 +140,8 @@ function defaultEnum(value: EnumInfo, sources: Sources, imports: Imports): ts.Ex
   const [enumName, source] = result;
   addImport(imports, enumName, source);
 
-  return ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(enumName), ts.factory.createIdentifier(value[1][0]));
+  // If the enum has more than one value, use the second one. The first one is usually the "unspecified" value that the API will reject.
+  const enumValue = value[1][1] || value[1][0];
+
+  return ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier(enumName), ts.factory.createIdentifier(enumValue));
 }
