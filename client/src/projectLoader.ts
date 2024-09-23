@@ -39,11 +39,11 @@ export async function loadProject(paths: string[]): Promise<Project> {
               let { response } = await (client as any)[lcfirst(methodName)](input);
 
               if (window.setOutput) {
-                window.setOutput(JSON.stringify(response));
+                window.setOutput(serviceName + "." + methodName + "()", JSON.stringify(response), false);
               }
             } catch (error) {
               if (window.setOutput) {
-                window.setOutput(getErrorMessage(error));
+                window.setOutput(serviceName + "." + methodName + "()", getErrorMessage(error), true);
               }
             }
           };

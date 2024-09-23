@@ -1,7 +1,7 @@
 export {};
 declare global {
   interface Window {
-    setOutput?: (output: string) => void;
+    setOutput?: (endpoint: string, output: string, isError: boolean) => void;
     [key: string]: {};
   }
 }

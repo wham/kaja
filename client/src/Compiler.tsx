@@ -49,7 +49,9 @@ export function Compiler({ onCompile }: CompilerProps) {
 
   return (
     <Box sx={{ flexGrow: 1, padding: [1, 3] }}>
-      <Console logs={logs} />
+      <Console>
+        <Console.Logs logs={logs} />
+      </Console>
     </Box>
   );
 }
