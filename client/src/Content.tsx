@@ -1,9 +1,9 @@
 import { Editor, Monaco } from "@monaco-editor/react";
-import { PlayIcon } from "@primer/octicons-react";
-import { Box, IconButton } from "@primer/react";
+import { Box } from "@primer/react";
 import { editor } from "monaco-editor";
 import React, { useEffect } from "react";
 import { Console } from "./Console";
+import { ControlBar } from "./ControlBar";
 import { formatTypeScript } from "./formatter";
 import { Method, Project, Service } from "./project";
 import { LogLevel } from "./server/server";
@@ -62,7 +62,17 @@ export function Content({ project, method }: ContentProps) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box sx={{ borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: "border.default" }}>
+      <ControlBar onRun={callMethod} />
+      <Box
+        sx={{
+          borderBottomWidth: 1,
+          borderBottomStyle: "solid",
+          borderBottomColor: "border.default",
+          borderTopWidth: 1,
+          borderTopStyle: "solid",
+          borderTopColor: "border.default",
+        }}
+      >
         <Editor
           height="50vh"
           defaultLanguage="typescript"
@@ -73,9 +83,6 @@ export function Content({ project, method }: ContentProps) {
           theme="vs-dark"
           options={{ minimap: { enabled: false }, renderLineHighlight: "none" }}
         />
-        <Box sx={{ position: "absolute", top: "10px", right: "30px" }}>
-          <IconButton icon={PlayIcon} aria-label="Call" variant="primary" size="large" onClick={callMethod} />
-        </Box>
       </Box>
       <Box sx={{ color: "fg.default", overflowY: "scroll", paddingX: 1 }}>
         <Console>{consoleChildren}</Console>
