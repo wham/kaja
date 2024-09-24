@@ -39,7 +39,7 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <Box sx={{ display: "flex", height: "100vh", bg: "canvas.default" }}>
+        <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
           <Box sx={{ width: 300, borderRightWidth: 1, borderRightStyle: "solid", borderRightColor: "border.default", flexShrink: 0, overflow: "scroll" }}>
             <Sidebar project={project} onSelect={onSelect} currentMethod={selectedEndpoint && selectedEndpoint.method} />
           </Box>
