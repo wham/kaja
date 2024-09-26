@@ -29,6 +29,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
     t.Execute(w, nil)
 }
 
+func handlerFaviconSvg(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "image/svg+xml")
+    w.Write(web.FaviconSvg)
+}
+
 func handlerStaticJs(w http.ResponseWriter, r *http.Request) {
     cwd, err := os.Getwd()
     if err != nil {
@@ -131,6 +136,7 @@ func main() {
     http.Handle(serverServer.PathPrefix(), serverServer)
 
     http.HandleFunc("/", handler)
+    http.HandleFunc("/favicon.svg", handlerFaviconSvg)
     http.Handle("/sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
     http.HandleFunc("/static/kaja-twirp.js", handlerStaticJs)
     http.HandleFunc("/static/stub.js", handlerStubJs)
