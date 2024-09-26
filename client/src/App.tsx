@@ -2,6 +2,7 @@ import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import { useState } from "react";
 import { Compiler } from "./Compiler";
 import { Content } from "./Content";
+import { Gutter } from "./Gutter";
 import { Endpoint, Method, Project, Service, getDefaultEndpoint } from "./project";
 import { loadProject, registerGlobalTriggers } from "./projectLoader";
 import { Sidebar } from "./Sidebar";
@@ -14,6 +15,7 @@ import { Sidebar } from "./Sidebar";
 export function App() {
   const [project, setProject] = useState<Project>();
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint>();
+  const [sidebarWidth, setSidebarWidth] = useState(300);
 
   console.log("Rendering App", project);
 
@@ -28,6 +30,10 @@ export function App() {
     setSelectedEndpoint({ service, method });
   };
 
+  const onSidebarResize = (delta: number) => {
+    setSidebarWidth((width) => width + delta);
+  };
+
   let content: JSX.Element;
 
   if (!project || !selectedEndpoint) {
@@ -40,9 +46,10 @@ export function App() {
     <ThemeProvider colorMode="night">
       <BaseStyles>
         <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
-          <Box sx={{ width: 300, borderRightWidth: 1, borderRightStyle: "solid", borderRightColor: "border.default", flexShrink: 0, overflow: "scroll" }}>
+          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll" }}>
             <Sidebar project={project} onSelect={onSelect} currentMethod={selectedEndpoint && selectedEndpoint.method} />
           </Box>
+          <Gutter onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1 }}>{content}</Box>
         </Box>
       </BaseStyles>

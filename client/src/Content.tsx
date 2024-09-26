@@ -74,6 +74,7 @@ export function Content({ project, method }: ContentProps) {
         }}
       >
         <Editor
+          width="100%"
           height="50vh"
           defaultLanguage="typescript"
           defaultValue={method.editorCode}
@@ -81,6 +82,7 @@ export function Content({ project, method }: ContentProps) {
             handleCodeEditorDidMount(editor, monaco, project);
           }}
           theme="vs-dark"
+          // See index.html for additional .monaco-editor fix to enable automatic resizing
           options={{ minimap: { enabled: false }, renderLineHighlight: "none" }}
         />
       </Box>
