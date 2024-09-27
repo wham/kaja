@@ -46,7 +46,7 @@ export function Gutter({ orientation, onResize }: GutterProps) {
           width: orientation == "vertical" ? 3 : "100%",
           height: orientation == "vertical" ? "100%" : 3,
           position: "absolute",
-          left: orientation == "vertical" ? -1 : 0,
+          left: orientation == "vertical" ? "-1px" : 0,
           top: orientation == "vertical" ? 0 : "-1px",
           cursor: "col-resize",
           zIndex: 1,
