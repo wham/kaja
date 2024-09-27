@@ -7,7 +7,7 @@ import { ControlBar } from "./ControlBar";
 import { formatTypeScript } from "./formatter";
 import { Gutter } from "./Gutter";
 import { Method, Project, Service } from "./project";
-import { LogLevel } from "./server/server";
+import { LogLevel } from "./server/api";
 
 interface ContentProps {
   project: Project;

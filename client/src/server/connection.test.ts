@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { getBaseUrl } from "./api";
+import { getBaseUrl } from "./connection";
 
 test("getBaseUrl", () => {
   vi.stubGlobal("window", {

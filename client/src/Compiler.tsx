@@ -1,8 +1,8 @@
 import { Box } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
-import { getServerClient } from "./api";
 import { Console } from "./Console";
-import { CompileStatus, Log } from "./server/server";
+import { CompileStatus, Log } from "./server/api";
+import { getApiClient } from "./server/connection";
 
 interface IgnoreToken {
   ignore: boolean;
@@ -15,7 +15,7 @@ interface CompilerProps {
 export function Compiler({ onCompile }: CompilerProps) {
   const [logs, setLogs] = useState<Log[]>([]);
   const logsRef = useRef(logs);
-  const client = getServerClient();
+  const client = getApiClient();
 
   const compile = (ignoreToken: IgnoreToken) => {
     console.log("Current logs", logsRef.current);

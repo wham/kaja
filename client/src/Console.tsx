@@ -1,7 +1,7 @@
 import { Box } from "@primer/react";
 import { useEffect, useRef } from "react";
 import { formatAndColorizeJson } from "./formatter";
-import { Log, LogLevel } from "./server/server";
+import { Log, LogLevel } from "./server/api";
 
 interface ConsoleProps {
   children?: React.ReactNode;

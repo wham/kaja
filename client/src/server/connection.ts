@@ -1,8 +1,8 @@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { ServerClient } from "./server/server.client";
+import { ApiClient } from "./api.client";
 
-export function getServerClient(): ServerClient {
-  return new ServerClient(
+export function getApiClient(): ApiClient {
+  return new ApiClient(
     new TwirpFetchTransport({
       baseUrl: getBaseUrl(),
     }),

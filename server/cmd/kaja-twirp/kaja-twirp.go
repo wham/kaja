@@ -16,7 +16,7 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/joho/godotenv"
-	pb "github.com/wham/kaja-twirp/internal/server"
+	pb "github.com/wham/kaja-twirp/internal/api"
 	"github.com/wham/kaja-twirp/web"
 )
 
@@ -131,9 +131,8 @@ func main() {
 
     mime.AddExtensionType(".ts", "text/plain")
 
-    compiler := pb.NewCompiler()
-    serverServer := pb.NewServerServer(&ServerServer{ *compiler})
-    http.Handle(serverServer.PathPrefix(), serverServer)
+    twirpHandler := pb.NewApiServer(pb.NewApiService())
+    http.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
     http.HandleFunc("/", handler)
     http.HandleFunc("/favicon.svg", handlerFaviconSvg)

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "prettier": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "protoc": "rm -rf ./src/server/* && protoc --ts_opt=generate_dependencies --ts_out ./src/server --proto_path ../server/proto server.proto",
+    "protoc": "protoc --ts_opt=generate_dependencies --ts_out ./src/server --proto_path ../server/proto api.proto",
     "test": "vitest",
     "tsc": "tsc"
   },

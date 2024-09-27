@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "internal/server";
+option go_package = "internal/api";
 
-service Server {
+service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
 }
 
