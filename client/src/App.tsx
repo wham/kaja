@@ -49,7 +49,7 @@ export function App() {
           <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll" }}>
             <Sidebar project={project} onSelect={onSelect} currentMethod={selectedEndpoint && selectedEndpoint.method} />
           </Box>
-          <Gutter onResize={onSidebarResize} />
+          <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1 }}>{content}</Box>
         </Box>
       </BaseStyles>

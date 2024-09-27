@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { Console } from "./Console";
 import { ControlBar } from "./ControlBar";
 import { formatTypeScript } from "./formatter";
+import { Gutter } from "./Gutter";
 import { Method, Project, Service } from "./project";
 import { LogLevel } from "./server/server";
 
@@ -17,6 +18,7 @@ interface ContentProps {
 export function Content({ project, method }: ContentProps) {
   const codeEditorRef = React.useRef<editor.IStandaloneCodeEditor>();
   const [consoleChildren, setConsoleChildren] = React.useState<React.ReactElement[]>([]);
+  const [editorHeight, setEditorHeight] = React.useState(400);
 
   function handleCodeEditorDidMount(editor: editor.IStandaloneCodeEditor, monaco: Monaco, project: Project) {
     codeEditorRef.current = editor;
@@ -60,14 +62,16 @@ export function Content({ project, method }: ContentProps) {
     });
   }, [method.editorCode]);
 
+  const onEditorResize = (delta: number) => {
+    setEditorHeight((height) => height + delta);
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <ControlBar onRun={callMethod} />
       <Box
         sx={{
-          borderBottomWidth: 1,
-          borderBottomStyle: "solid",
-          borderBottomColor: "border.default",
+          height: editorHeight,
           borderTopWidth: 1,
           borderTopStyle: "solid",
           borderTopColor: "border.default",
@@ -75,7 +79,7 @@ export function Content({ project, method }: ContentProps) {
       >
         <Editor
           width="100%"
-          height="50vh"
+          height="100%"
           defaultLanguage="typescript"
           defaultValue={method.editorCode}
           onMount={(editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
@@ -86,6 +90,7 @@ export function Content({ project, method }: ContentProps) {
           options={{ minimap: { enabled: false }, renderLineHighlight: "none" }}
         />
       </Box>
+      <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Box sx={{ color: "fg.default", overflowY: "scroll", paddingX: 1 }}>
         <Console>{consoleChildren}</Console>
       </Box>
