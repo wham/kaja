@@ -19,6 +19,10 @@ export interface CompileRequest {
      * @generated from protobuf field: int32 log_offset = 1;
      */
     logOffset: number;
+    /**
+     * @generated from protobuf field: bool force = 2;
+     */
+    force: boolean;
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -100,12 +104,14 @@ export enum LogLevel {
 class CompileRequest$Type extends MessageType<CompileRequest> {
     constructor() {
         super("CompileRequest", [
-            { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "force", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.logOffset = 0;
+        message.force = false;
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
         return message;
@@ -117,6 +123,9 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
             switch (fieldNo) {
                 case /* int32 log_offset */ 1:
                     message.logOffset = reader.int32();
+                    break;
+                case /* bool force */ 2:
+                    message.force = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -133,6 +142,9 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* int32 log_offset = 1; */
         if (message.logOffset !== 0)
             writer.tag(1, WireType.Varint).int32(message.logOffset);
+        /* bool force = 2; */
+        if (message.force !== false)
+            writer.tag(2, WireType.Varint).bool(message.force);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

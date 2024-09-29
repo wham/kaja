@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"net/http/httputil"
@@ -123,10 +124,11 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    // Load environment variables from .env file
+    slog.Info("Starting kaja-twirp server")
+    
     err := godotenv.Load("../.env")
     if err != nil {
-        log.Printf("Error loading .env file")
+        slog.Info(".env file not loaded", "error", err)
     }
 
     mime.AddExtensionType(".ts", "text/plain")
@@ -141,16 +143,16 @@ func main() {
     http.HandleFunc("/static/stub.js", handlerStubJs)
     http.HandleFunc("/status", handlerStatus)
 
-    // Get the base URL from the environment variable
     baseURL := os.Getenv("BASE_URL")
     if baseURL == "" {
-        log.Fatal("BASE_URL environment variable is not set")
+        slog.Error("BASE_URL environment variable is not set")
+        os.Exit(1)
     }
 
-    // Parse the base URL
     target, err := url.Parse(baseURL)
     if err != nil {
-        log.Fatal("Invalid BASE_URL:", err)
+        slog.Error("Invalid BASE_URL", "error", err)
+        os.Exit(1)
     }
 
     // Create a reverse proxy
@@ -162,5 +164,5 @@ func main() {
         proxy.ServeHTTP(w, r)
     })
 
-    log.Fatal(http.ListenAndServe(":41520", nil))
+    http.ListenAndServe(":41520", nil)
 }
