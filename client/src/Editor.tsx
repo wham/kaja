@@ -22,18 +22,28 @@ export function Editor({ code, extraLibs, onChange }: EditorProps) {
       monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
     });
 
-    formatTypeScript(code).then((formattedCode) => {
-      editor.setValue(formattedCode);
+    monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+      async provideDocumentFormattingEdits(model: editor.ITextModel) {
+        return [
+          {
+            text: await formatTypeScript(model.getValue()),
+            range: model.getFullModelRange(),
+          },
+        ];
+      },
     });
+
+    editor.getAction("editor.action.formatDocument")?.run();
+    onChange(editor.getValue());
   };
 
   useEffect(() => {
-    formatTypeScript(code).then((formattedCode) => {
-      if (editorRef.current) {
-        editorRef.current.setValue(formattedCode);
-      }
-    });
-  }, [code]);
+    if (editorRef.current) {
+      editorRef.current.getAction("editor.action.formatDocument")?.run();
+    }
+  });
+
+  onChange(code);
 
   return (
     <MonacoEditor
@@ -43,8 +53,15 @@ export function Editor({ code, extraLibs, onChange }: EditorProps) {
       onChange={onChange}
       onMount={onMount}
       theme="vs-dark"
+      value={code}
       // See index.html for additional .monaco-editor fix to enable automatic resizing
-      options={{ minimap: { enabled: false }, renderLineHighlight: "none" }}
+      options={{
+        minimap: { enabled: false },
+        renderLineHighlight: "none",
+        formatOnPaste: true,
+        formatOnType: true,
+        tabSize: 2,
+      }}
     />
   );
 }
