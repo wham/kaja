@@ -1,24 +1,50 @@
+import { Monaco } from "@monaco-editor/react";
 import { Box } from "@primer/react";
-import { useEffect, useRef } from "react";
-import { formatAndColorizeJson } from "./formatter";
+import { useEffect, useRef, useState } from "react";
+import { formatJson } from "./formatter";
 import { Log, LogLevel } from "./server/api";
 
-interface ConsoleProps {
-  children?: React.ReactNode;
+interface MethodCall {
+  serviceName: string;
+  methodName: string;
+  input: any;
+  output: any;
 }
 
-export function Console({ children }: ConsoleProps) {
+export type ConsoleItem = Log[] | MethodCall;
+
+interface ConsoleProps {
+  items: ConsoleItem[];
+  monaco?: Monaco;
+}
+
+export function Console({ items, monaco }: ConsoleProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [children]);
+  });
+
+  const onColorized = () => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
-    <Box sx={{ fontSize: 12 }}>
-      {children}
+    <Box sx={{ fontSize: 12, padding: 1 }}>
+      {items.map((item, index) => {
+        let itemElement;
+        if (Array.isArray(item)) {
+          itemElement = <Console.Logs logs={item} />;
+        } else if ("serviceName" in item) {
+          itemElement = <Console.MethodCall methodCall={item} monaco={monaco} onColorized={onColorized} />;
+        }
+
+        return <Box key={index}>{itemElement}</Box>;
+      })}
       <div ref={bottomRef} />
     </Box>
   );
@@ -30,7 +56,7 @@ interface LogsProps {
 
 Console.Logs = function ({ logs }: LogsProps) {
   return (
-    <pre>
+    <pre style={{ margin: 0 }}>
       <code style={{ whiteSpace: "pre-wrap" }}>
         {logs.map((log, index) => (
           <span key={index} style={{ color: colorForLogLevel(log.level) }}>
@@ -43,15 +69,43 @@ Console.Logs = function ({ logs }: LogsProps) {
   );
 };
 
-interface JsonProps {
-  json: string;
+interface MethodCallProps {
+  methodCall: MethodCall;
+  monaco?: Monaco;
+  onColorized: () => void;
 }
 
-Console.Json = function ({ json }: JsonProps) {
+Console.MethodCall = function ({ methodCall, monaco, onColorized }: MethodCallProps) {
+  const [html, setHtml] = useState<string>("");
+
+  useEffect(() => {
+    if (monaco) {
+      formatJson(JSON.stringify(methodCall.output)).then((h) => {
+        monaco.editor.colorize(h, "typescript", { tabSize: 2 }).then((h) => {
+          setHtml(h);
+          setTimeout(() => {
+            onColorized();
+          }, 100);
+        });
+      });
+    }
+  }, [methodCall, monaco]);
+
   return (
-    <pre>
-      <code style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: formatAndColorizeJson(json) }} />
-    </pre>
+    <>
+      <Console.Logs
+        logs={[
+          {
+            index: 0,
+            level: methodCall.output instanceof Error ? LogLevel.LEVEL_ERROR : LogLevel.LEVEL_INFO,
+            message: methodCall.serviceName + "." + methodCall.methodName + "()",
+          },
+        ]}
+      />
+      <pre>
+        <code style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
+      </pre>
+    </>
   );
 };
 

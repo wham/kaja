@@ -1,7 +1,11 @@
 export {};
 declare global {
   interface Window {
-    setOutput?: (endpoint: string, output: string, isError: boolean) => void;
+    kaja: Kaja;
     [key: string]: {};
   }
+}
+
+interface Kaja {
+  onMethodCall: (serviceName: string, methodName: string, input: any, output: any) => void;
 }

@@ -1,12 +1,14 @@
+import { Monaco } from "@monaco-editor/react";
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
-import { ReactElement, useEffect, useRef, useState } from "react";
-import { Console } from "./Console";
+import { editor } from "monaco-editor";
+import { useEffect, useRef, useState } from "react";
+import { Console, ConsoleItem } from "./Console";
 import { ControlBar } from "./ControlBar";
 import { Editor } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Endpoint, Method, Project, Service, getDefaultEndpoint } from "./project";
 import { loadProject, registerGlobalTriggers } from "./projectLoader";
-import { CompileStatus, Log, LogLevel } from "./server/api";
+import { CompileStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { Sidebar } from "./Sidebar";
 
@@ -22,16 +24,18 @@ interface IgnoreToken {
 export function App() {
   const [project, setProject] = useState<Project>();
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint>();
-  const [consoleChildren, setConsoleChildren] = useState<ReactElement[]>([]);
+  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [editorHeight, setEditorHeight] = useState(400);
-  const editorCodeRef = useRef("");
+  const editorRef = useRef<editor.IStandaloneCodeEditor>();
+  const monacoRef = useRef<Monaco>();
+  const logsOffsetRef = useRef(0);
 
   console.log("Rendering App", project);
 
-  function onEditorChange(code: string | undefined) {
-    console.log("onEditorChange", code);
-    editorCodeRef.current = code || "";
+  function onEditorMount(editor: editor.IStandaloneCodeEditor, monaco: Monaco) {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
   }
 
   const onEditorResize = (delta: number) => {
@@ -54,10 +58,16 @@ export function App() {
   };
 
   async function callMethod() {
-    setLogs([]);
-    logsRef.current = [];
+    if (logsOffsetRef.current > 0) {
+      logsOffsetRef.current = 0;
+      setConsoleItems([]);
+    }
 
-    let lines = editorCodeRef.current.split("\n"); // split the code into lines
+    if (!editorRef.current) {
+      return;
+    }
+
+    let lines = editorRef.current.getValue().split("\n"); // split the code into lines
     let isInImport = false;
     // remove import statements
     while (lines.length > 0 && (lines[0].startsWith("import ") || isInImport)) {
@@ -69,19 +79,16 @@ export function App() {
     func();
   }
 
-  const [logs, setLogs] = useState<Log[]>([]);
-  const logsRef = useRef(logs);
   const client = getApiClient();
 
   const compile = (ignoreToken: IgnoreToken) => {
-    console.log("Current logs", logsRef.current);
-    client.compile({ logOffset: logsRef.current.length, force: true }).then(({ response }) => {
+    client.compile({ logOffset: logsOffsetRef.current, force: true }).then(({ response }) => {
       if (ignoreToken.ignore) {
         return;
       }
 
-      setLogs([...logsRef.current, ...response.logs]);
-      logsRef.current = [...logsRef.current, ...response.logs];
+      logsOffsetRef.current += response.logs.length;
+      setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
 
       if (response.status === CompileStatus.STATUS_RUNNING) {
         setTimeout(() => {
@@ -93,17 +100,22 @@ export function App() {
     });
   };
 
-  window.setOutput = (endpoint: string, output: string, isError: boolean) => {
-    setConsoleChildren((consoleChildren) => [
-      ...consoleChildren,
-      <Console.Logs key={consoleChildren.length * 2} logs={[{ index: 0, level: isError ? LogLevel.LEVEL_ERROR : LogLevel.LEVEL_INFO, message: endpoint }]} />,
-      <Console.Json key={consoleChildren.length * 2 + 1} json={output} />,
-    ]);
+  window.kaja = {
+    onMethodCall: (serviceName: string, methodName: string, input: any, output: any) => {
+      setConsoleItems((consoleItems) => [
+        ...consoleItems,
+        {
+          serviceName,
+          methodName,
+          input,
+          output,
+        },
+      ]);
+    },
   };
 
   useEffect(() => {
     const ignoreToken: IgnoreToken = { ignore: false };
-    console.log("useEffect");
     compile(ignoreToken);
 
     return () => {
@@ -130,13 +142,11 @@ export function App() {
                   borderTopColor: "border.default",
                 }}
               >
-                {project && selectedEndpoint && <Editor code={selectedEndpoint.method.editorCode} extraLibs={project.extraLibs} onChange={onEditorChange} />}
+                {project && selectedEndpoint && <Editor code={selectedEndpoint.method.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
               <Box sx={{ color: "fg.default", overflowY: "scroll", paddingX: 1 }}>
-                <Console>
-                  <Console.Logs logs={logs} /> {consoleChildren}
-                </Console>
+                <Console items={consoleItems} monaco={monacoRef.current} />
               </Box>
             </Box>
           </Box>

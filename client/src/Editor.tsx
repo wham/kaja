@@ -7,13 +7,13 @@ import { ExtraLib } from "./project";
 interface EditorProps {
   code: string;
   extraLibs: ExtraLib[];
-  onChange: (code: string | undefined) => void;
+  onMount: (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => void;
 }
 
-export function Editor({ code, extraLibs, onChange }: EditorProps) {
+export function Editor({ code, extraLibs, onMount }: EditorProps) {
   const editorRef = React.useRef<editor.IStandaloneCodeEditor>();
 
-  const onMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+  const handleOnMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
     editorRef.current = editor;
     editor.focus();
 
@@ -34,7 +34,8 @@ export function Editor({ code, extraLibs, onChange }: EditorProps) {
     });
 
     editor.getAction("editor.action.formatDocument")?.run();
-    onChange(editor.getValue());
+
+    onMount(editor, monaco);
   };
 
   useEffect(() => {
@@ -43,15 +44,12 @@ export function Editor({ code, extraLibs, onChange }: EditorProps) {
     }
   });
 
-  onChange(code);
-
   return (
     <MonacoEditor
       width="100%"
       height="100%"
       defaultLanguage="typescript"
-      onChange={onChange}
-      onMount={onMount}
+      onMount={handleOnMount}
       theme="vs-dark"
       value={code}
       // See index.html for additional .monaco-editor fix to enable automatic resizing
