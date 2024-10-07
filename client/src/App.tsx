@@ -6,7 +6,7 @@ import { Console, ConsoleItem } from "./Console";
 import { ControlBar } from "./ControlBar";
 import { Editor } from "./Editor";
 import { Gutter } from "./Gutter";
-import { Endpoint, Method, Project, Service, getDefaultEndpoint } from "./project";
+import { Method, Project, getDefaultMethod } from "./project";
 import { loadProject, registerGlobalTriggers } from "./projectLoader";
 import { CompileStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -23,7 +23,7 @@ interface IgnoreToken {
 
 export function App() {
   const [project, setProject] = useState<Project>();
-  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint>();
+  const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [editorHeight, setEditorHeight] = useState(400);
@@ -46,11 +46,11 @@ export function App() {
     const project = await loadProject(sources);
     registerGlobalTriggers(project.services);
     setProject(project);
-    setSelectedEndpoint(getDefaultEndpoint(project.services));
+    setSelectedMethod(getDefaultMethod(project.services));
   };
 
-  const onSelect = (service: Service, method: Method) => {
-    setSelectedEndpoint({ service, method });
+  const onMethodSelect = (method: Method) => {
+    setSelectedMethod(method);
   };
 
   const onSidebarResize = (delta: number) => {
@@ -128,7 +128,7 @@ export function App() {
       <BaseStyles>
         <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
           <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll" }}>
-            <Sidebar project={project} onSelect={onSelect} currentMethod={selectedEndpoint && selectedEndpoint.method} />
+            <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1 }}>
@@ -142,7 +142,7 @@ export function App() {
                   borderTopColor: "border.default",
                 }}
               >
-                {project && selectedEndpoint && <Editor code={selectedEndpoint.method.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
+                {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
               <Box sx={{ color: "fg.default", overflowY: "scroll", paddingX: 1 }}>

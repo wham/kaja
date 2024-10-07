@@ -1,10 +1,10 @@
 import { Box, TreeView } from "@primer/react";
-import { Method, Project, Service, methodId } from "./project";
+import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
   project?: Project;
   currentMethod?: Method;
-  onSelect: (service: Service, method: Method) => void;
+  onSelect: (method: Method) => void;
 }
 
 export function Sidebar({ project, currentMethod, onSelect }: SidebarProps) {
@@ -23,7 +23,7 @@ export function Sidebar({ project, currentMethod, onSelect }: SidebarProps) {
                         <TreeView.Item
                           id={methodId(service, method)}
                           key={methodId(service, method)}
-                          onSelect={() => onSelect(service, method)}
+                          onSelect={() => onSelect(method)}
                           current={currentMethod === method}
                         >
                           {method.name}

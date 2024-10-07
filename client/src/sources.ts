@@ -4,7 +4,6 @@ export interface Source {
   path: string;
   importPath: string;
   file: ts.SourceFile;
-  module: any;
   serviceNames: string[];
   interfaces: { [key: string]: ts.InterfaceDeclaration };
   enums: { [key: string]: { object: any } };
@@ -12,14 +11,17 @@ export interface Source {
 
 export type Sources = Source[];
 
-export async function loadSources(paths: string[]): Promise<Sources> {
+export interface Stub {
+  [key: string]: any;
+}
+
+export async function loadSources(paths: string[], stub: Stub): Promise<Sources> {
   if (paths.length === 0) {
     return [];
   }
 
   const sources: Source[] = [];
   let rawFiles: Record<string, () => Promise<string>> = {};
-  //const rawFiles = import.meta.glob("./protoc/**/*.ts", { as: "raw", eager: false });
   paths.forEach((path) => {
     rawFiles[path] = () => {
       return fetch(path).then((response) => {
@@ -27,25 +29,14 @@ export async function loadSources(paths: string[]): Promise<Sources> {
       });
     };
   });
-  //const modules = import.meta.glob("./protoc/**/*.ts");
-  console.log("Importing stubs");
-  const xxx = "./stub.js";
-  const m = await import(xxx);
-  //const m = {} as any;
-  const modules = {} as any;
 
   for (const path in rawFiles) {
-    if (!modules[path]) {
-      //continue;
-    }
-
     const file = ts.createSourceFile(path, await rawFiles[path](), ts.ScriptTarget.Latest);
 
     const source: Source = {
       path,
       importPath: file.fileName.replace(".ts", ""),
       file,
-      module: m,
       serviceNames: [],
       interfaces: {},
       enums: {},
@@ -59,7 +50,7 @@ export async function loadSources(paths: string[]): Promise<Sources> {
         source.interfaces[statement.name.text] = statement;
       } else if (ts.isEnumDeclaration(statement)) {
         const enumName = statement.name.text;
-        const object = source.module[enumName];
+        const object = stub[enumName];
         if (object) {
           source.enums[enumName] = { object };
         }
@@ -70,14 +61,6 @@ export async function loadSources(paths: string[]): Promise<Sources> {
   }
 
   return sources;
-}
-
-export function findSourceForClass(sources: Sources, className: string): Source | undefined {
-  return sources.find((source) => {
-    return source.file.statements.find((statement) => {
-      return ts.isClassDeclaration(statement) && statement.name?.escapedText === className;
-    });
-  });
 }
 
 export function findInterface(sources: Sources, interfaceName: string): [ts.InterfaceDeclaration, Source] | undefined {
@@ -113,4 +96,9 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
       return declaration.name.text;
     }
   }
+}
+
+export async function loadStub(): Promise<Stub> {
+  const path = "./stub.js";
+  return import(path);
 }

@@ -3,10 +3,11 @@ import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import ts from "typescript";
 import { addImport, defaultMessage } from "./defaultInput";
 import { ExtraLib, Method, Project, Service } from "./project";
-import { findInterface, findSourceForClass, loadSources, Source, Sources } from "./sources";
+import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(paths: string[]): Promise<Project> {
-  const sources = await loadSources(paths);
+  const stub = await loadStub();
+  const sources = await loadSources(paths, stub);
   const globalImports: ts.ImportDeclaration[] = [];
   const globalVars: ts.VariableStatement[] = [];
 
@@ -17,11 +18,10 @@ export async function loadProject(paths: string[]): Promise<Project> {
     const sourceFile = source.file;
     const enums = sourceFile.statements.filter(ts.isEnumDeclaration);
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
-    const module = source.module;
 
     source.serviceNames.forEach((serviceName) => {
-      if (module && module[serviceName]) {
-        const serviceInfo: ServiceInfo = module[serviceName];
+      if (stub[serviceName]) {
+        const serviceInfo: ServiceInfo = stub[serviceName];
         const methods: Method[] = [];
         serviceInfo.methods.forEach((methodInfo) => {
           const methodName = methodInfo.name;
@@ -33,7 +33,7 @@ export async function loadProject(paths: string[]): Promise<Project> {
               baseUrl: urlWithoutPath + "/twirp",
             });
 
-            let client = await createClient(serviceName, transport, sources);
+            let client = await createClient(serviceName, transport, stub);
 
             try {
               let { response } = await (client as any)[lcfirst(methodName)](input);
@@ -104,7 +104,7 @@ export async function loadProject(paths: string[]): Promise<Project> {
     enums.forEach((enumDeclaration) => {
       const enumName = enumDeclaration.name.text;
       try {
-        (window as any)[enumName] = module[enumName];
+        (window as any)[enumName] = stub[enumName];
       } catch (error) {}
     });
 
@@ -145,13 +145,9 @@ export function registerGlobalTriggers(services: Service[]): void {
   });
 }
 
-async function createClient(name: string, transport: RpcTransport, sources: Sources): Promise<ServiceInfo | undefined> {
+async function createClient(name: string, transport: RpcTransport, stub: Stub): Promise<ServiceInfo | undefined> {
   const className = name + "Client";
-  const source = findSourceForClass(sources, className);
-  if (!source) {
-    return undefined;
-  }
-  return new source.module[name + "Client"](transport);
+  return new stub[name + "Client"](transport);
 }
 
 function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.ParameterDeclaration | undefined {
