@@ -1,8 +1,8 @@
-import { MethodInfo, RpcTransport, ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
+import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
+import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { ExtraLib, Method, Project, Service } from "./project";
+import { Clients, ExtraLib, Method, Project, Service } from "./project";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(paths: string[]): Promise<Project> {
@@ -20,84 +20,63 @@ export async function loadProject(paths: string[]): Promise<Project> {
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     source.serviceNames.forEach((serviceName) => {
-      if (stub[serviceName]) {
-        const serviceInfo: ServiceInfo = stub[serviceName];
-        const methods: Method[] = [];
-        serviceInfo.methods.forEach((methodInfo) => {
-          const methodName = methodInfo.name;
-          const globalTrigger = async (input: any) => {
-            const url = new URL(window.location.href);
-            const urlWithoutPath = `${url.protocol}//${url.hostname}${url.port ? ":" + url.port : ""}`;
+      if (!stub[serviceName]) {
+        return;
+      }
 
-            let transport = new TwirpFetchTransport({
-              baseUrl: urlWithoutPath + "/twirp",
-            });
+      const serviceInfo: ServiceInfo = stub[serviceName];
+      const methods: Method[] = [];
+      serviceInfo.methods.forEach((methodInfo) => {
+        const methodName = methodInfo.name;
 
-            let client = await createClient(serviceName, transport, stub);
-
-            try {
-              let { response } = await (client as any)[lcfirst(methodName)](input);
-
-              if (window.kaja) {
-                window.kaja.onMethodCall(serviceName, methodName, input, response);
-              }
-            } catch (error) {
-              if (window.kaja) {
-                window.kaja.onMethodCall(serviceName, methodName, input, error);
-              }
-            }
-          };
-
-          methods.push({
-            name: methodName,
-            editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
-            globalTrigger,
-          });
+        methods.push({
+          name: methodName,
+          editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
         });
-        services.push({
-          name: serviceName,
-          methods,
-        });
-        globalImports.push(
-          ts.factory.createImportDeclaration(
-            undefined, // modifiers
-            ts.factory.createImportClause(
-              false, // isTypeOnly
-              undefined, // name
-              ts.factory.createNamedImports([
-                ts.factory.createImportSpecifier(
-                  false, // propertyName
-                  ts.factory.createIdentifier(serviceName),
-                  ts.factory.createIdentifier(serviceName + "X"),
-                ),
-              ]), // elements
-            ), // importClause
-            ts.factory.createStringLiteral(sourceFile.fileName.replace(".ts", "")), // moduleSpecifier
+      });
+      services.push({
+        name: serviceName,
+        methods,
+      });
+      globalImports.push(
+        ts.factory.createImportDeclaration(
+          undefined, // modifiers
+          ts.factory.createImportClause(
+            false, // isTypeOnly
+            undefined, // name
+            ts.factory.createNamedImports([
+              ts.factory.createImportSpecifier(
+                false, // propertyName
+                ts.factory.createIdentifier(serviceName),
+                ts.factory.createIdentifier(serviceName + "X"),
+              ),
+            ]), // elements
+          ), // importClause
+          ts.factory.createStringLiteral(sourceFile.fileName.replace(".ts", "")), // moduleSpecifier
+        ),
+      );
+      globalVars.push(
+        ts.factory.createVariableStatement(
+          [], // modifiers
+          ts.factory.createVariableDeclarationList(
+            [
+              ts.factory.createVariableDeclaration(
+                serviceName, // name
+                undefined, // type
+                undefined, // initializer
+                ts.factory.createIdentifier(serviceName + "X"), // value
+              ),
+            ], // declarations
+            ts.NodeFlags.Const, // flags
           ),
-        );
-        globalVars.push(
-          ts.factory.createVariableStatement(
-            [], // modifiers
-            ts.factory.createVariableDeclarationList(
-              [
-                ts.factory.createVariableDeclaration(
-                  serviceName, // name
-                  undefined, // type
-                  undefined, // initializer
-                  ts.factory.createIdentifier(serviceName + "X"), // value
-                ),
-              ], // declarations
-              ts.NodeFlags.Const, // flags
-            ),
-          ),
-        );
+        ),
+      );
 
-        const result = findInterface(sources, "I" + serviceName + "Client");
-        if (result) {
-          const [interfaceDeclaration, source] = result;
-          const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file);
-          serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
-        }
+      const result = findInterface(sources, "I" + serviceName + "Client");
+      if (result) {
+        const [interfaceDeclaration, source] = result;
+        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file);
+        serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
     });
 
@@ -132,22 +111,19 @@ export async function loadProject(paths: string[]): Promise<Project> {
 
   return {
     services,
+    clients: createClients(services, stub),
     extraLibs,
   };
 }
 
-export function registerGlobalTriggers(services: Service[]): void {
-  services.forEach((service) => {
-    window[service.name as any] = {} as any;
-    service.methods.forEach((method) => {
-      window[service.name as any][method.name as any] = method.globalTrigger as any;
-    });
-  });
-}
+function createClients(services: Service[], stub: Stub): Clients {
+  const clients: Clients = {};
 
-async function createClient(name: string, transport: RpcTransport, stub: Stub): Promise<ServiceInfo | undefined> {
-  const className = name + "Client";
-  return new stub[name + "Client"](transport);
+  for (const service of services) {
+    clients[service.name] = createClient(service, stub);
+  }
+
+  return clients;
 }
 
 function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.ParameterDeclaration | undefined {
@@ -282,13 +258,4 @@ function copyEnum(enumDeclaration: ts.EnumDeclaration): ts.EnumDeclaration {
 
 function ucfirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function lcfirst(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
 }
