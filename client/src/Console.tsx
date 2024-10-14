@@ -19,7 +19,7 @@ export function Console({ items, monaco }: ConsoleProps) {
 
   const scrollToBottom = () => {
     if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+      bottomRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
     }
   };
 
@@ -36,17 +36,19 @@ export function Console({ items, monaco }: ConsoleProps) {
   }, []);
 
   return (
-    <Box sx={{ fontSize: 12, padding: 1 }} ref={containerRef}>
-      {items.map((item, index) => {
-        let itemElement;
-        if (Array.isArray(item)) {
-          itemElement = <Console.Logs logs={item} />;
-        } else if ("method" in item) {
-          itemElement = <Console.MethodCall methodCall={item} monaco={monaco} />;
-        }
+    <Box sx={{ fontSize: 12, color: "fg.default", overflowY: "scroll", paddingX: 2, paddingY: 1 }}>
+      <Box ref={containerRef}>
+        {items.map((item, index) => {
+          let itemElement;
+          if (Array.isArray(item)) {
+            itemElement = <Console.Logs logs={item} />;
+          } else if ("method" in item) {
+            itemElement = <Console.MethodCall methodCall={item} monaco={monaco} />;
+          }
 
-        return <Box key={index}>{itemElement}</Box>;
-      })}
+          return <Box key={index}>{itemElement}</Box>;
+        })}
+      </Box>
       <Box ref={bottomRef} />
     </Box>
   );
@@ -58,8 +60,8 @@ interface LogsProps {
 
 Console.Logs = function ({ logs }: LogsProps) {
   return (
-    <pre style={{ margin: 0 }}>
-      <code style={{ whiteSpace: "pre-wrap" }}>
+    <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+      <code>
         {logs.map((log, index) => (
           <span key={index} style={{ color: colorForLogLevel(log.level) }}>
             {log.message}
@@ -126,9 +128,7 @@ Console.MethodCall = function ({ methodCall, monaco }: MethodCallProps) {
         )}
         {!methodCall.output && !methodCall.error && <Button size="small" loading={true} />}
       </Box>
-      <pre>
-        <code style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
-      </pre>
+      <pre style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
     </>
   );
 };

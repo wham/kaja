@@ -138,7 +138,7 @@ export function App() {
             <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <Box sx={{ flexGrow: 1 }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <ControlBar onRun={callMethod} />
               <Box
@@ -152,9 +152,7 @@ export function App() {
                 {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
-              <Box sx={{ color: "fg.default", overflowY: "scroll", paddingX: 1 }}>
-                <Console items={consoleItems} monaco={monacoRef.current} />
-              </Box>
+              <Console items={consoleItems} monaco={monacoRef.current} />
             </Box>
           </Box>
         </Box>
