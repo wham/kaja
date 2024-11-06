@@ -6,8 +6,8 @@ COPY --from=golang:1.22.4-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 
-COPY client /client
-WORKDIR /client
+COPY ui /ui
+WORKDIR /ui
 RUN npm ci --omit=dev
 
 COPY server /server

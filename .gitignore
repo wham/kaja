@@ -1,4 +1,4 @@
 /bin
-/client/node_modules
 /server/web/assets
 /server/web/sources
+/ui/node_modules

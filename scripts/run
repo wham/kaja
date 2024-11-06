@@ -58,7 +58,7 @@ export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
-cd "./client"
+cd "./ui"
 npm i
 npm run protoc
 
@@ -73,7 +73,7 @@ go build -o /tmp/kaja-twirp ./cmd/kaja-twirp
 /tmp/kaja-twirp
 
 #cd "../app"
-#rm -rf ./src/client/protoc
+#rm -rf ./src/ui/protoc
 #npm i
 #npx protoc --proto_path=../demo --plugin=protoc-gen-go=../demo/bin/protoc-gen-go --go_out=../demo --plugin=protoc-gen-twirp=../demo/bin/protoc-gen-twirp --twirp_out=../demo -Iproto/ $(find ../demo -iname "*.proto")
 

@@ -9,21 +9,21 @@ import (
 
 func main() {
 	cwd, err := os.Getwd()
-	if err != nil { 
-			fmt.Printf("Failed to get current working directory: %s\n", err)   
-			return
+	if err != nil {
+		fmt.Printf("Failed to get current working directory: %s\n", err)
+		return
 	}
 	fmt.Printf("CWD: %s\n", cwd)
-	
+
 	result := api.Build(api.BuildOptions{
-			EntryPoints: []string{"../client/src/main.tsx"},
-			Bundle:      true,
-			Format:    api.FormatESModule,
-			Outfile: "web/assets/kaja-twirp.js",
-			Write: true,
+		EntryPoints: []string{"../ui/src/main.tsx"},
+		Bundle:      true,
+		Format:      api.FormatESModule,
+		Outfile:     "web/assets/kaja-twirp.js",
+		Write:       true,
 	})
 
-	if (len(result.Errors) > 0) {
+	if len(result.Errors) > 0 {
 		fmt.Printf("Build failed: %s\n", result.Errors[0].Text)
 		return
 	}
@@ -34,15 +34,15 @@ func main() {
 	}
 
 	result = api.Build(api.BuildOptions{
-		EntryPoints: []string{"../client/node_modules/.bin/protoc-gen-ts"},
+		EntryPoints: []string{"../ui/node_modules/.bin/protoc-gen-ts"},
 		Bundle:      true,
-		Format:    api.FormatESModule,
-		Platform: api.PlatformNode,
-		Outfile: "../bin/protoc-gen-ts",
-		Write: true,
+		Format:      api.FormatESModule,
+		Platform:    api.PlatformNode,
+		Outfile:     "../bin/protoc-gen-ts",
+		Write:       true,
 	})
 
-	if (len(result.Errors) > 0) {
+	if len(result.Errors) > 0 {
 		fmt.Printf("Build failed: %s\n", result.Errors[0].Text)
 		return
 	}
