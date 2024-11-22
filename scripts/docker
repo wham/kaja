@@ -33,7 +33,7 @@ docker run --name kaja-twirp-dev -a STDOUT -p 41520:41520 \
 while IFS= read -r line
 do
   echo "$line"
-  if [[ "$line" == *"Server is listening on port"* ]]; then
+  if [[ "$line" == *"Server started"* ]]; then
     break
   fi
 done < pipe

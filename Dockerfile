@@ -13,11 +13,11 @@ RUN npm ci --omit=dev
 COPY server /server
 WORKDIR /server
 RUN go run cmd/build-assets/build-assets.go
-RUN go build -o /bin/kaja-twirp ./cmd/kaja-twirp
+RUN go build -o /build/kaja-twirp ./cmd/server
 
 FROM alpine:latest as runner
-COPY --from=builder /bin/kaja-twirp /app/
-COPY --from=builder /bin/protoc-gen-ts /bin/
+COPY --from=builder /build/kaja-twirp /app/
+COPY --from=builder /build/protoc-gen-ts /build/
 RUN apk add --update nodejs
 RUN apk update && apk add --no-cache make protobuf-dev
 WORKDIR /app

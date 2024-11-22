@@ -123,10 +123,10 @@ func (s *ApiService) protoc(cwd string, sourcesDir string) {
 	}
 	s.debug("workspaceDir: " + workspaceDir)
 
-	binDir := filepath.Join(cwd, "../bin")
-	s.debug("binDir: " + binDir)
+	buildDir := filepath.Join(cwd, "../build")
+	s.debug("binDir: " + buildDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + binDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
+	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
 	s.debug("Running protoc")
 	s.debug(protocCommand)
 

@@ -2,14 +2,14 @@
 <html lang="en" style="overscroll-behavior: none">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kaja-twirp</title>
     <script type="importmap">
       {
         "imports": {
-          "@protobuf-ts/runtime": "./static/kaja-twirp.js",
-          "@protobuf-ts/runtime-rpc": "./static/kaja-twirp.js"
+          "@protobuf-ts/runtime": "./ui.js",
+          "@protobuf-ts/runtime-rpc": "./ui.js"
         }
       }
     </script>
@@ -22,6 +22,6 @@
   </head>
   <body style="background-color: black; overscroll-behavior: none">
     <div id="root"></div>
-    <script type="module" src="/static/kaja-twirp.js"></script>
+    <script type="module" src="/ui.js"></script>
   </body>
 </html>
