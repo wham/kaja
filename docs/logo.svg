@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+  <!-- Background -->
+  <rect width="200" height="100" fill="#1a1a1a"/>
+  
+  <!-- Protobuf-inspired elements -->
+  <rect x="10" y="15" width="15" height="70" fill="#FF1493"/>
+  <rect x="30" y="25" width="15" height="50" fill="#FF1493"/>
+  <rect x="50" y="35" width="15" height="30" fill="#FF1493"/>
+  
+  <!-- Text "kaja" -->
+  <text x="75" y="60" 
+        font-family="Arial" 
+        font-size="40" 
+        fill="#ffffff"
+        style="letter-spacing: 1px;">kaja</text>
+  
+  <!-- Circuit/data flow lines -->
+  <path d="M160,15 L175,15 L175,85 L190,85" 
+        stroke="#FF1493" 
+        stroke-width="4" 
+        fill="none"/>
+  <path d="M160,30 L165,30 L165,70 L190,70" 
+        stroke="#FF1493" 
+        stroke-width="4" 
+        fill="none"/>
+</svg>
