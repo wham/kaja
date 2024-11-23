@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/wham/kaja-twirp/v2/internal/ui"
+	"github.com/wham/kaja/v2/internal/ui"
 )
 
 var StaticFS fs.FS

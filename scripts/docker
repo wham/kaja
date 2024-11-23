@@ -18,17 +18,17 @@ go build -o /tmp/demo-app ./cmd/demo-app
 /tmp/demo-app &
 
 # Stop and remove the container if it already exists
-docker rm -f kaja-twirp-dev &> /dev/null || true
+docker rm -f kaja-dev &> /dev/null || true
 
 cd ".."
 
-docker build . -t kaja-twirp-dev:latest
+docker build . -t kaja-dev:latest
 
 mkfifo pipe
 
-docker run --name kaja-twirp-dev -a STDOUT -p 41520:41520 \
+docker run --name kaja-dev -a STDOUT -p 41520:41520 \
     -v $PWD/demo:/workspace \
-    -e BASE_URL="http://host.docker.internal:41521" --add-host=host.docker.internal:host-gateway kaja-twirp-dev:latest > pipe &
+    -e BASE_URL="http://host.docker.internal:41521" --add-host=host.docker.internal:host-gateway kaja-dev:latest > pipe &
 
 while IFS= read -r line
 do
@@ -40,8 +40,8 @@ done < pipe
 
 rm pipe
 
-# Open kaja-twirp in a default web browser
-echo -e "${GREEN}Opening kaja-twirp URL http://localhost:41520/ in your default web browser${NC}"
+# Open kaja in a default web browser
+echo -e "${GREEN}Opening kaja URL http://localhost:41520/ in your default web browser${NC}"
 python3 -m webbrowser http://localhost:41520/
 
 cat

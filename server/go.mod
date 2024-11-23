@@ -1,4 +1,4 @@
-module github.com/wham/kaja-twirp/v2
+module github.com/wham/kaja/v2
 
 go 1.22.4
 

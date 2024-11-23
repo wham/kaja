@@ -82,7 +82,7 @@ func (s *ApiService) start(force bool) error {
 
 	s.status = CompileStatus_STATUS_READY
 
-	s.info("Compilation completed successfully, kaja-twirp is ready to go")
+	s.info("Compilation completed successfully, kaja is ready to go")
 
 	return nil
 }

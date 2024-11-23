@@ -16,8 +16,8 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/joho/godotenv"
-	assets "github.com/wham/kaja-twirp/v2"
-	pb "github.com/wham/kaja-twirp/v2/internal/api"
+	assets "github.com/wham/kaja/v2"
+	pb "github.com/wham/kaja/v2/internal/api"
 )
 
 func handlerStubJs(w http.ResponseWriter, r *http.Request) {

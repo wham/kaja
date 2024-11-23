@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	pb "github.com/wham/kaja-twirp/internal/demo-app"
+	pb "github.com/wham/kaja/internal/demo-app"
 )
 
 type QuirksServer struct{}

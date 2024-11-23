@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wham/kaja-twirp/internal/demo-app"
+	pb "github.com/wham/kaja/internal/demo-app"
 )
 
 type SearchServiceServer struct{}

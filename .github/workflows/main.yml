@@ -20,4 +20,4 @@ jobs:
           context: .
           push: true
           tags: |
-            kajatools/kaja-twirp:latest
+            kajatools/kaja:latest

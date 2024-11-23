@@ -70,5 +70,5 @@ go build -o /tmp/demo-app ./cmd/demo-app
 cd "../server"
 go run cmd/build-assets/build-assets.go
 protoc --proto_path=. --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
-go build -tags development -o /tmp/kaja-twirp ./cmd/server
-/tmp/kaja-twirp
+go build -tags development -o /tmp/kaja ./cmd/server
+/tmp/kaja
