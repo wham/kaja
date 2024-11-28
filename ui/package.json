@@ -12,6 +12,7 @@
     "@monaco-editor/react": "^4.6.0",
     "@primer/octicons-react": "^19.11.0",
     "@primer/react": "^36.27.0",
+    "@protobuf-ts/grpcweb-transport": "^2.9.4",
     "@protobuf-ts/plugin": "^2.9.4",
     "@protobuf-ts/runtime": "^2.9.4",
     "@protobuf-ts/runtime-rpc": "^2.9.4",

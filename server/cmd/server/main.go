@@ -161,8 +161,8 @@ func main() {
 	// slog.Info is not visible with Docker's -a STDOUT flag - its output is buffered.
 	// Ideally rewrite the launch scripts to use the /status endpoint.
 	fmt.Println("Server started")
-	slog.Info("Server started", "URL", "http://localhost:41520")
-	slog.Error("Failed to start server", "error", http.ListenAndServe(":41520", root))
+	slog.Info("Server started", "URL", "http://localhost:41521")
+	slog.Error("Failed to start server", "error", http.ListenAndServe(":41521", root))
 	os.Exit(1)
 }
 

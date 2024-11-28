@@ -49,6 +49,22 @@ then
     fi
 fi
 
+# Check if envoy is installed, if not ask for user confirmation to install it using Homebrew
+if ! command -v envoy &> /dev/null
+then
+    echo "envoy is not installed."
+    read -p "Would you like to install envoy using Homebrew? (y/n) " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing envoy using Homebrew..."
+        brew install envoy
+    else
+        echo "envoy installation skipped. Exiting script."
+        exit 1
+    fi
+fi
+
 # Kill background demo-app when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
@@ -57,14 +73,22 @@ export GOBIN=$PWD/build
 export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+envoy -c ./envoy.yaml &
 
 cd "./ui"
 npm i
 npm run protoc
 
 cd "../demo"
-protoc --proto_path=. --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
-go build -o /tmp/demo-app ./cmd/demo-app
+protoc --proto_path=. \
+    --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
+    --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
+    --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
+    -Iproto/ $(find . -iname "*.proto")
+go build -o /tmp/demo-app ./cmd/twirp-server
+# go build -o /tmp/demo-app ./cmd/grpc-server
 /tmp/demo-app &
 
 cd "../server"
