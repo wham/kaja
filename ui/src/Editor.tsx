@@ -41,6 +41,8 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.getAction("editor.action.formatDocument")?.run();
+      editorRef.current.focus();
+      editorRef.current.setScrollTop(0);
     }
   });
 
