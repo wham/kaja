@@ -140,15 +140,16 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <ControlBar onRun={callMethod} />
               <Box
                 sx={{
                   height: editorHeight,
                   borderTopWidth: 1,
                   borderTopStyle: "solid",
                   borderTopColor: "border.default",
+                  position: "relative",
                 }}
               >
+                <ControlBar onRun={callMethod} />
                 {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
