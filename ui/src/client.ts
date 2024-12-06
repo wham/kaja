@@ -1,14 +1,13 @@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { MethodCall } from "./kaja";
 import { Client, Service } from "./project";
+import { getBaseUrl } from "./server/connection";
 import { Stub } from "./sources";
 
 export function createClient(service: Service, stub: Stub): Client {
   const client: Client = { methods: {} };
-  const url = new URL(window.location.href);
-  const urlWithoutPath = `${url.protocol}//${url.hostname}${url.port ? ":" + url.port : ""}`;
   const transport = new TwirpFetchTransport({
-    baseUrl: urlWithoutPath + "/twirp",
+    baseUrl: getBaseUrl(),
   });
   const clientStub = new stub[service.name + "Client"](transport);
 

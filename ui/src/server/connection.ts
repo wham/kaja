@@ -10,6 +10,10 @@ export function getApiClient(): ApiClient {
 }
 
 export function getBaseUrl(): string {
-  const url = new URL(window.location.href);
-  return url.origin + "/twirp";
+  const currentUrl = trimTrailingSlash(window.location.href);
+  return `${currentUrl}/twirp`;
+}
+
+function trimTrailingSlash(s: string): string {
+  return s.replace(/\/+$/, "");
 }
