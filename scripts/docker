@@ -24,6 +24,7 @@ cd ".."
 
 docker build . -t kaja-dev:latest
 
+rm pipe &> /dev/null || true
 mkfifo pipe
 
 docker run --name kaja-dev -a STDOUT -p 41520:41520 \

@@ -88,8 +88,6 @@ func main() {
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("HTML request", "method", r.Method, "path", r.RequestURI)
-
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -112,13 +110,10 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /static/{name...}", func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Static file request", "method", r.Method, "path", r.RequestURI)
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 
 	mux.HandleFunc("GET /ui.js", func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("UI bundle request", "method", r.Method, "path", r.RequestURI)
-
 		w.Header().Set("Content-Type", "application/javascript")
 		w.Write(assets.ReadUI())
 	})
@@ -152,11 +147,24 @@ func main() {
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// The JS code is using relative paths and should be able to handle this without any changes.
 	// To test this, we can apply a prefix here and uncomment when done.
-	// root.Handle("/demo/", http.StripPrefix("/demo", mux))
-	root.Handle("/", http.StripPrefix("", mux))
+	// pathPrefix := "/demo"
+	pathPrefix := ""
+	root.Handle(pathPrefix+"/", logRequest(http.StripPrefix(pathPrefix, mux)))
 
-	fmt.Println("Server started at http://localhost:41520")
+	// Used in kaja launch scripts to determine if the server has started.
+	// slog.Info is not visible with Docker's -a STDOUT flag - its output is buffered.
+	// Ideally rewrite the launch scripts to use the /status endpoint.
+	fmt.Println("Server started")
 	slog.Info("Server started", "URL", "http://localhost:41520")
 	slog.Error("Failed to start server", "error", http.ListenAndServe(":41520", root))
 	os.Exit(1)
+}
+
+func logRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Request",
+			"method", r.Method,
+			"path", r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
 }
