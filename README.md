@@ -36,9 +36,6 @@ docker run -e BASE_URL="http://host.docker.internal:8080" ...
 List of configuration options:
 
 - `BASE_URL` - The base URL of the Twirp API. Example: `http://host.docker.internal:8080`.
-- `HEADER_1` - Custom HTTP header that will be passed with each Twirp request. Typically used for authentication. Example: `Authentication: Bearer <token>`.
-- `HEADER_2` - Another custom HTTP header.
-- `HEADER_{3..5}` - More custom HTTP headers. Up to five in total.
 
 Alternatively, `kaja` will use [dotenv](https://github.com/motdotla/dotenv) to look for a `.env` file in the `/app` directory of the Docker container. You can use the [-v parameter](https://docs.docker.com/engine/reference/commandline/run/#volume) to mount a `.env` file from the host file system. This is useful when
 you need to dynamically change the configuration. For example, when an authentication header needs to refreshed.

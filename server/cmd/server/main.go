@@ -81,6 +81,16 @@ func main() {
 		slog.Info(".env file not loaded", "error", err)
 	}
 
+	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
+	// The PATH_PREFIX environment variable is used to set the subpath.
+	// The server uses it to generate the correct paths in HTML and redirects.
+	// The JS code is using relative paths and should be not dependent on this.
+	pathPrefix := strings.Trim(os.Getenv("PATH_PREFIX"), "/")
+	if pathPrefix != "" {
+		pathPrefix = "/" + pathPrefix
+	}
+	slog.Info("Configuration", "PATH_PREFIX", pathPrefix)
+
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
@@ -101,7 +111,7 @@ func main() {
 			return
 		}
 
-		if err := template.ExecuteTemplate(w, "index.html", struct{}{}); err != nil {
+		if err := template.ExecuteTemplate(w, "index.html", struct{ PathPrefix string }{PathPrefix: pathPrefix}); err != nil {
 			slog.Error("Failed to execute template", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Internal server error"))
@@ -144,11 +154,6 @@ func main() {
 	})
 
 	root := http.NewServeMux()
-	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
-	// The JS code is using relative paths and should be able to handle this without any changes.
-	// To test this, we can apply a prefix here and uncomment when done.
-	// pathPrefix := "/demo"
-	pathPrefix := ""
 	root.Handle(pathPrefix+"/", logRequest(http.StripPrefix(pathPrefix, mux)))
 
 	// Used in kaja launch scripts to determine if the server has started.
