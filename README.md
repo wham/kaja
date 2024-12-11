@@ -2,7 +2,9 @@
 
 # Introduction
 
-`kaja` is a code-based UI for exploring and calling [Twirp](https://github.com/twitchtv/twirp) APIs. Support for gRPC is coming later.
+`kaja` is a code-based UI for exploring and calling [Twirp](https://github.com/twitchtv/twirp) APIs. Try [live demo](https://kaja.tools/demo).
+
+Support for gRPC is coming later.
 
 ![](docs/screenshot.png)
 
