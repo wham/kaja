@@ -4,14 +4,19 @@ import { ApiClient } from "./api.client";
 export function getApiClient(): ApiClient {
   return new ApiClient(
     new TwirpFetchTransport({
-      baseUrl: getBaseUrl(),
+      baseUrl: getBaseUrlForApi(),
     }),
   );
 }
 
-export function getBaseUrl(): string {
+export function getBaseUrlForApi(): string {
   const currentUrl = trimTrailingSlash(window.location.href);
   return `${currentUrl}/twirp`;
+}
+
+export function getBaseUrlForTarget(): string {
+  const currentUrl = trimTrailingSlash(window.location.href);
+  return `${currentUrl}/target`;
 }
 
 function trimTrailingSlash(s: string): string {
