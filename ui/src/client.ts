@@ -1,4 +1,4 @@
-import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
+import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { MethodCall } from "./kaja";
 import { Client, Service } from "./project";
 import { getBaseUrlForTarget } from "./server/connection";
@@ -6,7 +6,7 @@ import { Stub } from "./sources";
 
 export function createClient(service: Service, stub: Stub): Client {
   const client: Client = { methods: {} };
-  const transport = new TwirpFetchTransport({
+  const transport = new GrpcWebFetchTransport({
     baseUrl: getBaseUrlForTarget(),
   });
   const clientStub = new stub[service.name + "Client"](transport);
