@@ -49,22 +49,6 @@ then
     fi
 fi
 
-# Check if envoy is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v envoy &> /dev/null
-then
-    echo "envoy is not installed."
-    read -p "Would you like to install envoy using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing envoy using Homebrew..."
-        brew install envoy
-    else
-        echo "envoy installation skipped. Exiting script."
-        exit 1
-    fi
-fi
-
 # Kill background demo-app when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
@@ -74,8 +58,6 @@ export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-envoy -c ./envoy.yaml &
 
 cd "./ui"
 npm i

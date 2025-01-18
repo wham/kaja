@@ -16,7 +16,7 @@ func main() {
 	mux.Handle(quirksServer.PathPrefix(), withAuthentication(quirksServer))
 	fmt.Printf("Handling SearchServiceServer on %s\n", searchServiceServer.PathPrefix())
 	mux.Handle(searchServiceServer.PathPrefix(), searchServiceServer)
-	http.ListenAndServe(":41522", mux)
+	http.ListenAndServe(":41521", mux)
 }
 
 func withAuthentication(base http.Handler) http.Handler {
