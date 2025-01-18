@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM alpine:latest as builder
+FROM alpine:latest AS builder
 RUN apk add --update nodejs npm
 COPY --from=golang:1.22.4-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
@@ -15,7 +15,7 @@ WORKDIR /server
 RUN go run cmd/build-assets/build-assets.go
 RUN go build -o /build/kaja ./cmd/server
 
-FROM alpine:latest as runner
+FROM alpine:latest AS runner
 COPY --from=builder /build/kaja /app/
 COPY --from=builder /build/protoc-gen-ts /build/
 RUN apk add --update nodejs

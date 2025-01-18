@@ -147,9 +147,10 @@ func main() {
 	// Create a reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Handle /twirp path
-	mux.HandleFunc("/twirp/", func(w http.ResponseWriter, r *http.Request) {
-		//r.URL.Path = r.URL.Path[len(pathPrefix):]
+	// Handle /target path - the actual target service
+	mux.HandleFunc("/target/", func(w http.ResponseWriter, r *http.Request) {
+		// Only BASE_URL with /twirp/ are supported right now
+		r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
 		proxy.ServeHTTP(w, r)
 	})
 
