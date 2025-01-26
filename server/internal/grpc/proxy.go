@@ -1,8 +1,8 @@
 package grpc
 
 import (
-	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -12,10 +12,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"golang.org/x/net/http2"
 )
 
 type Proxy struct {
 	target *url.URL
+	client *http.Client
 }
 
 func NewProxy(targetURL string) (*Proxy, error) {
@@ -23,7 +26,16 @@ func NewProxy(targetURL string) (*Proxy, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid target URL: %w", err)
 	}
-	return &Proxy{target: target}, nil
+
+	transport := &http2.Transport{
+		AllowHTTP: true,
+		DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+			return net.Dial(network, addr)
+		},
+	}
+
+	client := &http.Client{Transport: transport}
+	return &Proxy{target: target, client: client}, nil
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -37,13 +49,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine if we're handling text format
-	isTextFormat := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
+	// Check if using text format
+	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
 
 	// Read gRPC-Web message
 	var message []byte
-	var err error
-	message, err = p.readGRPCWebMessage(r.Body, isTextFormat)
+	message, err := p.readGRPCWebMessage(r.Body, isText)
 	if err != nil {
 		slog.Error("Failed to read gRPC-Web request", "error", err)
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
@@ -52,7 +63,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Create gRPC request
 	proxyURL := *p.target
-	proxyURL.Scheme = "http"
 	proxyURL.Path = r.URL.Path
 	proxyReq, err := http.NewRequest(r.Method, proxyURL.String(), bytes.NewReader(message))
 	if err != nil {
@@ -66,88 +76,42 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	proxyReq.Header.Set("Content-Length", fmt.Sprintf("%d", len(message)))
 	proxyReq.Header.Set("TE", "trailers")
 
-	// Connect directly using TCP for h2c
-	conn, err := net.Dial("tcp", proxyURL.Host)
+	// Send request
+	resp, err := p.client.Do(proxyReq)
 	if err != nil {
-		slog.Error("Failed to connect", "error", err)
-		http.Error(w, "Failed to connect", http.StatusBadGateway)
+		slog.Error("Proxy request failed", "error", err)
+		http.Error(w, "Failed to proxy request", http.StatusBadGateway)
 		return
 	}
-	defer conn.Close()
+	defer resp.Body.Close()
 
-	// Send HTTP/2 connection preface
-	if _, err := conn.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")); err != nil {
-		slog.Error("Failed to write preface", "error", err)
-		return
+	// Set response content type based on request format
+	if isText {
+		w.Header().Set("Content-Type", "application/grpc-web-text+proto")
+	} else {
+		w.Header().Set("Content-Type", "application/grpc-web+proto")
 	}
+	w.WriteHeader(resp.StatusCode)
 
-	// Write the request
-	if err := proxyReq.Write(conn); err != nil {
-		slog.Error("Failed to write request", "error", err)
-		return
-	}
-
-	// Read response directly from connection
-	reader := bufio.NewReader(conn)
-	for {
-		frame, err := reader.ReadBytes(0)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			slog.Error("Failed to read frame", "error", err)
-			return
-		}
-
-		// Skip empty frames and SETTINGS frames
-		if len(frame) == 0 || (len(frame) > 3 && frame[3] == 0x04) {
-			continue
-		}
-
-		if err := p.writeGRPCWebMessage(w, frame); err != nil {
-			slog.Error("Failed to write frame", "error", err)
-			return
-		}
-		w.(http.Flusher).Flush()
+	// Copy response body, encoding if needed
+	if isText {
+		encoder := base64.NewEncoder(base64.StdEncoding, w)
+		io.Copy(encoder, resp.Body)
+		encoder.Close()
+	} else {
+		io.Copy(w, resp.Body)
 	}
 }
 
-func (p *Proxy) readGRPCWebMessage(r io.Reader, isTextFormat bool) ([]byte, error) {
-	if isTextFormat {
-		// For text format, read entire body and decode from base64
+func (p *Proxy) readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
+	if isText {
 		data, err := io.ReadAll(r)
 		if err != nil {
-			return nil, fmt.Errorf("reading text format body: %w", err)
+			return nil, fmt.Errorf("reading text body: %w", err)
 		}
-		decoded, err := base64.StdEncoding.DecodeString(string(data))
-		if err != nil {
-			return nil, fmt.Errorf("decoding base64: %w", err)
-		}
-		return decoded, nil
+		return base64.StdEncoding.DecodeString(string(data))
 	}
-
-	// Regular binary format
-	return p.readGRPCWebBinaryMessage(r)
-}
-
-func (p *Proxy) readGRPCWebBinaryMessage(r io.Reader) ([]byte, error) {
-	var flag [1]byte
-	if _, err := io.ReadFull(r, flag[:]); err != nil {
-		return nil, fmt.Errorf("reading flag: %w", err)
-	}
-
-	var length [4]byte
-	if _, err := io.ReadFull(r, length[:]); err != nil {
-		return nil, fmt.Errorf("reading length: %w", err)
-	}
-
-	messageLength := binary.BigEndian.Uint32(length[:])
-	message := make([]byte, messageLength)
-	if _, err := io.ReadFull(r, message); err != nil {
-		return nil, fmt.Errorf("reading message: %w", err)
-	}
-
-	return message, nil
+	return io.ReadAll(r)
 }
 
 func (p *Proxy) writeGRPCWebMessage(w io.Writer, data []byte) error {
