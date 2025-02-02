@@ -71,7 +71,7 @@ protoc --proto_path=. \
     -Iproto/ $(find . -iname "*.proto")
 # go build -o /tmp/demo-app ./cmd/twirp-server
 go build -o /tmp/demo-app ./cmd/grpc-server
-/tmp/demo-app &
+# /tmp/demo-app &
 
 cd "../server"
 go run cmd/build-assets/build-assets.go

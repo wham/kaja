@@ -149,7 +149,7 @@ func main() {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	// Create gRPC proxy
-	grpcProxy, err := grpc.NewProxy(baseURL)
+	grpcProxy, err := grpc.NewProxy(target)
 	if err != nil {
 		slog.Error("Failed to create gRPC proxy", "error", err)
 		os.Exit(1)
