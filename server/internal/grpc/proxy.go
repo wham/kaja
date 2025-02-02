@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
@@ -60,6 +59,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
 		return
 	}
+	slog.Info("Received message", "length", len(message))
 
 	// Create gRPC request
 	proxyURL := *p.target
@@ -85,6 +85,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Error("Failed to read response", "error", err)
+		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Received response", "length", len(respBody), "status", resp.StatusCode)
+
 	// Set response content type based on request format
 	if isText {
 		w.Header().Set("Content-Type", "application/grpc-web-text+proto")
@@ -93,13 +102,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy response body, encoding if needed
+	// Write response body, encoding if needed
 	if isText {
 		encoder := base64.NewEncoder(base64.StdEncoding, w)
-		io.Copy(encoder, resp.Body)
+		encoder.Write(respBody)
 		encoder.Close()
 	} else {
-		io.Copy(w, resp.Body)
+		w.Write(respBody)
 	}
 }
 
@@ -112,23 +121,4 @@ func (p *Proxy) readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
 		return base64.StdEncoding.DecodeString(string(data))
 	}
 	return io.ReadAll(r)
-}
-
-func (p *Proxy) writeGRPCWebMessage(w io.Writer, data []byte) error {
-	// Regular binary format
-	// Write flag (0 = data frame)
-	if _, err := w.Write([]byte{0}); err != nil {
-		return err
-	}
-
-	// Write length
-	length := make([]byte, 4)
-	binary.BigEndian.PutUint32(length, uint32(len(data)))
-	if _, err := w.Write(length); err != nil {
-		return err
-	}
-
-	// Write data
-	_, err := w.Write(data)
-	return err
 }
