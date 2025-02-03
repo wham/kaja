@@ -2,9 +2,7 @@
 
 # Introduction
 
-`kaja` is a code-based UI for exploring and calling [Twirp](https://github.com/twitchtv/twirp) APIs. Try [live demo](https://kaja.tools/demo).
-
-Support for gRPC is coming later.
+`kaja` is an experimental, code-based UI for exploring and calling [Twirp](https://github.com/twitchtv/twirp) and [gRPC](https://grpc.io) APIs. Try [live demo](https://kaja.tools/demo).
 
 ![](docs/screenshot.png)
 
@@ -37,7 +35,8 @@ docker run -e BASE_URL="http://host.docker.internal:8080" ...
 
 List of configuration options:
 
-- `BASE_URL` - The base URL of the Twirp API. Example: `http://host.docker.internal:8080`.
+- `BASE_URL` - The base URL of the Twirp or gRPC API. Example: `http://host.docker.internal:8080`.
+- `RPC_PROTOCOL` - Use `grpc` or `twirp`. Default is `twirp`.
 
 Alternatively, `kaja` will use [dotenv](https://github.com/motdotla/dotenv) to look for a `.env` file in the `/app` directory of the Docker container. You can use the [-v parameter](https://docs.docker.com/engine/reference/commandline/run/#volume) to mount a `.env` file from the host file system. This is useful when
 you need to dynamically change the configuration. For example, when an authentication header needs to refreshed.
