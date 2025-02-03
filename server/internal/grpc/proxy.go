@@ -49,7 +49,7 @@ func NewProxy(target *url.URL) (*Proxy, error) {
 	return &Proxy{target: target}, nil
 }
 
-func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string) {
 	// Check if using text format
 	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
 
@@ -82,7 +82,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	res := []byte{}
 
-	err = client.Invoke(ctx, "quirks.v1.Quirks/MethodWithAReallyLongNameGmthggupcbmnphflnnvu", message, &res)
+	slog.Info("Invoking gRPC server", "method", method)
+
+	err = client.Invoke(ctx, method, message, &res)
 
 	if err != nil {
 		slog.Error("gRPC invocation failed", "error", err)

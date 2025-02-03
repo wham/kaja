@@ -156,12 +156,12 @@ func main() {
 	}
 
 	// Handle /target path
-	mux.HandleFunc("/target/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
 		if strings.HasPrefix(contentType, "application/grpc-web") ||
 			strings.HasPrefix(contentType, "application/grpc-web-text") {
-			grpcProxy.ServeHTTP(w, r)
+			grpcProxy.ServeHTTP(w, r, r.PathValue("method"))
 			return
 		}
 
