@@ -15,6 +15,7 @@ message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
   repeated string sources = 3;
+  RpcProtocol rpc_protocol = 4;
 }
 
 enum CompileStatus {
@@ -35,4 +36,9 @@ enum LogLevel {
   LEVEL_INFO = 1;
   LEVEL_WARN = 2;
   LEVEL_ERROR = 3;
+}
+
+enum RpcProtocol {
+  RPC_PROTOCOL_TWIRP = 0;
+  RPC_PROTOCOL_GRPC = 1;
 }
