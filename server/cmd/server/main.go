@@ -18,6 +18,7 @@ import (
 	"github.com/joho/godotenv"
 	assets "github.com/wham/kaja/v2"
 	pb "github.com/wham/kaja/v2/internal/api"
+	"github.com/wham/kaja/v2/internal/grpc"
 )
 
 func handlerStubJs(w http.ResponseWriter, r *http.Request) {
@@ -147,9 +148,24 @@ func main() {
 	// Create a reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Handle /target path - the actual target service
-	mux.HandleFunc("/target/", func(w http.ResponseWriter, r *http.Request) {
-		// Only BASE_URL with /twirp/ are supported right now
+	// Create gRPC proxy
+	grpcProxy, err := grpc.NewProxy(target)
+	if err != nil {
+		slog.Error("Failed to create gRPC proxy", "error", err)
+		os.Exit(1)
+	}
+
+	// Handle /target path
+	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a gRPC-Web request
+		contentType := r.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "application/grpc-web") ||
+			strings.HasPrefix(contentType, "application/grpc-web-text") {
+			grpcProxy.ServeHTTP(w, r, r.PathValue("method"))
+			return
+		}
+
+		// Handle regular Twirp requests
 		r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
 		proxy.ServeHTTP(w, r)
 	})

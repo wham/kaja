@@ -47,10 +47,18 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		logs = s.logs[logOffset:]
 	}
 
+	var rpcProtocol RpcProtocol
+	if os.Getenv("RPC_PROTOCOL") == "grpc" {
+		rpcProtocol = RpcProtocol_RPC_PROTOCOL_GRPC
+	} else {
+		rpcProtocol = RpcProtocol_RPC_PROTOCOL_TWIRP
+	}
+
 	return &CompileResponse{
-		Status:  s.status,
-		Logs:    logs,
-		Sources: s.sources,
+		Status:      s.status,
+		Logs:        logs,
+		Sources:     s.sources,
+		RpcProtocol: rpcProtocol,
 	}, nil
 }
 

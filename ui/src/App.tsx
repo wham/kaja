@@ -9,7 +9,7 @@ import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { Method, Project, getDefaultMethod } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus } from "./server/api";
+import { CompileStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { Sidebar } from "./Sidebar";
 
@@ -59,8 +59,8 @@ export function App() {
     setEditorHeight((height) => height + delta);
   };
 
-  const onCompile = async (sources: string[]) => {
-    const project = await loadProject(sources);
+  const onCompile = async (sources: string[], rpcProtocol: RpcProtocol) => {
+    const project = await loadProject(sources, rpcProtocol);
     console.log("Project loaded", project);
     setProject(project);
     setSelectedMethod(getDefaultMethod(project.services));
@@ -116,7 +116,7 @@ export function App() {
           compile(ignoreToken);
         }, 1000);
       } else {
-        onCompile(response.sources);
+        onCompile(response.sources, response.rpcProtocol);
       }
     });
   };
