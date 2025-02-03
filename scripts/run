@@ -53,18 +53,40 @@ fi
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
+
+# Load environment variables from .env file if present
+if [ -f .env ]; then
+    echo "Loading environment variables from .env file..."
+    set -a
+    source .env
+    set +a
+fi
+
 export GOBIN=$PWD/build
 export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 cd "./ui"
 npm i
 npm run protoc
 
 cd "../demo"
-protoc --proto_path=. --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
-go build -o /tmp/demo-app ./cmd/demo-app
+protoc --proto_path=. \
+    --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
+    --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
+    --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
+    -Iproto/ $(find . -iname "*.proto")
+
+if [ "$RPC_PROTOCOL" = "grpc" ]; then
+    echo "Building gRPC demo app"
+    go build -o /tmp/demo-app ./cmd/grpc-server
+else
+    echo "Building Twirp demo app"
+    go build -o /tmp/demo-app ./cmd/twirp-server
+fi
+
 /tmp/demo-app &
 
 cd "../server"
