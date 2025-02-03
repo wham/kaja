@@ -13,16 +13,33 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-// rawMessage wraps raw request/response bytes as a proto.Message.
-type rawMessage struct {
-	Data []byte
+type grpcWebCodec struct{}
+
+func (c *grpcWebCodec) Marshal(v interface{}) ([]byte, error) {
+	// Already bytes
+	if b, ok := v.([]byte); ok {
+		return b, nil
+	}
+
+	return nil, fmt.Errorf("unsupported type: %T", v)
 }
 
-func (m *rawMessage) Reset()         { m.Data = nil }
-func (m *rawMessage) String() string { return string(m.Data) }
-func (m *rawMessage) ProtoMessage()  {}
+func (c *grpcWebCodec) Unmarshal(data []byte, v interface{}) error {
+	// Check if v is a pointer to []byte
+	if b, ok := v.(*[]byte); ok {
+		*b = data
+		return nil
+	}
+
+	return fmt.Errorf("unsupported type: %T", v)
+}
+
+func (c *grpcWebCodec) Name() string {
+	return "grpc-web"
+}
 
 type Proxy struct {
 	target *url.URL
@@ -50,30 +67,33 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	codec := &grpcWebCodec{}
+
 	slog.Info("Dialing gRPC server", "target", p.target.String())
-	conn, err := grpc.DialContext(ctx, p.target.String(), grpc.WithInsecure(), grpc.WithBlock())
+
+	client, err := grpc.NewClient(":"+p.target.Port(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+
 	if err != nil {
-		slog.Error("Failed to dial gRPC server", "error", err)
+		slog.Error("Failed to connect gRPC server", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	defer conn.Close()
+	defer client.Close()
 
-	reqMsg := &rawMessage{Data: message}
-	resMsg := &rawMessage{}
+	res := []byte{}
 
-	// Use the request URL path as the method name.
-	err = conn.Invoke(ctx, "quirks.v1.Quirks/GetAuthentication", reqMsg, resMsg)
+	err = client.Invoke(ctx, "quirks.v1.Quirks/MethodWithAReallyLongNameGmthggupcbmnphflnnvu", message, &res)
+
 	if err != nil {
 		slog.Error("gRPC invocation failed", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Received gRPC response", "length", len(resMsg.Data))
+	slog.Info("Received gRPC response", "length", len(res))
 	w.Header().Set("Content-Type", "application/grpc")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(resMsg.Data)))
-	_, _ = io.Copy(w, bytes.NewReader(resMsg.Data))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(res)))
+	_, _ = io.Copy(w, bytes.NewReader(res))
 }
 
 func (p *Proxy) readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
