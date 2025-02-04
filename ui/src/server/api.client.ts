@@ -13,25 +13,25 @@ import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
  * @generated from protobuf service Api
  */
 export interface IApiClient {
-    /**
-     * @generated from protobuf rpc: Compile(CompileRequest) returns (CompileResponse);
-     */
-    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
+  /**
+   * @generated from protobuf rpc: Compile(CompileRequest) returns (CompileResponse);
+   */
+  compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
 }
 /**
  * @generated from protobuf service Api
  */
 export class ApiClient implements IApiClient, ServiceInfo {
-    typeName = Api.typeName;
-    methods = Api.methods;
-    options = Api.options;
-    constructor(private readonly _transport: RpcTransport) {
-    }
-    /**
-     * @generated from protobuf rpc: Compile(CompileRequest) returns (CompileResponse);
-     */
-    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse> {
-        const method = this.methods[0], opt = this._transport.mergeOptions(options);
-        return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
-    }
+  typeName = Api.typeName;
+  methods = Api.methods;
+  options = Api.options;
+  constructor(private readonly _transport: RpcTransport) {}
+  /**
+   * @generated from protobuf rpc: Compile(CompileRequest) returns (CompileResponse);
+   */
+  compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse> {
+    const method = this.methods[0],
+      opt = this._transport.mergeOptions(options);
+    return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
+  }
 }
