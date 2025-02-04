@@ -71,6 +71,9 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 cd "./ui"
 npm i
 npm run protoc
+# protoc generates files need to be formatted with prettier
+# consider ignoring them if this starts to take too long
+npm run prettier
 
 cd "../demo"
 protoc --proto_path=. \
