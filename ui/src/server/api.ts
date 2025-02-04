@@ -41,9 +41,9 @@ export interface CompileResponse {
      */
     sources: string[];
     /**
-     * @generated from protobuf field: RpcProtocol rpc_protocolz = 4;
+     * @generated from protobuf field: RpcProtocol rpc_protocol = 4;
      */
-    rpcProtocolz: RpcProtocol;
+    rpcProtocol: RpcProtocol;
 }
 /**
  * @generated from protobuf message Log
@@ -179,7 +179,7 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
             { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
             { no: 2, name: "logs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Log },
             { no: 3, name: "sources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "rpc_protocolz", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] }
+            { no: 4, name: "rpc_protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] }
         ]);
     }
     create(value?: PartialMessage<CompileResponse>): CompileResponse {
@@ -187,7 +187,7 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         message.status = 0;
         message.logs = [];
         message.sources = [];
-        message.rpcProtocolz = 0;
+        message.rpcProtocol = 0;
         if (value !== undefined)
             reflectionMergePartial<CompileResponse>(this, message, value);
         return message;
@@ -206,8 +206,8 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
                 case /* repeated string sources */ 3:
                     message.sources.push(reader.string());
                     break;
-                case /* RpcProtocol rpc_protocolz */ 4:
-                    message.rpcProtocolz = reader.int32();
+                case /* RpcProtocol rpc_protocol */ 4:
+                    message.rpcProtocol = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -230,9 +230,9 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         /* repeated string sources = 3; */
         for (let i = 0; i < message.sources.length; i++)
             writer.tag(3, WireType.LengthDelimited).string(message.sources[i]);
-        /* RpcProtocol rpc_protocolz = 4; */
-        if (message.rpcProtocolz !== 0)
-            writer.tag(4, WireType.Varint).int32(message.rpcProtocolz);
+        /* RpcProtocol rpc_protocol = 4; */
+        if (message.rpcProtocol !== 0)
+            writer.tag(4, WireType.Varint).int32(message.rpcProtocol);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
