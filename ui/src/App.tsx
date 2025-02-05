@@ -1,4 +1,3 @@
-import { Monaco } from "@monaco-editor/react";
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import { editor } from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
@@ -29,7 +28,6 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [editorHeight, setEditorHeight] = useState(400);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const monacoRef = useRef<Monaco>();
   const logsOffsetRef = useRef(0);
   const kajaRef = useRef(new Kaja(onMethodCallUpdate));
 
@@ -50,9 +48,8 @@ export function App() {
     });
   }
 
-  function onEditorMount(editor: editor.IStandaloneCodeEditor, monaco: Monaco) {
+  function onEditorMount(editor: editor.IStandaloneCodeEditor) {
     editorRef.current = editor;
-    monacoRef.current = monaco;
   }
 
   const onEditorResize = (delta: number) => {
@@ -153,7 +150,7 @@ export function App() {
                 {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
-              <Console items={consoleItems} monaco={monacoRef.current} />
+              <Console items={consoleItems} />
             </Box>
           </Box>
         </Box>

@@ -1,67 +1,56 @@
-import { Monaco, Editor as MonacoEditor } from "@monaco-editor/react";
-import { editor } from "monaco-editor";
-import React, { useEffect } from "react";
+import * as monaco from "monaco-editor";
+import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
 import { ExtraLib } from "./project";
 
 interface EditorProps {
   code: string;
   extraLibs: ExtraLib[];
-  onMount: (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => void;
+  onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
 export function Editor({ code, extraLibs, onMount }: EditorProps) {
-  const editorRef = React.useRef<editor.IStandaloneCodeEditor>();
-
-  const handleOnMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
-    editorRef.current = editor;
-    editor.focus();
-
-    extraLibs.forEach((extraLib) => {
-      monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib.content);
-      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
-    });
-
-    monaco.languages.registerDocumentFormattingEditProvider("typescript", {
-      async provideDocumentFormattingEdits(model: editor.ITextModel) {
-        return [
-          {
-            text: await formatTypeScript(model.getValue()),
-            range: model.getFullModelRange(),
-          },
-        ];
-      },
-    });
-
-    editor.getAction("editor.action.formatDocument")?.run();
-
-    onMount(editor, monaco);
-  };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.getAction("editor.action.formatDocument")?.run();
-      editorRef.current.focus();
-      editorRef.current.setScrollTop(0);
-    }
-  });
+    if (containerRef.current) {
+      // Create the Monaco editor instance
+      const editor = monaco.editor.create(containerRef.current, {
+        value: code,
+        language: "typescript",
+        theme: "vs-dark",
+        automaticLayout: true,
+      });
+      editorRef.current = editor;
+      editor.focus();
 
-  return (
-    <MonacoEditor
-      width="100%"
-      height="100%"
-      defaultLanguage="typescript"
-      onMount={handleOnMount}
-      theme="vs-dark"
-      value={code}
-      // See index.html for additional .monaco-editor fix to enable automatic resizing
-      options={{
-        minimap: { enabled: false },
-        renderLineHighlight: "none",
-        formatOnPaste: true,
-        formatOnType: true,
-        tabSize: 2,
-      }}
-    />
-  );
+      // Add extra libraries and create models for declaration files
+      extraLibs.forEach((extraLib) => {
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib.content);
+        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
+      });
+
+      // Register a document formatting provider for TypeScript
+      monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+        async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
+          return [
+            {
+              text: await formatTypeScript(model.getValue()),
+              range: model.getFullModelRange(),
+            },
+          ];
+        },
+      });
+
+      // Call the onMount callback to notify parent component
+      onMount(editor);
+
+      return () => {
+        editor.dispose();
+      };
+    }
+  }, [code, extraLibs, onMount]);
+
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

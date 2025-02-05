@@ -1,4 +1,3 @@
-import { Monaco } from "@monaco-editor/react";
 import { Box, Button, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
@@ -10,10 +9,9 @@ export type ConsoleItem = Log[] | MethodCall;
 
 interface ConsoleProps {
   items: ConsoleItem[];
-  monaco?: Monaco;
 }
 
-export function Console({ items, monaco }: ConsoleProps) {
+export function Console({ items }: ConsoleProps) {
   const containerRef = useRef<HTMLDivElement>();
   const bottomRef = useRef<HTMLDivElement>();
   const autoScrollRef = useRef(true);
@@ -54,7 +52,7 @@ export function Console({ items, monaco }: ConsoleProps) {
           if (Array.isArray(item)) {
             itemElement = <Console.Logs logs={item} />;
           } else if ("method" in item) {
-            itemElement = <Console.MethodCall methodCall={item} monaco={monaco} onInteract={onMethodCallInteract} />;
+            itemElement = <Console.MethodCall methodCall={item} onInteract={onMethodCallInteract} />;
           }
 
           return <Box key={index}>{itemElement}</Box>;
@@ -84,38 +82,37 @@ Console.Logs = function ({ logs }: LogsProps) {
 
 interface MethodCallProps {
   methodCall: MethodCall;
-  monaco?: Monaco;
   onInteract: () => void;
 }
 
-Console.MethodCall = function ({ methodCall, monaco, onInteract }: MethodCallProps) {
+Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
   const [html, setHtml] = useState<string>("");
   const [showingOutput, setShowingOutput] = useState(true);
 
   const onInputClick = async () => {
     onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.input, monaco));
+    setHtml(await formatAndColorizeJson(methodCall.input));
     setShowingOutput(false);
   };
 
   const onOutputClick = async () => {
     onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.output, monaco));
+    setHtml(await formatAndColorizeJson(methodCall.output));
     setShowingOutput(true);
   };
 
   const onErrorClick = async () => {
     onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.error, monaco));
+    setHtml(await formatAndColorizeJson(methodCall.error));
     setShowingOutput(true);
   };
 
   useEffect(() => {
-    formatAndColorizeJson(methodCall.output || methodCall.error, monaco).then((html) => {
+    formatAndColorizeJson(methodCall.output || methodCall.error).then((html) => {
       setHtml(html);
       setShowingOutput(true);
     });
-  }, [methodCall, monaco]);
+  }, [methodCall]);
 
   return (
     <>
