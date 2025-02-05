@@ -6,7 +6,6 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "@monaco-editor/react": "^4.6.0",
     "@primer/octicons-react": "^19.14.0",
     "@primer/react": "^36.27.0",
     "@protobuf-ts/grpcweb-transport": "^2.9.4",
@@ -14,6 +13,7 @@
     "@protobuf-ts/runtime": "^2.9.4",
     "@protobuf-ts/runtime-rpc": "^2.9.4",
     "@protobuf-ts/twirp-transport": "^2.9.4",
+    "monaco-editor": "^0.52.2",
     "prettier": "^3.4.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
