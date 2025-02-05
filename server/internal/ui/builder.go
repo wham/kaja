@@ -31,11 +31,19 @@ func BuildForProduction() ([]byte, error) {
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
+		Outdir:            "build",
+		Loader: map[string]api.Loader{
+			".ttf": api.LoaderFile,
+		},
 	})
 
 	if len(result.Errors) > 0 {
 		slog.Error("Failed to build the UI", "errors", result.Errors)
 		return nil, fmt.Errorf("failed to build the UI")
+	}
+
+	for _, file := range result.OutputFiles {
+		slog.Info("Output file", "path", file.Path)
 	}
 
 	return result.OutputFiles[0].Contents, nil
