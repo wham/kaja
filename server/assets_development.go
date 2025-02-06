@@ -17,6 +17,6 @@ func init() {
 	TemplatesFS = os.DirFS(".")
 }
 
-func ReadUI() []byte {
+func ReadUiBundle() *ui.UiBundle {
 	return ui.BuildForDevelopment()
 }

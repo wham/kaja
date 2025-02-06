@@ -14,20 +14,21 @@ type UiBundle struct {
 	CodiconTtf []byte
 }
 
-func BuildForDevelopment() []byte {
+func BuildForDevelopment() *UiBundle {
 	result := api.Build(api.BuildOptions{
 		EntryPoints: []string{"../ui/src/main.tsx"},
 		Bundle:      true,
 		Format:      api.FormatESModule,
 		Sourcemap:   api.SourceMapInline,
+		Outdir:      "build",
+		Loader: map[string]api.Loader{
+			".ttf": api.LoaderFile,
+		},
 	})
 
-	if len(result.Errors) > 0 {
-		slog.Error("Failed to build the UI", "errors", result.Errors)
-		return nil
-	}
+	bundle, _ := buildResultToUiBundle(result)
 
-	return result.OutputFiles[0].Contents
+	return bundle
 }
 
 func BuildForProduction() (*UiBundle, error) {
@@ -44,6 +45,10 @@ func BuildForProduction() (*UiBundle, error) {
 		},
 	})
 
+	return buildResultToUiBundle(result)
+}
+
+func buildResultToUiBundle(result api.BuildResult) (*UiBundle, error) {
 	if len(result.Errors) > 0 {
 		slog.Error("Failed to build the UI", "errors", result.Errors)
 		return nil, fmt.Errorf("failed to build the UI")

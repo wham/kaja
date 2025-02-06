@@ -124,9 +124,19 @@ func main() {
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 
-	mux.HandleFunc("GET /ui.js", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /main.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
-		w.Write(assets.ReadUI())
+		w.Write(assets.ReadUiBundle().MainJs)
+	})
+
+	mux.HandleFunc("GET /main.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		w.Write(assets.ReadUiBundle().MainCss)
+	})
+
+	mux.HandleFunc("GET /codicon-37A3DWZT.ttf", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "font/ttf")
+		w.Write(assets.ReadUiBundle().CodiconTtf)
 	})
 
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))

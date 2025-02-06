@@ -10,8 +10,8 @@
     <script type="importmap">
       {
         "imports": {
-          "@protobuf-ts/runtime": "./ui.js",
-          "@protobuf-ts/runtime-rpc": "./ui.js"
+          "@protobuf-ts/runtime": "./main.js",
+          "@protobuf-ts/runtime-rpc": "./main.js"
         }
       }
     </script>
@@ -24,6 +24,6 @@
   </head>
   <body style="background-color: black; overscroll-behavior: none">
     <div id="root"></div>
-    <script type="module" src="{{.PathPrefix}}/ui.js"></script>
+    <script type="module" src="{{.PathPrefix}}/main.js"></script>
   </body>
 </html>
