@@ -28,7 +28,7 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
       // Add extra libraries and create models for declaration files
       extraLibs.forEach((extraLib) => {
         monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib.content);
-        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
+        //monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
       });
 
       // Register a document formatting provider for TypeScript
