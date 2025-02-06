@@ -28,21 +28,33 @@ func build() error {
 		return err
 	}
 
-	outputFile := path.Join(outputDirectory, "ui.js")
-	if err := os.WriteFile(outputFile, data, 0644); err != nil {
+	outputFile := path.Join(outputDirectory, "main.js")
+	if err := os.WriteFile(outputFile, data.MainJs, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err
 	}
 
-	slog.Info("UI built successfully", "outputFile", outputFile)
+	outputFile = path.Join(outputDirectory, "main.css")
+	if err := os.WriteFile(outputFile, data.MainCss, 0644); err != nil {
+		slog.Error("Failed to write output file", "error", err)
+		return err
+	}
 
-	data, err = ui.BuildProtocGenTs()
+	outputFile = path.Join(outputDirectory, "codicon-37A3DWZT.ttf")
+	if err := os.WriteFile(outputFile, data.CodiconTtf, 0644); err != nil {
+		slog.Error("Failed to write output file", "error", err)
+		return err
+	}
+
+	slog.Info("UI built successfully")
+
+	pgt, err := ui.BuildProtocGenTs()
 	if err != nil {
 		return err
 	}
 
 	outputFile = path.Join(outputDirectory, "protoc-gen-ts")
-	if err := os.WriteFile(outputFile, data, 0644); err != nil {
+	if err := os.WriteFile(outputFile, pgt, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err
 	}

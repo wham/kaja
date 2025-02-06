@@ -3,9 +3,16 @@ package ui
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
 )
+
+type UiBundle struct {
+	MainJs     []byte
+	MainCss    []byte
+	CodiconTtf []byte
+}
 
 func BuildForDevelopment() []byte {
 	result := api.Build(api.BuildOptions{
@@ -23,7 +30,7 @@ func BuildForDevelopment() []byte {
 	return result.OutputFiles[0].Contents
 }
 
-func BuildForProduction() ([]byte, error) {
+func BuildForProduction() (*UiBundle, error) {
 	result := api.Build(api.BuildOptions{
 		EntryPoints:       []string{"../ui/src/main.tsx"},
 		Bundle:            true,
@@ -42,11 +49,25 @@ func BuildForProduction() ([]byte, error) {
 		return nil, fmt.Errorf("failed to build the UI")
 	}
 
+	bundle := &UiBundle{}
+
 	for _, file := range result.OutputFiles {
-		slog.Info("Output file", "path", file.Path)
+		fileName := file.Path[strings.LastIndex(file.Path, "/")+1:]
+		switch fileName {
+		case "main.js":
+			bundle.MainJs = file.Contents
+		case "main.css":
+			bundle.MainCss = file.Contents
+		case "codicon-37A3DWZT.ttf":
+			bundle.CodiconTtf = file.Contents
+		}
 	}
 
-	return result.OutputFiles[0].Contents, nil
+	if bundle.MainJs == nil || bundle.MainCss == nil || bundle.CodiconTtf == nil {
+		return nil, fmt.Errorf("failed to find one of the output files")
+	}
+
+	return bundle, nil
 }
 
 func BuildProtocGenTs() ([]byte, error) {
