@@ -3,6 +3,13 @@ import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
 import { ExtraLib } from "./project";
 
+// Import the necessary Monaco Editor workers
+self.MonacoEnvironment = {
+  getWorkerUrl: function (moduleId, label) {
+    return "./monaco/editor.worker.js";
+  },
+};
+
 interface EditorProps {
   code: string;
   extraLibs: ExtraLib[];

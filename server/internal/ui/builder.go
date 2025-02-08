@@ -90,3 +90,37 @@ func BuildProtocGenTs() ([]byte, error) {
 
 	return result.OutputFiles[0].Contents, nil
 }
+
+type MonacoWorker struct {
+	Name     string
+	Contents []byte
+}
+
+func BuildMonacoWorkers() ([]MonacoWorker, error) {
+	names := []string{
+		"editor.worker",
+	}
+
+	workers := make([]MonacoWorker, len(names))
+
+	for i, name := range names {
+		result := api.Build(api.BuildOptions{
+			EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/editor/%s.js", name)},
+			Bundle:      true,
+			Format:      api.FormatIIFE,
+			Platform:    api.PlatformBrowser,
+		})
+
+		if len(result.Errors) > 0 {
+			slog.Error("Failed to build monaco worker", "errors", result.Errors)
+			return nil, fmt.Errorf("failed to build monaco worker")
+		}
+
+		workers[i] = MonacoWorker{
+			Name:     name,
+			Contents: result.OutputFiles[0].Contents,
+		}
+	}
+
+	return workers, nil
+}

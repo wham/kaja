@@ -139,6 +139,17 @@ func main() {
 		w.Write(assets.ReadUiBundle().CodiconTtf)
 	})
 
+	mux.HandleFunc("/monaco/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			name := strings.TrimPrefix(r.URL.Path, "/monaco/")
+			name = strings.TrimSuffix(name, ".js")
+			w.Header().Set("Content-Type", "application/javascript")
+			w.Write(assets.ReadMonacoWorker(name))
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
 	mux.HandleFunc("GET /stub.js", handlerStubJs)
 	mux.HandleFunc("GET /status", handlerStatus)
