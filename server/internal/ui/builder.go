@@ -91,36 +91,28 @@ func BuildProtocGenTs() ([]byte, error) {
 	return result.OutputFiles[0].Contents, nil
 }
 
-type MonacoWorker struct {
-	Name     string
-	Contents []byte
-}
+func BuildMonacoWorker(name string) ([]byte, error) {
+	path := fmt.Sprintf("language/%s/%s.worker.js", name, name)
 
-func BuildMonacoWorkers() ([]MonacoWorker, error) {
-	names := []string{
-		"editor.worker",
+	if name == "ts.worker" {
+		path = "language/typescript/ts.worker.js"
 	}
 
-	workers := make([]MonacoWorker, len(names))
-
-	for i, name := range names {
-		result := api.Build(api.BuildOptions{
-			EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/editor/%s.js", name)},
-			Bundle:      true,
-			Format:      api.FormatIIFE,
-			Platform:    api.PlatformBrowser,
-		})
-
-		if len(result.Errors) > 0 {
-			slog.Error("Failed to build monaco worker", "errors", result.Errors)
-			return nil, fmt.Errorf("failed to build monaco worker")
-		}
-
-		workers[i] = MonacoWorker{
-			Name:     name,
-			Contents: result.OutputFiles[0].Contents,
-		}
+	if name == "editor.worker" {
+		path = "editor/editor.worker.js"
 	}
 
-	return workers, nil
+	result := api.Build(api.BuildOptions{
+		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
+		Bundle:      true,
+		Format:      api.FormatIIFE,
+		Platform:    api.PlatformBrowser,
+	})
+
+	if len(result.Errors) > 0 {
+		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
+		return nil, fmt.Errorf("failed to build monaco worker %s", name)
+	}
+
+	return result.OutputFiles[0].Contents, nil
 }

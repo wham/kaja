@@ -21,8 +21,6 @@ func ReadUiBundle() *ui.UiBundle {
 	return ui.BuildForDevelopment()
 }
 
-func ReadMonacoWorker(name string) []byte {
-	workers, _ := ui.BuildMonacoWorkers()
-
-	return workers[0].Contents
+func ReadMonacoWorker(name string) ([]byte, error) {
+	return ui.BuildMonacoWorker(name)
 }

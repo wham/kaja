@@ -139,16 +139,27 @@ func main() {
 		w.Write(assets.ReadUiBundle().CodiconTtf)
 	})
 
-	mux.HandleFunc("/monaco/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, ".js") {
-			name := strings.TrimPrefix(r.URL.Path, "/monaco/")
-			name = strings.TrimSuffix(name, ".js")
+	workers := []string{
+		"json.worker",
+		"css.worker",
+		"html.worker",
+		"ts.worker",
+		"editor.worker",
+	}
+
+	for _, worker := range workers {
+		mux.HandleFunc("GET /monaco."+worker+".js", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript")
-			w.Write(assets.ReadMonacoWorker(name))
-		} else {
-			http.NotFound(w, r)
-		}
-	})
+
+			data, err := assets.ReadMonacoWorker(worker)
+
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
+				w.Write(data)
+			}
+		})
+	}
 
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
 	mux.HandleFunc("GET /stub.js", handlerStubJs)
