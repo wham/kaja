@@ -39,6 +39,13 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
         language: "typescript",
         theme: "vs-dark",
         automaticLayout: true,
+        minimap: {
+          enabled: false,
+        },
+        renderLineHighlight: "none",
+        formatOnPaste: true,
+        formatOnType: true,
+        tabSize: 2,
       });
       editorRef.current = editor;
       editor.focus();
