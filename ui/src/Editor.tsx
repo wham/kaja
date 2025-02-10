@@ -75,7 +75,12 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
         editor.dispose();
       };
     }
-  }, [code, extraLibs, onMount]);
+  }, []);
+
+  if (editorRef.current) {
+    editorRef.current.setValue(code);
+    editorRef.current.getAction("editor.action.formatDocument")?.run();
+  }
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }
