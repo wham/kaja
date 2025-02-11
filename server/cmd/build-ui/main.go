@@ -61,5 +61,18 @@ func build() error {
 
 	slog.Info("protoc-gen-ts built successfully", "outputFile", outputFile)
 
+	workers := []string{"json.worker", "css.worker", "html.worker", "ts.worker", "editor.worker"}
+	for _, name := range workers {
+		worker, err := ui.BuildMonacoWorker(name)
+		if err != nil {
+			return err
+		}
+		outputFile = path.Join(outputDirectory, "monaco."+name+".js")
+		if err := os.WriteFile(outputFile, worker, 0644); err != nil {
+			slog.Error("Failed to write output file", "error", err)
+			return err
+		}
+	}
+
 	return nil
 }
