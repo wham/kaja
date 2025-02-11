@@ -21,6 +21,18 @@ self.MonacoEnvironment = {
   },
 };
 
+// Register a document formatting provider for TypeScript
+monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+  async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
+    return [
+      {
+        text: await formatTypeScript(model.getValue()),
+        range: model.getFullModelRange(),
+      },
+    ];
+  },
+});
+
 interface EditorProps {
   code: string;
   extraLibs: ExtraLib[];
@@ -30,11 +42,17 @@ interface EditorProps {
 export function Editor({ code, extraLibs, onMount }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const areExtraLibsAdded = useRef(false);
 
   useEffect(() => {
-    if (containerRef.current) {
-      // Create the Monaco editor instance
-      const editor = monaco.editor.create(containerRef.current, {
+    if (!containerRef.current) {
+      return;
+    }
+
+    let isDisposing = false;
+
+    if (!editorRef.current) {
+      editorRef.current = monaco.editor.create(containerRef.current, {
         value: code,
         language: "typescript",
         theme: "vs-dark",
@@ -47,40 +65,32 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
         formatOnType: true,
         tabSize: 2,
       });
-      editorRef.current = editor;
-      editor.focus();
 
-      // Add extra libraries and create models for declaration files
+      onMount(editorRef.current);
+    }
+
+    if (!areExtraLibsAdded.current) {
       extraLibs.forEach((extraLib) => {
         monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib.content);
-        //monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
+        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
       });
 
-      // Register a document formatting provider for TypeScript
-      monaco.languages.registerDocumentFormattingEditProvider("typescript", {
-        async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
-          return [
-            {
-              text: await formatTypeScript(model.getValue()),
-              range: model.getFullModelRange(),
-            },
-          ];
-        },
-      });
-
-      // Call the onMount callback to notify parent component
-      onMount(editor);
-
-      return () => {
-        editor.dispose();
-      };
+      areExtraLibsAdded.current = true;
     }
-  }, []);
 
-  if (editorRef.current) {
-    editorRef.current.setValue(code);
-    editorRef.current.getAction("editor.action.formatDocument")?.run();
-  }
+    // Format code before setting it
+    formatTypeScript(code).then((formattedCode) => {
+      if (!isDisposing && editorRef.current) {
+        editorRef.current.setValue(formattedCode);
+      }
+    });
+
+    return () => {
+      isDisposing = true;
+      editorRef.current?.dispose();
+      editorRef.current = null;
+    };
+  }, [code]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }
