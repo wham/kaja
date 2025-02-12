@@ -19,6 +19,7 @@ import (
 	assets "github.com/wham/kaja/v2"
 	pb "github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
+	"github.com/wham/kaja/v2/internal/ui"
 )
 
 func handlerStubJs(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +125,35 @@ func main() {
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 
-	mux.HandleFunc("GET /ui.js", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /main.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
-		w.Write(assets.ReadUI())
+		w.Write(assets.ReadUiBundle().MainJs)
 	})
+
+	mux.HandleFunc("GET /main.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		w.Write(assets.ReadUiBundle().MainCss)
+	})
+
+	mux.HandleFunc("GET /codicon-37A3DWZT.ttf", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "font/ttf")
+		w.Write(assets.ReadUiBundle().CodiconTtf)
+	})
+
+	for _, worker := range ui.MonacoWorkerNames {
+		mux.HandleFunc("GET /monaco."+worker+".worker.js", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/javascript")
+
+			data, err := assets.ReadMonacoWorker(worker)
+
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				slog.Error("Failed to read monaco worker", "error", err)
+			} else {
+				w.Write(data)
+			}
+		})
+	}
 
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
 	mux.HandleFunc("GET /stub.js", handlerStubJs)
