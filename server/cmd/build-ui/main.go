@@ -28,6 +28,12 @@ func build() error {
 		return err
 	}
 
+	outputDirectory2 := "../build"
+	if err := os.MkdirAll(outputDirectory2, os.ModePerm); err != nil {
+		slog.Error("Failed to create output directory", "error", err)
+		return err
+	}
+
 	outputFile := path.Join(outputDirectory, "main.js")
 	if err := os.WriteFile(outputFile, data.MainJs, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
@@ -53,7 +59,7 @@ func build() error {
 		return err
 	}
 
-	outputFile = path.Join(outputDirectory, "protoc-gen-ts")
+	outputFile = path.Join(outputDirectory2, "protoc-gen-ts")
 	if err := os.WriteFile(outputFile, pgt, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err
@@ -61,17 +67,18 @@ func build() error {
 
 	slog.Info("protoc-gen-ts built successfully", "outputFile", outputFile)
 
-	workers := []string{"json.worker", "css.worker", "html.worker", "ts.worker", "editor.worker"}
-	for _, name := range workers {
-		worker, err := ui.BuildMonacoWorker(name)
+	for _, worker := range ui.MonacoWorkerNames {
+		d, err := ui.BuildMonacoWorker(worker)
 		if err != nil {
 			return err
 		}
-		outputFile = path.Join(outputDirectory, "monaco."+name+".js")
-		if err := os.WriteFile(outputFile, worker, 0644); err != nil {
+		outputFile = path.Join(outputDirectory, "monaco."+worker+".worker.js")
+		if err := os.WriteFile(outputFile, d, 0644); err != nil {
 			slog.Error("Failed to write output file", "error", err)
 			return err
 		}
+
+		slog.Info("monaco worker built successfully", "outputFile", outputFile)
 	}
 
 	return nil

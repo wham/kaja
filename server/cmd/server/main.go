@@ -140,15 +140,15 @@ func main() {
 	})
 
 	workers := []string{
-		"json.worker",
-		"css.worker",
-		"html.worker",
-		"ts.worker",
-		"editor.worker",
+		"json",
+		"cssr",
+		"html",
+		"ts",
+		"editor",
 	}
 
 	for _, worker := range workers {
-		mux.HandleFunc("GET /monaco."+worker+".js", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("GET /monaco."+worker+".worker.js", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript")
 
 			data, err := assets.ReadMonacoWorker(worker)

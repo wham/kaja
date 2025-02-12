@@ -43,7 +43,9 @@ mkfifo pipe
 
 docker run --name kaja-dev -a STDOUT -p 41520:41520 \
     -v $PWD/demo:/workspace \
-    -e BASE_URL="http://host.docker.internal:41521" RPC_PROTOCOL=$RPC_PROTOCOL --add-host=host.docker.internal:host-gateway kaja-dev:latest > pipe &
+    -e BASE_URL="http://host.docker.internal:41521" \
+    -e RPC_PROTOCOL="$RPC_PROTOCOL" \
+    --add-host=host.docker.internal:host-gateway kaja-dev:latest > pipe &
 
 while IFS= read -r line
 do

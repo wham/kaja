@@ -91,14 +91,16 @@ func BuildProtocGenTs() ([]byte, error) {
 	return result.OutputFiles[0].Contents, nil
 }
 
+var MonacoWorkerNames = []string{"json", "css", "html", "ts", "editor"}
+
 func BuildMonacoWorker(name string) ([]byte, error) {
 	path := fmt.Sprintf("language/%s/%s.worker.js", name, name)
 
-	if name == "ts.worker" {
+	if name == "ts" {
 		path = "language/typescript/ts.worker.js"
 	}
 
-	if name == "editor.worker" {
+	if name == "editor" {
 		path = "editor/editor.worker.js"
 	}
 
