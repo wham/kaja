@@ -57,7 +57,7 @@ func ReadMonacoWorker(name string) ([]byte, error) {
 		return monacoHtmlWorkerJs, nil
 	case "ts":
 		return monacoTsWorkerJs, nil
-	case "editor.worker":
+	case "editor":
 		return monacoEditorWorkerJs, nil
 	}
 	return nil, fmt.Errorf("unknown monaco worker: %s", name)

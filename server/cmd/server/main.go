@@ -19,6 +19,7 @@ import (
 	assets "github.com/wham/kaja/v2"
 	pb "github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
+	"github.com/wham/kaja/v2/internal/ui"
 )
 
 func handlerStubJs(w http.ResponseWriter, r *http.Request) {
@@ -139,15 +140,7 @@ func main() {
 		w.Write(assets.ReadUiBundle().CodiconTtf)
 	})
 
-	workers := []string{
-		"json",
-		"cssr",
-		"html",
-		"ts",
-		"editor",
-	}
-
-	for _, worker := range workers {
+	for _, worker := range ui.MonacoWorkerNames {
 		mux.HandleFunc("GET /monaco."+worker+".worker.js", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript")
 
@@ -155,6 +148,7 @@ func main() {
 
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
+				slog.Error("Failed to read monaco worker", "error", err)
 			} else {
 				w.Write(data)
 			}
