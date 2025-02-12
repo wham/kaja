@@ -1,4 +1,4 @@
-import { Monaco } from "@monaco-editor/react";
+import { editor } from "monaco-editor";
 import * as prettier from "prettier";
 import prettierPluginBabel from "prettier/plugins/babel";
 import prettierPluginEsTree from "prettier/plugins/estree";
@@ -8,15 +8,14 @@ export async function formatJson(code: string): Promise<string> {
   return format(code, "json", [prettierPluginBabel, prettierPluginEsTree]);
 }
 
-export async function formatAndColorizeJson(value: any, monaco?: Monaco): Promise<string> {
+export async function formatAndColorizeJson(value: any): Promise<string> {
   let output = JSON.stringify(value);
   if (output === undefined || output === null) {
     output = "";
   }
   output = await formatJson(output);
-  if (monaco) {
-    output = await monaco.editor.colorize(output, "typescript", { tabSize: 2 });
-  }
+  output = await editor.colorize(output, "typescript", { tabSize: 2 });
+
   return output;
 }
 

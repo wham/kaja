@@ -1,67 +1,95 @@
-import { Monaco, Editor as MonacoEditor } from "@monaco-editor/react";
-import { editor } from "monaco-editor";
-import React, { useEffect } from "react";
+import * as monaco from "monaco-editor";
+import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
 import { ExtraLib } from "./project";
+
+self.MonacoEnvironment = {
+  getWorkerUrl: function (_, label) {
+    if (label === "json") {
+      return "./monaco.json.worker.js";
+    }
+    if (label === "css" || label === "scss" || label === "less") {
+      return "./monaco.css.worker.js";
+    }
+    if (label === "html" || label === "handlebars" || label === "razor") {
+      return "./monaco.html.worker.js";
+    }
+    if (label === "typescript" || label === "javascript") {
+      return "./monaco.ts.worker.js";
+    }
+    return "./monaco.editor.worker.js";
+  },
+};
+
+// Register a document formatting provider for TypeScript
+monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+  async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
+    return [
+      {
+        text: await formatTypeScript(model.getValue()),
+        range: model.getFullModelRange(),
+      },
+    ];
+  },
+});
 
 interface EditorProps {
   code: string;
   extraLibs: ExtraLib[];
-  onMount: (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => void;
+  onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
 export function Editor({ code, extraLibs, onMount }: EditorProps) {
-  const editorRef = React.useRef<editor.IStandaloneCodeEditor>();
-
-  const handleOnMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
-    editorRef.current = editor;
-    editor.focus();
-
-    extraLibs.forEach((extraLib) => {
-      monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib.content);
-      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:filename/" + extraLib.filePath.replace(".ts", ".d.ts")));
-    });
-
-    monaco.languages.registerDocumentFormattingEditProvider("typescript", {
-      async provideDocumentFormattingEdits(model: editor.ITextModel) {
-        return [
-          {
-            text: await formatTypeScript(model.getValue()),
-            range: model.getFullModelRange(),
-          },
-        ];
-      },
-    });
-
-    editor.getAction("editor.action.formatDocument")?.run();
-
-    onMount(editor, monaco);
-  };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const areExtraLibsAdded = useRef(false);
 
   useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.getAction("editor.action.formatDocument")?.run();
-      editorRef.current.focus();
-      editorRef.current.setScrollTop(0);
+    if (!containerRef.current) {
+      return;
     }
-  });
 
-  return (
-    <MonacoEditor
-      width="100%"
-      height="100%"
-      defaultLanguage="typescript"
-      onMount={handleOnMount}
-      theme="vs-dark"
-      value={code}
-      // See index.html for additional .monaco-editor fix to enable automatic resizing
-      options={{
-        minimap: { enabled: false },
+    let isDisposing = false;
+
+    if (!editorRef.current) {
+      editorRef.current = monaco.editor.create(containerRef.current, {
+        value: code,
+        language: "typescript",
+        theme: "vs-dark",
+        automaticLayout: true,
+        minimap: {
+          enabled: false,
+        },
         renderLineHighlight: "none",
         formatOnPaste: true,
         formatOnType: true,
         tabSize: 2,
-      }}
-    />
-  );
+      });
+
+      onMount(editorRef.current);
+    }
+
+    if (!areExtraLibsAdded.current) {
+      extraLibs.forEach((extraLib) => {
+        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
+      });
+
+      areExtraLibsAdded.current = true;
+    }
+
+    // Format code before setting it
+    formatTypeScript(code).then((formattedCode) => {
+      if (!isDisposing && editorRef.current) {
+        editorRef.current.setValue(formattedCode);
+      }
+    });
+
+    return () => {
+      isDisposing = true;
+      editorRef.current?.dispose();
+      editorRef.current = null;
+    };
+  }, [code]);
+
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

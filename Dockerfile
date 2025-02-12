@@ -12,7 +12,7 @@ RUN npm ci --omit=dev
 
 COPY server /server
 WORKDIR /server
-RUN go run cmd/build-assets/build-assets.go
+RUN go run cmd/build-ui/main.go
 RUN go build -o /build/kaja ./cmd/server
 
 FROM alpine:latest AS runner

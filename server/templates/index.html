@@ -5,13 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="{{.PathPrefix}}/static/favicon.svg" />
     <link rel="shortcut icon" href="{{.PathPrefix}}/static/favicon.ico" />
     <link rel="mask-icon" href="{{.PathPrefix}}/static/favicon.svg" color="#000000" />
+    <link rel="stylesheet" href="{{.PathPrefix}}/main.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kaja</title>
     <script type="importmap">
       {
         "imports": {
-          "@protobuf-ts/runtime": "./ui.js",
-          "@protobuf-ts/runtime-rpc": "./ui.js"
+          "@protobuf-ts/runtime": "./main.js",
+          "@protobuf-ts/runtime-rpc": "./main.js"
         }
       }
     </script>
@@ -24,6 +25,6 @@
   </head>
   <body style="background-color: black; overscroll-behavior: none">
     <div id="root"></div>
-    <script type="module" src="{{.PathPrefix}}/ui.js"></script>
+    <script type="module" src="{{.PathPrefix}}/main.js"></script>
   </body>
 </html>
