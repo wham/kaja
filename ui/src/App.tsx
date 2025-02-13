@@ -128,6 +128,11 @@ export function App() {
     };
   }, []);
 
+  const handleCloseTab = (tabId: string) => {
+    // Handle tab closing logic here
+    console.log(`Closing tab: ${tabId}`);
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -148,7 +153,7 @@ export function App() {
                 }}
               >
                 <ControlBar onRun={callMethod} />
-                <Tabs defaultTab="editor">
+                <Tabs defaultTab="editor" onCloseTab={handleCloseTab}>
                   <Tab tabId="editor" tabLabel="Editor">
                     {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
                   </Tab>
