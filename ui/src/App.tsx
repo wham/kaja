@@ -11,7 +11,7 @@ import { loadProject } from "./projectLoader";
 import { CompileStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { Sidebar } from "./Sidebar";
-import Tabs from "./Tabs";
+import { Tab, Tabs } from "./Tabs";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -138,20 +138,6 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Tabs
-                tabs={[
-                  {
-                    id: "editor",
-                    label: "Editor",
-                    content: <Box>hello</Box>,
-                  },
-                  {
-                    id: "console",
-                    label: "Console",
-                    content: <Box>world</Box>,
-                  },
-                ]}
-              />
               <Box
                 sx={{
                   height: editorHeight,
@@ -162,10 +148,16 @@ export function App() {
                 }}
               >
                 <ControlBar onRun={callMethod} />
-                {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
+                <Tabs defaultTab="editor">
+                  <Tab tabId="editor" tabLabel="Editor">
+                    {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
+                  </Tab>
+                  <Tab tabId="console" tabLabel="Console">
+                    <Console items={consoleItems} />
+                  </Tab>
+                </Tabs>
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
-              <Console items={consoleItems} />
             </Box>
           </Box>
         </Box>
