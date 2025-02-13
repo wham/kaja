@@ -45,26 +45,36 @@ export const Tabs: React.FC<TabsProps> = ({ children, defaultTab, onCloseTab }) 
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>
       <Box>
-        <Box display="flex" borderBottom="1px solid" borderColor="border.default">
+        <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
           {React.Children.map(children, (child) => {
             const { tabId, tabLabel } = child.props;
+            const isActive = activeTab === tabId;
+
             return (
               <Box
                 key={tabId}
                 display="flex"
                 alignItems="center"
-                padding="8px 12px"
+                padding="4px 8px"
                 cursor="pointer"
-                borderBottom={activeTab === tabId ? "2px solid" : "none"}
-                borderColor={activeTab === tabId ? "accent.fg" : "transparent"}
-                onClick={() => setActiveTab(tabId)}
+                borderTop="2px solid"
+                borderColor={isActive ? "accent.fg" : "transparent"}
+                backgroundColor={isActive ? "canvas.default" : "transparent"}
                 sx={{
+                  fontSize: 12,
                   "&:hover": {
-                    backgroundColor: "canvas.subtle",
+                    backgroundColor: isActive ? "canvas.default" : "canvas.inset",
                   },
                 }}
+                onClick={() => setActiveTab(tabId)}
               >
-                <Text color={activeTab === tabId ? "accent.fg" : "fg.muted"} marginRight={2}>
+                <Text
+                  sx={{
+                    fontSize: "inherit",
+                    color: isActive ? "fg.default" : "fg.muted",
+                  }}
+                  marginRight={1}
+                >
                   {tabLabel}
                 </Text>
                 {onCloseTab && (
@@ -74,12 +84,15 @@ export const Tabs: React.FC<TabsProps> = ({ children, defaultTab, onCloseTab }) 
                     variant="invisible"
                     size="small"
                     sx={{
-                      padding: "4px",
-                      opacity: activeTab === tabId ? 1 : 0,
+                      padding: 1,
+                      height: 16,
+                      width: 16,
+                      opacity: isActive ? 0.7 : 0,
                       "&:hover": {
-                        backgroundColor: "canvas.default",
+                        opacity: 1,
+                        backgroundColor: "neutral.muted",
                       },
-                      ":hover&": {
+                      "[role='tab']:hover &": {
                         opacity: 1,
                       },
                     }}
