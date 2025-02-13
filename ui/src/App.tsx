@@ -11,6 +11,7 @@ import { loadProject } from "./projectLoader";
 import { CompileStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { Sidebar } from "./Sidebar";
+import Tabs from "./Tabs";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -137,6 +138,20 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Tabs
+                tabs={[
+                  {
+                    id: "editor",
+                    label: "Editor",
+                    content: <Box>hello</Box>,
+                  },
+                  {
+                    id: "console",
+                    label: "Console",
+                    content: <Box>world</Box>,
+                  },
+                ]}
+              />
               <Box
                 sx={{
                   height: editorHeight,
