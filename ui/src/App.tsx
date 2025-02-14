@@ -1,15 +1,13 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import { editor } from "monaco-editor";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Compiler } from "./Compiler";
 import { Console, ConsoleItem } from "./Console";
 import { ControlBar } from "./ControlBar";
 import { Editor } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
-import { Method, Project, getDefaultMethod } from "./project";
-import { loadProject } from "./projectLoader";
-import { CompileStatus, RpcProtocol } from "./server/api";
-import { getApiClient } from "./server/connection";
+import { Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
 
@@ -17,10 +15,6 @@ import { Tab, Tabs } from "./Tabs";
 (BigInt.prototype as any)["toJSON"] = function () {
   return this.toString();
 };
-
-interface IgnoreToken {
-  ignore: boolean;
-}
 
 export function App() {
   const [project, setProject] = useState<Project>();
@@ -57,13 +51,6 @@ export function App() {
     setEditorHeight((height) => height + delta);
   };
 
-  const onCompile = async (sources: string[], rpcProtocol: RpcProtocol) => {
-    const project = await loadProject(sources, rpcProtocol);
-    console.log("Project loaded", project);
-    setProject(project);
-    setSelectedMethod(getDefaultMethod(project.services));
-  };
-
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
   };
@@ -98,36 +85,6 @@ export function App() {
     func(...Object.values(project.clients).map((client) => client.methods), kajaRef.current);
   }
 
-  const client = getApiClient();
-
-  const compile = (ignoreToken: IgnoreToken) => {
-    client.compile({ logOffset: logsOffsetRef.current, force: true }).then(({ response }) => {
-      if (ignoreToken.ignore) {
-        return;
-      }
-
-      logsOffsetRef.current += response.logs.length;
-      setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
-
-      if (response.status === CompileStatus.STATUS_RUNNING) {
-        setTimeout(() => {
-          compile(ignoreToken);
-        }, 1000);
-      } else {
-        onCompile(response.sources, response.rpcProtocol);
-      }
-    });
-  };
-
-  useEffect(() => {
-    const ignoreToken: IgnoreToken = { ignore: false };
-    compile(ignoreToken);
-
-    return () => {
-      ignoreToken.ignore = true;
-    };
-  }, []);
-
   const handleCloseTab = (tabId: string) => {
     // Handle tab closing logic here
     console.log(`Closing tab: ${tabId}`);
@@ -153,13 +110,21 @@ export function App() {
                 }}
               >
                 <ControlBar onRun={callMethod} />
-                <Tabs defaultTab="editor" onCloseTab={handleCloseTab}>
-                  <Tab tabId="editor" tabLabel="Editor">
-                    {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
-                  </Tab>
-                  <Tab tabId="console" tabLabel="Console">
-                    <Console items={consoleItems} />
-                  </Tab>
+                <Tabs defaultTab="compiler" onCloseTab={handleCloseTab}>
+                  {project
+                    ? [
+                        <Tab tabId="editor" tabLabel="Editor" key="editor">
+                          {selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
+                        </Tab>,
+                        <Tab tabId="console" tabLabel="Console" key="console">
+                          <Console items={consoleItems} />
+                        </Tab>,
+                      ]
+                    : [
+                        <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
+                          <Compiler onProject={setProject} />
+                        </Tab>,
+                      ]}
                 </Tabs>
               </Box>
               <Gutter orientation="horizontal" onResize={onEditorResize} />
