@@ -1,13 +1,6 @@
 import { XIcon } from "@primer/octicons-react";
 import { Box, IconButton, Text } from "@primer/react";
-import React, { createContext, ReactElement, useContext, useState } from "react";
-
-interface TabsContextType {
-  activeTab: string;
-  setActiveTab: (id: string) => void;
-}
-
-const TabsContext = createContext<TabsContextType | null>(null);
+import React, { ReactElement, useState } from "react";
 
 export interface Tabbable {
   tabId: string;
@@ -16,7 +9,6 @@ export interface Tabbable {
 
 interface TabsProps {
   children: ReactElement<Tabbable>[];
-  defaultTab?: string;
   onCloseTab?: (tabId: string) => void;
 }
 
@@ -24,14 +16,8 @@ interface TabProps extends Tabbable {
   children: React.ReactNode;
 }
 
-export function Tab({ children, tabId }: TabProps) {
-  const context = useContext(TabsContext);
-  if (!context) throw new Error("Tab must be used within Tabs");
-
-  const { activeTab } = context;
-  const isActive = activeTab === tabId;
-
-  return isActive ? <Box>{children}</Box> : null;
+export function Tab({ children }: TabProps) {
+  return <Box>{children}</Box>;
 }
 
 export function Tabs({ children, onCloseTab }: TabsProps) {
@@ -43,68 +29,66 @@ export function Tabs({ children, onCloseTab }: TabsProps) {
   };
 
   return (
-    <TabsContext.Provider value={{ activeTab, setActiveTab }}>
-      <Box>
-        <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
-          {React.Children.map(children, (child) => {
-            const { tabId, tabLabel } = child.props;
-            const isActive = activeTab === tabId;
+    <Box>
+      <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
+        {React.Children.map(children, (child) => {
+          const { tabId, tabLabel } = child.props;
+          const isActive = activeTab === tabId;
 
-            return (
-              <Box
-                key={tabId}
-                display="flex"
-                alignItems="center"
-                padding="4px 8px"
-                cursor="pointer"
-                borderTop="2px solid"
-                borderColor={isActive ? "accent.fg" : "transparent"}
-                backgroundColor={isActive ? "canvas.default" : "transparent"}
+          return (
+            <Box
+              key={tabId}
+              display="flex"
+              alignItems="center"
+              padding="4px 8px"
+              cursor="pointer"
+              borderTop="2px solid"
+              borderColor={isActive ? "accent.fg" : "transparent"}
+              backgroundColor={isActive ? "canvas.default" : "transparent"}
+              sx={{
+                fontSize: 12,
+                "&:hover": {
+                  backgroundColor: isActive ? "canvas.default" : "canvas.inset",
+                },
+              }}
+              onClick={() => setActiveTab(tabId)}
+            >
+              <Text
                 sx={{
-                  fontSize: 12,
-                  "&:hover": {
-                    backgroundColor: isActive ? "canvas.default" : "canvas.inset",
-                  },
+                  fontSize: "inherit",
+                  color: isActive ? "fg.default" : "fg.muted",
                 }}
-                onClick={() => setActiveTab(tabId)}
+                marginRight={1}
               >
-                <Text
+                {tabLabel}
+              </Text>
+              {onCloseTab && (
+                <IconButton
+                  icon={XIcon}
+                  aria-label={`Close ${tabLabel}`}
+                  variant="invisible"
+                  size="small"
                   sx={{
-                    fontSize: "inherit",
-                    color: isActive ? "fg.default" : "fg.muted",
+                    padding: 1,
+                    height: 16,
+                    width: 16,
+                    opacity: isActive ? 0.7 : 0,
+                    "&:hover": {
+                      opacity: 1,
+                      backgroundColor: "neutral.muted",
+                    },
+                    "[role='tab']:hover &": {
+                      opacity: 1,
+                    },
                   }}
-                  marginRight={1}
-                >
-                  {tabLabel}
-                </Text>
-                {onCloseTab && (
-                  <IconButton
-                    icon={XIcon}
-                    aria-label={`Close ${tabLabel}`}
-                    variant="invisible"
-                    size="small"
-                    sx={{
-                      padding: 1,
-                      height: 16,
-                      width: 16,
-                      opacity: isActive ? 0.7 : 0,
-                      "&:hover": {
-                        opacity: 1,
-                        backgroundColor: "neutral.muted",
-                      },
-                      "[role='tab']:hover &": {
-                        opacity: 1,
-                      },
-                    }}
-                    onClick={(e) => handleCloseTab(e, tabId)}
-                  />
-                )}
-              </Box>
-            );
-          })}
-        </Box>
-        <Box>{children}</Box>
+                  onClick={(e) => handleCloseTab(e, tabId)}
+                />
+              )}
+            </Box>
+          );
+        })}
       </Box>
-    </TabsContext.Provider>
+      <Box>{React.Children.map(children, (child) => (child.props.tabId == activeTab ? child : null))}</Box>
+    </Box>
   );
 }

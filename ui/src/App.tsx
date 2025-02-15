@@ -64,7 +64,7 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Tabs defaultTab="compiler" onCloseTab={handleCloseTab}>
+              <Tabs onCloseTab={handleCloseTab}>
                 {tabs.map((tab) => {
                   if (tab.type === "compiler") {
                     return (
