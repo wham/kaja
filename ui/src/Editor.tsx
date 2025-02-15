@@ -1,7 +1,6 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
-import { ExtraLib } from "./project";
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (_, label) {
@@ -35,14 +34,12 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
 
 interface EditorProps {
   code: string;
-  extraLibs: ExtraLib[];
   onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-export function Editor({ code, extraLibs, onMount }: EditorProps) {
+export function Editor({ code, onMount }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const areExtraLibsAdded = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -67,14 +64,6 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
       });
 
       onMount(editorRef.current);
-    }
-
-    if (!areExtraLibsAdded.current) {
-      extraLibs.forEach((extraLib) => {
-        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
-      });
-
-      areExtraLibsAdded.current = true;
     }
 
     // Format code before setting it

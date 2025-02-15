@@ -1,15 +1,12 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
-import { editor } from "monaco-editor";
-import { useRef, useState } from "react";
+import * as monaco from "monaco-editor";
+import { useState } from "react";
 import { Compiler } from "./Compiler";
-import { Console, ConsoleItem } from "./Console";
-import { ControlBar } from "./ControlBar";
-import { Editor } from "./Editor";
 import { Gutter } from "./Gutter";
-import { Kaja, MethodCall } from "./kaja";
-import { Method, Project } from "./project";
+import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
+import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -19,36 +16,15 @@ import { Tab, Tabs } from "./Tabs";
 export function App() {
   const [project, setProject] = useState<Project>();
   const [selectedMethod, setSelectedMethod] = useState<Method>();
-  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [editorHeight, setEditorHeight] = useState(400);
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const logsOffsetRef = useRef(0);
-  const kajaRef = useRef(new Kaja(onMethodCallUpdate));
 
-  function onMethodCallUpdate(methodCall: MethodCall) {
-    setConsoleItems((consoleItems) => {
-      const index = consoleItems.findIndex((item) => item === methodCall);
+  const onProject = (project: Project) => {
+    setProject(project);
+    setSelectedMethod(getDefaultMethod(project.services));
 
-      if (index > -1) {
-        return consoleItems.map((item, i) => {
-          if (i === index) {
-            return { ...methodCall };
-          }
-          return item;
-        });
-      } else {
-        return [...consoleItems, methodCall];
-      }
+    project.extraLibs.forEach((extraLib) => {
+      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
     });
-  }
-
-  function onEditorMount(editor: editor.IStandaloneCodeEditor) {
-    editorRef.current = editor;
-  }
-
-  const onEditorResize = (delta: number) => {
-    setEditorHeight((height) => height + delta);
   };
 
   const onMethodSelect = (method: Method) => {
@@ -58,32 +34,6 @@ export function App() {
   const onSidebarResize = (delta: number) => {
     setSidebarWidth((width) => width + delta);
   };
-
-  async function callMethod() {
-    if (logsOffsetRef.current > 0) {
-      logsOffsetRef.current = 0;
-      setConsoleItems([]);
-    }
-
-    if (!editorRef.current || !project) {
-      return;
-    }
-
-    let lines = editorRef.current.getValue().split("\n"); // split the code into lines
-    let isInImport = false;
-    // remove import statements
-    while (lines.length > 0 && (lines[0].startsWith("import ") || isInImport)) {
-      isInImport = !lines[0].endsWith(";");
-      lines.shift();
-    }
-
-    for (const client of Object.values(project.clients)) {
-      client.kaja = kajaRef.current;
-    }
-
-    const func = new Function(...Object.keys(project.clients), "kaja", lines.join("\n"));
-    func(...Object.values(project.clients).map((client) => client.methods), kajaRef.current);
-  }
 
   const handleCloseTab = (tabId: string) => {
     // Handle tab closing logic here
@@ -100,34 +50,19 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Box
-                sx={{
-                  height: editorHeight,
-                  borderTopWidth: 1,
-                  borderTopStyle: "solid",
-                  borderTopColor: "border.default",
-                  position: "relative",
-                }}
-              >
-                <ControlBar onRun={callMethod} />
-                <Tabs defaultTab="compiler" onCloseTab={handleCloseTab}>
-                  {project
-                    ? [
-                        <Tab tabId="editor" tabLabel="Editor" key="editor">
-                          {selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
-                        </Tab>,
-                        <Tab tabId="console" tabLabel="Console" key="console">
-                          <Console items={consoleItems} />
-                        </Tab>,
-                      ]
-                    : [
-                        <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                          <Compiler onProject={setProject} />
-                        </Tab>,
-                      ]}
-                </Tabs>
-              </Box>
-              <Gutter orientation="horizontal" onResize={onEditorResize} />
+              <Tabs defaultTab="compiler" onCloseTab={handleCloseTab}>
+                {project
+                  ? [
+                      <Tab tabId="task" tabLabel="Task" key="task">
+                        {selectedMethod && <Task code={selectedMethod.editorCode} project={project} />}
+                      </Tab>,
+                    ]
+                  : [
+                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
+                        <Compiler onProject={onProject} />
+                      </Tab>,
+                    ]}
+              </Tabs>
             </Box>
           </Box>
         </Box>
