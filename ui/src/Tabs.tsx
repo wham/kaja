@@ -24,7 +24,7 @@ interface TabProps extends Tabbable {
   children: React.ReactNode;
 }
 
-export const Tab: React.FC<TabProps> = ({ children, tabId }) => {
+export function Tab({ children, tabId }: TabProps) {
   const context = useContext(TabsContext);
   if (!context) throw new Error("Tab must be used within Tabs");
 
@@ -32,9 +32,9 @@ export const Tab: React.FC<TabProps> = ({ children, tabId }) => {
   const isActive = activeTab === tabId;
 
   return isActive ? <Box>{children}</Box> : null;
-};
+}
 
-export const Tabs: React.FC<TabsProps> = ({ children, defaultTab, onCloseTab }) => {
+export function Tabs({ children, defaultTab, onCloseTab }: TabsProps) {
   const [activeTab, setActiveTab] = useState(defaultTab || children[0]?.props.tabId);
 
   const handleCloseTab = (event: React.MouseEvent, tabId: string) => {
@@ -107,4 +107,4 @@ export const Tabs: React.FC<TabsProps> = ({ children, defaultTab, onCloseTab }) 
       </Box>
     </TabsContext.Provider>
   );
-};
+}
