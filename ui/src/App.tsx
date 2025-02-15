@@ -6,7 +6,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
-import { TabModel } from "./tabs";
+import { newTaskTab, TabModel } from "./tabsm";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -33,11 +33,12 @@ export function App() {
       return;
     }
 
-    setTabs([{ type: "task", id: "task", label: defaultMethod.name, code: defaultMethod.editorCode }]);
+    setTabs([newTaskTab(defaultMethod)]);
   };
 
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
+    setTabs((tabs) => [...tabs, newTaskTab(method)]);
   };
 
   const onSidebarResize = (delta: number) => {
@@ -75,8 +76,8 @@ export function App() {
 
                   if (tab.type === "task" && project) {
                     return (
-                      <Tab tabId={tab.id} tabLabel={tab.label} key="task">
-                        <Task code={tab.code} project={project} />
+                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} key="task">
+                        <Task code={tab.originMethod.editorCode} project={project} />
                       </Tab>
                     );
                   }

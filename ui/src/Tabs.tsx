@@ -34,8 +34,8 @@ export function Tab({ children, tabId }: TabProps) {
   return isActive ? <Box>{children}</Box> : null;
 }
 
-export function Tabs({ children, defaultTab, onCloseTab }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab || children[0]?.props.tabId);
+export function Tabs({ children, onCloseTab }: TabsProps) {
+  const [activeTab, setActiveTab] = useState(children[0]?.props.tabId);
 
   const handleCloseTab = (event: React.MouseEvent, tabId: string) => {
     event.stopPropagation();
