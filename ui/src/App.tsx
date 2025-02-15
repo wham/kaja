@@ -21,12 +21,19 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(300);
 
   const onProject = (project: Project) => {
+    const defaultMethod = getDefaultMethod(project.services);
     setProject(project);
-    setSelectedMethod(getDefaultMethod(project.services));
+    setSelectedMethod(defaultMethod);
 
     project.extraLibs.forEach((extraLib) => {
       monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
     });
+
+    if (!defaultMethod) {
+      return;
+    }
+
+    setTabs([{ type: "task", id: "task", label: defaultMethod.name, code: defaultMethod.editorCode }]);
   };
 
   const onMethodSelect = (method: Method) => {
@@ -68,8 +75,8 @@ export function App() {
 
                   if (tab.type === "task" && project) {
                     return (
-                      <Tab tabId="task" tabLabel="Task" key="task">
-                        {selectedMethod && <Task code={selectedMethod.editorCode} project={project} />}
+                      <Tab tabId={tab.id} tabLabel={tab.label} key="task">
+                        <Task code={tab.code} project={project} />
                       </Tab>
                     );
                   }
