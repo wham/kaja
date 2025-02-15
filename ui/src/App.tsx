@@ -6,6 +6,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
+import { TabModel } from "./tabs";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -15,6 +16,7 @@ import { Task } from "./Task";
 
 export function App() {
   const [project, setProject] = useState<Project>();
+  const [tabs, setTabs] = useState<TabModel[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
 
@@ -40,6 +42,10 @@ export function App() {
     console.log(`Closing tab: ${tabId}`);
   };
 
+  if (tabs.length === 0) {
+    setTabs([{ type: "compiler" }]);
+  }
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -51,17 +57,25 @@ export function App() {
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <Tabs defaultTab="compiler" onCloseTab={handleCloseTab}>
-                {project
-                  ? [
-                      <Tab tabId="task" tabLabel="Task" key="task">
-                        {selectedMethod && <Task code={selectedMethod.editorCode} project={project} />}
-                      </Tab>,
-                    ]
-                  : [
+                {tabs.map((tab) => {
+                  if (tab.type === "compiler") {
+                    return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
                         <Compiler onProject={onProject} />
-                      </Tab>,
-                    ]}
+                      </Tab>
+                    );
+                  }
+
+                  if (tab.type === "task" && project) {
+                    return (
+                      <Tab tabId="task" tabLabel="Task" key="task">
+                        {selectedMethod && <Task code={selectedMethod.editorCode} project={project} />}
+                      </Tab>
+                    );
+                  }
+
+                  throw new Error("Unknown tab type");
+                })}
               </Tabs>
             </Box>
           </Box>
