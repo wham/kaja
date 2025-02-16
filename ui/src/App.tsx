@@ -6,7 +6,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
-import { newTaskTab, TabModel } from "./tabsm";
+import { markInteraction, newTaskTab, TabModel } from "./tabsm";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -17,6 +17,7 @@ import { Task } from "./Task";
 export function App() {
   const [project, setProject] = useState<Project>();
   const [tabs, setTabs] = useState<TabModel[]>([]);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
 
@@ -39,10 +40,15 @@ export function App() {
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
     setTabs((tabs) => [...tabs, newTaskTab(method)]);
+    setActiveTabIndex(tabs.length);
   };
 
   const onSidebarResize = (delta: number) => {
     setSidebarWidth((width) => width + delta);
+  };
+
+  const onSelectTab = (index: number) => {
+    setActiveTabIndex(index);
   };
 
   const handleCloseTab = (tabId: string) => {
@@ -64,8 +70,8 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Tabs onCloseTab={handleCloseTab}>
-                {tabs.map((tab) => {
+              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab}>
+                {tabs.map((tab, index) => {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
@@ -76,8 +82,8 @@ export function App() {
 
                   if (tab.type === "task" && project) {
                     return (
-                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} key="task">
-                        <Task code={tab.originMethod.editorCode} project={project} />
+                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction} key="task">
+                        <Task code={tab.originMethod.editorCode} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
                       </Tab>
                     );
                   }

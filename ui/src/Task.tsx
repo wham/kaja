@@ -11,9 +11,10 @@ import { Project } from "./project";
 interface TaskProps {
   code: string;
   project: Project;
+  onInteraction: () => void;
 }
 
-export function Task({ code, project }: TaskProps) {
+export function Task({ code, project, onInteraction }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -63,6 +64,7 @@ export function Task({ code, project }: TaskProps) {
 
     const func = new Function(...Object.keys(project.clients), "kaja", lines.join("\n"));
     func(...Object.values(project.clients).map((client) => client.methods), kajaRef.current);
+    onInteraction();
   }
 
   return (

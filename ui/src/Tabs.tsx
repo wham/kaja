@@ -1,39 +1,37 @@
 import { XIcon } from "@primer/octicons-react";
 import { Box, IconButton, Text } from "@primer/react";
-import React, { ReactElement, useState } from "react";
+import React, { ReactElement } from "react";
 
-export interface Tabbable {
+interface TabProps {
   tabId: string;
   tabLabel: string;
+  children: React.ReactNode;
+  isEphemeral?: boolean;
 }
 
 interface TabsProps {
-  children: ReactElement<Tabbable>[];
-  onCloseTab?: (tabId: string) => void;
-}
-
-interface TabProps extends Tabbable {
-  children: React.ReactNode;
+  children: ReactElement<TabProps>[];
+  activeTabIndex: number;
+  onSelectTab: (index: number) => void;
+  onCloseTab?: (index: number) => void;
 }
 
 export function Tab({ children }: TabProps) {
   return <Box>{children}</Box>;
 }
 
-export function Tabs({ children, onCloseTab }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(children[0]?.props.tabId);
-
+export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   const handleCloseTab = (event: React.MouseEvent, tabId: string) => {
     event.stopPropagation();
-    onCloseTab?.(tabId);
+    //    onCloseTab?.(tabId);
   };
 
   return (
     <Box>
       <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
-        {React.Children.map(children, (child) => {
-          const { tabId, tabLabel } = child.props;
-          const isActive = activeTab === tabId;
+        {React.Children.map(children, (child, index) => {
+          const { tabId, tabLabel, isEphemeral } = child.props;
+          const isActive = index === activeTabIndex;
 
           return (
             <Box
@@ -51,12 +49,13 @@ export function Tabs({ children, onCloseTab }: TabsProps) {
                   backgroundColor: isActive ? "canvas.default" : "canvas.inset",
                 },
               }}
-              onClick={() => setActiveTab(tabId)}
+              onClick={() => onSelectTab(index)}
             >
               <Text
                 sx={{
                   fontSize: "inherit",
                   color: isActive ? "fg.default" : "fg.muted",
+                  fontStyle: isEphemeral ? "italic" : "normal",
                 }}
                 marginRight={1}
               >
@@ -88,7 +87,7 @@ export function Tabs({ children, onCloseTab }: TabsProps) {
           );
         })}
       </Box>
-      <Box>{React.Children.map(children, (child) => (child.props.tabId == activeTab ? child : null))}</Box>
+      <Box>{React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}</Box>
     </Box>
   );
 }

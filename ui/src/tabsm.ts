@@ -8,6 +8,7 @@ interface TaskTab {
   type: "task";
   id: string;
   originMethod: Method;
+  hasInteraction: boolean;
 }
 
 export type TabModel = CompilerTab | TaskTab;
@@ -23,5 +24,15 @@ export function newTaskTab(originMethod: Method): TaskTab {
     type: "task",
     id: id("task"),
     originMethod,
+    hasInteraction: false,
   };
+}
+
+export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
+  if (!tabs[index] || tabs[index].type !== "task" || tabs[index].hasInteraction) {
+    return tabs;
+  }
+
+  tabs[index].hasInteraction = true;
+  return [...tabs];
 }
