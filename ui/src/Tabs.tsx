@@ -23,7 +23,26 @@ export function Tab({ children }: TabProps) {
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
     <Box>
-      <Box display="flex">
+      <Box
+        display="flex"
+        overflowX="auto"
+        sx={{
+          "::-webkit-scrollbar": {
+            height: "2px",
+          },
+          "::-webkit-scrollbar-track": {
+            backgroundColor: "#1e1e1e",
+          },
+          "&:hover": {
+            "::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(255, 255, 255, 0.5)",
+            },
+          },
+          "::-webkit-scrollbar-thumb": {
+            backgroundColor: "transparent",
+          },
+        }}
+      >
         {React.Children.map(children, (child, index) => {
           const { tabId, tabLabel, isEphemeral } = child.props;
           const isActive = index === activeTabIndex;

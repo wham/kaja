@@ -48,7 +48,8 @@ export function addTaskTab(tabs: TabModel[], method: Method): TabModel[] {
 
   // If the last tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
-  if (lastTab && lastTab.type === "task" && !lastTab.hasInteraction) {
+  // Open new tab in case the user keep clicking on the same method - perhaps they want to compare different outputs.
+  if (lastTab && lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== method) {
     return [...tabs.slice(0, -1), newTab];
   }
 
