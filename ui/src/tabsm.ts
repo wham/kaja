@@ -50,12 +50,6 @@ export function addTaskTab(tabs: TabModel[], method: Method): TabModel[] {
   // Open new tab in case the user keep clicking on the same method - perhaps they want to compare different outputs.
   const replaceLastTab = lastTab && lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== method;
 
-  tabs.forEach((tab) => {
-    if (tab.type === "task" && !tab.hasInteraction) {
-      tab.hasInteraction = true;
-    }
-  });
-
   if (replaceLastTab) {
     return [...tabs.slice(0, -1), newTab];
   }
