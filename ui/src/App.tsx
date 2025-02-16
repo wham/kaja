@@ -54,9 +54,8 @@ export function App() {
     setActiveTabIndex(index);
   };
 
-  const handleCloseTab = (tabId: string) => {
-    // Handle tab closing logic here
-    console.log(`Closing tab: ${tabId}`);
+  const onCloseTab = (index: number) => {
+    setTabs((tabs) => tabs.filter((_, i) => i !== index));
   };
 
   if (tabs.length === 0) {
@@ -73,7 +72,7 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab}>
+              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
                 {tabs.map((tab, index) => {
                   if (tab.type === "compiler") {
                     return (

@@ -21,11 +21,6 @@ export function Tab({ children }: TabProps) {
 }
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
-  const handleCloseTab = (event: React.MouseEvent, tabId: string) => {
-    event.stopPropagation();
-    //    onCloseTab?.(tabId);
-  };
-
   return (
     <Box>
       <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
@@ -80,7 +75,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                       opacity: 1,
                     },
                   }}
-                  onClick={(e) => handleCloseTab(e, tabId)}
+                  onClick={() => onCloseTab(index)}
                 />
               )}
             </Box>
