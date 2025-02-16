@@ -33,11 +33,11 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
 });
 
 interface EditorProps {
-  code: string;
+  model: monaco.editor.ITextModel;
   onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-export function Editor({ code, onMount }: EditorProps) {
+export function Editor({ model, onMount }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -50,7 +50,7 @@ export function Editor({ code, onMount }: EditorProps) {
 
     if (!editorRef.current) {
       editorRef.current = monaco.editor.create(containerRef.current, {
-        value: code,
+        model,
         language: "typescript",
         theme: "vs-dark",
         automaticLayout: true,
@@ -67,18 +67,22 @@ export function Editor({ code, onMount }: EditorProps) {
     }
 
     // Format code before setting it
-    formatTypeScript(code).then((formattedCode) => {
+    formatTypeScript(model.getValue()).then((formattedCode) => {
       if (!isDisposing && editorRef.current) {
         editorRef.current.setValue(formattedCode);
       }
     });
+
+    if (editorRef.current) {
+      editorRef.current.setModel(model);
+    }
 
     return () => {
       isDisposing = true;
       editorRef.current?.dispose();
       editorRef.current = null;
     };
-  }, [code]);
+  }, [model]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

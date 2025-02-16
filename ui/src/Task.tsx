@@ -9,12 +9,12 @@ import { Kaja, MethodCall } from "./kaja";
 import { Project } from "./project";
 
 interface TaskProps {
-  code: string;
+  model: editor.ITextModel;
   project: Project;
   onInteraction: () => void;
 }
 
-export function Task({ code, project, onInteraction }: TaskProps) {
+export function Task({ model, project, onInteraction }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -79,7 +79,7 @@ export function Task({ code, project, onInteraction }: TaskProps) {
         }}
       >
         <ControlBar onRun={callMethod} />
-        <Editor code={code} onMount={onEditorMount} />
+        <Editor model={model} onMount={onEditorMount} />
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />

@@ -1,3 +1,4 @@
+import * as monaco from "monaco-editor";
 import { Method } from "./project";
 
 interface CompilerTab {
@@ -9,22 +10,26 @@ interface TaskTab {
   id: string;
   originMethod: Method;
   hasInteraction: boolean;
+  model: monaco.editor.ITextModel;
 }
 
 export type TabModel = CompilerTab | TaskTab;
 
 let counter = 0;
 
-function id(type: string): string {
+function generateId(type: string): string {
   return `${type}-${counter++}`;
 }
 
 export function newTaskTab(originMethod: Method): TaskTab {
+  const id = generateId("task");
+
   return {
     type: "task",
-    id: id("task"),
+    id,
     originMethod,
     hasInteraction: false,
+    model: monaco.editor.createModel(originMethod.editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
   };
 }
 

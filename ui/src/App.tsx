@@ -56,6 +56,9 @@ export function App() {
   };
 
   const onCloseTab = (index: number) => {
+    if (tabs[index].type === "task") {
+      tabs[index].model.dispose();
+    }
     setTabs((tabs) => tabs.filter((_, i) => i !== index));
   };
 
@@ -89,7 +92,7 @@ export function App() {
                     if (tab.type === "task" && project) {
                       return (
                         <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction} key="task">
-                          <Task code={tab.originMethod.editorCode} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                          <Task model={tab.model} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
                         </Tab>
                       );
                     }
