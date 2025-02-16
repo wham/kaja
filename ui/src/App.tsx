@@ -6,7 +6,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
-import { markInteraction, newTaskTab, TabModel } from "./tabsm";
+import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -39,8 +39,11 @@ export function App() {
 
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
-    setTabs((tabs) => [...tabs, newTaskTab(method)]);
-    setActiveTabIndex(tabs.length);
+    setTabs((tabs) => {
+      tabs = addTaskTab(tabs, method);
+      setActiveTabIndex(tabs.length - 1);
+      return tabs;
+    });
   };
 
   const onSidebarResize = (delta: number) => {

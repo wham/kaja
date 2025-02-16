@@ -36,3 +36,16 @@ export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
   tabs[index].hasInteraction = true;
   return [...tabs];
 }
+
+export function addTaskTab(tabs: TabModel[], method: Method): TabModel[] {
+  const newTab = newTaskTab(method);
+  const lastTab = tabs[tabs.length - 1];
+
+  // If the last tab has no interaction, replace it with the new tab.
+  // This is to prevent opening many tabs when the user is just clicking through available methods.
+  if (lastTab && lastTab.type === "task" && !lastTab.hasInteraction) {
+    return [...tabs.slice(0, -1), newTab];
+  }
+
+  return [...tabs, newTab];
+}
