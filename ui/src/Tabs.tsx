@@ -23,7 +23,7 @@ export function Tab({ children }: TabProps) {
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
     <Box>
-      <Box display="flex" backgroundColor="canvas.subtle" borderBottom="1px solid" borderColor="border.default">
+      <Box display="flex">
         {React.Children.map(children, (child, index) => {
           const { tabId, tabLabel, isEphemeral } = child.props;
           const isActive = index === activeTabIndex;
@@ -33,15 +33,15 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
               key={tabId}
               display="flex"
               alignItems="center"
-              padding="4px 8px"
-              cursor="pointer"
-              borderTop="2px solid"
-              borderColor={isActive ? "accent.fg" : "transparent"}
-              backgroundColor={isActive ? "canvas.default" : "transparent"}
+              padding="8px 12px"
+              cursor="hand"
+              borderTop="1px solid"
+              borderTopColor={isActive ? "accent.fg" : "transparent"}
+              backgroundColor={isActive ? "border.default" : "transparent"}
               sx={{
-                fontSize: 12,
+                fontSize: 14,
                 "&:hover": {
-                  backgroundColor: isActive ? "canvas.default" : "canvas.inset",
+                  backgroundColor: "border.default",
                 },
               }}
               onClick={() => onSelectTab(index)}
@@ -52,7 +52,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                   color: isActive ? "fg.default" : "fg.muted",
                   fontStyle: isEphemeral ? "italic" : "normal",
                 }}
-                marginRight={1}
+                cursor="pointer"
+                marginRight={2}
               >
                 {tabLabel}
               </Text>
