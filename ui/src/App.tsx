@@ -86,33 +86,31 @@ export function App() {
             <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              {tabs.length === 0 && <Blankslate />}
-              {tabs.length > 0 && (
-                <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
-                  {tabs.map((tab, index) => {
-                    if (tab.type === "compiler") {
-                      return (
-                        <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                          <Compiler onProject={onProject} />
-                        </Tab>
-                      );
-                    }
+          <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            {tabs.length === 0 && <Blankslate />}
+            {tabs.length > 0 && (
+              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
+                {tabs.map((tab, index) => {
+                  if (tab.type === "compiler") {
+                    return (
+                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
+                        <Compiler onProject={onProject} />
+                      </Tab>
+                    );
+                  }
 
-                    if (tab.type === "task" && project) {
-                      return (
-                        <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                          <Task model={tab.model} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
-                        </Tab>
-                      );
-                    }
+                  if (tab.type === "task" && project) {
+                    return (
+                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
+                        <Task model={tab.model} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                      </Tab>
+                    );
+                  }
 
-                    throw new Error("Unknown tab type");
-                  })}
-                </Tabs>
-              )}
-            </Box>
+                  throw new Error("Unknown tab type");
+                })}
+              </Tabs>
+            )}
           </Box>
         </Box>
       </BaseStyles>
