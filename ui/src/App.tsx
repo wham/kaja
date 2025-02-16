@@ -1,6 +1,7 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useState } from "react";
+import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
@@ -58,8 +59,9 @@ export function App() {
     setTabs((tabs) => tabs.filter((_, i) => i !== index));
   };
 
-  if (tabs.length === 0) {
+  if (tabs.length === 0 && !project) {
     setTabs([{ type: "compiler" }]);
+    setActiveTabIndex(0);
   }
 
   return (
@@ -72,27 +74,30 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
-                {tabs.map((tab, index) => {
-                  if (tab.type === "compiler") {
-                    return (
-                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProject={onProject} />
-                      </Tab>
-                    );
-                  }
+              {tabs.length === 0 && <Blankslate />}
+              {tabs.length > 0 && (
+                <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
+                  {tabs.map((tab, index) => {
+                    if (tab.type === "compiler") {
+                      return (
+                        <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
+                          <Compiler onProject={onProject} />
+                        </Tab>
+                      );
+                    }
 
-                  if (tab.type === "task" && project) {
-                    return (
-                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction} key="task">
-                        <Task code={tab.originMethod.editorCode} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
-                      </Tab>
-                    );
-                  }
+                    if (tab.type === "task" && project) {
+                      return (
+                        <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction} key="task">
+                          <Task code={tab.originMethod.editorCode} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                        </Tab>
+                      );
+                    }
 
-                  throw new Error("Unknown tab type");
-                })}
-              </Tabs>
+                    throw new Error("Unknown tab type");
+                  })}
+                </Tabs>
+              )}
             </Box>
           </Box>
         </Box>
