@@ -74,6 +74,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                   fontSize: "inherit",
                   color: isActive ? "fg.default" : "fg.muted",
                   fontStyle: isEphemeral ? "italic" : "normal",
+                  userSelect: "none",
                 }}
                 marginRight={2}
               >
