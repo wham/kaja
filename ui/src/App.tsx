@@ -1,6 +1,6 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
@@ -21,6 +21,12 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+
+  useEffect(() => {
+    if (tabs.length === 0 && !project) {
+      setTabs([{ type: "compiler" }]);
+    }
+  }, [tabs.length, project]);
 
   const onProject = (project: Project) => {
     const defaultMethod = getDefaultMethod(project.services);
@@ -59,13 +65,18 @@ export function App() {
     if (tabs[index].type === "task") {
       tabs[index].model.dispose();
     }
-    setTabs((tabs) => tabs.filter((_, i) => i !== index));
-  };
 
-  if (tabs.length === 0 && !project) {
-    setTabs([{ type: "compiler" }]);
-    setActiveTabIndex(0);
-  }
+    setTabs((tabs) => {
+      const newTabs = tabs.filter((_, i) => i !== index);
+      // Calculate new active index in the same update
+      const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
+
+      // Schedule active index update for next render
+      Promise.resolve().then(() => setActiveTabIndex(newActiveIndex));
+
+      return newTabs;
+    });
+  };
 
   return (
     <ThemeProvider colorMode="night">
