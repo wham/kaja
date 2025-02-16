@@ -33,16 +33,20 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
               key={tabId}
               display="flex"
               alignItems="center"
-              padding="8px 12px"
-              cursor="hand"
+              padding="8px 10px"
               borderTop="1px solid"
               borderTopColor={isActive ? "accent.fg" : "transparent"}
-              backgroundColor={isActive ? "border.default" : "transparent"}
+              backgroundColor={isActive ? "#1e1e1e" : "transparent"}
+              borderBottom="1px solid"
+              borderBottomColor={isActive ? "transparent" : "border.default"}
+              borderRight="1px solid"
+              borderRightColor="border.default"
               sx={{
                 fontSize: 14,
                 "&:hover": {
-                  backgroundColor: "border.default",
+                  backgroundColor: "#1e1e1e",
                 },
+                cursor: "pointer",
               }}
               onClick={() => onSelectTab(index)}
             >
@@ -52,7 +56,6 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                   color: isActive ? "fg.default" : "fg.muted",
                   fontStyle: isEphemeral ? "italic" : "normal",
                 }}
-                cursor="pointer"
                 marginRight={2}
               >
                 {tabLabel}
@@ -82,6 +85,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
             </Box>
           );
         })}
+        <Box flexGrow={1} borderBottom="1px solid" borderBottomColor="border.default" />
       </Box>
       <Box>{React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}</Box>
     </Box>

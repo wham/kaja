@@ -72,9 +72,6 @@ export function Task({ model, project, onInteraction }: TaskProps) {
       <Box
         sx={{
           height: editorHeight,
-          borderTopWidth: 1,
-          borderTopStyle: "solid",
-          borderTopColor: "border.default",
           position: "relative",
         }}
       >
