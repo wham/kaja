@@ -45,11 +45,18 @@ export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
 export function addTaskTab(tabs: TabModel[], method: Method): TabModel[] {
   const newTab = newTaskTab(method);
   const lastTab = tabs[tabs.length - 1];
-
   // If the last tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
   // Open new tab in case the user keep clicking on the same method - perhaps they want to compare different outputs.
-  if (lastTab && lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== method) {
+  const replaceLastTab = lastTab && lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== method;
+
+  tabs.forEach((tab) => {
+    if (tab.type === "task" && !tab.hasInteraction) {
+      tab.hasInteraction = true;
+    }
+  });
+
+  if (replaceLastTab) {
     return [...tabs.slice(0, -1), newTab];
   }
 
