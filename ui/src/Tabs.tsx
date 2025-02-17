@@ -27,6 +27,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         display="flex"
         overflowX="auto"
         sx={{
+          flexShrink: 0,
           "::-webkit-scrollbar": {
             height: "2px",
           },
@@ -107,7 +108,9 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         })}
         <Box flexGrow={1} borderBottom="1px solid" borderBottomColor="border.default" />
       </Box>
-      <Box sx={{ flexGrow: 1 }}>{React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}</Box>
+      <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+        {React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}
+      </Box>
     </>
   );
 }

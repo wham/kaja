@@ -68,11 +68,12 @@ export function Task({ model, project, onInteraction }: TaskProps) {
   }
 
   return (
-    <>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <Box
         sx={{
           height: editorHeight,
           position: "relative",
+          flexShrink: 0,
         }}
       >
         <ControlBar onRun={callMethod} />
@@ -80,6 +81,6 @@ export function Task({ model, project, onInteraction }: TaskProps) {
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />
-    </>
+    </Box>
   );
 }
