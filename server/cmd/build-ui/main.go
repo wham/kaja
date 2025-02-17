@@ -60,8 +60,12 @@ func build() error {
 	}
 
 	outputFile = path.Join(outputDirectory2, "protoc-gen-ts")
-	if err := os.WriteFile(outputFile, pgt, 0755); err != nil {
+	if err := os.WriteFile(outputFile, pgt, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
+		return err
+	}
+	if err := os.Chmod(outputFile, 0755); err != nil {
+		slog.Error("Failed to set file permissions", "error", err)
 		return err
 	}
 

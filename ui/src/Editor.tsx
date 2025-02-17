@@ -1,7 +1,6 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
-import { ExtraLib } from "./project";
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (_, label) {
@@ -34,15 +33,13 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
 });
 
 interface EditorProps {
-  code: string;
-  extraLibs: ExtraLib[];
+  model: monaco.editor.ITextModel;
   onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-export function Editor({ code, extraLibs, onMount }: EditorProps) {
+export function Editor({ model, onMount }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const areExtraLibsAdded = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -53,7 +50,7 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
 
     if (!editorRef.current) {
       editorRef.current = monaco.editor.create(containerRef.current, {
-        value: code,
+        model,
         language: "typescript",
         theme: "vs-dark",
         automaticLayout: true,
@@ -69,27 +66,23 @@ export function Editor({ code, extraLibs, onMount }: EditorProps) {
       onMount(editorRef.current);
     }
 
-    if (!areExtraLibsAdded.current) {
-      extraLibs.forEach((extraLib) => {
-        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
-      });
-
-      areExtraLibsAdded.current = true;
-    }
-
     // Format code before setting it
-    formatTypeScript(code).then((formattedCode) => {
+    formatTypeScript(model.getValue()).then((formattedCode) => {
       if (!isDisposing && editorRef.current) {
         editorRef.current.setValue(formattedCode);
       }
     });
+
+    if (editorRef.current) {
+      editorRef.current.setModel(model);
+    }
 
     return () => {
       isDisposing = true;
       editorRef.current?.dispose();
       editorRef.current = null;
     };
-  }, [code]);
+  }, [model]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

@@ -1,157 +1,116 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
-import { editor } from "monaco-editor";
-import { useEffect, useRef, useState } from "react";
-import { Console, ConsoleItem } from "./Console";
-import { ControlBar } from "./ControlBar";
-import { Editor } from "./Editor";
+import * as monaco from "monaco-editor";
+import { useEffect, useState } from "react";
+import { Blankslate } from "./Blankslate";
+import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
-import { Kaja, MethodCall } from "./kaja";
-import { Method, Project, getDefaultMethod } from "./project";
-import { loadProject } from "./projectLoader";
-import { CompileStatus, RpcProtocol } from "./server/api";
-import { getApiClient } from "./server/connection";
+import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
+import { Tab, Tabs } from "./Tabs";
+import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
+import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
   return this.toString();
 };
 
-interface IgnoreToken {
-  ignore: boolean;
-}
-
 export function App() {
   const [project, setProject] = useState<Project>();
+  const [tabs, setTabs] = useState<TabModel[]>([]);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
-  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [editorHeight, setEditorHeight] = useState(400);
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const logsOffsetRef = useRef(0);
-  const kajaRef = useRef(new Kaja(onMethodCallUpdate));
 
-  function onMethodCallUpdate(methodCall: MethodCall) {
-    setConsoleItems((consoleItems) => {
-      const index = consoleItems.findIndex((item) => item === methodCall);
+  useEffect(() => {
+    if (tabs.length === 0 && !project) {
+      setTabs([{ type: "compiler" }]);
+    }
+  }, [tabs.length, project]);
 
-      if (index > -1) {
-        return consoleItems.map((item, i) => {
-          if (i === index) {
-            return { ...methodCall };
-          }
-          return item;
-        });
-      } else {
-        return [...consoleItems, methodCall];
-      }
-    });
-  }
-
-  function onEditorMount(editor: editor.IStandaloneCodeEditor) {
-    editorRef.current = editor;
-  }
-
-  const onEditorResize = (delta: number) => {
-    setEditorHeight((height) => height + delta);
-  };
-
-  const onCompile = async (sources: string[], rpcProtocol: RpcProtocol) => {
-    const project = await loadProject(sources, rpcProtocol);
-    console.log("Project loaded", project);
+  const onProject = (project: Project) => {
+    const defaultMethod = getDefaultMethod(project.services);
     setProject(project);
-    setSelectedMethod(getDefaultMethod(project.services));
+    setSelectedMethod(defaultMethod);
+
+    project.extraLibs.forEach((extraLib) => {
+      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
+    });
+
+    if (!defaultMethod) {
+      return;
+    }
+
+    setTabs([newTaskTab(defaultMethod)]);
   };
 
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
+    setTabs((tabs) => {
+      tabs = addTaskTab(tabs, method);
+      setActiveTabIndex(tabs.length - 1);
+      return tabs;
+    });
   };
 
   const onSidebarResize = (delta: number) => {
     setSidebarWidth((width) => width + delta);
   };
 
-  async function callMethod() {
-    if (logsOffsetRef.current > 0) {
-      logsOffsetRef.current = 0;
-      setConsoleItems([]);
-    }
-
-    if (!editorRef.current || !project) {
-      return;
-    }
-
-    let lines = editorRef.current.getValue().split("\n"); // split the code into lines
-    let isInImport = false;
-    // remove import statements
-    while (lines.length > 0 && (lines[0].startsWith("import ") || isInImport)) {
-      isInImport = !lines[0].endsWith(";");
-      lines.shift();
-    }
-
-    for (const client of Object.values(project.clients)) {
-      client.kaja = kajaRef.current;
-    }
-
-    const func = new Function(...Object.keys(project.clients), "kaja", lines.join("\n"));
-    func(...Object.values(project.clients).map((client) => client.methods), kajaRef.current);
-  }
-
-  const client = getApiClient();
-
-  const compile = (ignoreToken: IgnoreToken) => {
-    client.compile({ logOffset: logsOffsetRef.current, force: true }).then(({ response }) => {
-      if (ignoreToken.ignore) {
-        return;
-      }
-
-      logsOffsetRef.current += response.logs.length;
-      setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
-
-      if (response.status === CompileStatus.STATUS_RUNNING) {
-        setTimeout(() => {
-          compile(ignoreToken);
-        }, 1000);
-      } else {
-        onCompile(response.sources, response.rpcProtocol);
-      }
-    });
+  const onSelectTab = (index: number) => {
+    setActiveTabIndex(index);
   };
 
-  useEffect(() => {
-    const ignoreToken: IgnoreToken = { ignore: false };
-    compile(ignoreToken);
+  const onCloseTab = (index: number) => {
+    if (tabs[index].type === "task") {
+      tabs[index].model.dispose();
+    }
 
-    return () => {
-      ignoreToken.ignore = true;
-    };
-  }, []);
+    setTabs((tabs) => {
+      const newTabs = tabs.filter((_, i) => i !== index);
+      // Calculate new active index in the same update
+      const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
+
+      // Schedule active index update for next render
+      Promise.resolve().then(() => setActiveTabIndex(newActiveIndex));
+
+      return newTabs;
+    });
+  };
 
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
         <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
-          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll" }}>
+          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll", paddingX: 2, paddingY: 1 }}>
             <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Box
-                sx={{
-                  height: editorHeight,
-                  borderTopWidth: 1,
-                  borderTopStyle: "solid",
-                  borderTopColor: "border.default",
-                  position: "relative",
-                }}
-              >
-                <ControlBar onRun={callMethod} />
-                {project && selectedMethod && <Editor code={selectedMethod.editorCode} extraLibs={project.extraLibs} onMount={onEditorMount} />}
-              </Box>
-              <Gutter orientation="horizontal" onResize={onEditorResize} />
-              <Console items={consoleItems} />
-            </Box>
+          <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
+            {tabs.length === 0 && <Blankslate />}
+            {tabs.length > 0 && (
+              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
+                {tabs.map((tab, index) => {
+                  if (tab.type === "compiler") {
+                    return (
+                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
+                        <Compiler onProject={onProject} />
+                      </Tab>
+                    );
+                  }
+
+                  if (tab.type === "task" && project) {
+                    return (
+                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
+                        <Task model={tab.model} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                      </Tab>
+                    );
+                  }
+
+                  throw new Error("Unknown tab type");
+                })}
+              </Tabs>
+            )}
           </Box>
         </Box>
       </BaseStyles>

@@ -23,7 +23,7 @@ export function ControlBar({ onRun }: ControlBarProps) {
 
   return (
     <Box sx={{ position: "absolute", top: "20px", right: "40px", zIndex: 1 }}>
-      <Tooltip aria-label="Run (F5)" direction="s">
+      <Tooltip aria-label="Run (F5)" text="Run (F5)" direction="s">
         <Button
           leadingVisual={() => <PlayIcon size={100} fill="#1a7f37" />}
           onClick={onRun}
