@@ -2,13 +2,13 @@
   "projects": [
     {
       "name": "twirp-demo",
-      "protocol": "twirp",
+      "protocol": "RPC_PROTOCOL_TWIRP",
       "url": "http://localhost:8080",
       "workspace": "proto"
     },
     {
       "name": "grpc-demo",
-      "protocol": "grpc",
+      "protocol": "RPC_PROTOCOL_GRPC",
       "url": "http://localhost:8081",
       "workspace": "proto"
     }

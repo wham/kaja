@@ -66,13 +66,13 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	file, err := os.Open("kaja.json")
+	file, err := os.Open("../kaja.json")
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var config GetConfigurationResponse
+	var config Configuration
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		return nil, err
 	}
 
-	return &config, nil
+	return &GetConfigurationResponse{Configuration: &config}, nil
 }
 
 func (s *ApiService) start(force bool) error {

@@ -49,5 +49,11 @@ export function Compiler({ onProject }: CompilerProps) {
     };
   }, []);
 
+  useEffect(() => {
+    client.getConfiguration({}).then((config) => {
+      console.log("Configuration", config);
+    });
+  }, []);
+
   return <Console items={consoleItems} />;
 }
