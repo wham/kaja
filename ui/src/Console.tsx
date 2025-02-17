@@ -45,7 +45,19 @@ export function Console({ items }: ConsoleProps) {
   }, [items]);
 
   return (
-    <Box sx={{ fontSize: 12, fontFamily: "monospace", color: "fg.default", overflowY: "scroll", paddingX: 2, paddingY: 1 }}>
+    <Box
+      sx={{
+        fontSize: 12,
+        fontFamily: "monospace",
+        color: "fg.default",
+        overflowY: "scroll",
+        paddingX: 2,
+        paddingY: 1,
+        flexGrow: 1,
+        minHeight: 0,
+        height: 0,
+      }}
+    >
       <Box ref={containerRef}>
         {items.map((item, index) => {
           let itemElement;
