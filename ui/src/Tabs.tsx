@@ -53,7 +53,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
               key={tabId}
               display="flex"
               alignItems="center"
-              padding="8px 10px"
+              padding="8px 10px 8px 16px"
               borderTop="1px solid"
               borderTopColor={isActive ? "accent.fg" : "transparent"}
               backgroundColor={isActive ? "#1e1e1e" : "transparent"}
