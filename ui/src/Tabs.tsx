@@ -22,7 +22,7 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <>
+    <Box display="flex" flexDirection="column" height="100%">
       <Box
         display="flex"
         overflowX="auto"
@@ -109,8 +109,19 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         <Box flexGrow={1} borderBottom="1px solid" borderBottomColor="border.default" />
       </Box>
       <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
-        {React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}
+        {React.Children.map(children, (child, index) => (
+          <Box
+            key={child.props.tabId}
+            sx={{
+              display: index === activeTabIndex ? "flex" : "none",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
+            {child}
+          </Box>
+        ))}
       </Box>
-    </>
+    </Box>
   );
 }
