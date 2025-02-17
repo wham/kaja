@@ -2,7 +2,7 @@ import { Box, Text } from "@primer/react";
 
 export function Blankslate() {
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100vh" bg="canvas.default">
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" bg="canvas.default">
       <Text as="h1" fontSize={4} mt={3} color="fg.default">
         Welcome to kaja
       </Text>
