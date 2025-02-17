@@ -4,6 +4,7 @@ option go_package = "internal/api";
 
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
+  rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
 }
 
 message CompileRequest {
@@ -41,4 +42,21 @@ enum LogLevel {
 enum RpcProtocol {
   RPC_PROTOCOL_TWIRP = 0;
   RPC_PROTOCOL_GRPC = 1;
+}
+
+message GetConfigurationRequest {}
+
+message GetConfigurationResponse {
+  Configuration configuration = 1;
+}
+
+message Configuration {
+  repeated ConfigurationProject projects = 1;
+}
+
+message ConfigurationProject {
+  string name = 1;
+  RpcProtocol protocol = 2;
+  string url = 3;
+  string workspace = 4;
 }

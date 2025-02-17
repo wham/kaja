@@ -3,12 +3,15 @@ package api
 import (
 	"context"
 	fmt "fmt"
+	io "io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	strings "strings"
 	"sync"
+
+	protojson "google.golang.org/protobuf/encoding/protojson"
 )
 
 type ApiService struct {
@@ -60,6 +63,25 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		Sources:     s.sources,
 		RpcProtocol: rpcProtocol,
 	}, nil
+}
+
+func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+	file, err := os.Open("kaja.json")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var config GetConfigurationResponse
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if err := protojson.Unmarshal(fileContent, &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
 
 func (s *ApiService) start(force bool) error {
