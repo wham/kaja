@@ -82,7 +82,7 @@ export function App() {
     <ThemeProvider colorMode="night">
       <BaseStyles>
         <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
-          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll" }}>
+          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll", paddingX: 2, paddingY: 1 }}>
             <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
