@@ -68,7 +68,7 @@ export function Task({ model, project, onInteraction }: TaskProps) {
   }
 
   return (
-    <Box>
+    <>
       <Box
         sx={{
           height: editorHeight,
@@ -80,6 +80,6 @@ export function Task({ model, project, onInteraction }: TaskProps) {
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />
-    </Box>
+    </>
   );
 }

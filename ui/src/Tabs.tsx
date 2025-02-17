@@ -17,7 +17,7 @@ interface TabsProps {
 }
 
 export function Tab({ children }: TabProps) {
-  return <Box>{children}</Box>;
+  return <>{children}</>;
 }
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
@@ -107,7 +107,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         })}
         <Box flexGrow={1} borderBottom="1px solid" borderBottomColor="border.default" />
       </Box>
-      <Box>{React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}</Box>
+      <Box sx={{ flexGrow: 1 }}>{React.Children.map(children, (child, index) => (index === activeTabIndex ? child : null))}</Box>
     </>
   );
 }
