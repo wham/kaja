@@ -1,6 +1,7 @@
 import { Kaja } from "./kaja";
 
 export interface Project {
+  name: string;
   services: Array<Service>;
   clients: Clients;
   extraLibs: Array<ExtraLib>;
