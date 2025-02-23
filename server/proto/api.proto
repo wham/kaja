@@ -10,6 +10,8 @@ service Api {
 message CompileRequest {
   int32 log_offset = 1;
   bool force = 2;
+  string project_name = 3;
+  string workspace = 4;
 }
 
 message CompileResponse {

@@ -23,6 +23,14 @@ export interface CompileRequest {
    * @generated from protobuf field: bool force = 2;
    */
   force: boolean;
+  /**
+   * @generated from protobuf field: string project_name = 3;
+   */
+  projectName: string;
+  /**
+   * @generated from protobuf field: string workspace = 4;
+   */
+  workspace: string;
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -166,12 +174,16 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
     super("CompileRequest", [
       { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
       { no: 2, name: "force", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+      { no: 3, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
     ]);
   }
   create(value?: PartialMessage<CompileRequest>): CompileRequest {
     const message = globalThis.Object.create(this.messagePrototype!);
     message.logOffset = 0;
     message.force = false;
+    message.projectName = "";
+    message.workspace = "";
     if (value !== undefined) reflectionMergePartial<CompileRequest>(this, message, value);
     return message;
   }
@@ -187,6 +199,12 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         case /* bool force */ 2:
           message.force = reader.bool();
           break;
+        case /* string project_name */ 3:
+          message.projectName = reader.string();
+          break;
+        case /* string workspace */ 4:
+          message.workspace = reader.string();
+          break;
         default:
           let u = options.readUnknownField;
           if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
@@ -201,6 +219,10 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
     if (message.logOffset !== 0) writer.tag(1, WireType.Varint).int32(message.logOffset);
     /* bool force = 2; */
     if (message.force !== false) writer.tag(2, WireType.Varint).bool(message.force);
+    /* string project_name = 3; */
+    if (message.projectName !== "") writer.tag(3, WireType.LengthDelimited).string(message.projectName);
+    /* string workspace = 4; */
+    if (message.workspace !== "") writer.tag(4, WireType.LengthDelimited).string(message.workspace);
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
 import { Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus } from "./server/api";
+import { CompileStatus, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface IgnoreToken {
@@ -18,7 +18,7 @@ export function Compiler({ onProject }: CompilerProps) {
   const logsOffsetRef = useRef(0);
   const client = getApiClient();
 
-  const compile = async (ignoreToken: IgnoreToken) => {
+  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject) => {
     const { response } = await client.compile({ logOffset: logsOffsetRef.current, force: true });
 
     if (ignoreToken.ignore) {
@@ -30,7 +30,7 @@ export function Compiler({ onProject }: CompilerProps) {
 
     if (response.status === CompileStatus.STATUS_RUNNING) {
       setTimeout(() => {
-        compile(ignoreToken);
+        compile(ignoreToken, configurationProject);
       }, 1000);
     } else {
       const project = await loadProject(response.sources, response.rpcProtocol);
@@ -42,17 +42,17 @@ export function Compiler({ onProject }: CompilerProps) {
 
   useEffect(() => {
     const ignoreToken: IgnoreToken = { ignore: false };
-    compile(ignoreToken);
+
+    client.getConfiguration({}).then(({ response }) => {
+      console.log("Configuration", response.configuration);
+      response.configuration?.projects.forEach((configurationProject) => {
+        compile(ignoreToken, configurationProject);
+      });
+    });
 
     return () => {
       ignoreToken.ignore = true;
     };
-  }, []);
-
-  useEffect(() => {
-    client.getConfiguration({}).then((config) => {
-      console.log("Configuration", config);
-    });
   }, []);
 
   return <Console items={consoleItems} />;
