@@ -10,17 +10,18 @@ interface IgnoreToken {
 }
 
 interface CompilerProps {
-  onProject: (project: Project) => void;
+  onProjects: (projects: Project[]) => void;
 }
 
-export function Compiler({ onProject }: CompilerProps) {
+export function Compiler({ onProjects }: CompilerProps) {
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
-  const logsOffsetRef = useRef(0);
+  const numberOfProjects = useRef(0);
+  const projects = useRef<Project[]>([]);
   const client = getApiClient();
 
-  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject) => {
+  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject, logOffset: number) => {
     const { response } = await client.compile({
-      logOffset: logsOffsetRef.current,
+      logOffset,
       force: true,
       projectName: configurationProject.name,
       workspace: configurationProject.workspace,
@@ -30,17 +31,19 @@ export function Compiler({ onProject }: CompilerProps) {
       return;
     }
 
-    logsOffsetRef.current += response.logs.length;
     setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
 
     if (response.status === CompileStatus.STATUS_RUNNING) {
       setTimeout(() => {
-        compile(ignoreToken, configurationProject);
+        compile(ignoreToken, configurationProject, logOffset + response.logs.length);
       }, 1000);
     } else {
       const project = await loadProject(response.sources, configurationProject.protocol);
       console.log("Project loaded", project);
-      onProject(project);
+      projects.current.push(project);
+      if (projects.current.length === numberOfProjects.current) {
+        onProjects(projects.current);
+      }
     }
   };
 
@@ -49,8 +52,9 @@ export function Compiler({ onProject }: CompilerProps) {
 
     client.getConfiguration({}).then(({ response }) => {
       console.log("Configuration", response.configuration);
+      numberOfProjects.current = response.configuration?.projects.length ?? 0;
       response.configuration?.projects.forEach((configurationProject) => {
-        compile(ignoreToken, configurationProject);
+        compile(ignoreToken, configurationProject, 0);
       });
     });
 

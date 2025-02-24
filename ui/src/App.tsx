@@ -28,19 +28,20 @@ export function App() {
     }
   }, [tabs.length, projects.length]);
 
-  const onProject = (project: Project) => {
-    setProjects([...projects, project]);
+  const onProjects = (projects: Project[]) => {
+    setProjects(projects);
 
-    project.extraLibs.forEach((extraLib) => {
-      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + project.name + "/" + extraLib.filePath));
+    projects.forEach((project) => {
+      project.extraLibs.forEach((extraLib) => {
+        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + project.name + "/" + extraLib.filePath));
+      });
     });
 
-    // If this is not the first project, keep the selected method
-    if (selectedMethod) {
+    if (projects.length === 0) {
       return;
     }
 
-    const defaultMethod = getDefaultMethod(project.services);
+    const defaultMethod = getDefaultMethod(projects[0].services);
     setSelectedMethod(defaultMethod);
 
     if (!defaultMethod) {
@@ -100,7 +101,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProject={onProject} />
+                        <Compiler onProjects={onProjects} />
                       </Tab>
                     );
                   }
