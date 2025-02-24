@@ -19,7 +19,12 @@ export function Compiler({ onProject }: CompilerProps) {
   const client = getApiClient();
 
   const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject) => {
-    const { response } = await client.compile({ logOffset: logsOffsetRef.current, force: true });
+    const { response } = await client.compile({
+      logOffset: logsOffsetRef.current,
+      force: true,
+      projectName: configurationProject.name,
+      workspace: configurationProject.workspace,
+    });
 
     if (ignoreToken.ignore) {
       return;
@@ -33,10 +38,9 @@ export function Compiler({ onProject }: CompilerProps) {
         compile(ignoreToken, configurationProject);
       }, 1000);
     } else {
-      const project = await loadProject(response.sources, response.rpcProtocol);
+      const project = await loadProject(response.sources, configurationProject.protocol);
       console.log("Project loaded", project);
       onProject(project);
-      //setSelectedMethod(getDefaultMethod(project.services));
     }
   };
 

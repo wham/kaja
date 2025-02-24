@@ -18,7 +18,6 @@ message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
   repeated string sources = 3;
-  RpcProtocol rpc_protocol = 4;
 }
 
 enum CompileStatus {
