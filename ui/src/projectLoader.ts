@@ -3,10 +3,10 @@ import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
 import { Clients, ExtraLib, Method, Project, Service } from "./project";
-import { RpcProtocol } from "./server/api";
+import { ConfigurationProject } from "./server/api";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
-export async function loadProject(paths: string[], rpcProtocol: RpcProtocol): Promise<Project> {
+export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub();
   const sources = await loadSources(paths, stub);
   const globalImports: ts.ImportDeclaration[] = [];
@@ -111,17 +111,18 @@ export async function loadProject(paths: string[], rpcProtocol: RpcProtocol): Pr
   }
 
   return {
+    name: configuration.name,
     services,
-    clients: createClients(services, stub, rpcProtocol),
+    clients: createClients(services, stub, configuration),
     extraLibs,
   };
 }
 
-function createClients(services: Service[], stub: Stub, rpcProtocol: RpcProtocol): Clients {
+function createClients(services: Service[], stub: Stub, configuration: ConfigurationProject): Clients {
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[service.name] = createClient(service, stub, rpcProtocol);
+    clients[service.name] = createClient(service, stub, configuration);
   }
 
   return clients;

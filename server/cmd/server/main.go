@@ -165,35 +165,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	target, err := url.Parse(baseURL)
-	if err != nil {
-		slog.Error("Invalid BASE_URL", "error", err)
-		os.Exit(1)
-	}
-
-	// Create a reverse proxy
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
-	// Create gRPC proxy
-	grpcProxy, err := grpc.NewProxy(target)
-	if err != nil {
-		slog.Error("Failed to create gRPC proxy", "error", err)
-		os.Exit(1)
-	}
-
 	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
-		if strings.HasPrefix(contentType, "application/grpc-web") ||
-			strings.HasPrefix(contentType, "application/grpc-web-text") {
-			grpcProxy.ServeHTTP(w, r, r.PathValue("method"))
+		target, err := url.Parse(r.Header.Get("X-Target"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid X-Target header"))
 			return
 		}
+		if strings.HasPrefix(contentType, "application/grpc-web") ||
+			strings.HasPrefix(contentType, "application/grpc-web-text") {
 
-		// Handle regular Twirp requests
-		r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
-		proxy.ServeHTTP(w, r)
+			proxy, err := grpc.NewProxy(target)
+			if err != nil {
+				slog.Error("Failed to create gRPC proxy", "error", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			proxy.ServeHTTP(w, r, r.PathValue("method"))
+			return
+		} else {
+			// Create a reverse proxy
+			proxy := httputil.NewSingleHostReverseProxy(target)
+
+			// Handle regular Twirp requests
+			r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
+			proxy.ServeHTTP(w, r)
+		}
 	})
 
 	root := http.NewServeMux()

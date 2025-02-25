@@ -38,7 +38,7 @@ export function Compiler({ onProjects }: CompilerProps) {
         compile(ignoreToken, configurationProject, logOffset + response.logs.length);
       }, 1000);
     } else {
-      const project = await loadProject(response.sources, configurationProject.protocol);
+      const project = await loadProject(response.sources, configurationProject);
       console.log("Project loaded", project);
       projects.current.push(project);
       if (projects.current.length === numberOfProjects.current) {
