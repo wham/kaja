@@ -99,7 +99,7 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
   }
 }
 
-export async function loadStub(): Promise<Stub> {
-  const path = "./stub.js";
+export async function loadStub(projectName: string): Promise<Stub> {
+  const path = "./stub/" + projectName + "/stub.js";
   return import(path);
 }

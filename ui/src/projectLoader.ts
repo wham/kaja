@@ -7,7 +7,7 @@ import { ConfigurationProject } from "./server/api";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
-  const stub = await loadStub();
+  const stub = await loadStub(configuration.name);
   const sources = await loadSources(paths, stub, configuration.name);
   const globalImports: ts.ImportDeclaration[] = [];
   const globalVars: ts.VariableStatement[] = [];
