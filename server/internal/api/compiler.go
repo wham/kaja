@@ -64,7 +64,7 @@ func (c *Compiler) getSources(sourcesDir string) []string {
 			return err
 		}
 		if !info.IsDir() {
-			relativePath := "sources/" + strings.TrimPrefix(path, sourcesDir+"/")
+			relativePath := strings.TrimPrefix(path, sourcesDir+"/")
 			if strings.HasSuffix(relativePath, ".ts") {
 				sources = append(sources, relativePath)
 			}
