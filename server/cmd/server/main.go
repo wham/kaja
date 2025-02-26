@@ -31,14 +31,14 @@ func handlerStubJs(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("CWD: %s\n", cwd)
 
 	// Read all files in the sources directory
-	sourcesDir := "./web/sources"
+	sourcesDir := "./build/sources"
 	var stubContent strings.Builder
 	err = filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			stubContent.WriteString("export * from \"" + strings.Replace(path, "web/sources/", "./", 1) + "\";\n")
+			stubContent.WriteString("export * from \"" + strings.Replace(path, "build/sources/", "./", 1) + "\";\n")
 		}
 		return nil
 	})
@@ -155,7 +155,7 @@ func main() {
 		})
 	}
 
-	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
+	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("build/sources"))))
 	mux.HandleFunc("GET /stub.js", handlerStubJs)
 	mux.HandleFunc("GET /status", handlerStatus)
 
