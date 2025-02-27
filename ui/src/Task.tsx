@@ -7,6 +7,7 @@ import { Editor } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { Project } from "./project";
+import { runTask } from "./taskRunner";
 
 interface TaskProps {
   model: editor.ITextModel;
@@ -50,7 +51,10 @@ export function Task({ model, project, onInteraction }: TaskProps) {
       return;
     }
 
+    runTask(editorRef.current.getValue());
+
     let lines = editorRef.current.getValue().split("\n"); // split the code into lines
+
     let isInImport = false;
     // remove import statements
     while (lines.length > 0 && (lines[0].startsWith("import ") || isInImport)) {
