@@ -11,11 +11,11 @@ import { runTask } from "./taskRunner";
 
 interface TaskProps {
   model: editor.ITextModel;
-  project: Project;
+  projects: Project[];
   onInteraction: () => void;
 }
 
-export function Task({ model, project, onInteraction }: TaskProps) {
+export function Task({ model, projects, onInteraction }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -46,28 +46,12 @@ export function Task({ model, project, onInteraction }: TaskProps) {
     });
   }
 
-  async function callMethod() {
-    if (!editorRef.current || !project) {
+  async function onRun() {
+    if (!editorRef.current) {
       return;
     }
 
-    runTask(editorRef.current.getValue());
-
-    let lines = editorRef.current.getValue().split("\n"); // split the code into lines
-
-    let isInImport = false;
-    // remove import statements
-    while (lines.length > 0 && (lines[0].startsWith("import ") || isInImport)) {
-      isInImport = !lines[0].endsWith(";");
-      lines.shift();
-    }
-
-    for (const client of Object.values(project.clients)) {
-      client.kaja = kajaRef.current;
-    }
-
-    const func = new Function(...Object.keys(project.clients), "kaja", lines.join("\n"));
-    func(...Object.values(project.clients).map((client) => client.methods), kajaRef.current);
+    runTask(editorRef.current.getValue(), kajaRef.current, projects);
     onInteraction();
   }
 
@@ -80,7 +64,7 @@ export function Task({ model, project, onInteraction }: TaskProps) {
           flexShrink: 0,
         }}
       >
-        <ControlBar onRun={callMethod} />
+        <ControlBar onRun={onRun} />
         <Editor model={model} onMount={onEditorMount} />
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />

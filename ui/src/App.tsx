@@ -109,7 +109,7 @@ export function App() {
                   if (tab.type === "task" && projects.length > 0) {
                     return (
                       <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                        <Task model={tab.model} project={projects[0]} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                        <Task model={tab.model} projects={projects} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
                       </Tab>
                     );
                   }
