@@ -48,4 +48,5 @@ docker run -v /tmp/kaja.env:/app/.env ...
 # Development
 
 Run: `scripts/run`
-Test: `(cd ui && npm test)`
+Test UI: `(cd ui && npm test)`
+Test server: `(cd server && go test ./... -v)`
