@@ -26,6 +26,57 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	return compiler.(*Compiler)
 }
 
+func (s *ApiService) loadConfigurationFromFile() (*Configuration, error) {
+	file, err := os.Open(s.configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // Return nil without error if file doesn't exist
+		}
+		return nil, err
+	}
+	defer file.Close()
+
+	var config Configuration
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if err := protojson.Unmarshal(fileContent, &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+	// Start with empty configuration
+	config := &Configuration{
+		Projects: []*ConfigurationProject{},
+	}
+
+	// Add default project if BASE_URL is set
+	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
+		defaultProject := &ConfigurationProject{
+			Name:      "default",
+			Protocol:  RpcProtocol_RPC_PROTOCOL_GRPC, // Default to GRPC
+			Url:       baseURL,
+			Workspace: "proto", // Default workspace
+		}
+		config.Projects = append([]*ConfigurationProject{defaultProject}, config.Projects...)
+	}
+
+	// Load and merge configuration from file if present
+	fileConfig, err := s.loadConfigurationFromFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration file: %w", err)
+	}
+	if fileConfig != nil {
+		config.Projects = append(config.Projects, fileConfig.Projects...)
+	}
+
+	return &GetConfigurationResponse{Configuration: config}, nil
+}
+
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
 	if req.ProjectName == "" {
 		return nil, fmt.Errorf("project name is required")
@@ -58,23 +109,4 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		Logs:    logs,
 		Sources: compiler.sources,
 	}, nil
-}
-
-func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	file, err := os.Open(s.configPath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var config Configuration
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-	if err := protojson.Unmarshal(fileContent, &config); err != nil {
-		return nil, err
-	}
-
-	return &GetConfigurationResponse{Configuration: &config}, nil
 }
