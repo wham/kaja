@@ -11,11 +11,14 @@ import (
 )
 
 type ApiService struct {
-	compilers sync.Map // map[string]*Compiler
+	compilers  sync.Map // map[string]*Compiler
+	configPath string
 }
 
-func NewApiService() *ApiService {
-	return &ApiService{}
+func NewApiService(configPath string) *ApiService {
+	return &ApiService{
+		configPath: configPath,
+	}
 }
 
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
@@ -58,7 +61,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	file, err := os.Open("../kaja.json")
+	file, err := os.Open(s.configPath)
 	if err != nil {
 		return nil, err
 	}

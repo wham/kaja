@@ -39,17 +39,8 @@ func TestGetConfiguration_Success(t *testing.T) {
 		t.Fatal("failed to write config file:", err)
 	}
 
-	// Create symlink to the test config file
-	if err := os.Symlink(configPath, "../kaja.json"); err != nil {
-		t.Fatal("failed to create symlink:", err)
-	}
-	defer func() {
-		os.Remove(configPath)
-		os.Remove("../kaja.json")
-	}()
-
 	// Create service and make request
-	service := NewApiService()
+	service := NewApiService(configPath)
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 
 	// Validate response
@@ -82,11 +73,8 @@ func TestGetConfiguration_Success(t *testing.T) {
 }
 
 func TestGetConfiguration_FileNotFound(t *testing.T) {
-	// Remove any existing symlink
-	os.Remove("../kaja.json")
-
-	// Create service and make request
-	service := NewApiService()
+	// Use a non-existent file path
+	service := NewApiService("/nonexistent/path/kaja.json")
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 
 	if err == nil {
@@ -111,18 +99,8 @@ func TestGetConfiguration_InvalidJSON(t *testing.T) {
 		t.Fatal("failed to write invalid config file:", err)
 	}
 
-	// Create symlink to the test config file
-	os.Remove("../kaja.json")
-	if err := os.Symlink(configPath, "../kaja.json"); err != nil {
-		t.Fatal("failed to create symlink:", err)
-	}
-	defer func() {
-		os.Remove(configPath)
-		os.Remove("../kaja.json")
-	}()
-
 	// Create service and make request
-	service := NewApiService()
+	service := NewApiService(configPath)
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 
 	if err == nil {
