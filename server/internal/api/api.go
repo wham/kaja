@@ -5,6 +5,7 @@ import (
 	fmt "fmt"
 	io "io"
 	"os"
+	"strings"
 	"sync"
 
 	protojson "google.golang.org/protobuf/encoding/protojson"
@@ -18,6 +19,18 @@ type ApiService struct {
 func NewApiService(configPath string) *ApiService {
 	return &ApiService{
 		configPath: configPath,
+	}
+}
+
+func getProtocolFromEnv() RpcProtocol {
+	protocol := strings.ToUpper(os.Getenv("RPC_PROTOCOL"))
+	switch protocol {
+	case "RPC_PROTOCOL_GRPC":
+		return RpcProtocol_RPC_PROTOCOL_GRPC
+	case "RPC_PROTOCOL_TWIRP":
+		return RpcProtocol_RPC_PROTOCOL_TWIRP
+	default:
+		return RpcProtocol_RPC_PROTOCOL_TWIRP // Default to TWIRP
 	}
 }
 
@@ -58,7 +71,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
 		defaultProject := &ConfigurationProject{
 			Name:      "default",
-			Protocol:  RpcProtocol_RPC_PROTOCOL_GRPC, // Default to GRPC
+			Protocol:  getProtocolFromEnv(),
 			Url:       baseURL,
 			Workspace: "proto", // Default workspace
 		}
