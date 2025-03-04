@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/joho/godotenv"
 	assets "github.com/wham/kaja/v2"
 	pb "github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
@@ -79,11 +78,6 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	err := godotenv.Load("../.env")
-	if err != nil {
-		slog.Info(".env file not loaded", "error", err)
-	}
-
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// The PATH_PREFIX environment variable is used to set the subpath.
 	// The server uses it to generate the correct paths in HTML and redirects.

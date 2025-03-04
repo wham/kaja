@@ -54,14 +54,6 @@ trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
 
-# Load environment variables from .env file if present
-if [ -f .env ]; then
-    echo "Loading environment variables from .env file..."
-    set -a
-    source .env
-    set +a
-fi
-
 export GOBIN=$PWD/build
 export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest

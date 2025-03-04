@@ -10,15 +10,6 @@ NC='\033[0m' # No Color
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
-
-# Load environment variables from .env file if present
-if [ -f .env ]; then
-    echo "Loading environment variables from .env file..."
-    set -a
-    source .env
-    set +a
-fi
-
 cd ./demo
 
 if [ "$RPC_PROTOCOL" = "grpc" ]; then
