@@ -154,12 +154,6 @@ func main() {
 	mux.HandleFunc("GET /stub/{project}/stub.js", handlerStubJs)
 	mux.HandleFunc("GET /status", handlerStatus)
 
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		slog.Error("BASE_URL environment variable is not set")
-		os.Exit(1)
-	}
-
 	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
