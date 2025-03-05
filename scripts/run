@@ -49,7 +49,7 @@ then
     fi
 fi
 
-# Kill background demo-app when the script exits
+# Kill background demo apps when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
@@ -67,7 +67,7 @@ npm run protoc
 # consider ignoring them if this starts to take too long
 npm run prettier
 
-cd "../demo"
+cd "../workspace"
 protoc --proto_path=. \
     --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
     --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \

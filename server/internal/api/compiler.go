@@ -87,9 +87,6 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) {
 	os.MkdirAll(sourcesDir, os.ModePerm)
 
 	workspaceDir := filepath.Join(cwd, "../workspace/"+workspace)
-	if _, err := os.Stat(workspaceDir); os.IsNotExist(err) {
-		workspaceDir = filepath.Join(cwd, "../demo")
-	}
 	c.debug("workspaceDir: " + workspaceDir)
 
 	buildDir := filepath.Join(cwd, "../build")
