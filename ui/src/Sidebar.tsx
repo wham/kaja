@@ -13,14 +13,16 @@ export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
       {projects.map((project) => {
         return (
           <>
-            <Box sx={{ 
-              fontSize: "12px", 
-              fontWeight: "bold", 
-              padding: "2px 4px", 
-              color: "fg.muted"  // Using GitHub Primer's color system for muted text
-            }}>
-              {project.name}
-            </Box>
+            {projects.length > 1 && (
+              <Box sx={{ 
+                fontSize: "12px", 
+                fontWeight: "bold", 
+                padding: "2px 4px", 
+                color: "fg.muted"
+              }}>
+                {project.name}
+              </Box>
+            )}
             <nav aria-label="Services and methods">
               <TreeView aria-label="Services and methods">
                 {project &&
