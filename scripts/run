@@ -49,18 +49,10 @@ then
     fi
 fi
 
-# Kill background demo-app when the script exits
+# Kill background demo apps when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
-
-# Load environment variables from .env file if present
-if [ -f .env ]; then
-    echo "Loading environment variables from .env file..."
-    set -a
-    source .env
-    set +a
-fi
 
 export GOBIN=$PWD/build
 export PATH=$GOBIN:$PATH
@@ -75,22 +67,21 @@ npm run protoc
 # consider ignoring them if this starts to take too long
 npm run prettier
 
-cd "../demo"
+cd "../workspace"
 protoc --proto_path=. \
     --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
     --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
     --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
     -Iproto/ $(find . -iname "*.proto")
 
-if [ "$RPC_PROTOCOL" = "grpc" ]; then
-    echo "Building gRPC demo app"
-    go build -o /tmp/demo-app ./cmd/grpc-server
-else
-    echo "Building Twirp demo app"
-    go build -o /tmp/demo-app ./cmd/twirp-server
-fi
+echo "Building gRPC demo app"
+go build -o /tmp/demo-grpc-server ./cmd/grpc-server
 
-/tmp/demo-app &
+echo "Building Twirp demo app"
+go build -o /tmp/demo-twirp-server ./cmd/twirp-server
+
+/tmp/demo-grpc-server &
+/tmp/demo-twirp-server &
 
 cd "../server"
 go run cmd/build-ui/main.go

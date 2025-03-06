@@ -4,18 +4,20 @@ option go_package = "internal/api";
 
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
+  rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
 }
 
 message CompileRequest {
   int32 log_offset = 1;
   bool force = 2;
+  string project_name = 3;
+  string workspace = 4;
 }
 
 message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
   repeated string sources = 3;
-  RpcProtocol rpc_protocol = 4;
 }
 
 enum CompileStatus {
@@ -41,4 +43,21 @@ enum LogLevel {
 enum RpcProtocol {
   RPC_PROTOCOL_TWIRP = 0;
   RPC_PROTOCOL_GRPC = 1;
+}
+
+message GetConfigurationRequest {}
+
+message GetConfigurationResponse {
+  Configuration configuration = 1;
+}
+
+message Configuration {
+  repeated ConfigurationProject projects = 1;
+}
+
+message ConfigurationProject {
+  string name = 1;
+  RpcProtocol protocol = 2;
+  string url = 3;
+  string workspace = 4;
 }

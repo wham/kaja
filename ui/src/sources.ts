@@ -15,7 +15,7 @@ export interface Stub {
   [key: string]: any;
 }
 
-export async function loadSources(paths: string[], stub: Stub): Promise<Sources> {
+export async function loadSources(paths: string[], stub: Stub, projectName: string): Promise<Sources> {
   if (paths.length === 0) {
     return [];
   }
@@ -23,8 +23,9 @@ export async function loadSources(paths: string[], stub: Stub): Promise<Sources>
   const sources: Source[] = [];
   let rawFiles: Record<string, () => Promise<string>> = {};
   paths.forEach((path) => {
+    path = projectName + "/" + path;
     rawFiles[path] = () => {
-      return fetch(path).then((response) => {
+      return fetch("sources/" + path).then((response) => {
         return response.text();
       });
     };
@@ -98,7 +99,7 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
   }
 }
 
-export async function loadStub(): Promise<Stub> {
-  const path = "./stub.js";
+export async function loadStub(projectName: string): Promise<Stub> {
+  const path = "./stub/" + projectName + "/stub.js";
   return import(path);
 }

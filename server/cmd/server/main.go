@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/joho/godotenv"
 	assets "github.com/wham/kaja/v2"
 	pb "github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
@@ -23,6 +22,7 @@ import (
 )
 
 func handlerStubJs(w http.ResponseWriter, r *http.Request) {
+	project := r.PathValue("project")
 	cwd, err := os.Getwd()
 	if err != nil {
 		http.Error(w, "Failed to get current working directory", http.StatusInternalServerError)
@@ -31,14 +31,14 @@ func handlerStubJs(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("CWD: %s\n", cwd)
 
 	// Read all files in the sources directory
-	sourcesDir := "./web/sources"
+	sourcesDir := "./build/sources/" + project
 	var stubContent strings.Builder
 	err = filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			stubContent.WriteString("export * from \"" + strings.Replace(path, "web/sources/", "./", 1) + "\";\n")
+			stubContent.WriteString("export * from \"" + strings.Replace(path, "build/sources/"+project, "./", 1) + "\";\n")
 		}
 		return nil
 	})
@@ -78,11 +78,6 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	err := godotenv.Load("../.env")
-	if err != nil {
-		slog.Info(".env file not loaded", "error", err)
-	}
-
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// The PATH_PREFIX environment variable is used to set the subpath.
 	// The server uses it to generate the correct paths in HTML and redirects.
@@ -96,7 +91,7 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := pb.NewApiServer(pb.NewApiService())
+	twirpHandler := pb.NewApiServer(pb.NewApiService("../workspace/kaja.json"))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -155,45 +150,39 @@ func main() {
 		})
 	}
 
-	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("web/sources"))))
-	mux.HandleFunc("GET /stub.js", handlerStubJs)
+	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("build/sources"))))
+	mux.HandleFunc("GET /stub/{project}/stub.js", handlerStubJs)
 	mux.HandleFunc("GET /status", handlerStatus)
-
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		slog.Error("BASE_URL environment variable is not set")
-		os.Exit(1)
-	}
-
-	target, err := url.Parse(baseURL)
-	if err != nil {
-		slog.Error("Invalid BASE_URL", "error", err)
-		os.Exit(1)
-	}
-
-	// Create a reverse proxy
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
-	// Create gRPC proxy
-	grpcProxy, err := grpc.NewProxy(target)
-	if err != nil {
-		slog.Error("Failed to create gRPC proxy", "error", err)
-		os.Exit(1)
-	}
 
 	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
-		if strings.HasPrefix(contentType, "application/grpc-web") ||
-			strings.HasPrefix(contentType, "application/grpc-web-text") {
-			grpcProxy.ServeHTTP(w, r, r.PathValue("method"))
+		target, err := url.Parse(r.Header.Get("X-Target"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid X-Target header"))
 			return
 		}
+		if strings.HasPrefix(contentType, "application/grpc-web") ||
+			strings.HasPrefix(contentType, "application/grpc-web-text") {
 
-		// Handle regular Twirp requests
-		r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
-		proxy.ServeHTTP(w, r)
+			proxy, err := grpc.NewProxy(target)
+			if err != nil {
+				slog.Error("Failed to create gRPC proxy", "error", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			proxy.ServeHTTP(w, r, r.PathValue("method"))
+			return
+		} else {
+			// Create a reverse proxy
+			proxy := httputil.NewSingleHostReverseProxy(target)
+
+			// Handle regular Twirp requests
+			r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
+			proxy.ServeHTTP(w, r)
+		}
 	})
 
 	root := http.NewServeMux()
