@@ -16,26 +16,33 @@ import { Task } from "./Task";
 };
 
 export function App() {
-  const [project, setProject] = useState<Project>();
+  const [projects, setProjects] = useState<Project[]>([]);
   const [tabs, setTabs] = useState<TabModel[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
 
   useEffect(() => {
-    if (tabs.length === 0 && !project) {
+    if (tabs.length === 0 && projects.length === 0) {
       setTabs([{ type: "compiler" }]);
     }
-  }, [tabs.length, project]);
+  }, [tabs.length, projects.length]);
 
-  const onProject = (project: Project) => {
-    const defaultMethod = getDefaultMethod(project.services);
-    setProject(project);
-    setSelectedMethod(defaultMethod);
+  const onProjects = (projects: Project[]) => {
+    setProjects(projects);
 
-    project.extraLibs.forEach((extraLib) => {
-      monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + extraLib.filePath));
+    projects.forEach((project) => {
+      project.extraLibs.forEach((extraLib) => {
+        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + project.name + "/" + extraLib.filePath));
+      });
     });
+
+    if (projects.length === 0) {
+      return;
+    }
+
+    const defaultMethod = getDefaultMethod(projects[0].services);
+    setSelectedMethod(defaultMethod);
 
     if (!defaultMethod) {
       return;
@@ -83,7 +90,7 @@ export function App() {
       <BaseStyles>
         <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
           <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll", paddingX: 2, paddingY: 1 }}>
-            <Sidebar project={project} onSelect={onMethodSelect} currentMethod={selectedMethod} />
+            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} />
           </Box>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -94,15 +101,15 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProject={onProject} />
+                        <Compiler onProjects={onProjects} />
                       </Tab>
                     );
                   }
 
-                  if (tab.type === "task" && project) {
+                  if (tab.type === "task" && projects.length > 0) {
                     return (
                       <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                        <Task model={tab.model} project={project} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                        <Task model={tab.model} projects={projects} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
                       </Tab>
                     );
                   }

@@ -1,0 +1,16 @@
+{
+  "projects": [
+    {
+      "name": "grpc-demo",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "http://localhost:41521",
+      "workspace": ""
+    },
+    {
+      "name": "twirp-demo",
+      "protocol": "RPC_PROTOCOL_TWIRP",
+      "url": "http://localhost:41522",
+      "workspace": ""
+    }
+  ]
+}

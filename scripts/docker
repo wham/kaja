@@ -6,30 +6,20 @@ GREEN='\033[0;32m'
 ORANGE='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Kill background demo-app when the script exits
+# Kill background demo apps when the script exits
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
 cd "$(dirname "$0")/.."
+cd ./workspace
 
-# Load environment variables from .env file if present
-if [ -f .env ]; then
-    echo "Loading environment variables from .env file..."
-    set -a
-    source .env
-    set +a
-fi
+echo "Building gRPC demo app"
+go build -o /tmp/demo-grpc-server ./cmd/grpc-server
 
-cd ./demo
+echo "Building Twirp demo app"
+go build -o /tmp/demo-twirp-server ./cmd/twirp-server
 
-if [ "$RPC_PROTOCOL" = "grpc" ]; then
-    echo "Building gRPC demo app"
-    go build -o /tmp/demo-app ./cmd/grpc-server
-else
-    echo "Building Twirp demo app"
-    go build -o /tmp/demo-app ./cmd/twirp-server
-fi
-
-/tmp/demo-app &
+/tmp/demo-grpc-server &
+/tmp/demo-twirp-server &
 
 # Stop and remove the container if it already exists
 docker rm -f kaja-dev &> /dev/null || true
@@ -41,10 +31,10 @@ docker build . -t kaja-dev:latest
 rm pipe &> /dev/null || true
 mkfifo pipe
 
+# TODO: localhost in kaja.json needs to be manually replaced with host.docker.internal
+# Automate.
 docker run --name kaja-dev -a STDOUT -p 41520:41520 \
-    -v $PWD/demo:/workspace \
-    -e BASE_URL="http://host.docker.internal:41521" \
-    -e RPC_PROTOCOL="$RPC_PROTOCOL" \
+    -v $PWD/workspace:/workspace \
     --add-host=host.docker.internal:host-gateway kaja-dev:latest > pipe &
 
 while IFS= read -r line
