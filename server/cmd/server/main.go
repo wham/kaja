@@ -91,7 +91,7 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := pb.NewApiServer(pb.NewApiService("../kaja.json"))
+	twirpHandler := pb.NewApiServer(pb.NewApiService("../workspace/kaja.json"))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
