@@ -73,7 +73,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 			Name:      "default",
 			Protocol:  getProtocolFromEnv(),
 			Url:       baseURL,
-			Workspace: "proto", // Default workspace
+			Workspace: "", // Default workspace
 		}
 		config.Projects = append([]*ConfigurationProject{defaultProject}, config.Projects...)
 	}

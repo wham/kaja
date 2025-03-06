@@ -14,12 +14,14 @@ export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
         return (
           <>
             {projects.length > 1 && (
-              <Box sx={{ 
-                fontSize: "12px", 
-                fontWeight: "bold", 
-                padding: "2px 4px", 
-                color: "fg.muted"
-              }}>
+              <Box
+                sx={{
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  padding: "2px 4px",
+                  color: "fg.muted",
+                }}
+              >
                 {project.name}
               </Box>
             )}
