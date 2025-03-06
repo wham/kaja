@@ -13,14 +13,14 @@ RUN npm ci --omit=dev
 COPY server /server
 WORKDIR /server
 RUN go run cmd/build-ui/main.go
-RUN go build -o /build/kaja ./cmd/server
+RUN go build -o /build/server ./cmd/server
 
 FROM alpine:latest AS runner
-COPY --from=builder /build/kaja /app/
+COPY --from=builder /build/server /server/
 COPY --from=builder /build/protoc-gen-ts /build/
 RUN apk add --update nodejs
 RUN apk update && apk add --no-cache make protobuf-dev
-WORKDIR /app
+WORKDIR /server
 EXPOSE 41520
-#CMD ["sh", "-c", "sleep 10000000 && ./kaja"]
-CMD ["./kaja"]
+#CMD ["sh", "-c", "sleep 10000000 && ./server"]
+CMD ["./server"]
