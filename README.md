@@ -27,7 +27,7 @@ docker run --pull always --name kaja -d -p 41520:41520 \
 
 # Configuration
 
-Configuration can be provided via environment variables or a config file. Use the [-e parameter](https://docs.docker.com/engine/reference/commandline/run/#env) when running the Docker container.
+Configuration can be provided via environment variables. Use the [-e parameter](https://docs.docker.com/engine/reference/commandline/run/#env) when running the Docker container.
 
 ```
 docker run -e BASE_URL="http://host.docker.internal:8080" ...
@@ -37,13 +37,6 @@ List of configuration options:
 
 - `BASE_URL` - The base URL of the Twirp or gRPC API. Example: `http://host.docker.internal:8080`.
 - `RPC_PROTOCOL` - Use `grpc` or `twirp`. Default is `twirp`.
-
-Alternatively, `kaja` will use [dotenv](https://github.com/motdotla/dotenv) to look for a `.env` file in the `/app` directory of the Docker container. You can use the [-v parameter](https://docs.docker.com/engine/reference/commandline/run/#volume) to mount a `.env` file from the host file system. This is useful when
-you need to dynamically change the configuration. For example, when an authentication header needs to refreshed.
-
-```
-docker run -v /tmp/kaja.env:/app/.env ...
-```
 
 # Development
 
