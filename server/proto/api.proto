@@ -49,11 +49,11 @@ message GetConfigurationRequest {}
 
 message GetConfigurationResponse {
   Configuration configuration = 1;
+  repeated Log logs = 2;
 }
 
 message Configuration {
   repeated ConfigurationProject projects = 1;
-  repeated Log logs = 2;
 }
 
 message ConfigurationProject {

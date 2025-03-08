@@ -78,6 +78,10 @@ export interface GetConfigurationResponse {
    * @generated from protobuf field: Configuration configuration = 1;
    */
   configuration?: Configuration;
+  /**
+   * @generated from protobuf field: repeated Log logs = 2;
+   */
+  logs: Log[];
 }
 /**
  * @generated from protobuf message Configuration
@@ -87,10 +91,6 @@ export interface Configuration {
    * @generated from protobuf field: repeated ConfigurationProject projects = 1;
    */
   projects: ConfigurationProject[];
-  /**
-   * @generated from protobuf field: repeated Log logs = 2;
-   */
-  logs: Log[];
 }
 /**
  * @generated from protobuf message ConfigurationProject
@@ -372,10 +372,14 @@ export const GetConfigurationRequest = new GetConfigurationRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse> {
   constructor() {
-    super("GetConfigurationResponse", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
+    super("GetConfigurationResponse", [
+      { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+      { no: 2, name: "logs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Log },
+    ]);
   }
   create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
     const message = globalThis.Object.create(this.messagePrototype!);
+    message.logs = [];
     if (value !== undefined) reflectionMergePartial<GetConfigurationResponse>(this, message, value);
     return message;
   }
@@ -387,6 +391,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
       switch (fieldNo) {
         case /* Configuration configuration */ 1:
           message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+          break;
+        case /* repeated Log logs */ 2:
+          message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
           break;
         default:
           let u = options.readUnknownField;
@@ -400,6 +407,8 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
   internalBinaryWrite(message: GetConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
     /* Configuration configuration = 1; */
     if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+    /* repeated Log logs = 2; */
+    for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
@@ -412,15 +421,11 @@ export const GetConfigurationResponse = new GetConfigurationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
   constructor() {
-    super("Configuration", [
-      { no: 1, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject },
-      { no: 2, name: "logs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Log },
-    ]);
+    super("Configuration", [{ no: 1, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject }]);
   }
   create(value?: PartialMessage<Configuration>): Configuration {
     const message = globalThis.Object.create(this.messagePrototype!);
     message.projects = [];
-    message.logs = [];
     if (value !== undefined) reflectionMergePartial<Configuration>(this, message, value);
     return message;
   }
@@ -432,9 +437,6 @@ class Configuration$Type extends MessageType<Configuration> {
       switch (fieldNo) {
         case /* repeated ConfigurationProject projects */ 1:
           message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        case /* repeated Log logs */ 2:
-          message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
           break;
         default:
           let u = options.readUnknownField;
@@ -449,8 +451,6 @@ class Configuration$Type extends MessageType<Configuration> {
     /* repeated ConfigurationProject projects = 1; */
     for (let i = 0; i < message.projects.length; i++)
       ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    /* repeated Log logs = 2; */
-    for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;

@@ -66,6 +66,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	config := &Configuration{
 		Projects: []*ConfigurationProject{},
 	}
+	logs := []*Log{}
 
 	// Add default project if BASE_URL is set
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
@@ -87,7 +88,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		config.Projects = append(config.Projects, fileConfig.Projects...)
 	}
 
-	return &GetConfigurationResponse{Configuration: config}, nil
+	return &GetConfigurationResponse{Configuration: config, Logs: logs}, nil
 }
 
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
