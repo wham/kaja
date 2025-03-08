@@ -39,7 +39,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		}
 
 		if len(config.Projects) > 0 {
-			logger.warn("%d projects defined in configuration file will be ignored", len(config.Projects))
+			logger.warn(fmt.Sprintf("%d projects defined in configuration file will be ignored", len(config.Projects)))
 		}
 
 		config.Projects = []*ConfigurationProject{defaultProject}
@@ -93,13 +93,13 @@ func (s *ApiService) loadConfiguration(logger *Logger) *Configuration {
 		Projects: []*ConfigurationProject{},
 	}
 
-	logger.debug("Trying to load configuration from file %s", s.configPath)
+	logger.debug(fmt.Sprintf("Trying to load configuration from file %s", s.configPath))
 	file, err := os.Open(s.configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.info("Configuration file %s not found. Only environment variables will be used.", s.configPath)
+			logger.info(fmt.Sprintf("Configuration file %s not found. Only environment variables will be used.", s.configPath))
 		} else {
-			logger.error("Failed opening configuration file", err)
+			logger.error(fmt.Sprintf("Failed opening configuration file %s", s.configPath), err)
 		}
 		return config
 	}
@@ -107,11 +107,11 @@ func (s *ApiService) loadConfiguration(logger *Logger) *Configuration {
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
-		logger.error("Failed to read configuration file", err)
+		logger.error(fmt.Sprintf("Failed to read configuration file %s", s.configPath), err)
 		return config
 	}
 	if err := protojson.Unmarshal(fileContent, config); err != nil {
-		logger.error("Failed to unmarshal configuratation file", err)
+		logger.error(fmt.Sprintf("Failed to unmarshal configuratation file %s", s.configPath), err)
 	}
 
 	return config
