@@ -54,13 +54,13 @@ export interface CompileResponse {
  */
 export interface Log {
   /**
-   * @generated from protobuf field: string message = 1;
-   */
-  message: string;
-  /**
-   * @generated from protobuf field: LogLevel level = 2;
+   * @generated from protobuf field: LogLevel level = 1;
    */
   level: LogLevel;
+  /**
+   * @generated from protobuf field: string message = 2;
+   */
+  message: string;
 }
 /**
  * @generated from protobuf message GetConfigurationRequest
@@ -289,14 +289,14 @@ export const CompileResponse = new CompileResponse$Type();
 class Log$Type extends MessageType<Log> {
   constructor() {
     super("Log", [
-      { no: 1, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+      { no: 1, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+      { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
     ]);
   }
   create(value?: PartialMessage<Log>): Log {
     const message = globalThis.Object.create(this.messagePrototype!);
-    message.message = "";
     message.level = 0;
+    message.message = "";
     if (value !== undefined) reflectionMergePartial<Log>(this, message, value);
     return message;
   }
@@ -306,11 +306,11 @@ class Log$Type extends MessageType<Log> {
     while (reader.pos < end) {
       let [fieldNo, wireType] = reader.tag();
       switch (fieldNo) {
-        case /* string message */ 1:
-          message.message = reader.string();
-          break;
-        case /* LogLevel level */ 2:
+        case /* LogLevel level */ 1:
           message.level = reader.int32();
+          break;
+        case /* string message */ 2:
+          message.message = reader.string();
           break;
         default:
           let u = options.readUnknownField;
@@ -322,10 +322,10 @@ class Log$Type extends MessageType<Log> {
     return message;
   }
   internalBinaryWrite(message: Log, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string message = 1; */
-    if (message.message !== "") writer.tag(1, WireType.LengthDelimited).string(message.message);
-    /* LogLevel level = 2; */
-    if (message.level !== 0) writer.tag(2, WireType.Varint).int32(message.level);
+    /* LogLevel level = 1; */
+    if (message.level !== 0) writer.tag(1, WireType.Varint).int32(message.level);
+    /* string message = 2; */
+    if (message.message !== "") writer.tag(2, WireType.LengthDelimited).string(message.message);
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
