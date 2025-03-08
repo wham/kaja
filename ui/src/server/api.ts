@@ -58,11 +58,7 @@ export interface Log {
    */
   message: string;
   /**
-   * @generated from protobuf field: int32 index = 2;
-   */
-  index: number;
-  /**
-   * @generated from protobuf field: LogLevel level = 3;
+   * @generated from protobuf field: LogLevel level = 2;
    */
   level: LogLevel;
 }
@@ -294,14 +290,12 @@ class Log$Type extends MessageType<Log> {
   constructor() {
     super("Log", [
       { no: 1, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "index", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-      { no: 3, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+      { no: 2, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
     ]);
   }
   create(value?: PartialMessage<Log>): Log {
     const message = globalThis.Object.create(this.messagePrototype!);
     message.message = "";
-    message.index = 0;
     message.level = 0;
     if (value !== undefined) reflectionMergePartial<Log>(this, message, value);
     return message;
@@ -315,10 +309,7 @@ class Log$Type extends MessageType<Log> {
         case /* string message */ 1:
           message.message = reader.string();
           break;
-        case /* int32 index */ 2:
-          message.index = reader.int32();
-          break;
-        case /* LogLevel level */ 3:
+        case /* LogLevel level */ 2:
           message.level = reader.int32();
           break;
         default:
@@ -333,10 +324,8 @@ class Log$Type extends MessageType<Log> {
   internalBinaryWrite(message: Log, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
     /* string message = 1; */
     if (message.message !== "") writer.tag(1, WireType.LengthDelimited).string(message.message);
-    /* int32 index = 2; */
-    if (message.index !== 0) writer.tag(2, WireType.Varint).int32(message.index);
-    /* LogLevel level = 3; */
-    if (message.level !== 0) writer.tag(3, WireType.Varint).int32(message.level);
+    /* LogLevel level = 2; */
+    if (message.level !== 0) writer.tag(2, WireType.Varint).int32(message.level);
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;

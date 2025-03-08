@@ -29,8 +29,7 @@ enum CompileStatus {
 
 message Log {
   string message = 1;
-  int32 index = 2;
-  LogLevel level = 3;
+  LogLevel level = 2;
 }
 
 enum LogLevel {
