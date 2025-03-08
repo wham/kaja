@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -93,6 +94,7 @@ func TestGetConfiguration_EmptyConfig(t *testing.T) {
 
 func TestGetConfiguration_WithBaseURL_DefaultProtocol(t *testing.T) {
 	// Set BASE_URL environment variable, no RPC_PROTOCOL (should default to TWIRP)
+	// This should override any config file settings
 	const testURL = "http://test-url:8080"
 	os.Setenv("BASE_URL", testURL)
 	defer os.Unsetenv("BASE_URL")
@@ -107,7 +109,7 @@ func TestGetConfiguration_WithBaseURL_DefaultProtocol(t *testing.T) {
 		t.Fatal("expected non-nil response and configuration")
 	}
 	if len(resp.Configuration.Projects) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(resp.Configuration.Projects))
+		t.Fatalf("expected exactly 1 project (from BASE_URL), got %d", len(resp.Configuration.Projects))
 	}
 
 	project := resp.Configuration.Projects[0]
@@ -120,13 +122,14 @@ func TestGetConfiguration_WithBaseURL_DefaultProtocol(t *testing.T) {
 	if project.Url != testURL {
 		t.Errorf("expected URL %q, got %q", testURL, project.Url)
 	}
-	if project.Workspace != "proto" {
-		t.Errorf("expected workspace 'proto', got %q", project.Workspace)
+	if project.Workspace != "" {
+		t.Errorf("expected empty workspace, got %q", project.Workspace)
 	}
 }
 
 func TestGetConfiguration_WithBaseURL_GRPCProtocol(t *testing.T) {
 	// Set both BASE_URL and RPC_PROTOCOL environment variables
+	// This should override any config file settings
 	const testURL = "http://test-url:8080"
 	os.Setenv("BASE_URL", testURL)
 	os.Setenv("RPC_PROTOCOL", "RPC_PROTOCOL_GRPC")
@@ -145,7 +148,7 @@ func TestGetConfiguration_WithBaseURL_GRPCProtocol(t *testing.T) {
 		t.Fatal("expected non-nil response and configuration")
 	}
 	if len(resp.Configuration.Projects) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(resp.Configuration.Projects))
+		t.Fatalf("expected exactly 1 project (from BASE_URL), got %d", len(resp.Configuration.Projects))
 	}
 
 	project := resp.Configuration.Projects[0]
@@ -158,12 +161,12 @@ func TestGetConfiguration_WithBaseURL_GRPCProtocol(t *testing.T) {
 	if project.Url != testURL {
 		t.Errorf("expected URL %q, got %q", testURL, project.Url)
 	}
-	if project.Workspace != "proto" {
-		t.Errorf("expected workspace 'proto', got %q", project.Workspace)
+	if project.Workspace != "" {
+		t.Errorf("expected empty workspace, got %q", project.Workspace)
 	}
 }
 
-func TestGetConfiguration_WithFileAndBaseURL(t *testing.T) {
+func TestGetConfiguration_BaseURLOverridesConfigFile(t *testing.T) {
 	// Create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "kaja-test-*")
 	if err != nil {
@@ -171,7 +174,7 @@ func TestGetConfiguration_WithFileAndBaseURL(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Create test configuration file
+	// Create test configuration file that should be ignored when BASE_URL is set
 	configPath := filepath.Join(tmpDir, "kaja.json")
 	config := &Configuration{
 		Projects: []*ConfigurationProject{
@@ -194,6 +197,7 @@ func TestGetConfiguration_WithFileAndBaseURL(t *testing.T) {
 	}
 
 	// Set BASE_URL and RPC_PROTOCOL environment variables
+	// This should completely override the config file
 	const testURL = "http://test-url:8080"
 	os.Setenv("BASE_URL", testURL)
 	os.Setenv("RPC_PROTOCOL", "RPC_PROTOCOL_TWIRP")
@@ -213,32 +217,24 @@ func TestGetConfiguration_WithFileAndBaseURL(t *testing.T) {
 	if resp == nil || resp.Configuration == nil {
 		t.Fatal("expected non-nil response and configuration")
 	}
-	if len(resp.Configuration.Projects) != 2 {
-		t.Fatalf("expected 2 projects, got %d", len(resp.Configuration.Projects))
+	// Should only have the environment-based project, config file projects should be ignored
+	if len(resp.Configuration.Projects) != 1 {
+		t.Fatalf("expected exactly 1 project (from BASE_URL), got %d", len(resp.Configuration.Projects))
 	}
 
-	// Check default project (should be first)
-	defaultProject := resp.Configuration.Projects[0]
-	if defaultProject.Name != "default" {
-		t.Errorf("expected first project name 'default', got %q", defaultProject.Name)
+	// Check that we got the environment-based project
+	project := resp.Configuration.Projects[0]
+	if project.Name != "default" {
+		t.Errorf("expected project name 'default', got %q", project.Name)
 	}
-	if defaultProject.Protocol != RpcProtocol_RPC_PROTOCOL_TWIRP {
-		t.Errorf("expected first project protocol TWIRP, got %v", defaultProject.Protocol)
+	if project.Protocol != RpcProtocol_RPC_PROTOCOL_TWIRP {
+		t.Errorf("expected protocol TWIRP, got %v", project.Protocol)
 	}
-	if defaultProject.Url != testURL {
-		t.Errorf("expected first project URL %q, got %q", testURL, defaultProject.Url)
+	if project.Url != testURL {
+		t.Errorf("expected URL %q, got %q", testURL, project.Url)
 	}
-
-	// Check file-based project (should be second)
-	fileProject := resp.Configuration.Projects[1]
-	if fileProject.Name != "test-project" {
-		t.Errorf("expected second project name 'test-project', got %q", fileProject.Name)
-	}
-	if fileProject.Protocol != RpcProtocol_RPC_PROTOCOL_GRPC {
-		t.Errorf("expected second project protocol GRPC, got %v", fileProject.Protocol)
-	}
-	if fileProject.Url != "http://localhost:41521" {
-		t.Errorf("expected second project URL 'http://localhost:41521', got %q", fileProject.Url)
+	if project.Workspace != "" {
+		t.Errorf("expected empty workspace, got %q", project.Workspace)
 	}
 }
 
@@ -260,10 +256,29 @@ func TestGetConfiguration_InvalidJSON(t *testing.T) {
 	service := NewApiService(configPath)
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 
-	if err == nil {
-		t.Error("expected an error but got nil")
+	// Should not return error, but instead return empty config
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
-	if resp != nil {
-		t.Error("expected nil response when error occurs")
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Configuration == nil {
+		t.Fatal("expected non-nil configuration")
+	}
+	if len(resp.Configuration.Projects) != 0 {
+		t.Errorf("expected empty projects list for invalid JSON, got %d projects", len(resp.Configuration.Projects))
+	}
+
+	// Should have logged an error about invalid JSON
+	foundError := false
+	for _, log := range resp.Logs {
+		if log.Level == LogLevel_LEVEL_ERROR && strings.Contains(log.Message, "Failed to unmarshal") {
+			foundError = true
+			break
+		}
+	}
+	if !foundError {
+		t.Error("expected to find error log about unmarshal failure")
 	}
 }
