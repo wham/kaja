@@ -25,33 +25,27 @@ func NewApiService(configPath string) *ApiService {
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	// Start with empty configuration
-	config := &Configuration{
-		Projects: []*ConfigurationProject{},
-	}
 	logger := NewLogger()
+	config := s.loadConfiguration(logger)
 
-	// Add default project if BASE_URL is set
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
+		logger.info("BASE_URL is set, configuring project from environment variables")
+
 		defaultProject := &ConfigurationProject{
 			Name:      "default",
 			Protocol:  getProtocolFromEnv(),
 			Url:       baseURL,
 			Workspace: "", // Default workspace
 		}
-		config.Projects = append([]*ConfigurationProject{defaultProject}, config.Projects...)
+
+		if len(config.Projects) > 0 {
+			logger.warn("%d projects defined in configuration file will be ignored", len(config.Projects))
+		}
+
+		config.Projects = []*ConfigurationProject{defaultProject}
 	}
 
-	// Load and merge configuration from file if present
-	fileConfig, err := s.loadConfigurationFromFile(logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration file: %w", err)
-	}
-	if fileConfig != nil {
-		config.Projects = append(config.Projects, fileConfig.Projects...)
-	}
-
-	return &GetConfigurationResponse{Configuration: config, Logs: logs}, nil
+	return &GetConfigurationResponse{Configuration: config, Logs: logger.logs}, nil
 }
 
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
@@ -94,28 +88,33 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	return compiler.(*Compiler)
 }
 
-func (s *ApiService) loadConfigurationFromFile(logger *Logger) (*Configuration, error) {
+func (s *ApiService) loadConfiguration(logger *Logger) *Configuration {
+	config := &Configuration{
+		Projects: []*ConfigurationProject{},
+	}
+
 	logger.debug("Trying to load configuration from file %s", s.configPath)
 	file, err := os.Open(s.configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.info("Configuration file %s not found. Skipping.", s.configPath)
-			return nil, nil // Return nil without error if file doesn't exist
+			logger.info("Configuration file %s not found. Only environment variables will be used.", s.configPath)
+		} else {
+			logger.error("Failed opening configuration file", err)
 		}
-		return nil, err
+		return config
 	}
 	defer file.Close()
 
-	var config Configuration
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
-		return nil, err
+		logger.error("Failed to read configuration file", err)
+		return config
 	}
-	if err := protojson.Unmarshal(fileContent, &config); err != nil {
-		return nil, err
+	if err := protojson.Unmarshal(fileContent, config); err != nil {
+		logger.error("Failed to unmarshal configuratation file", err)
 	}
 
-	return &config, nil
+	return config
 }
 
 // Standalone helper functions
