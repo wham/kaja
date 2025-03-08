@@ -29,7 +29,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	config := &Configuration{
 		Projects: []*ConfigurationProject{},
 	}
-	logs := []*Log{}
+	logger := NewLogger()
 
 	// Add default project if BASE_URL is set
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
@@ -43,7 +43,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	}
 
 	// Load and merge configuration from file if present
-	fileConfig, err := s.loadConfigurationFromFile()
+	fileConfig, err := s.loadConfigurationFromFile(logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration file: %w", err)
 	}
@@ -94,10 +94,12 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	return compiler.(*Compiler)
 }
 
-func (s *ApiService) loadConfigurationFromFile() (*Configuration, error) {
+func (s *ApiService) loadConfigurationFromFile(logger *Logger) (*Configuration, error) {
+	logger.debug("Trying to load configuration from file %s", s.configPath)
 	file, err := os.Open(s.configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logger.info("Configuration file %s not found. Skipping.", s.configPath)
 			return nil, nil // Return nil without error if file doesn't exist
 		}
 		return nil, err

@@ -1,6 +1,9 @@
 package api
 
-import "log/slog"
+import (
+	fmt "fmt"
+	"log/slog"
+)
 
 type Logger struct {
 	logs []*Log
@@ -12,19 +15,19 @@ func NewLogger() *Logger {
 	}
 }
 
-func (l *Logger) debug(message string) {
-	slog.Info(message)
-	l.log(LogLevel_LEVEL_DEBUG, message)
+func (l *Logger) debug(message string, a ...any) {
+	slog.Info(message, a...)
+	l.log(LogLevel_LEVEL_DEBUG, message, a...)
 }
 
-func (l *Logger) info(message string) {
+func (l *Logger) info(message string, a ...any) {
 	slog.Info(message)
-	l.log(LogLevel_LEVEL_INFO, message)
+	l.log(LogLevel_LEVEL_INFO, message, a...)
 }
 
-func (l *Logger) warn(message string) {
+func (l *Logger) warn(message string, a ...any) {
 	slog.Warn(message)
-	l.log(LogLevel_LEVEL_WARN, message)
+	l.log(LogLevel_LEVEL_WARN, message, a...)
 }
 
 func (l *Logger) error(message string, err error) {
@@ -32,9 +35,9 @@ func (l *Logger) error(message string, err error) {
 	l.log(LogLevel_LEVEL_ERROR, message)
 }
 
-func (l *Logger) log(level LogLevel, message string) {
+func (l *Logger) log(level LogLevel, message string, a ...any) {
 	l.logs = append(l.logs, &Log{
-		Message: message,
+		Message: fmt.Sprintf(message, a...),
 		Level:   level,
 	})
 }
