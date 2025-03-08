@@ -28,9 +28,8 @@ enum CompileStatus {
 }
 
 message Log {
-  string message = 1;
-  int32 index = 2;
-  LogLevel level = 3;
+  LogLevel level = 1;
+  string message = 2;
 }
 
 enum LogLevel {
@@ -49,6 +48,7 @@ message GetConfigurationRequest {}
 
 message GetConfigurationResponse {
   Configuration configuration = 1;
+  repeated Log logs = 2;
 }
 
 message Configuration {

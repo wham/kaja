@@ -54,17 +54,13 @@ export interface CompileResponse {
  */
 export interface Log {
   /**
-   * @generated from protobuf field: string message = 1;
-   */
-  message: string;
-  /**
-   * @generated from protobuf field: int32 index = 2;
-   */
-  index: number;
-  /**
-   * @generated from protobuf field: LogLevel level = 3;
+   * @generated from protobuf field: LogLevel level = 1;
    */
   level: LogLevel;
+  /**
+   * @generated from protobuf field: string message = 2;
+   */
+  message: string;
 }
 /**
  * @generated from protobuf message GetConfigurationRequest
@@ -78,6 +74,10 @@ export interface GetConfigurationResponse {
    * @generated from protobuf field: Configuration configuration = 1;
    */
   configuration?: Configuration;
+  /**
+   * @generated from protobuf field: repeated Log logs = 2;
+   */
+  logs: Log[];
 }
 /**
  * @generated from protobuf message Configuration
@@ -289,16 +289,14 @@ export const CompileResponse = new CompileResponse$Type();
 class Log$Type extends MessageType<Log> {
   constructor() {
     super("Log", [
-      { no: 1, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "index", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-      { no: 3, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+      { no: 1, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+      { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
     ]);
   }
   create(value?: PartialMessage<Log>): Log {
     const message = globalThis.Object.create(this.messagePrototype!);
-    message.message = "";
-    message.index = 0;
     message.level = 0;
+    message.message = "";
     if (value !== undefined) reflectionMergePartial<Log>(this, message, value);
     return message;
   }
@@ -308,14 +306,11 @@ class Log$Type extends MessageType<Log> {
     while (reader.pos < end) {
       let [fieldNo, wireType] = reader.tag();
       switch (fieldNo) {
-        case /* string message */ 1:
-          message.message = reader.string();
-          break;
-        case /* int32 index */ 2:
-          message.index = reader.int32();
-          break;
-        case /* LogLevel level */ 3:
+        case /* LogLevel level */ 1:
           message.level = reader.int32();
+          break;
+        case /* string message */ 2:
+          message.message = reader.string();
           break;
         default:
           let u = options.readUnknownField;
@@ -327,12 +322,10 @@ class Log$Type extends MessageType<Log> {
     return message;
   }
   internalBinaryWrite(message: Log, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string message = 1; */
-    if (message.message !== "") writer.tag(1, WireType.LengthDelimited).string(message.message);
-    /* int32 index = 2; */
-    if (message.index !== 0) writer.tag(2, WireType.Varint).int32(message.index);
-    /* LogLevel level = 3; */
-    if (message.level !== 0) writer.tag(3, WireType.Varint).int32(message.level);
+    /* LogLevel level = 1; */
+    if (message.level !== 0) writer.tag(1, WireType.Varint).int32(message.level);
+    /* string message = 2; */
+    if (message.message !== "") writer.tag(2, WireType.LengthDelimited).string(message.message);
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
@@ -368,10 +361,14 @@ export const GetConfigurationRequest = new GetConfigurationRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse> {
   constructor() {
-    super("GetConfigurationResponse", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
+    super("GetConfigurationResponse", [
+      { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+      { no: 2, name: "logs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Log },
+    ]);
   }
   create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
     const message = globalThis.Object.create(this.messagePrototype!);
+    message.logs = [];
     if (value !== undefined) reflectionMergePartial<GetConfigurationResponse>(this, message, value);
     return message;
   }
@@ -383,6 +380,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
       switch (fieldNo) {
         case /* Configuration configuration */ 1:
           message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+          break;
+        case /* repeated Log logs */ 2:
+          message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
           break;
         default:
           let u = options.readUnknownField;
@@ -396,6 +396,8 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
   internalBinaryWrite(message: GetConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
     /* Configuration configuration = 1; */
     if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+    /* repeated Log logs = 2; */
+    for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
