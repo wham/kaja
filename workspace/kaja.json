@@ -3,7 +3,7 @@
     {
       "name": "grpc-demo",
       "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "http://localhost:41521",
+      "url": "dns:localhost:41521",
       "workspace": ""
     },
     {
