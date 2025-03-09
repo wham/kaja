@@ -71,7 +71,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string)
 
 	slog.Info("Dialing gRPC server", "target", p.target.String())
 
-	client, err := grpc.NewClient(":"+p.target.Port(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+	client, err := grpc.NewClient(p.target.String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
 
 	if err != nil {
 		slog.Error("Failed to connect gRPC server", "error", err)

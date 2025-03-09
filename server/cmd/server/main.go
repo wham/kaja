@@ -160,6 +160,7 @@ func main() {
 		contentType := r.Header.Get("Content-Type")
 		target, err := url.Parse(r.Header.Get("X-Target"))
 		if err != nil {
+			slog.Warn("Failed to parse X-Target header", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Invalid X-Target header"))
 			return
