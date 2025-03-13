@@ -72,7 +72,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
     services,
     clients: createClients(services, stub, configuration),
     extraLibs,
-    paths,
   };
 }
 
