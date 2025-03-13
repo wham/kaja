@@ -9,9 +9,6 @@ import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./s
 export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub(configuration.name);
   const sources = await loadSources(paths, stub, configuration.name);
-  const globalImports: ts.ImportDeclaration[] = [];
-  const globalVars: ts.VariableStatement[] = [];
-
   const services: Service[] = [];
   const extraLibs: ExtraLib[] = [];
 
@@ -39,39 +36,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         name: serviceName,
         methods,
       });
-      globalImports.push(
-        ts.factory.createImportDeclaration(
-          undefined, // modifiers
-          ts.factory.createImportClause(
-            false, // isTypeOnly
-            undefined, // name
-            ts.factory.createNamedImports([
-              ts.factory.createImportSpecifier(
-                false, // propertyName
-                ts.factory.createIdentifier(serviceName),
-                ts.factory.createIdentifier(serviceName + "X"),
-              ),
-            ]), // elements
-          ), // importClause
-          ts.factory.createStringLiteral(sourceFile.fileName.replace(".ts", "")), // moduleSpecifier
-        ),
-      );
-      globalVars.push(
-        ts.factory.createVariableStatement(
-          [], // modifiers
-          ts.factory.createVariableDeclarationList(
-            [
-              ts.factory.createVariableDeclaration(
-                serviceName, // name
-                undefined, // type
-                undefined, // initializer
-                ts.factory.createIdentifier(serviceName + "X"), // value
-              ),
-            ], // declarations
-            ts.NodeFlags.Const, // flags
-          ),
-        ),
-      );
 
       const result = findInterface(sources, "I" + serviceName + "Client");
       if (result) {
@@ -102,13 +66,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       });
     }
   });
-
-  if (globalImports.length > 0) {
-    extraLibs.push({
-      filePath: "global-imports",
-      content: printStatements([...globalImports, ...globalVars]),
-    });
-  }
 
   return {
     name: configuration.name,
