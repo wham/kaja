@@ -50,6 +50,8 @@ export function createClient(service: Service, stub: Stub, configuration: Config
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);
+
+      return methodCall.output;
     };
   }
 

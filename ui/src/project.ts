@@ -5,7 +5,6 @@ export interface Project {
   services: Array<Service>;
   clients: Clients;
   extraLibs: Array<ExtraLib>;
-  paths: string[];
 }
 
 export interface Service {

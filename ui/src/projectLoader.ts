@@ -9,9 +9,6 @@ import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./s
 export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub(configuration.name);
   const sources = await loadSources(paths, stub, configuration.name);
-  const globalImports: ts.ImportDeclaration[] = [];
-  const globalVars: ts.VariableStatement[] = [];
-
   const services: Service[] = [];
   const extraLibs: ExtraLib[] = [];
 
@@ -39,39 +36,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         name: serviceName,
         methods,
       });
-      globalImports.push(
-        ts.factory.createImportDeclaration(
-          undefined, // modifiers
-          ts.factory.createImportClause(
-            false, // isTypeOnly
-            undefined, // name
-            ts.factory.createNamedImports([
-              ts.factory.createImportSpecifier(
-                false, // propertyName
-                ts.factory.createIdentifier(serviceName),
-                ts.factory.createIdentifier(serviceName + "X"),
-              ),
-            ]), // elements
-          ), // importClause
-          ts.factory.createStringLiteral(sourceFile.fileName.replace(".ts", "")), // moduleSpecifier
-        ),
-      );
-      globalVars.push(
-        ts.factory.createVariableStatement(
-          [], // modifiers
-          ts.factory.createVariableDeclarationList(
-            [
-              ts.factory.createVariableDeclaration(
-                serviceName, // name
-                undefined, // type
-                undefined, // initializer
-                ts.factory.createIdentifier(serviceName + "X"), // value
-              ),
-            ], // declarations
-            ts.NodeFlags.Const, // flags
-          ),
-        ),
-      );
 
       const result = findInterface(sources, "I" + serviceName + "Client");
       if (result) {
@@ -103,19 +67,11 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
     }
   });
 
-  if (globalImports.length > 0) {
-    extraLibs.push({
-      filePath: "global-imports",
-      content: printStatements([...globalImports, ...globalVars]),
-    });
-  }
-
   return {
     name: configuration.name,
     services,
     clients: createClients(services, stub, configuration),
     extraLibs,
-    paths,
   };
 }
 
@@ -131,6 +87,24 @@ function createClients(services: Service[], stub: Stub, configuration: Configura
 
 function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.ParameterDeclaration | undefined {
   return method.parameters.find((parameter) => parameter.name.getText(sourceFile) == "input");
+}
+
+function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.TypeNode | undefined {
+  if (!method.type || !ts.isTypeReferenceNode(method.type)) {
+    return undefined;
+  }
+
+  const typeRef = method.type;
+  if (typeRef.typeName.getText(sourceFile) !== "UnaryCall") {
+    return undefined;
+  }
+
+  // UnaryCall should have type arguments, get the second one (output type)
+  if (typeRef.typeArguments && typeRef.typeArguments.length >= 2) {
+    return typeRef.typeArguments[1];
+  }
+
+  return undefined;
 }
 
 function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
@@ -221,10 +195,11 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
             ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(inputParameterType), undefined),
           ),
         ],
-        undefined,
+        ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Promise"), [
+          getOutputType(member, sourceFile) || ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+        ]),
         ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ts.factory.createBlock([]),
-        /*this.proxyBody(protoService, protoMethod)*/
       ),
     );
     funcs.push(func);
