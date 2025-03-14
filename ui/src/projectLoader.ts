@@ -184,7 +184,7 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
     const func = ts.factory.createPropertyAssignment(
       methodName,
       ts.factory.createArrowFunction(
-        undefined,
+        [ts.factory.createModifier(ts.SyntaxKind.AsyncKeyword)],
         undefined,
         [
           ts.factory.createParameterDeclaration(
