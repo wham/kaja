@@ -89,6 +89,24 @@ function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile
   return method.parameters.find((parameter) => parameter.name.getText(sourceFile) == "input");
 }
 
+function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.TypeNode | undefined {
+  if (!method.type || !ts.isTypeReferenceNode(method.type)) {
+    return undefined;
+  }
+
+  const typeRef = method.type;
+  if (typeRef.typeName.getText(sourceFile) !== "UnaryCall") {
+    return undefined;
+  }
+
+  // UnaryCall should have type arguments, get the second one (output type)
+  if (typeRef.typeArguments && typeRef.typeArguments.length >= 2) {
+    return typeRef.typeArguments[1];
+  }
+
+  return undefined;
+}
+
 function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
   const imports = addImport({}, serviceName, source);
   const input = defaultMessage(methodInfo.I, sources, imports);
@@ -166,7 +184,7 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
     const func = ts.factory.createPropertyAssignment(
       methodName,
       ts.factory.createArrowFunction(
-        [ts.factory.createModifier(ts.SyntaxKind.AsyncKeyword)],
+        undefined,
         undefined,
         [
           ts.factory.createParameterDeclaration(
@@ -177,10 +195,11 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
             ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(inputParameterType), undefined),
           ),
         ],
-        undefined,
+        ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Promise"), [
+          getOutputType(member, sourceFile) || ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+        ]),
         ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ts.factory.createBlock([]),
-        /*this.proxyBody(protoService, protoMethod)*/
       ),
     );
     funcs.push(func);
