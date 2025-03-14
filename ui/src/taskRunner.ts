@@ -39,6 +39,16 @@ export function runTask(code: string, kaja: Kaja, projects: Project[]) {
     client.kaja = kaja;
   }
 
-  const func = new Function(...Object.keys(clients), "kaja", lines.join("\n"));
+  // Wrap the user's code in an async function so async keyword can be used
+  const func = new Function(
+    ...Object.keys(clients),
+    "kaja",
+    `
+    return (async function() {
+      ${lines.join("\n")}
+    })();
+  `,
+  );
+
   func(...Object.values(clients).map((client) => client.methods), kaja);
 }

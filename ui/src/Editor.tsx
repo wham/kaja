@@ -32,6 +32,11 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
   },
 });
 
+monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+  target: monaco.languages.typescript.ScriptTarget.ESNext,
+  module: monaco.languages.typescript.ModuleKind.ESNext,
+});
+
 interface EditorProps {
   model: monaco.editor.ITextModel;
   onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
