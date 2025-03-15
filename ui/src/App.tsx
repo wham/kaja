@@ -3,8 +3,10 @@ import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
+import { registerCopilotProvider } from "./copilot";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
+import { Configuration } from "./server/api";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
 import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
@@ -27,6 +29,12 @@ export function App() {
       setTabs([{ type: "compiler" }]);
     }
   }, [tabs.length, projects.length]);
+
+  const onConfiguration = (configuration: Configuration) => {
+    if (configuration.githubToken) {
+      registerCopilotProvider(configuration.githubToken);
+    }
+  };
 
   const onProjects = (projects: Project[]) => {
     setProjects(projects);
@@ -101,7 +109,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProjects={onProjects} />
+                        <Compiler onConfiguration={onConfiguration} onProjects={onProjects} />
                       </Tab>
                     );
                   }

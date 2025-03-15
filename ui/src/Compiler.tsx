@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
 import { Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus, ConfigurationProject } from "./server/api";
+import { CompileStatus, Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface IgnoreToken {
@@ -10,10 +10,11 @@ interface IgnoreToken {
 }
 
 interface CompilerProps {
+  onConfiguration: (configuration: Configuration) => void;
   onProjects: (projects: Project[]) => void;
 }
 
-export function Compiler({ onProjects }: CompilerProps) {
+export function Compiler({ onConfiguration, onProjects }: CompilerProps) {
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const numberOfProjects = useRef(0);
   const projects = useRef<Project[]>([]);
@@ -53,6 +54,10 @@ export function Compiler({ onProjects }: CompilerProps) {
     client.getConfiguration({}).then(({ response }) => {
       setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
       console.log("Configuration", response.configuration);
+      if (response.configuration) {
+        onConfiguration(response.configuration);
+      }
+
       numberOfProjects.current = response.configuration?.projects.length ?? 0;
       response.configuration?.projects.forEach((configurationProject) => {
         compile(ignoreToken, configurationProject, 0);
