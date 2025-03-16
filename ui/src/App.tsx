@@ -1,9 +1,9 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
+import { registerAIProvider } from "./ai";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
-import { registerCopilotProvider } from "./copilot";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Configuration } from "./server/api";
@@ -32,7 +32,7 @@ export function App() {
 
   const onConfiguration = (configuration: Configuration) => {
     if (configuration.githubToken) {
-      registerCopilotProvider(configuration.githubToken);
+      registerAIProvider(configuration.githubToken);
     }
   };
 
