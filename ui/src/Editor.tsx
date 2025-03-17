@@ -69,6 +69,23 @@ export function Editor({ model, onMount }: EditorProps) {
         inlineSuggest: {
           enabled: true,
           mode: "subwordSmart",
+          showToolbar: "always",
+        },
+        quickSuggestions: {
+          other: "inline",
+          comments: "inline",
+          strings: "inline",
+        },
+        suggest: {
+          preview: true,
+          showInlineDetails: true,
+          showMethods: true,
+          showFunctions: true,
+          showVariables: true,
+          showConstants: true,
+          showConstructors: true,
+          showFields: true,
+          showFiles: true,
         },
       });
 

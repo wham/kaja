@@ -87,6 +87,13 @@ async function fetchAICompletions(githubToken: string, context: CompletionContex
 export function registerAIProvider(githubToken: string) {
   monaco.languages.registerInlineCompletionsProvider("typescript", {
     provideInlineCompletions: async (model, position, context, token) => {
+      // Don't trigger on empty lines or very short prefixes
+      const lineContent = model.getLineContent(position.lineNumber);
+      const prefix = lineContent.substring(0, position.column - 1).trim();
+      if (!prefix || prefix.length < 2) {
+        return { items: [], enableForwardStability: true };
+      }
+
       const completionContext: CompletionContext = {
         prefix: model.getWordUntilPosition(position).word,
         position,
@@ -95,9 +102,14 @@ export function registerAIProvider(githubToken: string) {
 
       const suggestions = await debouncedFetchAICompletions(githubToken, completionContext);
 
+      // Ensure suggestions are not empty and have content
+      if (!suggestions.length || !suggestions[0].text.trim()) {
+        return { items: [], enableForwardStability: true };
+      }
+
       return {
         items: suggestions.map((suggestion) => ({
-          insertText: suggestion.text,
+          insertText: suggestion.text.trim(),
           range: suggestion.range,
         })),
         enableForwardStability: true,
