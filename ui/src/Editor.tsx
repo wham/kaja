@@ -66,6 +66,10 @@ export function Editor({ model, onMount }: EditorProps) {
         formatOnPaste: true,
         formatOnType: true,
         tabSize: 2,
+        inlineSuggest: {
+          enabled: true,
+          mode: "subwordSmart",
+        },
       });
 
       onMount(editorRef.current);

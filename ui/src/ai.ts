@@ -14,6 +14,33 @@ interface CompletionContext {
 
 const endpoint = "https://models.inference.ai.azure.com";
 const modelName = "gpt-4o";
+const DEBOUNCE_DELAY = 1000; // 1 second delay
+
+let debounceTimer: NodeJS.Timeout | null = null;
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests
+
+async function debouncedFetchAICompletions(githubToken: string, context: CompletionContext): Promise<AICompletion[]> {
+  return new Promise((resolve) => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      resolve([]);
+      return;
+    }
+
+    debounceTimer = setTimeout(async () => {
+      lastRequestTime = Date.now();
+      const completions = await fetchAICompletions(githubToken, context);
+      resolve(completions);
+    }, DEBOUNCE_DELAY);
+  });
+}
 
 async function fetchAICompletions(githubToken: string, context: CompletionContext): Promise<AICompletion[]> {
   const fileContent = context.model.getValue();
@@ -48,7 +75,7 @@ async function fetchAICompletions(githubToken: string, context: CompletionContex
     return [
       {
         text: suggestion,
-        range: new monaco.Range(position.lineNumber, position.column - prefix.length, position.lineNumber, position.column),
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
       },
     ];
   } catch (error) {
@@ -58,27 +85,29 @@ async function fetchAICompletions(githubToken: string, context: CompletionContex
 }
 
 export function registerAIProvider(githubToken: string) {
-  monaco.languages.registerCompletionItemProvider("typescript", {
-    triggerCharacters: [".", " "],
-    provideCompletionItems: async (model, position, context) => {
+  monaco.languages.registerInlineCompletionsProvider("typescript", {
+    provideInlineCompletions: async (model, position, context, token) => {
       const completionContext: CompletionContext = {
         prefix: model.getWordUntilPosition(position).word,
         position,
         model,
       };
 
-      const suggestions = await fetchAICompletions(githubToken, completionContext);
+      const suggestions = await debouncedFetchAICompletions(githubToken, completionContext);
 
       return {
-        suggestions: suggestions.map((suggestion) => ({
-          label: suggestion.text,
-          kind: monaco.languages.CompletionItemKind.Snippet,
+        items: suggestions.map((suggestion) => ({
           insertText: suggestion.text,
           range: suggestion.range,
-          detail: "AI suggestion",
-          sortText: "0",
         })),
+        enableForwardStability: true,
       };
+    },
+    freeInlineCompletions: () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
     },
   });
 }
