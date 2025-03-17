@@ -1,3 +1,5 @@
 /build
 /server/build
 /ui/node_modules
+
+.github_token

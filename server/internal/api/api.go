@@ -45,6 +45,11 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		config.Projects = []*ConfigurationProject{defaultProject}
 	}
 
+	if githubToken := os.Getenv("GITHUB_TOKEN"); githubToken != "" {
+		logger.info("GITHUB_TOKEN is set, configuring from environment variable")
+		config.GithubToken = githubToken
+	}
+
 	return &GetConfigurationResponse{Configuration: config, Logs: logger.logs}, nil
 }
 
