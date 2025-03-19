@@ -53,7 +53,6 @@ message GetConfigurationResponse {
 
 message Configuration {
   repeated ConfigurationProject projects = 1;
-  string github_token = 2;
 }
 
 message ConfigurationProject {

@@ -1,12 +1,11 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
-import { Configuration } from "./server/api";
 import { Sidebar } from "./Sidebar";
 import { Tab, Tabs } from "./Tabs";
 import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
@@ -18,13 +17,11 @@ import { Task } from "./Task";
 };
 
 export function App() {
-  const [configuration, setConfiguration] = useState<Configuration>();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tabs, setTabs] = useState<TabModel[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const githubTokenRef = useRef<string>();
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -32,23 +29,9 @@ export function App() {
     }
   }, [tabs.length, projects.length]);
 
-  const onConfiguration = (configuration: Configuration) => {
-    setConfiguration(configuration);
-
-    if (configuration.githubToken) {
-      githubTokenRef.current = configuration.githubToken;
-      if (projects.length > 0) {
-        registerAIProvider(configuration.githubToken, projects);
-      }
-    }
-  };
-
   const onProjects = (projects: Project[]) => {
     setProjects(projects);
-
-    if (githubTokenRef.current) {
-      registerAIProvider(githubTokenRef.current, projects);
-    }
+    registerAIProvider(projects);
 
     projects.forEach((project) => {
       project.extraLibs.forEach((extraLib) => {
@@ -120,7 +103,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onConfiguration={onConfiguration} onProjects={onProjects} />
+                        <Compiler onProjects={onProjects} />
                       </Tab>
                     );
                   }

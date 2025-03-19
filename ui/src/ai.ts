@@ -13,7 +13,7 @@ interface CompletionContext {
   model: monaco.editor.ITextModel;
 }
 
-const endpoint = "https://models.inference.ai.azure.com";
+const endpoint = "http://localhost:41520/openai";
 const modelName = "gpt-4o";
 const DEBOUNCE_DELAY = 1000; // 1 second delay
 
@@ -50,7 +50,7 @@ Tips for code completion:
 Provide suggestions that match the available API methods and follow TypeScript best practices.`;
 }
 
-async function debouncedFetchAICompletions(githubToken: string, context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
+async function debouncedFetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
   return new Promise((resolve) => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
@@ -66,20 +66,20 @@ async function debouncedFetchAICompletions(githubToken: string, context: Complet
 
     debounceTimer = setTimeout(async () => {
       lastRequestTime = Date.now();
-      const completions = await fetchAICompletions(githubToken, context, projects);
+      const completions = await fetchAICompletions(context, projects);
       resolve(completions);
     }, DEBOUNCE_DELAY);
   });
 }
 
-async function fetchAICompletions(githubToken: string, context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
+async function fetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
   const fileContent = context.model.getValue();
   const position = context.position;
   const lineContent = context.model.getLineContent(position.lineNumber);
   const prefix = lineContent.substring(0, position.column - 1);
 
   try {
-    const client = new OpenAI({ baseURL: endpoint, apiKey: githubToken, dangerouslyAllowBrowser: true });
+    const client = new OpenAI({ baseURL: endpoint, apiKey: "*****", dangerouslyAllowBrowser: true });
 
     const response = await client.chat.completions.create({
       messages: [
@@ -117,7 +117,7 @@ async function fetchAICompletions(githubToken: string, context: CompletionContex
 // Keep track of registered providers to clean up
 let registeredProvider: monaco.IDisposable | null = null;
 
-export function registerAIProvider(githubToken: string, projects: Project[]) {
+export function registerAIProvider(projects: Project[]) {
   // Clean up previous provider if it exists
   if (registeredProvider) {
     registeredProvider.dispose();
@@ -138,7 +138,7 @@ export function registerAIProvider(githubToken: string, projects: Project[]) {
         model,
       };
 
-      const suggestions = await debouncedFetchAICompletions(githubToken, completionContext, projects);
+      const suggestions = await debouncedFetchAICompletions(completionContext, projects);
 
       // Ensure suggestions are not empty and have content
       if (!suggestions.length || !suggestions[0].text.trim()) {

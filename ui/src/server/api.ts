@@ -87,10 +87,6 @@ export interface Configuration {
    * @generated from protobuf field: repeated ConfigurationProject projects = 1;
    */
   projects: ConfigurationProject[];
-  /**
-   * @generated from protobuf field: string github_token = 2;
-   */
-  githubToken: string;
 }
 /**
  * @generated from protobuf message ConfigurationProject
@@ -414,15 +410,11 @@ export const GetConfigurationResponse = new GetConfigurationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
   constructor() {
-    super("Configuration", [
-      { no: 1, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject },
-      { no: 2, name: "github_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
+    super("Configuration", [{ no: 1, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject }]);
   }
   create(value?: PartialMessage<Configuration>): Configuration {
     const message = globalThis.Object.create(this.messagePrototype!);
     message.projects = [];
-    message.githubToken = "";
     if (value !== undefined) reflectionMergePartial<Configuration>(this, message, value);
     return message;
   }
@@ -434,9 +426,6 @@ class Configuration$Type extends MessageType<Configuration> {
       switch (fieldNo) {
         case /* repeated ConfigurationProject projects */ 1:
           message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        case /* string github_token */ 2:
-          message.githubToken = reader.string();
           break;
         default:
           let u = options.readUnknownField;
@@ -451,8 +440,6 @@ class Configuration$Type extends MessageType<Configuration> {
     /* repeated ConfigurationProject projects = 1; */
     for (let i = 0; i < message.projects.length; i++)
       ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    /* string github_token = 2; */
-    if (message.githubToken !== "") writer.tag(2, WireType.LengthDelimited).string(message.githubToken);
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
