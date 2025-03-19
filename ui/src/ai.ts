@@ -98,9 +98,14 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
       model: modelName,
     });
 
-    const suggestion = response.choices[0].message.content;
-
+    let suggestion = response.choices[0].message.content;
     if (!suggestion) return [];
+
+    // Strip markdown code block markers if present
+    suggestion = suggestion
+      .replace(/^```(?:typescript)?\n?/, "")
+      .replace(/\n?```$/, "")
+      .trim();
 
     return [
       {
