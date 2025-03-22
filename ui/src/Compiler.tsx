@@ -53,6 +53,7 @@ export function Compiler({ onProjects }: CompilerProps) {
     client.getConfiguration({}).then(({ response }) => {
       setConsoleItems((consoleItems) => [...consoleItems, response.logs]);
       console.log("Configuration", response.configuration);
+
       numberOfProjects.current = response.configuration?.projects.length ?? 0;
       response.configuration?.projects.forEach((configurationProject) => {
         compile(ignoreToken, configurationProject, 0);
