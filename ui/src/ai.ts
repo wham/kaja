@@ -25,19 +25,19 @@ const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests
 function generateSystemPrompt(projects: Project[]): string {
   const servicesList = projects
     .map((project) => {
-      const projectServices = project.services
+      const projectSources = project.extraLibs
         .map((service) => {
-          const methods = service.methods.map((method) => `    - ${method.name}`).join("\n");
-          return `  ${service.name}:\n${methods}`;
+          return `  ${service.filePath}:\n${service.content}`;
         })
         .join("\n\n");
-      return `${project.name}:\n${projectServices}`;
+      return `${project.name}:\n${projectSources}`;
     })
     .join("\n\n");
 
   return `You are a helpful code completion assistant. Provide concise code completions based on the context.
 
-Available services and methods:
+Here are the files that are available for import:
+
 ${servicesList}
 
 Tips for code completion:
