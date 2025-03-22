@@ -2,10 +2,10 @@ package api
 
 import (
 	"fmt"
+	protojson "google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"os"
-
-	protojson "google.golang.org/protobuf/encoding/protojson"
+	"strings"
 )
 
 func LoadGetConfigurationResponse(configPath string) *GetConfigurationResponse {
@@ -62,5 +62,18 @@ func applyEnvironmentVariables(config *Configuration, logger *Logger) {
 		}
 
 		config.Projects = []*ConfigurationProject{defaultProject}
+	}
+}
+
+// Standalone helper functions
+func getProtocolFromEnv() RpcProtocol {
+	protocol := strings.ToUpper(os.Getenv("RPC_PROTOCOL"))
+	switch protocol {
+	case "RPC_PROTOCOL_GRPC":
+		return RpcProtocol_RPC_PROTOCOL_GRPC
+	case "RPC_PROTOCOL_TWIRP":
+		return RpcProtocol_RPC_PROTOCOL_TWIRP
+	default:
+		return RpcProtocol_RPC_PROTOCOL_TWIRP // Default to TWIRP
 	}
 }
