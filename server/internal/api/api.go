@@ -6,16 +6,14 @@ import (
 	"sync"
 )
 
-// Type definitions
 type ApiService struct {
-	compilers  sync.Map // map[string]*Compiler
-	configPath string
+	compilers                sync.Map // map[string]*Compiler
+	getConfigurationResponse *GetConfigurationResponse
 }
 
-// Public constructors/methods
-func NewApiService(configPath string) *ApiService {
+func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
 	return &ApiService{
-		configPath: configPath,
+		getConfigurationResponse: getConfigurationResponse,
 	}
 }
 
@@ -54,7 +52,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	return LoadGetConfigurationResponse(s.configPath), nil
+	return s.getConfigurationResponse, nil
 }
 
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {

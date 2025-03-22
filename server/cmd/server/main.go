@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evanw/esbuild/pkg/api"
+	esbuild "github.com/evanw/esbuild/pkg/api"
 	assets "github.com/wham/kaja/v2"
-	pb "github.com/wham/kaja/v2/internal/api"
+	"github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
 )
@@ -53,15 +53,15 @@ func handlerStubJs(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Stub content: %s\n", stubContent.String())
 
-	result := api.Build(api.BuildOptions{
-		Stdin: &api.StdinOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
+		Stdin: &esbuild.StdinOptions{
 			Contents:   stubContent.String(),
 			ResolveDir: sourcesDir,
 			Sourcefile: "stub.ts",
 		},
 		Bundle:   true,
-		Format:   api.FormatESModule,
-		Packages: api.PackagesExternal,
+		Format:   esbuild.FormatESModule,
+		Packages: esbuild.PackagesExternal,
 	})
 
 	if len(result.Errors) > 0 {
@@ -109,6 +109,7 @@ func handleOpenAIProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
 	// The PATH_PREFIX environment variable is used to set the subpath.
 	// The server uses it to generate the correct paths in HTML and redirects.
@@ -122,7 +123,7 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := pb.NewApiServer(pb.NewApiService("../workspace/kaja.json"))
+	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
