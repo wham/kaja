@@ -1,6 +1,7 @@
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
+import { registerAIProvider } from "./ai";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
@@ -30,6 +31,7 @@ export function App() {
 
   const onProjects = (projects: Project[]) => {
     setProjects(projects);
+    registerAIProvider(projects);
 
     projects.forEach((project) => {
       project.extraLibs.forEach((extraLib) => {

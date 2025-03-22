@@ -8,3 +8,4 @@ alwaysApply: false
 
 - Avoid using React.FC explicitely. Use function components instead.
 - Avoid library dependencies for simple problems. Write the code yourself.
+- Avoid adding too obvious code comments. Only very specific things.
