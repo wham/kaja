@@ -85,7 +85,7 @@ func handleOpenAIProxy(w http.ResponseWriter, r *http.Request) {
 	// Get the GitHub token from environment
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	if githubToken == "" {
-		http.Error(w, "GitHub token not configured", http.StatusInternalServerError)
+		http.Error(w, "GitHub token not configured", http.StatusBadRequest)
 		return
 	}
 

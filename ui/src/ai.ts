@@ -21,6 +21,8 @@ let debounceTimer: NodeJS.Timeout | null = null;
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests
 
+let isCompletionsDisabled = false;
+
 // Function to generate system prompt with available services and methods
 function generateSystemPrompt(projects: Project[]): string {
   const servicesList = projects
@@ -113,8 +115,15 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
         range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
       },
     ];
-  } catch (error) {
-    console.error("Error fetching AI completions:", error);
+  } catch (error: any) {
+    // Check if the error is due to missing GITHUB_TOKEN by looking for 4xx status code in the error message
+    if (error.message && error.message.includes("400")) {
+      isCompletionsDisabled = true;
+      console.info("Completions disabled: GitHub token not configured");
+    } else {
+      console.error("Error fetching AI completions:", error);
+    }
+
     return [];
   }
 }
@@ -134,6 +143,11 @@ export function registerAIProvider(projects: Project[]) {
       const lineContent = model.getLineContent(position.lineNumber);
       const prefix = lineContent.substring(0, position.column - 1).trim();
       if (!prefix || prefix.length < 2) {
+        return { items: [], enableForwardStability: true };
+      }
+
+      // Skip completions if disabled
+      if (isCompletionsDisabled) {
         return { items: [], enableForwardStability: true };
       }
 
