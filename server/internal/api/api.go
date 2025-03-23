@@ -3,49 +3,18 @@ package api
 import (
 	"context"
 	fmt "fmt"
-	io "io"
-	"os"
-	"strings"
 	"sync"
-
-	protojson "google.golang.org/protobuf/encoding/protojson"
 )
 
-// Type definitions
 type ApiService struct {
-	compilers  sync.Map // map[string]*Compiler
-	configPath string
+	compilers                sync.Map // map[string]*Compiler
+	getConfigurationResponse *GetConfigurationResponse
 }
 
-// Public constructors/methods
-func NewApiService(configPath string) *ApiService {
+func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
 	return &ApiService{
-		configPath: configPath,
+		getConfigurationResponse: getConfigurationResponse,
 	}
-}
-
-func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	logger := NewLogger()
-	config := s.loadConfiguration(logger)
-
-	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
-		logger.info("BASE_URL is set, configuring project from environment variables")
-
-		defaultProject := &ConfigurationProject{
-			Name:      "default",
-			Protocol:  getProtocolFromEnv(),
-			Url:       baseURL,
-			Workspace: "", // Default workspace
-		}
-
-		if len(config.Projects) > 0 {
-			logger.warn(fmt.Sprintf("%d projects defined in configuration file will be ignored", len(config.Projects)))
-		}
-
-		config.Projects = []*ConfigurationProject{defaultProject}
-	}
-
-	return &GetConfigurationResponse{Configuration: config, Logs: logger.logs}, nil
 }
 
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
@@ -82,50 +51,21 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	}, nil
 }
 
-// Private methods
+func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
+	config := &Configuration{
+		GithubToken: "*****",
+		PathPrefix:  s.getConfigurationResponse.Configuration.PathPrefix,
+		Projects:    s.getConfigurationResponse.Configuration.Projects,
+	}
+
+	return &GetConfigurationResponse{
+		Configuration: config,
+		Logs:          s.getConfigurationResponse.Logs,
+	}, nil
+}
+
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	compiler, _ := s.compilers.LoadOrStore(projectName, NewCompiler())
 	return compiler.(*Compiler)
-}
-
-func (s *ApiService) loadConfiguration(logger *Logger) *Configuration {
-	config := &Configuration{
-		Projects: []*ConfigurationProject{},
-	}
-
-	logger.debug(fmt.Sprintf("Trying to load configuration from file %s", s.configPath))
-	file, err := os.Open(s.configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.info(fmt.Sprintf("Configuration file %s not found. Only environment variables will be used.", s.configPath))
-		} else {
-			logger.error(fmt.Sprintf("Failed opening configuration file %s", s.configPath), err)
-		}
-		return config
-	}
-	defer file.Close()
-
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		logger.error(fmt.Sprintf("Failed to read configuration file %s", s.configPath), err)
-		return config
-	}
-	if err := protojson.Unmarshal(fileContent, config); err != nil {
-		logger.error(fmt.Sprintf("Failed to unmarshal configuratation file %s", s.configPath), err)
-	}
-
-	return config
-}
-
-// Standalone helper functions
-func getProtocolFromEnv() RpcProtocol {
-	protocol := strings.ToUpper(os.Getenv("RPC_PROTOCOL"))
-	switch protocol {
-	case "RPC_PROTOCOL_GRPC":
-		return RpcProtocol_RPC_PROTOCOL_GRPC
-	case "RPC_PROTOCOL_TWIRP":
-		return RpcProtocol_RPC_PROTOCOL_TWIRP
-	default:
-		return RpcProtocol_RPC_PROTOCOL_TWIRP // Default to TWIRP
-	}
 }
