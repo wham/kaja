@@ -81,44 +81,37 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func handleOpenAIProxy(w http.ResponseWriter, r *http.Request) {
-	// Get the GitHub token from environment
-	githubToken := os.Getenv("GITHUB_TOKEN")
-	if githubToken == "" {
-		http.Error(w, "GitHub token not configured", http.StatusBadRequest)
-		return
-	}
+func handleOpenAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		githubToken := config.GithubToken
+		if githubToken == "" {
+			http.Error(w, "GitHub token not configured", http.StatusBadRequest)
+			return
+		}
 
-	target, err := url.Parse(openAIEndpoint)
-	if err != nil {
-		http.Error(w, "Invalid target URL", http.StatusInternalServerError)
-		return
-	}
+		target, err := url.Parse(openAIEndpoint)
+		if err != nil {
+			http.Error(w, "Invalid target URL", http.StatusInternalServerError)
+			return
+		}
 
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Director = func(req *http.Request) {
-		req.Header.Set("Authorization", "Bearer "+githubToken)
-		req.Host = target.Host
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		// Strip /openai prefix from the path
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/openai")
-	}
+		proxy := httputil.NewSingleHostReverseProxy(target)
+		proxy.Director = func(req *http.Request) {
+			req.Header.Set("Authorization", "Bearer "+githubToken)
+			req.Host = target.Host
+			req.URL.Scheme = target.Scheme
+			req.URL.Host = target.Host
+			// Strip /openai prefix from the path
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/openai")
+		}
 
-	proxy.ServeHTTP(w, r)
+		proxy.ServeHTTP(w, r)
+	}
 }
 
 func main() {
 	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
-	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
-	// The PATH_PREFIX environment variable is used to set the subpath.
-	// The server uses it to generate the correct paths in HTML and redirects.
-	// The JS code is using relative paths and should be not dependent on this.
-	pathPrefix := strings.Trim(os.Getenv("PATH_PREFIX"), "/")
-	if pathPrefix != "" {
-		pathPrefix = "/" + pathPrefix
-	}
-	slog.Info("Configuration", "PATH_PREFIX", pathPrefix)
+	config := getConfigurationResponse.Configuration
 
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
@@ -140,7 +133,7 @@ func main() {
 			return
 		}
 
-		if err := template.ExecuteTemplate(w, "index.html", struct{ PathPrefix string }{PathPrefix: pathPrefix}); err != nil {
+		if err := template.ExecuteTemplate(w, "index.html", struct{ PathPrefix string }{PathPrefix: config.PathPrefix}); err != nil {
 			slog.Error("Failed to execute template", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Internal server error"))
@@ -219,10 +212,10 @@ func main() {
 	})
 
 	// Register the OpenAI proxy handler
-	mux.HandleFunc("/openai/{path...}", handleOpenAIProxy)
+	mux.HandleFunc("/openai/{path...}", handleOpenAIProxy(config))
 
 	root := http.NewServeMux()
-	root.Handle(pathPrefix+"/", logRequest(http.StripPrefix(pathPrefix, mux)))
+	root.Handle(config.PathPrefix+"/", logRequest(http.StripPrefix(config.PathPrefix, mux)))
 
 	// Used in kaja launch scripts to determine if the server has started.
 	// slog.Info is not visible with Docker's -a STDOUT flag - its output is buffered.

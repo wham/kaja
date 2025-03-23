@@ -52,7 +52,17 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	return s.getConfigurationResponse, nil
+	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
+	config := &Configuration{
+		GithubToken: "*****",
+		PathPrefix:  s.getConfigurationResponse.Configuration.PathPrefix,
+		Projects:    s.getConfigurationResponse.Configuration.Projects,
+	}
+
+	return &GetConfigurationResponse{
+		Configuration: config,
+		Logs:          s.getConfigurationResponse.Logs,
+	}, nil
 }
 
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
