@@ -10,6 +10,7 @@ COPY ui /ui
 WORKDIR /ui
 RUN npm ci
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
+  npm run tsc; \
   npm test -- run; \
   fi
 
