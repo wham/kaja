@@ -52,7 +52,13 @@ message GetConfigurationResponse {
 }
 
 message Configuration {
-  repeated ConfigurationProject projects = 1;
+  string github_token = 1;
+  // kaja can be deployed at a subpath - i.e. kaja.tools/demo
+	// This field is used to set the subpath.
+	// The server uses it to generate the correct paths in HTML and redirects.
+	// The JS code is using relative paths and should be not dependent on this.
+  string path_prefix = 2;
+  repeated ConfigurationProject projects = 3;
 }
 
 message ConfigurationProject {

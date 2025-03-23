@@ -84,7 +84,20 @@ export interface GetConfigurationResponse {
  */
 export interface Configuration {
   /**
-   * @generated from protobuf field: repeated ConfigurationProject projects = 1;
+   * @generated from protobuf field: string github_token = 1;
+   */
+  githubToken: string;
+  /**
+   * kaja can be deployed at a subpath - i.e. kaja.tools/demo
+   * This field is used to set the subpath.
+   * The server uses it to generate the correct paths in HTML and redirects.
+   * The JS code is using relative paths and should be not dependent on this.
+   *
+   * @generated from protobuf field: string path_prefix = 2;
+   */
+  pathPrefix: string;
+  /**
+   * @generated from protobuf field: repeated ConfigurationProject projects = 3;
    */
   projects: ConfigurationProject[];
 }
@@ -410,10 +423,16 @@ export const GetConfigurationResponse = new GetConfigurationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
   constructor() {
-    super("Configuration", [{ no: 1, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject }]);
+    super("Configuration", [
+      { no: 1, name: "github_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 2, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 3, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject },
+    ]);
   }
   create(value?: PartialMessage<Configuration>): Configuration {
     const message = globalThis.Object.create(this.messagePrototype!);
+    message.githubToken = "";
+    message.pathPrefix = "";
     message.projects = [];
     if (value !== undefined) reflectionMergePartial<Configuration>(this, message, value);
     return message;
@@ -424,7 +443,13 @@ class Configuration$Type extends MessageType<Configuration> {
     while (reader.pos < end) {
       let [fieldNo, wireType] = reader.tag();
       switch (fieldNo) {
-        case /* repeated ConfigurationProject projects */ 1:
+        case /* string github_token */ 1:
+          message.githubToken = reader.string();
+          break;
+        case /* string path_prefix */ 2:
+          message.pathPrefix = reader.string();
+          break;
+        case /* repeated ConfigurationProject projects */ 3:
           message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
           break;
         default:
@@ -437,9 +462,13 @@ class Configuration$Type extends MessageType<Configuration> {
     return message;
   }
   internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* repeated ConfigurationProject projects = 1; */
+    /* string github_token = 1; */
+    if (message.githubToken !== "") writer.tag(1, WireType.LengthDelimited).string(message.githubToken);
+    /* string path_prefix = 2; */
+    if (message.pathPrefix !== "") writer.tag(2, WireType.LengthDelimited).string(message.pathPrefix);
+    /* repeated ConfigurationProject projects = 3; */
     for (let i = 0; i < message.projects.length; i++)
-      ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+      ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
