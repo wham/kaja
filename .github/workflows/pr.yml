@@ -11,3 +11,5 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: false
+          build-args: |
+            RUN_TESTS=true

@@ -8,5 +8,5 @@ test("formatJson", async () => {
 
 test("formatTypeScript", async () => {
   expect(await formatTypeScript(`let i=1;++i`)).toEqual(`let i = 1;\n++i;\n`);
-  expect(await formatJson("invalid_typescript")).toEqual("invalid_typescript");
+  expect(await formatTypeScript("} invalid_typescript")).toEqual("} invalid_typescript");
 });
