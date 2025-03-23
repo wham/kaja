@@ -16,10 +16,10 @@ RUN if [ "$RUN_TESTS" = "true" ] ; then \
 
 COPY server /server
 WORKDIR /server
+RUN go run cmd/build-ui/main.go
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi
-RUN go run cmd/build-ui/main.go
 RUN go build -o /build/server ./cmd/server
 
 FROM alpine:latest AS runner
