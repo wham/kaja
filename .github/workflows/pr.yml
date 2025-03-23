@@ -9,5 +9,7 @@ jobs:
     steps:
       - name: Build
         uses: docker/build-push-action@v3
+        build-args: |
+          RUN_TESTS=true
         with:
           push: false
