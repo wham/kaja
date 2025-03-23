@@ -29,8 +29,8 @@ function format(code: string, parser: string, plugins: prettier.Plugin[]): Promi
     .then((formattedCode) => {
       return formattedCode;
     })
-    .catch((error) => {
-      console.warn("Failed to format " + parser, code, error);
+    .catch(() => {
+      console.warn("Failed to format " + parser, code);
       return code;
     });
 }
