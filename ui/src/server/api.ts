@@ -84,22 +84,22 @@ export interface GetConfigurationResponse {
  */
 export interface Configuration {
   /**
-   * @generated from protobuf field: string github_token = 1;
-   */
-  githubToken: string;
-  /**
    * kaja can be deployed at a subpath - i.e. kaja.tools/demo
    * This field is used to set the subpath.
    * The server uses it to generate the correct paths in HTML and redirects.
    * The JS code is using relative paths and should be not dependent on this.
    *
-   * @generated from protobuf field: string path_prefix = 2;
+   * @generated from protobuf field: string path_prefix = 1;
    */
   pathPrefix: string;
   /**
-   * @generated from protobuf field: repeated ConfigurationProject projects = 3;
+   * @generated from protobuf field: repeated ConfigurationProject projects = 2;
    */
   projects: ConfigurationProject[];
+  /**
+   * @generated from protobuf field: ConfigurationAI ai = 3;
+   */
+  ai?: ConfigurationAI;
 }
 /**
  * @generated from protobuf message ConfigurationProject
@@ -121,6 +121,19 @@ export interface ConfigurationProject {
    * @generated from protobuf field: string workspace = 4;
    */
   workspace: string;
+}
+/**
+ * @generated from protobuf message ConfigurationAI
+ */
+export interface ConfigurationAI {
+  /**
+   * @generated from protobuf field: string base_url = 1;
+   */
+  baseUrl: string;
+  /**
+   * @generated from protobuf field: string api_key = 2;
+   */
+  apiKey: string;
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -424,14 +437,13 @@ export const GetConfigurationResponse = new GetConfigurationResponse$Type();
 class Configuration$Type extends MessageType<Configuration> {
   constructor() {
     super("Configuration", [
-      { no: 1, name: "github_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 3, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject },
+      { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 2, name: "projects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ConfigurationProject },
+      { no: 3, name: "ai", kind: "message", T: () => ConfigurationAI },
     ]);
   }
   create(value?: PartialMessage<Configuration>): Configuration {
     const message = globalThis.Object.create(this.messagePrototype!);
-    message.githubToken = "";
     message.pathPrefix = "";
     message.projects = [];
     if (value !== undefined) reflectionMergePartial<Configuration>(this, message, value);
@@ -443,14 +455,14 @@ class Configuration$Type extends MessageType<Configuration> {
     while (reader.pos < end) {
       let [fieldNo, wireType] = reader.tag();
       switch (fieldNo) {
-        case /* string github_token */ 1:
-          message.githubToken = reader.string();
-          break;
-        case /* string path_prefix */ 2:
+        case /* string path_prefix */ 1:
           message.pathPrefix = reader.string();
           break;
-        case /* repeated ConfigurationProject projects */ 3:
+        case /* repeated ConfigurationProject projects */ 2:
           message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
+          break;
+        case /* ConfigurationAI ai */ 3:
+          message.ai = ConfigurationAI.internalBinaryRead(reader, reader.uint32(), options, message.ai);
           break;
         default:
           let u = options.readUnknownField;
@@ -462,13 +474,13 @@ class Configuration$Type extends MessageType<Configuration> {
     return message;
   }
   internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string github_token = 1; */
-    if (message.githubToken !== "") writer.tag(1, WireType.LengthDelimited).string(message.githubToken);
-    /* string path_prefix = 2; */
-    if (message.pathPrefix !== "") writer.tag(2, WireType.LengthDelimited).string(message.pathPrefix);
-    /* repeated ConfigurationProject projects = 3; */
+    /* string path_prefix = 1; */
+    if (message.pathPrefix !== "") writer.tag(1, WireType.LengthDelimited).string(message.pathPrefix);
+    /* repeated ConfigurationProject projects = 2; */
     for (let i = 0; i < message.projects.length; i++)
-      ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+      ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+    /* ConfigurationAI ai = 3; */
+    if (message.ai) ConfigurationAI.internalBinaryWrite(message.ai, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
@@ -542,6 +554,56 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
  * @generated MessageType for protobuf message ConfigurationProject
  */
 export const ConfigurationProject = new ConfigurationProject$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfigurationAI$Type extends MessageType<ConfigurationAI> {
+  constructor() {
+    super("ConfigurationAI", [
+      { no: 1, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 2, name: "api_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+    ]);
+  }
+  create(value?: PartialMessage<ConfigurationAI>): ConfigurationAI {
+    const message = globalThis.Object.create(this.messagePrototype!);
+    message.baseUrl = "";
+    message.apiKey = "";
+    if (value !== undefined) reflectionMergePartial<ConfigurationAI>(this, message, value);
+    return message;
+  }
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationAI): ConfigurationAI {
+    let message = target ?? this.create(),
+      end = reader.pos + length;
+    while (reader.pos < end) {
+      let [fieldNo, wireType] = reader.tag();
+      switch (fieldNo) {
+        case /* string base_url */ 1:
+          message.baseUrl = reader.string();
+          break;
+        case /* string api_key */ 2:
+          message.apiKey = reader.string();
+          break;
+        default:
+          let u = options.readUnknownField;
+          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+          let d = reader.skip(wireType);
+          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+      }
+    }
+    return message;
+  }
+  internalBinaryWrite(message: ConfigurationAI, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    /* string base_url = 1; */
+    if (message.baseUrl !== "") writer.tag(1, WireType.LengthDelimited).string(message.baseUrl);
+    /* string api_key = 2; */
+    if (message.apiKey !== "") writer.tag(2, WireType.LengthDelimited).string(message.apiKey);
+    let u = options.writeUnknownFields;
+    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+    return writer;
+  }
+}
+/**
+ * @generated MessageType for protobuf message ConfigurationAI
+ */
+export const ConfigurationAI = new ConfigurationAI$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */

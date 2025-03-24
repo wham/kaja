@@ -2,4 +2,4 @@
 /server/build
 /ui/node_modules
 
-.github_token
+.ai_api_key

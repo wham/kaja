@@ -43,7 +43,10 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 			}
 		],
 		"pathPrefix": "test-prefix",
-		"githubToken": "test-token"
+		"ai": {
+			"baseUrl": "http://ai-service:8080",
+			"apiKey": "test-key"
+		}
 	}`
 
 	tmpfile, err := os.CreateTemp("", "config-*.json")
@@ -88,15 +91,21 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 		t.Errorf("expected path prefix '/test-prefix', got %q", getConfigurationResponse.Configuration.PathPrefix)
 	}
 
-	if getConfigurationResponse.Configuration.GithubToken != "test-token" {
-		t.Errorf("expected github token 'test-token', got %q", getConfigurationResponse.Configuration.GithubToken)
+	if getConfigurationResponse.Configuration.Ai.BaseUrl != "http://ai-service:8080" {
+		t.Errorf("expected AI base URL 'http://ai-service:8080', got %q", getConfigurationResponse.Configuration.Ai.BaseUrl)
+	}
+	if getConfigurationResponse.Configuration.Ai.ApiKey != "test-key" {
+		t.Errorf("expected AI API key 'test-key', got %q", getConfigurationResponse.Configuration.Ai.ApiKey)
 	}
 }
 
-func TestLoadGetConfigurationResponse_GithubTokenOverride(t *testing.T) {
+func TestLoadGetConfigurationResponse_AIEnvOverride(t *testing.T) {
 	configContent := `{
 		"projects": [],
-		"githubToken": "file-token"
+		"ai": {
+			"baseUrl": "http://file-ai:8080",
+			"apiKey": "file-key"
+		}
 	}`
 
 	tmpfile, err := os.CreateTemp("", "config-*.json")
@@ -109,9 +118,14 @@ func TestLoadGetConfigurationResponse_GithubTokenOverride(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	const envToken = "env-token"
-	os.Setenv("GITHUB_TOKEN", envToken)
-	defer os.Unsetenv("GITHUB_TOKEN")
+	const envBaseUrl = "http://env-ai:8080"
+	const envApiKey = "env-key"
+	os.Setenv("AI_BASE_URL", envBaseUrl)
+	os.Setenv("AI_API_KEY", envApiKey)
+	defer func() {
+		os.Unsetenv("AI_BASE_URL")
+		os.Unsetenv("AI_API_KEY")
+	}()
 
 	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 
@@ -123,19 +137,33 @@ func TestLoadGetConfigurationResponse_GithubTokenOverride(t *testing.T) {
 		t.Fatal("expected non-nil configuration")
 	}
 
-	if getConfigurationResponse.Configuration.GithubToken != envToken {
-		t.Errorf("expected github token from environment %q, got %q", envToken, getConfigurationResponse.Configuration.GithubToken)
+	if getConfigurationResponse.Configuration.Ai.BaseUrl != envBaseUrl {
+		t.Errorf("expected AI base URL from environment %q, got %q", envBaseUrl, getConfigurationResponse.Configuration.Ai.BaseUrl)
+	}
+	if getConfigurationResponse.Configuration.Ai.ApiKey != envApiKey {
+		t.Errorf("expected AI API key from environment %q, got %q", envApiKey, getConfigurationResponse.Configuration.Ai.ApiKey)
 	}
 
 	foundInfo := false
 	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "GITHUB_TOKEN env variable applied" {
+		if log.Level == LogLevel_LEVEL_INFO && log.Message == "AI_BASE_URL env variable applied" {
 			foundInfo = true
 			break
 		}
 	}
 	if !foundInfo {
-		t.Error("expected to find info log about GITHUB_TOKEN environment variable")
+		t.Error("expected to find info log about AI_BASE_URL environment variable")
+	}
+
+	foundInfo = false
+	for _, log := range getConfigurationResponse.Logs {
+		if log.Level == LogLevel_LEVEL_INFO && log.Message == "AI_API_KEY env variable applied" {
+			foundInfo = true
+			break
+		}
+	}
+	if !foundInfo {
+		t.Error("expected to find info log about AI_API_KEY environment variable")
 	}
 }
 

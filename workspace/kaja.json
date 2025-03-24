@@ -12,5 +12,8 @@
       "url": "http://localhost:41522",
       "workspace": ""
     }
-  ]
+  ],
+  "ai": {
+    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models"
+  }
 }
