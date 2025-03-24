@@ -1,2 +1,5 @@
 /build
+/server/build
 /ui/node_modules
+
+.ai_api_key

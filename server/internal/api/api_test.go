@@ -5,9 +5,12 @@ import (
 	"testing"
 )
 
-func TestGetConfiguration_RedactsGithubToken(t *testing.T) {
+func TestGetConfiguration_RedactsAIApiKey(t *testing.T) {
 	config := &Configuration{
-		GithubToken: "secret-token",
+		Ai: &ConfigurationAI{
+			BaseUrl: "http://ai-service:8080",
+			ApiKey:  "secret-key",
+		},
 		Projects: []*ConfigurationProject{
 			{
 				Name:      "test-project",
@@ -28,7 +31,7 @@ func TestGetConfiguration_RedactsGithubToken(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Configuration.GithubToken != "*****" {
-		t.Errorf("expected github token to be redacted to '*****', got %q", resp.Configuration.GithubToken)
+	if resp.Configuration.Ai.ApiKey != "*****" {
+		t.Errorf("expected AI API key to be redacted to '*****', got %q", resp.Configuration.Ai.ApiKey)
 	}
 }

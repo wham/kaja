@@ -49,11 +49,6 @@ func loadConfigurationFile(configPath string, logger *Logger) *Configuration {
 }
 
 func applyEnvironmentVariables(config *Configuration, logger *Logger) {
-	if githubToken := os.Getenv("GITHUB_TOKEN"); githubToken != "" {
-		logger.info("GITHUB_TOKEN env variable applied")
-		config.GithubToken = githubToken
-	}
-
 	if pathPrefix := os.Getenv("PATH_PREFIX"); pathPrefix != "" {
 		logger.info("PATH_PREFIX env variable applied")
 		config.PathPrefix = pathPrefix
@@ -74,6 +69,16 @@ func applyEnvironmentVariables(config *Configuration, logger *Logger) {
 		}
 
 		config.Projects = []*ConfigurationProject{defaultProject}
+	}
+
+	if aiBaseUrl := os.Getenv("AI_BASE_URL"); aiBaseUrl != "" {
+		logger.info("AI_BASE_URL env variable applied")
+		config.Ai.BaseUrl = aiBaseUrl
+	}
+
+	if aiApiKey := os.Getenv("AI_API_KEY"); aiApiKey != "" {
+		logger.info("AI_API_KEY env variable applied")
+		config.Ai.ApiKey = aiApiKey
 	}
 }
 

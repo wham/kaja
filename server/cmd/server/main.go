@@ -21,11 +21,7 @@ import (
 	"github.com/wham/kaja/v2/internal/ui"
 )
 
-const (
-	openAIEndpoint = "https://models.inference.ai.azure.com"
-)
-
-func handlerStubJs(w http.ResponseWriter, r *http.Request) {
+func handleStubJs(w http.ResponseWriter, r *http.Request) {
 	project := r.PathValue("project")
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -76,35 +72,39 @@ func handlerStubJs(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, first.Path, time.Now(), bytes.NewReader(first.Contents))
 }
 
-func handlerStatus(w http.ResponseWriter, r *http.Request) {
+func handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
 
-func handleOpenAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *http.Request) {
+func handleAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *http.Request) {
+	aiConfig := config.Ai
+
+	if aiConfig.BaseUrl == "" || aiConfig.ApiKey == "" {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "AI is not configured", http.StatusBadRequest)
+		}
+	}
+
+	target, err := url.Parse(aiConfig.BaseUrl)
+	if err != nil {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, fmt.Sprintf("Invalid ai.baseUrl: %s", err.Error()), http.StatusBadGateway)
+		}
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.Director = func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer "+aiConfig.ApiKey)
+		req.Host = target.Host
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		// Strip /ai prefix from the path
+		// The configured baseUrl can contain a path too, concatenate all together
+		req.URL.Path = target.Path + "/" + strings.TrimPrefix(req.URL.Path, "/ai/")
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		githubToken := config.GithubToken
-		if githubToken == "" {
-			http.Error(w, "GitHub token not configured", http.StatusBadRequest)
-			return
-		}
-
-		target, err := url.Parse(openAIEndpoint)
-		if err != nil {
-			http.Error(w, "Invalid target URL", http.StatusInternalServerError)
-			return
-		}
-
-		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.Director = func(req *http.Request) {
-			req.Header.Set("Authorization", "Bearer "+githubToken)
-			req.Host = target.Host
-			req.URL.Scheme = target.Scheme
-			req.URL.Host = target.Host
-			// Strip /openai prefix from the path
-			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/openai")
-		}
-
 		proxy.ServeHTTP(w, r)
 	}
 }
@@ -176,8 +176,8 @@ func main() {
 	}
 
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("build/sources"))))
-	mux.HandleFunc("GET /stub/{project}/stub.js", handlerStubJs)
-	mux.HandleFunc("GET /status", handlerStatus)
+	mux.HandleFunc("GET /stub/{project}/stub.js", handleStubJs)
+	mux.HandleFunc("GET /status", handleStatus)
 
 	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
@@ -211,8 +211,7 @@ func main() {
 		}
 	})
 
-	// Register the OpenAI proxy handler
-	mux.HandleFunc("/openai/{path...}", handleOpenAIProxy(config))
+	mux.HandleFunc("/ai/{path...}", handleAIProxy(config))
 
 	root := http.NewServeMux()
 	root.Handle(config.PathPrefix+"/", logRequest(http.StripPrefix(config.PathPrefix, mux)))

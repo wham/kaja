@@ -19,6 +19,11 @@ export function getBaseUrlForTarget(): string {
   return `${currentUrl}/target`;
 }
 
+export function getBaseUrlForAi(): string {
+  const currentUrl = trimTrailingSlash(window.location.href);
+  return `${currentUrl}/ai`;
+}
+
 function trimTrailingSlash(s: string): string {
   return s.replace(/\/+$/, "");
 }
