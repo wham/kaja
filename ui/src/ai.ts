@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
 import OpenAI from "openai";
 import { Project } from "./project";
-
+import { getBaseUrlForAi } from "./server/connection";
 interface AICompletion {
   text: string;
   range: monaco.Range;
@@ -13,7 +13,6 @@ interface CompletionContext {
   model: monaco.editor.ITextModel;
 }
 
-const endpoint = "http://localhost:41520/openai";
 const modelName = "gpt-4o";
 const DEBOUNCE_DELAY = 1000; // 1 second delay
 
@@ -81,7 +80,7 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
   const prefix = lineContent.substring(0, position.column - 1);
 
   try {
-    const client = new OpenAI({ baseURL: endpoint, apiKey: "*****", dangerouslyAllowBrowser: true });
+    const client = new OpenAI({ baseURL: getBaseUrlForAi(), apiKey: "*****", dangerouslyAllowBrowser: true });
 
     const response = await client.chat.completions.create({
       messages: [
@@ -116,10 +115,10 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
       },
     ];
   } catch (error: any) {
-    // Check if the error is due to missing GITHUB_TOKEN by looking for 4xx status code in the error message
+    // Check if the error is due to missing AI configuration and disable further completions
     if (error.message && error.message.includes("400")) {
       isCompletionsDisabled = true;
-      console.info("Completions disabled: GitHub token not configured");
+      console.info("Completions disabled: AI not configured");
     } else {
       console.error("Error fetching AI completions:", error);
     }

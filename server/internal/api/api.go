@@ -54,9 +54,12 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
 	config := &Configuration{
-		GithubToken: "*****",
-		PathPrefix:  s.getConfigurationResponse.Configuration.PathPrefix,
-		Projects:    s.getConfigurationResponse.Configuration.Projects,
+		PathPrefix: s.getConfigurationResponse.Configuration.PathPrefix,
+		Projects:   s.getConfigurationResponse.Configuration.Projects,
+		Ai: &ConfigurationAI{
+			BaseUrl: s.getConfigurationResponse.Configuration.Ai.BaseUrl,
+			ApiKey:  "*****",
+		},
 	}
 
 	return &GetConfigurationResponse{

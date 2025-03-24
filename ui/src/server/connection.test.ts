@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { getBaseUrlForApi, getBaseUrlForTarget } from "./connection";
+import { getBaseUrlForAi, getBaseUrlForApi, getBaseUrlForTarget } from "./connection";
 
 test("getBaseUrlForApi", () => {
   vi.stubGlobal("window", {
@@ -22,6 +22,19 @@ test("getBaseUrlForTarget", () => {
   });
   const baseUrl = getBaseUrlForTarget();
   expect(baseUrl).toBe("http://example.com/path/target");
+
+  vi.unstubAllGlobals();
+});
+
+test("getBaseUrlForAi", () => {
+  vi.stubGlobal("window", {
+    location: {
+      href: "http://example.com/path/",
+    },
+  });
+
+  const baseUrl = getBaseUrlForAi();
+  expect(baseUrl).toBe("http://example.com/path/ai");
 
   vi.unstubAllGlobals();
 });
