@@ -13,9 +13,10 @@ interface TaskProps {
   model: editor.ITextModel;
   projects: Project[];
   onInteraction: () => void;
+  onGoToDefinition: (model: editor.ITextModel) => void;
 }
 
-export function Task({ model, projects, onInteraction }: TaskProps) {
+export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -65,7 +66,7 @@ export function Task({ model, projects, onInteraction }: TaskProps) {
         }}
       >
         <ControlBar onRun={onRun} />
-        <Editor model={model} onMount={onEditorMount} />
+        <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />

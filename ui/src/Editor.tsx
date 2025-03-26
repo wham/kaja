@@ -39,9 +39,10 @@ monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
 interface EditorProps {
   model: monaco.editor.ITextModel;
   onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onGoToDefinition: (model: monaco.editor.ITextModel) => void;
 }
 
-export function Editor({ model, onMount }: EditorProps) {
+export function Editor({ model, onMount, onGoToDefinition }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -88,18 +89,22 @@ export function Editor({ model, onMount }: EditorProps) {
         },
       });
 
-      const editorService = editorRef.current._codeEditorService;
+      const editorService = (editorRef.current as any)._codeEditorService;
       const openEditorBase = editorService.openCodeEditor.bind(editorService);
-      editorService.openCodeEditor = async (input, source) => {
+      editorService.openCodeEditor = async (input: { resource: monaco.Uri }, source: monaco.editor.ICodeEditor) => {
         const result = await openEditorBase(input, source);
         if (result === null) {
           alert("intercepted");
           console.log("Open definition for:", input);
           console.log("Corresponding model:", monaco.editor.getModel(input.resource));
           console.log("Source: ", source);
-          source.setModel(monaco.editor.getModel(input.resource));
+          //source.setModel(monaco.editor.getModel(input.resource));
+          const model = monaco.editor.getModel(input.resource);
+          if (model) {
+            onGoToDefinition(model);
+          }
         }
-        return result; // always return the base result
+        return result;
       };
 
       onMount(editorRef.current);

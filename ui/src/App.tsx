@@ -7,8 +7,8 @@ import { Compiler } from "./Compiler";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
+import { addDefinitionTab, addTaskTab, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
-import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -50,7 +50,7 @@ export function App() {
       return;
     }
 
-    setTabs([newTaskTab(defaultMethod)]);
+    setTabs(addTaskTab([], defaultMethod));
   };
 
   const onMethodSelect = (method: Method) => {
@@ -87,6 +87,10 @@ export function App() {
     });
   };
 
+  const onGoToDefinition = (model: monaco.editor.ITextModel) => {
+    setTabs((tabs) => addDefinitionTab(tabs, model));
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -111,7 +115,25 @@ export function App() {
                   if (tab.type === "task" && projects.length > 0) {
                     return (
                       <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                        <Task model={tab.model} projects={projects} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                        <Task
+                          model={tab.model}
+                          projects={projects}
+                          onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                          onGoToDefinition={onGoToDefinition}
+                        />
+                      </Tab>
+                    );
+                  }
+
+                  if (tab.type === "definition") {
+                    return (
+                      <Tab tabId={tab.id} tabLabel={"Hello"} isEphemeral={true} key="definition">
+                        <Task
+                          model={tab.model}
+                          projects={projects}
+                          onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                          onGoToDefinition={onGoToDefinition}
+                        />
                       </Tab>
                     );
                   }
