@@ -20,7 +20,6 @@ self.MonacoEnvironment = {
   },
 };
 
-// Register a document formatting provider for TypeScript
 monaco.languages.registerDocumentFormattingEditProvider("typescript", {
   async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
     return [
@@ -89,10 +88,23 @@ export function Editor({ model, onMount }: EditorProps) {
         },
       });
 
+      const editorService = editorRef.current._codeEditorService;
+      const openEditorBase = editorService.openCodeEditor.bind(editorService);
+      editorService.openCodeEditor = async (input, source) => {
+        const result = await openEditorBase(input, source);
+        if (result === null) {
+          alert("intercepted");
+          console.log("Open definition for:", input);
+          console.log("Corresponding model:", monaco.editor.getModel(input.resource));
+          console.log("Source: ", source);
+          source.setModel(monaco.editor.getModel(input.resource));
+        }
+        return result; // always return the base result
+      };
+
       onMount(editorRef.current);
     }
 
-    // Format code before setting it
     formatTypeScript(model.getValue()).then((formattedCode) => {
       if (!isDisposing && editorRef.current) {
         editorRef.current.setValue(formattedCode);
