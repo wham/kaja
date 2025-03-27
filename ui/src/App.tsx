@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
+import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
@@ -128,12 +129,7 @@ export function App() {
                   if (tab.type === "definition") {
                     return (
                       <Tab tabId={tab.id} tabLabel={"Hello"} isEphemeral={true} key="definition">
-                        <Task
-                          model={tab.model}
-                          projects={projects}
-                          onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
-                          onGoToDefinition={onGoToDefinition}
-                        />
+                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} />
                       </Tab>
                     );
                   }
