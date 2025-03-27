@@ -132,7 +132,7 @@ export function App() {
 
                   if (tab.type === "definition") {
                     return (
-                      <Tab tabId={tab.id} tabLabel={getTabLabel(tab)} isEphemeral={true} key="definition">
+                      <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
                         <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
                       </Tab>
                     );

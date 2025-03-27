@@ -92,7 +92,6 @@ export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
   return [...tabs];
 }
 
-export function getTabLabel(tab: DefinitionTab): string {
-  const path = tab.model.uri.path;
+export function getTabLabel(path: string): string {
   return path.split("/").pop() || path;
 }
