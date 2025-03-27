@@ -3,7 +3,7 @@ import { editor } from "monaco-editor";
 import { useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
 import { ControlBar } from "./ControlBar";
-import { Editor } from "./Editor";
+import { Editor, onGoToDefinition } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { Project } from "./project";
@@ -13,9 +13,10 @@ interface TaskProps {
   model: editor.ITextModel;
   projects: Project[];
   onInteraction: () => void;
+  onGoToDefinition: onGoToDefinition;
 }
 
-export function Task({ model, projects, onInteraction }: TaskProps) {
+export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -65,7 +66,7 @@ export function Task({ model, projects, onInteraction }: TaskProps) {
         }}
       >
         <ControlBar onRun={onRun} />
-        <Editor model={model} onMount={onEditorMount} />
+        <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
       </Box>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />

@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
 import { Blankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
+import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
+import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
-import { addTaskTab, markInteraction, newTaskTab, TabModel } from "./tabsm";
 import { Task } from "./Task";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
@@ -50,13 +51,21 @@ export function App() {
       return;
     }
 
-    setTabs([newTaskTab(defaultMethod)]);
+    setTabs(addTaskTab([], defaultMethod));
   };
 
   const onMethodSelect = (method: Method) => {
     setSelectedMethod(method);
     setTabs((tabs) => {
       tabs = addTaskTab(tabs, method);
+      setActiveTabIndex(tabs.length - 1);
+      return tabs;
+    });
+  };
+
+  const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
+    setTabs((tabs) => {
+      tabs = addDefinitionTab(tabs, model, startLineNumber, startColumn);
       setActiveTabIndex(tabs.length - 1);
       return tabs;
     });
@@ -111,7 +120,20 @@ export function App() {
                   if (tab.type === "task" && projects.length > 0) {
                     return (
                       <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                        <Task model={tab.model} projects={projects} onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))} />
+                        <Task
+                          model={tab.model}
+                          projects={projects}
+                          onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                          onGoToDefinition={onGoToDefinition}
+                        />
+                      </Tab>
+                    );
+                  }
+
+                  if (tab.type === "definition") {
+                    return (
+                      <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
+                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
                       </Tab>
                     );
                   }
