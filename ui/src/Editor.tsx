@@ -38,11 +38,12 @@ monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
 
 interface EditorProps {
   model: monaco.editor.ITextModel;
-  onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  readOnly?: boolean;
+  onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   onGoToDefinition: (model: monaco.editor.ITextModel) => void;
 }
 
-export function Editor({ model, onMount, onGoToDefinition }: EditorProps) {
+export function Editor({ model, onMount, onGoToDefinition, readOnly = false }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -62,6 +63,7 @@ export function Editor({ model, onMount, onGoToDefinition }: EditorProps) {
         minimap: {
           enabled: false,
         },
+        readOnly,
         renderLineHighlight: "none",
         formatOnPaste: true,
         formatOnType: true,
@@ -98,7 +100,7 @@ export function Editor({ model, onMount, onGoToDefinition }: EditorProps) {
         }
       };
 
-      onMount(editorRef.current);
+      onMount?.(editorRef.current);
     }
 
     formatTypeScript(model.getValue()).then((formattedCode) => {

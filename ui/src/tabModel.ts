@@ -30,10 +30,12 @@ function generateId(type: string): string {
 export function addTaskTab(tabs: TabModel[], originMethod: Method): TabModel[] {
   const newTab = newTaskTab(originMethod);
   const lastTab = tabs[tabs.length - 1];
-  // If the last tab has no interaction, replace it with the new tab.
+  // If the last task tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
   // Open new tab in case the user keep clicking on the same method - perhaps they want to compare different outputs.
-  const replaceLastTab = lastTab && lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== originMethod;
+  // Always replace definition tabs.
+  const replaceLastTab =
+    lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== originMethod) || lastTab.type === "definition");
 
   if (replaceLastTab) {
     return [...tabs.slice(0, -1), newTab];
@@ -59,7 +61,8 @@ export function addDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextMod
   const lastTab = tabs[tabs.length - 1];
   // If the last tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
-  const replaceLastTab = lastTab && lastTab.type === "task" && !lastTab.hasInteraction;
+  // Always replace definition tabs.
+  const replaceLastTab = lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction) || lastTab.type === "definition");
 
   if (replaceLastTab) {
     return [...tabs.slice(0, -1), newTab];
@@ -83,4 +86,9 @@ export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
 
   tabs[index].hasInteraction = true;
   return [...tabs];
+}
+
+export function getTabLabel(tab: DefinitionTab): string {
+  const path = tab.model.uri.path;
+  return path.split("/").pop() || path;
 }

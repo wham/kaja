@@ -8,7 +8,7 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
-import { addDefinitionTab, addTaskTab, markInteraction, TabModel } from "./tabModel";
+import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 
@@ -63,6 +63,14 @@ export function App() {
     });
   };
 
+  const onGoToDefinition = (model: monaco.editor.ITextModel) => {
+    setTabs((tabs) => {
+      tabs = addDefinitionTab(tabs, model);
+      setActiveTabIndex(tabs.length - 1);
+      return tabs;
+    });
+  };
+
   const onSidebarResize = (delta: number) => {
     setSidebarWidth((width) => width + delta);
   };
@@ -86,10 +94,6 @@ export function App() {
 
       return newTabs;
     });
-  };
-
-  const onGoToDefinition = (model: monaco.editor.ITextModel) => {
-    setTabs((tabs) => addDefinitionTab(tabs, model));
   };
 
   return (
@@ -128,7 +132,7 @@ export function App() {
 
                   if (tab.type === "definition") {
                     return (
-                      <Tab tabId={tab.id} tabLabel={"Hello"} isEphemeral={true} key="definition">
+                      <Tab tabId={tab.id} tabLabel={getTabLabel(tab)} isEphemeral={true} key="definition">
                         <Definition model={tab.model} onGoToDefinition={onGoToDefinition} />
                       </Tab>
                     );

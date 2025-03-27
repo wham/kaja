@@ -10,7 +10,7 @@ interface DefinitionProps {
 export function Definition({ model, onGoToDefinition }: DefinitionProps) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Editor model={model} onMount={() => {}} onGoToDefinition={onGoToDefinition} />
+      <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} />
     </Box>
   );
 }
