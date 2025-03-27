@@ -20,7 +20,6 @@ self.MonacoEnvironment = {
   },
 };
 
-// Register a document formatting provider for TypeScript
 monaco.languages.registerDocumentFormattingEditProvider("typescript", {
   async provideDocumentFormattingEdits(model: monaco.editor.ITextModel) {
     return [
@@ -39,10 +38,18 @@ monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
 
 interface EditorProps {
   model: monaco.editor.ITextModel;
-  onMount: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  readOnly?: boolean;
+  onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onGoToDefinition: onGoToDefinition;
+  startLineNumber?: number;
+  startColumn?: number;
 }
 
-export function Editor({ model, onMount }: EditorProps) {
+export interface onGoToDefinition {
+  (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
+}
+
+export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -62,6 +69,7 @@ export function Editor({ model, onMount }: EditorProps) {
         minimap: {
           enabled: false,
         },
+        readOnly,
         renderLineHighlight: "none",
         formatOnPaste: true,
         formatOnType: true,
@@ -89,19 +97,36 @@ export function Editor({ model, onMount }: EditorProps) {
         },
       });
 
-      onMount(editorRef.current);
+      const editorService = (editorRef.current as any)._codeEditorService;
+      editorService.openCodeEditor = async (input: { resource: monaco.Uri; options?: { selection?: { startLineNumber: number; startColumn: number } } }) => {
+        const model = monaco.editor.getModel(input.resource);
+        if (model) {
+          let startLineNumber = 0;
+          let startColumn = 0;
+          if (input.options?.selection) {
+            startLineNumber = input.options.selection.startLineNumber;
+            startColumn = input.options.selection.startColumn;
+          }
+          onGoToDefinition(model, startLineNumber, startColumn);
+        }
+      };
+
+      onMount?.(editorRef.current);
     }
 
-    // Format code before setting it
     formatTypeScript(model.getValue()).then((formattedCode) => {
       if (!isDisposing && editorRef.current) {
         editorRef.current.setValue(formattedCode);
       }
     });
 
-    if (editorRef.current) {
-      editorRef.current.setModel(model);
-    }
+    editorRef.current?.setModel(model);
+
+    editorRef.current?.revealLineInCenter(startLineNumber);
+    editorRef.current?.setPosition({
+      lineNumber: startLineNumber,
+      column: startColumn,
+    });
 
     return () => {
       isDisposing = true;
