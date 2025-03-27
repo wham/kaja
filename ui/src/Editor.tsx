@@ -40,10 +40,16 @@ interface EditorProps {
   model: monaco.editor.ITextModel;
   readOnly?: boolean;
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
-  onGoToDefinition: (model: monaco.editor.ITextModel) => void;
+  onGoToDefinition: onGoToDefinition;
+  startLineNumber?: number;
+  startColumn?: number;
 }
 
-export function Editor({ model, onMount, onGoToDefinition, readOnly = false }: EditorProps) {
+export interface onGoToDefinition {
+  (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
+}
+
+export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -92,11 +98,16 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false }: E
       });
 
       const editorService = (editorRef.current as any)._codeEditorService;
-      const openEditorBase = editorService.openCodeEditor.bind(editorService);
-      editorService.openCodeEditor = async (input: { resource: monaco.Uri }) => {
+      editorService.openCodeEditor = async (input: { resource: monaco.Uri; options?: { selection?: { startLineNumber: number; startColumn: number } } }) => {
         const model = monaco.editor.getModel(input.resource);
         if (model) {
-          onGoToDefinition(model);
+          let startLineNumber = 0;
+          let startColumn = 0;
+          if (input.options?.selection) {
+            startLineNumber = input.options.selection.startLineNumber;
+            startColumn = input.options.selection.startColumn;
+          }
+          onGoToDefinition(model, startLineNumber, startColumn);
         }
       };
 
@@ -109,9 +120,13 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false }: E
       }
     });
 
-    if (editorRef.current) {
-      editorRef.current.setModel(model);
-    }
+    editorRef.current?.setModel(model);
+
+    editorRef.current?.revealLineInCenter(startLineNumber);
+    editorRef.current?.setPosition({
+      lineNumber: startLineNumber,
+      column: startColumn,
+    });
 
     return () => {
       isDisposing = true;

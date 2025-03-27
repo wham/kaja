@@ -3,7 +3,7 @@ import { editor } from "monaco-editor";
 import { useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
 import { ControlBar } from "./ControlBar";
-import { Editor } from "./Editor";
+import { Editor, onGoToDefinition } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { Project } from "./project";
@@ -13,7 +13,7 @@ interface TaskProps {
   model: editor.ITextModel;
   projects: Project[];
   onInteraction: () => void;
-  onGoToDefinition: (model: editor.ITextModel) => void;
+  onGoToDefinition: onGoToDefinition;
 }
 
 export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskProps) {

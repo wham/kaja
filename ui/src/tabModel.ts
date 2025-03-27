@@ -17,6 +17,8 @@ interface DefinitionTab {
   type: "definition";
   id: string;
   model: monaco.editor.ITextModel;
+  startLineNumber: number;
+  startColumn: number;
 }
 
 export type TabModel = CompilerTab | TaskTab | DefinitionTab;
@@ -56,8 +58,8 @@ function newTaskTab(originMethod: Method): TaskTab {
   };
 }
 
-export function addDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextModel): TabModel[] {
-  const newTab = newDefinitionTab(model);
+export function addDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): TabModel[] {
+  const newTab = newDefinitionTab(model, startLineNumber, startColumn);
   const lastTab = tabs[tabs.length - 1];
   // If the last tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
@@ -71,11 +73,13 @@ export function addDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextMod
   return [...tabs, newTab];
 }
 
-function newDefinitionTab(model: monaco.editor.ITextModel): DefinitionTab {
+function newDefinitionTab(model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): DefinitionTab {
   return {
     type: "definition",
     id: generateId("definition"),
     model,
+    startLineNumber,
+    startColumn,
   };
 }
 

@@ -63,9 +63,9 @@ export function App() {
     });
   };
 
-  const onGoToDefinition = (model: monaco.editor.ITextModel) => {
+  const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     setTabs((tabs) => {
-      tabs = addDefinitionTab(tabs, model);
+      tabs = addDefinitionTab(tabs, model, startLineNumber, startColumn);
       setActiveTabIndex(tabs.length - 1);
       return tabs;
     });
@@ -133,7 +133,7 @@ export function App() {
                   if (tab.type === "definition") {
                     return (
                       <Tab tabId={tab.id} tabLabel={getTabLabel(tab)} isEphemeral={true} key="definition">
-                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} />
+                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
                       </Tab>
                     );
                   }

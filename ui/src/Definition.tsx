@@ -1,16 +1,18 @@
 import { Box } from "@primer/react";
 import { editor } from "monaco-editor";
-import { Editor } from "./Editor";
+import { Editor, onGoToDefinition } from "./Editor";
 
 interface DefinitionProps {
   model: editor.ITextModel;
-  onGoToDefinition: (model: editor.ITextModel) => void;
+  onGoToDefinition: onGoToDefinition;
+  startLineNumber?: number;
+  startColumn?: number;
 }
 
-export function Definition({ model, onGoToDefinition }: DefinitionProps) {
+export function Definition({ model, onGoToDefinition, startLineNumber, startColumn }: DefinitionProps) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} />
+      <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} startLineNumber={startLineNumber} startColumn={startColumn} />
     </Box>
   );
 }
