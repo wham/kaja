@@ -1,10 +1,10 @@
 import { Kaja } from "./kaja";
-
+import { Sources } from "./sources";
 export interface Project {
   name: string;
-  services: Array<Service>;
+  services: Service[];
   clients: Clients;
-  extraLibs: Array<ExtraLib>;
+  sources: Sources;
 }
 
 export interface Service {

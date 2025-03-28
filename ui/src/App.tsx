@@ -35,8 +35,8 @@ export function App() {
     registerAIProvider(projects);
 
     projects.forEach((project) => {
-      project.extraLibs.forEach((extraLib) => {
-        monaco.editor.createModel(extraLib.content, "typescript", monaco.Uri.parse("ts:/" + project.name + "/" + extraLib.filePath));
+      project.sources.forEach((source) => {
+        monaco.editor.createModel(source.file.text, "typescript", monaco.Uri.parse("ts:/" + source.path));
       });
     });
 

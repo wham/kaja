@@ -65,13 +65,17 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         content: printStatements([moduleDeclaration]),
       });
     }
+
+    if (serviceInterfaceDefinitions.length > 0) {
+      source.file.text = source.file.text + "\n" + printStatements(serviceInterfaceDefinitions);
+    }
   });
 
   return {
     name: configuration.name,
     services,
     clients: createClients(services, stub, configuration),
-    extraLibs,
+    sources,
   };
 }
 
