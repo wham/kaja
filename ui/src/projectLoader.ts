@@ -2,15 +2,15 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, ExtraLib, Method, Project, Service } from "./project";
+import { Clients, Method, Project, Service } from "./project";
 import { ConfigurationProject } from "./server/api";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub(configuration.name);
   const sources = await loadSources(paths, stub, configuration.name);
+  const kajaSources: Sources = [];
   const services: Service[] = [];
-  const extraLibs: ExtraLib[] = [];
 
   sources.forEach((source) => {
     const sourceFile = source.file;
@@ -52,22 +52,15 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       } catch (error) {}
     });
 
-    const interfaces = Object.values(source.interfaces);
-    if (serviceInterfaceDefinitions.length > 0 || interfaces.length > 0 || enums.length > 0) {
-      const moduleDeclaration = ts.factory.createModuleDeclaration(
-        [ts.factory.createModifier(ts.SyntaxKind.DeclareKeyword)], // modifiers
-        ts.factory.createIdentifier('"' + sourceFile.fileName.replace(".ts", "") + '"'), // name
-        ts.factory.createModuleBlock([...serviceInterfaceDefinitions, ...interfaces.map((i) => copyInterface(i)), ...enums.map((e) => copyEnum(e))]), // body
-      );
-
-      extraLibs.push({
-        filePath: sourceFile.fileName,
-        content: printStatements([moduleDeclaration]),
-      });
-    }
-
     if (serviceInterfaceDefinitions.length > 0) {
-      source.file.text = source.file.text + "\n" + printStatements(serviceInterfaceDefinitions);
+      kajaSources.push({
+        path: sourceFile.fileName.replace(".ts", ".kaja.ts"),
+        importPath: sourceFile.fileName.replace(".ts", ".kaja.ts"),
+        file: ts.createSourceFile(sourceFile.fileName.replace(".ts", ".kaja.ts"), printStatements(serviceInterfaceDefinitions), ts.ScriptTarget.Latest),
+        serviceNames: [],
+        interfaces: {},
+        enums: {},
+      });
     }
   });
 
@@ -75,7 +68,7 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
     name: configuration.name,
     services,
     clients: createClients(services, stub, configuration),
-    sources,
+    sources: [...sources, ...kajaSources],
   };
 }
 
@@ -113,6 +106,7 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
 
 function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
   const imports = addImport({}, serviceName, source);
+  imports[source.path.replace(".ts", ".kaja")] = new Set([serviceName]);
   const input = defaultMessage(methodInfo.I, sources, imports);
 
   let statements: ts.Statement[] = [];
