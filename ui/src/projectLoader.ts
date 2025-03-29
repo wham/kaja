@@ -2,15 +2,15 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, ExtraLib, Method, Project, Service } from "./project";
+import { Clients, Method, Project, Service } from "./project";
 import { ConfigurationProject } from "./server/api";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub(configuration.name);
   const sources = await loadSources(paths, stub, configuration.name);
+  const kajaSources: Sources = [];
   const services: Service[] = [];
-  const extraLibs: ExtraLib[] = [];
 
   sources.forEach((source) => {
     const sourceFile = source.file;
@@ -52,26 +52,27 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       } catch (error) {}
     });
 
-    const interfaces = Object.values(source.interfaces);
-    if (serviceInterfaceDefinitions.length > 0 || interfaces.length > 0 || enums.length > 0) {
-      const moduleDeclaration = ts.factory.createModuleDeclaration(
-        [ts.factory.createModifier(ts.SyntaxKind.DeclareKeyword)], // modifiers
-        ts.factory.createIdentifier('"' + sourceFile.fileName.replace(".ts", "") + '"'), // name
-        ts.factory.createModuleBlock([...serviceInterfaceDefinitions, ...interfaces.map((i) => copyInterface(i)), ...enums.map((e) => copyEnum(e))]), // body
-      );
-
-      extraLibs.push({
-        filePath: sourceFile.fileName,
-        content: printStatements([moduleDeclaration]),
-      });
-    }
+    kajaSources.push({
+      path: source.path,
+      importPath: source.importPath,
+      file: ts.createSourceFile(
+        source.file.fileName,
+        // If service source, replace the service class (last statement) with the service interface definitions
+        // TODO: This is bad. Won't work if there are multiple services in the source file.
+        printStatements([...source.file.statements.slice(0, source.serviceNames.length > 0 ? -1 : undefined), ...serviceInterfaceDefinitions]),
+        ts.ScriptTarget.Latest,
+      ),
+      serviceNames: source.serviceNames,
+      interfaces: source.interfaces,
+      enums: source.enums,
+    });
   });
 
   return {
     name: configuration.name,
     services,
     clients: createClients(services, stub, configuration),
-    extraLibs,
+    sources: kajaSources,
   };
 }
 
