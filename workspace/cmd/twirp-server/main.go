@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -9,22 +8,12 @@ import (
 )
 
 func main() {
-	quirksServer := pb.NewQuirksServer(&QuirksServer{})
-	searchServiceServer := pb.NewSearchServiceServer(&SearchServiceServer{})
+	basicsServer := pb.NewBasicsServer(&pb.BasicsService{})
+	quirksServer := pb.NewQuirksServer(&pb.QuirksService{})
 	mux := http.NewServeMux()
+	fmt.Printf("Handling BasicServer on %s\n", basicsServer.PathPrefix())
+	mux.Handle(basicsServer.PathPrefix(), basicsServer)
 	fmt.Printf("Handling QuirksServer on %s\n", quirksServer.PathPrefix())
-	mux.Handle(quirksServer.PathPrefix(), withAuthentication(quirksServer))
-	fmt.Printf("Handling SearchServiceServer on %s\n", searchServiceServer.PathPrefix())
-	mux.Handle(searchServiceServer.PathPrefix(), searchServiceServer)
+	mux.Handle(quirksServer.PathPrefix(), quirksServer)
 	http.ListenAndServe(":41522", mux)
-}
-
-func withAuthentication(base http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		a := r.Header.Get("Authentication")
-		ctx = context.WithValue(ctx, "authentication", a)
-		r = r.WithContext(ctx)
-		base.ServeHTTP(w, r)
-	})
 }
