@@ -19,24 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Quirks_GetAuthentication_FullMethodName                             = "/quirks.v1.Quirks/GetAuthentication"
-	Quirks_Map_FullMethodName                                           = "/quirks.v1.Quirks/Map"
 	Quirks_MethodWithAReallyLongNameGmthggupcbmnphflnnvu_FullMethodName = "/quirks.v1.Quirks/MethodWithAReallyLongNameGmthggupcbmnphflnnvu"
-	Quirks_Panic_FullMethodName                                         = "/quirks.v1.Quirks/Panic"
-	Quirks_Repeated_FullMethodName                                      = "/quirks.v1.Quirks/Repeated"
-	Quirks_Types_FullMethodName                                         = "/quirks.v1.Quirks/Types"
 )
 
 // QuirksClient is the client API for Quirks service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Test unusual things
 type QuirksClient interface {
-	GetAuthentication(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error)
-	Map(ctx context.Context, in *MapRequest, opts ...grpc.CallOption) (*MapRequest, error)
 	MethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error)
-	Panic(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error)
-	Repeated(ctx context.Context, in *RepeatedRequest, opts ...grpc.CallOption) (*RepeatedRequest, error)
-	Types(ctx context.Context, in *TypesRequest, opts ...grpc.CallOption) (*TypesRequest, error)
 }
 
 type quirksClient struct {
@@ -45,26 +37,6 @@ type quirksClient struct {
 
 func NewQuirksClient(cc grpc.ClientConnInterface) QuirksClient {
 	return &quirksClient{cc}
-}
-
-func (c *quirksClient) GetAuthentication(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Message)
-	err := c.cc.Invoke(ctx, Quirks_GetAuthentication_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *quirksClient) Map(ctx context.Context, in *MapRequest, opts ...grpc.CallOption) (*MapRequest, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MapRequest)
-	err := c.cc.Invoke(ctx, Quirks_Map_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *quirksClient) MethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error) {
@@ -77,46 +49,13 @@ func (c *quirksClient) MethodWithAReallyLongNameGmthggupcbmnphflnnvu(ctx context
 	return out, nil
 }
 
-func (c *quirksClient) Panic(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Message, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Message)
-	err := c.cc.Invoke(ctx, Quirks_Panic_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *quirksClient) Repeated(ctx context.Context, in *RepeatedRequest, opts ...grpc.CallOption) (*RepeatedRequest, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RepeatedRequest)
-	err := c.cc.Invoke(ctx, Quirks_Repeated_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *quirksClient) Types(ctx context.Context, in *TypesRequest, opts ...grpc.CallOption) (*TypesRequest, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TypesRequest)
-	err := c.cc.Invoke(ctx, Quirks_Types_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // QuirksServer is the server API for Quirks service.
 // All implementations must embed UnimplementedQuirksServer
 // for forward compatibility.
+//
+// Test unusual things
 type QuirksServer interface {
-	GetAuthentication(context.Context, *Void) (*Message, error)
-	Map(context.Context, *MapRequest) (*MapRequest, error)
 	MethodWithAReallyLongNameGmthggupcbmnphflnnvu(context.Context, *Void) (*Message, error)
-	Panic(context.Context, *Void) (*Message, error)
-	Repeated(context.Context, *RepeatedRequest) (*RepeatedRequest, error)
-	Types(context.Context, *TypesRequest) (*TypesRequest, error)
 	mustEmbedUnimplementedQuirksServer()
 }
 
@@ -127,23 +66,8 @@ type QuirksServer interface {
 // pointer dereference when methods are called.
 type UnimplementedQuirksServer struct{}
 
-func (UnimplementedQuirksServer) GetAuthentication(context.Context, *Void) (*Message, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAuthentication not implemented")
-}
-func (UnimplementedQuirksServer) Map(context.Context, *MapRequest) (*MapRequest, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Map not implemented")
-}
 func (UnimplementedQuirksServer) MethodWithAReallyLongNameGmthggupcbmnphflnnvu(context.Context, *Void) (*Message, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MethodWithAReallyLongNameGmthggupcbmnphflnnvu not implemented")
-}
-func (UnimplementedQuirksServer) Panic(context.Context, *Void) (*Message, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Panic not implemented")
-}
-func (UnimplementedQuirksServer) Repeated(context.Context, *RepeatedRequest) (*RepeatedRequest, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Repeated not implemented")
-}
-func (UnimplementedQuirksServer) Types(context.Context, *TypesRequest) (*TypesRequest, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Types not implemented")
 }
 func (UnimplementedQuirksServer) mustEmbedUnimplementedQuirksServer() {}
 func (UnimplementedQuirksServer) testEmbeddedByValue()                {}
@@ -166,42 +90,6 @@ func RegisterQuirksServer(s grpc.ServiceRegistrar, srv QuirksServer) {
 	s.RegisterService(&Quirks_ServiceDesc, srv)
 }
 
-func _Quirks_GetAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Void)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuirksServer).GetAuthentication(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Quirks_GetAuthentication_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuirksServer).GetAuthentication(ctx, req.(*Void))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Quirks_Map_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MapRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuirksServer).Map(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Quirks_Map_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuirksServer).Map(ctx, req.(*MapRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Quirks_MethodWithAReallyLongNameGmthggupcbmnphflnnvu_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Void)
 	if err := dec(in); err != nil {
@@ -220,60 +108,6 @@ func _Quirks_MethodWithAReallyLongNameGmthggupcbmnphflnnvu_Handler(srv interface
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Quirks_Panic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Void)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuirksServer).Panic(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Quirks_Panic_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuirksServer).Panic(ctx, req.(*Void))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Quirks_Repeated_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RepeatedRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuirksServer).Repeated(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Quirks_Repeated_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuirksServer).Repeated(ctx, req.(*RepeatedRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Quirks_Types_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TypesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuirksServer).Types(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Quirks_Types_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuirksServer).Types(ctx, req.(*TypesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Quirks_ServiceDesc is the grpc.ServiceDesc for Quirks service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -282,28 +116,8 @@ var Quirks_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*QuirksServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetAuthentication",
-			Handler:    _Quirks_GetAuthentication_Handler,
-		},
-		{
-			MethodName: "Map",
-			Handler:    _Quirks_Map_Handler,
-		},
-		{
 			MethodName: "MethodWithAReallyLongNameGmthggupcbmnphflnnvu",
 			Handler:    _Quirks_MethodWithAReallyLongNameGmthggupcbmnphflnnvu_Handler,
-		},
-		{
-			MethodName: "Panic",
-			Handler:    _Quirks_Panic_Handler,
-		},
-		{
-			MethodName: "Repeated",
-			Handler:    _Quirks_Repeated_Handler,
-		},
-		{
-			MethodName: "Types",
-			Handler:    _Quirks_Types_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

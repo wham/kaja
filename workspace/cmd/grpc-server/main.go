@@ -17,7 +17,8 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	s := &QuirksServerImpl{}
-	pb.RegisterQuirksServer(grpcServer, s)
+	pb.RegisterBasicsServer(grpcServer, &pb.BasicsService{})
+	pb.RegisterQuirksServer(grpcServer, &pb.QuirksService{})
+
 	grpcServer.Serve(lis)
 }

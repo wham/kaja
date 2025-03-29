@@ -6,3 +6,7 @@ option go_package = "internal/demo-app";
 message Message {
     string name = 1;
 }
+
+message Void {
+
+}
