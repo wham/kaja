@@ -52,23 +52,27 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       } catch (error) {}
     });
 
-    if (serviceInterfaceDefinitions.length > 0) {
-      kajaSources.push({
-        path: sourceFile.fileName.replace(".ts", ".kaja.ts"),
-        importPath: sourceFile.fileName.replace(".ts", ".kaja.ts"),
-        file: ts.createSourceFile(sourceFile.fileName.replace(".ts", ".kaja.ts"), printStatements(serviceInterfaceDefinitions), ts.ScriptTarget.Latest),
-        serviceNames: [],
-        interfaces: {},
-        enums: {},
-      });
-    }
+    kajaSources.push({
+      path: source.path,
+      importPath: source.importPath,
+      file: ts.createSourceFile(
+        source.file.fileName,
+        // If service source, replace the service class (last statement) with the service interface definitions
+        // TODO: This is bad. Won't work if there are multiple services in the source file.
+        printStatements([...source.file.statements.slice(0, source.serviceNames.length > 0 ? -1 : undefined), ...serviceInterfaceDefinitions]),
+        ts.ScriptTarget.Latest,
+      ),
+      serviceNames: source.serviceNames,
+      interfaces: source.interfaces,
+      enums: source.enums,
+    });
   });
 
   return {
     name: configuration.name,
     services,
     clients: createClients(services, stub, configuration),
-    sources: [...sources, ...kajaSources],
+    sources: kajaSources,
   };
 }
 
@@ -106,7 +110,6 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
 
 function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
   const imports = addImport({}, serviceName, source);
-  imports[source.path.replace(".ts", ".kaja")] = new Set([serviceName]);
   const input = defaultMessage(methodInfo.I, sources, imports);
 
   let statements: ts.Statement[] = [];
