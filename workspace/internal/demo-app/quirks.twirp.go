@@ -522,6 +522,519 @@ func (s *quirksServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "quirks.v1", "Quirks")
 }
 
+// ==================
+// Quirks_2 Interface
+// ==================
+
+// Second service in the same file
+type Quirks_2 interface {
+	CamelCaseMethod(context.Context, *Void) (*Void, error)
+}
+
+// ========================
+// Quirks_2 Protobuf Client
+// ========================
+
+type quirks_2ProtobufClient struct {
+	client      HTTPClient
+	urls        [1]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewQuirks_2ProtobufClient creates a Protobuf client that implements the Quirks_2 interface.
+// It communicates using Protobuf and can be configured with a custom HTTPClient.
+func NewQuirks_2ProtobufClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) Quirks_2 {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	if literalURLs {
+		serviceURL += baseServicePath(pathPrefix, "quirks.v1", "quirks_2")
+	} else {
+		serviceURL += baseServicePath(pathPrefix, "quirks.v1", "Quirks_2")
+	}
+	urls := [1]string{
+		serviceURL + "CamelCaseMethod",
+	}
+	if literalURLs {
+		urls = [1]string{
+			serviceURL + "camelCaseMethod",
+		}
+	}
+
+	return &quirks_2ProtobufClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *quirks_2ProtobufClient) CamelCaseMethod(ctx context.Context, in *Void) (*Void, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "quirks.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "Quirks_2")
+	ctx = ctxsetters.WithMethodName(ctx, "CamelCaseMethod")
+	caller := c.callCamelCaseMethod
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *Void) (*Void, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return c.callCamelCaseMethod(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Void)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Void) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *quirks_2ProtobufClient) callCamelCaseMethod(ctx context.Context, in *Void) (*Void, error) {
+	out := new(Void)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// ====================
+// Quirks_2 JSON Client
+// ====================
+
+type quirks_2JSONClient struct {
+	client      HTTPClient
+	urls        [1]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewQuirks_2JSONClient creates a JSON client that implements the Quirks_2 interface.
+// It communicates using JSON and can be configured with a custom HTTPClient.
+func NewQuirks_2JSONClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) Quirks_2 {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	if literalURLs {
+		serviceURL += baseServicePath(pathPrefix, "quirks.v1", "quirks_2")
+	} else {
+		serviceURL += baseServicePath(pathPrefix, "quirks.v1", "Quirks_2")
+	}
+	urls := [1]string{
+		serviceURL + "CamelCaseMethod",
+	}
+	if literalURLs {
+		urls = [1]string{
+			serviceURL + "camelCaseMethod",
+		}
+	}
+
+	return &quirks_2JSONClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *quirks_2JSONClient) CamelCaseMethod(ctx context.Context, in *Void) (*Void, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "quirks.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "Quirks_2")
+	ctx = ctxsetters.WithMethodName(ctx, "CamelCaseMethod")
+	caller := c.callCamelCaseMethod
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *Void) (*Void, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return c.callCamelCaseMethod(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Void)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Void) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *quirks_2JSONClient) callCamelCaseMethod(ctx context.Context, in *Void) (*Void, error) {
+	out := new(Void)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// =======================
+// Quirks_2 Server Handler
+// =======================
+
+type quirks_2Server struct {
+	Quirks_2
+	interceptor      twirp.Interceptor
+	hooks            *twirp.ServerHooks
+	pathPrefix       string // prefix for routing
+	jsonSkipDefaults bool   // do not include unpopulated fields (default values) in the response
+	jsonCamelCase    bool   // JSON fields are serialized as lowerCamelCase rather than keeping the original proto names
+}
+
+// NewQuirks_2Server builds a TwirpServer that can be used as an http.Handler to handle
+// HTTP requests that are routed to the right method in the provided svc implementation.
+// The opts are twirp.ServerOption modifiers, for example twirp.WithServerHooks(hooks).
+func NewQuirks_2Server(svc Quirks_2, opts ...interface{}) TwirpServer {
+	serverOpts := newServerOpts(opts)
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	jsonSkipDefaults := false
+	_ = serverOpts.ReadOpt("jsonSkipDefaults", &jsonSkipDefaults)
+	jsonCamelCase := false
+	_ = serverOpts.ReadOpt("jsonCamelCase", &jsonCamelCase)
+	var pathPrefix string
+	if ok := serverOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	return &quirks_2Server{
+		Quirks_2:         svc,
+		hooks:            serverOpts.Hooks,
+		interceptor:      twirp.ChainInterceptors(serverOpts.Interceptors...),
+		pathPrefix:       pathPrefix,
+		jsonSkipDefaults: jsonSkipDefaults,
+		jsonCamelCase:    jsonCamelCase,
+	}
+}
+
+// writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
+// If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
+func (s *quirks_2Server) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+	writeError(ctx, resp, err, s.hooks)
+}
+
+// handleRequestBodyError is used to handle error when the twirp server cannot read request
+func (s *quirks_2Server) handleRequestBodyError(ctx context.Context, resp http.ResponseWriter, msg string, err error) {
+	if context.Canceled == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.Canceled, "failed to read request: context canceled"))
+		return
+	}
+	if context.DeadlineExceeded == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.DeadlineExceeded, "failed to read request: deadline exceeded"))
+		return
+	}
+	s.writeError(ctx, resp, twirp.WrapError(malformedRequestError(msg), err))
+}
+
+// Quirks_2PathPrefix is a convenience constant that may identify URL paths.
+// Should be used with caution, it only matches routes generated by Twirp Go clients,
+// with the default "/twirp" prefix and default CamelCase service and method names.
+// More info: https://twitchtv.github.io/twirp/docs/routing.html
+const Quirks_2PathPrefix = "/twirp/quirks.v1.Quirks_2/"
+
+func (s *quirks_2Server) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	ctx = ctxsetters.WithPackageName(ctx, "quirks.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "Quirks_2")
+	ctx = ctxsetters.WithResponseWriter(ctx, resp)
+
+	var err error
+	ctx, err = callRequestReceived(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	if req.Method != "POST" {
+		msg := fmt.Sprintf("unsupported method %q (only POST is allowed)", req.Method)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	// Verify path format: [<prefix>]/<package>.<Service>/<Method>
+	prefix, pkgService, method := parseTwirpPath(req.URL.Path)
+	if pkgService != "quirks.v1.quirks_2" && pkgService != "quirks.v1.Quirks_2" {
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+	if prefix != s.pathPrefix {
+		msg := fmt.Sprintf("invalid path prefix %q, expected %q, on path %q", prefix, s.pathPrefix, req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	switch method {
+	case "camelCaseMethod", "CamelCaseMethod":
+		s.serveCamelCaseMethod(ctx, resp, req)
+		return
+	default:
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+}
+
+func (s *quirks_2Server) serveCamelCaseMethod(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveCamelCaseMethodJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveCamelCaseMethodProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *quirks_2Server) serveCamelCaseMethodJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CamelCaseMethod")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(Void)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.Quirks_2.CamelCaseMethod
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *Void) (*Void, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return s.Quirks_2.CamelCaseMethod(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Void)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Void) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *Void
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Void and nil error while calling CamelCaseMethod. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *quirks_2Server) serveCamelCaseMethodProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CamelCaseMethod")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(Void)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.Quirks_2.CamelCaseMethod
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *Void) (*Void, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*Void)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*Void) when calling interceptor")
+					}
+					return s.Quirks_2.CamelCaseMethod(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*Void)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*Void) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *Void
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Void and nil error while calling CamelCaseMethod. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *quirks_2Server) ServiceDescriptor() ([]byte, int) {
+	return twirpFileDescriptor0, 1
+}
+
+func (s *quirks_2Server) ProtocGenTwirpVersion() string {
+	return "v8.1.3"
+}
+
+// PathPrefix returns the base service path, in the form: "/<prefix>/<package>.<Service>/"
+// that is everything in a Twirp route except for the <Method>. This can be used for routing,
+// for example to identify the requests that are targeted to this service in a mux.
+func (s *quirks_2Server) PathPrefix() string {
+	return baseServicePath(s.pathPrefix, "quirks.v1", "Quirks_2")
+}
+
 // =====
 // Utils
 // =====
@@ -1088,7 +1601,7 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 163 bytes of a gzipped FileDescriptorProto
+	// 191 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2a, 0x28, 0xca, 0x2f,
 	0xc9, 0xd7, 0x2f, 0x2c, 0xcd, 0x2c, 0xca, 0x2e, 0xd6, 0x03, 0x73, 0x84, 0x38, 0xa1, 0xbc, 0x32,
 	0x43, 0x29, 0x71, 0x88, 0x74, 0x4e, 0x66, 0x92, 0x7e, 0x6e, 0x6a, 0x71, 0x71, 0x62, 0x7a, 0x2a,
@@ -1096,8 +1609,9 @@ var twirpFileDescriptor0 = []byte{
 	0x46, 0x7e, 0x4a, 0x78, 0x66, 0x49, 0x86, 0x63, 0x50, 0x6a, 0x62, 0x4e, 0x4e, 0xa5, 0x4f, 0x7e,
 	0x5e, 0xba, 0x5f, 0x62, 0x6e, 0xaa, 0x7b, 0x6e, 0x49, 0x46, 0x7a, 0x7a, 0x69, 0x41, 0x72, 0x52,
 	0x6e, 0x5e, 0x41, 0x46, 0x5a, 0x4e, 0x5e, 0x5e, 0x59, 0xa9, 0x10, 0xa7, 0x5e, 0x4e, 0x66, 0x92,
-	0x5e, 0x58, 0x7e, 0x66, 0x8a, 0x14, 0x0f, 0x98, 0xe9, 0x0b, 0x31, 0xd9, 0x49, 0x38, 0x4a, 0x30,
-	0x33, 0xaf, 0x24, 0xb5, 0x28, 0x2f, 0x31, 0x47, 0x3f, 0x25, 0x35, 0x37, 0x5f, 0x37, 0xb1, 0xa0,
-	0x20, 0x89, 0x0d, 0x6c, 0x9f, 0x31, 0x20, 0x00, 0x00, 0xff, 0xff, 0x39, 0x12, 0x20, 0x8f, 0xa9,
-	0x00, 0x00, 0x00,
+	0x5e, 0x58, 0x7e, 0x66, 0x8a, 0x14, 0x0f, 0x98, 0xe9, 0x0b, 0x31, 0xd9, 0xc8, 0x98, 0x8b, 0x03,
+	0x62, 0x73, 0xbc, 0x91, 0x90, 0x3a, 0x17, 0x7f, 0x72, 0x62, 0x6e, 0x6a, 0x8e, 0x73, 0x62, 0x71,
+	0x2a, 0xc4, 0x78, 0x64, 0x7d, 0x08, 0xa6, 0x93, 0x70, 0x94, 0x60, 0x66, 0x5e, 0x49, 0x6a, 0x51,
+	0x5e, 0x62, 0x8e, 0x7e, 0x4a, 0x6a, 0x6e, 0xbe, 0x6e, 0x62, 0x41, 0x41, 0x12, 0x1b, 0xd8, 0x91,
+	0xc6, 0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0x4e, 0x8f, 0xdb, 0x82, 0xde, 0x00, 0x00, 0x00,
 }

@@ -123,3 +123,109 @@ var Quirks_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/quirks.proto",
 }
+
+const (
+	Quirks_2_CamelCaseMethod_FullMethodName = "/quirks.v1.quirks_2/camelCaseMethod"
+)
+
+// Quirks_2Client is the client API for Quirks_2 service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Second service in the same file
+type Quirks_2Client interface {
+	CamelCaseMethod(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Void, error)
+}
+
+type quirks_2Client struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewQuirks_2Client(cc grpc.ClientConnInterface) Quirks_2Client {
+	return &quirks_2Client{cc}
+}
+
+func (c *quirks_2Client) CamelCaseMethod(ctx context.Context, in *Void, opts ...grpc.CallOption) (*Void, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Void)
+	err := c.cc.Invoke(ctx, Quirks_2_CamelCaseMethod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Quirks_2Server is the server API for Quirks_2 service.
+// All implementations must embed UnimplementedQuirks_2Server
+// for forward compatibility.
+//
+// Second service in the same file
+type Quirks_2Server interface {
+	CamelCaseMethod(context.Context, *Void) (*Void, error)
+	mustEmbedUnimplementedQuirks_2Server()
+}
+
+// UnimplementedQuirks_2Server must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedQuirks_2Server struct{}
+
+func (UnimplementedQuirks_2Server) CamelCaseMethod(context.Context, *Void) (*Void, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CamelCaseMethod not implemented")
+}
+func (UnimplementedQuirks_2Server) mustEmbedUnimplementedQuirks_2Server() {}
+func (UnimplementedQuirks_2Server) testEmbeddedByValue()                  {}
+
+// UnsafeQuirks_2Server may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to Quirks_2Server will
+// result in compilation errors.
+type UnsafeQuirks_2Server interface {
+	mustEmbedUnimplementedQuirks_2Server()
+}
+
+func RegisterQuirks_2Server(s grpc.ServiceRegistrar, srv Quirks_2Server) {
+	// If the following call pancis, it indicates UnimplementedQuirks_2Server was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&Quirks_2_ServiceDesc, srv)
+}
+
+func _Quirks_2_CamelCaseMethod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Void)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(Quirks_2Server).CamelCaseMethod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Quirks_2_CamelCaseMethod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(Quirks_2Server).CamelCaseMethod(ctx, req.(*Void))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Quirks_2_ServiceDesc is the grpc.ServiceDesc for Quirks_2 service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Quirks_2_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "quirks.v1.quirks_2",
+	HandlerType: (*Quirks_2Server)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "camelCaseMethod",
+			Handler:    _Quirks_2_CamelCaseMethod_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/quirks.proto",
+}
