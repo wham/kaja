@@ -38,13 +38,17 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       const result = findInterface(sources, "I" + serviceName + "Client");
       if (result) {
         const [interfaceDeclaration, source] = result;
-        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file);
+        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file, serviceInfo);
         serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
     });
 
     const kajaStatements = source.file.statements.filter((statement) => {
-      return ts.isInterfaceDeclaration(statement) || ts.isEnumDeclaration(statement) || (ts.isImportDeclaration(statement) && isAnotherSourceImport(statement, source.file));
+      return (
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isEnumDeclaration(statement) ||
+        (ts.isImportDeclaration(statement) && isAnotherSourceImport(statement, source.file))
+      );
     });
 
     kajaSources.push({
@@ -157,7 +161,12 @@ export function printStatements(statements: ts.Statement[]): string {
   return printer.printFile(sourceFile);
 }
 
-function createServiceInterfaceDefinition(serviceName: string, interfaceDeclaration: ts.InterfaceDeclaration, sourceFile: ts.SourceFile): ts.VariableStatement {
+function createServiceInterfaceDefinition(
+  serviceName: string,
+  interfaceDeclaration: ts.InterfaceDeclaration,
+  sourceFile: ts.SourceFile,
+  serviceInfo: ServiceInfo,
+): ts.VariableStatement {
   const funcs: ts.PropertyAssignment[] = [];
   interfaceDeclaration.members.forEach((member) => {
     if (!ts.isMethodSignature(member)) {
@@ -168,7 +177,8 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
       return;
     }
 
-    const methodName = ucfirst(member.name.getText(sourceFile));
+    const tsMethodName = member.name.getText(sourceFile);
+    const protoMethodName = serviceInfo.methods.find((method) => method.name.toLowerCase() == tsMethodName.toLowerCase())?.name || tsMethodName;
     const inputParameter = getInputParameter(member, sourceFile);
 
     if (!inputParameter || !inputParameter.type) {
@@ -178,7 +188,7 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
     const inputParameterType = inputParameter.type.getText(sourceFile);
 
     const func = ts.factory.createPropertyAssignment(
-      methodName,
+      protoMethodName,
       ts.factory.createArrowFunction(
         [ts.factory.createModifier(ts.SyntaxKind.AsyncKeyword)],
         undefined,
@@ -210,10 +220,6 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
   );
 
   return serviceInterfaceDefinition;
-}
-
-function ucfirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function isAnotherSourceImport(importDeclaration: ts.ImportDeclaration, sourceFile: ts.SourceFile): boolean {
