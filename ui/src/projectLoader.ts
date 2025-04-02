@@ -43,6 +43,10 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       }
     });
 
+    const kajaStatements = source.file.statements.filter((statement) => {
+      return ts.isInterfaceDeclaration(statement) || ts.isEnumDeclaration(statement) || (ts.isImportDeclaration(statement) && isAnotherSourceImport(statement, source.file));
+    });
+
     kajaSources.push({
       path: source.path,
       importPath: source.importPath,
@@ -50,7 +54,7 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         source.file.fileName,
         // If service source, replace the service class (last statement) with the service interface definitions
         // TODO: This is bad. Won't work if there are multiple services in the source file.
-        printStatements([...source.file.statements.slice(0, source.serviceNames.length > 0 ? -1 : undefined), ...serviceInterfaceDefinitions]),
+        printStatements([...kajaStatements, ...serviceInterfaceDefinitions]),
         ts.ScriptTarget.Latest,
       ),
       serviceNames: source.serviceNames,
@@ -210,4 +214,10 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
 
 function ucfirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function isAnotherSourceImport(importDeclaration: ts.ImportDeclaration, sourceFile: ts.SourceFile): boolean {
+  const path = importDeclaration.moduleSpecifier.getText(sourceFile).slice(1, -1);
+
+  return path.startsWith("./") || path.startsWith("../");
 }
