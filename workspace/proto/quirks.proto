@@ -8,3 +8,8 @@ option go_package = "internal/demo-app";
 service Quirks {
     rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(lib.Void) returns(lib.Message);
 }
+
+// Second service in the same file
+service quirks_2 {
+    rpc camelCaseMethod(lib.Void) returns(lib.Void);
+}

@@ -13,8 +13,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
   const services: Service[] = [];
 
   sources.forEach((source) => {
-    const sourceFile = source.file;
-    const enums = sourceFile.statements.filter(ts.isEnumDeclaration);
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     source.serviceNames.forEach((serviceName) => {
@@ -40,16 +38,17 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
       const result = findInterface(sources, "I" + serviceName + "Client");
       if (result) {
         const [interfaceDeclaration, source] = result;
-        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file);
+        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file, serviceInfo);
         serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
     });
 
-    enums.forEach((enumDeclaration) => {
-      const enumName = enumDeclaration.name.text;
-      try {
-        (window as any)[enumName] = stub[enumName];
-      } catch (error) {}
+    const kajaStatements = source.file.statements.filter((statement) => {
+      return (
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isEnumDeclaration(statement) ||
+        (ts.isImportDeclaration(statement) && isAnotherSourceImport(statement, source.file))
+      );
     });
 
     kajaSources.push({
@@ -59,7 +58,7 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         source.file.fileName,
         // If service source, replace the service class (last statement) with the service interface definitions
         // TODO: This is bad. Won't work if there are multiple services in the source file.
-        printStatements([...source.file.statements.slice(0, source.serviceNames.length > 0 ? -1 : undefined), ...serviceInterfaceDefinitions]),
+        printStatements([...kajaStatements, ...serviceInterfaceDefinitions]),
         ts.ScriptTarget.Latest,
       ),
       serviceNames: source.serviceNames,
@@ -162,7 +161,12 @@ export function printStatements(statements: ts.Statement[]): string {
   return printer.printFile(sourceFile);
 }
 
-function createServiceInterfaceDefinition(serviceName: string, interfaceDeclaration: ts.InterfaceDeclaration, sourceFile: ts.SourceFile): ts.VariableStatement {
+function createServiceInterfaceDefinition(
+  serviceName: string,
+  interfaceDeclaration: ts.InterfaceDeclaration,
+  sourceFile: ts.SourceFile,
+  serviceInfo: ServiceInfo,
+): ts.VariableStatement {
   const funcs: ts.PropertyAssignment[] = [];
   interfaceDeclaration.members.forEach((member) => {
     if (!ts.isMethodSignature(member)) {
@@ -173,7 +177,8 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
       return;
     }
 
-    const methodName = ucfirst(member.name.getText(sourceFile));
+    const tsMethodName = member.name.getText(sourceFile);
+    const protoMethodName = serviceInfo.methods.find((method) => method.name.toLowerCase() == tsMethodName.toLowerCase())?.name || tsMethodName;
     const inputParameter = getInputParameter(member, sourceFile);
 
     if (!inputParameter || !inputParameter.type) {
@@ -183,7 +188,7 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
     const inputParameterType = inputParameter.type.getText(sourceFile);
 
     const func = ts.factory.createPropertyAssignment(
-      methodName,
+      protoMethodName,
       ts.factory.createArrowFunction(
         [ts.factory.createModifier(ts.SyntaxKind.AsyncKeyword)],
         undefined,
@@ -217,24 +222,8 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
   return serviceInterfaceDefinition;
 }
 
-function copyInterface(interfaceDeclaration: ts.InterfaceDeclaration): ts.InterfaceDeclaration {
-  const copy = ts.factory.createInterfaceDeclaration(
-    interfaceDeclaration.modifiers,
-    interfaceDeclaration.name,
-    interfaceDeclaration.typeParameters,
-    interfaceDeclaration.heritageClauses,
-    interfaceDeclaration.members,
-  );
+function isAnotherSourceImport(importDeclaration: ts.ImportDeclaration, sourceFile: ts.SourceFile): boolean {
+  const path = importDeclaration.moduleSpecifier.getText(sourceFile).slice(1, -1);
 
-  return copy;
-}
-
-function copyEnum(enumDeclaration: ts.EnumDeclaration): ts.EnumDeclaration {
-  const copy = ts.factory.createEnumDeclaration(undefined, enumDeclaration.name, enumDeclaration.members);
-
-  return copy;
-}
-
-function ucfirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+  return path.startsWith("./") || path.startsWith("../");
 }

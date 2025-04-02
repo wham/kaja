@@ -19,6 +19,7 @@ func main() {
 
 	pb.RegisterBasicsServer(grpcServer, &pb.BasicsService{})
 	pb.RegisterQuirksServer(grpcServer, &pb.QuirksService{})
+	pb.RegisterQuirks_2Server(grpcServer, &pb.Quirks_2Service{})
 
 	grpcServer.Serve(lis)
 }

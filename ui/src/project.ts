@@ -26,11 +26,6 @@ export interface Client {
   methods: { [key: string]: (input: any) => {} };
 }
 
-export interface ExtraLib {
-  filePath: string;
-  content: string;
-}
-
 export function methodId(service: Service, method: Method): string {
   return `${service.name}.${method.name}`;
 }
