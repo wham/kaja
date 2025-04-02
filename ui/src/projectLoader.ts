@@ -14,8 +14,9 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
 
   sources.forEach((source) => {
     const sourceFile = source.file;
-    const enums = sourceFile.statements.filter(ts.isEnumDeclaration);
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
+
+    registerEnums(source);
 
     source.serviceNames.forEach((serviceName) => {
       if (!stub[serviceName]) {
@@ -43,13 +44,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
         const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file);
         serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
-    });
-
-    enums.forEach((enumDeclaration) => {
-      const enumName = enumDeclaration.name.text;
-      try {
-        (window as any)[enumName] = stub[enumName];
-      } catch (error) {}
     });
 
     kajaSources.push({
@@ -217,24 +211,14 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
   return serviceInterfaceDefinition;
 }
 
-function copyInterface(interfaceDeclaration: ts.InterfaceDeclaration): ts.InterfaceDeclaration {
-  const copy = ts.factory.createInterfaceDeclaration(
-    interfaceDeclaration.modifiers,
-    interfaceDeclaration.name,
-    interfaceDeclaration.typeParameters,
-    interfaceDeclaration.heritageClauses,
-    interfaceDeclaration.members,
-  );
-
-  return copy;
-}
-
-function copyEnum(enumDeclaration: ts.EnumDeclaration): ts.EnumDeclaration {
-  const copy = ts.factory.createEnumDeclaration(undefined, enumDeclaration.name, enumDeclaration.members);
-
-  return copy;
-}
-
 function ucfirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function registerEnums(source: Source) {
+  for (const enumName in source.enums) {
+    try {
+      (window as any)[enumName] = source.enums[enumName].object;
+    } catch (error) {}
+  }
 }
