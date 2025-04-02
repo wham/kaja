@@ -13,7 +13,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
   const services: Service[] = [];
 
   sources.forEach((source) => {
-    const sourceFile = source.file;
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     registerEnums(source);
