@@ -15,8 +15,6 @@ export async function loadProject(paths: string[], configuration: ConfigurationP
   sources.forEach((source) => {
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
-    registerEnums(source);
-
     source.serviceNames.forEach((serviceName) => {
       if (!stub[serviceName]) {
         return;
@@ -212,12 +210,4 @@ function createServiceInterfaceDefinition(serviceName: string, interfaceDeclarat
 
 function ucfirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function registerEnums(source: Source) {
-  for (const enumName in source.enums) {
-    try {
-      (window as any)[enumName] = source.enums[enumName].object;
-    } catch (error) {}
-  }
 }
