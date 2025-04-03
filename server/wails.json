@@ -1,3 +1,7 @@
 {
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "kaja",
+  "outputfilename": "kaja",
+  "frontend:dir": "../ui",
   "wailsjsdir": "../ui/src/wails"
 }
