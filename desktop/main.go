@@ -12,9 +12,6 @@ import (
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
-
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "desktop",
@@ -24,10 +21,6 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		Bind: []interface{}{
-			app,
-		},
 	})
 
 	if err != nil {
