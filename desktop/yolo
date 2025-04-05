@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+cd "$(dirname "$0")/.."
+
+rm -rf frontend/dist
+cp server/build/main.css desktop/frontend/dist/main.css
+cp server/build/main.js desktop/frontend/dist/main.js
+cp server/templates/index.html desktop/frontend/dist/index.html
