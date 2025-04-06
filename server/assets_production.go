@@ -1,4 +1,4 @@
-//go:build !development
+//go:build !development && !dev
 
 package assets
 

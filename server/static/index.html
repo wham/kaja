@@ -1,1 +1,30 @@
-<h1>Hello</h1>
+<!DOCTYPE html>
+<html lang="en" style="overscroll-behavior: none">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <link rel="mask-icon" href="/static/favicon.svg" color="#000000" />
+    <link rel="stylesheet" href="/main.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kaja</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@protobuf-ts/runtime": "./main.js",
+          "@protobuf-ts/runtime-rpc": "./main.js"
+        }
+      }
+    </script>
+    <style>
+      /* https://stackoverflow.com/questions/47017753/monaco-editor-dynamically-resizable */
+      .monaco-editor {
+        position: absolute !important;
+      }
+    </style>
+  </head>
+  <body style="background-color: black; overscroll-behavior: none">
+    <div id="root"></div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
