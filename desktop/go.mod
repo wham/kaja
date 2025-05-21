@@ -2,7 +2,10 @@ module github.com/wham/kaja/v2
 
 go 1.23
 
-require github.com/wailsapp/wails/v2 v2.10.1
+require (
+	github.com/wailsapp/wails/v2 v2.10.1
+	github.com/wham/kaja/v2/pkg v0.0.0
+)
 
 require (
 	github.com/bep/debounce v1.2.1 // indirect
@@ -33,4 +36,4 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 )
 
-// replace github.com/wailsapp/wails/v2 v2.10.1 => /Users/wham/code/kaja
+replace github.com/wham/kaja/v2/pkg => ../pkg
