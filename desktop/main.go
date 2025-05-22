@@ -20,13 +20,13 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		compiler: &compiler.Compiler{},
+		compiler: compiler.NewCompiler(nil), // Using default logger
 	}
 }
 
-// Compile exposes the compiler functionality to the frontend
-func (a *App) Compile(sourceCode string) (string, error) {
-	return compiler.Compile(sourceCode)
+// Compile starts the compilation process for a project and returns status, logs, and sources
+func (a *App) Compile(projectName string, workspace string, force bool, logOffset int) (compiler.Status, []compiler.Log, []string, error) {
+	return a.compiler.Compile(projectName, workspace, force, logOffset)
 }
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  compiler.Hello(),
+		Title:  "Kaja Compiler",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
