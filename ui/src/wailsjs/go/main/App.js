@@ -5,3 +5,11 @@
 export function Compile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['Compile'](arg1, arg2, arg3, arg4);
 }
+
+export function CompileRPC(arg1, arg2) {
+  return window['go']['main']['App']['CompileRPC'](arg1, arg2);
+}
+
+export function GetConfiguration(arg1, arg2) {
+  return window['go']['main']['App']['GetConfiguration'](arg1, arg2);
+}

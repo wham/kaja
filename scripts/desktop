@@ -16,3 +16,11 @@ then
         exit 1
     fi
 fi
+
+cd "$(dirname "$0")/.."
+
+echo "Starting Kaja desktop application in development mode..."
+cd desktop
+
+# Run in development mode with hot reload
+wails dev

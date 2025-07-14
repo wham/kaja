@@ -15,6 +15,27 @@ export interface Stub {
   [key: string]: any;
 }
 
+function isWailsEnvironment(): boolean {
+  return typeof window !== "undefined" && 
+         typeof (window as any).runtime !== "undefined" &&
+         typeof (window as any).go !== "undefined" &&
+         typeof (window as any).go.main !== "undefined" &&
+         typeof (window as any).go.main.App !== "undefined";
+}
+
+async function loadSourceContent(path: string): Promise<string> {
+  if (isWailsEnvironment()) {
+    // In desktop mode, sources should be embedded in the build or we need a different loading mechanism
+    // For now, we'll return empty content - this may need to be implemented differently
+    // depending on how sources are made available in the desktop build
+    console.warn(`Loading sources in desktop mode not yet implemented for path: ${path}`);
+    return "";
+  } else {
+    // Web mode - use fetch
+    return fetch("sources/" + path).then((response) => response.text());
+  }
+}
+
 export async function loadSources(paths: string[], stub: Stub, projectName: string): Promise<Sources> {
   if (paths.length === 0) {
     return [];
@@ -24,15 +45,17 @@ export async function loadSources(paths: string[], stub: Stub, projectName: stri
   let rawFiles: Record<string, () => Promise<string>> = {};
   paths.forEach((path) => {
     path = projectName + "/" + path;
-    rawFiles[path] = () => {
-      return fetch("sources/" + path).then((response) => {
-        return response.text();
-      });
-    };
+    rawFiles[path] = () => loadSourceContent(path);
   });
 
   for (const path in rawFiles) {
-    const file = ts.createSourceFile(path, await rawFiles[path](), ts.ScriptTarget.Latest);
+    const content = await rawFiles[path]();
+    if (!content) {
+      // Skip empty content (might happen in desktop mode)
+      continue;
+    }
+    
+    const file = ts.createSourceFile(path, content, ts.ScriptTarget.Latest);
 
     const source: Source = {
       path,
@@ -100,6 +123,14 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
 }
 
 export async function loadStub(projectName: string): Promise<Stub> {
-  const path = "./stub/" + projectName + "/stub.js";
-  return import(path);
+  if (isWailsEnvironment()) {
+    // In desktop mode, we might need to load stubs differently
+    // For now, return an empty stub - this may need to be implemented
+    // depending on how stubs are made available in the desktop build
+    console.warn(`Loading stub in desktop mode not yet implemented for project: ${projectName}`);
+    return {};
+  } else {
+    const path = "./stub/" + projectName + "/stub.js";
+    return import(path);
+  }
 }
