@@ -16,11 +16,13 @@ export interface Stub {
 }
 
 function isWailsEnvironment(): boolean {
-  return typeof window !== "undefined" && 
-         typeof (window as any).runtime !== "undefined" &&
-         typeof (window as any).go !== "undefined" &&
-         typeof (window as any).go.main !== "undefined" &&
-         typeof (window as any).go.main.App !== "undefined";
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as any).runtime !== "undefined" &&
+    typeof (window as any).go !== "undefined" &&
+    typeof (window as any).go.main !== "undefined" &&
+    typeof (window as any).go.main.App !== "undefined"
+  );
 }
 
 async function loadSourceContent(path: string): Promise<string> {
@@ -54,7 +56,7 @@ export async function loadSources(paths: string[], stub: Stub, projectName: stri
       // Skip empty content (might happen in desktop mode)
       continue;
     }
-    
+
     const file = ts.createSourceFile(path, content, ts.ScriptTarget.Latest);
 
     const source: Source = {

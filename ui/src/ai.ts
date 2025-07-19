@@ -4,11 +4,13 @@ import { Project } from "./project";
 import { getBaseUrlForAi } from "./server/connection";
 
 function isWailsEnvironment(): boolean {
-  return typeof window !== "undefined" && 
-         typeof (window as any).runtime !== "undefined" &&
-         typeof (window as any).go !== "undefined" &&
-         typeof (window as any).go.main !== "undefined" &&
-         typeof (window as any).go.main.App !== "undefined";
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as any).runtime !== "undefined" &&
+    typeof (window as any).go !== "undefined" &&
+    typeof (window as any).go.main !== "undefined" &&
+    typeof (window as any).go.main.App !== "undefined"
+  );
 }
 interface AICompletion {
   text: string;

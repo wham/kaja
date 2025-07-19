@@ -8,16 +8,18 @@ import { getBaseUrlForTarget } from "./server/connection";
 import { Stub } from "./sources";
 
 function isWailsEnvironment(): boolean {
-  return typeof window !== "undefined" && 
-         typeof (window as any).runtime !== "undefined" &&
-         typeof (window as any).go !== "undefined" &&
-         typeof (window as any).go.main !== "undefined" &&
-         typeof (window as any).go.main.App !== "undefined";
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as any).runtime !== "undefined" &&
+    typeof (window as any).go !== "undefined" &&
+    typeof (window as any).go.main !== "undefined" &&
+    typeof (window as any).go.main.App !== "undefined"
+  );
 }
 
 export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
   const client: Client = { methods: {} };
-  
+
   // In Wails environment, we might not have access to the external APIs in the same way
   // For now, we'll create the transport but calls might fail
   let transport;
@@ -37,7 +39,7 @@ export function createClient(service: Service, stub: Stub, configuration: Config
             baseUrl: getBaseUrlForTarget(),
           });
   }
-  
+
   const clientStub = new stub[service.name + "Client"](transport);
   const options: RpcOptions = {
     interceptors: [

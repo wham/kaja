@@ -3,20 +3,20 @@ import { ApiClient } from "./api.client";
 import { WailsTransport } from "./wails-transport";
 
 // Immediate logging when module loads
-console.log('connection.ts module loaded', {
+console.log("connection.ts module loaded", {
   hasWindow: typeof window !== "undefined",
   hasRuntime: typeof window !== "undefined" && typeof (window as any).runtime !== "undefined",
   hasGo: typeof window !== "undefined" && typeof (window as any).go !== "undefined",
-  windowGo: typeof window !== "undefined" ? (window as any).go : undefined
+  windowGo: typeof window !== "undefined" ? (window as any).go : undefined,
 });
 
 // Also log after a short delay to see if bindings load later
 setTimeout(() => {
-  console.log('connection.ts delayed check', {
+  console.log("connection.ts delayed check", {
     hasWindow: typeof window !== "undefined",
     hasRuntime: typeof window !== "undefined" && typeof (window as any).runtime !== "undefined",
     hasGo: typeof window !== "undefined" && typeof (window as any).go !== "undefined",
-    windowGo: typeof window !== "undefined" ? (window as any).go : undefined
+    windowGo: typeof window !== "undefined" ? (window as any).go : undefined,
   });
 }, 1000);
 
@@ -27,15 +27,15 @@ function isWailsEnvironment(): boolean {
   // Check for Wails runtime first - this is the most reliable indicator
   const hasRuntime = typeof window !== "undefined" && typeof (window as any).runtime !== "undefined";
   const hasGoBindings = typeof (window as any).go?.main?.App !== "undefined";
-  
-  console.log('Environment detection:', {
+
+  console.log("Environment detection:", {
     hasWindow: typeof window !== "undefined",
     hasRuntime,
     hasGoBindings,
     windowGo: typeof (window as any).go,
-    isWails: hasRuntime && hasGoBindings
+    isWails: hasRuntime && hasGoBindings,
   });
-  
+
   return hasRuntime && hasGoBindings;
 }
 
@@ -44,13 +44,13 @@ let cachedClient: ApiClient | null = null;
 export function getApiClient(): ApiClient {
   // Always check environment fresh - don't cache if we're in a transitional state
   const isWails = isWailsEnvironment();
-  console.log('getApiClient() called - Creating API client for environment:', isWails ? 'Wails' : 'Web');
-  
+  console.log("getApiClient() called - Creating API client for environment:", isWails ? "Wails" : "Web");
+
   if (isWails) {
-    console.log('Using WailsTransport');
+    console.log("Using WailsTransport");
     return new ApiClient(new WailsTransport());
   } else {
-    console.log('Using TwirpFetchTransport with baseUrl:', getBaseUrlForApi());
+    console.log("Using TwirpFetchTransport with baseUrl:", getBaseUrlForApi());
     return new ApiClient(
       new TwirpFetchTransport({
         baseUrl: getBaseUrlForApi(),
