@@ -10,7 +10,8 @@ import type {
   RpcMetadata,
 } from "@protobuf-ts/runtime-rpc";
 import { RpcError } from "@protobuf-ts/runtime-rpc";
-import type { CompileRequest, GetConfigurationRequest } from "./api";
+import type { CompileRequest } from "./api";
+import * as wjs from "../wailsjs/go/models";
 
 // Type definitions for Wails bindings
 declare global {
@@ -20,7 +21,7 @@ declare global {
       main?: {
         App?: {
           CompileRPC(ctx: any, req: any): Promise<any>;
-          GetConfiguration(ctx: any, req: any): Promise<any>;
+          GetConfiguration(req: any): Promise<any>;
         };
       };
     };
@@ -105,8 +106,10 @@ export class WailsTransport implements RpcTransport {
         result = await window.go.main.App.CompileRPC({}, wailsRequest);
       } else if (method.name === "GetConfiguration") {
         console.log("Calling GetConfiguration");
-        // Use empty object instead of null for context
-        result = await window.go.main.App.GetConfiguration({}, {});
+        // Use proper Wails model for the request
+        const wailsRequest = new wjs.main.GetConfigurationRequest();
+        result = await window.go.main.App.GetConfiguration(wailsRequest);
+        console.log("Result", result);
       } else {
         const error = `Unknown method: ${method.name}`;
         console.error(error);

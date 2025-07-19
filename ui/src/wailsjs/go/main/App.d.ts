@@ -8,4 +8,4 @@ export function Compile(arg1:string,arg2:string,arg3:boolean,arg4:number):Promis
 
 export function CompileRPC(arg1:context.Context,arg2:main.CompileRequest):Promise<main.CompileResponse>;
 
-export function GetConfiguration(arg1:context.Context,arg2:main.GetConfigurationRequest):Promise<main.GetConfigurationResponse>;
+export function GetConfiguration(arg1:main.GetConfigurationRequest):Promise<main.GetConfigurationResponse>;

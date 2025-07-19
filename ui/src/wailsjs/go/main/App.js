@@ -10,6 +10,6 @@ export function CompileRPC(arg1, arg2) {
   return window['go']['main']['App']['CompileRPC'](arg1, arg2);
 }
 
-export function GetConfiguration(arg1, arg2) {
-  return window['go']['main']['App']['GetConfiguration'](arg1, arg2);
+export function GetConfiguration(arg1) {
+  return window['go']['main']['App']['GetConfiguration'](arg1);
 }

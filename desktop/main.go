@@ -23,9 +23,9 @@ type CompileRequest struct {
 
 // CompileResponse represents the compile response
 type CompileResponse struct {
-	Status  compiler.Status   `json:"status"`
-	Logs    []compiler.Log    `json:"logs"`
-	Sources []string          `json:"sources"`
+	Status  compiler.Status `json:"status"`
+	Logs    []compiler.Log  `json:"logs"`
+	Sources []string        `json:"sources"`
 }
 
 // GetConfigurationRequest represents the configuration request
@@ -39,7 +39,7 @@ type GetConfigurationResponse struct {
 
 // Configuration represents the application configuration
 type Configuration struct {
-	PathPrefix string                   `json:"path_prefix"`
+	PathPrefix string                  `json:"path_prefix"`
 	Projects   []*ConfigurationProject `json:"projects"`
 	AI         *ConfigurationAI        `json:"ai"`
 }
@@ -81,7 +81,7 @@ func (a *App) CompileRPC(ctx context.Context, req *CompileRequest) (*CompileResp
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &CompileResponse{
 		Status:  status,
 		Logs:    logs,
@@ -90,7 +90,7 @@ func (a *App) CompileRPC(ctx context.Context, req *CompileRequest) (*CompileResp
 }
 
 // GetConfiguration returns the desktop app configuration
-func (a *App) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+func (a *App) GetConfiguration(req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	// For desktop app, provide a default configuration
 	// In a real implementation, this might read from a config file
 	config := &Configuration{
@@ -108,7 +108,7 @@ func (a *App) GetConfiguration(ctx context.Context, req *GetConfigurationRequest
 			APIKey:  "",
 		},
 	}
-	
+
 	return &GetConfigurationResponse{
 		Configuration: config,
 		Logs:          []compiler.Log{},
