@@ -1,43 +1,36 @@
-import type { RpcTransport, MethodInfo, RpcOptions, UnaryCall, ServerStreamingCall, ClientStreamingCall, DuplexStreamingCall } from "@protobuf-ts/runtime-rpc";
-import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-
-// Type definitions for Wails bindings
-declare global {
-  interface Window {
-    runtime?: any;
-    go?: {
-      main?: {
-        App?: {
-          HandleTwirpRequest(ctx: any, method: string, body: string): Promise<string>;
-        };
-      };
-    };
-  }
-}
+import type {
+  RpcTransport,
+  MethodInfo,
+  RpcOptions,
+  UnaryCall,
+  ServerStreamingCall,
+  ClientStreamingCall,
+  DuplexStreamingCall,
+  RpcError,
+  RpcMetadata,
+  RpcStatus,
+} from "@protobuf-ts/runtime-rpc";
+import { RpcOutputStreamController, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
+import { Twirp } from "../wailsjs/go/main/App";
 
 /**
- * Lightweight Wails transport that wraps TwirpFetchTransport and replaces
- * the HTTP layer with Wails bindings while keeping Twirp protocol internals
+ * Wails transport that implements RpcTransport directly for Twirp protocol
+ * using Wails bindings instead of HTTP
  */
 export class WailsTransport implements RpcTransport {
-  private twirpTransport: TwirpFetchTransport;
-
-  constructor() {
-    // Create a TwirpFetchTransport but we'll override its fetch implementation
-    this.twirpTransport = new TwirpFetchTransport({
-      baseUrl: "", // Not used since we override fetch
-    });
-
-    // Override the fetch function to use Wails bindings instead of HTTP
-    (this.twirpTransport as any).fetchResponse = this.wailsFetch.bind(this);
-  }
-
   mergeOptions(options?: Partial<RpcOptions>): RpcOptions {
-    return this.twirpTransport.mergeOptions(options);
+    return {
+      timeout: options?.timeout,
+      meta: options?.meta || {},
+      abort: options?.abort,
+      interceptors: options?.interceptors || [],
+      ...options,
+    };
   }
 
   unary<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): UnaryCall<I, O> {
-    return this.twirpTransport.unary(method, input, options);
+    const response = this.callWailsTwirp(method, input, options);
+    return new UnaryCallImpl(method, options.meta || {}, input, response.response, response.status, response.trailers);
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
@@ -53,67 +46,49 @@ export class WailsTransport implements RpcTransport {
   }
 
   /**
-   * Custom fetch implementation that routes Twirp requests to Wails bindings
+   * Call Wails Twirp function and handle the response
    */
-  private async wailsFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    console.log("WailsTransport.wailsFetch called with:", { input, init });
+  private callWailsTwirp<I extends object, O extends object>(
+    method: MethodInfo<I, O>,
+    input: I,
+    options: RpcOptions,
+  ): { response: Promise<O>; status: Promise<RpcStatus>; trailers: Promise<RpcMetadata> } {
+    console.log("WailsTransport calling method:", method.name);
 
+    const responsePromise = this.executeCall(method, input);
+    const statusPromise = responsePromise.then(() => ({ code: "OK", detail: "" }));
+    const trailersPromise = responsePromise.then(() => ({}));
+
+    return {
+      response: responsePromise,
+      status: statusPromise,
+      trailers: trailersPromise,
+    };
+  }
+
+  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<O> {
     try {
-      if (!window.runtime || !window.go?.main?.App) {
-        const error = `Wails bindings not available: runtime=${!!window.runtime}, go=${!!window.go?.main?.App}`;
-        console.error(error);
-        throw new Error(error);
-      }
+      console.log("Executing Wails call for method:", method.name);
 
-      // Extract method name from Twirp URL path
-      const url = typeof input === "string" ? input : input.toString();
-      const body = init?.body;
+      // Serialize input using protobuf-ts
+      const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
+      const inputArray = Array.from(inputBytes);
 
-      if (!body) {
-        throw new Error("No request body found");
-      }
+      console.log("Calling Wails Twirp with method:", method.name);
 
-      // Extract method name from Twirp URL (format: /twirp/package.Service/Method)
-      const urlPath = new URL(url, "http://localhost").pathname;
-      const pathParts = urlPath.split("/");
-      const methodName = pathParts[pathParts.length - 1];
+      // Call Wails function
+      const responseArray = await Twirp(method.name, inputArray);
 
-      if (!methodName) {
-        throw new Error(`Could not extract method name from URL: ${url}`);
-      }
+      console.log("Wails Twirp result:", responseArray);
 
-      console.log("Calling Wails HandleTwirpRequest with method:", methodName);
+      // Convert response back to bytes and deserialize
+      const responseBytes = new Uint8Array(responseArray);
+      const output = method.O.fromBinary(responseBytes);
 
-      // Pass the method name and raw request body to Wails
-      const responseBody = await window.go.main.App.HandleTwirpRequest({}, methodName, body.toString());
-
-      console.log("Wails HandleTwirpRequest result:", responseBody);
-
-      // Return the response as-is from the backend
-      return new Response(responseBody, {
-        status: 200,
-        statusText: "OK",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      return output;
     } catch (error) {
       console.error("WailsTransport error:", error);
-
-      // Return error response in Twirp error format
-      const twirpError = {
-        code: "internal",
-        msg: error instanceof Error ? error.message : "Unknown error",
-        meta: {},
-      };
-
-      return new Response(JSON.stringify(twirpError), {
-        status: 500,
-        statusText: "Internal Server Error",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      throw new Error(`Wails transport error: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 }

@@ -1,11 +1,13 @@
-module github.com/wham/kaja/v2
+module github.com/wham/kaja/desktop
 
 go 1.23
 
 require (
 	github.com/wailsapp/wails/v2 v2.10.1
-	github.com/wham/kaja/v2 v0.0.0
+	github.com/wham/kaja/v2 v2.0.0-20240101000000-000000000000
 )
+
+replace github.com/wham/kaja/v2 => ../server
 
 require (
 	github.com/bep/debounce v1.2.1 // indirect
@@ -26,6 +28,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
+	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.19 // indirect
@@ -34,4 +37,5 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
+	google.golang.org/protobuf v1.35.2 // indirect
 )
