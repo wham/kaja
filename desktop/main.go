@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
+	"fmt"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -113,6 +115,50 @@ func (a *App) GetConfiguration(req *GetConfigurationRequest) (*GetConfigurationR
 		Configuration: config,
 		Logs:          []compiler.Log{},
 	}, nil
+}
+
+// HandleTwirpRequest handles generic Twirp requests by method name
+func (a *App) HandleTwirpRequest(ctx context.Context, method string, body string) (string, error) {
+	switch method {
+	case "Compile":
+		var req CompileRequest
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			return "", fmt.Errorf("failed to unmarshal compile request: %w", err)
+		}
+		
+		resp, err := a.CompileRPC(ctx, &req)
+		if err != nil {
+			return "", err
+		}
+		
+		responseBytes, err := json.Marshal(resp)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal compile response: %w", err)
+		}
+		
+		return string(responseBytes), nil
+		
+	case "GetConfiguration":
+		var req GetConfigurationRequest
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			return "", fmt.Errorf("failed to unmarshal configuration request: %w", err)
+		}
+		
+		resp, err := a.GetConfiguration(&req)
+		if err != nil {
+			return "", err
+		}
+		
+		responseBytes, err := json.Marshal(resp)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal configuration response: %w", err)
+		}
+		
+		return string(responseBytes), nil
+		
+	default:
+		return "", fmt.Errorf("unknown method: %s", method)
+	}
 }
 
 func main() {

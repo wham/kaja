@@ -1,17 +1,13 @@
-import type {
-  MethodInfo,
-  RpcOptions,
-  RpcTransport,
+import type { 
+  RpcTransport, 
+  MethodInfo, 
+  RpcOptions, 
   UnaryCall,
   ServerStreamingCall,
   ClientStreamingCall,
-  DuplexStreamingCall,
-  RpcStatus,
-  RpcMetadata,
+  DuplexStreamingCall
 } from "@protobuf-ts/runtime-rpc";
-import { RpcError } from "@protobuf-ts/runtime-rpc";
-import type { CompileRequest } from "./api";
-import * as wjs from "../wailsjs/go/models";
+import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 
 // Type definitions for Wails bindings
 declare global {
@@ -20,8 +16,7 @@ declare global {
     go?: {
       main?: {
         App?: {
-          CompileRPC(ctx: any, req: any): Promise<any>;
-          GetConfiguration(req: any): Promise<any>;
+          HandleTwirpRequest(ctx: any, method: string, body: string): Promise<string>;
         };
       };
     };
@@ -29,33 +24,28 @@ declare global {
 }
 
 /**
- * Wails transport for protobuf-ts that uses Wails bindings instead of HTTP fetch
+ * Lightweight Wails transport that wraps TwirpFetchTransport and replaces
+ * the HTTP layer with Wails bindings while keeping Twirp protocol internals
  */
 export class WailsTransport implements RpcTransport {
+  private twirpTransport: TwirpFetchTransport;
+
+  constructor() {
+    // Create a TwirpFetchTransport but we'll override its fetch implementation
+    this.twirpTransport = new TwirpFetchTransport({
+      baseUrl: "", // Not used since we override fetch
+    });
+    
+    // Override the fetch function to use Wails bindings instead of HTTP
+    (this.twirpTransport as any).fetchResponse = this.wailsFetch.bind(this);
+  }
+
   mergeOptions(options?: Partial<RpcOptions>): RpcOptions {
-    return {
-      ...options,
-    };
+    return this.twirpTransport.mergeOptions(options);
   }
 
   unary<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): UnaryCall<I, O> {
-    const promise = this.callWailsMethod(method, input, options);
-    const responsePromise = promise.then((result) => result.response);
-    const statusPromise = promise.then((result) => result.status);
-
-    const call = {
-      method,
-      requestHeaders: {} as RpcMetadata,
-      request: input,
-      headers: promise.then(() => ({}) as RpcMetadata),
-      response: responsePromise,
-      status: statusPromise,
-      trailers: promise.then(() => ({}) as RpcMetadata),
-      then: responsePromise.then.bind(responsePromise),
-      promiseFinished: promise.then(() => undefined),
-    };
-
-    return call as unknown as UnaryCall<I, O>;
+    return this.twirpTransport.unary(method, input, options);
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
@@ -70,17 +60,11 @@ export class WailsTransport implements RpcTransport {
     throw new Error("Duplex streaming not supported in Wails transport");
   }
 
-  private async callWailsMethod<I extends object, O extends object>(
-    method: MethodInfo<I, O>,
-    input: I,
-    options: RpcOptions,
-  ): Promise<{ response: O; status: RpcStatus }> {
-    console.log("WailsTransport.callWailsMethod called with:", {
-      methodName: method.name,
-      input,
-      hasRuntime: !!window.runtime,
-      hasGoBindings: !!window.go?.main?.App,
-    });
+  /**
+   * Custom fetch implementation that routes Twirp requests to Wails bindings
+   */
+  private async wailsFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    console.log("WailsTransport.wailsFetch called with:", { input, init });
 
     try {
       if (!window.runtime || !window.go?.main?.App) {
@@ -89,44 +73,55 @@ export class WailsTransport implements RpcTransport {
         throw new Error(error);
       }
 
-      let result: any;
-
-      // Route to the appropriate Wails method based on the RPC method name
-      if (method.name === "Compile") {
-        const req = input as CompileRequest;
-        // Transform to the format expected by the Wails binding
-        const wailsRequest = {
-          log_offset: req.logOffset || 0,
-          force: req.force || false,
-          project_name: req.projectName || "",
-          workspace: req.workspace || "",
-        };
-        console.log("Calling CompileRPC with:", wailsRequest);
-        // Use empty object instead of null for context
-        result = await window.go.main.App.CompileRPC({}, wailsRequest);
-      } else if (method.name === "GetConfiguration") {
-        console.log("Calling GetConfiguration");
-        // Use proper Wails model for the request
-        const wailsRequest = new wjs.main.GetConfigurationRequest();
-        result = await window.go.main.App.GetConfiguration(wailsRequest);
-        console.log("Result", result);
-      } else {
-        const error = `Unknown method: ${method.name}`;
-        console.error(error);
-        throw new Error(error);
+      // Extract method name from Twirp URL path
+      const url = typeof input === "string" ? input : input.toString();
+      const body = init?.body;
+      
+      if (!body) {
+        throw new Error("No request body found");
       }
 
-      console.log("Wails method result:", result);
-      return {
-        response: result as O,
-        status: {
-          code: "OK",
-          detail: "",
+      // Extract method name from Twirp URL (format: /twirp/package.Service/Method)
+      const urlPath = new URL(url, 'http://localhost').pathname;
+      const pathParts = urlPath.split('/');
+      const methodName = pathParts[pathParts.length - 1];
+      
+      if (!methodName) {
+        throw new Error(`Could not extract method name from URL: ${url}`);
+      }
+
+      console.log("Calling Wails HandleTwirpRequest with method:", methodName);
+      
+      // Pass the method name and raw request body to Wails
+      const responseBody = await window.go.main.App.HandleTwirpRequest({}, methodName, body.toString());
+
+      console.log("Wails HandleTwirpRequest result:", responseBody);
+
+      // Return the response as-is from the backend
+      return new Response(responseBody, {
+        status: 200,
+        statusText: "OK",
+        headers: {
+          "Content-Type": "application/json",
         },
-      };
+      });
     } catch (error) {
       console.error("WailsTransport error:", error);
-      throw new RpcError(error instanceof Error ? error.message : "Unknown error", "UNKNOWN", {} as RpcMetadata);
+      
+      // Return error response in Twirp error format
+      const twirpError = {
+        code: "internal",
+        msg: error instanceof Error ? error.message : "Unknown error",
+        meta: {},
+      };
+      
+      return new Response(JSON.stringify(twirpError), {
+        status: 500,
+        statusText: "Internal Server Error",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
     }
   }
 }
