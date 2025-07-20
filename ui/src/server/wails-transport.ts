@@ -1,12 +1,4 @@
-import type { 
-  RpcTransport, 
-  MethodInfo, 
-  RpcOptions, 
-  UnaryCall,
-  ServerStreamingCall,
-  ClientStreamingCall,
-  DuplexStreamingCall
-} from "@protobuf-ts/runtime-rpc";
+import type { RpcTransport, MethodInfo, RpcOptions, UnaryCall, ServerStreamingCall, ClientStreamingCall, DuplexStreamingCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 
 // Type definitions for Wails bindings
@@ -35,7 +27,7 @@ export class WailsTransport implements RpcTransport {
     this.twirpTransport = new TwirpFetchTransport({
       baseUrl: "", // Not used since we override fetch
     });
-    
+
     // Override the fetch function to use Wails bindings instead of HTTP
     (this.twirpTransport as any).fetchResponse = this.wailsFetch.bind(this);
   }
@@ -76,22 +68,22 @@ export class WailsTransport implements RpcTransport {
       // Extract method name from Twirp URL path
       const url = typeof input === "string" ? input : input.toString();
       const body = init?.body;
-      
+
       if (!body) {
         throw new Error("No request body found");
       }
 
       // Extract method name from Twirp URL (format: /twirp/package.Service/Method)
-      const urlPath = new URL(url, 'http://localhost').pathname;
-      const pathParts = urlPath.split('/');
+      const urlPath = new URL(url, "http://localhost").pathname;
+      const pathParts = urlPath.split("/");
       const methodName = pathParts[pathParts.length - 1];
-      
+
       if (!methodName) {
         throw new Error(`Could not extract method name from URL: ${url}`);
       }
 
       console.log("Calling Wails HandleTwirpRequest with method:", methodName);
-      
+
       // Pass the method name and raw request body to Wails
       const responseBody = await window.go.main.App.HandleTwirpRequest({}, methodName, body.toString());
 
@@ -107,14 +99,14 @@ export class WailsTransport implements RpcTransport {
       });
     } catch (error) {
       console.error("WailsTransport error:", error);
-      
+
       // Return error response in Twirp error format
       const twirpError = {
         code: "internal",
         msg: error instanceof Error ? error.message : "Unknown error",
         meta: {},
       };
-      
+
       return new Response(JSON.stringify(twirpError), {
         status: 500,
         statusText: "Internal Server Error",
