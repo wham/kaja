@@ -1,164 +1,47 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
-	"fmt"
+	"net/http"
+	"net/http/httptest"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wham/kaja/v2/pkg/compiler"
+
+	"github.com/wham/kaja/v2/pkg/api"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// CompileRequest represents the compile request parameters
-type CompileRequest struct {
-	LogOffset   int32  `json:"log_offset"`
-	Force       bool   `json:"force"`
-	ProjectName string `json:"project_name"`
-	Workspace   string `json:"workspace"`
-}
-
-// CompileResponse represents the compile response
-type CompileResponse struct {
-	Status  compiler.Status `json:"status"`
-	Logs    []compiler.Log  `json:"logs"`
-	Sources []string        `json:"sources"`
-}
-
-// GetConfigurationRequest represents the configuration request
-type GetConfigurationRequest struct{}
-
-// GetConfigurationResponse represents the configuration response
-type GetConfigurationResponse struct {
-	Configuration *Configuration `json:"configuration"`
-	Logs          []compiler.Log `json:"logs"`
-}
-
-// Configuration represents the application configuration
-type Configuration struct {
-	PathPrefix string                  `json:"path_prefix"`
-	Projects   []*ConfigurationProject `json:"projects"`
-	AI         *ConfigurationAI        `json:"ai"`
-}
-
-// ConfigurationProject represents a project configuration
-type ConfigurationProject struct {
-	Name      string `json:"name"`
-	Protocol  int32  `json:"protocol"` // 0 = Twirp, 1 = gRPC
-	URL       string `json:"url"`
-	Workspace string `json:"workspace"`
-}
-
-// ConfigurationAI represents AI configuration
-type ConfigurationAI struct {
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
-}
-
 // App struct
 type App struct {
-	compiler *compiler.Compiler
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{
-		compiler: compiler.NewCompiler(nil), // Using default logger
-	}
+	return &App{}
 }
 
-// Compile starts the compilation process for a project and returns status, logs, and sources
-func (a *App) Compile(projectName string, workspace string, force bool, logOffset int) (compiler.Status, []compiler.Log, []string, error) {
-	return a.compiler.Compile(projectName, workspace, force, logOffset)
-}
-
-// CompileRPC handles compile requests in protobuf-compatible format
-func (a *App) CompileRPC(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
-	status, logs, sources, err := a.compiler.Compile(req.ProjectName, req.Workspace, req.Force, int(req.LogOffset))
+func (a *App) Twirp(method string, req []byte) ([]byte, error) {
+	getConfigurationResponse := api.LoadGetConfigurationResponse("./kaja.json")
+	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
+	
+	url := "/twirp/Api/" + method
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
 	if err != nil {
 		return nil, err
 	}
-
-	return &CompileResponse{
-		Status:  status,
-		Logs:    logs,
-		Sources: sources,
-	}, nil
-}
-
-// GetConfiguration returns the desktop app configuration
-func (a *App) GetConfiguration(req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
-	// For desktop app, provide a default configuration
-	// In a real implementation, this might read from a config file
-	config := &Configuration{
-		PathPrefix: "",
-		Projects: []*ConfigurationProject{
-			{
-				Name:      "demo",
-				Protocol:  0, // Twirp
-				URL:       "http://localhost:41521",
-				Workspace: "../workspace",
-			},
-		},
-		AI: &ConfigurationAI{
-			BaseURL: "",
-			APIKey:  "",
-		},
-	}
-
-	return &GetConfigurationResponse{
-		Configuration: config,
-		Logs:          []compiler.Log{},
-	}, nil
-}
-
-// HandleTwirpRequest handles generic Twirp requests by method name
-func (a *App) HandleTwirpRequest(ctx context.Context, method string, body string) (string, error) {
-	switch method {
-	case "Compile":
-		var req CompileRequest
-		if err := json.Unmarshal([]byte(body), &req); err != nil {
-			return "", fmt.Errorf("failed to unmarshal compile request: %w", err)
-		}
-		
-		resp, err := a.CompileRPC(ctx, &req)
-		if err != nil {
-			return "", err
-		}
-		
-		responseBytes, err := json.Marshal(resp)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal compile response: %w", err)
-		}
-		
-		return string(responseBytes), nil
-		
-	case "GetConfiguration":
-		var req GetConfigurationRequest
-		if err := json.Unmarshal([]byte(body), &req); err != nil {
-			return "", fmt.Errorf("failed to unmarshal configuration request: %w", err)
-		}
-		
-		resp, err := a.GetConfiguration(&req)
-		if err != nil {
-			return "", err
-		}
-		
-		responseBytes, err := json.Marshal(resp)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal configuration response: %w", err)
-		}
-		
-		return string(responseBytes), nil
-		
-	default:
-		return "", fmt.Errorf("unknown method: %s", method)
-	}
+	
+	httpReq.Header.Set("Content-Type", "application/json")
+	
+	recorder := httptest.NewRecorder()
+	twirpHandler.ServeHTTP(recorder, httpReq)
+	
+	return recorder.Body.Bytes(), nil
 }
 
 func main() {

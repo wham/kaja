@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/wailsapp/wails/v2 v2.10.1
-	github.com/wham/kaja/v2/pkg v0.0.0
+	github.com/wham/kaja/v2 v0.0.0
 )
 
 require (
@@ -35,5 +35,3 @@ require (
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 )
-
-replace github.com/wham/kaja/v2/pkg => ../pkg
