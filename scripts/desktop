@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+# Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
+if ! command -v wails &> /dev/null
+then
+    echo "Wails is not installed."
+    read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing Wails using Homebrew..."
+        brew install wails
+    else
+        echo "Wails installation skipped. Exiting script."
+        exit 1
+    fi
+fi
+
+cd "$(dirname "$0")/.."
+
+echo "Starting Kaja desktop application in development mode..."
+cd desktop
+
+# Run in development mode with hot reload
+wails dev
