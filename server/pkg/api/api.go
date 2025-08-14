@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	fmt "fmt"
+	"log/slog"
 	"sync"
 )
 
@@ -52,6 +53,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+	slog.Info("Getting configuration")
 	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
 	config := &Configuration{
 		PathPrefix: s.getConfigurationResponse.Configuration.PathPrefix,

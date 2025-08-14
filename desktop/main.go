@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 
@@ -27,20 +28,23 @@ func NewApp() *App {
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
-	getConfigurationResponse := api.LoadGetConfigurationResponse("./kaja.json")
+	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
 	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
-	
+
 	url := "/twirp/Api/" + method
 	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
 	if err != nil {
+		slog.Error("Failed twirp", "error", err)
 		return nil, err
 	}
-	
-	httpReq.Header.Set("Content-Type", "application/json")
-	
+
+	slog.Info("Twirp OK")
+
+	httpReq.Header.Set("Content-Type", "application/protobuf")
+
 	recorder := httptest.NewRecorder()
 	twirpHandler.ServeHTTP(recorder, httpReq)
-	
+
 	return recorder.Body.Bytes(), nil
 }
 

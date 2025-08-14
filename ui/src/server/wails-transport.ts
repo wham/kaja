@@ -30,7 +30,7 @@ export class WailsTransport implements RpcTransport {
 
   unary<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): UnaryCall<I, O> {
     const response = this.callWailsTwirp(method, input, options);
-    return new UnaryCallImpl(method, options.meta || {}, input, response.response, response.status, response.trailers);
+    return new UnaryCallImpl(method, options.meta || {}, input, response.trailers, response.response, response.status, response.trailers);
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
@@ -84,7 +84,7 @@ export class WailsTransport implements RpcTransport {
       // Convert response back to bytes and deserialize
       const responseBytes = new Uint8Array(responseArray);
       const output = method.O.fromBinary(responseBytes);
-
+      console.log("Wails Twirp output:", output);
       return output;
     } catch (error) {
       console.error("WailsTransport error:", error);
