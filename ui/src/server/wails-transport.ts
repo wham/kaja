@@ -68,6 +68,7 @@ export class WailsTransport implements RpcTransport {
   private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<O> {
     try {
       console.log("Executing Wails call for method:", method.name);
+      console.log("Input object:", input);
 
       // Serialize input using protobuf-ts
       const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
