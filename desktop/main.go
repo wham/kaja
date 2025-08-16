@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -28,26 +29,41 @@ func NewApp() *App {
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
+	slog.Info("Twirp called", "method", method, "req_length", len(req))
+	
+	if req == nil {
+		slog.Error("Received nil request")
+		return nil, fmt.Errorf("nil request")
+	}
+	
+	// Empty requests are valid for methods with no parameters (like GetConfiguration)
+	if len(req) == 0 {
+		slog.Info("Received empty request - this is valid for methods with no parameters")
+	} else {
+		slog.Info("Request details", "req_first_10_bytes", req[:min(len(req), 10)])
+	}
+
 	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
 	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
 
 	url := "/twirp/Api/" + method
 	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
 	if err != nil {
-		slog.Error("Failed twirp", "error", err)
+		slog.Error("Failed to create HTTP request", "error", err)
 		return nil, err
 	}
 
-	slog.Info("Twirp OK")
+	slog.Info("Twirp request created successfully")
 
 	httpReq.Header.Set("Content-Type", "application/protobuf")
 
 	recorder := httptest.NewRecorder()
 	twirpHandler.ServeHTTP(recorder, httpReq)
 
-	//slog.Info("Twirp body", "body", recorder.Body.String())
+	response := recorder.Body.Bytes()
+	slog.Info("Twirp response", "status", recorder.Code, "response_length", len(response))
 
-	return recorder.Body.Bytes(), nil
+	return response, nil
 }
 
 func main() {

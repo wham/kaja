@@ -72,13 +72,33 @@ export class WailsTransport implements RpcTransport {
 
       // Serialize input using protobuf-ts
       const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
+      console.log("Serialized inputBytes length:", inputBytes.length);
+      console.log("Serialized inputBytes:", inputBytes);
+
+      // Empty serialization is valid for methods with no parameters
+      if (inputBytes.length === 0) {
+        console.log("Empty serialization - this is valid for methods with no parameters like GetConfiguration");
+      }
+
+      // Convert to array and ensure all values are valid bytes (0-255)
       const inputArray = Array.from(inputBytes);
+      console.log("Input array length:", inputArray.length);
+      console.log("Input array:", inputArray);
+
+      // Validate that all values are proper bytes (only if there are bytes)
+      if (inputArray.length > 0) {
+        const invalidBytes = inputArray.filter((b) => b < 0 || b > 255 || !Number.isInteger(b));
+        if (invalidBytes.length > 0) {
+          throw new Error(`Invalid byte values found: ${invalidBytes}`);
+        }
+      }
 
       console.log("Calling Wails Twirp with method:", method.name);
 
       // Call Wails function
       const responseArray = await Twirp(method.name, inputArray);
 
+      console.log("Wails Twirp result length:", responseArray?.length);
       console.log("Wails Twirp result:", responseArray);
 
       // The response comes back as a base64-encoded string, so decode it
