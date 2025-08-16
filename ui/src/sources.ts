@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { LoadSourceFile as GoLoadSourceFile, LoadStub as GoLoadStub } from "./wailsjs/go/main/App";
 
 export interface Source {
   path: string;
@@ -15,6 +16,32 @@ export interface Stub {
   [key: string]: any;
 }
 
+function isWailsEnvironment(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as any).runtime !== "undefined" &&
+    typeof (window as any).go !== "undefined" &&
+    typeof (window as any).go.main !== "undefined" &&
+    typeof (window as any).go.main.App !== "undefined"
+  );
+}
+
+async function loadSourceContent(path: string): Promise<string> {
+  if (isWailsEnvironment()) {
+    try {
+      // In desktop mode, use the Go backend to load individual source files
+      const content = await GoLoadSourceFile(path);
+      return content;
+    } catch (error) {
+      console.warn(`Failed to load source file in desktop mode for path: ${path}`, error);
+      return "";
+    }
+  } else {
+    // Web mode - use fetch
+    return fetch("sources/" + path).then((response) => response.text());
+  }
+}
+
 export async function loadSources(paths: string[], stub: Stub, projectName: string): Promise<Sources> {
   if (paths.length === 0) {
     return [];
@@ -24,15 +51,17 @@ export async function loadSources(paths: string[], stub: Stub, projectName: stri
   let rawFiles: Record<string, () => Promise<string>> = {};
   paths.forEach((path) => {
     path = projectName + "/" + path;
-    rawFiles[path] = () => {
-      return fetch("sources/" + path).then((response) => {
-        return response.text();
-      });
-    };
+    rawFiles[path] = () => loadSourceContent(path);
   });
 
   for (const path in rawFiles) {
-    const file = ts.createSourceFile(path, await rawFiles[path](), ts.ScriptTarget.Latest);
+    const content = await rawFiles[path]();
+    if (!content) {
+      // Skip empty content (might happen in desktop mode)
+      continue;
+    }
+
+    const file = ts.createSourceFile(path, content, ts.ScriptTarget.Latest);
 
     const source: Source = {
       path,
@@ -100,6 +129,32 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
 }
 
 export async function loadStub(projectName: string): Promise<Stub> {
-  const path = "./stub/" + projectName + "/stub.js";
-  return import(path);
+  if (isWailsEnvironment()) {
+    try {
+      // In desktop mode, use the Go backend to load stub
+      const stubJs = await GoLoadStub(projectName);
+      console.log("stubJs", stubJs);
+
+      // Create a blob URL and dynamically import the stub
+      const blob = new Blob([stubJs], { type: "application/javascript" });
+      const url = URL.createObjectURL(blob);
+
+      try {
+        const module = await import(url);
+        URL.revokeObjectURL(url);
+        console.log("module", module);
+        return module;
+      } catch (importError) {
+        URL.revokeObjectURL(url);
+        console.warn(`Failed to import stub for project ${projectName}:`, importError);
+        return {};
+      }
+    } catch (error) {
+      console.warn(`Failed to load stub from Go backend for project ${projectName}:`, error);
+      return {};
+    }
+  } else {
+    const path = "./stub/" + projectName + "/stub.js";
+    return import(path);
+  }
 }

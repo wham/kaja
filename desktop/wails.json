@@ -1,0 +1,10 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "desktop",
+  "outputfilename": "desktop",
+  "wailsjsdir": "../ui/src",
+  "author": {
+    "name": "Tomas Vesely",
+    "email": "448809+wham@users.noreply.github.com"
+  }
+}
