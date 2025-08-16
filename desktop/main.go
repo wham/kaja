@@ -95,7 +95,7 @@ func (a *App) LoadStub(projectName string) (string, error) {
 		return "", fmt.Errorf("failed to read sources directory: %w", err)
 	}
 
-	slog.Info("Generated stub content", "project", projectName, "content", stubContent.String())
+	//slog.Info("Generated stub content", "project", projectName, "content", stubContent.String())
 
 	// Use esbuild to bundle the stub, similar to handleStubJs
 	result := api.Build(api.BuildOptions{
