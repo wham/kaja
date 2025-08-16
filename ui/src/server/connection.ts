@@ -47,8 +47,8 @@ export function getApiClient(): ApiClient {
   console.log("getApiClient() called - Creating API client for environment:", isWails ? "Wails" : "Web");
 
   if (isWails) {
-    console.log("Using WailsTransport");
-    return new ApiClient(new WailsTransport());
+    console.log("Using WailsTransport in API mode");
+    return new ApiClient(new WailsTransport({ mode: "api" }));
   } else {
     console.log("Using TwirpFetchTransport with baseUrl:", getBaseUrlForApi());
     return new ApiClient(

@@ -10,13 +10,32 @@ import type {
   UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
 import { UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
-import { Twirp } from "../wailsjs/go/main/App";
+import { Twirp, Target } from "../wailsjs/go/main/App";
+
+export type WailsTransportMode = "api" | "target";
+
+export interface WailsTransportOptions {
+  mode: WailsTransportMode;
+  targetUrl?: string; // Required for "target" mode
+}
 
 /**
- * Wails transport that implements RpcTransport directly for Twirp protocol
- * using Wails bindings instead of HTTP
+ * Unified Wails transport that implements RpcTransport for both internal API calls 
+ * and external target calls using Wails bindings instead of HTTP
  */
 export class WailsTransport implements RpcTransport {
+  private mode: WailsTransportMode;
+  private targetUrl?: string;
+
+  constructor(options: WailsTransportOptions) {
+    this.mode = options.mode;
+    this.targetUrl = options.targetUrl;
+
+    if (this.mode === "target" && !this.targetUrl) {
+      throw new Error("targetUrl is required when mode is 'target'");
+    }
+  }
+
   mergeOptions(options?: Partial<RpcOptions>): RpcOptions {
     return {
       timeout: options?.timeout,
@@ -28,31 +47,33 @@ export class WailsTransport implements RpcTransport {
   }
 
   unary<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): UnaryCall<I, O> {
-    const response = this.callWailsTwirp(method, input, options);
+    const response = this.callWails(method, input, options);
     return new UnaryCallImpl(method, options.meta || {}, input, response.trailers, response.response, response.status, response.trailers);
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
-    throw new Error("Server streaming not supported in Wails transport");
+    throw new Error(`Server streaming not supported in Wails ${this.mode} transport`);
   }
 
   clientStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, options: RpcOptions): ClientStreamingCall<I, O> {
-    throw new Error("Client streaming not supported in Wails transport");
+    throw new Error(`Client streaming not supported in Wails ${this.mode} transport`);
   }
 
   duplex<I extends object, O extends object>(method: MethodInfo<I, O>, options: RpcOptions): DuplexStreamingCall<I, O> {
-    throw new Error("Duplex streaming not supported in Wails transport");
+    throw new Error(`Duplex streaming not supported in Wails ${this.mode} transport`);
   }
 
   /**
-   * Call Wails Twirp function and handle the response
+   * Call appropriate Wails function based on mode and handle the response
    */
-  private callWailsTwirp<I extends object, O extends object>(
+  private callWails<I extends object, O extends object>(
     method: MethodInfo<I, O>,
     input: I,
     options: RpcOptions,
   ): { response: Promise<O>; status: Promise<RpcStatus>; trailers: Promise<RpcMetadata> } {
-    console.log("WailsTransport calling method:", method.name);
+    console.log(`Wails${this.mode === "target" ? "Target" : ""}Transport calling method:`, 
+                this.mode === "target" ? `${method.service.typeName}/${method.name}` : method.name, 
+                this.mode === "target" ? `target: ${this.targetUrl}` : "");
 
     const responsePromise = this.executeCall(method, input);
     const statusPromise = responsePromise.then(() => ({ code: "OK", detail: "" }));
@@ -67,23 +88,24 @@ export class WailsTransport implements RpcTransport {
 
   private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<O> {
     try {
-      console.log("Executing Wails call for method:", method.name);
+      console.log(`Executing Wails ${this.mode} call for method:`, method.name);
+      if (this.mode === "target") {
+        console.log("Target URL:", this.targetUrl);
+      }
       console.log("Input object:", input);
 
       // Serialize input using protobuf-ts
       const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
       console.log("Serialized inputBytes length:", inputBytes.length);
-      console.log("Serialized inputBytes:", inputBytes);
 
       // Empty serialization is valid for methods with no parameters
-      if (inputBytes.length === 0) {
+      if (inputBytes.length === 0 && this.mode === "api") {
         console.log("Empty serialization - this is valid for methods with no parameters like GetConfiguration");
       }
 
       // Convert to array and ensure all values are valid bytes (0-255)
       const inputArray = Array.from(inputBytes);
       console.log("Input array length:", inputArray.length);
-      console.log("Input array:", inputArray);
 
       // Validate that all values are proper bytes (only if there are bytes)
       if (inputArray.length > 0) {
@@ -93,22 +115,30 @@ export class WailsTransport implements RpcTransport {
         }
       }
 
-      console.log("Calling Wails Twirp with method:", method.name);
+      let responseArray: number[];
 
-      // Call Wails function
-      const responseArray = await Twirp(method.name, inputArray);
+      if (this.mode === "api") {
+        console.log("Calling Wails Twirp with method:", method.name);
+        responseArray = await Twirp(method.name, inputArray);
+      } else {
+        // mode === "target"
+        const fullMethodPath = `${method.service.typeName}/${method.name}`;
+        console.log("Calling Wails Target with method:", fullMethodPath);
+        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray);
+      }
 
-      console.log("Wails Twirp result length:", responseArray?.length);
-      console.log("Wails Twirp result:", responseArray);
+      console.log(`Wails ${this.mode} result length:`, responseArray?.length);
+      console.log(`Wails ${this.mode} result:`, responseArray);
 
-      // The response comes back as a base64-encoded string, so decode it
+      // Both API and Target modes use the same response handling (base64 decoding)
       const responseBytes = Uint8Array.from(atob(responseArray as unknown as string), (c) => c.charCodeAt(0));
+
       const output = method.O.fromBinary(responseBytes);
-      console.log("Wails Twirp output:", output);
+      console.log(`Wails ${this.mode} output:`, output);
       return output;
     } catch (error) {
-      console.error("WailsTransport error:", error);
-      throw new Error(`Wails transport error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error(`Wails ${this.mode} transport error:`, error);
+      throw new Error(`Wails ${this.mode} transport error: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 }

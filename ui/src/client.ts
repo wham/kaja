@@ -5,7 +5,7 @@ import { MethodCall } from "./kaja";
 import { Client, Service } from "./project";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
-import { WailsTargetTransport } from "./server/wails-target-transport";
+import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 
 function isWailsEnvironment(): boolean {
@@ -23,15 +23,15 @@ export function createClient(service: Service, stub: Stub, configuration: Config
 
   let transport;
   if (isWailsEnvironment()) {
-    console.log("Creating client in Wails environment - using WailsTargetTransport");
+    console.log("Creating client in Wails environment - using WailsTransport in target mode");
     
     if (configuration.protocol == RpcProtocol.GRPC) {
       console.warn("gRPC protocol not fully supported in Wails environment");
       // Still create the transport but calls will fail with a meaningful error
     }
     
-    // Use Wails target transport for external API calls
-    transport = new WailsTargetTransport(configuration.url);
+    // Use Wails transport in target mode for external API calls
+    transport = new WailsTransport({ mode: "target", targetUrl: configuration.url });
   } else {
     transport =
       configuration.protocol == RpcProtocol.GRPC
