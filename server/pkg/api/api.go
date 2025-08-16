@@ -27,6 +27,11 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	compiler.mu.Lock()
 	defer compiler.mu.Unlock()
 
+	// Ensure logger is always initialized
+	if compiler.logger == nil {
+		compiler.logger = NewLogger()
+	}
+
 	if compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
 		compiler.status = CompileStatus_STATUS_RUNNING
 		compiler.logger = NewLogger()
