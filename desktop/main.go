@@ -45,6 +45,8 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	recorder := httptest.NewRecorder()
 	twirpHandler.ServeHTTP(recorder, httpReq)
 
+	//slog.Info("Twirp body", "body", recorder.Body.String())
+
 	return recorder.Body.Bytes(), nil
 }
 

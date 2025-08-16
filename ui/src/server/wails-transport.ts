@@ -1,16 +1,15 @@
 import type {
-  RpcTransport,
-  MethodInfo,
-  RpcOptions,
-  UnaryCall,
-  ServerStreamingCall,
   ClientStreamingCall,
   DuplexStreamingCall,
-  RpcError,
+  MethodInfo,
   RpcMetadata,
+  RpcOptions,
   RpcStatus,
+  RpcTransport,
+  ServerStreamingCall,
+  UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
-import { RpcOutputStreamController, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
+import { UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { Twirp } from "../wailsjs/go/main/App";
 
 /**
@@ -81,8 +80,8 @@ export class WailsTransport implements RpcTransport {
 
       console.log("Wails Twirp result:", responseArray);
 
-      // Convert response back to bytes and deserialize
-      const responseBytes = new Uint8Array(responseArray);
+      // The response comes back as a base64-encoded string, so decode it
+      const responseBytes = Uint8Array.from(atob(responseArray as unknown as string), (c) => c.charCodeAt(0));
       const output = method.O.fromBinary(responseBytes);
       console.log("Wails Twirp output:", output);
       return output;
