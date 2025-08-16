@@ -12,12 +12,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/evanw/esbuild/pkg/api"
+	esbuild "github.com/evanw/esbuild/pkg/api"
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
-	kajaapi "github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/api"
 )
 
 //go:embed all:frontend/dist
@@ -25,11 +26,12 @@ var assets embed.FS
 
 // App struct
 type App struct {
+	twirpHandler api.TwirpServer
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(twirpHandler api.TwirpServer) *App {
+	return &App{twirpHandler: twirpHandler}
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
@@ -47,9 +49,6 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 		slog.Info("Request details", "req_first_10_bytes", req[:min(len(req), 10)])
 	}
 
-	getConfigurationResponse := kajaapi.LoadGetConfigurationResponse("../workspace/kaja.json")
-	twirpHandler := kajaapi.NewApiServer(kajaapi.NewApiService(getConfigurationResponse))
-
 	url := "/twirp/Api/" + method
 	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
 	if err != nil {
@@ -62,7 +61,7 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	httpReq.Header.Set("Content-Type", "application/protobuf")
 
 	recorder := httptest.NewRecorder()
-	twirpHandler.ServeHTTP(recorder, httpReq)
+	a.twirpHandler.ServeHTTP(recorder, httpReq)
 
 	response := recorder.Body.Bytes()
 	slog.Info("Twirp response", "status", recorder.Code, "response_length", len(response))
@@ -98,15 +97,15 @@ func (a *App) LoadStub(projectName string) (string, error) {
 	//slog.Info("Generated stub content", "project", projectName, "content", stubContent.String())
 
 	// Use esbuild to bundle the stub, similar to handleStubJs
-	result := api.Build(api.BuildOptions{
-		Stdin: &api.StdinOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
+		Stdin: &esbuild.StdinOptions{
 			Contents:   stubContent.String(),
 			ResolveDir: sourcesDir,
 			Sourcefile: "stub.ts",
 		},
 		Bundle:   true,
-		Format:   api.FormatESModule,
-		Packages: api.PackagesExternal,
+		Format:   esbuild.FormatESModule,
+		Packages: esbuild.PackagesExternal,
 	})
 
 	if len(result.Errors) > 0 {
@@ -126,8 +125,11 @@ func (a *App) LoadStub(projectName string) (string, error) {
 }
 
 func main() {
+	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
+	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
+	
 	// Create application with options
-	app := NewApp()
+	app := NewApp(twirpHandler)
 
 	err := wails.Run(&options.App{
 		Title:  "Kaja Compiler",
@@ -140,6 +142,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
+		LogLevel: logger.ERROR,
 	})
 
 	if err != nil {
