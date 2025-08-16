@@ -69,6 +69,69 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	return response, nil
 }
 
+// Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
+func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
+	slog.Info("Target called", "target", target, "method", method, "req_length", len(req))
+	
+	if req == nil {
+		slog.Error("Received nil request")
+		return nil, fmt.Errorf("nil request")
+	}
+	
+	// Check if this is a gRPC target (starts with dns:)
+	if strings.HasPrefix(target, "dns:") {
+		// For gRPC targets, we need to return an error since gRPC-web is not supported in desktop mode
+		slog.Error("gRPC endpoints not supported in desktop mode", "target", target, "method", method)
+		return nil, fmt.Errorf("gRPC endpoints not supported in desktop mode")
+	}
+	
+	// Handle HTTP/HTTPS Twirp endpoints
+	var url string
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		// Already a valid HTTP URL
+		url = target + "/twirp/" + method
+	} else {
+		// Assume it's a host:port format, add http://
+		url = "http://" + target + "/twirp/" + method
+	}
+	
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
+	if err != nil {
+		slog.Error("Failed to create HTTP request", "target", target, "method", method, "error", err)
+		return nil, err
+	}
+
+	// Set appropriate headers for Twirp
+	httpReq.Header.Set("Content-Type", "application/protobuf")
+	
+	// Create HTTP client and make the request
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		slog.Error("Failed to make HTTP request", "target", target, "method", method, "error", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	var responseBuffer bytes.Buffer
+	_, err = responseBuffer.ReadFrom(resp.Body)
+	if err != nil {
+		slog.Error("Failed to read response body", "target", target, "method", method, "error", err)
+		return nil, err
+	}
+
+	response := responseBuffer.Bytes()
+	slog.Info("Target response", "target", target, "method", method, "status", resp.StatusCode, "response_length", len(response))
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("Target request failed", "target", target, "method", method, "status", resp.StatusCode)
+		return nil, fmt.Errorf("target request failed with status %d", resp.StatusCode)
+	}
+
+	return response, nil
+}
+
 // LoadStub loads stub JavaScript content for a given project using the same approach as handleStubJs
 func (a *App) LoadStub(projectName string) (string, error) {
 	slog.Info("Loading stub for project", "project", projectName)

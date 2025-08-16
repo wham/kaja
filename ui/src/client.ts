@@ -5,6 +5,7 @@ import { MethodCall } from "./kaja";
 import { Client, Service } from "./project";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
+import { WailsTargetTransport } from "./server/wails-target-transport";
 import { Stub } from "./sources";
 
 function isWailsEnvironment(): boolean {
@@ -20,15 +21,17 @@ function isWailsEnvironment(): boolean {
 export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
   const client: Client = { methods: {} };
 
-  // In Wails environment, we might not have access to the external APIs in the same way
-  // For now, we'll create the transport but calls might fail
   let transport;
   if (isWailsEnvironment()) {
-    console.warn("Creating client in Wails environment - external API calls may not work");
-    // Use a basic transport that will likely fail for external calls
-    transport = new TwirpFetchTransport({
-      baseUrl: configuration.url, // Use the configured URL directly
-    });
+    console.log("Creating client in Wails environment - using WailsTargetTransport");
+    
+    if (configuration.protocol == RpcProtocol.GRPC) {
+      console.warn("gRPC protocol not fully supported in Wails environment");
+      // Still create the transport but calls will fail with a meaningful error
+    }
+    
+    // Use Wails target transport for external API calls
+    transport = new WailsTargetTransport(configuration.url);
   } else {
     transport =
       configuration.protocol == RpcProtocol.GRPC
@@ -44,7 +47,7 @@ export function createClient(service: Service, stub: Stub, configuration: Config
   const options: RpcOptions = {
     interceptors: [
       {
-        // adds auth header to unary requests
+        // adds X-Target header for web environment (not needed in Wails)
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};

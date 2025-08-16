@@ -5,4 +5,6 @@ export function LoadSourceFile(arg1:string):Promise<string>;
 
 export function LoadStub(arg1:string):Promise<string>;
 
+export function Target(arg1:string,arg2:string,arg3:Array<number>):Promise<Array<number>>;
+
 export function Twirp(arg1:string,arg2:Array<number>):Promise<Array<number>>;

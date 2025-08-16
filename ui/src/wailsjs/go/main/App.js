@@ -10,6 +10,10 @@ export function LoadStub(arg1) {
   return window['go']['main']['App']['LoadStub'](arg1);
 }
 
+export function Target(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Target'](arg1, arg2, arg3);
+}
+
 export function Twirp(arg1, arg2) {
   return window['go']['main']['App']['Twirp'](arg1, arg2);
 }
