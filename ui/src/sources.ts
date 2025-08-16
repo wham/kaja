@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { LoadStub as GoLoadStub } from "./wailsjs/go/main/App";
 
 export interface Source {
   path: string;
@@ -126,11 +127,29 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
 
 export async function loadStub(projectName: string): Promise<Stub> {
   if (isWailsEnvironment()) {
-    // In desktop mode, we might need to load stubs differently
-    // For now, return an empty stub - this may need to be implemented
-    // depending on how stubs are made available in the desktop build
-    console.warn(`Loading stub in desktop mode not yet implemented for project: ${projectName}`);
-    return {};
+    try {
+      // In desktop mode, use the Go backend to load stub
+      const stubJs = await GoLoadStub(projectName);
+      console.log("stubJs", stubJs);
+
+      // Create a blob URL and dynamically import the stub
+      const blob = new Blob([stubJs], { type: "application/javascript" });
+      const url = URL.createObjectURL(blob);
+
+      try {
+        const module = await import(url);
+        URL.revokeObjectURL(url);
+        console.log("module", module);
+        return module;
+      } catch (importError) {
+        URL.revokeObjectURL(url);
+        console.warn(`Failed to import stub for project ${projectName}:`, importError);
+        return {};
+      }
+    } catch (error) {
+      console.warn(`Failed to load stub from Go backend for project ${projectName}:`, error);
+      return {};
+    }
   } else {
     const path = "./stub/" + projectName + "/stub.js";
     return import(path);

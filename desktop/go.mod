@@ -3,6 +3,7 @@ module github.com/wham/kaja/desktop
 go 1.23
 
 require (
+	github.com/evanw/esbuild v0.23.1
 	github.com/wailsapp/wails/v2 v2.10.1
 	github.com/wham/kaja/v2 v2.0.0-20240101000000-000000000000
 )
