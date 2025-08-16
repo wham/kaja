@@ -124,6 +124,32 @@ func (a *App) LoadStub(projectName string) (string, error) {
 	return output, nil
 }
 
+// LoadSourceFile loads the content of a specific source file
+func (a *App) LoadSourceFile(path string) (string, error) {
+	slog.Info("Loading source file", "path", path)
+	
+	// Construct the full path to the source file
+	sourcePath := filepath.Join("build", "sources", path)
+	
+	// Check if the file exists and is within the sources directory (security check)
+	cleanPath := filepath.Clean(sourcePath)
+	expectedPrefix := filepath.Clean("build/sources/")
+	if !strings.HasPrefix(cleanPath, expectedPrefix) {
+		slog.Warn("Attempted to access file outside sources directory", "path", path, "cleanPath", cleanPath)
+		return "", fmt.Errorf("invalid path: %s", path)
+	}
+	
+	// Read the file content
+	content, err := os.ReadFile(cleanPath)
+	if err != nil {
+		slog.Warn("Failed to read source file", "path", cleanPath, "error", err)
+		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+	
+	slog.Info("Source file loaded successfully", "path", path, "content_length", len(content))
+	return string(content), nil
+}
+
 func main() {
 	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
 	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))

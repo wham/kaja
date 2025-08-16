@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { LoadStub as GoLoadStub } from "./wailsjs/go/main/App";
+import { LoadSourceFile as GoLoadSourceFile, LoadStub as GoLoadStub } from "./wailsjs/go/main/App";
 
 export interface Source {
   path: string;
@@ -28,11 +28,14 @@ function isWailsEnvironment(): boolean {
 
 async function loadSourceContent(path: string): Promise<string> {
   if (isWailsEnvironment()) {
-    // In desktop mode, sources should be embedded in the build or we need a different loading mechanism
-    // For now, we'll return empty content - this may need to be implemented differently
-    // depending on how sources are made available in the desktop build
-    console.warn(`Loading sources in desktop mode not yet implemented for path: ${path}`);
-    return "";
+    try {
+      // In desktop mode, use the Go backend to load individual source files
+      const content = await GoLoadSourceFile(path);
+      return content;
+    } catch (error) {
+      console.warn(`Failed to load source file in desktop mode for path: ${path}`, error);
+      return "";
+    }
   } else {
     // Web mode - use fetch
     return fetch("sources/" + path).then((response) => response.text());
