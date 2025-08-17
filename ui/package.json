@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@primer/octicons-react": "^19.15.5",
-    "@primer/react": "37.15.0",
+    "@primer/react": "37.21.0",
     "@protobuf-ts/grpcweb-transport": "^2.11.1",
     "@protobuf-ts/plugin": "^2.11.1",
     "@protobuf-ts/runtime": "^2.11.1",
