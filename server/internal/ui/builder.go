@@ -152,7 +152,7 @@ func BuildStub(projectName string) ([]byte, error) {
 	})
 
 	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("failed to build stub for project %s: %w", projectName, result.Errors[0])
+		return nil, fmt.Errorf("failed to build stub for project %s: %s", projectName, result.Errors[0].Text)
 	}
 
 	first := result.OutputFiles[0]
