@@ -1,5 +1,5 @@
 import { PlayIcon } from "@primer/octicons-react";
-import { Box, Button, Tooltip } from "@primer/react";
+import { Button, Tooltip } from "@primer/react";
 import { useEffect } from "react";
 
 interface ControlBarProps {
@@ -22,16 +22,16 @@ export function ControlBar({ onRun }: ControlBarProps) {
   }, [onRun]);
 
   return (
-    <Box sx={{ position: "absolute", top: "20px", right: "40px", zIndex: 1 }}>
-      <Tooltip aria-label="Run (F5)" text="Run (F5)" direction="s">
+    <div style={{ position: "absolute", top: 20, right: 40, zIndex: 1 }}>
+      <Tooltip text="Run (F5)" direction="s">
         <Button
-          leadingVisual={() => <PlayIcon size={100} fill="#1a7f37" />}
+          leadingVisual={() => <PlayIcon size={100} fill="var(--fgColor-success)" />}
           onClick={onRun}
           variant="invisible"
           size="large"
-          sx={{
-            width: "100px",
-            height: "100px",
+          style={{
+            width: 100,
+            height: 100,
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
@@ -41,6 +41,6 @@ export function ControlBar({ onRun }: ControlBarProps) {
           }}
         />
       </Tooltip>
-    </Box>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Box, TreeView } from "@primer/react";
+import { TreeView } from "@primer/react";
 import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
@@ -14,41 +14,35 @@ export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
         return (
           <nav key={project.name} aria-label="Services and methods">
             {projects.length > 1 && (
-              <Box
-                sx={{
-                  fontSize: "12px",
+              <div
+                style={{
+                  fontSize: 12,
                   fontWeight: "bold",
                   padding: "2px 4px",
-                  color: "fg.muted",
+                  color: "var(--fgColor-muted)",
                 }}
               >
                 {project.name}
-              </Box>
+              </div>
             )}
             <TreeView aria-label="Services and methods">
-              {project &&
-                project.services.map((service, index) => {
-                  return (
-                    <TreeView.Item id={service.name} key={service.name} defaultExpanded={index === 0}>
-                      {service.name}
-                      <TreeView.SubTree>
-                        {service.methods.map((method) => {
-                          return (
-                            <TreeView.Item
-                              id={methodId(service, method)}
-                              key={methodId(service, method)}
-                              onSelect={() => onSelect(method)}
-                              current={currentMethod === method}
-                            >
-                              {method.name}
-                            </TreeView.Item>
-                          );
-                        })}
-                      </TreeView.SubTree>
-                    </TreeView.Item>
-                  );
-                })}
-              {!project && LoadingTreeViewItem()}
+              {project.services.map((service, index) => (
+                <TreeView.Item id={service.name} key={service.name} defaultExpanded={index === 0}>
+                  {service.name}
+                  <TreeView.SubTree>
+                    {service.methods.map((method) => (
+                      <TreeView.Item
+                        id={methodId(service, method)}
+                        key={methodId(service, method)}
+                        onSelect={() => onSelect(method)}
+                        current={currentMethod === method}
+                      >
+                        {method.name}
+                      </TreeView.Item>
+                    ))}
+                  </TreeView.SubTree>
+                </TreeView.Item>
+              ))}
             </TreeView>
           </nav>
         );

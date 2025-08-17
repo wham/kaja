@@ -1,4 +1,3 @@
-import { Box } from "@primer/react";
 import { useState } from "react";
 
 interface GutterProps {
@@ -13,11 +12,10 @@ export function Gutter({ orientation, onResize }: GutterProps) {
     setIsResizing(true);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-    const prevCursor = window.document.body.style.cursor;
-    window.document.body.style.cursor = "col-resize";
+    window.document.body.style.cursor = orientation === "vertical" ? "col-resize" : "row-resize";
 
     function onMouseMove(e: MouseEvent) {
-      onResize(orientation == "vertical" ? e.movementX : e.movementY);
+      onResize(orientation === "vertical" ? e.movementX : e.movementY);
       e.preventDefault();
     }
 
@@ -25,36 +23,41 @@ export function Gutter({ orientation, onResize }: GutterProps) {
       setIsResizing(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
-      window.document.body.style.cursor = prevCursor;
+      window.document.body.style.cursor = "";
     }
 
     event.preventDefault();
   };
 
   return (
-    <Box
-      sx={{
-        width: orientation == "vertical" ? 1 : "100%",
-        height: orientation == "vertical" ? "100%" : 1,
+    <div
+      style={{
+        width: orientation === "vertical" ? 1 : "100%",
+        height: orientation === "vertical" ? "100%" : 1,
         flexShrink: 0,
         position: "relative",
-        backgroundColor: "border.default",
+        backgroundColor: "var(--borderColor-default)",
       }}
     >
-      <Box
-        sx={{
-          width: orientation == "vertical" ? 3 : "100%",
-          height: orientation == "vertical" ? "100%" : 3,
+      <div
+        style={{
+          width: orientation === "vertical" ? 3 : "100%",
+          height: orientation === "vertical" ? "100%" : 3,
           position: "absolute",
-          left: orientation == "vertical" ? "-1px" : 0,
-          top: orientation == "vertical" ? 0 : "-1px",
-          cursor: "col-resize",
+          left: orientation === "vertical" ? "-1px" : 0,
+          top: orientation === "vertical" ? 0 : "-1px",
+          cursor: orientation === "vertical" ? "col-resize" : "row-resize",
           zIndex: 1,
-          backgroundColor: isResizing ? "accent.emphasis" : "transparent",
-          ":hover": { backgroundColor: "accent.emphasis" },
+          backgroundColor: isResizing ? "var(--bgColor-accent-emphasis)" : "transparent",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--bgColor-accent-emphasis)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = isResizing ? "var(--bgColor-accent-emphasis)" : "transparent";
         }}
         onMouseDown={onMouseDown}
       />
-    </Box>
+    </div>
   );
 }

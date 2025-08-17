@@ -1,4 +1,3 @@
-import { Box } from "@primer/react";
 import { editor } from "monaco-editor";
 import { useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -57,9 +56,9 @@ export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskP
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box
-        sx={{
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div
+        style={{
           height: editorHeight,
           position: "relative",
           flexShrink: 0,
@@ -67,9 +66,9 @@ export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskP
       >
         <ControlBar onRun={onRun} />
         <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
-      </Box>
+      </div>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />
-    </Box>
+    </div>
   );
 }
