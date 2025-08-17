@@ -26,9 +26,9 @@ let isCompletionsDisabled = false;
 function generateSystemPrompt(projects: Project[]): string {
   const servicesList = projects
     .map((project) => {
-      const projectSources = project.extraLibs
-        .map((service) => {
-          return `  ${service.filePath}:\n${service.content}`;
+      const projectSources = project.sources
+        .map((source) => {
+          return `  ${source.path}:\n${source.file.text}`;
         })
         .join("\n\n");
       return `${project.name}:\n${projectSources}`;
