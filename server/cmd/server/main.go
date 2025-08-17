@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -10,67 +9,13 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
-	esbuild "github.com/evanw/esbuild/pkg/api"
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
 )
-
-func handleStubJs(w http.ResponseWriter, r *http.Request) {
-	project := r.PathValue("project")
-	cwd, err := os.Getwd()
-	if err != nil {
-		http.Error(w, "Failed to get current working directory", http.StatusInternalServerError)
-		return
-	}
-	fmt.Printf("CWD: %s\n", cwd)
-
-	// Read all files in the sources directory
-	sourcesDir := "./build/sources/" + project
-	var stubContent strings.Builder
-	err = filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			stubContent.WriteString("export * from \"" + strings.Replace(path, "build/sources/"+project, "./", 1) + "\";\n")
-		}
-		return nil
-	})
-	if err != nil {
-		http.Error(w, "Failed to read sources directory: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Printf("Stub content: %s\n", stubContent.String())
-
-	result := esbuild.Build(esbuild.BuildOptions{
-		Stdin: &esbuild.StdinOptions{
-			Contents:   stubContent.String(),
-			ResolveDir: sourcesDir,
-			Sourcefile: "stub.ts",
-		},
-		Bundle:   true,
-		Format:   esbuild.FormatESModule,
-		Packages: esbuild.PackagesExternal,
-	})
-
-	if len(result.Errors) > 0 {
-		fmt.Printf("Build failed: %s\n", result.Errors[0].Text)
-		http.Error(w, "Build failed\n"+result.Errors[0].Text, http.StatusInternalServerError)
-		return
-	}
-
-	first := result.OutputFiles[0]
-
-	w.Header().Set("Content-Type", "application/javascript")
-	http.ServeContent(w, r, first.Path, time.Now(), bytes.NewReader(first.Contents))
-}
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -176,7 +121,6 @@ func main() {
 	}
 
 	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("build/sources"))))
-	mux.HandleFunc("GET /stub/{project}/stub.js", handleStubJs)
 	mux.HandleFunc("GET /status", handleStatus)
 
 	// Handle /target path
