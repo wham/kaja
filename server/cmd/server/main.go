@@ -120,7 +120,6 @@ func main() {
 		})
 	}
 
-	mux.Handle("GET /sources/", http.StripPrefix("/sources/", http.FileServer(http.Dir("build/sources"))))
 	mux.HandleFunc("GET /status", handleStatus)
 
 	// Handle /target path

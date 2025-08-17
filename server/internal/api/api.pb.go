@@ -243,7 +243,7 @@ type CompileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
 	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
-	Sources       []string               `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
+	Sources       []*Source              `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -292,7 +292,7 @@ func (x *CompileResponse) GetLogs() []*Log {
 	return nil
 }
 
-func (x *CompileResponse) GetSources() []string {
+func (x *CompileResponse) GetSources() []*Source {
 	if x != nil {
 		return x.Sources
 	}
@@ -351,6 +351,58 @@ func (x *Log) GetMessage() string {
 	return ""
 }
 
+type Source struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Source) Reset() {
+	*x = Source{}
+	mi := &file_proto_api_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Source) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Source) ProtoMessage() {}
+
+func (x *Source) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Source.ProtoReflect.Descriptor instead.
+func (*Source) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Source) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Source) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
 type GetConfigurationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -359,7 +411,7 @@ type GetConfigurationRequest struct {
 
 func (x *GetConfigurationRequest) Reset() {
 	*x = GetConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -371,7 +423,7 @@ func (x *GetConfigurationRequest) String() string {
 func (*GetConfigurationRequest) ProtoMessage() {}
 
 func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -384,7 +436,7 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
 }
 
 type GetConfigurationResponse struct {
@@ -397,7 +449,7 @@ type GetConfigurationResponse struct {
 
 func (x *GetConfigurationResponse) Reset() {
 	*x = GetConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -409,7 +461,7 @@ func (x *GetConfigurationResponse) String() string {
 func (*GetConfigurationResponse) ProtoMessage() {}
 
 func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,7 +474,7 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
@@ -454,7 +506,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -466,7 +518,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -479,7 +531,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -515,7 +567,7 @@ type ConfigurationProject struct {
 
 func (x *ConfigurationProject) Reset() {
 	*x = ConfigurationProject{}
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +579,7 @@ func (x *ConfigurationProject) String() string {
 func (*ConfigurationProject) ProtoMessage() {}
 
 func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +592,7 @@ func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationProject.ProtoReflect.Descriptor instead.
 func (*ConfigurationProject) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConfigurationProject) GetName() string {
@@ -581,7 +633,7 @@ type ConfigurationAI struct {
 
 func (x *ConfigurationAI) Reset() {
 	*x = ConfigurationAI{}
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -593,7 +645,7 @@ func (x *ConfigurationAI) String() string {
 func (*ConfigurationAI) ProtoMessage() {}
 
 func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -606,7 +658,7 @@ func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationAI.ProtoReflect.Descriptor instead.
 func (*ConfigurationAI) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{7}
+	return file_proto_api_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ConfigurationAI) GetBaseUrl() string {
@@ -632,7 +684,7 @@ type GetStubRequest struct {
 
 func (x *GetStubRequest) Reset() {
 	*x = GetStubRequest{}
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -644,7 +696,7 @@ func (x *GetStubRequest) String() string {
 func (*GetStubRequest) ProtoMessage() {}
 
 func (x *GetStubRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -657,7 +709,7 @@ func (x *GetStubRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStubRequest.ProtoReflect.Descriptor instead.
 func (*GetStubRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{8}
+	return file_proto_api_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetStubRequest) GetProjectName() string {
@@ -676,7 +728,7 @@ type GetStubResponse struct {
 
 func (x *GetStubResponse) Reset() {
 	*x = GetStubResponse{}
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +740,7 @@ func (x *GetStubResponse) String() string {
 func (*GetStubResponse) ProtoMessage() {}
 
 func (x *GetStubResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +753,7 @@ func (x *GetStubResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStubResponse.ProtoReflect.Descriptor instead.
 func (*GetStubResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{9}
+	return file_proto_api_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetStubResponse) GetStub() string {
@@ -721,14 +773,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"log_offset\x18\x01 \x01(\x05R\tlogOffset\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\x12!\n" +
 	"\fproject_name\x18\x03 \x01(\tR\vprojectName\x12\x1c\n" +
-	"\tworkspace\x18\x04 \x01(\tR\tworkspace\"m\n" +
+	"\tworkspace\x18\x04 \x01(\tR\tworkspace\"v\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x18\n" +
-	"\asources\x18\x03 \x03(\tR\asources\"@\n" +
+	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12!\n" +
+	"\asources\x18\x03 \x03(\v2\a.SourceR\asources\"@\n" +
 	"\x03Log\x12\x1f\n" +
 	"\x05level\x18\x01 \x01(\x0e2\t.LogLevelR\x05level\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x19\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"6\n" +
+	"\x06Source\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x19\n" +
 	"\x17GetConfigurationRequest\"j\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
@@ -783,7 +838,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_api_proto_goTypes = []any{
 	(CompileStatus)(0),               // 0: CompileStatus
 	(LogLevel)(0),                    // 1: LogLevel
@@ -791,34 +846,36 @@ var file_proto_api_proto_goTypes = []any{
 	(*CompileRequest)(nil),           // 3: CompileRequest
 	(*CompileResponse)(nil),          // 4: CompileResponse
 	(*Log)(nil),                      // 5: Log
-	(*GetConfigurationRequest)(nil),  // 6: GetConfigurationRequest
-	(*GetConfigurationResponse)(nil), // 7: GetConfigurationResponse
-	(*Configuration)(nil),            // 8: Configuration
-	(*ConfigurationProject)(nil),     // 9: ConfigurationProject
-	(*ConfigurationAI)(nil),          // 10: ConfigurationAI
-	(*GetStubRequest)(nil),           // 11: GetStubRequest
-	(*GetStubResponse)(nil),          // 12: GetStubResponse
+	(*Source)(nil),                   // 6: Source
+	(*GetConfigurationRequest)(nil),  // 7: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil), // 8: GetConfigurationResponse
+	(*Configuration)(nil),            // 9: Configuration
+	(*ConfigurationProject)(nil),     // 10: ConfigurationProject
+	(*ConfigurationAI)(nil),          // 11: ConfigurationAI
+	(*GetStubRequest)(nil),           // 12: GetStubRequest
+	(*GetStubResponse)(nil),          // 13: GetStubResponse
 }
 var file_proto_api_proto_depIdxs = []int32{
 	0,  // 0: CompileResponse.status:type_name -> CompileStatus
 	5,  // 1: CompileResponse.logs:type_name -> Log
-	1,  // 2: Log.level:type_name -> LogLevel
-	8,  // 3: GetConfigurationResponse.configuration:type_name -> Configuration
-	5,  // 4: GetConfigurationResponse.logs:type_name -> Log
-	9,  // 5: Configuration.projects:type_name -> ConfigurationProject
-	10, // 6: Configuration.ai:type_name -> ConfigurationAI
-	2,  // 7: ConfigurationProject.protocol:type_name -> RpcProtocol
-	3,  // 8: Api.Compile:input_type -> CompileRequest
-	6,  // 9: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	11, // 10: Api.GetStub:input_type -> GetStubRequest
-	4,  // 11: Api.Compile:output_type -> CompileResponse
-	7,  // 12: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	12, // 13: Api.GetStub:output_type -> GetStubResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	6,  // 2: CompileResponse.sources:type_name -> Source
+	1,  // 3: Log.level:type_name -> LogLevel
+	9,  // 4: GetConfigurationResponse.configuration:type_name -> Configuration
+	5,  // 5: GetConfigurationResponse.logs:type_name -> Log
+	10, // 6: Configuration.projects:type_name -> ConfigurationProject
+	11, // 7: Configuration.ai:type_name -> ConfigurationAI
+	2,  // 8: ConfigurationProject.protocol:type_name -> RpcProtocol
+	3,  // 9: Api.Compile:input_type -> CompileRequest
+	7,  // 10: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	12, // 11: Api.GetStub:input_type -> GetStubRequest
+	4,  // 12: Api.Compile:output_type -> CompileResponse
+	8,  // 13: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	13, // 14: Api.GetStub:output_type -> GetStubResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -832,7 +889,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

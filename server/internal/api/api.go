@@ -31,7 +31,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	if compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
 		compiler.status = CompileStatus_STATUS_RUNNING
 		compiler.logger = NewLogger()
-		compiler.sources = []string{}
+		compiler.sources = []*Source{}
 		compiler.logger.info("Starting compilation")
 		go compiler.start(req.ProjectName, req.Workspace, req.Force)
 	}
