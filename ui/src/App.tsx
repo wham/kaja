@@ -1,3 +1,4 @@
+import "@primer/primitives/dist/css/functional/themes/dark.css";
 import { BaseStyles, Box, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";

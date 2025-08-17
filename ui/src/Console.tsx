@@ -12,8 +12,8 @@ interface ConsoleProps {
 }
 
 export function Console({ items }: ConsoleProps) {
-  const containerRef = useRef<HTMLDivElement>();
-  const bottomRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
   const scrollToBottom = () => {
