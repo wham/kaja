@@ -10,11 +10,9 @@ import (
 )
 
 var StaticFS fs.FS
-var TemplatesFS fs.FS
 
 func init() {
 	StaticFS = os.DirFS(".")
-	TemplatesFS = os.DirFS(".")
 }
 
 func ReadUiBundle() *ui.UiBundle {
