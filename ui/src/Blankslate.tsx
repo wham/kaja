@@ -7,13 +7,14 @@ export function Blankslate() {
         alignItems: "center",
         justifyContent: "center",
         height: "100%",
-        background: "var(--bgColor-canvas-default)",
+        padding: 32,
       }}
     >
       <h1
         style={{
-          fontSize: 24,
-          marginTop: 16,
+          fontSize: "var(--text-title-size-large)",
+          margin: 0,
+          marginBottom: 8,
           color: "var(--fgColor-default)",
         }}
       >
@@ -21,8 +22,8 @@ export function Blankslate() {
       </h1>
       <p
         style={{
-          fontSize: 16,
-          marginTop: 8,
+          fontSize: "var(--text-body-size-large)",
+          margin: 0,
           color: "var(--fgColor-muted)",
         }}
       >

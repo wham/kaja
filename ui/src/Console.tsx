@@ -131,18 +131,18 @@ Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <Text sx={{ color: colorForLogLevel(LogLevel.LEVEL_INFO) }}>{methodId(methodCall.service, methodCall.method) + "("}</Text>
-        <Button inactive={!showingOutput} size="small" variant="invisible" onClick={onInputClick} sx={{ color: "#569cd6" }}>
+        <span style={{ color: "var(--fgColor-muted)" }}>{methodId(methodCall.service, methodCall.method) + "("}</span>
+        <Button inactive={!showingOutput} size="small" variant="invisible" onClick={onInputClick} style={{ color: "var(--fgColor-accent)" }}>
           input
         </Button>
-        <Text sx={{ color: colorForLogLevel(LogLevel.LEVEL_INFO) }}>):&nbsp;</Text>
+        <span style={{ color: "var(--fgColor-muted)" }}>):&nbsp;</span>
         {methodCall.output && (
-          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onOutputClick} sx={{ color: "#569cd6" }}>
+          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onOutputClick} style={{ color: "var(--fgColor-accent)" }}>
             output
           </Button>
         )}
         {methodCall.error && (
-          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onErrorClick} sx={{ color: colorForLogLevel(LogLevel.LEVEL_ERROR) }}>
+          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onErrorClick} style={{ color: "var(--fgColor-danger)" }}>
             error
           </Button>
         )}
@@ -156,12 +156,12 @@ Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
 function colorForLogLevel(level: LogLevel): string {
   switch (level) {
     case LogLevel.LEVEL_DEBUG:
-      return "#979797";
+      return "var(--fgColor-muted)";
     case LogLevel.LEVEL_INFO:
-      return "#dcdcd";
+      return "var(--fgColor-default)";
     case LogLevel.LEVEL_WARN:
-      return "#f9d948";
+      return "var(--fgColor-attention)";
     case LogLevel.LEVEL_ERROR:
-      return "#df5a53";
+      return "var(--fgColor-danger)";
   }
 }

@@ -12,11 +12,10 @@ export function Gutter({ orientation, onResize }: GutterProps) {
     setIsResizing(true);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-    const prevCursor = window.document.body.style.cursor;
-    window.document.body.style.cursor = "col-resize";
+    window.document.body.style.cursor = orientation === "vertical" ? "col-resize" : "row-resize";
 
     function onMouseMove(e: MouseEvent) {
-      onResize(orientation == "vertical" ? e.movementX : e.movementY);
+      onResize(orientation === "vertical" ? e.movementX : e.movementY);
       e.preventDefault();
     }
 
@@ -24,7 +23,7 @@ export function Gutter({ orientation, onResize }: GutterProps) {
       setIsResizing(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
-      window.document.body.style.cursor = prevCursor;
+      window.document.body.style.cursor = "";
     }
 
     event.preventDefault();
@@ -47,7 +46,7 @@ export function Gutter({ orientation, onResize }: GutterProps) {
           position: "absolute",
           left: orientation === "vertical" ? "-1px" : 0,
           top: orientation === "vertical" ? 0 : "-1px",
-          cursor: "col-resize",
+          cursor: orientation === "vertical" ? "col-resize" : "row-resize",
           zIndex: 1,
           backgroundColor: isResizing ? "var(--bgColor-accent-emphasis)" : "transparent",
         }}

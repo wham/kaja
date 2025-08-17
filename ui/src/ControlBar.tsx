@@ -23,15 +23,15 @@ export function ControlBar({ onRun }: ControlBarProps) {
 
   return (
     <div style={{ position: "absolute", top: 20, right: 40, zIndex: 1 }}>
-      <Tooltip aria-label="Run (F5)" text="Run (F5)" direction="s">
+      <Tooltip text="Run (F5)" direction="s">
         <Button
-          leadingVisual={() => <PlayIcon size={100} fill="#1a7f37" />}
+          leadingVisual={() => <PlayIcon size={100} fill="var(--fgColor-success)" />}
           onClick={onRun}
           variant="invisible"
           size="large"
-          sx={{
-            width: "100px",
-            height: "100px",
+          style={{
+            width: 100,
+            height: 100,
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",

@@ -28,13 +28,32 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           height: 2px;
         }
         .tabs-header::-webkit-scrollbar-track {
-          background-color: #1e1e1e;
+          background-color: var(--bgColor-neutral-muted);
         }
         .tabs-header:hover::-webkit-scrollbar-thumb {
-          background-color: rgba(255, 255, 255, 0.5);
+          background-color: var(--fgColor-muted);
         }
         .tabs-header::-webkit-scrollbar-thumb {
           background-color: transparent;
+        }
+        .tab-item {
+          display: flex;
+          align-items: center;
+          padding: 8px 10px 8px 16px;
+          border-top: 1px solid transparent;
+          border-bottom: 1px solid var(--borderColor-default);
+          border-right: 1px solid var(--borderColor-default);
+          font-size: 14px;
+          cursor: pointer;
+          background-color: transparent;
+        }
+        .tab-item:hover {
+          background-color: var(--bgColor-neutral-muted);
+        }
+        .tab-item.active {
+          border-top-color: var(--fgColor-accent);
+          background-color: var(--bgColor-neutral-muted);
+          border-bottom-color: transparent;
         }
       `}</style>
       <div
@@ -52,26 +71,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           return (
             <div
               key={tabId}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "8px 10px 8px 16px",
-                borderTop: "1px solid",
-                borderTopColor: isActive ? "var(--fgColor-accent)" : "transparent",
-                backgroundColor: isActive ? "#1e1e1e" : "transparent",
-                borderBottom: "1px solid",
-                borderBottomColor: isActive ? "transparent" : "var(--borderColor-default)",
-                borderRight: "1px solid",
-                borderRightColor: "var(--borderColor-default)",
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#1e1e1e";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = isActive ? "#1e1e1e" : "transparent";
-              }}
+              className={`tab-item ${isActive ? "active" : ""}`}
               onClick={() => onSelectTab(index)}
             >
               <span

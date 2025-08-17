@@ -100,7 +100,7 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <div style={{ display: "flex", width: "100vw", height: "100vh", background: "var(--bgColor-canvas-default)" }}>
+        <div style={{ display: "flex", width: "100vw", height: "100vh", background: "var(--bgColor-default)" }}>
           <div
             style={{
               width: sidebarWidth,
