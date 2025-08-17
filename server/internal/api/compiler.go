@@ -13,7 +13,7 @@ type Compiler struct {
 	mu      sync.Mutex
 	status  CompileStatus
 	logger  *Logger
-	sources []string
+	sources []*Source
 }
 
 func NewCompiler() *Compiler {
@@ -32,7 +32,7 @@ func (c *Compiler) start(projectName string, workspace string, force bool) error
 	sourcesDir := filepath.Join(cwd, "./build/sources/"+projectName)
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
-	var sources []string
+	var sources []*Source
 
 	if !force {
 		c.logger.debug("Not forcing recompilation, using cached sources")
@@ -45,7 +45,6 @@ func (c *Compiler) start(projectName string, workspace string, force bool) error
 		sources = c.getSources(sourcesDir)
 	}
 
-	c.logger.debug("Sources: " + strings.Join(sources, ", "))
 	c.sources = sources
 
 	c.status = CompileStatus_STATUS_READY
@@ -55,8 +54,8 @@ func (c *Compiler) start(projectName string, workspace string, force bool) error
 	return nil
 }
 
-func (c *Compiler) getSources(sourcesDir string) []string {
-	var sources []string
+func (c *Compiler) getSources(sourcesDir string) []*Source {
+	var sources []*Source
 
 	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -65,7 +64,15 @@ func (c *Compiler) getSources(sourcesDir string) []string {
 		if !info.IsDir() {
 			relativePath := strings.TrimPrefix(path, sourcesDir+"/")
 			if strings.HasSuffix(relativePath, ".ts") {
-				sources = append(sources, relativePath)
+				content, err := os.ReadFile(path)
+				if err != nil {
+					c.logger.error("Failed to read source file", err)
+					return err
+				}
+				sources = append(sources, &Source{
+					Path:    relativePath,
+					Content: string(content),
+				})
 			}
 		}
 		return nil

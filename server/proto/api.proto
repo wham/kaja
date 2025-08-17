@@ -18,7 +18,7 @@ message CompileRequest {
 message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
-  repeated string sources = 3;
+  repeated Source sources = 3;
 }
 
 enum CompileStatus {
@@ -43,6 +43,11 @@ enum LogLevel {
 enum RpcProtocol {
   RPC_PROTOCOL_TWIRP = 0;
   RPC_PROTOCOL_GRPC = 1;
+}
+
+message Source {
+  string path = 1;
+  string content = 2;
 }
 
 message GetConfigurationRequest {}

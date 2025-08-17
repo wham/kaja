@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { Source as ApiSource } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 export interface Source {
@@ -16,24 +17,17 @@ export interface Stub {
   [key: string]: any;
 }
 
-export async function loadSources(paths: string[], stub: Stub, projectName: string): Promise<Sources> {
-  if (paths.length === 0) {
+export async function loadSources(apiSources: ApiSource[], stub: Stub, projectName: string): Promise<Sources> {
+  if (apiSources.length === 0) {
     return [];
   }
 
   const sources: Source[] = [];
-  let rawFiles: Record<string, () => Promise<string>> = {};
-  paths.forEach((path) => {
-    path = projectName + "/" + path;
-    rawFiles[path] = () => {
-      return fetch("sources/" + path).then((response) => {
-        return response.text();
-      });
-    };
-  });
 
-  for (const path in rawFiles) {
-    const file = ts.createSourceFile(path, await rawFiles[path](), ts.ScriptTarget.Latest);
+  for (let i = 0; i < apiSources.length; i++) {
+    const apiSource = apiSources[i];
+    const path = projectName + "/" + apiSource.path;
+    const file = ts.createSourceFile(path, apiSource.content, ts.ScriptTarget.Latest);
 
     const source: Source = {
       path,
