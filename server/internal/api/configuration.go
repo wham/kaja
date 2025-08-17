@@ -71,6 +71,10 @@ func applyEnvironmentVariables(config *Configuration, logger *Logger) {
 		config.Projects = []*ConfigurationProject{defaultProject}
 	}
 
+	if config.Ai == nil {
+		config.Ai = &ConfigurationAI{}
+	}
+
 	if aiBaseUrl := os.Getenv("AI_BASE_URL"); aiBaseUrl != "" {
 		logger.info("AI_BASE_URL env variable applied")
 		config.Ai.BaseUrl = aiBaseUrl
