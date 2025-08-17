@@ -4,6 +4,8 @@ import (
 	"context"
 	fmt "fmt"
 	"sync"
+
+	"github.com/wham/kaja/v2/internal/ui"
 )
 
 type ApiService struct {
@@ -65,6 +67,22 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	return &GetConfigurationResponse{
 		Configuration: config,
 		Logs:          s.getConfigurationResponse.Logs,
+	}, nil
+}
+
+func (s *ApiService) GetStub(ctx context.Context, req *GetStubRequest) (*GetStubResponse, error) {
+	if req.ProjectName == "" {
+		return nil, fmt.Errorf("project name is required")
+	}
+
+	stub, err := ui.BuildStub(req.ProjectName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetStubResponse{
+		Stub: string(stub),
 	}, nil
 }
 
