@@ -45,9 +45,9 @@ export interface CompileResponse {
    */
   logs: Log[];
   /**
-   * @generated from protobuf field: repeated string sources = 3;
+   * @generated from protobuf field: repeated Source sources = 3;
    */
-  sources: string[];
+  sources: Source[];
 }
 /**
  * @generated from protobuf message Log
@@ -61,6 +61,19 @@ export interface Log {
    * @generated from protobuf field: string message = 2;
    */
   message: string;
+}
+/**
+ * @generated from protobuf message Source
+ */
+export interface Source {
+  /**
+   * @generated from protobuf field: string path = 1;
+   */
+  path: string;
+  /**
+   * @generated from protobuf field: string content = 2;
+   */
+  content: string;
 }
 /**
  * @generated from protobuf message GetConfigurationRequest
@@ -278,7 +291,7 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
     super("CompileResponse", [
       { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
       { no: 2, name: "logs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Log },
-      { no: 3, name: "sources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+      { no: 3, name: "sources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Source },
     ]);
   }
   create(value?: PartialMessage<CompileResponse>): CompileResponse {
@@ -301,8 +314,8 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         case /* repeated Log logs */ 2:
           message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
           break;
-        case /* repeated string sources */ 3:
-          message.sources.push(reader.string());
+        case /* repeated Source sources */ 3:
+          message.sources.push(Source.internalBinaryRead(reader, reader.uint32(), options));
           break;
         default:
           let u = options.readUnknownField;
@@ -318,8 +331,9 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
     if (message.status !== 0) writer.tag(1, WireType.Varint).int32(message.status);
     /* repeated Log logs = 2; */
     for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-    /* repeated string sources = 3; */
-    for (let i = 0; i < message.sources.length; i++) writer.tag(3, WireType.LengthDelimited).string(message.sources[i]);
+    /* repeated Source sources = 3; */
+    for (let i = 0; i < message.sources.length; i++)
+      Source.internalBinaryWrite(message.sources[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
     if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
     return writer;
@@ -379,6 +393,56 @@ class Log$Type extends MessageType<Log> {
  * @generated MessageType for protobuf message Log
  */
 export const Log = new Log$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Source$Type extends MessageType<Source> {
+  constructor() {
+    super("Source", [
+      { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+    ]);
+  }
+  create(value?: PartialMessage<Source>): Source {
+    const message = globalThis.Object.create(this.messagePrototype!);
+    message.path = "";
+    message.content = "";
+    if (value !== undefined) reflectionMergePartial<Source>(this, message, value);
+    return message;
+  }
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Source): Source {
+    let message = target ?? this.create(),
+      end = reader.pos + length;
+    while (reader.pos < end) {
+      let [fieldNo, wireType] = reader.tag();
+      switch (fieldNo) {
+        case /* string path */ 1:
+          message.path = reader.string();
+          break;
+        case /* string content */ 2:
+          message.content = reader.string();
+          break;
+        default:
+          let u = options.readUnknownField;
+          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+          let d = reader.skip(wireType);
+          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+      }
+    }
+    return message;
+  }
+  internalBinaryWrite(message: Source, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    /* string path = 1; */
+    if (message.path !== "") writer.tag(1, WireType.LengthDelimited).string(message.path);
+    /* string content = 2; */
+    if (message.content !== "") writer.tag(2, WireType.LengthDelimited).string(message.content);
+    let u = options.writeUnknownFields;
+    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+    return writer;
+  }
+}
+/**
+ * @generated MessageType for protobuf message Source
+ */
+export const Source = new Source$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationRequest$Type extends MessageType<GetConfigurationRequest> {
   constructor() {

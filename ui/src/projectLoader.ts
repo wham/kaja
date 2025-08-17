@@ -3,12 +3,12 @@ import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
 import { Clients, Method, Project, Service } from "./project";
-import { ConfigurationProject } from "./server/api";
+import { Source as ApiSource, ConfigurationProject } from "./server/api";
 import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
 
-export async function loadProject(paths: string[], configuration: ConfigurationProject): Promise<Project> {
+export async function loadProject(apiSources: ApiSource[], configuration: ConfigurationProject): Promise<Project> {
   const stub = await loadStub(configuration.name);
-  const sources = await loadSources(paths, stub, configuration.name);
+  const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];
   const services: Service[] = [];
 
