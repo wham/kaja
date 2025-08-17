@@ -1,5 +1,5 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
-import { BaseStyles, Box, ThemeProvider } from "@primer/react";
+import { BaseStyles, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
@@ -100,12 +100,24 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <Box sx={{ display: "flex", width: "100vw", height: "100vh", bg: "canvas.default" }}>
-          <Box sx={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, flexShrink: 0, overflow: "scroll", paddingX: 2, paddingY: 1 }}>
+        <div style={{ display: "flex", width: "100vw", height: "100vh", background: "var(--bgColor-canvas-default)" }}>
+          <div
+            style={{
+              width: sidebarWidth,
+              minWidth: 100,
+              maxWidth: 600,
+              flexShrink: 0,
+              overflow: "scroll",
+              paddingLeft: 8,
+              paddingRight: 8,
+              paddingTop: 4,
+              paddingBottom: 4,
+            }}
+          >
             <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} />
-          </Box>
+          </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
+          <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
             {tabs.length === 0 && <Blankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
@@ -143,8 +155,8 @@ export function App() {
                 })}
               </Tabs>
             )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       </BaseStyles>
     </ThemeProvider>
   );

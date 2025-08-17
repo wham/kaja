@@ -1,4 +1,4 @@
-import { Box, TreeView } from "@primer/react";
+import { TreeView } from "@primer/react";
 import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
@@ -14,16 +14,16 @@ export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
         return (
           <nav key={project.name} aria-label="Services and methods">
             {projects.length > 1 && (
-              <Box
-                sx={{
-                  fontSize: "12px",
+              <div
+                style={{
+                  fontSize: 12,
                   fontWeight: "bold",
                   padding: "2px 4px",
-                  color: "fg.muted",
+                  color: "var(--fgColor-muted)",
                 }}
               >
                 {project.name}
-              </Box>
+              </div>
             )}
             <TreeView aria-label="Services and methods">
               {project &&

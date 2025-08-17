@@ -1,14 +1,33 @@
-import { Box, Text } from "@primer/react";
-
 export function Blankslate() {
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" bg="canvas.default">
-      <Text as="h1" fontSize={4} mt={3} color="fg.default">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        background: "var(--bgColor-canvas-default)",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: 24,
+          marginTop: 16,
+          color: "var(--fgColor-default)",
+        }}
+      >
         Welcome to kaja
-      </Text>
-      <Text as="p" fontSize={2} mt={2} color="fg.muted">
+      </h1>
+      <p
+        style={{
+          fontSize: 16,
+          marginTop: 8,
+          color: "var(--fgColor-muted)",
+        }}
+      >
         Select a method from the sidebar to get started.
-      </Text>
-    </Box>
+      </p>
+    </div>
   );
 }

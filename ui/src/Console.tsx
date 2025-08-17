@@ -1,4 +1,4 @@
-import { Box, Button, Text } from "@primer/react";
+import { Button, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
@@ -45,20 +45,22 @@ export function Console({ items }: ConsoleProps) {
   }, [items]);
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         fontSize: 12,
         fontFamily: "monospace",
-        color: "fg.default",
+        color: "var(--fgColor-default)",
         overflowY: "scroll",
-        paddingX: 2,
-        paddingY: 1,
+        paddingLeft: 8,
+        paddingRight: 8,
+        paddingTop: 4,
+        paddingBottom: 4,
         flexGrow: 1,
         minHeight: 0,
         height: 0,
       }}
     >
-      <Box ref={containerRef}>
+      <div ref={containerRef}>
         {items.map((item, index) => {
           let itemElement;
           if (Array.isArray(item)) {
@@ -67,11 +69,11 @@ export function Console({ items }: ConsoleProps) {
             itemElement = <Console.MethodCall methodCall={item} onInteract={onMethodCallInteract} />;
           }
 
-          return <Box key={index}>{itemElement}</Box>;
+          return <div key={index}>{itemElement}</div>;
         })}
-      </Box>
-      <Box ref={bottomRef} />
-    </Box>
+      </div>
+      <div ref={bottomRef} />
+    </div>
   );
 }
 
@@ -128,7 +130,7 @@ Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
 
   return (
     <>
-      <Box sx={{ display: "flex", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
         <Text sx={{ color: colorForLogLevel(LogLevel.LEVEL_INFO) }}>{methodId(methodCall.service, methodCall.method) + "("}</Text>
         <Button inactive={!showingOutput} size="small" variant="invisible" onClick={onInputClick} sx={{ color: "#569cd6" }}>
           input
@@ -145,7 +147,7 @@ Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
           </Button>
         )}
         {!methodCall.output && !methodCall.error && <Button size="small" loading={true} />}
-      </Box>
+      </div>
       <pre style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
     </>
   );

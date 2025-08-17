@@ -1,5 +1,5 @@
 import { XIcon } from "@primer/octicons-react";
-import { Box, IconButton, Text } from "@primer/react";
+import { IconButton } from "@primer/react";
 import React, { ReactElement } from "react";
 
 interface TabProps {
@@ -22,26 +22,27 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <Box display="flex" flexDirection="column" height="100%">
-      <Box
-        display="flex"
-        overflowX="auto"
-        sx={{
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <style>{`
+        .tabs-header::-webkit-scrollbar {
+          height: 2px;
+        }
+        .tabs-header::-webkit-scrollbar-track {
+          background-color: #1e1e1e;
+        }
+        .tabs-header:hover::-webkit-scrollbar-thumb {
+          background-color: rgba(255, 255, 255, 0.5);
+        }
+        .tabs-header::-webkit-scrollbar-thumb {
+          background-color: transparent;
+        }
+      `}</style>
+      <div
+        className="tabs-header"
+        style={{
+          display: "flex",
+          overflowX: "auto",
           flexShrink: 0,
-          "::-webkit-scrollbar": {
-            height: "2px",
-          },
-          "::-webkit-scrollbar-track": {
-            backgroundColor: "#1e1e1e",
-          },
-          "&:hover": {
-            "::-webkit-scrollbar-thumb": {
-              backgroundColor: "rgba(255, 255, 255, 0.5)",
-            },
-          },
-          "::-webkit-scrollbar-thumb": {
-            backgroundColor: "transparent",
-          },
         }}
       >
         {React.Children.map(children, (child, index) => {
@@ -49,38 +50,41 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           const isActive = index === activeTabIndex;
 
           return (
-            <Box
+            <div
               key={tabId}
-              display="flex"
-              alignItems="center"
-              padding="8px 10px 8px 16px"
-              borderTop="1px solid"
-              borderTopColor={isActive ? "accent.fg" : "transparent"}
-              backgroundColor={isActive ? "#1e1e1e" : "transparent"}
-              borderBottom="1px solid"
-              borderBottomColor={isActive ? "transparent" : "border.default"}
-              borderRight="1px solid"
-              borderRightColor="border.default"
-              sx={{
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "8px 10px 8px 16px",
+                borderTop: "1px solid",
+                borderTopColor: isActive ? "var(--fgColor-accent)" : "transparent",
+                backgroundColor: isActive ? "#1e1e1e" : "transparent",
+                borderBottom: "1px solid",
+                borderBottomColor: isActive ? "transparent" : "var(--borderColor-default)",
+                borderRight: "1px solid",
+                borderRightColor: "var(--borderColor-default)",
                 fontSize: 14,
-                "&:hover": {
-                  backgroundColor: "#1e1e1e",
-                },
                 cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#1e1e1e";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = isActive ? "#1e1e1e" : "transparent";
               }}
               onClick={() => onSelectTab(index)}
             >
-              <Text
-                sx={{
+              <span
+                style={{
                   fontSize: "inherit",
-                  color: isActive ? "fg.default" : "fg.muted",
+                  color: isActive ? "var(--fgColor-default)" : "var(--fgColor-muted)",
                   fontStyle: isEphemeral ? "italic" : "normal",
                   userSelect: "none",
+                  marginRight: 8,
                 }}
-                marginRight={2}
               >
                 {tabLabel}
-              </Text>
+              </span>
               {onCloseTab && (
                 <IconButton
                   icon={XIcon}
@@ -103,25 +107,25 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                   onClick={() => onCloseTab(index)}
                 />
               )}
-            </Box>
+            </div>
           );
         })}
-        <Box flexGrow={1} borderBottom="1px solid" borderBottomColor="border.default" />
-      </Box>
-      <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+        <div style={{ flexGrow: 1, borderBottom: "1px solid", borderBottomColor: "var(--borderColor-default)" }} />
+      </div>
+      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
         {React.Children.map(children, (child, index) => (
-          <Box
+          <div
             key={child.props.tabId}
-            sx={{
+            style={{
               display: index === activeTabIndex ? "flex" : "none",
               flexDirection: "column",
               height: "100%",
             }}
           >
             {child}
-          </Box>
+          </div>
         ))}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

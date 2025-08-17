@@ -1,4 +1,3 @@
-import { Box } from "@primer/react";
 import { useState } from "react";
 
 interface GutterProps {
@@ -32,29 +31,34 @@ export function Gutter({ orientation, onResize }: GutterProps) {
   };
 
   return (
-    <Box
-      sx={{
-        width: orientation == "vertical" ? 1 : "100%",
-        height: orientation == "vertical" ? "100%" : 1,
+    <div
+      style={{
+        width: orientation === "vertical" ? 1 : "100%",
+        height: orientation === "vertical" ? "100%" : 1,
         flexShrink: 0,
         position: "relative",
-        backgroundColor: "border.default",
+        backgroundColor: "var(--borderColor-default)",
       }}
     >
-      <Box
-        sx={{
-          width: orientation == "vertical" ? 3 : "100%",
-          height: orientation == "vertical" ? "100%" : 3,
+      <div
+        style={{
+          width: orientation === "vertical" ? 3 : "100%",
+          height: orientation === "vertical" ? "100%" : 3,
           position: "absolute",
-          left: orientation == "vertical" ? "-1px" : 0,
-          top: orientation == "vertical" ? 0 : "-1px",
+          left: orientation === "vertical" ? "-1px" : 0,
+          top: orientation === "vertical" ? 0 : "-1px",
           cursor: "col-resize",
           zIndex: 1,
-          backgroundColor: isResizing ? "accent.emphasis" : "transparent",
-          ":hover": { backgroundColor: "accent.emphasis" },
+          backgroundColor: isResizing ? "var(--bgColor-accent-emphasis)" : "transparent",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--bgColor-accent-emphasis)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = isResizing ? "var(--bgColor-accent-emphasis)" : "transparent";
         }}
         onMouseDown={onMouseDown}
       />
-    </Box>
+    </div>
   );
 }
