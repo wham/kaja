@@ -136,6 +136,24 @@ export interface ConfigurationAI {
   apiKey: string;
 }
 /**
+ * @generated from protobuf message GetStubRequest
+ */
+export interface GetStubRequest {
+  /**
+   * @generated from protobuf field: string project_name = 1;
+   */
+  projectName: string;
+}
+/**
+ * @generated from protobuf message GetStubResponse
+ */
+export interface GetStubResponse {
+  /**
+   * @generated from protobuf field: string stub = 1;
+   */
+  stub: string;
+}
+/**
  * @generated from protobuf enum CompileStatus
  */
 export enum CompileStatus {
@@ -604,10 +622,93 @@ class ConfigurationAI$Type extends MessageType<ConfigurationAI> {
  * @generated MessageType for protobuf message ConfigurationAI
  */
 export const ConfigurationAI = new ConfigurationAI$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetStubRequest$Type extends MessageType<GetStubRequest> {
+  constructor() {
+    super("GetStubRequest", [{ no: 1, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }]);
+  }
+  create(value?: PartialMessage<GetStubRequest>): GetStubRequest {
+    const message = globalThis.Object.create(this.messagePrototype!);
+    message.projectName = "";
+    if (value !== undefined) reflectionMergePartial<GetStubRequest>(this, message, value);
+    return message;
+  }
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubRequest): GetStubRequest {
+    let message = target ?? this.create(),
+      end = reader.pos + length;
+    while (reader.pos < end) {
+      let [fieldNo, wireType] = reader.tag();
+      switch (fieldNo) {
+        case /* string project_name */ 1:
+          message.projectName = reader.string();
+          break;
+        default:
+          let u = options.readUnknownField;
+          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+          let d = reader.skip(wireType);
+          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+      }
+    }
+    return message;
+  }
+  internalBinaryWrite(message: GetStubRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    /* string project_name = 1; */
+    if (message.projectName !== "") writer.tag(1, WireType.LengthDelimited).string(message.projectName);
+    let u = options.writeUnknownFields;
+    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+    return writer;
+  }
+}
+/**
+ * @generated MessageType for protobuf message GetStubRequest
+ */
+export const GetStubRequest = new GetStubRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetStubResponse$Type extends MessageType<GetStubResponse> {
+  constructor() {
+    super("GetStubResponse", [{ no: 1, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }]);
+  }
+  create(value?: PartialMessage<GetStubResponse>): GetStubResponse {
+    const message = globalThis.Object.create(this.messagePrototype!);
+    message.stub = "";
+    if (value !== undefined) reflectionMergePartial<GetStubResponse>(this, message, value);
+    return message;
+  }
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubResponse): GetStubResponse {
+    let message = target ?? this.create(),
+      end = reader.pos + length;
+    while (reader.pos < end) {
+      let [fieldNo, wireType] = reader.tag();
+      switch (fieldNo) {
+        case /* string stub */ 1:
+          message.stub = reader.string();
+          break;
+        default:
+          let u = options.readUnknownField;
+          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+          let d = reader.skip(wireType);
+          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+      }
+    }
+    return message;
+  }
+  internalBinaryWrite(message: GetStubResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    /* string stub = 1; */
+    if (message.stub !== "") writer.tag(1, WireType.LengthDelimited).string(message.stub);
+    let u = options.writeUnknownFields;
+    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+    return writer;
+  }
+}
+/**
+ * @generated MessageType for protobuf message GetStubResponse
+ */
+export const GetStubResponse = new GetStubResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
 export const Api = new ServiceType("Api", [
   { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
   { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
+  { name: "GetStub", options: {}, I: GetStubRequest, O: GetStubResponse },
 ]);

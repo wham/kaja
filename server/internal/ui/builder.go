@@ -3,9 +3,11 @@ package ui
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/evanw/esbuild/pkg/api"
+	esbuild "github.com/evanw/esbuild/pkg/api"
 )
 
 type UiBundle struct {
@@ -15,14 +17,14 @@ type UiBundle struct {
 }
 
 func BuildForDevelopment() *UiBundle {
-	result := api.Build(api.BuildOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints: []string{"../ui/src/main.tsx"},
 		Bundle:      true,
-		Format:      api.FormatESModule,
-		Sourcemap:   api.SourceMapInline,
+		Format:      esbuild.FormatESModule,
+		Sourcemap:   esbuild.SourceMapInline,
 		Outdir:      "build",
-		Loader: map[string]api.Loader{
-			".ttf": api.LoaderFile,
+		Loader: map[string]esbuild.Loader{
+			".ttf": esbuild.LoaderFile,
 		},
 	})
 
@@ -32,23 +34,23 @@ func BuildForDevelopment() *UiBundle {
 }
 
 func BuildForProduction() (*UiBundle, error) {
-	result := api.Build(api.BuildOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints:       []string{"../ui/src/main.tsx"},
 		Bundle:            true,
-		Format:            api.FormatESModule,
+		Format:            esbuild.FormatESModule,
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
 		Outdir:            "build",
-		Loader: map[string]api.Loader{
-			".ttf": api.LoaderFile,
+		Loader: map[string]esbuild.Loader{
+			".ttf": esbuild.LoaderFile,
 		},
 	})
 
 	return buildResultToUiBundle(result)
 }
 
-func buildResultToUiBundle(result api.BuildResult) (*UiBundle, error) {
+func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	if len(result.Errors) > 0 {
 		slog.Error("Failed to build the UI", "errors", result.Errors)
 		return nil, fmt.Errorf("failed to build the UI")
@@ -76,11 +78,11 @@ func buildResultToUiBundle(result api.BuildResult) (*UiBundle, error) {
 }
 
 func BuildProtocGenTs() ([]byte, error) {
-	result := api.Build(api.BuildOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints: []string{"../ui/node_modules/.bin/protoc-gen-ts"},
 		Bundle:      true,
-		Format:      api.FormatESModule,
-		Platform:    api.PlatformNode,
+		Format:      esbuild.FormatESModule,
+		Platform:    esbuild.PlatformNode,
 	})
 
 	if len(result.Errors) > 0 {
@@ -104,11 +106,11 @@ func BuildMonacoWorker(name string) ([]byte, error) {
 		path = "editor/editor.worker.js"
 	}
 
-	result := api.Build(api.BuildOptions{
+	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
 		Bundle:      true,
-		Format:      api.FormatIIFE,
-		Platform:    api.PlatformBrowser,
+		Format:      esbuild.FormatIIFE,
+		Platform:    esbuild.PlatformBrowser,
 	})
 
 	if len(result.Errors) > 0 {
@@ -117,4 +119,43 @@ func BuildMonacoWorker(name string) ([]byte, error) {
 	}
 
 	return result.OutputFiles[0].Contents, nil
+}
+
+func BuildStub(projectName string) ([]byte, error) {
+	sourcesDir := "./build/sources/" + projectName
+	var stubContent strings.Builder
+	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			stubContent.WriteString("export * from \"" + strings.Replace(path, "build/sources/"+projectName, "./", 1) + "\";\n")
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sources directory when building stub for project %s: %w", projectName, err)
+	}
+
+	slog.Debug("Successfully built stub for project %s, length %d", projectName, stubContent.Len())
+
+	result := esbuild.Build(esbuild.BuildOptions{
+		Stdin: &esbuild.StdinOptions{
+			Contents:   stubContent.String(),
+			ResolveDir: sourcesDir,
+			Sourcefile: "stub.ts",
+		},
+		Bundle:   true,
+		Format:   esbuild.FormatESModule,
+		Packages: esbuild.PackagesExternal,
+	})
+
+	if len(result.Errors) > 0 {
+		return nil, fmt.Errorf("failed to build stub for project %s: %s", projectName, result.Errors[0].Text)
+	}
+
+	first := result.OutputFiles[0]
+
+	return first.Contents, nil
 }
