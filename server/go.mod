@@ -1,7 +1,8 @@
 module github.com/wham/kaja/v2
 
-go 1.22.4
-toolchain go1.24.1
+go 1.23.0
+
+toolchain go1.24.2
 
 require (
 	github.com/evanw/esbuild v0.23.1
