@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"html/template"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -70,23 +69,16 @@ func main() {
 			return
 		}
 
-		template, err := template.ParseFS(assets.TemplatesFS, "templates/**.html")
-		if err != nil {
-			slog.Error("Failed to parse HTML templates", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
-			return
-		}
-
-		if err := template.ExecuteTemplate(w, "index.html", struct{ PathPrefix string }{PathPrefix: config.PathPrefix}); err != nil {
-			slog.Error("Failed to execute template", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
-			return
-		}
+		http.ServeFileFS(w, r, assets.StaticFS, "static/index.html")
 	})
 
 	mux.HandleFunc("GET /static/{name...}", func(w http.ResponseWriter, r *http.Request) {
+		// index.html must be served via /
+		if r.PathValue("name") == "index.html" {
+			http.NotFound(w, r)
+			return
+		}
+		
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 

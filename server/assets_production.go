@@ -12,9 +12,6 @@ import (
 //go:embed static/*
 var StaticFS embed.FS
 
-//go:embed templates/*
-var TemplatesFS embed.FS
-
 //go:embed build/main.js
 var mainJs []byte
 
