@@ -19,7 +19,7 @@ interface TaskProps {
 export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskProps) {
   const [editorHeight, setEditorHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const kajaRef = useRef(new Kaja(onMethodCallUpdate));
 
   function onEditorMount(editor: editor.IStandaloneCodeEditor) {
