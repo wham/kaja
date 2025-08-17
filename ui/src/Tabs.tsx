@@ -69,11 +69,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           const isActive = index === activeTabIndex;
 
           return (
-            <div
-              key={tabId}
-              className={`tab-item ${isActive ? "active" : ""}`}
-              onClick={() => onSelectTab(index)}
-            >
+            <div key={tabId} className={`tab-item ${isActive ? "active" : ""}`} onClick={() => onSelectTab(index)}>
               <span
                 style={{
                   fontSize: "inherit",
