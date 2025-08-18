@@ -195,9 +195,13 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   }, [projectStates]);
 
   const toggleExpand = (index: number) => {
+    console.log(`Toggling expand for index ${index}`);
     setProjectStates((states) => {
-      const newStates = [...states];
-      newStates[index].isExpanded = !newStates[index].isExpanded;
+      const newStates = states.map((state, i) => 
+        i === index 
+          ? { ...state, isExpanded: !state.isExpanded }
+          : state
+      );
       cachedProjectStates = newStates;
       return newStates;
     });
@@ -282,18 +286,29 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         </div>
       ) : (
         projectStates.map((state, index) => (
-          <div key={state.project.name} data-project-index={index}>
+          <div key={`project-${index}-${state.project.name}`} data-project-index={index}>
             <div
               className={`project-header ${state.isExpanded ? "expanded" : ""} ${stickyIndex === index ? "sticky" : ""}`}
-              onClick={() => toggleExpand(index)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(index);
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleExpand(index);
+                }
+              }}
             >
-              <div style={{ marginRight: 8 }}>
+              <div style={{ marginRight: 8, pointerEvents: "none" }}>
                 <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
               </div>
 
-              <div style={{ marginRight: 12 }}>{getStatusIcon(state.status)}</div>
+              <div style={{ marginRight: 12, pointerEvents: "none" }}>{getStatusIcon(state.status)}</div>
 
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 24 }}>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 24, pointerEvents: "none" }}>
                 <div style={{ minWidth: 200 }}>
                   <span style={{ fontWeight: 500, color: "var(--fgColor-default)" }}>{state.project.name}</span>
                 </div>
