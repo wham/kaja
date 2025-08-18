@@ -12,6 +12,7 @@ interface IgnoreToken {
 
 interface CompilerProps {
   onProjects: (projects: Project[]) => void;
+  autoCompile?: boolean;
 }
 
 interface ProjectCompileState {
@@ -22,10 +23,14 @@ interface ProjectCompileState {
   duration?: string;
 }
 
-export function Compiler({ onProjects }: CompilerProps) {
-  const [projectStates, setProjectStates] = useState<ProjectCompileState[]>([]);
+// Cache compilation states outside component to persist across mounts/unmounts
+let cachedProjectStates: ProjectCompileState[] = [];
+let cachedProjects: (Project | null)[] = [];
+
+export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
+  const [projectStates, setProjectStates] = useState<ProjectCompileState[]>(cachedProjectStates);
   const [stickyIndex, setStickyIndex] = useState<number | null>(null);
-  const projects = useRef<(Project | null)[]>([]);
+  const projects = useRef<(Project | null)[]>(cachedProjects);
   const client = getApiClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const startTime = useRef<{ [key: string]: number }>({});
@@ -54,6 +59,7 @@ export function Compiler({ onProjects }: CompilerProps) {
           newStates[projectIndex].status = "running";
         }
       }
+      cachedProjectStates = newStates;
       return newStates;
     });
 
@@ -72,6 +78,7 @@ export function Compiler({ onProjects }: CompilerProps) {
           newStates[projectIndex].status = response.status === CompileStatus.STATUS_READY ? "success" : "error";
           newStates[projectIndex].duration = durationStr;
         }
+        cachedProjectStates = newStates;
         return newStates;
       });
 
@@ -79,9 +86,11 @@ export function Compiler({ onProjects }: CompilerProps) {
         const project = await loadProject(response.sources, configurationProject);
         console.log(`Project loaded [${projectIndex}]:`, project);
         projects.current[projectIndex] = project;
+        cachedProjects[projectIndex] = project;
       } else {
         console.log(`Project compilation failed [${projectIndex}]: ${configurationProject.name}`);
         projects.current[projectIndex] = null;
+        cachedProjects[projectIndex] = null;
       }
       
       // Check if all projects have finished compiling (either success or error)
@@ -123,22 +132,33 @@ export function Compiler({ onProjects }: CompilerProps) {
         isExpanded: false,
       }));
 
-      setProjectStates(initialStates);
-      
-      // Initialize projects array with the correct length
-      projects.current = new Array(configProjects.length);
-      console.log(`Initialized projects array with length: ${configProjects.length}`);
+      // Only reset state if this is a fresh compile (not using cached data)
+      if (autoCompile || cachedProjectStates.length === 0) {
+        setProjectStates(initialStates);
+        cachedProjectStates = initialStates;
+        
+        // Initialize projects array with the correct length
+        projects.current = new Array(configProjects.length);
+        cachedProjects = new Array(configProjects.length);
+        console.log(`Initialized projects array with length: ${configProjects.length}`);
+      } else if (cachedProjectStates.length > 0) {
+        // Restore cached state when not auto-compiling
+        setProjectStates(cachedProjectStates);
+        projects.current = cachedProjects;
+      }
 
-      configProjects.forEach((configurationProject, index) => {
-        console.log(`Starting compilation for project ${index}: ${configurationProject.name}`);
-        compile(ignoreToken, configurationProject, 0, index);
-      });
+      if (autoCompile && cachedProjectStates.every(state => state.status === "pending")) {
+        configProjects.forEach((configurationProject, index) => {
+          console.log(`Starting compilation for project ${index}: ${configurationProject.name}`);
+          compile(ignoreToken, configurationProject, 0, index);
+        });
+      }
     });
 
     return () => {
       ignoreToken.ignore = true;
     };
-  }, []);
+  }, [autoCompile]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -178,6 +198,7 @@ export function Compiler({ onProjects }: CompilerProps) {
     setProjectStates((states) => {
       const newStates = [...states];
       newStates[index].isExpanded = !newStates[index].isExpanded;
+      cachedProjectStates = newStates;
       return newStates;
     });
   };

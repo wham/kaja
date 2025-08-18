@@ -24,6 +24,7 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [hasCompiled, setHasCompiled] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -33,6 +34,7 @@ export function App() {
 
   const onProjects = (projects: Project[]) => {
     setProjects(projects);
+    setHasCompiled(true);
     registerAIProvider(projects);
 
     projects.forEach((project) => {
@@ -121,11 +123,9 @@ export function App() {
               minWidth: 100,
               maxWidth: 600,
               flexShrink: 0,
-              overflow: "scroll",
-              paddingLeft: 8,
-              paddingRight: 8,
-              paddingTop: 4,
-              paddingBottom: 4,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} onCompilerClick={onCompilerClick} />
@@ -138,8 +138,8 @@ export function App() {
                 {tabs.map((tab, index) => {
                   if (tab.type === "compiler") {
                     return (
-                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProjects={onProjects} />
+                      <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                        <Compiler onProjects={onProjects} autoCompile={!hasCompiled} />
                       </Tab>
                     );
                   }

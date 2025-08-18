@@ -1,4 +1,4 @@
-import { FileCodeIcon } from "@primer/octicons-react";
+import { BeakerIcon } from "@primer/octicons-react";
 
 interface ActivityBarProps {
   onCompilerClick: () => void;
@@ -13,13 +13,13 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             border: none;
             background: transparent;
             color: var(--fgColor-muted);
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 3px;
             transition: background-color 0.1s, color 0.1s;
           }
           
@@ -37,12 +37,12 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
         style={{
           display: "flex",
           flexDirection: "row",
-          gap: 2,
-          padding: "4px 8px",
+          justifyContent: "flex-end",
           borderBottom: "1px solid var(--borderColor-default)",
           backgroundColor: "var(--bgColor-inset)",
           alignItems: "center",
-          height: 40,
+          height: 28,
+          paddingRight: 4,
         }}
       >
         <button
@@ -51,7 +51,7 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
           onClick={onCompilerClick}
           title="Compiler"
         >
-          <FileCodeIcon size={16} />
+          <BeakerIcon size={14} />
         </button>
       </div>
     </>

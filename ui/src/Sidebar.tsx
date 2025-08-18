@@ -13,7 +13,7 @@ export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <ActivityBar onCompilerClick={onCompilerClick} />
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "4px 8px" }}>
       {projects.map((project) => {
         return (
           <nav key={project.name} aria-label="Services and methods">
