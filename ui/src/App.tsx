@@ -97,6 +97,20 @@ export function App() {
     });
   };
 
+  const onCompilerClick = () => {
+    setTabs((tabs) => {
+      const compilerIndex = tabs.findIndex(tab => tab.type === "compiler");
+      if (compilerIndex === -1) {
+        const newTabs = [...tabs, { type: "compiler" }];
+        setActiveTabIndex(newTabs.length - 1);
+        return newTabs;
+      } else {
+        setActiveTabIndex(compilerIndex);
+        return tabs;
+      }
+    });
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -114,7 +128,7 @@ export function App() {
               paddingBottom: 4,
             }}
           >
-            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} />
+            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} onCompilerClick={onCompilerClick} />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>

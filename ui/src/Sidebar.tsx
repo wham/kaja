@@ -1,15 +1,19 @@
 import { TreeView } from "@primer/react";
 import { Method, Project, methodId } from "./project";
+import { ActivityBar } from "./ActivityBar";
 
 interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
   onSelect: (method: Method) => void;
+  onCompilerClick: () => void;
 }
 
-export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
+export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: SidebarProps) {
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <ActivityBar onCompilerClick={onCompilerClick} />
+      <div style={{ flex: 1, overflow: "auto" }}>
       {projects.map((project) => {
         return (
           <nav key={project.name} aria-label="Services and methods">
@@ -47,7 +51,8 @@ export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
           </nav>
         );
       })}
-    </>
+      </div>
+    </div>
   );
 }
 
