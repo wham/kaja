@@ -25,7 +25,7 @@ interface ProjectCompileState {
 export function Compiler({ onProjects }: CompilerProps) {
   const [projectStates, setProjectStates] = useState<ProjectCompileState[]>([]);
   const [stickyIndex, setStickyIndex] = useState<number | null>(null);
-  const projects = useRef<Project[]>([]);
+  const projects = useRef<(Project | null)[]>([]);
   const client = getApiClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const startTime = useRef<{ [key: string]: number }>({});
@@ -90,7 +90,7 @@ export function Compiler({ onProjects }: CompilerProps) {
       console.log(`Projects status: ${totalCount} total, processed: ${processedCount}`);
       
       if (processedCount === totalCount && totalCount > 0) {
-        const validProjects = projects.current.filter(p => p !== null && p !== undefined);
+        const validProjects = projects.current.filter((p): p is Project => p !== null && p !== undefined);
         console.log(`All projects processed. Valid projects: ${validProjects.length}`);
         if (validProjects.length > 0) {
           console.log("Calling onProjects with valid projects:", validProjects);
