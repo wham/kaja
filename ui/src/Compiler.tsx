@@ -259,7 +259,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         .project-logs {
           background-color: var(--bgColor-neutral-muted);
           border-bottom: 1px solid var(--borderColor-default);
-          max-height: 600px;
+          max-height: 300px;
           overflow-y: auto;
           font-family: monospace;
           font-size: 12px;

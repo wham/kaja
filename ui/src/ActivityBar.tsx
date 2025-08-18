@@ -38,11 +38,9 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
           display: "flex",
           flexDirection: "row",
           justifyContent: "flex-end",
-          borderBottom: "1px solid var(--borderColor-default)",
-          backgroundColor: "var(--bgColor-inset)",
+          backgroundColor: "transparent",
           alignItems: "center",
-          height: 28,
-          paddingRight: 4,
+          padding: "8px 8px 8px 0",
         }}
       >
         <button
