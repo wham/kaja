@@ -92,12 +92,12 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         projects.current[projectIndex] = null;
         cachedProjects[projectIndex] = null;
       }
-      
+
       // Check if all projects have finished compiling (either success or error)
-      const processedCount = projects.current.filter(p => p !== undefined).length;
+      const processedCount = projects.current.filter((p) => p !== undefined).length;
       const totalCount = projects.current.length;
       console.log(`Projects status: ${totalCount} total, processed: ${processedCount}`);
-      
+
       if (processedCount === totalCount && totalCount > 0) {
         const validProjects = projects.current.filter((p): p is Project => p !== null && p !== undefined);
         console.log(`All projects processed. Valid projects: ${validProjects.length}`);
@@ -119,12 +119,12 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       console.log("Projects to compile:", response.configuration?.projects);
 
       const configProjects = response.configuration?.projects || [];
-      
+
       if (configProjects.length === 0) {
         console.warn("No projects found in configuration");
         return;
       }
-      
+
       const initialStates: ProjectCompileState[] = configProjects.map((project) => ({
         project,
         status: "pending",
@@ -136,7 +136,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       if (autoCompile || cachedProjectStates.length === 0) {
         setProjectStates(initialStates);
         cachedProjectStates = initialStates;
-        
+
         // Initialize projects array with the correct length
         projects.current = new Array(configProjects.length);
         cachedProjects = new Array(configProjects.length);
@@ -147,7 +147,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         projects.current = cachedProjects;
       }
 
-      if (autoCompile && cachedProjectStates.every(state => state.status === "pending")) {
+      if (autoCompile && cachedProjectStates.every((state) => state.status === "pending")) {
         configProjects.forEach((configurationProject, index) => {
           console.log(`Starting compilation for project ${index}: ${configurationProject.name}`);
           compile(ignoreToken, configurationProject, 0, index);
@@ -197,11 +197,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   const toggleExpand = (index: number) => {
     console.log(`Toggling expand for index ${index}`);
     setProjectStates((states) => {
-      const newStates = states.map((state, i) => 
-        i === index 
-          ? { ...state, isExpanded: !state.isExpanded }
-          : state
-      );
+      const newStates = states.map((state, i) => (i === index ? { ...state, isExpanded: !state.isExpanded } : state));
       cachedProjectStates = newStates;
       return newStates;
     });
@@ -296,7 +292,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   toggleExpand(index);
                 }

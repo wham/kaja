@@ -1,4 +1,4 @@
-import { GearIcon } from "@primer/octicons-react";
+import { CpuIcon } from "@primer/octicons-react";
 
 interface ActivityBarProps {
   onCompilerClick: () => void;
@@ -12,9 +12,8 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
           .activity-bar-container {
             display: flex;
             align-items: center;
-            padding: 8px 8px 8px 16px;
-            border-bottom: 1px solid var(--borderColor-default);
-            background-color: var(--bgColor-default);
+            padding: 8px 16px 8px 16px;
+            background-color: transparent;
           }
           
           .activity-bar-label {
@@ -56,13 +55,8 @@ export function ActivityBar({ onCompilerClick }: ActivityBarProps) {
       </style>
       <div className="activity-bar-container">
         <div className="activity-bar-label">Explorer</div>
-        <button
-          className="activity-bar-button"
-          aria-label="Open Compiler"
-          onClick={onCompilerClick}
-          title="Compiler"
-        >
-          <GearIcon size={16} />
+        <button className="activity-bar-button" aria-label="Open Compiler" onClick={onCompilerClick} title="Compiler">
+          <CpuIcon size={16} />
         </button>
       </div>
     </>

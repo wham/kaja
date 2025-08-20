@@ -101,7 +101,7 @@ export function App() {
 
   const onCompilerClick = () => {
     setTabs((tabs) => {
-      const compilerIndex = tabs.findIndex(tab => tab.type === "compiler");
+      const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
       if (compilerIndex === -1) {
         const newTabs = [...tabs, { type: "compiler" }];
         setActiveTabIndex(newTabs.length - 1);
