@@ -1,6 +1,6 @@
-import { TreeView } from "@primer/react";
+import { TreeView, IconButton } from "@primer/react";
+import { CpuIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
-import { ActivityBar } from "./ActivityBar";
 
 interface SidebarProps {
   projects: Project[];
@@ -12,8 +12,35 @@ interface SidebarProps {
 export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: SidebarProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <ActivityBar onCompilerClick={onCompilerClick} />
-      <div style={{ flex: 1, overflow: "auto", padding: "4px 16px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "4px 12px",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--fgColor-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            userSelect: "none",
+          }}
+        >
+          Explorer
+        </div>
+        <IconButton 
+          icon={CpuIcon} 
+          size="small"
+          variant="invisible"
+          aria-label="Open Compiler" 
+          onClick={onCompilerClick}
+        />
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
         {projects.map((project) => {
           return (
             <nav key={project.name} aria-label="Services and methods">
