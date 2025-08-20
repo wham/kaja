@@ -261,40 +261,66 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                 onSelect={() => toggleExpand(index)}
               >
                 <ActionList.LeadingVisual>
-                  <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
+                    {getStatusIcon(state.status)}
+                  </div>
                 </ActionList.LeadingVisual>
                 {state.project.name}
                 <ActionList.Description>
                   {getProtocolDisplay(state.project.protocol)} • {state.project.url}
-                  {state.duration && ` • ${state.duration}`}
-                  {state.status === "running" && " • Compiling..."}
                 </ActionList.Description>
-                <ActionList.TrailingVisual>
-                  {getStatusIcon(state.status)}
-                </ActionList.TrailingVisual>
+                {state.duration && (
+                  <ActionList.TrailingVisual>
+                    <Text sx={{ fontSize: 1, color: 'fg.muted' }}>{state.duration}</Text>
+                  </ActionList.TrailingVisual>
+                )}
               </ActionList.Item>
               {state.isExpanded && (
                 <div style={{
-                  margin: "0 16px 16px 16px",
-                  padding: 12,
-                  backgroundColor: "var(--bgColor-neutral-muted)",
-                  borderRadius: 6,
-                  fontFamily: "monospace",
-                  fontSize: 12,
-                  maxHeight: 300,
-                  overflowY: "auto",
-                  border: "1px solid var(--borderColor-default)",
+                  backgroundColor: "var(--bgColor-canvas-inset)",
+                  borderTop: "1px solid var(--borderColor-default)",
+                  borderBottom: "1px solid var(--borderColor-default)",
                 }}>
-                  {state.logs.map((log, logIndex) => (
-                    <div key={logIndex} style={{ color: getLogColor(log.level), marginBottom: 2 }}>
-                      {log.message}
-                    </div>
-                  ))}
-                  {state.status === "running" && (
-                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                      <Spinner size="small" /> Compiling...
-                    </div>
-                  )}
+                  <div style={{
+                    fontFamily: "monospace",
+                    fontSize: 12,
+                    maxHeight: 400,
+                    overflowY: "auto",
+                    padding: "12px 16px",
+                  }}>
+                    {state.logs.map((log, logIndex) => (
+                      <div key={logIndex} style={{ 
+                        display: "flex",
+                        marginBottom: 1,
+                        lineHeight: "20px",
+                      }}>
+                        <span style={{ 
+                          color: "var(--fgColor-muted)",
+                          minWidth: "40px",
+                          textAlign: "right",
+                          marginRight: 16,
+                          userSelect: "none",
+                        }}>
+                          {logIndex + 1}
+                        </span>
+                        <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>
+                          {log.message}
+                        </span>
+                      </div>
+                    ))}
+                    {state.status === "running" && (
+                      <div style={{ 
+                        marginTop: 8, 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: 8,
+                        color: "var(--fgColor-muted)"
+                      }}>
+                        <Spinner size="small" /> Compiling...
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
