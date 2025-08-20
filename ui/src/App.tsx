@@ -103,7 +103,7 @@ export function App() {
     setTabs((tabs) => {
       const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
       if (compilerIndex === -1) {
-        const newTabs = [...tabs, { type: "compiler" }];
+        const newTabs: TabModel[] = [...tabs, { type: "compiler" as const }];
         setActiveTabIndex(newTabs.length - 1);
         return newTabs;
       } else {

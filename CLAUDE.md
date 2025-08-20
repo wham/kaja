@@ -6,6 +6,7 @@ This file contains specific instructions for Claude Code when working on the Kaj
 
 - See [Development](README.md#development) for instructions how to run and test.
 - Avoid using React.FC explicitly. Use function components instead.
+- **ALWAYS run `npm run tsc` in the ui directory after making changes to TypeScript files to ensure there are no type errors**
 
 ## React & TypeScript Guidelines
 
