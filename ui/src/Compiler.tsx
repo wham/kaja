@@ -1,5 +1,5 @@
-import { ChevronRightIcon, CheckIcon, XIcon } from "@primer/octicons-react";
-import { IconButton, Spinner } from "@primer/react";
+import { CheckIcon, XIcon, ChevronRightIcon } from "@primer/octicons-react";
+import { ActionList, Spinner, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Project } from "./project";
 import { loadProject } from "./projectLoader";
@@ -203,16 +203,25 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
     });
   };
 
+  const getStatusVariant = (status: ProjectCompileState["status"]) => {
+    switch (status) {
+      case "error":
+        return "danger";
+      default:
+        return undefined;
+    }
+  };
+
   const getStatusIcon = (status: ProjectCompileState["status"]) => {
     switch (status) {
       case "running":
         return <Spinner size="small" />;
       case "success":
-        return <CheckIcon size={16} fill="var(--fgColor-success)" />;
+        return <CheckIcon size={16} />;
       case "error":
-        return <XIcon size={16} fill="var(--fgColor-danger)" />;
+        return <XIcon size={16} />;
       default:
-        return <div style={{ width: 16, height: 16 }} />;
+        return null;
     }
   };
 
@@ -230,42 +239,6 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       }}
     >
       <style>{`
-        .project-header {
-          position: relative;
-          display: flex;
-          align-items: center;
-          padding: 8px 16px;
-          border-bottom: 1px solid var(--borderColor-default);
-          cursor: pointer;
-          background-color: var(--bgColor-default);
-        }
-        .project-header:hover {
-          background-color: var(--bgColor-neutral-muted);
-        }
-        .project-header.expanded {
-          background-color: var(--bgColor-neutral-muted);
-          border-bottom: 1px solid var(--borderColor-muted);
-        }
-        .project-header.sticky {
-          position: sticky;
-          top: 0;
-          z-index: 10;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-        }
-        .project-logs {
-          background-color: var(--bgColor-neutral-muted);
-          border-bottom: 1px solid var(--borderColor-default);
-          max-height: 300px;
-          overflow-y: auto;
-          font-family: monospace;
-          font-size: 12px;
-          padding: 16px;
-        }
-        .project-logs pre {
-          margin: 0;
-          white-space: pre-wrap;
-          word-break: break-all;
-        }
         .chevron-icon {
           transition: transform 0.2s;
           color: var(--fgColor-muted);
@@ -274,67 +247,59 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
           transform: rotate(90deg);
         }
       `}</style>
-
       {projectStates.length === 0 ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--fgColor-muted)" }}>
           <Spinner size="medium" />
           <div style={{ marginTop: 12 }}>Loading configuration...</div>
         </div>
       ) : (
-        projectStates.map((state, index) => (
-          <div key={`project-${index}-${state.project.name}`} data-project-index={index}>
-            <div
-              className={`project-header ${state.isExpanded ? "expanded" : ""} ${stickyIndex === index ? "sticky" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpand(index);
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  toggleExpand(index);
-                }
-              }}
-            >
-              <div style={{ marginRight: 8, pointerEvents: "none" }}>
-                <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
-              </div>
-
-              <div style={{ marginRight: 12, pointerEvents: "none" }}>{getStatusIcon(state.status)}</div>
-
-              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 24, pointerEvents: "none" }}>
-                <div style={{ minWidth: 200 }}>
-                  <span style={{ fontWeight: 500, color: "var(--fgColor-default)" }}>{state.project.name}</span>
-                </div>
-
-                <div style={{ minWidth: 80, color: "var(--fgColor-muted)", fontSize: 14 }}>{getProtocolDisplay(state.project.protocol)}</div>
-
-                <div style={{ flex: 1, color: "var(--fgColor-muted)", fontSize: 14 }}>{state.project.url}</div>
-
-                {state.duration && <div style={{ color: "var(--fgColor-muted)", fontSize: 14 }}>{state.duration}</div>}
-              </div>
-            </div>
-
-            {state.isExpanded && (
-              <div className="project-logs">
-                <pre>
+        <ActionList>
+          {projectStates.map((state, index) => (
+            <div key={`project-${index}-${state.project.name}`}>
+              <ActionList.Item
+                variant={getStatusVariant(state.status)}
+                onSelect={() => toggleExpand(index)}
+              >
+                <ActionList.LeadingVisual>
+                  <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
+                </ActionList.LeadingVisual>
+                {state.project.name}
+                <ActionList.Description>
+                  {getProtocolDisplay(state.project.protocol)} • {state.project.url}
+                  {state.duration && ` • ${state.duration}`}
+                  {state.status === "running" && " • Compiling..."}
+                </ActionList.Description>
+                <ActionList.TrailingVisual>
+                  {getStatusIcon(state.status)}
+                </ActionList.TrailingVisual>
+              </ActionList.Item>
+              {state.isExpanded && (
+                <div style={{
+                  margin: "0 16px 16px 16px",
+                  padding: 12,
+                  backgroundColor: "var(--bgColor-neutral-muted)",
+                  borderRadius: 6,
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  maxHeight: 300,
+                  overflowY: "auto",
+                  border: "1px solid var(--borderColor-default)",
+                }}>
                   {state.logs.map((log, logIndex) => (
-                    <div key={logIndex} style={{ color: getLogColor(log.level) }}>
+                    <div key={logIndex} style={{ color: getLogColor(log.level), marginBottom: 2 }}>
                       {log.message}
                     </div>
                   ))}
                   {state.status === "running" && (
-                    <div style={{ marginTop: 8 }}>
+                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
                       <Spinner size="small" /> Compiling...
                     </div>
                   )}
-                </pre>
-              </div>
-            )}
-          </div>
-        ))
+                </div>
+              )}
+            </div>
+          ))}
+        </ActionList>
       )}
     </div>
   );
