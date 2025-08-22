@@ -160,7 +160,6 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
     };
   }, [autoCompile]);
 
-
   const toggleExpand = (index: number) => {
     console.log(`Toggling expand for index ${index}`);
     setProjectStates((states) => {
@@ -277,7 +276,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       ) : (
         <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
           {projectStates.map((state, index) => (
-            <div 
+            <div
               key={`project-${index}-${state.project.name}`}
               ref={(el) => {
                 itemRefs.current[index] = el;
