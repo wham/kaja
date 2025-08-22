@@ -213,13 +213,31 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   };
 
   const getStatusIcon = (status: ProjectCompileState["status"]) => {
+    const iconStyle = {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      backgroundColor: status === "success" ? "var(--bgColor-success-muted)" : status === "error" ? "var(--bgColor-danger-muted)" : "transparent",
+    };
+
     switch (status) {
       case "running":
         return <Spinner size="small" />;
       case "success":
-        return <CheckIcon size={16} />;
+        return (
+          <div style={iconStyle}>
+            <CheckIcon size={12} fill="var(--fgColor-success)" />
+          </div>
+        );
       case "error":
-        return <XIcon size={16} />;
+        return (
+          <div style={iconStyle}>
+            <XIcon size={12} fill="var(--fgColor-danger)" />
+          </div>
+        );
       default:
         return null;
     }
@@ -246,6 +264,15 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         .chevron-icon.expanded {
           transform: rotate(90deg);
         }
+        .compiler-item-expanded {
+          background-color: var(--bgColor-accent-muted) !important;
+        }
+        .compiler-item-sticky {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background-color: var(--bgColor-default);
+        }
       `}</style>
       {projectStates.length === 0 ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--fgColor-muted)" }}>
@@ -259,9 +286,10 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
               <ActionList.Item
                 variant={getStatusVariant(state.status)}
                 onSelect={() => toggleExpand(index)}
+                className={`${state.isExpanded ? "compiler-item-expanded" : ""} ${state.isExpanded && stickyIndex === index ? "compiler-item-sticky" : ""}`}
               >
                 <ActionList.LeadingVisual>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
                     {getStatusIcon(state.status)}
                   </div>
@@ -272,51 +300,58 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                 </ActionList.Description>
                 {state.duration && (
                   <ActionList.TrailingVisual>
-                    <Text sx={{ fontSize: 1, color: 'fg.muted' }}>{state.duration}</Text>
+                    <Text sx={{ fontSize: 1, color: "fg.muted" }}>{state.duration}</Text>
                   </ActionList.TrailingVisual>
                 )}
               </ActionList.Item>
               {state.isExpanded && (
-                <div style={{
-                  backgroundColor: "var(--bgColor-canvas-inset)",
-                  borderTop: "1px solid var(--borderColor-default)",
-                  borderBottom: "1px solid var(--borderColor-default)",
-                }}>
-                  <div style={{
-                    fontFamily: "monospace",
-                    fontSize: 12,
-                    maxHeight: 400,
-                    overflowY: "auto",
-                    padding: "12px 16px",
-                  }}>
+                <div
+                  style={{
+                    backgroundColor: "var(--bgColor-canvas-inset)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "monospace",
+                      fontSize: 12,
+                      maxHeight: 400,
+                      overflowY: "auto",
+                      padding: "12px 16px",
+                    }}
+                  >
                     {state.logs.map((log, logIndex) => (
-                      <div key={logIndex} style={{ 
-                        display: "flex",
-                        marginBottom: 1,
-                        lineHeight: "20px",
-                      }}>
-                        <span style={{ 
-                          color: "var(--fgColor-muted)",
-                          minWidth: "40px",
-                          textAlign: "right",
-                          marginRight: 16,
-                          userSelect: "none",
-                        }}>
+                      <div
+                        key={logIndex}
+                        style={{
+                          display: "flex",
+                          marginBottom: 1,
+                          lineHeight: "20px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "var(--fgColor-muted)",
+                            minWidth: "40px",
+                            textAlign: "right",
+                            marginRight: 16,
+                            userSelect: "none",
+                          }}
+                        >
                           {logIndex + 1}
                         </span>
-                        <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>
-                          {log.message}
-                        </span>
+                        <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>{log.message}</span>
                       </div>
                     ))}
                     {state.status === "running" && (
-                      <div style={{ 
-                        marginTop: 8, 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 8,
-                        color: "var(--fgColor-muted)"
-                      }}>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          color: "var(--fgColor-muted)",
+                        }}
+                      >
                         <Spinner size="small" /> Compiling...
                       </div>
                     )}

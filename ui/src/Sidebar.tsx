@@ -32,13 +32,7 @@ export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: 
         >
           Explorer
         </div>
-        <IconButton 
-          icon={CpuIcon} 
-          size="small"
-          variant="invisible"
-          aria-label="Open Compiler" 
-          onClick={onCompilerClick}
-        />
+        <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
         {projects.map((project) => {
