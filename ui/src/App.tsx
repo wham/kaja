@@ -39,7 +39,13 @@ export function App() {
 
     projects.forEach((project) => {
       project.sources.forEach((source) => {
-        monaco.editor.createModel(source.file.text, "typescript", monaco.Uri.parse("ts:/" + source.path));
+        const uri = monaco.Uri.parse("ts:/" + source.path);
+        const existingModel = monaco.editor.getModel(uri);
+        if (!existingModel) {
+          monaco.editor.createModel(source.file.text, "typescript", uri);
+        } else {
+          existingModel.setValue(source.file.text);
+        }
       });
     });
 

@@ -3,7 +3,7 @@ import { ActionList, Spinner, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus, ConfigurationProject, Log, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, ConfigurationProject, Log, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface IgnoreToken {
@@ -15,9 +15,11 @@ interface CompilerProps {
   autoCompile?: boolean;
 }
 
+type CompileStatus = "pending" | "running" | "success" | "error";
+
 interface ProjectCompileState {
   project: ConfigurationProject;
-  status: "pending" | "running" | "success" | "error";
+  status: CompileStatus;
   logs: Log[];
   isExpanded: boolean;
   duration?: string;
@@ -27,6 +29,17 @@ interface ProjectCompileState {
 let cachedProjectStates: ProjectCompileState[] = [];
 let cachedProjects: (Project | null)[] = [];
 
+// Constants
+const POLL_INTERVAL_MS = 1000;
+const ICON_SIZE = 20;
+const CHEVRON_SIZE = 16;
+const CHECK_ICON_SIZE = 12;
+const LOG_LINE_HEIGHT = 20;
+const LOG_FONT_SIZE = 12;
+const LOG_PADDING = "12px 16px";
+const LINE_NUMBER_WIDTH = "40px";
+const LINE_NUMBER_MARGIN = 16;
+
 export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   const [projectStates, setProjectStates] = useState<ProjectCompileState[]>(cachedProjectStates);
   const projects = useRef<(Project | null)[]>(cachedProjects);
@@ -35,10 +48,45 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   const itemRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const startTime = useRef<{ [key: string]: number }>({});
 
-  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject, logOffset: number, projectIndex: number) => {
-    if (!startTime.current[configurationProject.name]) {
-      startTime.current[configurationProject.name] = Date.now();
+  const formatDuration = (milliseconds: number): string => {
+    const seconds = Math.round(milliseconds / 1000);
+    return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+  };
+
+  const updateProjectState = (projectIndex: number, updates: Partial<ProjectCompileState>) => {
+    setProjectStates((states) => {
+      const newStates = [...states];
+      if (newStates[projectIndex]) {
+        Object.assign(newStates[projectIndex], updates);
+      }
+      cachedProjectStates = newStates;
+      return newStates;
+    });
+  };
+
+  const handleCompileComplete = async (response: any, configurationProject: ConfigurationProject, projectIndex: number) => {
+    const duration = formatDuration(Date.now() - startTime.current[configurationProject.name]);
+    const isReady = response.status === ApiCompileStatus.STATUS_READY;
+
+    updateProjectState(projectIndex, {
+      status: isReady ? "success" : "error",
+      duration,
+    });
+
+    projects.current[projectIndex] = isReady ? await loadProject(response.sources, configurationProject) : null;
+    cachedProjects[projectIndex] = projects.current[projectIndex];
+
+    // Check if all projects have finished compiling
+    if (projects.current.every((p) => p !== undefined) && projects.current.length > 0) {
+      const validProjects = projects.current.filter((p): p is Project => p !== null);
+      if (validProjects.length > 0) {
+        onProjects(validProjects);
+      }
     }
+  };
+
+  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject, logOffset: number, projectIndex: number) => {
+    startTime.current[configurationProject.name] ??= Date.now();
 
     const { response } = await client.compile({
       logOffset,
@@ -47,15 +95,15 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       workspace: configurationProject.workspace,
     });
 
-    if (ignoreToken.ignore) {
-      return;
-    }
+    if (ignoreToken.ignore) return;
+
+    const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
 
     setProjectStates((states) => {
       const newStates = [...states];
       if (newStates[projectIndex]) {
         newStates[projectIndex].logs = [...newStates[projectIndex].logs, ...response.logs];
-        if (response.status === CompileStatus.STATUS_RUNNING) {
+        if (isRunning) {
           newStates[projectIndex].status = "running";
         }
       }
@@ -63,67 +111,21 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       return newStates;
     });
 
-    if (response.status === CompileStatus.STATUS_RUNNING) {
-      setTimeout(() => {
-        compile(ignoreToken, configurationProject, logOffset + response.logs.length, projectIndex);
-      }, 1000);
+    if (isRunning) {
+      setTimeout(() => compile(ignoreToken, configurationProject, logOffset + response.logs.length, projectIndex), POLL_INTERVAL_MS);
     } else {
-      const endTime = Date.now();
-      const duration = Math.round((endTime - startTime.current[configurationProject.name]) / 1000);
-      const durationStr = duration >= 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`;
-
-      setProjectStates((states) => {
-        const newStates = [...states];
-        if (newStates[projectIndex]) {
-          newStates[projectIndex].status = response.status === CompileStatus.STATUS_READY ? "success" : "error";
-          newStates[projectIndex].duration = durationStr;
-        }
-        cachedProjectStates = newStates;
-        return newStates;
-      });
-
-      if (response.status === CompileStatus.STATUS_READY) {
-        const project = await loadProject(response.sources, configurationProject);
-        console.log(`Project loaded [${projectIndex}]:`, project);
-        projects.current[projectIndex] = project;
-        cachedProjects[projectIndex] = project;
-      } else {
-        console.log(`Project compilation failed [${projectIndex}]: ${configurationProject.name}`);
-        projects.current[projectIndex] = null;
-        cachedProjects[projectIndex] = null;
-      }
-
-      // Check if all projects have finished compiling (either success or error)
-      const processedCount = projects.current.filter((p) => p !== undefined).length;
-      const totalCount = projects.current.length;
-      console.log(`Projects status: ${totalCount} total, processed: ${processedCount}`);
-
-      if (processedCount === totalCount && totalCount > 0) {
-        const validProjects = projects.current.filter((p): p is Project => p !== null && p !== undefined);
-        console.log(`All projects processed. Valid projects: ${validProjects.length}`);
-        if (validProjects.length > 0) {
-          console.log("Calling onProjects with valid projects:", validProjects);
-          onProjects(validProjects);
-        } else {
-          console.log("No valid projects to pass to onProjects");
-        }
-      }
+      await handleCompileComplete(response, configurationProject, projectIndex);
     }
   };
 
   useEffect(() => {
     const ignoreToken: IgnoreToken = { ignore: false };
 
-    client.getConfiguration({}).then(({ response }) => {
-      console.log("Configuration", response.configuration);
-      console.log("Projects to compile:", response.configuration?.projects);
-
+    const initializeAndCompile = async () => {
+      const { response } = await client.getConfiguration({});
       const configProjects = response.configuration?.projects || [];
 
-      if (configProjects.length === 0) {
-        console.warn("No projects found in configuration");
-        return;
-      }
+      if (configProjects.length === 0) return;
 
       const initialStates: ProjectCompileState[] = configProjects.map((project) => ({
         project,
@@ -132,28 +134,25 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         isExpanded: false,
       }));
 
-      // Only reset state if this is a fresh compile (not using cached data)
-      if (autoCompile || cachedProjectStates.length === 0) {
+      const shouldResetState = autoCompile || cachedProjectStates.length === 0;
+
+      if (shouldResetState) {
         setProjectStates(initialStates);
         cachedProjectStates = initialStates;
-
-        // Initialize projects array with the correct length
         projects.current = new Array(configProjects.length);
         cachedProjects = new Array(configProjects.length);
-        console.log(`Initialized projects array with length: ${configProjects.length}`);
       } else if (cachedProjectStates.length > 0) {
-        // Restore cached state when not auto-compiling
         setProjectStates(cachedProjectStates);
         projects.current = cachedProjects;
       }
 
-      if (autoCompile && cachedProjectStates.every((state) => state.status === "pending")) {
-        configProjects.forEach((configurationProject, index) => {
-          console.log(`Starting compilation for project ${index}: ${configurationProject.name}`);
-          compile(ignoreToken, configurationProject, 0, index);
-        });
+      const shouldStartCompile = autoCompile && cachedProjectStates.every((state) => state.status === "pending");
+      if (shouldStartCompile) {
+        configProjects.forEach((project, index) => compile(ignoreToken, project, 0, index));
       }
-    });
+    };
+
+    initializeAndCompile();
 
     return () => {
       ignoreToken.ignore = true;
@@ -161,7 +160,6 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   }, [autoCompile]);
 
   const toggleExpand = (index: number) => {
-    console.log(`Toggling expand for index ${index}`);
     setProjectStates((states) => {
       const newStates = states.map((state, i) => ({
         ...state,
@@ -172,48 +170,49 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
     });
   };
 
-  const getStatusVariant = (status: ProjectCompileState["status"]) => {
-    switch (status) {
-      case "error":
-        return "danger";
-      default:
-        return undefined;
-    }
+  const getStatusVariant = (status: CompileStatus) => {
+    return status === "error" ? "danger" : undefined;
   };
 
-  const getStatusIcon = (status: ProjectCompileState["status"]) => {
-    const iconStyle = {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 20,
-      height: 20,
-      borderRadius: "50%",
-      backgroundColor: status === "success" ? "var(--bgColor-success-muted)" : status === "error" ? "var(--bgColor-danger-muted)" : "transparent",
-    };
+  const renderSpinner = () => (
+    <div
+      className="spinner-rotating"
+      style={{
+        width: ICON_SIZE,
+        height: ICON_SIZE,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Spinner size="small" />
+    </div>
+  );
 
-    switch (status) {
-      case "running":
-        return (
-          <div className="spinner-rotating" style={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Spinner size="small" />
-          </div>
-        );
-      case "success":
-        return (
-          <div style={iconStyle}>
-            <CheckIcon size={12} fill="var(--fgColor-success)" />
-          </div>
-        );
-      case "error":
-        return (
-          <div style={iconStyle}>
-            <XIcon size={12} fill="var(--fgColor-danger)" />
-          </div>
-        );
-      default:
-        return null;
-    }
+  const getStatusIcon = (status: CompileStatus) => {
+    if (status === "running") return renderSpinner();
+    if (status === "pending") return null;
+
+    const isSuccess = status === "success";
+    const bgColor = isSuccess ? "var(--bgColor-success-muted)" : "var(--bgColor-danger-muted)";
+    const fgColor = isSuccess ? "var(--fgColor-success)" : "var(--fgColor-danger)";
+    const Icon = isSuccess ? CheckIcon : XIcon;
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: ICON_SIZE,
+          height: ICON_SIZE,
+          borderRadius: "50%",
+          backgroundColor: bgColor,
+        }}
+      >
+        <Icon size={CHECK_ICON_SIZE} fill={fgColor} />
+      </div>
+    );
   };
 
   const getProtocolDisplay = (protocol: RpcProtocol) => {
@@ -292,7 +291,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                   >
                     <ActionList.LeadingVisual>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
+                        <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
                         {getStatusIcon(state.status)}
                       </div>
                     </ActionList.LeadingVisual>
@@ -313,8 +312,8 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                   <div
                     style={{
                       fontFamily: "monospace",
-                      fontSize: 12,
-                      padding: "12px 16px",
+                      fontSize: LOG_FONT_SIZE,
+                      padding: LOG_PADDING,
                     }}
                   >
                     {state.logs.map((log, logIndex) => (
@@ -323,15 +322,15 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                         style={{
                           display: "flex",
                           marginBottom: 1,
-                          lineHeight: "20px",
+                          lineHeight: `${LOG_LINE_HEIGHT}px`,
                         }}
                       >
                         <span
                           style={{
                             color: "var(--fgColor-muted)",
-                            minWidth: "40px",
+                            minWidth: LINE_NUMBER_WIDTH,
                             textAlign: "right",
-                            marginRight: 16,
+                            marginRight: LINE_NUMBER_MARGIN,
                             userSelect: "none",
                           }}
                         >
@@ -350,9 +349,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                           color: "var(--fgColor-muted)",
                         }}
                       >
-                        <div className="spinner-rotating" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Spinner size="small" />
-                        </div>
+                        {renderSpinner()}
                         Compiling...
                       </div>
                     )}
