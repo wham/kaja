@@ -41,7 +41,12 @@ func (c *Compiler) start(projectName string, workspace string, force bool) error
 
 	if force || len(sources) == 0 {
 		c.logger.debug("Starting fresh compilation")
-		c.protoc(cwd, sourcesDir, workspace)
+		err := c.protoc(cwd, sourcesDir, workspace)
+		if err != nil {
+			c.status = CompileStatus_STATUS_ERROR
+			c.logger.error("Compilation failed", err)
+			return err
+		}
 		sources = c.getSources(sourcesDir)
 	}
 
@@ -85,7 +90,7 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) {
+func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error {
 	if _, err := os.Stat(sourcesDir); err == nil {
 		c.logger.debug("Directory " + sourcesDir + " already exists, removing it")
 		os.RemoveAll(sourcesDir)
@@ -111,8 +116,9 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) {
 		c.logger.error("Failed to run protoc", err)
 		c.logger.error(stderr.String(), err)
 		fmt.Printf("Failed to run protoc: %v\nStderr: %s\n", err, stderr.String())
-		return
+		return fmt.Errorf("protoc failed: %v", err)
 	}
 
 	c.logger.debug("Protoc completed successfully")
+	return nil
 }

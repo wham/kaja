@@ -24,6 +24,7 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [hasCompiled, setHasCompiled] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -33,11 +34,18 @@ export function App() {
 
   const onProjects = (projects: Project[]) => {
     setProjects(projects);
+    setHasCompiled(true);
     registerAIProvider(projects);
 
     projects.forEach((project) => {
       project.sources.forEach((source) => {
-        monaco.editor.createModel(source.file.text, "typescript", monaco.Uri.parse("ts:/" + source.path));
+        const uri = monaco.Uri.parse("ts:/" + source.path);
+        const existingModel = monaco.editor.getModel(uri);
+        if (!existingModel) {
+          monaco.editor.createModel(source.file.text, "typescript", uri);
+        } else {
+          existingModel.setValue(source.file.text);
+        }
       });
     });
 
@@ -97,6 +105,20 @@ export function App() {
     });
   };
 
+  const onCompilerClick = () => {
+    setTabs((tabs) => {
+      const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
+      if (compilerIndex === -1) {
+        const newTabs: TabModel[] = [...tabs, { type: "compiler" as const }];
+        setActiveTabIndex(newTabs.length - 1);
+        return newTabs;
+      } else {
+        setActiveTabIndex(compilerIndex);
+        return tabs;
+      }
+    });
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -107,14 +129,12 @@ export function App() {
               minWidth: 100,
               maxWidth: 600,
               flexShrink: 0,
-              overflow: "scroll",
-              paddingLeft: 8,
-              paddingRight: 8,
-              paddingTop: 4,
-              paddingBottom: 4,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} />
+            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} onCompilerClick={onCompilerClick} />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -124,8 +144,8 @@ export function App() {
                 {tabs.map((tab, index) => {
                   if (tab.type === "compiler") {
                     return (
-                      <Tab tabId="compiler" tabLabel="Compiling..." key="compiler">
-                        <Compiler onProjects={onProjects} />
+                      <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                        <Compiler onProjects={onProjects} autoCompile={!hasCompiled} />
                       </Tab>
                     );
                   }

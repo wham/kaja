@@ -62,4 +62,5 @@ Supported configuration options:
 
 Run: `scripts/run`
 Test UI: `(cd ui && npm test)`
+TSC: `(cd ui && npm run tsc)`
 Test server: `(cd server && go test ./... -v)`

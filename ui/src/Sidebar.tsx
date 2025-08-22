@@ -1,53 +1,79 @@
-import { TreeView } from "@primer/react";
+import { TreeView, IconButton } from "@primer/react";
+import { CpuIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
   onSelect: (method: Method) => void;
+  onCompilerClick: () => void;
 }
 
-export function Sidebar({ projects, currentMethod, onSelect }: SidebarProps) {
+export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: SidebarProps) {
   return (
-    <>
-      {projects.map((project) => {
-        return (
-          <nav key={project.name} aria-label="Services and methods">
-            {projects.length > 1 && (
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: "bold",
-                  padding: "2px 4px",
-                  color: "var(--fgColor-muted)",
-                }}
-              >
-                {project.name}
-              </div>
-            )}
-            <TreeView aria-label="Services and methods">
-              {project.services.map((service, index) => (
-                <TreeView.Item id={service.name} key={service.name} defaultExpanded={index === 0}>
-                  {service.name}
-                  <TreeView.SubTree>
-                    {service.methods.map((method) => (
-                      <TreeView.Item
-                        id={methodId(service, method)}
-                        key={methodId(service, method)}
-                        onSelect={() => onSelect(method)}
-                        current={currentMethod === method}
-                      >
-                        {method.name}
-                      </TreeView.Item>
-                    ))}
-                  </TreeView.SubTree>
-                </TreeView.Item>
-              ))}
-            </TreeView>
-          </nav>
-        );
-      })}
-    </>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "4px 12px",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--fgColor-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            userSelect: "none",
+          }}
+        >
+          Explorer
+        </div>
+        <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
+        {projects.map((project) => {
+          return (
+            <nav key={project.name} aria-label="Services and methods">
+              {projects.length > 1 && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    padding: "2px 4px",
+                    color: "var(--fgColor-muted)",
+                  }}
+                >
+                  {project.name}
+                </div>
+              )}
+              <TreeView aria-label="Services and methods">
+                {project.services.map((service, index) => (
+                  <TreeView.Item id={service.name} key={service.name} defaultExpanded={index === 0}>
+                    {service.name}
+                    <TreeView.SubTree>
+                      {service.methods.map((method) => (
+                        <TreeView.Item
+                          id={methodId(service, method)}
+                          key={methodId(service, method)}
+                          onSelect={() => onSelect(method)}
+                          current={currentMethod === method}
+                        >
+                          {method.name}
+                        </TreeView.Item>
+                      ))}
+                    </TreeView.SubTree>
+                  </TreeView.Item>
+                ))}
+              </TreeView>
+            </nav>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
