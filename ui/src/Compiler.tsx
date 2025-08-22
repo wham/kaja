@@ -29,10 +29,10 @@ let cachedProjects: (Project | null)[] = [];
 
 export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   const [projectStates, setProjectStates] = useState<ProjectCompileState[]>(cachedProjectStates);
-  const [stickyIndex, setStickyIndex] = useState<number | null>(null);
   const projects = useRef<(Project | null)[]>(cachedProjects);
   const client = getApiClient();
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const startTime = useRef<{ [key: string]: number }>({});
 
   const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject, logOffset: number, projectIndex: number) => {
@@ -160,44 +160,14 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
     };
   }, [autoCompile]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return;
-
-      const expandedIndices = projectStates.map((state, index) => (state.isExpanded ? index : -1)).filter((index) => index !== -1);
-
-      if (expandedIndices.length === 0) {
-        setStickyIndex(null);
-        return;
-      }
-
-      const scrollTop = containerRef.current.scrollTop;
-      let currentSticky = null;
-
-      for (const index of expandedIndices) {
-        const element = containerRef.current.querySelector(`[data-project-index="${index}"]`);
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          const containerRect = containerRef.current.getBoundingClientRect();
-          if (rect.top <= containerRect.top && rect.bottom > containerRect.top) {
-            currentSticky = index;
-          }
-        }
-      }
-
-      setStickyIndex(currentSticky);
-    };
-
-    if (containerRef.current) {
-      containerRef.current.addEventListener("scroll", handleScroll);
-      return () => containerRef.current?.removeEventListener("scroll", handleScroll);
-    }
-  }, [projectStates]);
 
   const toggleExpand = (index: number) => {
     console.log(`Toggling expand for index ${index}`);
     setProjectStates((states) => {
-      const newStates = states.map((state, i) => (i === index ? { ...state, isExpanded: !state.isExpanded } : state));
+      const newStates = states.map((state, i) => ({
+        ...state,
+        isExpanded: i === index ? !state.isExpanded : state.isExpanded,
+      }));
       cachedProjectStates = newStates;
       return newStates;
     });
@@ -252,7 +222,9 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       ref={containerRef}
       style={{
         height: "100%",
-        overflowY: "auto",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
         backgroundColor: "var(--bgColor-default)",
       }}
     >
@@ -267,7 +239,13 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         .compiler-item-expanded {
           background-color: var(--bgColor-accent-muted) !important;
         }
-        .compiler-item-sticky {
+        .compiler-logs-container {
+          background-color: var(--bgColor-canvas-inset);
+        }
+        .compiler-item-wrapper {
+          position: relative;
+        }
+        .compiler-item-header.sticky {
           position: sticky;
           top: 0;
           z-index: 10;
@@ -275,47 +253,53 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
         }
       `}</style>
       {projectStates.length === 0 ? (
-        <div style={{ padding: 20, textAlign: "center", color: "var(--fgColor-muted)" }}>
-          <Spinner size="medium" />
-          <div style={{ marginTop: 12 }}>Loading configuration...</div>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fgColor-muted)" }}>
+          <div>
+            <Spinner size="medium" />
+            <div style={{ marginTop: 12 }}>Loading configuration...</div>
+          </div>
         </div>
       ) : (
-        <ActionList>
+        <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
           {projectStates.map((state, index) => (
-            <div key={`project-${index}-${state.project.name}`}>
-              <ActionList.Item
-                variant={getStatusVariant(state.status)}
-                onSelect={() => toggleExpand(index)}
-                className={`${state.isExpanded ? "compiler-item-expanded" : ""} ${state.isExpanded && stickyIndex === index ? "compiler-item-sticky" : ""}`}
-              >
-                <ActionList.LeadingVisual>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
-                    {getStatusIcon(state.status)}
-                  </div>
-                </ActionList.LeadingVisual>
-                {state.project.name}
-                <ActionList.Description>
-                  {getProtocolDisplay(state.project.protocol)} • {state.project.url}
-                </ActionList.Description>
-                {state.duration && (
-                  <ActionList.TrailingVisual>
-                    <Text sx={{ fontSize: 1, color: "fg.muted" }}>{state.duration}</Text>
-                  </ActionList.TrailingVisual>
-                )}
-              </ActionList.Item>
+            <div 
+              key={`project-${index}-${state.project.name}`}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
+              className="compiler-item-wrapper"
+            >
+              <div className={state.isExpanded ? "compiler-item-header sticky" : ""}>
+                <ActionList>
+                  <ActionList.Item
+                    variant={getStatusVariant(state.status)}
+                    onSelect={() => toggleExpand(index)}
+                    className={state.isExpanded ? "compiler-item-expanded" : ""}
+                  >
+                    <ActionList.LeadingVisual>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <ChevronRightIcon size={16} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
+                        {getStatusIcon(state.status)}
+                      </div>
+                    </ActionList.LeadingVisual>
+                    {state.project.name}
+                    <ActionList.Description>
+                      {getProtocolDisplay(state.project.protocol)} • {state.project.url}
+                    </ActionList.Description>
+                    {state.duration && (
+                      <ActionList.TrailingVisual>
+                        <Text sx={{ fontSize: 1, color: "fg.muted" }}>{state.duration}</Text>
+                      </ActionList.TrailingVisual>
+                    )}
+                  </ActionList.Item>
+                </ActionList>
+              </div>
               {state.isExpanded && (
-                <div
-                  style={{
-                    backgroundColor: "var(--bgColor-canvas-inset)",
-                  }}
-                >
+                <div className="compiler-logs-container">
                   <div
                     style={{
                       fontFamily: "monospace",
                       fontSize: 12,
-                      maxHeight: 400,
-                      overflowY: "auto",
                       padding: "12px 16px",
                     }}
                   >
@@ -360,7 +344,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
               )}
             </div>
           ))}
-        </ActionList>
+        </div>
       )}
     </div>
   );
