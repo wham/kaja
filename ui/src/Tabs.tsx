@@ -69,11 +69,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           const isActive = index === activeTabIndex;
 
           return (
-            <div
-              key={tabId}
-              className={`tab-item ${isActive ? "active" : ""}`}
-              onClick={() => onSelectTab(index)}
-            >
+            <div key={tabId} className={`tab-item ${isActive ? "active" : ""}`} onClick={() => onSelectTab(index)}>
               <span
                 style={{
                   fontSize: "inherit",
@@ -112,7 +108,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         })}
         <div style={{ flexGrow: 1, borderBottom: "1px solid", borderBottomColor: "var(--borderColor-default)" }} />
       </div>
-      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
         {React.Children.map(children, (child, index) => (
           <div
             key={child.props.tabId}
@@ -120,6 +116,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
               display: index === activeTabIndex ? "flex" : "none",
               flexDirection: "column",
               height: "100%",
+              overflow: "hidden",
             }}
           >
             {child}
