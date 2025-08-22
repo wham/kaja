@@ -195,7 +195,11 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
 
     switch (status) {
       case "running":
-        return <Spinner size="small" />;
+        return (
+          <div className="spinner-rotating" style={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Spinner size="small" />
+          </div>
+        );
       case "success":
         return (
           <div style={iconStyle}>
@@ -229,6 +233,17 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
       }}
     >
       <style>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .spinner-rotating {
+          animation: spin 1s linear infinite;
+        }
         .chevron-icon {
           transition: transform 0.2s;
           color: var(--fgColor-muted);
@@ -336,7 +351,10 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                           color: "var(--fgColor-muted)",
                         }}
                       >
-                        <Spinner size="small" /> Compiling...
+                        <div className="spinner-rotating" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Spinner size="small" />
+                        </div>
+                        Compiling...
                       </div>
                     )}
                   </div>
