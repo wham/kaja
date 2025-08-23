@@ -6,6 +6,8 @@ import { App } from "./App";
 export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";
 
+console.log("Starting application...");
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

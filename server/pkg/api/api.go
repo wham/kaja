@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	fmt "fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/wham/kaja/v2/internal/ui"
@@ -11,11 +12,33 @@ import (
 type ApiService struct {
 	compilers                sync.Map // map[string]*Compiler
 	getConfigurationResponse *GetConfigurationResponse
+	protocPath               string    // Custom protoc path
+	includePath              string    // Custom include path
+	nodePath                 string    // Custom node path
 }
 
 func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
 	return &ApiService{
 		getConfigurationResponse: getConfigurationResponse,
+	}
+}
+
+// NewApiServiceWithProtoc creates a new API service with custom protoc binary and include paths
+func NewApiServiceWithProtoc(getConfigurationResponse *GetConfigurationResponse, protocPath, includePath string) *ApiService {
+	return &ApiService{
+		getConfigurationResponse: getConfigurationResponse,
+		protocPath:               protocPath,
+		includePath:              includePath,
+	}
+}
+
+// NewApiServiceWithAllPaths creates a new API service with custom protoc, include, and node paths
+func NewApiServiceWithAllPaths(getConfigurationResponse *GetConfigurationResponse, protocPath, includePath, nodePath string) *ApiService {
+	return &ApiService{
+		getConfigurationResponse: getConfigurationResponse,
+		protocPath:               protocPath,
+		includePath:              includePath,
+		nodePath:                 nodePath,
 	}
 }
 
@@ -27,6 +50,11 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	compiler := s.getOrCreateCompiler(req.ProjectName)
 	compiler.mu.Lock()
 	defer compiler.mu.Unlock()
+
+	// Ensure logger is always initialized
+	if compiler.logger == nil {
+		compiler.logger = NewLogger()
+	}
 
 	if compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
 		compiler.status = CompileStatus_STATUS_RUNNING
@@ -54,6 +82,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
+	slog.Info("Getting configuration")
 	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
 	config := &Configuration{
 		PathPrefix: s.getConfigurationResponse.Configuration.PathPrefix,
@@ -87,6 +116,14 @@ func (s *ApiService) GetStub(ctx context.Context, req *GetStubRequest) (*GetStub
 }
 
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
-	compiler, _ := s.compilers.LoadOrStore(projectName, NewCompiler())
+	var newCompiler *Compiler
+	if s.protocPath != "" || s.includePath != "" || s.nodePath != "" {
+		// Use custom settings
+		newCompiler = NewCompilerWithAllPaths(s.protocPath, s.includePath, s.nodePath)
+	} else {
+		// Use default system binaries
+		newCompiler = NewCompiler()
+	}
+	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
 	return compiler.(*Compiler)
 }

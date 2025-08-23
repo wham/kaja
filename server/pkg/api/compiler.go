@@ -14,11 +14,41 @@ type Compiler struct {
 	status  CompileStatus
 	logger  *Logger
 	sources []*Source
+	protocPath  string // Path to protoc binary
+	includePath string // Path to protobuf include files
+	nodePath    string // Path to node binary
 }
 
 func NewCompiler() *Compiler {
 	return &Compiler{
-		status: CompileStatus_STATUS_READY,
+		status:     CompileStatus_STATUS_READY,
+		protocPath: "protoc", // Default to system protoc
+	}
+}
+
+func NewCompilerWithProtocPath(protocPath string) *Compiler {
+	return &Compiler{
+		status:     CompileStatus_STATUS_READY,
+		protocPath: protocPath,
+	}
+}
+
+// NewCompilerWithProtocAndIncludes creates a new compiler with custom protoc binary and include paths
+func NewCompilerWithProtocAndIncludes(protocPath, includePath string) *Compiler {
+	return &Compiler{
+		status:      CompileStatus_STATUS_READY,
+		protocPath:  protocPath,
+		includePath: includePath,
+	}
+}
+
+// NewCompilerWithAllPaths creates a new compiler with custom protoc, include, and node paths
+func NewCompilerWithAllPaths(protocPath, includePath, nodePath string) *Compiler {
+	return &Compiler{
+		status:      CompileStatus_STATUS_READY,
+		protocPath:  protocPath,
+		includePath: includePath,
+		nodePath:    nodePath,
 	}
 }
 
@@ -97,13 +127,25 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	}
 	os.MkdirAll(sourcesDir, os.ModePerm)
 
-	workspaceDir := filepath.Join(cwd, "../workspace/"+workspace)
+	workspaceDir := filepath.Join(cwd, "./workspace/"+workspace)
 	c.logger.debug("workspaceDir: " + workspaceDir)
 
-	buildDir := filepath.Join(cwd, "../build")
+	buildDir := filepath.Join(cwd, "build")
 	c.logger.debug("binDir: " + buildDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
+	// Use custom protoc path if available, otherwise fall back to system protoc
+	protocCmd := "protoc"
+	if c.protocPath != "" {
+		protocCmd = c.protocPath
+	}
+
+	// Build include paths: workspace first, then embedded protobuf includes if available
+	includePaths := "-I" + workspaceDir
+	if c.includePath != "" {
+		includePaths += " -I" + c.includePath
+	}
+
+	protocCommand := protocCmd + " --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint " + includePaths + " $(find " + workspaceDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 

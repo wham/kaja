@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+# Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
+if ! command -v wails &> /dev/null
+then
+    echo "Wails is not installed."
+    read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing Wails using Homebrew..."
+        brew install wails
+    else
+        echo "Wails installation skipped. Exiting script."
+        exit 1
+    fi
+fi
+
+cd "$(dirname "$0")/../server"
+go run cmd/build-ui/main.go
+
+cd ".."
+rm -rf desktop/frontend/dist || true
+mkdir -p desktop/frontend/dist
+cp server/build/main.css desktop/frontend/dist/main.css
+cp server/build/main.js desktop/frontend/dist/main.js
+cp -r server/static desktop/frontend/dist/
+
+scripts/download-all-binaries.sh
+cd "./desktop"
+wails dev

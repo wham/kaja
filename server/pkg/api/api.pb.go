@@ -243,7 +243,11 @@ type CompileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
 	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
+<<<<<<< HEAD
 	Sources       []*Source              `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
+=======
+	Sources       []string               `protobuf:"bytes,3,rep,name=sources,proto3" json:"sources,omitempty"`
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -292,7 +296,11 @@ func (x *CompileResponse) GetLogs() []*Log {
 	return nil
 }
 
+<<<<<<< HEAD
 func (x *CompileResponse) GetSources() []*Source {
+=======
+func (x *CompileResponse) GetSources() []string {
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		return x.Sources
 	}
@@ -351,6 +359,7 @@ func (x *Log) GetMessage() string {
 	return ""
 }
 
+<<<<<<< HEAD
 type Source struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
@@ -403,6 +412,8 @@ func (x *Source) GetContent() string {
 	return ""
 }
 
+=======
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 type GetConfigurationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -411,7 +422,11 @@ type GetConfigurationRequest struct {
 
 func (x *GetConfigurationRequest) Reset() {
 	*x = GetConfigurationRequest{}
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[4]
+=======
+	mi := &file_proto_api_proto_msgTypes[3]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -423,7 +438,11 @@ func (x *GetConfigurationRequest) String() string {
 func (*GetConfigurationRequest) ProtoMessage() {}
 
 func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[4]
+=======
+	mi := &file_proto_api_proto_msgTypes[3]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -436,7 +455,11 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
 	return file_proto_api_proto_rawDescGZIP(), []int{4}
+=======
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 type GetConfigurationResponse struct {
@@ -449,7 +472,11 @@ type GetConfigurationResponse struct {
 
 func (x *GetConfigurationResponse) Reset() {
 	*x = GetConfigurationResponse{}
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[5]
+=======
+	mi := &file_proto_api_proto_msgTypes[4]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +488,11 @@ func (x *GetConfigurationResponse) String() string {
 func (*GetConfigurationResponse) ProtoMessage() {}
 
 func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[5]
+=======
+	mi := &file_proto_api_proto_msgTypes[4]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +505,11 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
 	return file_proto_api_proto_rawDescGZIP(), []int{5}
+=======
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
@@ -506,7 +541,11 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[6]
+=======
+	mi := &file_proto_api_proto_msgTypes[5]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +557,11 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[6]
+=======
+	mi := &file_proto_api_proto_msgTypes[5]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +574,11 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
 	return file_proto_api_proto_rawDescGZIP(), []int{6}
+=======
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -567,7 +614,11 @@ type ConfigurationProject struct {
 
 func (x *ConfigurationProject) Reset() {
 	*x = ConfigurationProject{}
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[7]
+=======
+	mi := &file_proto_api_proto_msgTypes[6]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +630,11 @@ func (x *ConfigurationProject) String() string {
 func (*ConfigurationProject) ProtoMessage() {}
 
 func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[7]
+=======
+	mi := &file_proto_api_proto_msgTypes[6]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +647,11 @@ func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationProject.ProtoReflect.Descriptor instead.
 func (*ConfigurationProject) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
 	return file_proto_api_proto_rawDescGZIP(), []int{7}
+=======
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 func (x *ConfigurationProject) GetName() string {
@@ -633,7 +692,11 @@ type ConfigurationAI struct {
 
 func (x *ConfigurationAI) Reset() {
 	*x = ConfigurationAI{}
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[8]
+=======
+	mi := &file_proto_api_proto_msgTypes[7]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -645,7 +708,11 @@ func (x *ConfigurationAI) String() string {
 func (*ConfigurationAI) ProtoMessage() {}
 
 func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
+<<<<<<< HEAD
 	mi := &file_proto_api_proto_msgTypes[8]
+=======
+	mi := &file_proto_api_proto_msgTypes[7]
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -658,7 +725,11 @@ func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationAI.ProtoReflect.Descriptor instead.
 func (*ConfigurationAI) Descriptor() ([]byte, []int) {
+<<<<<<< HEAD
 	return file_proto_api_proto_rawDescGZIP(), []int{8}
+=======
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 func (x *ConfigurationAI) GetBaseUrl() string {
@@ -675,6 +746,7 @@ func (x *ConfigurationAI) GetApiKey() string {
 	return ""
 }
 
+<<<<<<< HEAD
 type GetStubRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectName   string                 `protobuf:"bytes,1,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
@@ -763,6 +835,8 @@ func (x *GetStubResponse) GetStub() string {
 	return ""
 }
 
+=======
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
@@ -773,6 +847,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"log_offset\x18\x01 \x01(\x05R\tlogOffset\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\x12!\n" +
 	"\fproject_name\x18\x03 \x01(\tR\vprojectName\x12\x1c\n" +
+<<<<<<< HEAD
 	"\tworkspace\x18\x04 \x01(\tR\tworkspace\"v\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
@@ -784,6 +859,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x06Source\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\x19\n" +
+=======
+	"\tworkspace\x18\x04 \x01(\tR\tworkspace\"m\n" +
+	"\x0fCompileResponse\x12&\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
+	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x18\n" +
+	"\asources\x18\x03 \x03(\tR\asources\"@\n" +
+	"\x03Log\x12\x1f\n" +
+	"\x05level\x18\x01 \x01(\x0e2\t.LogLevelR\x05level\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x19\n" +
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	"\x17GetConfigurationRequest\"j\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
@@ -800,11 +885,15 @@ const file_proto_api_proto_rawDesc = "" +
 	"\tworkspace\x18\x04 \x01(\tR\tworkspace\"E\n" +
 	"\x0fConfigurationAI\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x17\n" +
+<<<<<<< HEAD
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"3\n" +
 	"\x0eGetStubRequest\x12!\n" +
 	"\fproject_name\x18\x01 \x01(\tR\vprojectName\"%\n" +
 	"\x0fGetStubResponse\x12\x12\n" +
 	"\x04stub\x18\x01 \x01(\tR\x04stub*[\n" +
+=======
+	"\aapi_key\x18\x02 \x01(\tR\x06apiKey*[\n" +
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +
@@ -819,11 +908,18 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vLEVEL_ERROR\x10\x03*<\n" +
 	"\vRpcProtocol\x12\x16\n" +
 	"\x12RPC_PROTOCOL_TWIRP\x10\x00\x12\x15\n" +
+<<<<<<< HEAD
 	"\x11RPC_PROTOCOL_GRPC\x10\x012\xaa\x01\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12,\n" +
 	"\aGetStub\x12\x0f.GetStubRequest\x1a\x10.GetStubResponseB\tZ\apkg/apib\x06proto3"
+=======
+	"\x11RPC_PROTOCOL_GRPC\x10\x012|\n" +
+	"\x03Api\x12,\n" +
+	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
+	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponseB\x0eZ\finternal/apib\x06proto3"
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -838,7 +934,11 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+<<<<<<< HEAD
 var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+=======
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 var file_proto_api_proto_goTypes = []any{
 	(CompileStatus)(0),               // 0: CompileStatus
 	(LogLevel)(0),                    // 1: LogLevel
@@ -846,6 +946,7 @@ var file_proto_api_proto_goTypes = []any{
 	(*CompileRequest)(nil),           // 3: CompileRequest
 	(*CompileResponse)(nil),          // 4: CompileResponse
 	(*Log)(nil),                      // 5: Log
+<<<<<<< HEAD
 	(*Source)(nil),                   // 6: Source
 	(*GetConfigurationRequest)(nil),  // 7: GetConfigurationRequest
 	(*GetConfigurationResponse)(nil), // 8: GetConfigurationResponse
@@ -854,10 +955,18 @@ var file_proto_api_proto_goTypes = []any{
 	(*ConfigurationAI)(nil),          // 11: ConfigurationAI
 	(*GetStubRequest)(nil),           // 12: GetStubRequest
 	(*GetStubResponse)(nil),          // 13: GetStubResponse
+=======
+	(*GetConfigurationRequest)(nil),  // 6: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil), // 7: GetConfigurationResponse
+	(*Configuration)(nil),            // 8: Configuration
+	(*ConfigurationProject)(nil),     // 9: ConfigurationProject
+	(*ConfigurationAI)(nil),          // 10: ConfigurationAI
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 var file_proto_api_proto_depIdxs = []int32{
 	0,  // 0: CompileResponse.status:type_name -> CompileStatus
 	5,  // 1: CompileResponse.logs:type_name -> Log
+<<<<<<< HEAD
 	6,  // 2: CompileResponse.sources:type_name -> Source
 	1,  // 3: Log.level:type_name -> LogLevel
 	9,  // 4: GetConfigurationResponse.configuration:type_name -> Configuration
@@ -876,6 +985,23 @@ var file_proto_api_proto_depIdxs = []int32{
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
+=======
+	1,  // 2: Log.level:type_name -> LogLevel
+	8,  // 3: GetConfigurationResponse.configuration:type_name -> Configuration
+	5,  // 4: GetConfigurationResponse.logs:type_name -> Log
+	9,  // 5: Configuration.projects:type_name -> ConfigurationProject
+	10, // 6: Configuration.ai:type_name -> ConfigurationAI
+	2,  // 7: ConfigurationProject.protocol:type_name -> RpcProtocol
+	3,  // 8: Api.Compile:input_type -> CompileRequest
+	6,  // 9: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	4,  // 10: Api.Compile:output_type -> CompileResponse
+	7,  // 11: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 }
 
 func init() { file_proto_api_proto_init() }
@@ -889,7 +1015,11 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      3,
+<<<<<<< HEAD
 			NumMessages:   11,
+=======
+			NumMessages:   8,
+>>>>>>> 2df4af3 (feat: implement Wails desktop application with embedded binaries)
 			NumExtensions: 0,
 			NumServices:   1,
 		},

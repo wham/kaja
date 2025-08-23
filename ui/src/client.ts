@@ -5,28 +5,56 @@ import { MethodCall } from "./kaja";
 import { Client, Service } from "./project";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
+import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
+
+function isWailsEnvironment(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as any).runtime !== "undefined" &&
+    typeof (window as any).go !== "undefined" &&
+    typeof (window as any).go.main !== "undefined" &&
+    typeof (window as any).go.main.App !== "undefined"
+  );
+}
 
 export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
   const client: Client = { methods: {} };
-  const transport =
-    configuration.protocol == RpcProtocol.GRPC
-      ? new GrpcWebFetchTransport({
-          baseUrl: getBaseUrlForTarget(),
-        })
-      : new TwirpFetchTransport({
-          baseUrl: getBaseUrlForTarget(),
-        });
+
+  let transport;
+  if (isWailsEnvironment()) {
+    console.log("Creating client in Wails environment - using WailsTransport in target mode");
+
+    if (configuration.protocol == RpcProtocol.GRPC) {
+      console.warn("gRPC protocol not fully supported in Wails environment");
+      // Still create the transport but calls will fail with a meaningful error
+    }
+
+    // Use Wails transport in target mode for external API calls
+    transport = new WailsTransport({ mode: "target", targetUrl: configuration.url });
+  } else {
+    transport =
+      configuration.protocol == RpcProtocol.GRPC
+        ? new GrpcWebFetchTransport({
+            baseUrl: getBaseUrlForTarget(),
+          })
+        : new TwirpFetchTransport({
+            baseUrl: getBaseUrlForTarget(),
+          });
+  }
+
   const clientStub = new stub[service.name + "Client"](transport);
   const options: RpcOptions = {
     interceptors: [
       {
-        // adds auth header to unary requests
+        // adds X-Target header for web environment (not needed in Wails)
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};
           }
-          options.meta["X-Target"] = configuration.url;
+          if (!isWailsEnvironment()) {
+            options.meta["X-Target"] = configuration.url;
+          }
           return next(method, input, options);
         },
       },

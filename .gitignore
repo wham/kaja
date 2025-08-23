@@ -1,5 +1,7 @@
 /build
 /server/build
 /ui/node_modules
+/desktop/binaries
+/desktop/build/bin
 
 .ai_api_key

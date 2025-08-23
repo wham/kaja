@@ -1,6 +1,7 @@
 import ts from "typescript";
 import { Source as ApiSource } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { LoadSourceFile as GoLoadSourceFile, LoadStub as GoLoadStub } from "./wailsjs/go/main/App";
 
 export interface Source {
   path: string;
