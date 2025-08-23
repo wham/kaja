@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	assets "github.com/wham/kaja/v2"
-	"github.com/wham/kaja/v2/internal/api"
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/pkg/api"
 )
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {

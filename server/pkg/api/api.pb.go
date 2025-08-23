@@ -823,7 +823,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12,\n" +
-	"\aGetStub\x12\x0f.GetStubRequest\x1a\x10.GetStubResponseB\x0eZ\finternal/apib\x06proto3"
+	"\aGetStub\x12\x0f.GetStubRequest\x1a\x10.GetStubResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
