@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+source "$(dirname "$0")/common"
+
 # Check if Go is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v go &> /dev/null
 then
@@ -49,8 +51,7 @@ then
     fi
 fi
 
-# Kill background demo apps when the script exits
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+setup_trap
 
 cd "$(dirname "$0")/.."
 
@@ -69,23 +70,11 @@ npm run protoc
 # consider ignoring them if this starts to take too long
 npm run prettier
 
-cd "../workspace"
-protoc --proto_path=. \
-    --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
-    --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
-    --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
-    -Iproto/ $(find . -iname "*.proto")
+cd ..
+build_demo_apps
+start_demo_apps
 
-echo "Building gRPC demo app"
-go build -o /tmp/demo-grpc-server ./cmd/grpc-server
-
-echo "Building Twirp demo app"
-go build -o /tmp/demo-twirp-server ./cmd/twirp-server
-
-/tmp/demo-grpc-server &
-/tmp/demo-twirp-server &
-
-cd "../server"
+cd "server"
 go run cmd/build-ui/main.go
 protoc --proto_path=. --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
 go build -tags development -o /tmp/kaja ./cmd/server

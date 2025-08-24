@@ -60,7 +60,7 @@ Supported configuration options:
 
 # Development
 
-Run: `scripts/run`
+Run: `scripts/server`
 Test UI: `(cd ui && npm test)`
 TSC: `(cd ui && npm run tsc)`
 Test server: `(cd server && go test ./... -v)`

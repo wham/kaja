@@ -2,6 +2,7 @@ import * as monaco from "monaco-editor";
 import OpenAI from "openai";
 import { Project } from "./project";
 import { getBaseUrlForAi } from "./server/connection";
+import { isWailsEnvironment } from "./wails";
 interface AICompletion {
   text: string;
   range: monaco.Range;
@@ -74,6 +75,12 @@ async function debouncedFetchAICompletions(context: CompletionContext, projects:
 }
 
 async function fetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
+  if (isWailsEnvironment()) {
+    // In desktop mode, AI functionality might not be available or needs different configuration
+    console.info("AI completions not available in desktop mode");
+    return [];
+  }
+
   const fileContent = context.model.getValue();
   const position = context.position;
   const lineContent = context.model.getLineContent(position.lineNumber);
