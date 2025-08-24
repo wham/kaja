@@ -1,6 +1,7 @@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { ApiClient } from "./api.client";
 import { WailsTransport } from "./wails-transport";
+import { isWailsEnvironment } from "../wails";
 
 // Immediate logging when module loads
 console.log("connection.ts module loaded", {
@@ -19,25 +20,6 @@ setTimeout(() => {
     windowGo: typeof window !== "undefined" ? (window as any).go : undefined,
   });
 }, 1000);
-
-/**
- * Detects if we're running in a Wails desktop environment
- */
-function isWailsEnvironment(): boolean {
-  // Check for Wails runtime first - this is the most reliable indicator
-  const hasRuntime = typeof window !== "undefined" && typeof (window as any).runtime !== "undefined";
-  const hasGoBindings = typeof (window as any).go?.main?.App !== "undefined";
-
-  console.log("Environment detection:", {
-    hasWindow: typeof window !== "undefined",
-    hasRuntime,
-    hasGoBindings,
-    windowGo: typeof (window as any).go,
-    isWails: hasRuntime && hasGoBindings,
-  });
-
-  return hasRuntime && hasGoBindings;
-}
 
 let cachedClient: ApiClient | null = null;
 

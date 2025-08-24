@@ -8,11 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 
-	esbuild "github.com/evanw/esbuild/pkg/api"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -132,87 +129,6 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 	}
 
 	return response, nil
-}
-
-// LoadStub loads stub JavaScript content for a given project using the same approach as handleStubJs
-func (a *App) LoadStub(projectName string) (string, error) {
-	slog.Info("Loading stub for project", "project", projectName)
-	
-	// Read all files in the sources directory, similar to handleStubJs
-	sourcesDir := filepath.Join("build", "sources", projectName)
-	var stubContent strings.Builder
-	
-	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			// Create export statement similar to handleStubJs
-			relativePath := strings.Replace(path, "build/sources/"+projectName, "./", 1)
-			stubContent.WriteString(fmt.Sprintf("export * from \"%s\";\n", relativePath))
-		}
-		return nil
-	})
-	
-	if err != nil {
-		slog.Warn("Failed to walk sources directory", "path", sourcesDir, "error", err)
-		return "", fmt.Errorf("failed to read sources directory: %w", err)
-	}
-
-	//slog.Info("Generated stub content", "project", projectName, "content", stubContent.String())
-
-	// Use esbuild to bundle the stub, similar to handleStubJs
-	result := esbuild.Build(esbuild.BuildOptions{
-		Stdin: &esbuild.StdinOptions{
-			Contents:   stubContent.String(),
-			ResolveDir: sourcesDir,
-			Sourcefile: "stub.ts",
-		},
-		Bundle:   true,
-		Format:   esbuild.FormatESModule,
-		Packages: esbuild.PackagesExternal,
-	})
-
-	if len(result.Errors) > 0 {
-		errorMsg := result.Errors[0].Text
-		slog.Error("esbuild failed", "project", projectName, "error", errorMsg)
-		return "", fmt.Errorf("build failed: %s", errorMsg)
-	}
-
-	if len(result.OutputFiles) == 0 {
-		slog.Error("No output files generated", "project", projectName)
-		return "", fmt.Errorf("no output files generated")
-	}
-
-	output := string(result.OutputFiles[0].Contents)
-	slog.Info("Stub loaded successfully", "project", projectName, "output_length", len(output))
-	return output, nil
-}
-
-// LoadSourceFile loads the content of a specific source file
-func (a *App) LoadSourceFile(path string) (string, error) {
-	slog.Info("Loading source file", "path", path)
-	
-	// Construct the full path to the source file
-	sourcePath := filepath.Join("build", "sources", path)
-	
-	// Check if the file exists and is within the sources directory (security check)
-	cleanPath := filepath.Clean(sourcePath)
-	expectedPrefix := filepath.Clean("build/sources/")
-	if !strings.HasPrefix(cleanPath, expectedPrefix) {
-		slog.Warn("Attempted to access file outside sources directory", "path", path, "cleanPath", cleanPath)
-		return "", fmt.Errorf("invalid path: %s", path)
-	}
-	
-	// Read the file content
-	content, err := os.ReadFile(cleanPath)
-	if err != nil {
-		slog.Warn("Failed to read source file", "path", cleanPath, "error", err)
-		return "", fmt.Errorf("failed to read file %s: %w", path, err)
-	}
-	
-	slog.Info("Source file loaded successfully", "path", path, "content_length", len(content))
-	return string(content), nil
 }
 
 func main() {

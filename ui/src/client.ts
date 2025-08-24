@@ -7,16 +7,7 @@ import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
-
-function isWailsEnvironment(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof (window as any).runtime !== "undefined" &&
-    typeof (window as any).go !== "undefined" &&
-    typeof (window as any).go.main !== "undefined" &&
-    typeof (window as any).go.main.App !== "undefined"
-  );
-}
+import { isWailsEnvironment } from "./wails";
 
 export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
   const client: Client = { methods: {} };

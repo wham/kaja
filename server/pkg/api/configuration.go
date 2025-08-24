@@ -12,7 +12,6 @@ import (
 func LoadGetConfigurationResponse(configPath string) *GetConfigurationResponse {
 	logger := NewLogger()
 	logger.info(fmt.Sprintf("configPath %s", configPath))
-	logger.info("Sdidjwidwjdwidjqiwdjwidjwqidwjidwjdiwqjwidjwqijwi")
 	config := loadConfigurationFile(configPath, logger)
 
 	applyEnvironmentVariables(config, logger)

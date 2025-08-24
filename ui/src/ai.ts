@@ -2,16 +2,7 @@ import * as monaco from "monaco-editor";
 import OpenAI from "openai";
 import { Project } from "./project";
 import { getBaseUrlForAi } from "./server/connection";
-
-function isWailsEnvironment(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof (window as any).runtime !== "undefined" &&
-    typeof (window as any).go !== "undefined" &&
-    typeof (window as any).go.main !== "undefined" &&
-    typeof (window as any).go.main.App !== "undefined"
-  );
-}
+import { isWailsEnvironment } from "./wails";
 interface AICompletion {
   text: string;
   range: monaco.Range;
