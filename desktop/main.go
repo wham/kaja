@@ -132,7 +132,7 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 }
 
 func main() {
-	getConfigurationResponse := api.LoadGetConfigurationResponse("./workspace/kaja.json")
+	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
 	
 	// Create API service without embedded binaries
 	apiService := api.NewApiService(getConfigurationResponse)

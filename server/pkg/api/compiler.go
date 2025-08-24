@@ -97,10 +97,10 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	}
 	os.MkdirAll(sourcesDir, os.ModePerm)
 
-	workspaceDir := filepath.Join(cwd, "./workspace/"+workspace)
+	workspaceDir := filepath.Join(cwd, "../workspace/"+workspace)
 	c.logger.debug("workspaceDir: " + workspaceDir)
 
-	buildDir := filepath.Join(cwd, "build")
+	buildDir := filepath.Join(cwd, "../build")
 	c.logger.debug("binDir: " + buildDir)
 
 	// Use system protoc
