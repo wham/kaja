@@ -14,41 +14,11 @@ type Compiler struct {
 	status  CompileStatus
 	logger  *Logger
 	sources []*Source
-	protocPath  string // Path to protoc binary
-	includePath string // Path to protobuf include files
-	nodePath    string // Path to node binary
 }
 
 func NewCompiler() *Compiler {
 	return &Compiler{
-		status:     CompileStatus_STATUS_READY,
-		protocPath: "protoc", // Default to system protoc
-	}
-}
-
-func NewCompilerWithProtocPath(protocPath string) *Compiler {
-	return &Compiler{
-		status:     CompileStatus_STATUS_READY,
-		protocPath: protocPath,
-	}
-}
-
-// NewCompilerWithProtocAndIncludes creates a new compiler with custom protoc binary and include paths
-func NewCompilerWithProtocAndIncludes(protocPath, includePath string) *Compiler {
-	return &Compiler{
-		status:      CompileStatus_STATUS_READY,
-		protocPath:  protocPath,
-		includePath: includePath,
-	}
-}
-
-// NewCompilerWithAllPaths creates a new compiler with custom protoc, include, and node paths
-func NewCompilerWithAllPaths(protocPath, includePath, nodePath string) *Compiler {
-	return &Compiler{
-		status:      CompileStatus_STATUS_READY,
-		protocPath:  protocPath,
-		includePath: includePath,
-		nodePath:    nodePath,
+		status: CompileStatus_STATUS_READY,
 	}
 }
 
@@ -133,17 +103,11 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	buildDir := filepath.Join(cwd, "build")
 	c.logger.debug("binDir: " + buildDir)
 
-	// Use custom protoc path if available, otherwise fall back to system protoc
+	// Use system protoc
 	protocCmd := "protoc"
-	if c.protocPath != "" {
-		protocCmd = c.protocPath
-	}
 
-	// Build include paths: workspace first, then embedded protobuf includes if available
+	// Build include paths: workspace only
 	includePaths := "-I" + workspaceDir
-	if c.includePath != "" {
-		includePaths += " -I" + c.includePath
-	}
 
 	protocCommand := protocCmd + " --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint " + includePaths + " $(find " + workspaceDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")

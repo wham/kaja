@@ -12,33 +12,11 @@ import (
 type ApiService struct {
 	compilers                sync.Map // map[string]*Compiler
 	getConfigurationResponse *GetConfigurationResponse
-	protocPath               string    // Custom protoc path
-	includePath              string    // Custom include path
-	nodePath                 string    // Custom node path
 }
 
 func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
 	return &ApiService{
 		getConfigurationResponse: getConfigurationResponse,
-	}
-}
-
-// NewApiServiceWithProtoc creates a new API service with custom protoc binary and include paths
-func NewApiServiceWithProtoc(getConfigurationResponse *GetConfigurationResponse, protocPath, includePath string) *ApiService {
-	return &ApiService{
-		getConfigurationResponse: getConfigurationResponse,
-		protocPath:               protocPath,
-		includePath:              includePath,
-	}
-}
-
-// NewApiServiceWithAllPaths creates a new API service with custom protoc, include, and node paths
-func NewApiServiceWithAllPaths(getConfigurationResponse *GetConfigurationResponse, protocPath, includePath, nodePath string) *ApiService {
-	return &ApiService{
-		getConfigurationResponse: getConfigurationResponse,
-		protocPath:               protocPath,
-		includePath:              includePath,
-		nodePath:                 nodePath,
 	}
 }
 
@@ -116,14 +94,7 @@ func (s *ApiService) GetStub(ctx context.Context, req *GetStubRequest) (*GetStub
 }
 
 func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
-	var newCompiler *Compiler
-	if s.protocPath != "" || s.includePath != "" || s.nodePath != "" {
-		// Use custom settings
-		newCompiler = NewCompilerWithAllPaths(s.protocPath, s.includePath, s.nodePath)
-	} else {
-		// Use default system binaries
-		newCompiler = NewCompiler()
-	}
+	newCompiler := NewCompiler()
 	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
 	return compiler.(*Compiler)
 }
