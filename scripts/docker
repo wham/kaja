@@ -18,8 +18,6 @@ start_demo_apps
 # Stop and remove the container if it already exists
 docker rm -f kaja-dev &> /dev/null || true
 
-cd ".."
-
 docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
 
 rm pipe &> /dev/null || true
