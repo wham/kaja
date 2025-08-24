@@ -19,6 +19,11 @@ then
     fi
 fi
 
+setup_trap
+
+build_demo_apps
+start_demo_apps
+
 cd "$(dirname "$0")/../server"
 go run cmd/build-ui/main.go
 
