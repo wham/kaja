@@ -70,10 +70,11 @@ npm run protoc
 # consider ignoring them if this starts to take too long
 npm run prettier
 
+cd ..
 build_demo_apps
 start_demo_apps
 
-cd "../server"
+cd "server"
 go run cmd/build-ui/main.go
 protoc --proto_path=. --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
 go build -tags development -o /tmp/kaja ./cmd/server

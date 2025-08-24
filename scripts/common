@@ -7,7 +7,8 @@ setup_trap() {
 }
 
 build_demo_apps() {
-    cd "$(dirname "$0")/../workspace"
+    local original_dir=$(pwd)
+    cd workspace
     
     protoc --proto_path=. \
         --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
@@ -20,6 +21,8 @@ build_demo_apps() {
 
     echo "Building Twirp demo app"
     go build -o /tmp/demo-twirp-server ./cmd/twirp-server
+    
+    cd "$original_dir"
 }
 
 start_demo_apps() {
