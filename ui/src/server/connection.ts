@@ -1,12 +1,24 @@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { ApiClient } from "./api.client";
+import { WailsTransport } from "./wails-transport";
+import { isWailsEnvironment } from "../wails";
 
 export function getApiClient(): ApiClient {
-  return new ApiClient(
-    new TwirpFetchTransport({
-      baseUrl: getBaseUrlForApi(),
-    }),
-  );
+  // Always check environment fresh - don't cache if we're in a transitional state
+  const isWails = isWailsEnvironment();
+  console.log("getApiClient() called - Creating API client for environment:", isWails ? "Wails" : "Web");
+
+  if (isWails) {
+    console.log("Using WailsTransport in API mode");
+    return new ApiClient(new WailsTransport({ mode: "api" }));
+  } else {
+    console.log("Using TwirpFetchTransport with baseUrl:", getBaseUrlForApi());
+    return new ApiClient(
+      new TwirpFetchTransport({
+        baseUrl: getBaseUrlForApi(),
+      }),
+    );
+  }
 }
 
 export function getBaseUrlForApi(): string {
