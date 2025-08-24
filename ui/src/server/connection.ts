@@ -3,24 +3,6 @@ import { ApiClient } from "./api.client";
 import { WailsTransport } from "./wails-transport";
 import { isWailsEnvironment } from "../wails";
 
-// Immediate logging when module loads
-console.log("connection.ts module loaded", {
-  hasWindow: typeof window !== "undefined",
-  hasRuntime: typeof window !== "undefined" && typeof (window as any).runtime !== "undefined",
-  hasGo: typeof window !== "undefined" && typeof (window as any).go !== "undefined",
-  windowGo: typeof window !== "undefined" ? (window as any).go : undefined,
-});
-
-// Also log after a short delay to see if bindings load later
-setTimeout(() => {
-  console.log("connection.ts delayed check", {
-    hasWindow: typeof window !== "undefined",
-    hasRuntime: typeof window !== "undefined" && typeof (window as any).runtime !== "undefined",
-    hasGo: typeof window !== "undefined" && typeof (window as any).go !== "undefined",
-    windowGo: typeof window !== "undefined" ? (window as any).go : undefined,
-  });
-}, 1000);
-
 let cachedClient: ApiClient | null = null;
 
 export function getApiClient(): ApiClient {
