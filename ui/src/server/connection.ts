@@ -3,8 +3,6 @@ import { ApiClient } from "./api.client";
 import { WailsTransport } from "./wails-transport";
 import { isWailsEnvironment } from "../wails";
 
-let cachedClient: ApiClient | null = null;
-
 export function getApiClient(): ApiClient {
   // Always check environment fresh - don't cache if we're in a transitional state
   const isWails = isWailsEnvironment();
