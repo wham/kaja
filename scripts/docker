@@ -3,11 +3,6 @@ set -e
 
 source "$(dirname "$0")/common"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-NC='\033[0m' # No Color
-
 setup_trap
 
 cd "$(dirname "$0")/.."
@@ -43,7 +38,7 @@ done < pipe
 rm pipe
 
 # Open kaja in a default web browser
-echo -e "${GREEN}Opening kaja URL http://localhost:41520/ in your default web browser${NC}"
+echo "Opening kaja URL http://localhost:41520/ in your default web browser"
 python3 -m webbrowser http://localhost:41520/
 
 cat

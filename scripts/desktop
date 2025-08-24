@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+source "$(dirname "$0")/common"
+
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
 then
