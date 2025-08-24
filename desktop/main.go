@@ -27,15 +27,13 @@ var assets embed.FS
 // App struct
 type App struct {
 	twirpHandler  api.TwirpServer
-	binaryManager *BinaryManager
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer, binaryManager *BinaryManager) *App {
+func NewApp(twirpHandler api.TwirpServer) *App {
 	return &App{
 		twirpHandler:  twirpHandler,
-		binaryManager: binaryManager,
-	}
+		}
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
@@ -217,64 +215,17 @@ func (a *App) LoadSourceFile(path string) (string, error) {
 	return string(content), nil
 }
 
-// GetProtocPath returns the path to the embedded protoc binary
-func (a *App) GetProtocPath() string {
-	if a.binaryManager != nil {
-		return a.binaryManager.GetProtocPath()
-	}
-	return "protoc" // fallback to system protoc
-}
-
-// GetProtocIncludePath returns the path to the embedded protoc include files
-func (a *App) GetProtocIncludePath() string {
-	if a.binaryManager != nil {
-		return a.binaryManager.GetIncludePath()
-	}
-	return "" // fallback to system includes
-}
-
-// GetNodePath returns the path to the embedded Node.js binary
-func (a *App) GetNodePath() string {
-	if a.binaryManager != nil {
-		return a.binaryManager.GetNodePath()
-	}
-	return "node" // fallback to system node
-}
-
 func main() {
 	getConfigurationResponse := api.LoadGetConfigurationResponse("./workspace/kaja.json")
 	
-	// Initialize binary manager for embedded protoc
-	binaryManager, err := NewBinaryManager()
-	var twirpHandler api.TwirpServer
-	if err != nil {
-		slog.Error("Failed to initialize binary manager", "error", err)
-		// Continue without embedded protoc - system protoc will be used as fallback
-		binaryManager = nil
-		twirpHandler = api.NewApiServer(api.NewApiService(getConfigurationResponse))
-	} else {
-		slog.Info("Protoc binary extracted", "path", binaryManager.GetProtocPath())
-		slog.Info("Node binary extracted", "path", binaryManager.GetNodePath())
-		
-		// Update PATH to include both protoc and node directories
-		protocDir := filepath.Dir(binaryManager.GetProtocPath())
-		nodeDir := filepath.Dir(binaryManager.GetNodePath())
-		currentPath := os.Getenv("PATH")
-		
-		// Add both directories to PATH (node first so it takes precedence)
-		newPath := nodeDir + string(os.PathListSeparator) + protocDir + string(os.PathListSeparator) + currentPath
-		os.Setenv("PATH", newPath)
-		slog.Info("Updated PATH for embedded binaries", "node_dir", nodeDir, "protoc_dir", protocDir)
-		
-		// Create API service with embedded binaries
-		apiService := api.NewApiServiceWithAllPaths(getConfigurationResponse, binaryManager.GetProtocPath(), binaryManager.GetIncludePath(), binaryManager.GetNodePath())
-		twirpHandler = api.NewApiServer(apiService)
-	}
+	// Create API service without embedded binaries
+	apiService := api.NewApiService(getConfigurationResponse)
+	twirpHandler := api.NewApiServer(apiService)
 	
 	// Create application with options
-	app := NewApp(twirpHandler, binaryManager)
+	app := NewApp(twirpHandler)
 
-	err = wails.Run(&options.App{
+	err := wails.Run(&options.App{
 		Title:  "Kaja Compiler",
 		Width:  1024,
 		Height: 768,
@@ -290,12 +241,5 @@ func main() {
 
 	if err != nil {
 		println("Error:", err.Error())
-	}
-	
-	// Cleanup binary manager when app exits
-	if binaryManager != nil {
-		if cleanupErr := binaryManager.Cleanup(); cleanupErr != nil {
-			slog.Warn("Failed to cleanup binary manager", "error", cleanupErr)
-		}
 	}
 }

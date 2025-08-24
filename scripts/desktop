@@ -28,6 +28,5 @@ cp server/build/main.js desktop/frontend/dist/main.js
 cp -r server/static desktop/frontend/dist/
 mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
-#scripts/download-all-binaries.sh
 cd "./desktop"
 wails dev
