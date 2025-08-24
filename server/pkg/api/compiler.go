@@ -103,13 +103,7 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	buildDir := filepath.Join(cwd, "../build")
 	c.logger.debug("binDir: " + buildDir)
 
-	// Use system protoc
-	protocCmd := "protoc"
-
-	// Build include paths: workspace only
-	includePaths := "-I" + workspaceDir
-
-	protocCommand := protocCmd + " --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint " + includePaths + " $(find " + workspaceDir + " -iname \"*.proto\")"
+	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 
