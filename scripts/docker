@@ -1,25 +1,19 @@
 #!/bin/sh
 set -e
 
+source "$(dirname "$0")/common"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 ORANGE='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Kill background demo apps when the script exits
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+setup_trap
 
 cd "$(dirname "$0")/.."
-cd ./workspace
 
-echo "Building gRPC demo app"
-go build -o /tmp/demo-grpc-server ./cmd/grpc-server
-
-echo "Building Twirp demo app"
-go build -o /tmp/demo-twirp-server ./cmd/twirp-server
-
-/tmp/demo-grpc-server &
-/tmp/demo-twirp-server &
+build_demo_apps
+start_demo_apps
 
 # Stop and remove the container if it already exists
 docker rm -f kaja-dev &> /dev/null || true

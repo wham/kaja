@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+# Kill background demo apps when the script exits
+setup_trap() {
+    trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+}
+
+build_demo_apps() {
+    cd "$(dirname "$0")/../workspace"
+    
+    protoc --proto_path=. \
+        --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
+        --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
+        --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
+        -Iproto/ $(find . -iname "*.proto")
+
+    echo "Building gRPC demo app"
+    go build -o /tmp/demo-grpc-server ./cmd/grpc-server
+
+    echo "Building Twirp demo app"
+    go build -o /tmp/demo-twirp-server ./cmd/twirp-server
+}
+
+start_demo_apps() {
+    /tmp/demo-grpc-server &
+    /tmp/demo-twirp-server &
+}

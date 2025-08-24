@@ -8,6 +8,7 @@ This file contains specific instructions for Claude Code when working on the Kaj
 - Avoid using React.FC explicitly. Use function components instead.
 - **ALWAYS run `npm run tsc` in the ui directory after making changes to TypeScript files to ensure there are no type errors**
 - Use https://primer.style/product/components/ where possible, avoid using custom components.
+- Add comments to only very complex or non-obvious code blocks.
 
 ## React & TypeScript Guidelines
 
