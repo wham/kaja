@@ -110,3 +110,41 @@ func getProtocolFromEnv() RpcProtocol {
 		return RpcProtocol_RPC_PROTOCOL_TWIRP // Default to TWIRP
 	}
 }
+
+// SaveConfiguration saves a configuration to a file
+func SaveConfiguration(configPath string, config *Configuration) error {
+	data, err := protojson.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+	
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write configuration file: %w", err)
+	}
+	
+	return nil
+}
+
+// LoadConfiguration loads a configuration from a file
+func LoadConfiguration(configPath string) (*Configuration, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Return empty configuration if file doesn't exist
+			return &Configuration{
+				Projects: []*ConfigurationProject{},
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to read configuration file: %w", err)
+	}
+	
+	config := &Configuration{}
+	if err := protojson.Unmarshal(data, config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
+	}
+	
+	return config, nil
+}

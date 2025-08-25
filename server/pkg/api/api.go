@@ -12,6 +12,7 @@ import (
 type ApiService struct {
 	compilers                sync.Map // map[string]*Compiler
 	getConfigurationResponse *GetConfigurationResponse
+	workspace                string
 }
 
 func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
@@ -97,4 +98,58 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	newCompiler := NewCompiler()
 	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
 	return compiler.(*Compiler)
+}
+
+// SetWorkspace sets the workspace directory for the service
+func (s *ApiService) SetWorkspace(workspace string) {
+	s.workspace = workspace
+}
+
+// UpdateConfiguration updates the configuration
+func (s *ApiService) UpdateConfiguration(getConfigurationResponse *GetConfigurationResponse) {
+	s.getConfigurationResponse = getConfigurationResponse
+}
+
+// CompileProject triggers compilation for a specific project
+func (s *ApiService) CompileProject(projectName string) error {
+	// Find the project in configuration
+	var project *ConfigurationProject
+	for _, p := range s.getConfigurationResponse.Configuration.Projects {
+		if p.Name == projectName {
+			project = p
+			break
+		}
+	}
+	
+	if project == nil {
+		return fmt.Errorf("project %s not found in configuration", projectName)
+	}
+	
+	// Get or create compiler for the project
+	compiler := s.getOrCreateCompiler(projectName)
+	compiler.mu.Lock()
+	defer compiler.mu.Unlock()
+	
+	// Initialize logger if needed
+	if compiler.logger == nil {
+		compiler.logger = NewLogger()
+	}
+	
+	// Start compilation if not already running
+	if compiler.status != CompileStatus_STATUS_RUNNING {
+		compiler.status = CompileStatus_STATUS_RUNNING
+		compiler.logger = NewLogger()
+		compiler.sources = []*Source{}
+		compiler.logger.info("Starting compilation for project: " + projectName)
+		
+		// Use the project's workspace if set, otherwise use default
+		workspace := project.Workspace
+		if workspace == "" {
+			workspace = s.workspace
+		}
+		
+		go compiler.start(projectName, workspace, true)
+	}
+	
+	return nil
 }

@@ -9,6 +9,7 @@ This file contains specific instructions for Claude Code when working on the Kaj
 - **ALWAYS run `npm run tsc` in the ui directory after making changes to TypeScript files to ensure there are no type errors**
 - Use https://primer.style/product/components/ where possible, avoid using custom components.
 - Add comments to only very complex or non-obvious code blocks.
+- The desktop Wails wrapper should be as lightweight as possible. Use the Twirp API for communication so everything is portable to the web version as well.
 
 ## React & TypeScript Guidelines
 

@@ -12,6 +12,8 @@ import { Sidebar } from "./Sidebar";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
+import { NewProjectForm, ProjectData } from "./NewProjectForm";
+import { isWailsEnvironment } from "./utils";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -25,6 +27,7 @@ export function App() {
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [hasCompiled, setHasCompiled] = useState(false);
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -119,6 +122,16 @@ export function App() {
     });
   };
 
+  const onAddProjectClick = () => {
+    setShowNewProjectForm(true);
+  };
+
+  const onNewProjectSubmit = (projectData: ProjectData) => {
+    // After project is added, open the compiler tab to trigger recompilation
+    setShowNewProjectForm(false);
+    onCompilerClick();
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -134,7 +147,13 @@ export function App() {
               flexDirection: "column",
             }}
           >
-            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} onCompilerClick={onCompilerClick} />
+            <Sidebar 
+              projects={projects} 
+              onSelect={onMethodSelect} 
+              currentMethod={selectedMethod} 
+              onCompilerClick={onCompilerClick}
+              onAddProjectClick={isWailsEnvironment() ? onAddProjectClick : undefined}
+            />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -177,6 +196,12 @@ export function App() {
             )}
           </div>
         </div>
+        {showNewProjectForm && (
+          <NewProjectForm 
+            onClose={() => setShowNewProjectForm(false)} 
+            onSubmit={onNewProjectSubmit}
+          />
+        )}
       </BaseStyles>
     </ThemeProvider>
   );
