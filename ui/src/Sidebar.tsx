@@ -37,7 +37,7 @@ export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: 
       <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
         {projects.map((project) => {
           return (
-            <nav key={project.name} aria-label="Services and methods">
+            <nav key={project.configuration.name} aria-label="Services and methods">
               {projects.length > 1 && (
                 <div
                   style={{
@@ -47,7 +47,7 @@ export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick }: 
                     color: "var(--fgColor-muted)",
                   }}
                 >
-                  {project.name}
+                  {project.configuration.name}
                 </div>
               )}
               <TreeView aria-label="Services and methods">

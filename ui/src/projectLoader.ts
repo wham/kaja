@@ -68,7 +68,7 @@ export async function loadProject(apiSources: ApiSource[], configuration: Config
   });
 
   return {
-    name: configuration.name,
+    configuration,
     services,
     clients: createClients(services, stub, configuration),
     sources: kajaSources,
