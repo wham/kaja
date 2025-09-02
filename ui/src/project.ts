@@ -1,11 +1,18 @@
 import { Kaja } from "./kaja";
 import { Sources } from "./sources";
-import { ConfigurationProject } from "./server/api";
+import { ConfigurationProject, Log } from "./server/api";
 export interface Project {
   configuration: ConfigurationProject;
+  compilation: Compilation;
   services: Service[];
   clients: Clients;
   sources: Sources;
+}
+
+export interface Compilation {
+  status: "pending" | "running" | "success" | "error";
+  logs: Log[];
+  duration?: string;
 }
 
 export interface Service {
