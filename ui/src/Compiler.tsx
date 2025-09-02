@@ -3,7 +3,7 @@ import { ActionList, Spinner, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, ConfigurationProject, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
