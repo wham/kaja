@@ -9,6 +9,8 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
+import { NewProjectForm } from "./NewProjectForm";
+import { ConfigurationProject } from "./server/api";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
@@ -24,6 +26,8 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [pendingProjects, setPendingProjects] = useState<ConfigurationProject[]>([]);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -136,6 +140,20 @@ export function App() {
     });
   };
 
+  const onNewProjectClick = () => {
+    setShowNewProjectForm(true);
+  };
+
+  const onNewProjectSubmit = async (project: ConfigurationProject) => {
+    setShowNewProjectForm(false);
+    setPendingProjects([project]);
+    onCompilerClick();
+  };
+
+  const onNewProjectClose = () => {
+    setShowNewProjectForm(false);
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -151,7 +169,13 @@ export function App() {
               flexDirection: "column",
             }}
           >
-            <Sidebar projects={projects} onSelect={onMethodSelect} currentMethod={selectedMethod} onCompilerClick={onCompilerClick} />
+            <Sidebar
+              projects={projects}
+              onSelect={onMethodSelect}
+              currentMethod={selectedMethod}
+              onCompilerClick={onCompilerClick}
+              onNewProjectClick={onNewProjectClick}
+            />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -194,6 +218,7 @@ export function App() {
             )}
           </div>
         </div>
+        <NewProjectForm isOpen={showNewProjectForm} onSubmit={onNewProjectSubmit} onClose={onNewProjectClose} />
       </BaseStyles>
     </ThemeProvider>
   );
