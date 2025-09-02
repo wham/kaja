@@ -24,7 +24,6 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [hasCompiled, setHasCompiled] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -32,35 +31,41 @@ export function App() {
     }
   }, [tabs.length, projects.length]);
 
-  const onProjects = (projects: Project[]) => {
-    setProjects(projects);
-    setHasCompiled(true);
-    registerAIProvider(projects);
+  const onCompilationUpdate = (updatedProjects: Project[]) => {
+    setProjects(updatedProjects);
 
-    projects.forEach((project) => {
-      project.sources.forEach((source) => {
-        const uri = monaco.Uri.parse("ts:/" + source.path);
-        const existingModel = monaco.editor.getModel(uri);
-        if (!existingModel) {
-          monaco.editor.createModel(source.file.text, "typescript", uri);
-        } else {
-          existingModel.setValue(source.file.text);
+    // Check if all projects have finished compiling successfully
+    const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
+    if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
+      registerAIProvider(updatedProjects);
+
+      updatedProjects.forEach((project) => {
+        if (project.sources) {
+          project.sources.forEach((source) => {
+            const uri = monaco.Uri.parse("ts:/" + source.path);
+            const existingModel = monaco.editor.getModel(uri);
+            if (!existingModel) {
+              monaco.editor.createModel(source.file.text, "typescript", uri);
+            } else {
+              existingModel.setValue(source.file.text);
+            }
+          });
         }
       });
-    });
 
-    if (projects.length === 0) {
-      return;
+      if (updatedProjects.length === 0) {
+        return;
+      }
+
+      const defaultMethod = getDefaultMethod(updatedProjects[0].services);
+      setSelectedMethod(defaultMethod);
+
+      if (!defaultMethod) {
+        return;
+      }
+
+      setTabs(addTaskTab([], defaultMethod));
     }
-
-    const defaultMethod = getDefaultMethod(projects[0].services);
-    setSelectedMethod(defaultMethod);
-
-    if (!defaultMethod) {
-      return;
-    }
-
-    setTabs(addTaskTab([], defaultMethod));
   };
 
   const onMethodSelect = (method: Method) => {
@@ -145,7 +150,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                        <Compiler onProjects={onProjects} autoCompile={!hasCompiled} />
+                        <Compiler projects={projects} onUpdate={onCompilationUpdate} />
                       </Tab>
                     );
                   }

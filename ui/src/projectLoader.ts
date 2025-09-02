@@ -68,6 +68,10 @@ export async function loadProject(apiSources: ApiSource[], configuration: Config
   });
 
   return {
+    compilation: {
+      status: "pending",
+      logs: [],
+    },
     configuration,
     services,
     clients: createClients(services, stub, configuration),
