@@ -24,7 +24,6 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [hasCompiled, setHasCompiled] = useState(false);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -37,8 +36,7 @@ export function App() {
 
     // Check if all projects have finished compiling successfully
     const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
-    if (allCompiled && !hasCompiled) {
-      setHasCompiled(true);
+    if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
       registerAIProvider(updatedProjects);
 
       updatedProjects.forEach((project) => {
