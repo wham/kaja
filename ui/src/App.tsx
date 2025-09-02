@@ -27,7 +27,6 @@ export function App() {
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
-  const [pendingProjects, setPendingProjects] = useState<ConfigurationProject[]>([]);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -146,7 +145,20 @@ export function App() {
 
   const onNewProjectSubmit = async (project: ConfigurationProject) => {
     setShowNewProjectForm(false);
-    setPendingProjects([project]);
+    
+    // Add project directly to the projects list
+    const newProject: Project = {
+      configuration: project,
+      compilation: {
+        status: "pending",
+        logs: [],
+      },
+      services: [],
+      clients: {},
+      sources: [],
+    };
+    
+    setProjects(prevProjects => [...prevProjects, newProject]);
     onCompilerClick();
   };
 
