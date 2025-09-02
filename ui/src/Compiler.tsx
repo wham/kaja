@@ -6,10 +6,6 @@ import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
-interface IgnoreToken {
-  ignore: boolean;
-}
-
 interface CompilerProps {
   projects: Project[];
   onUpdate: (projects: Project[]) => void;
@@ -30,93 +26,125 @@ const LINE_NUMBER_MARGIN = 16;
 export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const client = getApiClient();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-  const startTime = useRef<{ [key: string]: number }>({});
-  const ignoreTokens = useRef<{ [key: string]: IgnoreToken }>({});
+  const abortControllers = useRef<{ [key: string]: AbortController }>({});
+  const projectsRef = useRef(projects);
+  
+  // Keep projectsRef updated
+  projectsRef.current = projects;
 
   const formatDuration = (milliseconds: number): string => {
     const seconds = Math.round(milliseconds / 1000);
     return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   };
 
-  const updateProjectCompilation = (projectIndex: number, updates: Partial<Project["compilation"]>) => {
-    const updatedProjects = [...projects];
-    if (updatedProjects[projectIndex]) {
-      updatedProjects[projectIndex] = {
-        ...updatedProjects[projectIndex],
-        compilation: {
-          ...updatedProjects[projectIndex].compilation,
-          ...updates,
-        },
-      };
-      onUpdate(updatedProjects);
-    }
-  };
-
-  const handleCompileComplete = async (response: any, projectIndex: number) => {
-    const project = projects[projectIndex];
-    const duration = formatDuration(Date.now() - startTime.current[project.configuration.name]);
-    const isReady = response.status === ApiCompileStatus.STATUS_READY;
-
-    const loadedProject = isReady ? await loadProject(response.sources, project.configuration) : null;
-
-    const updatedProjects = [...projects];
-    if (loadedProject) {
-      updatedProjects[projectIndex] = {
-        ...loadedProject,
-        compilation: {
-          status: "success",
-          logs: [...project.compilation.logs, ...response.logs],
-          duration,
-        },
-      };
-    } else {
-      updatedProjects[projectIndex] = {
-        ...project,
-        compilation: {
-          status: "error",
-          logs: [...project.compilation.logs, ...response.logs],
-          duration,
-        },
-      };
-    }
-
-    onUpdate(updatedProjects);
-  };
-
-  const compile = async (ignoreToken: IgnoreToken, projectIndex: number, logOffset: number) => {
+  const compile = async (projectIndex: number) => {
     const project = projects[projectIndex];
     if (!project) return;
 
-    startTime.current[project.configuration.name] ??= Date.now();
+    const projectName = project.configuration.name;
+    
+    // Create abort controller for this compilation
+    if (abortControllers.current[projectName]) {
+      abortControllers.current[projectName].abort();
+    }
+    abortControllers.current[projectName] = new AbortController();
+    const signal = abortControllers.current[projectName].signal;
 
-    const { response } = await client.compile({
-      logOffset,
-      force: true,
-      projectName: project.configuration.name,
-      workspace: project.configuration.workspace,
-    });
+    try {
+      // Set initial running state with start time
+      const updatedProjects = [...projects];
+      updatedProjects[projectIndex] = {
+        ...project,
+        compilation: {
+          ...project.compilation,
+          status: "running",
+          startTime: Date.now(),
+          logOffset: 0,
+        },
+      };
+      onUpdate(updatedProjects);
 
-    if (ignoreToken.ignore) return;
+      // Start polling
+      await pollCompilation(projectIndex, signal);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('Compilation error:', error);
+      }
+    }
+  };
 
-    const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
+  const pollCompilation = async (projectIndex: number, signal: AbortSignal) => {
+    while (!signal.aborted) {
+      const project = projectsRef.current[projectIndex];
+      if (!project) return;
 
-    updateProjectCompilation(projectIndex, {
-      status: isRunning ? "running" : project.compilation.status,
-      logs: [...project.compilation.logs, ...response.logs],
-    });
+      const { response } = await client.compile({
+        logOffset: project.compilation.logOffset || 0,
+        force: true,
+        projectName: project.configuration.name,
+        workspace: project.configuration.workspace,
+      });
 
-    if (isRunning) {
-      setTimeout(() => compile(ignoreToken, projectIndex, logOffset + response.logs.length), POLL_INTERVAL_MS);
-    } else {
-      await handleCompileComplete(response, projectIndex);
+      if (signal.aborted) return;
+
+      const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
+      const isReady = response.status === ApiCompileStatus.STATUS_READY;
+      
+      // Update with new logs
+      const updatedProjects = [...projectsRef.current];
+      const currentProject = updatedProjects[projectIndex];
+      const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+      const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
+
+      if (isRunning) {
+        updatedProjects[projectIndex] = {
+          ...currentProject,
+          compilation: {
+            ...currentProject.compilation,
+            status: "running",
+            logs: newLogs,
+            logOffset: newLogOffset,
+          },
+        };
+        onUpdate(updatedProjects);
+        
+        // Continue polling
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+      } else {
+        // Compilation complete
+        const duration = formatDuration(Date.now() - (currentProject.compilation.startTime || 0));
+        
+        if (isReady) {
+          const loadedProject = await loadProject(response.sources, currentProject.configuration);
+          updatedProjects[projectIndex] = {
+            ...loadedProject,
+            compilation: {
+              status: "success",
+              logs: newLogs,
+              duration,
+            },
+          };
+        } else {
+          updatedProjects[projectIndex] = {
+            ...currentProject,
+            compilation: {
+              status: "error",
+              logs: newLogs,
+              duration,
+            },
+          };
+        }
+        
+        onUpdate(updatedProjects);
+        delete abortControllers.current[currentProject.configuration.name];
+        return;
+      }
     }
   };
 
   useEffect(() => {
     // Initialize projects if needed
-    const initializeAndCompile = async () => {
+    const initializeProjects = async () => {
       if (projects.length === 0) {
         // Load initial configuration
         const { response } = await client.getConfiguration({});
@@ -136,32 +164,34 @@ export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerPro
         }));
 
         onUpdate(initialProjects);
-        return;
-      }
-
-      // Start compilation for projects with pending status
-      if (autoCompile) {
-        projects.forEach((project, index) => {
-          if (project.compilation.status === "pending") {
-            const projectName = project.configuration.name;
-            if (!ignoreTokens.current[projectName]) {
-              ignoreTokens.current[projectName] = { ignore: false };
-            }
-            compile(ignoreTokens.current[projectName], index, 0);
-          }
-        });
       }
     };
 
-    initializeAndCompile();
+    initializeProjects();
+  }, []);
 
-    return () => {
-      // Mark all compilations as ignored on unmount
-      Object.values(ignoreTokens.current).forEach((token) => {
-        token.ignore = true;
+  // Start compilation for pending projects
+  useEffect(() => {
+    if (autoCompile && projects.length > 0) {
+      projects.forEach((project, index) => {
+        // Only compile if status is exactly "pending" (not running, success, or error)
+        if (project.compilation.status === "pending") {
+          compile(index);
+        }
       });
+    }
+  }, [projects, autoCompile]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Abort all ongoing compilations
+      Object.values(abortControllers.current).forEach(controller => {
+        controller.abort();
+      });
+      abortControllers.current = {};
     };
-  }, [autoCompile, projects.length]);
+  }, []);
 
   const toggleExpand = (projectName: string) => {
     setExpandedProjects((prev) => {
@@ -246,7 +276,6 @@ export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerPro
 
   return (
     <div
-      ref={containerRef}
       style={{
         height: "100%",
         overflow: "hidden",
@@ -296,9 +325,6 @@ export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerPro
           return (
             <div
               key={`project-${index}-${project.configuration.name}`}
-              ref={(el) => {
-                itemRefs.current[index] = el;
-              }}
               className="compiler-item-wrapper"
             >
               <div className={isExpanded ? "compiler-item-header sticky" : ""}>

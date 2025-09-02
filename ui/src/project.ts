@@ -15,6 +15,8 @@ export interface Compilation {
   status: CompilationStatus;
   logs: Log[];
   duration?: string;
+  startTime?: number;
+  logOffset?: number;
 }
 
 export interface Service {
