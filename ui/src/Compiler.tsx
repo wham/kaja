@@ -8,7 +8,7 @@ import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
   projects: Project[];
-  onUpdate: (projects: Project[]) => void;
+  onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void;
 }
 
 // Constants
@@ -36,11 +36,13 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
     return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   };
 
-  const compile = async (projectIndex: number) => {
-    const project = projects[projectIndex];
-    if (!project) return;
-
-    const projectName = project.configuration.name;
+  const compile = async (projectName: string) => {
+    // Get current project state from ref
+    const currentProjects = projectsRef.current;
+    const projectIndex = currentProjects.findIndex((p) => p.configuration.name === projectName);
+    const project = currentProjects[projectIndex];
+    
+    if (!project || projectIndex === -1) return;
 
     // Prevent concurrent compilations - check if already running
     if (project.compilation.status === "running") {
@@ -55,18 +57,23 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
     const signal = abortControllers.current[projectName].signal;
 
     try {
-      // Set initial running state with start time
-      const updatedProjects = [...projects];
-      updatedProjects[projectIndex] = {
-        ...project,
-        compilation: {
-          ...project.compilation,
-          status: "running",
-          startTime: Date.now(),
-          logOffset: 0,
-        },
-      };
-      onUpdate(updatedProjects);
+      // Set initial running state with start time using functional update
+      onUpdate((prevProjects) => {
+        const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+        if (index === -1) return prevProjects;
+        
+        const updatedProjects = [...prevProjects];
+        updatedProjects[index] = {
+          ...prevProjects[index],
+          compilation: {
+            ...prevProjects[index].compilation,
+            status: "running",
+            startTime: Date.now(),
+            logOffset: 0,
+          },
+        };
+        return updatedProjects;
+      });
 
       // Start polling
       await pollCompilation(projectName, signal);
@@ -96,55 +103,80 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
       const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
       const isReady = response.status === ApiCompileStatus.STATUS_READY;
 
-      // Find current project index safely
-      const currentProjectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
-      if (currentProjectIndex === -1) return; // Project was removed
-
-      const updatedProjects = [...projectsRef.current];
-      const currentProject = updatedProjects[currentProjectIndex];
-      const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
-      const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
-
       if (isRunning) {
-        updatedProjects[currentProjectIndex] = {
-          ...currentProject,
-          compilation: {
-            ...currentProject.compilation,
-            status: "running",
-            logs: newLogs,
-            logOffset: newLogOffset,
-          },
-        };
-        onUpdate(updatedProjects);
+        // Update state using functional update to avoid race conditions
+        onUpdate((prevProjects) => {
+          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+          if (index === -1) return prevProjects;
+          
+          const currentProject = prevProjects[index];
+          const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+          const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
+          
+          const updatedProjects = [...prevProjects];
+          updatedProjects[index] = {
+            ...currentProject,
+            compilation: {
+              ...currentProject.compilation,
+              status: "running",
+              logs: newLogs,
+              logOffset: newLogOffset,
+            },
+          };
+          return updatedProjects;
+        });
 
         // Continue polling
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       } else {
-        // Compilation complete
-        const duration = formatDuration(Date.now() - (currentProject.compilation.startTime || 0));
+        // Compilation complete - need to get fresh project state for duration calculation
+        const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
+        if (!finalProject) return;
+        
+        const duration = formatDuration(Date.now() - (finalProject.compilation.startTime || 0));
 
         if (isReady) {
-          const loadedProject = await loadProject(response.sources, currentProject.configuration);
-          updatedProjects[currentProjectIndex] = {
-            ...loadedProject,
-            compilation: {
-              status: "success",
-              logs: newLogs,
-              duration,
-            },
-          };
+          const loadedProject = await loadProject(response.sources, finalProject.configuration);
+          
+          onUpdate((prevProjects) => {
+            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+            if (index === -1) return prevProjects;
+            
+            const currentProject = prevProjects[index];
+            const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+            
+            const updatedProjects = [...prevProjects];
+            updatedProjects[index] = {
+              ...loadedProject,
+              compilation: {
+                status: "success",
+                logs: newLogs,
+                duration,
+              },
+            };
+            return updatedProjects;
+          });
         } else {
-          updatedProjects[currentProjectIndex] = {
-            ...currentProject,
-            compilation: {
-              status: "error",
-              logs: newLogs,
-              duration,
-            },
-          };
+          onUpdate((prevProjects) => {
+            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+            if (index === -1) return prevProjects;
+            
+            const currentProject = prevProjects[index];
+            const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+            
+            const updatedProjects = [...prevProjects];
+            updatedProjects[index] = {
+              ...currentProject,
+              compilation: {
+                status: "error",
+                logs: newLogs,
+                duration,
+              },
+            };
+            return updatedProjects;
+          });
         }
 
-        onUpdate(updatedProjects);
         delete abortControllers.current[projectName];
         return;
       }
@@ -182,10 +214,10 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
   // Start compilation for pending projects
   useEffect(() => {
     if (projects.length > 0) {
-      projects.forEach((project, index) => {
+      projects.forEach((project) => {
         // Only compile if status is exactly "pending"
         if (project.compilation.status === "pending") {
-          compile(index);
+          compile(project.configuration.name);
         }
       });
     }
