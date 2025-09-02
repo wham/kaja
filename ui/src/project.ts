@@ -1,7 +1,8 @@
 import { Kaja } from "./kaja";
 import { Sources } from "./sources";
+import { ConfigurationProject } from "./server/api";
 export interface Project {
-  name: string;
+  configuration: ConfigurationProject;
   services: Service[];
   clients: Clients;
   sources: Sources;
