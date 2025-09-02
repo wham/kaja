@@ -1,0 +1,2 @@
+Move most of the state up from Compiler. I already added Project.compilation property. Only keep isExapnaded in Compiler. OK to reset
+after unmount. So Compiler takes a list of project. Starts compiling everything that has pending compilation. Compiler calls onUpdate for each change.

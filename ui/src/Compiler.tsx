@@ -1,9 +1,9 @@
-import { CheckIcon, XIcon, ChevronRightIcon } from "@primer/octicons-react";
+import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
-import { Project } from "./project";
+import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, ConfigurationProject, Log, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface IgnoreToken {
@@ -11,23 +11,10 @@ interface IgnoreToken {
 }
 
 interface CompilerProps {
-  onProjects: (projects: Project[]) => void;
+  projects: Project[];
+  onUpdate: (projects: Project[]) => void;
   autoCompile?: boolean;
 }
-
-type CompileStatus = "pending" | "running" | "success" | "error";
-
-interface ProjectCompileState {
-  project: ConfigurationProject;
-  status: CompileStatus;
-  logs: Log[];
-  isExpanded: boolean;
-  duration?: string;
-}
-
-// Cache compilation states outside component to persist across mounts/unmounts
-let cachedProjectStates: ProjectCompileState[] = [];
-let cachedProjects: (Project | null)[] = [];
 
 // Constants
 const POLL_INTERVAL_MS = 1000;
@@ -40,137 +27,155 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
-  const [projectStates, setProjectStates] = useState<ProjectCompileState[]>(cachedProjectStates);
-  const projects = useRef<(Project | null)[]>(cachedProjects);
+export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerProps) {
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const client = getApiClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const startTime = useRef<{ [key: string]: number }>({});
+  const ignoreTokens = useRef<{ [key: string]: IgnoreToken }>({});
 
   const formatDuration = (milliseconds: number): string => {
     const seconds = Math.round(milliseconds / 1000);
     return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   };
 
-  const updateProjectState = (projectIndex: number, updates: Partial<ProjectCompileState>) => {
-    setProjectStates((states) => {
-      const newStates = [...states];
-      if (newStates[projectIndex]) {
-        Object.assign(newStates[projectIndex], updates);
-      }
-      cachedProjectStates = newStates;
-      return newStates;
-    });
-  };
-
-  const handleCompileComplete = async (response: any, configurationProject: ConfigurationProject, projectIndex: number) => {
-    const duration = formatDuration(Date.now() - startTime.current[configurationProject.name]);
-    const isReady = response.status === ApiCompileStatus.STATUS_READY;
-
-    updateProjectState(projectIndex, {
-      status: isReady ? "success" : "error",
-      duration,
-    });
-
-    projects.current[projectIndex] = isReady ? await loadProject(response.sources, configurationProject) : null;
-    cachedProjects[projectIndex] = projects.current[projectIndex];
-
-    // Check if all projects have finished compiling
-    if (projects.current.every((p) => p !== undefined) && projects.current.length > 0) {
-      const validProjects = projects.current.filter((p): p is Project => p !== null);
-      if (validProjects.length > 0) {
-        onProjects(validProjects);
-      }
+  const updateProjectCompilation = (projectIndex: number, updates: Partial<Project["compilation"]>) => {
+    const updatedProjects = [...projects];
+    if (updatedProjects[projectIndex]) {
+      updatedProjects[projectIndex] = {
+        ...updatedProjects[projectIndex],
+        compilation: {
+          ...updatedProjects[projectIndex].compilation,
+          ...updates,
+        },
+      };
+      onUpdate(updatedProjects);
     }
   };
 
-  const compile = async (ignoreToken: IgnoreToken, configurationProject: ConfigurationProject, logOffset: number, projectIndex: number) => {
-    startTime.current[configurationProject.name] ??= Date.now();
+  const handleCompileComplete = async (response: any, projectIndex: number) => {
+    const project = projects[projectIndex];
+    const duration = formatDuration(Date.now() - startTime.current[project.configuration.name]);
+    const isReady = response.status === ApiCompileStatus.STATUS_READY;
+
+    const loadedProject = isReady ? await loadProject(response.sources, project.configuration) : null;
+
+    const updatedProjects = [...projects];
+    if (loadedProject) {
+      updatedProjects[projectIndex] = {
+        ...loadedProject,
+        compilation: {
+          status: "success",
+          logs: [...project.compilation.logs, ...response.logs],
+          duration,
+        },
+      };
+    } else {
+      updatedProjects[projectIndex] = {
+        ...project,
+        compilation: {
+          status: "error",
+          logs: [...project.compilation.logs, ...response.logs],
+          duration,
+        },
+      };
+    }
+
+    onUpdate(updatedProjects);
+  };
+
+  const compile = async (ignoreToken: IgnoreToken, projectIndex: number, logOffset: number) => {
+    const project = projects[projectIndex];
+    if (!project) return;
+
+    startTime.current[project.configuration.name] ??= Date.now();
 
     const { response } = await client.compile({
       logOffset,
       force: true,
-      projectName: configurationProject.name,
-      workspace: configurationProject.workspace,
+      projectName: project.configuration.name,
+      workspace: project.configuration.workspace,
     });
 
     if (ignoreToken.ignore) return;
 
     const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
 
-    setProjectStates((states) => {
-      const newStates = [...states];
-      if (newStates[projectIndex]) {
-        newStates[projectIndex].logs = [...newStates[projectIndex].logs, ...response.logs];
-        if (isRunning) {
-          newStates[projectIndex].status = "running";
-        }
-      }
-      cachedProjectStates = newStates;
-      return newStates;
+    updateProjectCompilation(projectIndex, {
+      status: isRunning ? "running" : project.compilation.status,
+      logs: [...project.compilation.logs, ...response.logs],
     });
 
     if (isRunning) {
-      setTimeout(() => compile(ignoreToken, configurationProject, logOffset + response.logs.length, projectIndex), POLL_INTERVAL_MS);
+      setTimeout(() => compile(ignoreToken, projectIndex, logOffset + response.logs.length), POLL_INTERVAL_MS);
     } else {
-      await handleCompileComplete(response, configurationProject, projectIndex);
+      await handleCompileComplete(response, projectIndex);
     }
   };
 
   useEffect(() => {
-    const ignoreToken: IgnoreToken = { ignore: false };
-
+    // Initialize projects if needed
     const initializeAndCompile = async () => {
-      const { response } = await client.getConfiguration({});
-      const configProjects = response.configuration?.projects || [];
+      if (projects.length === 0) {
+        // Load initial configuration
+        const { response } = await client.getConfiguration({});
+        const configProjects = response.configuration?.projects || [];
 
-      if (configProjects.length === 0) return;
+        if (configProjects.length === 0) return;
 
-      const initialStates: ProjectCompileState[] = configProjects.map((project) => ({
-        project,
-        status: "pending",
-        logs: response.logs || [],
-        isExpanded: false,
-      }));
+        const initialProjects: Project[] = configProjects.map((configProject) => ({
+          configuration: configProject,
+          compilation: {
+            status: "pending",
+            logs: response.logs || [],
+          },
+          services: [],
+          clients: {},
+          sources: [],
+        }));
 
-      const shouldResetState = autoCompile || cachedProjectStates.length === 0;
-
-      if (shouldResetState) {
-        setProjectStates(initialStates);
-        cachedProjectStates = initialStates;
-        projects.current = new Array(configProjects.length);
-        cachedProjects = new Array(configProjects.length);
-      } else if (cachedProjectStates.length > 0) {
-        setProjectStates(cachedProjectStates);
-        projects.current = cachedProjects;
+        onUpdate(initialProjects);
+        return;
       }
 
-      const shouldStartCompile = autoCompile && cachedProjectStates.every((state) => state.status === "pending");
-      if (shouldStartCompile) {
-        configProjects.forEach((project, index) => compile(ignoreToken, project, 0, index));
+      // Start compilation for projects with pending status
+      if (autoCompile) {
+        projects.forEach((project, index) => {
+          if (project.compilation.status === "pending") {
+            const projectName = project.configuration.name;
+            if (!ignoreTokens.current[projectName]) {
+              ignoreTokens.current[projectName] = { ignore: false };
+            }
+            compile(ignoreTokens.current[projectName], index, 0);
+          }
+        });
       }
     };
 
     initializeAndCompile();
 
     return () => {
-      ignoreToken.ignore = true;
+      // Mark all compilations as ignored on unmount
+      Object.values(ignoreTokens.current).forEach((token) => {
+        token.ignore = true;
+      });
     };
-  }, [autoCompile]);
+  }, [autoCompile, projects.length]);
 
-  const toggleExpand = (index: number) => {
-    setProjectStates((states) => {
-      const newStates = states.map((state, i) => ({
-        ...state,
-        isExpanded: i === index ? !state.isExpanded : state.isExpanded,
-      }));
-      cachedProjectStates = newStates;
-      return newStates;
+  const toggleExpand = (projectName: string) => {
+    setExpandedProjects((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectName)) {
+        newSet.delete(projectName);
+      } else {
+        newSet.add(projectName);
+      }
+      return newSet;
     });
   };
 
-  const getStatusVariant = (status: CompileStatus) => {
+  const getStatusVariant = (status: CompilationStatus) => {
     return status === "error" ? "danger" : undefined;
   };
 
@@ -189,7 +194,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
     </div>
   );
 
-  const getStatusIcon = (status: CompileStatus) => {
+  const getStatusIcon = (status: CompilationStatus) => {
     if (status === "running") return renderSpinner();
     if (status === "pending") return null;
 
@@ -218,6 +223,26 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
   const getProtocolDisplay = (protocol: RpcProtocol) => {
     return protocol === RpcProtocol.GRPC ? "gRPC" : "Twirp";
   };
+
+  if (projects.length === 0) {
+    return (
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--fgColor-muted)",
+          backgroundColor: "var(--bgColor-default)",
+        }}
+      >
+        <div>
+          <Spinner size="medium" />
+          <div style={{ marginTop: 12 }}>Loading configuration...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -265,49 +290,43 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
           background-color: var(--bgColor-default);
         }
       `}</style>
-      {projectStates.length === 0 ? (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--fgColor-muted)" }}>
-          <div>
-            <Spinner size="medium" />
-            <div style={{ marginTop: 12 }}>Loading configuration...</div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
-          {projectStates.map((state, index) => (
+      <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+        {projects.map((project, index) => {
+          const isExpanded = expandedProjects.has(project.configuration.name);
+          return (
             <div
-              key={`project-${index}-${state.project.name}`}
+              key={`project-${index}-${project.configuration.name}`}
               ref={(el) => {
                 itemRefs.current[index] = el;
               }}
               className="compiler-item-wrapper"
             >
-              <div className={state.isExpanded ? "compiler-item-header sticky" : ""}>
+              <div className={isExpanded ? "compiler-item-header sticky" : ""}>
                 <ActionList>
                   <ActionList.Item
-                    variant={getStatusVariant(state.status)}
-                    onSelect={() => toggleExpand(index)}
-                    className={state.isExpanded ? "compiler-item-expanded" : ""}
+                    variant={getStatusVariant(project.compilation.status)}
+                    onSelect={() => toggleExpand(project.configuration.name)}
+                    className={isExpanded ? "compiler-item-expanded" : ""}
                   >
                     <ActionList.LeadingVisual>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${state.isExpanded ? "expanded" : ""}`} />
-                        {getStatusIcon(state.status)}
+                        <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${isExpanded ? "expanded" : ""}`} />
+                        {getStatusIcon(project.compilation.status)}
                       </div>
                     </ActionList.LeadingVisual>
-                    {state.project.name}
+                    {project.configuration.name}
                     <ActionList.Description>
-                      {getProtocolDisplay(state.project.protocol)} • {state.project.url}
+                      {getProtocolDisplay(project.configuration.protocol)} • {project.configuration.url}
                     </ActionList.Description>
-                    {state.duration && (
+                    {project.compilation.duration && (
                       <ActionList.TrailingVisual>
-                        <Text sx={{ fontSize: 1, color: "fg.muted" }}>{state.duration}</Text>
+                        <Text sx={{ fontSize: 1, color: "fg.muted" }}>{project.compilation.duration}</Text>
                       </ActionList.TrailingVisual>
                     )}
                   </ActionList.Item>
                 </ActionList>
               </div>
-              {state.isExpanded && (
+              {isExpanded && (
                 <div className="compiler-logs-container">
                   <div
                     style={{
@@ -316,7 +335,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                       padding: LOG_PADDING,
                     }}
                   >
-                    {state.logs.map((log, logIndex) => (
+                    {project.compilation.logs.map((log, logIndex) => (
                       <div
                         key={logIndex}
                         style={{
@@ -339,7 +358,7 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                         <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>{log.message}</span>
                       </div>
                     ))}
-                    {state.status === "running" && (
+                    {project.compilation.status === "running" && (
                       <div
                         style={{
                           marginTop: 8,
@@ -357,9 +376,9 @@ export function Compiler({ onProjects, autoCompile = true }: CompilerProps) {
                 </div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }

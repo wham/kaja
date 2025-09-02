@@ -9,8 +9,10 @@ export interface Project {
   sources: Sources;
 }
 
+export type CompilationStatus = "pending" | "running" | "success" | "error";
+
 export interface Compilation {
-  status: "pending" | "running" | "success" | "error";
+  status: CompilationStatus;
   logs: Log[];
   duration?: string;
 }
