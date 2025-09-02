@@ -9,7 +9,6 @@ import { getApiClient } from "./server/connection";
 interface CompilerProps {
   projects: Project[];
   onUpdate: (projects: Project[]) => void;
-  autoCompile?: boolean;
 }
 
 // Constants
@@ -23,7 +22,7 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerProps) {
+export function Compiler({ projects, onUpdate }: CompilerProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
@@ -172,7 +171,7 @@ export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerPro
 
   // Start compilation for pending projects
   useEffect(() => {
-    if (autoCompile && projects.length > 0) {
+    if (projects.length > 0) {
       projects.forEach((project, index) => {
         // Only compile if status is exactly "pending" (not running, success, or error)
         if (project.compilation.status === "pending") {
@@ -180,7 +179,7 @@ export function Compiler({ projects, onUpdate, autoCompile = true }: CompilerPro
         }
       });
     }
-  }, [projects, autoCompile]);
+  }, [projects]);
 
   // Cleanup on unmount
   useEffect(() => {

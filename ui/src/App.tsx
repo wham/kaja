@@ -152,7 +152,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                        <Compiler projects={projects} onUpdate={onCompilationUpdate} autoCompile={!hasCompiled} />
+                        <Compiler projects={projects} onUpdate={onCompilationUpdate} />
                       </Tab>
                     );
                   }
