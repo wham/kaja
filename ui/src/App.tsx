@@ -31,9 +31,21 @@ export function App() {
     }
   }, [tabs.length, projects.length]);
 
-  const onCompilationUpdate = (updatedProjects: Project[]) => {
-    setProjects(updatedProjects);
+  const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
+    // Handle both direct array and functional updates
+    if (typeof updatedProjects === 'function') {
+      setProjects((prevProjects) => {
+        const newProjects = updatedProjects(prevProjects);
+        handlePostCompilationLogic(newProjects);
+        return newProjects;
+      });
+    } else {
+      setProjects(updatedProjects);
+      handlePostCompilationLogic(updatedProjects);
+    }
+  };
 
+  const handlePostCompilationLogic = (updatedProjects: Project[]) => {
     // Check if all projects have finished compiling successfully
     const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
     if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
