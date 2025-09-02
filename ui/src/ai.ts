@@ -32,7 +32,7 @@ function generateSystemPrompt(projects: Project[]): string {
           return `  ${source.path}:\n${source.file.text}`;
         })
         .join("\n\n");
-      return `${project.name}:\n${projectSources}`;
+      return `${project.configuration.name}:\n${projectSources}`;
     })
     .join("\n\n");
 
