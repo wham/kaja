@@ -27,7 +27,7 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
   const projectsRef = useRef(projects);
-  
+
   // Keep projectsRef updated
   projectsRef.current = projects;
 
@@ -41,7 +41,12 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
     if (!project) return;
 
     const projectName = project.configuration.name;
-    
+
+    // Prevent concurrent compilations - check if already running
+    if (project.compilation.status === "running") {
+      return;
+    }
+
     // Create abort controller for this compilation
     if (abortControllers.current[projectName]) {
       abortControllers.current[projectName].abort();
@@ -64,18 +69,20 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
       onUpdate(updatedProjects);
 
       // Start polling
-      await pollCompilation(projectIndex, signal);
+      await pollCompilation(projectName, signal);
     } catch (error: any) {
-      if (error?.name !== 'AbortError') {
-        console.error('Compilation error:', error);
+      if (error?.name !== "AbortError") {
+        console.error("Compilation error:", error);
       }
     }
   };
 
-  const pollCompilation = async (projectIndex: number, signal: AbortSignal) => {
+  const pollCompilation = async (projectName: string, signal: AbortSignal) => {
     while (!signal.aborted) {
+      // Find project by name to avoid stale index references
+      const projectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
       const project = projectsRef.current[projectIndex];
-      if (!project) return;
+      if (!project || projectIndex === -1) return;
 
       const { response } = await client.compile({
         logOffset: project.compilation.logOffset || 0,
@@ -88,15 +95,18 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
 
       const isRunning = response.status === ApiCompileStatus.STATUS_RUNNING;
       const isReady = response.status === ApiCompileStatus.STATUS_READY;
-      
-      // Update with new logs
+
+      // Find current project index safely
+      const currentProjectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
+      if (currentProjectIndex === -1) return; // Project was removed
+
       const updatedProjects = [...projectsRef.current];
-      const currentProject = updatedProjects[projectIndex];
+      const currentProject = updatedProjects[currentProjectIndex];
       const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
       const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
 
       if (isRunning) {
-        updatedProjects[projectIndex] = {
+        updatedProjects[currentProjectIndex] = {
           ...currentProject,
           compilation: {
             ...currentProject.compilation,
@@ -106,16 +116,16 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
           },
         };
         onUpdate(updatedProjects);
-        
+
         // Continue polling
-        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       } else {
         // Compilation complete
         const duration = formatDuration(Date.now() - (currentProject.compilation.startTime || 0));
-        
+
         if (isReady) {
           const loadedProject = await loadProject(response.sources, currentProject.configuration);
-          updatedProjects[projectIndex] = {
+          updatedProjects[currentProjectIndex] = {
             ...loadedProject,
             compilation: {
               status: "success",
@@ -124,7 +134,7 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
             },
           };
         } else {
-          updatedProjects[projectIndex] = {
+          updatedProjects[currentProjectIndex] = {
             ...currentProject,
             compilation: {
               status: "error",
@@ -133,9 +143,9 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
             },
           };
         }
-        
+
         onUpdate(updatedProjects);
-        delete abortControllers.current[currentProject.configuration.name];
+        delete abortControllers.current[projectName];
         return;
       }
     }
@@ -173,19 +183,19 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
   useEffect(() => {
     if (projects.length > 0) {
       projects.forEach((project, index) => {
-        // Only compile if status is exactly "pending" (not running, success, or error)
+        // Only compile if status is exactly "pending"
         if (project.compilation.status === "pending") {
           compile(index);
         }
       });
     }
-  }, [projects]);
+  }, [projects.map((p) => `${p.configuration.name}:${p.compilation.status}`).join(",")]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       // Abort all ongoing compilations
-      Object.values(abortControllers.current).forEach(controller => {
+      Object.values(abortControllers.current).forEach((controller) => {
         controller.abort();
       });
       abortControllers.current = {};
@@ -322,10 +332,7 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
         {projects.map((project, index) => {
           const isExpanded = expandedProjects.has(project.configuration.name);
           return (
-            <div
-              key={`project-${index}-${project.configuration.name}`}
-              className="compiler-item-wrapper"
-            >
+            <div key={`project-${index}-${project.configuration.name}`} className="compiler-item-wrapper">
               <div className={isExpanded ? "compiler-item-header sticky" : ""}>
                 <ActionList>
                   <ActionList.Item
