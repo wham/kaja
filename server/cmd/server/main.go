@@ -55,7 +55,7 @@ func handleAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *htt
 
 func main() {
 	configPath := "../workspace/kaja.json"
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath)
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, false)
 	config := getConfigurationResponse.Configuration
 
 	mime.AddExtensionType(".ts", "text/plain")

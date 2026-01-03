@@ -9,13 +9,22 @@ import (
 	protojson "google.golang.org/protobuf/encoding/protojson"
 )
 
-func LoadGetConfigurationResponse(configPath string) *GetConfigurationResponse {
+func LoadGetConfigurationResponse(configPath string, canUpdateConfiguration bool) *GetConfigurationResponse {
 	logger := NewLogger()
 	logger.info(fmt.Sprintf("configPath %s", configPath))
 	config := loadConfigurationFile(configPath, logger)
 
 	applyEnvironmentVariables(config, logger)
 	normalize(config, logger)
+
+	// Set system-level settings (file override takes precedence)
+	if config.System != nil && config.System.CanUpdateConfiguration {
+		// Keep the value from file (dev override)
+	} else {
+		config.System = &ConfigurationSystem{
+			CanUpdateConfiguration: canUpdateConfiguration,
+		}
+	}
 
 	return &GetConfigurationResponse{Configuration: config, Logs: logger.logs}
 }
@@ -99,10 +108,11 @@ func normalize(config *Configuration, logger *Logger) {
 }
 
 func SaveConfiguration(configPath string, config *Configuration) error {
-	// Only save projects and ai fields (not path_prefix which is set via env)
+	// Only save projects, ai, and system fields (not path_prefix which is set via env)
 	configToSave := &Configuration{
 		Projects: config.Projects,
 		Ai:       config.Ai,
+		System:   config.System,
 	}
 
 	jsonBytes, err := protojson.MarshalOptions{

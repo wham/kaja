@@ -3,12 +3,13 @@ import { ActionList, Spinner, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, ConfigurationProject, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, Configuration, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
   projects: Project[];
   onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void;
+  onConfigurationLoaded?: (configuration: Configuration) => void;
 }
 
 // Constants
@@ -22,7 +23,7 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ projects, onUpdate }: CompilerProps) {
+export function Compiler({ projects, onUpdate, onConfigurationLoaded }: CompilerProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
@@ -190,6 +191,10 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
         // Load initial configuration
         const { response } = await client.getConfiguration({});
         const configProjects = response.configuration?.projects || [];
+
+        if (response.configuration && onConfigurationLoaded) {
+          onConfigurationLoaded(response.configuration);
+        }
 
         if (configProjects.length === 0) return;
 

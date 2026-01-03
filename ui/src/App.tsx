@@ -10,7 +10,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { NewProjectForm } from "./NewProjectForm";
-import { ConfigurationProject } from "./server/api";
+import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
@@ -22,6 +22,7 @@ import { Task } from "./Task";
 };
 
 export function App() {
+  const [configuration, setConfiguration] = useState<Configuration>();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tabs, setTabs] = useState<TabModel[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -147,9 +148,22 @@ export function App() {
   const onNewProjectSubmit = async (project: ConfigurationProject) => {
     setShowNewProjectForm(false);
 
-    // Save project to configuration file via API
+    if (!configuration) {
+      return;
+    }
+
+    // Update configuration with new project
+    const updatedConfiguration: Configuration = {
+      ...configuration,
+      projects: [...configuration.projects, project],
+    };
+
+    // Save configuration via API
     const client = getApiClient();
-    await client.addOrUpdateConfigurationProject({ project });
+    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
+    if (response.configuration) {
+      setConfiguration(response.configuration);
+    }
 
     // Add project to the projects list
     const newProject: Project = {
@@ -188,6 +202,7 @@ export function App() {
           >
             <Sidebar
               projects={projects}
+              canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
               onSelect={onMethodSelect}
               currentMethod={selectedMethod}
               onCompilerClick={onCompilerClick}
@@ -203,7 +218,7 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                        <Compiler projects={projects} onUpdate={onCompilationUpdate} />
+                        <Compiler projects={projects} onUpdate={onCompilationUpdate} onConfigurationLoaded={setConfiguration} />
                       </Tab>
                     );
                   }

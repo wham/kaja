@@ -66,6 +66,13 @@ message Configuration {
   string path_prefix = 1;
   repeated ConfigurationProject projects = 2;
   ConfigurationAI ai = 3;
+  // System-level settings (read-only, ignored in UpdateConfiguration)
+  ConfigurationSystem system = 4;
+}
+
+message ConfigurationSystem {
+  // Whether the UI can update configuration (true in desktop app, false in web server)
+  bool can_update_configuration = 1;
 }
 
 message ConfigurationProject {

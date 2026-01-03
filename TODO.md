@@ -1,1 +1,0 @@
-- Hook up UpdateConfiguration with the new project form

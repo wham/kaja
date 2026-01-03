@@ -71,6 +71,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 			BaseUrl: s.getConfigurationResponse.Configuration.Ai.BaseUrl,
 			ApiKey:  "*****",
 		},
+		System: s.getConfigurationResponse.Configuration.System,
 	}
 
 	return &GetConfigurationResponse{
@@ -107,6 +108,10 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}
 
 	slog.Info("Updating configuration")
+
+	// Preserve system settings from current configuration (ignore what client sends)
+	currentSystem := s.getConfigurationResponse.Configuration.System
+	req.Configuration.System = currentSystem
 
 	s.getConfigurationResponse.Configuration = req.Configuration
 

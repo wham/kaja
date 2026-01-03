@@ -6,7 +6,7 @@ import (
 )
 
 func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json")
+	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json", false)
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -59,7 +59,7 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -127,7 +127,7 @@ func TestLoadGetConfigurationResponse_AIEnvOverride(t *testing.T) {
 		os.Unsetenv("AI_API_KEY")
 	}()
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -183,7 +183,7 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -218,7 +218,7 @@ func TestLoadGetConfigurationResponse_DefaultProjectFromBaseURL(t *testing.T) {
 		os.Unsetenv("RPC_PROTOCOL")
 	}()
 
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json")
+	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json", false)
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
