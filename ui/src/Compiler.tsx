@@ -41,7 +41,7 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
     const currentProjects = projectsRef.current;
     const projectIndex = currentProjects.findIndex((p) => p.configuration.name === projectName);
     const project = currentProjects[projectIndex];
-    
+
     if (!project || projectIndex === -1) return;
 
     // Prevent concurrent compilations - check if already running
@@ -61,7 +61,7 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
       onUpdate((prevProjects) => {
         const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
         if (index === -1) return prevProjects;
-        
+
         const updatedProjects = [...prevProjects];
         updatedProjects[index] = {
           ...prevProjects[index],
@@ -108,11 +108,11 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
         onUpdate((prevProjects) => {
           const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
           if (index === -1) return prevProjects;
-          
+
           const currentProject = prevProjects[index];
           const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
           const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
-          
+
           const updatedProjects = [...prevProjects];
           updatedProjects[index] = {
             ...currentProject,
@@ -132,19 +132,19 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
         // Compilation complete - need to get fresh project state for duration calculation
         const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
         if (!finalProject) return;
-        
+
         const duration = formatDuration(Date.now() - (finalProject.compilation.startTime || 0));
 
         if (isReady) {
           const loadedProject = await loadProject(response.sources, finalProject.configuration);
-          
+
           onUpdate((prevProjects) => {
             const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
             if (index === -1) return prevProjects;
-            
+
             const currentProject = prevProjects[index];
             const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
-            
+
             const updatedProjects = [...prevProjects];
             updatedProjects[index] = {
               ...loadedProject,
@@ -160,10 +160,10 @@ export function Compiler({ projects, onUpdate }: CompilerProps) {
           onUpdate((prevProjects) => {
             const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
             if (index === -1) return prevProjects;
-            
+
             const currentProject = prevProjects[index];
             const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
-            
+
             const updatedProjects = [...prevProjects];
             updatedProjects[index] = {
               ...currentProject,

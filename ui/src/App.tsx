@@ -36,7 +36,7 @@ export function App() {
 
   const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
     // Handle both direct array and functional updates
-    if (typeof updatedProjects === 'function') {
+    if (typeof updatedProjects === "function") {
       setProjects((prevProjects) => {
         const newProjects = updatedProjects(prevProjects);
         handlePostCompilationLogic(newProjects);
@@ -145,7 +145,7 @@ export function App() {
 
   const onNewProjectSubmit = async (project: ConfigurationProject) => {
     setShowNewProjectForm(false);
-    
+
     // Add project directly to the projects list
     const newProject: Project = {
       configuration: project,
@@ -157,8 +157,8 @@ export function App() {
       clients: {},
       sources: [],
     };
-    
-    setProjects(prevProjects => [...prevProjects, newProject]);
+
+    setProjects((prevProjects) => [...prevProjects, newProject]);
     onCompilerClick();
   };
 
