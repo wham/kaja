@@ -54,13 +54,14 @@ func handleAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *htt
 }
 
 func main() {
-	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
+	configPath := "../workspace/kaja.json"
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, false)
 	config := getConfigurationResponse.Configuration
 
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse))
+	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse, configPath))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

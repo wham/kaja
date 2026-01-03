@@ -12,11 +12,13 @@ import (
 type ApiService struct {
 	compilers                sync.Map // map[string]*Compiler
 	getConfigurationResponse *GetConfigurationResponse
+	configPath               string
 }
 
-func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
+func NewApiService(getConfigurationResponse *GetConfigurationResponse, configPath string) *ApiService {
 	return &ApiService{
 		getConfigurationResponse: getConfigurationResponse,
+		configPath:               configPath,
 	}
 }
 
@@ -69,6 +71,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 			BaseUrl: s.getConfigurationResponse.Configuration.Ai.BaseUrl,
 			ApiKey:  "*****",
 		},
+		System: s.getConfigurationResponse.Configuration.System,
 	}
 
 	return &GetConfigurationResponse{
@@ -97,4 +100,26 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	newCompiler := NewCompiler()
 	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
 	return compiler.(*Compiler)
+}
+
+func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
+	if req.Configuration == nil {
+		return nil, fmt.Errorf("configuration is required")
+	}
+
+	slog.Info("Updating configuration")
+
+	// Preserve system settings from current configuration (ignore what client sends)
+	currentSystem := s.getConfigurationResponse.Configuration.System
+	req.Configuration.System = currentSystem
+
+	s.getConfigurationResponse.Configuration = req.Configuration
+
+	if err := SaveConfiguration(s.configPath, req.Configuration); err != nil {
+		return nil, fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	return &UpdateConfigurationResponse{
+		Configuration: req.Configuration,
+	}, nil
 }
