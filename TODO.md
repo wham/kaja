@@ -1,0 +1,3 @@
+- Add new proto API AddOrUpdateConfigurationProject(ConfigurationProject) that find existing project by name and updates it if found, otherwise creates a new one.
+- Saves the changes in kaja.json file.
+- Hook up AddOrUpdateConfigurationProject with the new project form
