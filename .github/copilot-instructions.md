@@ -1,2 +1,0 @@
-- See [Development](../README.md#development) for instructions how to run and test.
-- Avoid using React.FC explicitely. Use function components instead.
