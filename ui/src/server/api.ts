@@ -167,18 +167,18 @@ export interface GetStubResponse {
   stub: string;
 }
 /**
- * @generated from protobuf message AddOrUpdateConfigurationProjectRequest
+ * @generated from protobuf message UpdateConfigurationRequest
  */
-export interface AddOrUpdateConfigurationProjectRequest {
+export interface UpdateConfigurationRequest {
   /**
-   * @generated from protobuf field: ConfigurationProject project = 1
+   * @generated from protobuf field: Configuration configuration = 1
    */
-  project?: ConfigurationProject;
+  configuration?: Configuration;
 }
 /**
- * @generated from protobuf message AddOrUpdateConfigurationProjectResponse
+ * @generated from protobuf message UpdateConfigurationResponse
  */
-export interface AddOrUpdateConfigurationProjectResponse {
+export interface UpdateConfigurationResponse {
   /**
    * @generated from protobuf field: Configuration configuration = 1
    */
@@ -799,66 +799,16 @@ class GetStubResponse$Type extends MessageType<GetStubResponse> {
  */
 export const GetStubResponse = new GetStubResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class AddOrUpdateConfigurationProjectRequest$Type extends MessageType<AddOrUpdateConfigurationProjectRequest> {
+class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
   constructor() {
-    super("AddOrUpdateConfigurationProjectRequest", [{ no: 1, name: "project", kind: "message", T: () => ConfigurationProject }]);
+    super("UpdateConfigurationRequest", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
   }
-  create(value?: PartialMessage<AddOrUpdateConfigurationProjectRequest>): AddOrUpdateConfigurationProjectRequest {
+  create(value?: PartialMessage<UpdateConfigurationRequest>): UpdateConfigurationRequest {
     const message = globalThis.Object.create(this.messagePrototype!);
-    if (value !== undefined) reflectionMergePartial<AddOrUpdateConfigurationProjectRequest>(this, message, value);
+    if (value !== undefined) reflectionMergePartial<UpdateConfigurationRequest>(this, message, value);
     return message;
   }
-  internalBinaryRead(
-    reader: IBinaryReader,
-    length: number,
-    options: BinaryReadOptions,
-    target?: AddOrUpdateConfigurationProjectRequest,
-  ): AddOrUpdateConfigurationProjectRequest {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* ConfigurationProject project */ 1:
-          message.project = ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options, message.project);
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
-    }
-    return message;
-  }
-  internalBinaryWrite(message: AddOrUpdateConfigurationProjectRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* ConfigurationProject project = 1; */
-    if (message.project) ConfigurationProject.internalBinaryWrite(message.project, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
-}
-/**
- * @generated MessageType for protobuf message AddOrUpdateConfigurationProjectRequest
- */
-export const AddOrUpdateConfigurationProjectRequest = new AddOrUpdateConfigurationProjectRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AddOrUpdateConfigurationProjectResponse$Type extends MessageType<AddOrUpdateConfigurationProjectResponse> {
-  constructor() {
-    super("AddOrUpdateConfigurationProjectResponse", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
-  }
-  create(value?: PartialMessage<AddOrUpdateConfigurationProjectResponse>): AddOrUpdateConfigurationProjectResponse {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    if (value !== undefined) reflectionMergePartial<AddOrUpdateConfigurationProjectResponse>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(
-    reader: IBinaryReader,
-    length: number,
-    options: BinaryReadOptions,
-    target?: AddOrUpdateConfigurationProjectResponse,
-  ): AddOrUpdateConfigurationProjectResponse {
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationRequest): UpdateConfigurationRequest {
     let message = target ?? this.create(),
       end = reader.pos + length;
     while (reader.pos < end) {
@@ -876,7 +826,7 @@ class AddOrUpdateConfigurationProjectResponse$Type extends MessageType<AddOrUpda
     }
     return message;
   }
-  internalBinaryWrite(message: AddOrUpdateConfigurationProjectResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+  internalBinaryWrite(message: UpdateConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
     /* Configuration configuration = 1; */
     if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
     let u = options.writeUnknownFields;
@@ -885,9 +835,49 @@ class AddOrUpdateConfigurationProjectResponse$Type extends MessageType<AddOrUpda
   }
 }
 /**
- * @generated MessageType for protobuf message AddOrUpdateConfigurationProjectResponse
+ * @generated MessageType for protobuf message UpdateConfigurationRequest
  */
-export const AddOrUpdateConfigurationProjectResponse = new AddOrUpdateConfigurationProjectResponse$Type();
+export const UpdateConfigurationRequest = new UpdateConfigurationRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationResponse> {
+  constructor() {
+    super("UpdateConfigurationResponse", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
+  }
+  create(value?: PartialMessage<UpdateConfigurationResponse>): UpdateConfigurationResponse {
+    const message = globalThis.Object.create(this.messagePrototype!);
+    if (value !== undefined) reflectionMergePartial<UpdateConfigurationResponse>(this, message, value);
+    return message;
+  }
+  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationResponse): UpdateConfigurationResponse {
+    let message = target ?? this.create(),
+      end = reader.pos + length;
+    while (reader.pos < end) {
+      let [fieldNo, wireType] = reader.tag();
+      switch (fieldNo) {
+        case /* Configuration configuration */ 1:
+          message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+          break;
+        default:
+          let u = options.readUnknownField;
+          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+          let d = reader.skip(wireType);
+          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+      }
+    }
+    return message;
+  }
+  internalBinaryWrite(message: UpdateConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    /* Configuration configuration = 1; */
+    if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+    let u = options.writeUnknownFields;
+    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+    return writer;
+  }
+}
+/**
+ * @generated MessageType for protobuf message UpdateConfigurationResponse
+ */
+export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
@@ -895,5 +885,5 @@ export const Api = new ServiceType("Api", [
   { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
   { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
   { name: "GetStub", options: {}, I: GetStubRequest, O: GetStubResponse },
-  { name: "AddOrUpdateConfigurationProject", options: {}, I: AddOrUpdateConfigurationProjectRequest, O: AddOrUpdateConfigurationProjectResponse },
+  { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
 ]);

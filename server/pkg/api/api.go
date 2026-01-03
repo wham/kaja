@@ -101,34 +101,20 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	return compiler.(*Compiler)
 }
 
-func (s *ApiService) AddOrUpdateConfigurationProject(ctx context.Context, req *AddOrUpdateConfigurationProjectRequest) (*AddOrUpdateConfigurationProjectResponse, error) {
-	slog.Info("Adding or updating configuration project", "name", req.Project.Name)
-
-	if req.Project == nil || req.Project.Name == "" {
-		return nil, fmt.Errorf("project with name is required")
+func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
+	if req.Configuration == nil {
+		return nil, fmt.Errorf("configuration is required")
 	}
 
-	config := s.getConfigurationResponse.Configuration
+	slog.Info("Updating configuration")
 
-	// Find existing project by name and update, or append new project
-	found := false
-	for i, p := range config.Projects {
-		if p.Name == req.Project.Name {
-			config.Projects[i] = req.Project
-			found = true
-			break
-		}
-	}
-	if !found {
-		config.Projects = append(config.Projects, req.Project)
-	}
+	s.getConfigurationResponse.Configuration = req.Configuration
 
-	// Save to file
-	if err := SaveConfiguration(s.configPath, config); err != nil {
+	if err := SaveConfiguration(s.configPath, req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	return &AddOrUpdateConfigurationProjectResponse{
-		Configuration: config,
+	return &UpdateConfigurationResponse{
+		Configuration: req.Configuration,
 	}, nil
 }
