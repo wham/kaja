@@ -6,6 +6,7 @@ service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc GetStub(GetStubRequest) returns (GetStubResponse);
+  rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
 }
 
 message CompileRequest {
@@ -65,6 +66,13 @@ message Configuration {
   string path_prefix = 1;
   repeated ConfigurationProject projects = 2;
   ConfigurationAI ai = 3;
+  // System-level settings (read-only, ignored in UpdateConfiguration)
+  ConfigurationSystem system = 4;
+}
+
+message ConfigurationSystem {
+  // Whether the UI can update configuration (true in desktop app, false in web server)
+  bool can_update_configuration = 1;
 }
 
 message ConfigurationProject {
@@ -85,4 +93,12 @@ message GetStubRequest {
 
 message GetStubResponse {
   string stub = 1;
+}
+
+message UpdateConfigurationRequest {
+  Configuration configuration = 1;
+}
+
+message UpdateConfigurationResponse {
+  Configuration configuration = 1;
 }

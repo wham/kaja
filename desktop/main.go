@@ -132,10 +132,11 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 }
 
 func main() {
-	getConfigurationResponse := api.LoadGetConfigurationResponse("../workspace/kaja.json")
-	
+	configPath := "../workspace/kaja.json"
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, true)
+
 	// Create API service without embedded binaries
-	apiService := api.NewApiService(getConfigurationResponse)
+	apiService := api.NewApiService(getConfigurationResponse, configPath)
 	twirpHandler := api.NewApiServer(apiService)
 	
 	// Create application with options

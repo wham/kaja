@@ -1,0 +1,2 @@
+- See [Development](README.md#development) for instructions how to run and test.
+- To re-generate Protobuf filel, run `scripts/server`. No custom commands.
