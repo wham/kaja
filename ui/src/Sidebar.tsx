@@ -1,6 +1,7 @@
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PlusIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
+import { isWailsEnvironment } from "./wails";
 
 interface SidebarProps {
   projects: Project[];
@@ -33,7 +34,7 @@ export function Sidebar({ projects, currentMethod, onSelect, onCompilerClick, on
         >
           Explorer
         </div>
-        <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
+        {isWailsEnvironment() && <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />}
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
