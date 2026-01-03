@@ -1,3 +1,2 @@
 - See [Development](README.md#development) for instructions how to run and test.
-- Avoid using React.FC explicitely. Use function components instead.
 - To re-generate Protobuf filel, run `scripts/server`. No custom commands.
