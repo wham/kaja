@@ -24,7 +24,7 @@ func TestGetConfiguration_RedactsAIApiKey(t *testing.T) {
 	service := NewApiService(&GetConfigurationResponse{
 		Configuration: config,
 		Logs:          []*Log{},
-	})
+	}, "")
 
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 	if err != nil {

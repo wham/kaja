@@ -12,11 +12,13 @@ import (
 type ApiService struct {
 	compilers                sync.Map // map[string]*Compiler
 	getConfigurationResponse *GetConfigurationResponse
+	configPath               string
 }
 
-func NewApiService(getConfigurationResponse *GetConfigurationResponse) *ApiService {
+func NewApiService(getConfigurationResponse *GetConfigurationResponse, configPath string) *ApiService {
 	return &ApiService{
 		getConfigurationResponse: getConfigurationResponse,
+		configPath:               configPath,
 	}
 }
 
@@ -97,4 +99,36 @@ func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
 	newCompiler := NewCompiler()
 	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
 	return compiler.(*Compiler)
+}
+
+func (s *ApiService) AddOrUpdateConfigurationProject(ctx context.Context, req *AddOrUpdateConfigurationProjectRequest) (*AddOrUpdateConfigurationProjectResponse, error) {
+	slog.Info("Adding or updating configuration project", "name", req.Project.Name)
+
+	if req.Project == nil || req.Project.Name == "" {
+		return nil, fmt.Errorf("project with name is required")
+	}
+
+	config := s.getConfigurationResponse.Configuration
+
+	// Find existing project by name and update, or append new project
+	found := false
+	for i, p := range config.Projects {
+		if p.Name == req.Project.Name {
+			config.Projects[i] = req.Project
+			found = true
+			break
+		}
+	}
+	if !found {
+		config.Projects = append(config.Projects, req.Project)
+	}
+
+	// Save to file
+	if err := SaveConfiguration(s.configPath, config); err != nil {
+		return nil, fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	return &AddOrUpdateConfigurationProjectResponse{
+		Configuration: config,
+	}, nil
 }

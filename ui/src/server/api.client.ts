@@ -4,6 +4,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { AddOrUpdateConfigurationProjectResponse } from "./api";
+import type { AddOrUpdateConfigurationProjectRequest } from "./api";
 import type { GetStubResponse } from "./api";
 import type { GetStubRequest } from "./api";
 import type { GetConfigurationResponse } from "./api";
@@ -29,6 +31,13 @@ export interface IApiClient {
    * @generated from protobuf rpc: GetStub
    */
   getStub(input: GetStubRequest, options?: RpcOptions): UnaryCall<GetStubRequest, GetStubResponse>;
+  /**
+   * @generated from protobuf rpc: AddOrUpdateConfigurationProject
+   */
+  addOrUpdateConfigurationProject(
+    input: AddOrUpdateConfigurationProjectRequest,
+    options?: RpcOptions,
+  ): UnaryCall<AddOrUpdateConfigurationProjectRequest, AddOrUpdateConfigurationProjectResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -61,5 +70,16 @@ export class ApiClient implements IApiClient, ServiceInfo {
     const method = this.methods[2],
       opt = this._transport.mergeOptions(options);
     return stackIntercept<GetStubRequest, GetStubResponse>("unary", this._transport, method, opt, input);
+  }
+  /**
+   * @generated from protobuf rpc: AddOrUpdateConfigurationProject
+   */
+  addOrUpdateConfigurationProject(
+    input: AddOrUpdateConfigurationProjectRequest,
+    options?: RpcOptions,
+  ): UnaryCall<AddOrUpdateConfigurationProjectRequest, AddOrUpdateConfigurationProjectResponse> {
+    const method = this.methods[3],
+      opt = this._transport.mergeOptions(options);
+    return stackIntercept<AddOrUpdateConfigurationProjectRequest, AddOrUpdateConfigurationProjectResponse>("unary", this._transport, method, opt, input);
   }
 }

@@ -6,6 +6,7 @@ service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc GetStub(GetStubRequest) returns (GetStubResponse);
+  rpc AddOrUpdateConfigurationProject(AddOrUpdateConfigurationProjectRequest) returns (AddOrUpdateConfigurationProjectResponse);
 }
 
 message CompileRequest {
@@ -85,4 +86,12 @@ message GetStubRequest {
 
 message GetStubResponse {
   string stub = 1;
+}
+
+message AddOrUpdateConfigurationProjectRequest {
+  ConfigurationProject project = 1;
+}
+
+message AddOrUpdateConfigurationProjectResponse {
+  Configuration configuration = 1;
 }

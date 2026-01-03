@@ -98,6 +98,28 @@ func normalize(config *Configuration, logger *Logger) {
 	}
 }
 
+func SaveConfiguration(configPath string, config *Configuration) error {
+	// Only save projects and ai fields (not path_prefix which is set via env)
+	configToSave := &Configuration{
+		Projects: config.Projects,
+		Ai:       config.Ai,
+	}
+
+	jsonBytes, err := protojson.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}.Marshal(configToSave)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, jsonBytes, 0644); err != nil {
+		return fmt.Errorf("failed to write configuration file: %w", err)
+	}
+
+	return nil
+}
+
 // Standalone helper functions
 func getProtocolFromEnv() RpcProtocol {
 	protocol := strings.ToUpper(os.Getenv("RPC_PROTOCOL"))

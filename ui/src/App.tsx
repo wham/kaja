@@ -11,6 +11,7 @@ import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { NewProjectForm } from "./NewProjectForm";
 import { ConfigurationProject } from "./server/api";
+import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
@@ -146,7 +147,11 @@ export function App() {
   const onNewProjectSubmit = async (project: ConfigurationProject) => {
     setShowNewProjectForm(false);
 
-    // Add project directly to the projects list
+    // Save project to configuration file via API
+    const client = getApiClient();
+    await client.addOrUpdateConfigurationProject({ project });
+
+    // Add project to the projects list
     const newProject: Project = {
       configuration: project,
       compilation: {
