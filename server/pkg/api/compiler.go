@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/wham/kaja/v2/internal/ui"
 )
 
 type Compiler struct {
@@ -14,6 +16,7 @@ type Compiler struct {
 	status  CompileStatus
 	logger  *Logger
 	sources []*Source
+	stub    string
 }
 
 func NewCompiler() *Compiler {
@@ -41,8 +44,17 @@ func (c *Compiler) start(projectName string, workspace string) error {
 	}
 
 	c.sources = c.getSources(sourcesDir)
-	c.status = CompileStatus_STATUS_READY
 
+	c.logger.debug("Building stub")
+	stub, err := ui.BuildStub(projectName)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to build stub", err)
+		return err
+	}
+	c.stub = string(stub)
+
+	c.status = CompileStatus_STATUS_READY
 	c.logger.info("Compilation completed successfully, kaja is ready to go")
 
 	return nil

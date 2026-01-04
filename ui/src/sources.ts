@@ -1,6 +1,5 @@
 import ts from "typescript";
 import { Source as ApiSource } from "./server/api";
-import { getApiClient } from "./server/connection";
 
 export interface Source {
   path: string;
@@ -94,12 +93,9 @@ function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): str
   }
 }
 
-export async function loadStub(projectName: string): Promise<Stub> {
-  const client = getApiClient();
-  const { response } = await client.getStub({ projectName });
-
+export async function parseStub(stubCode: string): Promise<Stub> {
   // Create a blob URL and dynamically import the stub JS
-  const blob = new Blob([response.stub], { type: "application/javascript" });
+  const blob = new Blob([stubCode], { type: "application/javascript" });
   const url = URL.createObjectURL(blob);
 
   const stub = await import(url);
