@@ -98,7 +98,6 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
 
       const { response } = await client.compile({
         logOffset: project.compilation.logOffset || 0,
-        force: true,
         projectName: project.configuration.name,
         workspace: project.configuration.workspace,
       });

@@ -22,7 +22,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
-func (c *Compiler) start(projectName string, workspace string, force bool) error {
+func (c *Compiler) start(projectName string, workspace string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -32,26 +32,15 @@ func (c *Compiler) start(projectName string, workspace string, force bool) error
 	sourcesDir := filepath.Join(cwd, "./build/sources/"+projectName)
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
-	var sources []*Source
-
-	if !force {
-		c.logger.debug("Not forcing recompilation, using cached sources")
-		sources = c.getSources(sourcesDir)
+	c.logger.debug("Starting compilation")
+	err = c.protoc(cwd, sourcesDir, workspace)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Compilation failed", err)
+		return err
 	}
 
-	if force || len(sources) == 0 {
-		c.logger.debug("Starting fresh compilation")
-		err := c.protoc(cwd, sourcesDir, workspace)
-		if err != nil {
-			c.status = CompileStatus_STATUS_ERROR
-			c.logger.error("Compilation failed", err)
-			return err
-		}
-		sources = c.getSources(sourcesDir)
-	}
-
-	c.sources = sources
-
+	c.sources = c.getSources(sourcesDir)
 	c.status = CompileStatus_STATUS_READY
 
 	c.logger.info("Compilation completed successfully, kaja is ready to go")

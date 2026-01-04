@@ -41,7 +41,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		compiler.logger = NewLogger()
 		compiler.sources = []*Source{}
 		compiler.logger.info("Starting compilation")
-		go compiler.start(req.ProjectName, req.Workspace, req.Force)
+		go compiler.start(req.ProjectName, req.Workspace)
 	}
 
 	logOffset := int(req.LogOffset)
