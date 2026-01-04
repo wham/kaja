@@ -8,12 +8,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/wham/kaja/v2/pkg/api"
 )
@@ -23,14 +26,28 @@ var assets embed.FS
 
 // App struct
 type App struct {
-	twirpHandler  api.TwirpServer
+	ctx          context.Context
+	twirpHandler api.TwirpServer
 }
 
 // NewApp creates a new App application struct
 func NewApp(twirpHandler api.TwirpServer) *App {
 	return &App{
-		twirpHandler:  twirpHandler,
-		}
+		twirpHandler: twirpHandler,
+	}
+}
+
+// startup is called when the app starts. The context is saved
+// so we can call the runtime methods
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+}
+
+// OpenDirectoryDialog opens a native directory picker dialog
+func (a *App) OpenDirectoryDialog() (string, error) {
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Workspace Directory",
+	})
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
@@ -132,17 +149,41 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 }
 
 func main() {
-	configPath := "../workspace/kaja.json"
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, true)
+	// Get user's home directory and use ~/.kaja for config
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Failed to get user home directory", "error", err)
+		println("Error:", err.Error())
+		return
+	}
+
+	kajaDir := filepath.Join(homeDir, ".kaja")
+	configurationPath := filepath.Join(kajaDir, "kaja.json")
+
+	// Create ~/.kaja directory if it doesn't exist
+	if err := os.MkdirAll(kajaDir, 0755); err != nil {
+		slog.Error("Failed to create kaja directory", "path", kajaDir, "error", err)
+		println("Error:", err.Error())
+		return
+	}
+
+	// Create empty kaja.json if it doesn't exist
+	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
+		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
+			slog.Error("Failed to create configuration file", "path", configurationPath, "error", err)
+			println("Error:", err.Error())
+			return
+		}
+	}
 
 	// Create API service without embedded binaries
-	apiService := api.NewApiService(getConfigurationResponse, configPath)
+	apiService := api.NewApiService(configurationPath, true)
 	twirpHandler := api.NewApiServer(apiService)
 	
 	// Create application with options
 	app := NewApp(twirpHandler)
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "Kaja Compiler",
 		Width:  1024,
 		Height: 768,
@@ -150,6 +191,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
 		},
