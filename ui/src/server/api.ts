@@ -15,306 +15,314 @@ import { MessageType } from "@protobuf-ts/runtime";
  * @generated from protobuf message CompileRequest
  */
 export interface CompileRequest {
-  /**
-   * @generated from protobuf field: int32 log_offset = 1
-   */
-  logOffset: number;
-  /**
-   * @generated from protobuf field: bool force = 2
-   */
-  force: boolean;
-  /**
-   * @generated from protobuf field: string project_name = 3
-   */
-  projectName: string;
-  /**
-   * @generated from protobuf field: string workspace = 4
-   */
-  workspace: string;
+    /**
+     * @generated from protobuf field: int32 log_offset = 1
+     */
+    logOffset: number;
+    /**
+     * @generated from protobuf field: bool force = 2
+     */
+    force: boolean;
+    /**
+     * @generated from protobuf field: string project_name = 3
+     */
+    projectName: string;
+    /**
+     * @generated from protobuf field: string workspace = 4
+     */
+    workspace: string;
 }
 /**
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
-  /**
-   * @generated from protobuf field: CompileStatus status = 1
-   */
-  status: CompileStatus;
-  /**
-   * @generated from protobuf field: repeated Log logs = 2
-   */
-  logs: Log[];
-  /**
-   * @generated from protobuf field: repeated Source sources = 3
-   */
-  sources: Source[];
+    /**
+     * @generated from protobuf field: CompileStatus status = 1
+     */
+    status: CompileStatus;
+    /**
+     * @generated from protobuf field: repeated Log logs = 2
+     */
+    logs: Log[];
+    /**
+     * @generated from protobuf field: repeated Source sources = 3
+     */
+    sources: Source[];
 }
 /**
  * @generated from protobuf message Log
  */
 export interface Log {
-  /**
-   * @generated from protobuf field: LogLevel level = 1
-   */
-  level: LogLevel;
-  /**
-   * @generated from protobuf field: string message = 2
-   */
-  message: string;
+    /**
+     * @generated from protobuf field: LogLevel level = 1
+     */
+    level: LogLevel;
+    /**
+     * @generated from protobuf field: string message = 2
+     */
+    message: string;
 }
 /**
  * @generated from protobuf message Source
  */
 export interface Source {
-  /**
-   * @generated from protobuf field: string path = 1
-   */
-  path: string;
-  /**
-   * @generated from protobuf field: string content = 2
-   */
-  content: string;
+    /**
+     * @generated from protobuf field: string path = 1
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: string content = 2
+     */
+    content: string;
 }
 /**
  * @generated from protobuf message GetConfigurationRequest
  */
-export interface GetConfigurationRequest {}
+export interface GetConfigurationRequest {
+}
 /**
  * @generated from protobuf message GetConfigurationResponse
  */
 export interface GetConfigurationResponse {
-  /**
-   * @generated from protobuf field: Configuration configuration = 1
-   */
-  configuration?: Configuration;
-  /**
-   * @generated from protobuf field: repeated Log logs = 2
-   */
-  logs: Log[];
+    /**
+     * @generated from protobuf field: Configuration configuration = 1
+     */
+    configuration?: Configuration;
+    /**
+     * @generated from protobuf field: repeated Log logs = 2
+     */
+    logs: Log[];
 }
 /**
  * @generated from protobuf message Configuration
  */
 export interface Configuration {
-  /**
-   * kaja can be deployed at a subpath - i.e. kaja.tools/demo
-   * This field is used to set the subpath.
-   * The server uses it to generate the correct paths in HTML and redirects.
-   * The JS code is using relative paths and should be not dependent on this.
-   *
-   * @generated from protobuf field: string path_prefix = 1
-   */
-  pathPrefix: string;
-  /**
-   * @generated from protobuf field: repeated ConfigurationProject projects = 2
-   */
-  projects: ConfigurationProject[];
-  /**
-   * @generated from protobuf field: ConfigurationAI ai = 3
-   */
-  ai?: ConfigurationAI;
-  /**
-   * System-level settings (read-only, ignored in UpdateConfiguration)
-   *
-   * @generated from protobuf field: ConfigurationSystem system = 4
-   */
-  system?: ConfigurationSystem;
+    /**
+     * kaja can be deployed at a subpath - i.e. kaja.tools/demo
+     * This field is used to set the subpath.
+     * The server uses it to generate the correct paths in HTML and redirects.
+     * The JS code is using relative paths and should be not dependent on this.
+     *
+     * @generated from protobuf field: string path_prefix = 1
+     */
+    pathPrefix: string;
+    /**
+     * @generated from protobuf field: repeated ConfigurationProject projects = 2
+     */
+    projects: ConfigurationProject[];
+    /**
+     * @generated from protobuf field: ConfigurationAI ai = 3
+     */
+    ai?: ConfigurationAI;
+    /**
+     * System-level settings (read-only, ignored in UpdateConfiguration)
+     *
+     * @generated from protobuf field: ConfigurationSystem system = 4
+     */
+    system?: ConfigurationSystem;
 }
 /**
  * @generated from protobuf message ConfigurationSystem
  */
 export interface ConfigurationSystem {
-  /**
-   * Whether the UI can update configuration (true in desktop app, false in web server)
-   *
-   * @generated from protobuf field: bool can_update_configuration = 1
-   */
-  canUpdateConfiguration: boolean;
+    /**
+     * Whether the UI can update configuration (true in desktop app, false in web server)
+     *
+     * @generated from protobuf field: bool can_update_configuration = 1
+     */
+    canUpdateConfiguration: boolean;
 }
 /**
  * @generated from protobuf message ConfigurationProject
  */
 export interface ConfigurationProject {
-  /**
-   * @generated from protobuf field: string name = 1
-   */
-  name: string;
-  /**
-   * @generated from protobuf field: RpcProtocol protocol = 2
-   */
-  protocol: RpcProtocol;
-  /**
-   * @generated from protobuf field: string url = 3
-   */
-  url: string;
-  /**
-   * @generated from protobuf field: string workspace = 4
-   */
-  workspace: string;
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: RpcProtocol protocol = 2
+     */
+    protocol: RpcProtocol;
+    /**
+     * @generated from protobuf field: string url = 3
+     */
+    url: string;
+    /**
+     * @generated from protobuf field: string workspace = 4
+     */
+    workspace: string;
 }
 /**
  * @generated from protobuf message ConfigurationAI
  */
 export interface ConfigurationAI {
-  /**
-   * @generated from protobuf field: string base_url = 1
-   */
-  baseUrl: string;
-  /**
-   * @generated from protobuf field: string api_key = 2
-   */
-  apiKey: string;
+    /**
+     * @generated from protobuf field: string base_url = 1
+     */
+    baseUrl: string;
+    /**
+     * @generated from protobuf field: string api_key = 2
+     */
+    apiKey: string;
 }
 /**
  * @generated from protobuf message GetStubRequest
  */
 export interface GetStubRequest {
-  /**
-   * @generated from protobuf field: string project_name = 1
-   */
-  projectName: string;
+    /**
+     * @generated from protobuf field: string project_name = 1
+     */
+    projectName: string;
 }
 /**
  * @generated from protobuf message GetStubResponse
  */
 export interface GetStubResponse {
-  /**
-   * @generated from protobuf field: string stub = 1
-   */
-  stub: string;
+    /**
+     * @generated from protobuf field: string stub = 1
+     */
+    stub: string;
 }
 /**
  * @generated from protobuf message UpdateConfigurationRequest
  */
 export interface UpdateConfigurationRequest {
-  /**
-   * @generated from protobuf field: Configuration configuration = 1
-   */
-  configuration?: Configuration;
+    /**
+     * @generated from protobuf field: Configuration configuration = 1
+     */
+    configuration?: Configuration;
 }
 /**
  * @generated from protobuf message UpdateConfigurationResponse
  */
 export interface UpdateConfigurationResponse {
-  /**
-   * @generated from protobuf field: Configuration configuration = 1
-   */
-  configuration?: Configuration;
+    /**
+     * @generated from protobuf field: Configuration configuration = 1
+     */
+    configuration?: Configuration;
 }
 /**
  * @generated from protobuf enum CompileStatus
  */
 export enum CompileStatus {
-  /**
-   * @generated from protobuf enum value: STATUS_UNKNOWN = 0;
-   */
-  STATUS_UNKNOWN = 0,
-  /**
-   * @generated from protobuf enum value: STATUS_READY = 1;
-   */
-  STATUS_READY = 1,
-  /**
-   * @generated from protobuf enum value: STATUS_ERROR = 2;
-   */
-  STATUS_ERROR = 2,
-  /**
-   * @generated from protobuf enum value: STATUS_RUNNING = 3;
-   */
-  STATUS_RUNNING = 3,
+    /**
+     * @generated from protobuf enum value: STATUS_UNKNOWN = 0;
+     */
+    STATUS_UNKNOWN = 0,
+    /**
+     * @generated from protobuf enum value: STATUS_READY = 1;
+     */
+    STATUS_READY = 1,
+    /**
+     * @generated from protobuf enum value: STATUS_ERROR = 2;
+     */
+    STATUS_ERROR = 2,
+    /**
+     * @generated from protobuf enum value: STATUS_RUNNING = 3;
+     */
+    STATUS_RUNNING = 3
 }
 /**
  * @generated from protobuf enum LogLevel
  */
 export enum LogLevel {
-  /**
-   * @generated from protobuf enum value: LEVEL_DEBUG = 0;
-   */
-  LEVEL_DEBUG = 0,
-  /**
-   * @generated from protobuf enum value: LEVEL_INFO = 1;
-   */
-  LEVEL_INFO = 1,
-  /**
-   * @generated from protobuf enum value: LEVEL_WARN = 2;
-   */
-  LEVEL_WARN = 2,
-  /**
-   * @generated from protobuf enum value: LEVEL_ERROR = 3;
-   */
-  LEVEL_ERROR = 3,
+    /**
+     * @generated from protobuf enum value: LEVEL_DEBUG = 0;
+     */
+    LEVEL_DEBUG = 0,
+    /**
+     * @generated from protobuf enum value: LEVEL_INFO = 1;
+     */
+    LEVEL_INFO = 1,
+    /**
+     * @generated from protobuf enum value: LEVEL_WARN = 2;
+     */
+    LEVEL_WARN = 2,
+    /**
+     * @generated from protobuf enum value: LEVEL_ERROR = 3;
+     */
+    LEVEL_ERROR = 3
 }
 /**
  * @generated from protobuf enum RpcProtocol
  */
 export enum RpcProtocol {
-  /**
-   * @generated from protobuf enum value: RPC_PROTOCOL_TWIRP = 0;
-   */
-  TWIRP = 0,
-  /**
-   * @generated from protobuf enum value: RPC_PROTOCOL_GRPC = 1;
-   */
-  GRPC = 1,
+    /**
+     * @generated from protobuf enum value: RPC_PROTOCOL_TWIRP = 0;
+     */
+    TWIRP = 0,
+    /**
+     * @generated from protobuf enum value: RPC_PROTOCOL_GRPC = 1;
+     */
+    GRPC = 1
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileRequest$Type extends MessageType<CompileRequest> {
-  constructor() {
-    super("CompileRequest", [
-      { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-      { no: 2, name: "force", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-      { no: 3, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
-  }
-  create(value?: PartialMessage<CompileRequest>): CompileRequest {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.logOffset = 0;
-    message.force = false;
-    message.projectName = "";
-    message.workspace = "";
-    if (value !== undefined) reflectionMergePartial<CompileRequest>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CompileRequest): CompileRequest {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* int32 log_offset */ 1:
-          message.logOffset = reader.int32();
-          break;
-        case /* bool force */ 2:
-          message.force = reader.bool();
-          break;
-        case /* string project_name */ 3:
-          message.projectName = reader.string();
-          break;
-        case /* string workspace */ 4:
-          message.workspace = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("CompileRequest", [
+            { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "force", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: CompileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* int32 log_offset = 1; */
-    if (message.logOffset !== 0) writer.tag(1, WireType.Varint).int32(message.logOffset);
-    /* bool force = 2; */
-    if (message.force !== false) writer.tag(2, WireType.Varint).bool(message.force);
-    /* string project_name = 3; */
-    if (message.projectName !== "") writer.tag(3, WireType.LengthDelimited).string(message.projectName);
-    /* string workspace = 4; */
-    if (message.workspace !== "") writer.tag(4, WireType.LengthDelimited).string(message.workspace);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<CompileRequest>): CompileRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.logOffset = 0;
+        message.force = false;
+        message.projectName = "";
+        message.workspace = "";
+        if (value !== undefined)
+            reflectionMergePartial<CompileRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CompileRequest): CompileRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 log_offset */ 1:
+                    message.logOffset = reader.int32();
+                    break;
+                case /* bool force */ 2:
+                    message.force = reader.bool();
+                    break;
+                case /* string project_name */ 3:
+                    message.projectName = reader.string();
+                    break;
+                case /* string workspace */ 4:
+                    message.workspace = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CompileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 log_offset = 1; */
+        if (message.logOffset !== 0)
+            writer.tag(1, WireType.Varint).int32(message.logOffset);
+        /* bool force = 2; */
+        if (message.force !== false)
+            writer.tag(2, WireType.Varint).bool(message.force);
+        /* string project_name = 3; */
+        if (message.projectName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.projectName);
+        /* string workspace = 4; */
+        if (message.workspace !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.workspace);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message CompileRequest
@@ -322,57 +330,62 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
 export const CompileRequest = new CompileRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
-  constructor() {
-    super("CompileResponse", [
-      { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
-      { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-      { no: 3, name: "sources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Source },
-    ]);
-  }
-  create(value?: PartialMessage<CompileResponse>): CompileResponse {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.status = 0;
-    message.logs = [];
-    message.sources = [];
-    if (value !== undefined) reflectionMergePartial<CompileResponse>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CompileResponse): CompileResponse {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* CompileStatus status */ 1:
-          message.status = reader.int32();
-          break;
-        case /* repeated Log logs */ 2:
-          message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        case /* repeated Source sources */ 3:
-          message.sources.push(Source.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("CompileResponse", [
+            { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
+            { no: 3, name: "sources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Source }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: CompileResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* CompileStatus status = 1; */
-    if (message.status !== 0) writer.tag(1, WireType.Varint).int32(message.status);
-    /* repeated Log logs = 2; */
-    for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-    /* repeated Source sources = 3; */
-    for (let i = 0; i < message.sources.length; i++)
-      Source.internalBinaryWrite(message.sources[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<CompileResponse>): CompileResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = 0;
+        message.logs = [];
+        message.sources = [];
+        if (value !== undefined)
+            reflectionMergePartial<CompileResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CompileResponse): CompileResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* CompileStatus status */ 1:
+                    message.status = reader.int32();
+                    break;
+                case /* repeated Log logs */ 2:
+                    message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated Source sources */ 3:
+                    message.sources.push(Source.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CompileResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* CompileStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
+        /* repeated Log logs = 2; */
+        for (let i = 0; i < message.logs.length; i++)
+            Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* repeated Source sources = 3; */
+        for (let i = 0; i < message.sources.length; i++)
+            Source.internalBinaryWrite(message.sources[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message CompileResponse
@@ -380,49 +393,54 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
 export const CompileResponse = new CompileResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Log$Type extends MessageType<Log> {
-  constructor() {
-    super("Log", [
-      { no: 1, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
-      { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
-  }
-  create(value?: PartialMessage<Log>): Log {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.level = 0;
-    message.message = "";
-    if (value !== undefined) reflectionMergePartial<Log>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Log): Log {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* LogLevel level */ 1:
-          message.level = reader.int32();
-          break;
-        case /* string message */ 2:
-          message.message = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("Log", [
+            { no: 1, name: "level", kind: "enum", T: () => ["LogLevel", LogLevel] },
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: Log, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* LogLevel level = 1; */
-    if (message.level !== 0) writer.tag(1, WireType.Varint).int32(message.level);
-    /* string message = 2; */
-    if (message.message !== "") writer.tag(2, WireType.LengthDelimited).string(message.message);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<Log>): Log {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.level = 0;
+        message.message = "";
+        if (value !== undefined)
+            reflectionMergePartial<Log>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Log): Log {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* LogLevel level */ 1:
+                    message.level = reader.int32();
+                    break;
+                case /* string message */ 2:
+                    message.message = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Log, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* LogLevel level = 1; */
+        if (message.level !== 0)
+            writer.tag(1, WireType.Varint).int32(message.level);
+        /* string message = 2; */
+        if (message.message !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message Log
@@ -430,49 +448,54 @@ class Log$Type extends MessageType<Log> {
 export const Log = new Log$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Source$Type extends MessageType<Source> {
-  constructor() {
-    super("Source", [
-      { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
-  }
-  create(value?: PartialMessage<Source>): Source {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.path = "";
-    message.content = "";
-    if (value !== undefined) reflectionMergePartial<Source>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Source): Source {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string path */ 1:
-          message.path = reader.string();
-          break;
-        case /* string content */ 2:
-          message.content = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("Source", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: Source, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string path = 1; */
-    if (message.path !== "") writer.tag(1, WireType.LengthDelimited).string(message.path);
-    /* string content = 2; */
-    if (message.content !== "") writer.tag(2, WireType.LengthDelimited).string(message.content);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<Source>): Source {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.content = "";
+        if (value !== undefined)
+            reflectionMergePartial<Source>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Source): Source {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* string content */ 2:
+                    message.content = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Source, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* string content = 2; */
+        if (message.content !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.content);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message Source
@@ -480,34 +503,37 @@ class Source$Type extends MessageType<Source> {
 export const Source = new Source$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationRequest$Type extends MessageType<GetConfigurationRequest> {
-  constructor() {
-    super("GetConfigurationRequest", []);
-  }
-  create(value?: PartialMessage<GetConfigurationRequest>): GetConfigurationRequest {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    if (value !== undefined) reflectionMergePartial<GetConfigurationRequest>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigurationRequest): GetConfigurationRequest {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("GetConfigurationRequest", []);
     }
-    return message;
-  }
-  internalBinaryWrite(message: GetConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<GetConfigurationRequest>): GetConfigurationRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetConfigurationRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigurationRequest): GetConfigurationRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message GetConfigurationRequest
@@ -515,48 +541,53 @@ class GetConfigurationRequest$Type extends MessageType<GetConfigurationRequest> 
 export const GetConfigurationRequest = new GetConfigurationRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse> {
-  constructor() {
-    super("GetConfigurationResponse", [
-      { no: 1, name: "configuration", kind: "message", T: () => Configuration },
-      { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-    ]);
-  }
-  create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.logs = [];
-    if (value !== undefined) reflectionMergePartial<GetConfigurationResponse>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigurationResponse): GetConfigurationResponse {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* Configuration configuration */ 1:
-          message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
-          break;
-        case /* repeated Log logs */ 2:
-          message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("GetConfigurationResponse", [
+            { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: GetConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* Configuration configuration = 1; */
-    if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    /* repeated Log logs = 2; */
-    for (let i = 0; i < message.logs.length; i++) Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.logs = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetConfigurationResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigurationResponse): GetConfigurationResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Configuration configuration */ 1:
+                    message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+                    break;
+                case /* repeated Log logs */ 2:
+                    message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Configuration configuration = 1; */
+        if (message.configuration)
+            Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* repeated Log logs = 2; */
+        for (let i = 0; i < message.logs.length; i++)
+            Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message GetConfigurationResponse
@@ -564,62 +595,68 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
 export const GetConfigurationResponse = new GetConfigurationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
-  constructor() {
-    super("Configuration", [
-      { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "projects", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationProject },
-      { no: 3, name: "ai", kind: "message", T: () => ConfigurationAI },
-      { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
-    ]);
-  }
-  create(value?: PartialMessage<Configuration>): Configuration {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.pathPrefix = "";
-    message.projects = [];
-    if (value !== undefined) reflectionMergePartial<Configuration>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Configuration): Configuration {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string path_prefix */ 1:
-          message.pathPrefix = reader.string();
-          break;
-        case /* repeated ConfigurationProject projects */ 2:
-          message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
-          break;
-        case /* ConfigurationAI ai */ 3:
-          message.ai = ConfigurationAI.internalBinaryRead(reader, reader.uint32(), options, message.ai);
-          break;
-        case /* ConfigurationSystem system */ 4:
-          message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("Configuration", [
+            { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "projects", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationProject },
+            { no: 3, name: "ai", kind: "message", T: () => ConfigurationAI },
+            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string path_prefix = 1; */
-    if (message.pathPrefix !== "") writer.tag(1, WireType.LengthDelimited).string(message.pathPrefix);
-    /* repeated ConfigurationProject projects = 2; */
-    for (let i = 0; i < message.projects.length; i++)
-      ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-    /* ConfigurationAI ai = 3; */
-    if (message.ai) ConfigurationAI.internalBinaryWrite(message.ai, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-    /* ConfigurationSystem system = 4; */
-    if (message.system) ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<Configuration>): Configuration {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pathPrefix = "";
+        message.projects = [];
+        if (value !== undefined)
+            reflectionMergePartial<Configuration>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Configuration): Configuration {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path_prefix */ 1:
+                    message.pathPrefix = reader.string();
+                    break;
+                case /* repeated ConfigurationProject projects */ 2:
+                    message.projects.push(ConfigurationProject.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* ConfigurationAI ai */ 3:
+                    message.ai = ConfigurationAI.internalBinaryRead(reader, reader.uint32(), options, message.ai);
+                    break;
+                case /* ConfigurationSystem system */ 4:
+                    message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path_prefix = 1; */
+        if (message.pathPrefix !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.pathPrefix);
+        /* repeated ConfigurationProject projects = 2; */
+        for (let i = 0; i < message.projects.length; i++)
+            ConfigurationProject.internalBinaryWrite(message.projects[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* ConfigurationAI ai = 3; */
+        if (message.ai)
+            ConfigurationAI.internalBinaryWrite(message.ai, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* ConfigurationSystem system = 4; */
+        if (message.system)
+            ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message Configuration
@@ -627,40 +664,46 @@ class Configuration$Type extends MessageType<Configuration> {
 export const Configuration = new Configuration$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
-  constructor() {
-    super("ConfigurationSystem", [{ no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }]);
-  }
-  create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.canUpdateConfiguration = false;
-    if (value !== undefined) reflectionMergePartial<ConfigurationSystem>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationSystem): ConfigurationSystem {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* bool can_update_configuration */ 1:
-          message.canUpdateConfiguration = reader.bool();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("ConfigurationSystem", [
+            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: ConfigurationSystem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* bool can_update_configuration = 1; */
-    if (message.canUpdateConfiguration !== false) writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.canUpdateConfiguration = false;
+        if (value !== undefined)
+            reflectionMergePartial<ConfigurationSystem>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationSystem): ConfigurationSystem {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool can_update_configuration */ 1:
+                    message.canUpdateConfiguration = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfigurationSystem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool can_update_configuration = 1; */
+        if (message.canUpdateConfiguration !== false)
+            writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message ConfigurationSystem
@@ -668,63 +711,70 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
 export const ConfigurationSystem = new ConfigurationSystem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
-  constructor() {
-    super("ConfigurationProject", [
-      { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
-      { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
-  }
-  create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.name = "";
-    message.protocol = 0;
-    message.url = "";
-    message.workspace = "";
-    if (value !== undefined) reflectionMergePartial<ConfigurationProject>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationProject): ConfigurationProject {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string name */ 1:
-          message.name = reader.string();
-          break;
-        case /* RpcProtocol protocol */ 2:
-          message.protocol = reader.int32();
-          break;
-        case /* string url */ 3:
-          message.url = reader.string();
-          break;
-        case /* string workspace */ 4:
-          message.workspace = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("ConfigurationProject", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
+            { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: ConfigurationProject, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string name = 1; */
-    if (message.name !== "") writer.tag(1, WireType.LengthDelimited).string(message.name);
-    /* RpcProtocol protocol = 2; */
-    if (message.protocol !== 0) writer.tag(2, WireType.Varint).int32(message.protocol);
-    /* string url = 3; */
-    if (message.url !== "") writer.tag(3, WireType.LengthDelimited).string(message.url);
-    /* string workspace = 4; */
-    if (message.workspace !== "") writer.tag(4, WireType.LengthDelimited).string(message.workspace);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.protocol = 0;
+        message.url = "";
+        message.workspace = "";
+        if (value !== undefined)
+            reflectionMergePartial<ConfigurationProject>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationProject): ConfigurationProject {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* RpcProtocol protocol */ 2:
+                    message.protocol = reader.int32();
+                    break;
+                case /* string url */ 3:
+                    message.url = reader.string();
+                    break;
+                case /* string workspace */ 4:
+                    message.workspace = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfigurationProject, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* RpcProtocol protocol = 2; */
+        if (message.protocol !== 0)
+            writer.tag(2, WireType.Varint).int32(message.protocol);
+        /* string url = 3; */
+        if (message.url !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.url);
+        /* string workspace = 4; */
+        if (message.workspace !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.workspace);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message ConfigurationProject
@@ -732,49 +782,54 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
 export const ConfigurationProject = new ConfigurationProject$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationAI$Type extends MessageType<ConfigurationAI> {
-  constructor() {
-    super("ConfigurationAI", [
-      { no: 1, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-      { no: 2, name: "api_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-    ]);
-  }
-  create(value?: PartialMessage<ConfigurationAI>): ConfigurationAI {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.baseUrl = "";
-    message.apiKey = "";
-    if (value !== undefined) reflectionMergePartial<ConfigurationAI>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationAI): ConfigurationAI {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string base_url */ 1:
-          message.baseUrl = reader.string();
-          break;
-        case /* string api_key */ 2:
-          message.apiKey = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("ConfigurationAI", [
+            { no: 1, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "api_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: ConfigurationAI, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string base_url = 1; */
-    if (message.baseUrl !== "") writer.tag(1, WireType.LengthDelimited).string(message.baseUrl);
-    /* string api_key = 2; */
-    if (message.apiKey !== "") writer.tag(2, WireType.LengthDelimited).string(message.apiKey);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<ConfigurationAI>): ConfigurationAI {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.baseUrl = "";
+        message.apiKey = "";
+        if (value !== undefined)
+            reflectionMergePartial<ConfigurationAI>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationAI): ConfigurationAI {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string base_url */ 1:
+                    message.baseUrl = reader.string();
+                    break;
+                case /* string api_key */ 2:
+                    message.apiKey = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfigurationAI, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string base_url = 1; */
+        if (message.baseUrl !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.baseUrl);
+        /* string api_key = 2; */
+        if (message.apiKey !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.apiKey);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message ConfigurationAI
@@ -782,40 +837,46 @@ class ConfigurationAI$Type extends MessageType<ConfigurationAI> {
 export const ConfigurationAI = new ConfigurationAI$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetStubRequest$Type extends MessageType<GetStubRequest> {
-  constructor() {
-    super("GetStubRequest", [{ no: 1, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }]);
-  }
-  create(value?: PartialMessage<GetStubRequest>): GetStubRequest {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.projectName = "";
-    if (value !== undefined) reflectionMergePartial<GetStubRequest>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubRequest): GetStubRequest {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string project_name */ 1:
-          message.projectName = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("GetStubRequest", [
+            { no: 1, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: GetStubRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string project_name = 1; */
-    if (message.projectName !== "") writer.tag(1, WireType.LengthDelimited).string(message.projectName);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<GetStubRequest>): GetStubRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.projectName = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetStubRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubRequest): GetStubRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string project_name */ 1:
+                    message.projectName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStubRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string project_name = 1; */
+        if (message.projectName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.projectName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message GetStubRequest
@@ -823,40 +884,46 @@ class GetStubRequest$Type extends MessageType<GetStubRequest> {
 export const GetStubRequest = new GetStubRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetStubResponse$Type extends MessageType<GetStubResponse> {
-  constructor() {
-    super("GetStubResponse", [{ no: 1, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }]);
-  }
-  create(value?: PartialMessage<GetStubResponse>): GetStubResponse {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    message.stub = "";
-    if (value !== undefined) reflectionMergePartial<GetStubResponse>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubResponse): GetStubResponse {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* string stub */ 1:
-          message.stub = reader.string();
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("GetStubResponse", [
+            { no: 1, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: GetStubResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* string stub = 1; */
-    if (message.stub !== "") writer.tag(1, WireType.LengthDelimited).string(message.stub);
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<GetStubResponse>): GetStubResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stub = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetStubResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubResponse): GetStubResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string stub */ 1:
+                    message.stub = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStubResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string stub = 1; */
+        if (message.stub !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.stub);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message GetStubResponse
@@ -864,39 +931,45 @@ class GetStubResponse$Type extends MessageType<GetStubResponse> {
 export const GetStubResponse = new GetStubResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
-  constructor() {
-    super("UpdateConfigurationRequest", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
-  }
-  create(value?: PartialMessage<UpdateConfigurationRequest>): UpdateConfigurationRequest {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    if (value !== undefined) reflectionMergePartial<UpdateConfigurationRequest>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationRequest): UpdateConfigurationRequest {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* Configuration configuration */ 1:
-          message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("UpdateConfigurationRequest", [
+            { no: 1, name: "configuration", kind: "message", T: () => Configuration }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: UpdateConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* Configuration configuration = 1; */
-    if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<UpdateConfigurationRequest>): UpdateConfigurationRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateConfigurationRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationRequest): UpdateConfigurationRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Configuration configuration */ 1:
+                    message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateConfigurationRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Configuration configuration = 1; */
+        if (message.configuration)
+            Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message UpdateConfigurationRequest
@@ -904,39 +977,45 @@ class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationReq
 export const UpdateConfigurationRequest = new UpdateConfigurationRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationResponse> {
-  constructor() {
-    super("UpdateConfigurationResponse", [{ no: 1, name: "configuration", kind: "message", T: () => Configuration }]);
-  }
-  create(value?: PartialMessage<UpdateConfigurationResponse>): UpdateConfigurationResponse {
-    const message = globalThis.Object.create(this.messagePrototype!);
-    if (value !== undefined) reflectionMergePartial<UpdateConfigurationResponse>(this, message, value);
-    return message;
-  }
-  internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationResponse): UpdateConfigurationResponse {
-    let message = target ?? this.create(),
-      end = reader.pos + length;
-    while (reader.pos < end) {
-      let [fieldNo, wireType] = reader.tag();
-      switch (fieldNo) {
-        case /* Configuration configuration */ 1:
-          message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
-          break;
-        default:
-          let u = options.readUnknownField;
-          if (u === "throw") throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-          let d = reader.skip(wireType);
-          if (u !== false) (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-      }
+    constructor() {
+        super("UpdateConfigurationResponse", [
+            { no: 1, name: "configuration", kind: "message", T: () => Configuration }
+        ]);
     }
-    return message;
-  }
-  internalBinaryWrite(message: UpdateConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-    /* Configuration configuration = 1; */
-    if (message.configuration) Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-    let u = options.writeUnknownFields;
-    if (u !== false) (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-    return writer;
-  }
+    create(value?: PartialMessage<UpdateConfigurationResponse>): UpdateConfigurationResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateConfigurationResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateConfigurationResponse): UpdateConfigurationResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* Configuration configuration */ 1:
+                    message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateConfigurationResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* Configuration configuration = 1; */
+        if (message.configuration)
+            Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
 /**
  * @generated MessageType for protobuf message UpdateConfigurationResponse
@@ -946,8 +1025,8 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
  * @generated ServiceType for protobuf service Api
  */
 export const Api = new ServiceType("Api", [
-  { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
-  { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
-  { name: "GetStub", options: {}, I: GetStubRequest, O: GetStubResponse },
-  { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
+    { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
+    { name: "GetStub", options: {}, I: GetStubRequest, O: GetStubResponse },
+    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);

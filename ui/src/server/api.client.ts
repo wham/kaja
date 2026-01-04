@@ -19,61 +19,58 @@ import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
  * @generated from protobuf service Api
  */
 export interface IApiClient {
-  /**
-   * @generated from protobuf rpc: Compile
-   */
-  compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
-  /**
-   * @generated from protobuf rpc: GetConfiguration
-   */
-  getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse>;
-  /**
-   * @generated from protobuf rpc: GetStub
-   */
-  getStub(input: GetStubRequest, options?: RpcOptions): UnaryCall<GetStubRequest, GetStubResponse>;
-  /**
-   * @generated from protobuf rpc: UpdateConfiguration
-   */
-  updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse>;
+    /**
+     * @generated from protobuf rpc: Compile
+     */
+    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
+    /**
+     * @generated from protobuf rpc: GetConfiguration
+     */
+    getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse>;
+    /**
+     * @generated from protobuf rpc: GetStub
+     */
+    getStub(input: GetStubRequest, options?: RpcOptions): UnaryCall<GetStubRequest, GetStubResponse>;
+    /**
+     * @generated from protobuf rpc: UpdateConfiguration
+     */
+    updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse>;
 }
 /**
  * @generated from protobuf service Api
  */
 export class ApiClient implements IApiClient, ServiceInfo {
-  typeName = Api.typeName;
-  methods = Api.methods;
-  options = Api.options;
-  constructor(private readonly _transport: RpcTransport) {}
-  /**
-   * @generated from protobuf rpc: Compile
-   */
-  compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse> {
-    const method = this.methods[0],
-      opt = this._transport.mergeOptions(options);
-    return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
-  }
-  /**
-   * @generated from protobuf rpc: GetConfiguration
-   */
-  getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse> {
-    const method = this.methods[1],
-      opt = this._transport.mergeOptions(options);
-    return stackIntercept<GetConfigurationRequest, GetConfigurationResponse>("unary", this._transport, method, opt, input);
-  }
-  /**
-   * @generated from protobuf rpc: GetStub
-   */
-  getStub(input: GetStubRequest, options?: RpcOptions): UnaryCall<GetStubRequest, GetStubResponse> {
-    const method = this.methods[2],
-      opt = this._transport.mergeOptions(options);
-    return stackIntercept<GetStubRequest, GetStubResponse>("unary", this._transport, method, opt, input);
-  }
-  /**
-   * @generated from protobuf rpc: UpdateConfiguration
-   */
-  updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
-    const method = this.methods[3],
-      opt = this._transport.mergeOptions(options);
-    return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
-  }
+    typeName = Api.typeName;
+    methods = Api.methods;
+    options = Api.options;
+    constructor(private readonly _transport: RpcTransport) {
+    }
+    /**
+     * @generated from protobuf rpc: Compile
+     */
+    compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse> {
+        const method = this.methods[0], opt = this._transport.mergeOptions(options);
+        return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: GetConfiguration
+     */
+    getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse> {
+        const method = this.methods[1], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetConfigurationRequest, GetConfigurationResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: GetStub
+     */
+    getStub(input: GetStubRequest, options?: RpcOptions): UnaryCall<GetStubRequest, GetStubResponse> {
+        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetStubRequest, GetStubResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: UpdateConfiguration
+     */
+    updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
+    }
 }
