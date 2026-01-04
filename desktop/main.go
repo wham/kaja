@@ -16,6 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/wham/kaja/v2/pkg/api"
 )
@@ -25,14 +26,28 @@ var assets embed.FS
 
 // App struct
 type App struct {
-	twirpHandler  api.TwirpServer
+	ctx          context.Context
+	twirpHandler api.TwirpServer
 }
 
 // NewApp creates a new App application struct
 func NewApp(twirpHandler api.TwirpServer) *App {
 	return &App{
-		twirpHandler:  twirpHandler,
-		}
+		twirpHandler: twirpHandler,
+	}
+}
+
+// startup is called when the app starts. The context is saved
+// so we can call the runtime methods
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+}
+
+// OpenDirectoryDialog opens a native directory picker dialog
+func (a *App) OpenDirectoryDialog() (string, error) {
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Workspace Directory",
+	})
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
@@ -176,6 +191,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
 		},

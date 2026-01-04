@@ -1,6 +1,8 @@
+import { FileDirectoryIcon } from "@primer/octicons-react";
 import { Dialog, FormControl, Select, TextInput } from "@primer/react";
 import { useState, useRef } from "react";
 import { RpcProtocol } from "./server/api";
+import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 
 interface NewProjectFormProps {
   isOpen: boolean;
@@ -83,7 +85,24 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
 
         <FormControl sx={{ mt: 3 }}>
           <FormControl.Label>Workspace</FormControl.Label>
-          <TextInput value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="Path to workspace" block />
+          <TextInput
+            value={workspace}
+            onChange={(e) => setWorkspace(e.target.value)}
+            placeholder="Path to workspace"
+            block
+            trailingAction={
+              <TextInput.Action
+                onClick={async () => {
+                  const path = await OpenDirectoryDialog();
+                  if (path) {
+                    setWorkspace(path);
+                  }
+                }}
+                icon={FileDirectoryIcon}
+                aria-label="Select directory"
+              />
+            }
+          />
         </FormControl>
       </Dialog.Body>
     </Dialog>
