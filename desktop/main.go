@@ -134,7 +134,7 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 }
 
 func main() {
-	// Get user's home directory and use ~/kaja for config
+	// Get user's home directory and use ~/.kaja for config
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		slog.Error("Failed to get user home directory", "error", err)
@@ -142,10 +142,10 @@ func main() {
 		return
 	}
 
-	kajaDir := filepath.Join(homeDir, "kaja")
+	kajaDir := filepath.Join(homeDir, ".kaja")
 	configPath := filepath.Join(kajaDir, "kaja.json")
 
-	// Create ~/kaja directory if it doesn't exist
+	// Create ~/.kaja directory if it doesn't exist
 	if err := os.MkdirAll(kajaDir, 0755); err != nil {
 		slog.Error("Failed to create kaja directory", "path", kajaDir, "error", err)
 		println("Error:", err.Error())
