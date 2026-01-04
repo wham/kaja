@@ -152,6 +152,15 @@ func main() {
 		return
 	}
 
+	// Create empty kaja.json if it doesn't exist
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if err := os.WriteFile(configPath, []byte("{}"), 0644); err != nil {
+			slog.Error("Failed to create config file", "path", configPath, "error", err)
+			println("Error:", err.Error())
+			return
+		}
+	}
+
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, true)
 
 	// Create API service without embedded binaries
