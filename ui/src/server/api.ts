@@ -20,15 +20,11 @@ export interface CompileRequest {
      */
     logOffset: number;
     /**
-     * @generated from protobuf field: bool force = 2
-     */
-    force: boolean;
-    /**
-     * @generated from protobuf field: string project_name = 3
+     * @generated from protobuf field: string project_name = 2
      */
     projectName: string;
     /**
-     * @generated from protobuf field: string workspace = 4
+     * @generated from protobuf field: string workspace = 3
      */
     workspace: string;
 }
@@ -262,15 +258,13 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
     constructor() {
         super("CompileRequest", [
             { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "force", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 3, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.logOffset = 0;
-        message.force = false;
         message.projectName = "";
         message.workspace = "";
         if (value !== undefined)
@@ -285,13 +279,10 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
                 case /* int32 log_offset */ 1:
                     message.logOffset = reader.int32();
                     break;
-                case /* bool force */ 2:
-                    message.force = reader.bool();
-                    break;
-                case /* string project_name */ 3:
+                case /* string project_name */ 2:
                     message.projectName = reader.string();
                     break;
-                case /* string workspace */ 4:
+                case /* string workspace */ 3:
                     message.workspace = reader.string();
                     break;
                 default:
@@ -309,15 +300,12 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* int32 log_offset = 1; */
         if (message.logOffset !== 0)
             writer.tag(1, WireType.Varint).int32(message.logOffset);
-        /* bool force = 2; */
-        if (message.force !== false)
-            writer.tag(2, WireType.Varint).bool(message.force);
-        /* string project_name = 3; */
+        /* string project_name = 2; */
         if (message.projectName !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.projectName);
-        /* string workspace = 4; */
+            writer.tag(2, WireType.LengthDelimited).string(message.projectName);
+        /* string workspace = 3; */
         if (message.workspace !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.workspace);
+            writer.tag(3, WireType.LengthDelimited).string(message.workspace);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
