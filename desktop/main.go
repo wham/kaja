@@ -143,7 +143,7 @@ func main() {
 	}
 
 	kajaDir := filepath.Join(homeDir, ".kaja")
-	configPath := filepath.Join(kajaDir, "kaja.json")
+	configurationPath := filepath.Join(kajaDir, "kaja.json")
 
 	// Create ~/.kaja directory if it doesn't exist
 	if err := os.MkdirAll(kajaDir, 0755); err != nil {
@@ -153,18 +153,16 @@ func main() {
 	}
 
 	// Create empty kaja.json if it doesn't exist
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if err := os.WriteFile(configPath, []byte("{}"), 0644); err != nil {
-			slog.Error("Failed to create config file", "path", configPath, "error", err)
+	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
+		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
+			slog.Error("Failed to create configuration file", "path", configurationPath, "error", err)
 			println("Error:", err.Error())
 			return
 		}
 	}
 
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, true)
-
 	// Create API service without embedded binaries
-	apiService := api.NewApiService(getConfigurationResponse, configPath)
+	apiService := api.NewApiService(configurationPath, true)
 	twirpHandler := api.NewApiServer(apiService)
 	
 	// Create application with options

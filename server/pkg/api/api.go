@@ -10,15 +10,15 @@ import (
 )
 
 type ApiService struct {
-	compilers                sync.Map // map[string]*Compiler
-	getConfigurationResponse *GetConfigurationResponse
-	configPath               string
+	compilers              sync.Map // map[string]*Compiler
+	configurationPath      string
+	canUpdateConfiguration bool
 }
 
-func NewApiService(getConfigurationResponse *GetConfigurationResponse, configPath string) *ApiService {
+func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiService {
 	return &ApiService{
-		getConfigurationResponse: getConfigurationResponse,
-		configPath:               configPath,
+		configurationPath:      configurationPath,
+		canUpdateConfiguration: canUpdateConfiguration,
 	}
 }
 
@@ -63,20 +63,24 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
-	// This is bad. Find a better way to redact the token. It should not be exposed to the UI.
-	config := &Configuration{
-		PathPrefix: s.getConfigurationResponse.Configuration.PathPrefix,
-		Projects:   s.getConfigurationResponse.Configuration.Projects,
+
+	// Re-read configuration from file and re-evaluate env vars on each call
+	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
+
+	// Redact the API key before returning to the UI
+	configuration := &Configuration{
+		PathPrefix: response.Configuration.PathPrefix,
+		Projects:   response.Configuration.Projects,
 		Ai: &ConfigurationAI{
-			BaseUrl: s.getConfigurationResponse.Configuration.Ai.BaseUrl,
+			BaseUrl: response.Configuration.Ai.BaseUrl,
 			ApiKey:  "*****",
 		},
-		System: s.getConfigurationResponse.Configuration.System,
+		System: response.Configuration.System,
 	}
 
 	return &GetConfigurationResponse{
-		Configuration: config,
-		Logs:          s.getConfigurationResponse.Logs,
+		Configuration: configuration,
+		Logs:          response.Logs,
 	}, nil
 }
 
@@ -109,13 +113,13 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 
 	slog.Info("Updating configuration")
 
+	// Read current configuration to get system settings (which should be preserved)
+	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
+
 	// Preserve system settings from current configuration (ignore what client sends)
-	currentSystem := s.getConfigurationResponse.Configuration.System
-	req.Configuration.System = currentSystem
+	req.Configuration.System = currentResponse.Configuration.System
 
-	s.getConfigurationResponse.Configuration = req.Configuration
-
-	if err := SaveConfiguration(s.configPath, req.Configuration); err != nil {
+	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
 	}
 

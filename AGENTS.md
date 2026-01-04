@@ -1,3 +1,5 @@
 - See [Development](README.md#development) for instructions how to run and test.
 - To re-generate Protobuf files, run `scripts/server`. No custom commands.
 - Only add code comments for really tricky parts; otherwise keep it clean.
+- If API is called "getConfiguration", use "configuration" not "config" in code.
+- Don't run `go build` directly; use `scripts/server` and/or `scripts/desktop`.
