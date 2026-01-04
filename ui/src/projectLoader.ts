@@ -4,10 +4,10 @@ import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
 import { Clients, Method, Project, Service } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
-import { findInterface, loadSources, loadStub, Source, Sources, Stub } from "./sources";
+import { findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
-export async function loadProject(apiSources: ApiSource[], configuration: ConfigurationProject): Promise<Project> {
-  const stub = await loadStub(configuration.name);
+export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
+  const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];
   const services: Service[] = [];
