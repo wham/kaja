@@ -1,5 +1,6 @@
-import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
+import { CheckIcon, ChevronRightIcon, PlusIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner, Text } from "@primer/react";
+import { Blankslate } from "@primer/react/experimental";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
@@ -8,8 +9,10 @@ import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
   projects: Project[];
+  canUpdateConfiguration: boolean;
   onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void;
   onConfigurationLoaded?: (configuration: Configuration) => void;
+  onNewProjectClick?: () => void;
 }
 
 // Constants
@@ -23,8 +26,9 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ projects, onUpdate, onConfigurationLoaded }: CompilerProps) {
+export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigurationLoaded, onNewProjectClick }: CompilerProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
   const projectsRef = useRef(projects);
@@ -187,7 +191,7 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded }: Compiler
   useEffect(() => {
     // Initialize projects if needed
     const initializeProjects = async () => {
-      if (projects.length === 0) {
+      if (projects.length === 0 && !configurationLoaded) {
         // Load initial configuration
         const { response } = await client.getConfiguration({});
         const configProjects = response.configuration?.projects || [];
@@ -195,6 +199,8 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded }: Compiler
         if (response.configuration && onConfigurationLoaded) {
           onConfigurationLoaded(response.configuration);
         }
+
+        setConfigurationLoaded(true);
 
         if (configProjects.length === 0) return;
 
@@ -301,22 +307,48 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded }: Compiler
   };
 
   if (projects.length === 0) {
-    return (
-      <div
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--fgColor-muted)",
-          backgroundColor: "var(--bgColor-default)",
-        }}
-      >
-        <div>
-          <Spinner size="medium" />
-          <div style={{ marginTop: 12 }}>Loading configuration...</div>
+    if (!configurationLoaded) {
+      return (
+        <div
+          style={{
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--fgColor-muted)",
+            backgroundColor: "var(--bgColor-default)",
+          }}
+        >
+          <div>
+            <Spinner size="medium" />
+            <div style={{ marginTop: 12 }}>Loading configuration...</div>
+          </div>
         </div>
-      </div>
+      );
+    }
+
+    // Configuration loaded but no projects
+    if (canUpdateConfiguration) {
+      return (
+        <Blankslate>
+          <Blankslate.Visual>
+            <PlusIcon size="medium" />
+          </Blankslate.Visual>
+          <Blankslate.Heading>No projects configured</Blankslate.Heading>
+          <Blankslate.Description>Add a project to get started.</Blankslate.Description>
+          <Blankslate.PrimaryAction onClick={onNewProjectClick}>New Project</Blankslate.PrimaryAction>
+        </Blankslate>
+      );
+    }
+
+    return (
+      <Blankslate>
+        <Blankslate.Visual>
+          <PlusIcon size="medium" />
+        </Blankslate.Visual>
+        <Blankslate.Heading>No projects configured</Blankslate.Heading>
+        <Blankslate.Description>Contact your administrator to add projects.</Blankslate.Description>
+      </Blankslate>
     );
   }
 

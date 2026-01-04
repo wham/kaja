@@ -1,19 +1,5 @@
 {
-  "projects": [
-    {
-      "name": "grpc-demo",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:localhost:41521",
-      "workspace": ""
-    },
-    {
-      "name": "twirp-demo",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "http://localhost:41522",
-      "workspace": ""
-    }
-  ],
-  "ai": {
-    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models"
+  "system": {
+    "canUpdateConfiguration": true
   }
 }
