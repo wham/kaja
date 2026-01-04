@@ -84,10 +84,16 @@ Both share the same backend code but differ in how they're packaged:
 - `main.go` - Wails app entry point
 - `frontend/dist/` - Copied from server build (gitignored)
 
-**`/workspace/`** - Demo projects for testing:
-- `proto/` - Example proto files
-- `cmd/grpc-server/`, `cmd/twirp-server/` - Demo servers
-- `internal/demo-app/` - Generated proto code
+**`/workspace/`** - Example workspace for development and testing:
+- This is a self-contained demo workspace that developers use to test Kaja
+- `kaja.json` - Configuration file defining two demo projects:
+  - `grpc-demo` on `localhost:41521` (gRPC protocol)
+  - `twirp-demo` on `localhost:41522` (Twirp protocol)
+- `proto/` - Example proto files (basics.proto, quirks.proto, lib/)
+- `cmd/grpc-server/` - Demo gRPC server implementation
+- `cmd/twirp-server/` - Demo Twirp server implementation
+- `internal/demo-app/` - Generated Go code from proto files
+- The `scripts/server` script starts Kaja with this workspace by default
 
 ### Code Generation Flow
 
