@@ -54,14 +54,14 @@ func handleAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *htt
 }
 
 func main() {
-	configPath := "../workspace/kaja.json"
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, false)
-	config := getConfigurationResponse.Configuration
+	configurationPath := "../workspace/kaja.json"
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, false)
+	configuration := getConfigurationResponse.Configuration
 
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := api.NewApiServer(api.NewApiService(getConfigurationResponse, configPath))
+	twirpHandler := api.NewApiServer(api.NewApiService(configurationPath, false))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -147,10 +147,10 @@ func main() {
 		}
 	})
 
-	mux.HandleFunc("/ai/{path...}", handleAIProxy(config))
+	mux.HandleFunc("/ai/{path...}", handleAIProxy(configuration))
 
 	root := http.NewServeMux()
-	root.Handle(config.PathPrefix+"/", logRequest(http.StripPrefix(config.PathPrefix, mux)))
+	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))
 
 	// Used in kaja launch scripts to determine if the server has started.
 	// slog.Info is not visible with Docker's -a STDOUT flag - its output is buffered.

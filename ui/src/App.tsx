@@ -218,7 +218,13 @@ export function App() {
                   if (tab.type === "compiler") {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                        <Compiler projects={projects} onUpdate={onCompilationUpdate} onConfigurationLoaded={setConfiguration} />
+                        <Compiler
+                          projects={projects}
+                          canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
+                          onUpdate={onCompilationUpdate}
+                          onConfigurationLoaded={setConfiguration}
+                          onNewProjectClick={onNewProjectClick}
+                        />
                       </Tab>
                     );
                   }

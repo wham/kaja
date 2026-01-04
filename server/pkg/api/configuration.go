@@ -9,59 +9,59 @@ import (
 	protojson "google.golang.org/protobuf/encoding/protojson"
 )
 
-func LoadGetConfigurationResponse(configPath string, canUpdateConfiguration bool) *GetConfigurationResponse {
+func LoadGetConfigurationResponse(configurationPath string, canUpdateConfiguration bool) *GetConfigurationResponse {
 	logger := NewLogger()
-	logger.info(fmt.Sprintf("configPath %s", configPath))
-	config := loadConfigurationFile(configPath, logger)
+	logger.info(fmt.Sprintf("configurationPath %s", configurationPath))
+	configuration := loadConfigurationFile(configurationPath, logger)
 
-	applyEnvironmentVariables(config, logger)
-	normalize(config, logger)
+	applyEnvironmentVariables(configuration, logger)
+	normalize(configuration, logger)
 
 	// Set system-level settings (file override takes precedence)
-	if config.System != nil && config.System.CanUpdateConfiguration {
+	if configuration.System != nil && configuration.System.CanUpdateConfiguration {
 		// Keep the value from file (dev override)
 	} else {
-		config.System = &ConfigurationSystem{
+		configuration.System = &ConfigurationSystem{
 			CanUpdateConfiguration: canUpdateConfiguration,
 		}
 	}
 
-	return &GetConfigurationResponse{Configuration: config, Logs: logger.logs}
+	return &GetConfigurationResponse{Configuration: configuration, Logs: logger.logs}
 }
 
-func loadConfigurationFile(configPath string, logger *Logger) *Configuration {
-	config := &Configuration{
+func loadConfigurationFile(configurationPath string, logger *Logger) *Configuration {
+	configuration := &Configuration{
 		Projects: []*ConfigurationProject{},
 	}
 
-	logger.debug(fmt.Sprintf("Trying to load configuration from file %s", configPath))
-	file, err := os.Open(configPath)
+	logger.debug(fmt.Sprintf("Trying to load configuration from file %s", configurationPath))
+	file, err := os.Open(configurationPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.info(fmt.Sprintf("Configuration file %s not found. Only environment variables will be used.", configPath))
+			logger.info(fmt.Sprintf("Configuration file %s not found. Only environment variables will be used.", configurationPath))
 		} else {
-			logger.error(fmt.Sprintf("Failed opening configuration file %s", configPath), err)
+			logger.error(fmt.Sprintf("Failed opening configuration file %s", configurationPath), err)
 		}
-		return config
+		return configuration
 	}
 	defer file.Close()
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
-		logger.error(fmt.Sprintf("Failed to read configuration file %s", configPath), err)
-		return config
+		logger.error(fmt.Sprintf("Failed to read configuration file %s", configurationPath), err)
+		return configuration
 	}
-	if err := protojson.Unmarshal(fileContent, config); err != nil {
-		logger.error(fmt.Sprintf("Failed to unmarshal configuratation file %s", configPath), err)
+	if err := protojson.Unmarshal(fileContent, configuration); err != nil {
+		logger.error(fmt.Sprintf("Failed to unmarshal configuration file %s", configurationPath), err)
 	}
 
-	return config
+	return configuration
 }
 
-func applyEnvironmentVariables(config *Configuration, logger *Logger) {
+func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
 	if pathPrefix := os.Getenv("PATH_PREFIX"); pathPrefix != "" {
 		logger.info("PATH_PREFIX env variable applied")
-		config.PathPrefix = pathPrefix
+		configuration.PathPrefix = pathPrefix
 	}
 
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
@@ -74,56 +74,56 @@ func applyEnvironmentVariables(config *Configuration, logger *Logger) {
 			Workspace: "", // Default workspace
 		}
 
-		if len(config.Projects) > 0 {
-			logger.warn(fmt.Sprintf("%d projects defined in configuration file will be ignored", len(config.Projects)))
+		if len(configuration.Projects) > 0 {
+			logger.warn(fmt.Sprintf("%d projects defined in configuration file will be ignored", len(configuration.Projects)))
 		}
 
-		config.Projects = []*ConfigurationProject{defaultProject}
+		configuration.Projects = []*ConfigurationProject{defaultProject}
 	}
 
-	if config.Ai == nil {
-		config.Ai = &ConfigurationAI{}
+	if configuration.Ai == nil {
+		configuration.Ai = &ConfigurationAI{}
 	}
 
 	if aiBaseUrl := os.Getenv("AI_BASE_URL"); aiBaseUrl != "" {
 		logger.info("AI_BASE_URL env variable applied")
-		config.Ai.BaseUrl = aiBaseUrl
+		configuration.Ai.BaseUrl = aiBaseUrl
 	}
 
 	if aiApiKey := os.Getenv("AI_API_KEY"); aiApiKey != "" {
 		logger.info("AI_API_KEY env variable applied")
-		config.Ai.ApiKey = aiApiKey
+		configuration.Ai.ApiKey = aiApiKey
 	}
 }
 
-func normalize(config *Configuration, logger *Logger) {
-	pathPrefix := strings.Trim(config.PathPrefix, "/")
+func normalize(configuration *Configuration, logger *Logger) {
+	pathPrefix := strings.Trim(configuration.PathPrefix, "/")
 	if pathPrefix != "" {
 		pathPrefix = "/" + pathPrefix
 	}
-	if config.PathPrefix != pathPrefix {
-		config.PathPrefix = pathPrefix
-		logger.debug(fmt.Sprintf("pathPrefix normalized from \"%s\" to \"%s\"", config.PathPrefix, pathPrefix))
+	if configuration.PathPrefix != pathPrefix {
+		configuration.PathPrefix = pathPrefix
+		logger.debug(fmt.Sprintf("pathPrefix normalized from \"%s\" to \"%s\"", configuration.PathPrefix, pathPrefix))
 	}
 }
 
-func SaveConfiguration(configPath string, config *Configuration) error {
+func SaveConfiguration(configurationPath string, configuration *Configuration) error {
 	// Only save projects, ai, and system fields (not path_prefix which is set via env)
-	configToSave := &Configuration{
-		Projects: config.Projects,
-		Ai:       config.Ai,
-		System:   config.System,
+	configurationToSave := &Configuration{
+		Projects: configuration.Projects,
+		Ai:       configuration.Ai,
+		System:   configuration.System,
 	}
 
 	jsonBytes, err := protojson.MarshalOptions{
 		Multiline: true,
 		Indent:    "  ",
-	}.Marshal(configToSave)
+	}.Marshal(configurationToSave)
 	if err != nil {
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, jsonBytes, 0644); err != nil {
+	if err := os.WriteFile(configurationPath, jsonBytes, 0644); err != nil {
 		return fmt.Errorf("failed to write configuration file: %w", err)
 	}
 

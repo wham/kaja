@@ -1,0 +1,4 @@
+src/wailsjs/go/main/App.d.ts
+src/wailsjs/runtime/runtime.d.ts
+src/server/api.ts
+src/server/api.client.ts

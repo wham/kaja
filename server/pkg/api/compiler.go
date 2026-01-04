@@ -97,7 +97,12 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	}
 	os.MkdirAll(sourcesDir, os.ModePerm)
 
-	workspaceDir := filepath.Join(cwd, "../workspace/"+workspace)
+	var workspaceDir string
+	if filepath.IsAbs(workspace) {
+		workspaceDir = workspace
+	} else {
+		workspaceDir = filepath.Join(cwd, "../workspace/"+workspace)
+	}
 	c.logger.debug("workspaceDir: " + workspaceDir)
 
 	buildDir := filepath.Join(cwd, "../build")
