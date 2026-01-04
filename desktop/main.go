@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/wailsapp/wails/v2"
@@ -132,7 +134,24 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 }
 
 func main() {
-	configPath := "../workspace/kaja.json"
+	// Get user's home directory and use ~/kaja for config
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Failed to get user home directory", "error", err)
+		println("Error:", err.Error())
+		return
+	}
+
+	kajaDir := filepath.Join(homeDir, "kaja")
+	configPath := filepath.Join(kajaDir, "kaja.json")
+
+	// Create ~/kaja directory if it doesn't exist
+	if err := os.MkdirAll(kajaDir, 0755); err != nil {
+		slog.Error("Failed to create kaja directory", "path", kajaDir, "error", err)
+		println("Error:", err.Error())
+		return
+	}
+
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configPath, true)
 
 	// Create API service without embedded binaries
@@ -142,7 +161,7 @@ func main() {
 	// Create application with options
 	app := NewApp(twirpHandler)
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "Kaja Compiler",
 		Width:  1024,
 		Height: 768,
