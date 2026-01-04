@@ -140,7 +140,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
         const duration = formatDuration(Date.now() - (finalProject.compilation.startTime || 0));
 
         if (isReady) {
-          const loadedProject = await loadProject(response.sources, finalProject.configuration);
+          const loadedProject = await loadProject(response.sources, response.stub, finalProject.configuration);
 
           onUpdate((prevProjects) => {
             const index = prevProjects.findIndex((p) => p.configuration.name === projectName);

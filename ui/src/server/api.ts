@@ -44,6 +44,10 @@ export interface CompileResponse {
      * @generated from protobuf field: repeated Source sources = 3
      */
     sources: Source[];
+    /**
+     * @generated from protobuf field: string stub = 4
+     */
+    stub: string;
 }
 /**
  * @generated from protobuf message Log
@@ -161,24 +165,6 @@ export interface ConfigurationAI {
      * @generated from protobuf field: string api_key = 2
      */
     apiKey: string;
-}
-/**
- * @generated from protobuf message GetStubRequest
- */
-export interface GetStubRequest {
-    /**
-     * @generated from protobuf field: string project_name = 1
-     */
-    projectName: string;
-}
-/**
- * @generated from protobuf message GetStubResponse
- */
-export interface GetStubResponse {
-    /**
-     * @generated from protobuf field: string stub = 1
-     */
-    stub: string;
 }
 /**
  * @generated from protobuf message UpdateConfigurationRequest
@@ -322,7 +308,8 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         super("CompileResponse", [
             { no: 1, name: "status", kind: "enum", T: () => ["CompileStatus", CompileStatus] },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-            { no: 3, name: "sources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Source }
+            { no: 3, name: "sources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Source },
+            { no: 4, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileResponse>): CompileResponse {
@@ -330,6 +317,7 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         message.status = 0;
         message.logs = [];
         message.sources = [];
+        message.stub = "";
         if (value !== undefined)
             reflectionMergePartial<CompileResponse>(this, message, value);
         return message;
@@ -347,6 +335,9 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
                     break;
                 case /* repeated Source sources */ 3:
                     message.sources.push(Source.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string stub */ 4:
+                    message.stub = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -369,6 +360,9 @@ class CompileResponse$Type extends MessageType<CompileResponse> {
         /* repeated Source sources = 3; */
         for (let i = 0; i < message.sources.length; i++)
             Source.internalBinaryWrite(message.sources[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* string stub = 4; */
+        if (message.stub !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.stub);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -824,100 +818,6 @@ class ConfigurationAI$Type extends MessageType<ConfigurationAI> {
  */
 export const ConfigurationAI = new ConfigurationAI$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetStubRequest$Type extends MessageType<GetStubRequest> {
-    constructor() {
-        super("GetStubRequest", [
-            { no: 1, name: "project_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetStubRequest>): GetStubRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.projectName = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetStubRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubRequest): GetStubRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string project_name */ 1:
-                    message.projectName = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetStubRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string project_name = 1; */
-        if (message.projectName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.projectName);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message GetStubRequest
- */
-export const GetStubRequest = new GetStubRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetStubResponse$Type extends MessageType<GetStubResponse> {
-    constructor() {
-        super("GetStubResponse", [
-            { no: 1, name: "stub", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetStubResponse>): GetStubResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.stub = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetStubResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStubResponse): GetStubResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string stub */ 1:
-                    message.stub = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetStubResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string stub = 1; */
-        if (message.stub !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.stub);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message GetStubResponse
- */
-export const GetStubResponse = new GetStubResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
     constructor() {
         super("UpdateConfigurationRequest", [
@@ -1015,6 +915,5 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
 export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
-    { name: "GetStub", options: {}, I: GetStubRequest, O: GetStubResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);

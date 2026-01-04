@@ -5,7 +5,6 @@ option go_package = "pkg/api";
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
-  rpc GetStub(GetStubRequest) returns (GetStubResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
 }
 
@@ -19,6 +18,7 @@ message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
   repeated Source sources = 3;
+  string stub = 4;
 }
 
 enum CompileStatus {
@@ -84,14 +84,6 @@ message ConfigurationProject {
 message ConfigurationAI {
   string base_url = 1;
   string api_key = 2;
-}
-
-message GetStubRequest {
-  string project_name = 1;
-}
-
-message GetStubResponse {
-  string stub = 1;
 }
 
 message UpdateConfigurationRequest {
