@@ -5,31 +5,39 @@ import (
 	fmt "fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/wham/kaja/v2/internal/tempdir"
 )
 
 type ApiService struct {
-	compilers              sync.Map // map[string]*Compiler
+	compilers              sync.Map // map[string]*Compiler - keyed by ID
 	configurationPath      string
 	canUpdateConfiguration bool
 }
 
 func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiService {
+	tempdir.StartCleanup()
+
 	return &ApiService{
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
 	}
 }
 
+func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
+	compiler, _ := s.compilers.LoadOrStore(id, NewCompiler())
+	return compiler.(*Compiler)
+}
+
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
-	if req.ProjectName == "" {
-		return nil, fmt.Errorf("project name is required")
+	if req.Id == "" {
+		return nil, fmt.Errorf("id is required")
 	}
 
-	compiler := s.getOrCreateCompiler(req.ProjectName)
+	compiler := s.getOrCreateCompiler(req.Id)
 	compiler.mu.Lock()
 	defer compiler.mu.Unlock()
 
-	// Ensure logger is always initialized
 	if compiler.logger == nil {
 		compiler.logger = NewLogger()
 	}
@@ -39,7 +47,7 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		compiler.logger = NewLogger()
 		compiler.sources = []*Source{}
 		compiler.logger.info("Starting compilation")
-		go compiler.start(req.ProjectName, req.Workspace)
+		go compiler.start(req.Id, req.Workspace)
 	}
 
 	logOffset := int(req.LogOffset)
@@ -63,10 +71,8 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
-	// Re-read configuration from file and re-evaluate env vars on each call
 	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
-	// Redact the API key before returning to the UI
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Projects:   response.Configuration.Projects,
@@ -83,12 +89,6 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	}, nil
 }
 
-func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
-	newCompiler := NewCompiler()
-	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
-	return compiler.(*Compiler)
-}
-
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
 	if req.Configuration == nil {
 		return nil, fmt.Errorf("configuration is required")
@@ -96,10 +96,8 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 
 	slog.Info("Updating configuration")
 
-	// Read current configuration to get system settings (which should be preserved)
 	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
-	// Preserve system settings from current configuration (ignore what client sends)
 	req.Configuration.System = currentResponse.Configuration.System
 
 	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {

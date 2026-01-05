@@ -173,8 +173,8 @@ func (RpcProtocol) EnumDescriptor() ([]byte, []int) {
 
 type CompileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	LogOffset     int32                  `protobuf:"varint,1,opt,name=log_offset,json=logOffset,proto3" json:"log_offset,omitempty"`
-	ProjectName   string                 `protobuf:"bytes,2,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	LogOffset     int32                  `protobuf:"varint,2,opt,name=log_offset,json=logOffset,proto3" json:"log_offset,omitempty"`
 	Workspace     string                 `protobuf:"bytes,3,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -210,18 +210,18 @@ func (*CompileRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
+func (x *CompileRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 func (x *CompileRequest) GetLogOffset() int32 {
 	if x != nil {
 		return x.LogOffset
 	}
 	return 0
-}
-
-func (x *CompileRequest) GetProjectName() string {
-	if x != nil {
-		return x.ProjectName
-	}
-	return ""
 }
 
 func (x *CompileRequest) GetWorkspace() string {
@@ -821,11 +821,11 @@ var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/api.proto\"p\n" +
-	"\x0eCompileRequest\x12\x1d\n" +
+	"\x0fproto/api.proto\"]\n" +
+	"\x0eCompileRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
-	"log_offset\x18\x01 \x01(\x05R\tlogOffset\x12!\n" +
-	"\fproject_name\x18\x02 \x01(\tR\vprojectName\x12\x1c\n" +
+	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1c\n" +
 	"\tworkspace\x18\x03 \x01(\tR\tworkspace\"\x8a\x01\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
