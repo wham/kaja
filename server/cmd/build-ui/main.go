@@ -46,7 +46,7 @@ func build() error {
 		return err
 	}
 
-	outputFile = path.Join(outputDirectory, "codicon-37A3DWZT.ttf")
+	outputFile = path.Join(outputDirectory, data.CodiconTtfName)
 	if err := os.WriteFile(outputFile, data.CodiconTtf, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err

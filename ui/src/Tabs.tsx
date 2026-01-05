@@ -55,6 +55,13 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           background-color: var(--bgColor-neutral-muted);
           border-bottom-color: transparent;
         }
+        .tab-close-button:hover {
+          opacity: 1 !important;
+          background-color: var(--bgColor-neutral-muted);
+        }
+        .tab-item:hover .tab-close-button {
+          opacity: 1 !important;
+        }
       `}</style>
       <div
         className="tabs-header"
@@ -87,18 +94,12 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
                   aria-label={`Close ${tabLabel}`}
                   variant="invisible"
                   size="small"
-                  sx={{
+                  className="tab-close-button"
+                  style={{
                     padding: 1,
                     height: 16,
                     width: 16,
                     opacity: isActive ? 0.7 : 0,
-                    "&:hover": {
-                      opacity: 1,
-                      backgroundColor: "neutral.muted",
-                    },
-                    "[role='tab']:hover &": {
-                      opacity: 1,
-                    },
                   }}
                   onClick={() => onCloseTab(index)}
                 />
