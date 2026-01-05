@@ -110,8 +110,8 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error
 	}
 	c.logger.debug("workspaceDir: " + workspaceDir)
 
-	buildDir := filepath.Join(cwd, "../build")
-	c.logger.debug("binDir: " + buildDir)
+	buildDir := filepath.Join(cwd, "./build")
+	c.logger.debug("buildDir: " + buildDir)
 
 	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")

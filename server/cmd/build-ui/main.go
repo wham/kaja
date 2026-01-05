@@ -28,12 +28,6 @@ func build() error {
 		return err
 	}
 
-	outputDirectory2 := "../build"
-	if err := os.MkdirAll(outputDirectory2, os.ModePerm); err != nil {
-		slog.Error("Failed to create output directory", "error", err)
-		return err
-	}
-
 	outputFile := path.Join(outputDirectory, "main.js")
 	if err := os.WriteFile(outputFile, data.MainJs, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
@@ -59,7 +53,7 @@ func build() error {
 		return err
 	}
 
-	outputFile = path.Join(outputDirectory2, "protoc-gen-ts")
+	outputFile = path.Join(outputDirectory, "protoc-gen-ts")
 	if err := os.WriteFile(outputFile, pgt, 0644); err != nil {
 		slog.Error("Failed to write output file", "error", err)
 		return err
