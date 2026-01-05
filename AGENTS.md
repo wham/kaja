@@ -34,6 +34,7 @@ There are multiple `build/` directories, each serving a different purpose:
 | `/desktop/build/bin/` | Final desktop executable binaries | Yes |
 | `/desktop/build/sources/` | Desktop build intermediates | Yes |
 | `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build) | Yes |
+| `$TMPDIR/kaja/` | Compilation temp folders (auto-cleaned after 60 min) | N/A |
 
 ### Development vs Production Builds
 
