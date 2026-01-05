@@ -29,6 +29,8 @@ func NewCompiler() *Compiler {
 func (c *Compiler) start(workspace string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to get working directory", err)
 		return err
 	}
 	c.logger.debug("cwd: " + cwd)
