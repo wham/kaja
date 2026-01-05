@@ -9,8 +9,8 @@ service Api {
 }
 
 message CompileRequest {
-  int32 log_offset = 1;
-  string project_name = 2;
+  string id = 1;
+  int32 log_offset = 2;
   string workspace = 3;
 }
 
