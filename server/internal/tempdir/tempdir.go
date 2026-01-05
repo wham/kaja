@@ -35,10 +35,10 @@ func StartCleanup() {
 	})
 }
 
-// NewCompilationDir creates a new unique temporary directory for compilation.
+// NewSourcesDir creates a new unique temporary directory for generated sources.
 // The directory is created under the system temp folder in a "kaja" subdirectory.
 // Returns the path to the created directory.
-func NewCompilationDir() (string, error) {
+func NewSourcesDir() (string, error) {
 	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
 
 	// Ensure the kaja base directory exists
@@ -47,14 +47,14 @@ func NewCompilationDir() (string, error) {
 	}
 
 	// Create a unique temp directory using Go's os.MkdirTemp
-	// The pattern "compile-*" will have a unique suffix added
-	compilationDir, err := os.MkdirTemp(baseDir, "compile-*")
+	// The pattern "sources-*" will have a unique suffix added
+	sourcesDir, err := os.MkdirTemp(baseDir, "sources-*")
 	if err != nil {
 		return "", err
 	}
 
-	slog.Debug("Created temp compilation directory", "path", compilationDir)
-	return compilationDir, nil
+	slog.Debug("Created temp sources directory", "path", sourcesDir)
+	return sourcesDir, nil
 }
 
 // Cleanup removes a specific temp directory
