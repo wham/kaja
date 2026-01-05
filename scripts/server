@@ -52,7 +52,36 @@ install_package() {
     esac
 }
 
-# Install protoc by downloading from GitHub releases (fallback for restricted environments)
+# Install protoc using npm package (works in restricted environments)
+install_protoc_from_npm() {
+    local SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+    echo "Installing protoc via npm package..."
+    cd "$SCRIPT_DIR"
+    npm install protoc --save-dev
+
+    # Create a wrapper script in ~/.local/bin
+    local INSTALL_DIR="${HOME}/.local"
+    mkdir -p "${INSTALL_DIR}/bin"
+
+    cat > "${INSTALL_DIR}/bin/protoc" << 'WRAPPER'
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Find protoc in common locations
+for dir in "./node_modules/.bin" "../node_modules/.bin" "../../node_modules/.bin"; do
+    if [ -x "$dir/protoc" ]; then
+        exec "$dir/protoc" "$@"
+    fi
+done
+# Try npx as fallback
+exec npx protoc "$@"
+WRAPPER
+    chmod +x "${INSTALL_DIR}/bin/protoc"
+
+    export PATH="${INSTALL_DIR}/bin:${PATH}"
+    echo "protoc installed via npm and wrapper created at ${INSTALL_DIR}/bin/protoc"
+}
+
+# Install protoc by downloading from GitHub releases
 install_protoc_from_github() {
     local PROTOC_VERSION="28.3"
     local PROTOC_ARCH
@@ -97,7 +126,7 @@ install_protoc_from_github() {
         wget -q -O "${TMP_DIR}/${PROTOC_ZIP}" "${PROTOC_URL}"
     else
         echo "Error: Neither curl nor wget found. Cannot download protoc."
-        exit 1
+        return 1
     fi
 
     unzip -q -o "${TMP_DIR}/${PROTOC_ZIP}" -d "${TMP_DIR}"
@@ -109,6 +138,18 @@ install_protoc_from_github() {
 
     echo "protoc installed to ${INSTALL_DIR}/bin/protoc"
     echo "Add ${INSTALL_DIR}/bin to your PATH to use it permanently."
+}
+
+# Try multiple methods to install protoc
+install_protoc() {
+    # Try GitHub download first (faster, standalone binary)
+    if install_protoc_from_github 2>/dev/null; then
+        return 0
+    fi
+
+    echo "GitHub download failed, trying npm package..."
+    # Fall back to npm package
+    install_protoc_from_npm
 }
 
 # Prompt for installation or auto-install in non-interactive mode
@@ -156,32 +197,40 @@ if ! command -v protoc &> /dev/null; then
         read -p "Would you like to install protoc? (y/n) " -n 1 -r
         echo    # Move to a new line
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_protoc_from_github
+            install_protoc
         else
             echo "protoc installation skipped. Exiting script."
             exit 1
         fi
     else
         echo "Non-interactive mode: automatically installing protoc..."
-        install_protoc_from_github
+        install_protoc
     fi
 fi
 
 setup_trap
 
 cd "$(dirname "$0")/.."
+PROJECT_ROOT=$PWD
 
 [ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
 
+# Ensure npm protoc is installed for restricted environments
+if ! command -v protoc &> /dev/null; then
+    npm install protoc --save-dev 2>/dev/null || true
+fi
+
 export GOBIN=$PWD/server/build
-export PATH=$GOBIN:$PATH
+# Add node_modules/.bin to PATH for npm-installed protoc
+export PATH=$PROJECT_ROOT/node_modules/.bin:$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 cd "./ui"
 npm i
-npm run protoc
+# Run protoc directly using PATH protoc instead of npm script (which uses @protobuf-ts/protoc wrapper)
+protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_opt=generate_dependencies --ts_out ./src/server --proto_path ../server/proto api.proto
 
 cd ..
 build_demo_apps
