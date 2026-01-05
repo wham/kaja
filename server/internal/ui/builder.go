@@ -54,9 +54,10 @@ func BuildForProduction() (*UiBundle, error) {
 func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	if len(result.Errors) > 0 {
 		for _, e := range result.Errors {
-			fmt.Printf("ESBuild error: %s\n", e.Text)
 			if e.Location != nil {
-				fmt.Printf("  at %s:%d:%d\n", e.Location.File, e.Location.Line, e.Location.Column)
+				slog.Error("ESBuild error", "text", e.Text, "file", e.Location.File, "line", e.Location.Line, "column", e.Location.Column)
+			} else {
+				slog.Error("ESBuild error", "text", e.Text)
 			}
 		}
 		return nil, fmt.Errorf("failed to build the UI")
