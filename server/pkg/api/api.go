@@ -33,9 +33,6 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	if req.Id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	if req.Workspace == "" {
-		return nil, fmt.Errorf("workspace is required")
-	}
 
 	compiler := s.getOrCreateCompiler(req.Id)
 	compiler.mu.Lock()
