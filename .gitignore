@@ -2,5 +2,8 @@
 /desktop/frontend/dist
 /server/build
 /ui/node_modules
+/node_modules
+/package.json
+/package-lock.json
 
 .ai_api_key
