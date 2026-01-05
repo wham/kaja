@@ -3,51 +3,167 @@ set -e
 
 source "$(dirname "$0")/common"
 
-# Check if Go is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v go &> /dev/null
-then
-    echo "Go is not installed."
-    read -p "Would you like to install Go using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing Go using Homebrew..."
-        brew install go
+# Detect OS
+OS="$(uname -s)"
+
+# Check if running in non-interactive mode (CI, cloud, no TTY)
+is_interactive() {
+    [[ -t 0 && -z "${CI:-}" && -z "${NONINTERACTIVE:-}" ]]
+}
+
+# Install package based on OS
+install_package() {
+    local package_name="$1"
+    local brew_package="${2:-$1}"
+    local apt_package="${3:-$1}"
+
+    case "$OS" in
+        Darwin)
+            if command -v brew &> /dev/null; then
+                echo "Installing $package_name using Homebrew..."
+                brew install "$brew_package"
+            else
+                echo "Error: Homebrew is not installed. Please install Homebrew first:"
+                echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                exit 1
+            fi
+            ;;
+        Linux)
+            if command -v apt-get &> /dev/null; then
+                echo "Installing $package_name using apt-get..."
+                if [[ $EUID -eq 0 ]]; then
+                    apt-get update && apt-get install -y "$apt_package"
+                else
+                    sudo apt-get update && sudo apt-get install -y "$apt_package"
+                fi
+            elif command -v brew &> /dev/null; then
+                echo "Installing $package_name using Homebrew on Linux..."
+                brew install "$brew_package"
+            else
+                echo "Error: No supported package manager found (apt-get or brew)."
+                echo "Please install $package_name manually."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unsupported operating system: $OS"
+            exit 1
+            ;;
+    esac
+}
+
+# Install protoc by downloading from GitHub releases (fallback for restricted environments)
+install_protoc_from_github() {
+    local PROTOC_VERSION="28.3"
+    local PROTOC_ARCH
+    local PROTOC_OS
+
+    case "$OS" in
+        Darwin)
+            PROTOC_OS="osx"
+            case "$(uname -m)" in
+                arm64) PROTOC_ARCH="aarch_64" ;;
+                x86_64) PROTOC_ARCH="x86_64" ;;
+                *) echo "Error: Unsupported architecture: $(uname -m)"; exit 1 ;;
+            esac
+            ;;
+        Linux)
+            PROTOC_OS="linux"
+            case "$(uname -m)" in
+                aarch64) PROTOC_ARCH="aarch_64" ;;
+                x86_64) PROTOC_ARCH="x86_64" ;;
+                *) echo "Error: Unsupported architecture: $(uname -m)"; exit 1 ;;
+            esac
+            ;;
+        *)
+            echo "Error: Unsupported operating system: $OS"
+            exit 1
+            ;;
+    esac
+
+    local PROTOC_ZIP="protoc-${PROTOC_VERSION}-${PROTOC_OS}-${PROTOC_ARCH}.zip"
+    local PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
+    local INSTALL_DIR="${HOME}/.local"
+
+    echo "Downloading protoc ${PROTOC_VERSION} from GitHub..."
+    mkdir -p "${INSTALL_DIR}/bin"
+
+    local TMP_DIR=$(mktemp -d)
+    trap "rm -rf ${TMP_DIR}" RETURN
+
+    if command -v curl &> /dev/null; then
+        curl -fsSL -o "${TMP_DIR}/${PROTOC_ZIP}" "${PROTOC_URL}"
+    elif command -v wget &> /dev/null; then
+        wget -q -O "${TMP_DIR}/${PROTOC_ZIP}" "${PROTOC_URL}"
     else
-        echo "Go installation skipped. Exiting script."
+        echo "Error: Neither curl nor wget found. Cannot download protoc."
         exit 1
     fi
-fi
 
-# Check if Node.js is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v node &> /dev/null
-then
-    echo "Node.js is not installed."
-    read -p "Would you like to install Node.js using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing Node.js using Homebrew..."
-        brew install node
+    unzip -q -o "${TMP_DIR}/${PROTOC_ZIP}" -d "${TMP_DIR}"
+    mv "${TMP_DIR}/bin/protoc" "${INSTALL_DIR}/bin/"
+    chmod +x "${INSTALL_DIR}/bin/protoc"
+
+    # Add to PATH for this session
+    export PATH="${INSTALL_DIR}/bin:${PATH}"
+
+    echo "protoc installed to ${INSTALL_DIR}/bin/protoc"
+    echo "Add ${INSTALL_DIR}/bin to your PATH to use it permanently."
+}
+
+# Prompt for installation or auto-install in non-interactive mode
+prompt_install() {
+    local tool_name="$1"
+    local brew_package="$2"
+    local apt_package="$3"
+
+    echo "$tool_name is not installed."
+
+    if is_interactive; then
+        read -p "Would you like to install $tool_name? (y/n) " -n 1 -r
+        echo    # Move to a new line
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_package "$tool_name" "$brew_package" "$apt_package"
+        else
+            echo "$tool_name installation skipped. Exiting script."
+            exit 1
+        fi
     else
-        echo "Node.js installation skipped. Exiting script."
-        exit 1
+        echo "Non-interactive mode: automatically installing $tool_name..."
+        install_package "$tool_name" "$brew_package" "$apt_package"
     fi
+}
+
+# Check if Go is installed
+if ! command -v go &> /dev/null; then
+    prompt_install "Go" "go" "golang-go"
 fi
 
-# Check if protoc is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v protoc &> /dev/null
-then
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    prompt_install "Node.js" "node" "nodejs"
+fi
+
+# Check if npm is installed (sometimes separate from nodejs on Linux)
+if ! command -v npm &> /dev/null; then
+    prompt_install "npm" "node" "npm"
+fi
+
+# Check if protoc is installed
+if ! command -v protoc &> /dev/null; then
     echo "protoc is not installed."
-    read -p "Would you like to install protoc using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing protoc using Homebrew..."
-        brew install protobuf
+    if is_interactive; then
+        read -p "Would you like to install protoc? (y/n) " -n 1 -r
+        echo    # Move to a new line
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_protoc_from_github
+        else
+            echo "protoc installation skipped. Exiting script."
+            exit 1
+        fi
     else
-        echo "protoc installation skipped. Exiting script."
-        exit 1
+        echo "Non-interactive mode: automatically installing protoc..."
+        install_protoc_from_github
     fi
 fi
 
