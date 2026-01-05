@@ -10,7 +10,7 @@ import (
 )
 
 type ApiService struct {
-	compilers              sync.Map // map[string]*Compiler - keyed by workspace
+	compilers              sync.Map // map[string]*Compiler - keyed by ID
 	configurationPath      string
 	canUpdateConfiguration bool
 }
