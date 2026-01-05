@@ -33,7 +33,6 @@ func (c *Compiler) start(projectName string, workspace string) error {
 	}
 	c.logger.debug("cwd: " + cwd)
 
-	// Create a unique temp directory for generated sources
 	sourcesDir, err := tempdir.NewSourcesDir()
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR

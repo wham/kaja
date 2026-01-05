@@ -1,6 +1,3 @@
-// Package tempdir manages temporary directories for compilation.
-// It creates a "kaja" folder under the system temp directory and
-// automatically cleans up folders older than 60 minutes.
 package tempdir
 
 import (
@@ -12,42 +9,26 @@ import (
 )
 
 const (
-	// kajaSubdir is the subdirectory name under the system temp folder
-	kajaSubdir = "kaja"
-
-	// maxAge is the maximum age of temp folders before cleanup
-	maxAge = 60 * time.Minute
-
-	// cleanupInterval is how often the cleanup goroutine runs
+	kajaSubdir      = "kaja"
+	maxAge          = 60 * time.Minute
 	cleanupInterval = 5 * time.Minute
 )
 
-var (
-	cleanupOnce sync.Once
-)
+var cleanupOnce sync.Once
 
-// StartCleanup starts a background goroutine that periodically cleans up
-// old temp folders. It's safe to call multiple times - only the first call
-// starts the goroutine.
 func StartCleanup() {
 	cleanupOnce.Do(func() {
 		go cleanupLoop()
 	})
 }
 
-// NewSourcesDir creates a new unique temporary directory for generated sources.
-// The directory is created under the system temp folder in a "kaja" subdirectory.
-// Returns the path to the created directory.
 func NewSourcesDir() (string, error) {
 	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
 
-	// Ensure the kaja base directory exists
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return "", err
 	}
 
-	// Create a unique temp directory using Go's os.MkdirTemp
-	// The pattern "sources-*" will have a unique suffix added
 	sourcesDir, err := os.MkdirTemp(baseDir, "sources-*")
 	if err != nil {
 		return "", err
@@ -57,14 +38,7 @@ func NewSourcesDir() (string, error) {
 	return sourcesDir, nil
 }
 
-// Cleanup removes a specific temp directory
-func Cleanup(dir string) error {
-	return os.RemoveAll(dir)
-}
-
-// cleanupLoop runs periodically to remove old temp folders
 func cleanupLoop() {
-	// Run cleanup immediately on startup
 	cleanupOldFolders()
 
 	ticker := time.NewTicker(cleanupInterval)
@@ -75,13 +49,11 @@ func cleanupLoop() {
 	}
 }
 
-// cleanupOldFolders removes all folders older than maxAge
 func cleanupOldFolders() {
 	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
 
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
-		// Directory doesn't exist yet, that's fine
 		if os.IsNotExist(err) {
 			return
 		}

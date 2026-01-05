@@ -136,7 +136,6 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 			return err
 		}
 		if !info.IsDir() {
-			// Create relative path from sourcesDir for the export statement
 			relativePath, _ := filepath.Rel(sourcesDir, path)
 			stubContent.WriteString("export * from \"./" + relativePath + "\";\n")
 		}

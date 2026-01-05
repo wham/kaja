@@ -16,7 +16,6 @@ type ApiService struct {
 }
 
 func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiService {
-	// Start background cleanup of old temp directories
 	tempdir.StartCleanup()
 
 	return &ApiService{
