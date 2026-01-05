@@ -5,6 +5,8 @@ import (
 	fmt "fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/wham/kaja/v2/internal/tempdir"
 )
 
 type ApiService struct {
@@ -14,6 +16,9 @@ type ApiService struct {
 }
 
 func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiService {
+	// Start background cleanup of old temp directories
+	tempdir.StartCleanup()
+
 	return &ApiService{
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,

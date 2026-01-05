@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
 )
 
@@ -32,7 +33,13 @@ func (c *Compiler) start(projectName string, workspace string) error {
 	}
 	c.logger.debug("cwd: " + cwd)
 
-	sourcesDir := filepath.Join(cwd, "./build/sources/"+projectName)
+	// Create a unique temp directory for this compilation
+	sourcesDir, err := tempdir.NewCompilationDir()
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to create temp directory", err)
+		return err
+	}
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
 	c.logger.debug("Starting compilation")
@@ -46,7 +53,7 @@ func (c *Compiler) start(projectName string, workspace string) error {
 	c.sources = c.getSources(sourcesDir)
 
 	c.logger.debug("Building stub")
-	stub, err := ui.BuildStub(projectName)
+	stub, err := ui.BuildStub(sourcesDir)
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Failed to build stub", err)
@@ -92,12 +99,6 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 }
 
 func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error {
-	if _, err := os.Stat(sourcesDir); err == nil {
-		c.logger.debug("Directory " + sourcesDir + " already exists, removing it")
-		os.RemoveAll(sourcesDir)
-	}
-	os.MkdirAll(sourcesDir, os.ModePerm)
-
 	var workspaceDir string
 	if filepath.IsAbs(workspace) {
 		workspaceDir = workspace

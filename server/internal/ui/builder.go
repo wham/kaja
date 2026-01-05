@@ -129,24 +129,25 @@ func BuildMonacoWorker(name string) ([]byte, error) {
 	return result.OutputFiles[0].Contents, nil
 }
 
-func BuildStub(projectName string) ([]byte, error) {
-	sourcesDir := "./build/sources/" + projectName
+func BuildStub(sourcesDir string) ([]byte, error) {
 	var stubContent strings.Builder
 	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			stubContent.WriteString("export * from \"" + strings.Replace(path, "build/sources/"+projectName, "./", 1) + "\";\n")
+			// Create relative path from sourcesDir for the export statement
+			relativePath, _ := filepath.Rel(sourcesDir, path)
+			stubContent.WriteString("export * from \"./" + relativePath + "\";\n")
 		}
 		return nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read sources directory when building stub for project %s: %w", projectName, err)
+		return nil, fmt.Errorf("failed to read sources directory when building stub: %w", err)
 	}
 
-	slog.Debug("Successfully built stub for project %s, length %d", projectName, stubContent.Len())
+	slog.Debug("Successfully built stub", "sourcesDir", sourcesDir, "length", stubContent.Len())
 
 	result := esbuild.Build(esbuild.BuildOptions{
 		Stdin: &esbuild.StdinOptions{
@@ -160,7 +161,7 @@ func BuildStub(projectName string) ([]byte, error) {
 	})
 
 	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("failed to build stub for project %s: %s", projectName, result.Errors[0].Text)
+		return nil, fmt.Errorf("failed to build stub: %s", result.Errors[0].Text)
 	}
 
 	first := result.OutputFiles[0]
