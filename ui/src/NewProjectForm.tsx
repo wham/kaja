@@ -70,12 +70,12 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
           />
         </FormControl>
 
-        <FormControl sx={{ mt: 3 }}>
+        <FormControl style={{ marginTop: 24 }}>
           <FormControl.Label>URL</FormControl.Label>
           <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
         </FormControl>
 
-        <FormControl sx={{ mt: 3 }}>
+        <FormControl style={{ marginTop: 24 }}>
           <FormControl.Label>Protocol</FormControl.Label>
           <Select value={String(protocol)} onChange={(e) => setProtocol(Number(e.target.value) as RpcProtocol)} block>
             <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
@@ -83,7 +83,7 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
           </Select>
         </FormControl>
 
-        <FormControl sx={{ mt: 3 }}>
+        <FormControl style={{ marginTop: 24 }}>
           <FormControl.Label>Workspace</FormControl.Label>
           <TextInput
             value={workspace}

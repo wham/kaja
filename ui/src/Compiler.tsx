@@ -1,5 +1,5 @@
 import { CheckIcon, ChevronRightIcon, PlusIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, Spinner, Text } from "@primer/react";
+import { ActionList, Spinner } from "@primer/react";
 import { Blankslate } from "@primer/react/experimental";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
@@ -420,7 +420,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
                     </ActionList.Description>
                     {project.compilation.duration && (
                       <ActionList.TrailingVisual>
-                        <Text sx={{ fontSize: 1, color: "fg.muted" }}>{project.compilation.duration}</Text>
+                        <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>{project.compilation.duration}</span>
                       </ActionList.TrailingVisual>
                     )}
                   </ActionList.Item>

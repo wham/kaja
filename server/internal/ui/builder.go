@@ -11,9 +11,10 @@ import (
 )
 
 type UiBundle struct {
-	MainJs     []byte
-	MainCss    []byte
-	CodiconTtf []byte
+	MainJs        []byte
+	MainCss       []byte
+	CodiconTtf    []byte
+	CodiconTtfName string
 }
 
 func BuildForDevelopment() *UiBundle {
@@ -52,7 +53,13 @@ func BuildForProduction() (*UiBundle, error) {
 
 func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	if len(result.Errors) > 0 {
-		slog.Error("Failed to build the UI", "errors", result.Errors)
+		for _, e := range result.Errors {
+			if e.Location != nil {
+				slog.Error("ESBuild error", "text", e.Text, "file", e.Location.File, "line", e.Location.Line, "column", e.Location.Column)
+			} else {
+				slog.Error("ESBuild error", "text", e.Text)
+			}
+		}
 		return nil, fmt.Errorf("failed to build the UI")
 	}
 
@@ -60,13 +67,14 @@ func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 
 	for _, file := range result.OutputFiles {
 		fileName := file.Path[strings.LastIndex(file.Path, "/")+1:]
-		switch fileName {
-		case "main.js":
+		switch {
+		case fileName == "main.js":
 			bundle.MainJs = file.Contents
-		case "main.css":
+		case fileName == "main.css":
 			bundle.MainCss = file.Contents
-		case "codicon-37A3DWZT.ttf":
+		case strings.HasPrefix(fileName, "codicon-") && strings.HasSuffix(fileName, ".ttf"):
 			bundle.CodiconTtf = file.Contents
+			bundle.CodiconTtfName = fileName
 		}
 	}
 

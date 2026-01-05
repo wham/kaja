@@ -178,7 +178,7 @@ export function registerAIProvider(projects: Project[]) {
         enableForwardStability: true,
       };
     },
-    freeInlineCompletions: () => {
+    disposeInlineCompletions: () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
