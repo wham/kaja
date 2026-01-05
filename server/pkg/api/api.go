@@ -4,13 +4,12 @@ import (
 	"context"
 	fmt "fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 )
 
 type ApiService struct {
-	compilers              sync.Map // map[string]*Compiler
+	compiler               *Compiler
 	configurationPath      string
 	canUpdateConfiguration bool
 }
@@ -19,58 +18,55 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiSe
 	tempdir.StartCleanup()
 
 	return &ApiService{
+		compiler:               NewCompiler(),
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
 	}
 }
 
 func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*CompileResponse, error) {
-	if req.ProjectName == "" {
-		return nil, fmt.Errorf("project name is required")
+	if req.Workspace == "" {
+		return nil, fmt.Errorf("workspace is required")
 	}
 
-	compiler := s.getOrCreateCompiler(req.ProjectName)
-	compiler.mu.Lock()
-	defer compiler.mu.Unlock()
+	s.compiler.mu.Lock()
+	defer s.compiler.mu.Unlock()
 
-	// Ensure logger is always initialized
-	if compiler.logger == nil {
-		compiler.logger = NewLogger()
+	if s.compiler.logger == nil {
+		s.compiler.logger = NewLogger()
 	}
 
-	if compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
-		compiler.status = CompileStatus_STATUS_RUNNING
-		compiler.logger = NewLogger()
-		compiler.sources = []*Source{}
-		compiler.logger.info("Starting compilation")
-		go compiler.start(req.ProjectName, req.Workspace)
+	if s.compiler.status != CompileStatus_STATUS_RUNNING && req.LogOffset == 0 {
+		s.compiler.status = CompileStatus_STATUS_RUNNING
+		s.compiler.logger = NewLogger()
+		s.compiler.sources = []*Source{}
+		s.compiler.logger.info("Starting compilation")
+		go s.compiler.start(req.Workspace)
 	}
 
 	logOffset := int(req.LogOffset)
-	if logOffset > len(compiler.logger.logs)-1 {
-		logOffset = len(compiler.logger.logs) - 1
+	if logOffset > len(s.compiler.logger.logs)-1 {
+		logOffset = len(s.compiler.logger.logs) - 1
 	}
 
 	logs := []*Log{}
-	if int(req.LogOffset) < len(compiler.logger.logs) {
-		logs = compiler.logger.logs[logOffset:]
+	if int(req.LogOffset) < len(s.compiler.logger.logs) {
+		logs = s.compiler.logger.logs[logOffset:]
 	}
 
 	return &CompileResponse{
-		Status:  compiler.status,
+		Status:  s.compiler.status,
 		Logs:    logs,
-		Sources: compiler.sources,
-		Stub:    compiler.stub,
+		Sources: s.compiler.sources,
+		Stub:    s.compiler.stub,
 	}, nil
 }
 
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
-	// Re-read configuration from file and re-evaluate env vars on each call
 	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
-	// Redact the API key before returning to the UI
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Projects:   response.Configuration.Projects,
@@ -87,12 +83,6 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	}, nil
 }
 
-func (s *ApiService) getOrCreateCompiler(projectName string) *Compiler {
-	newCompiler := NewCompiler()
-	compiler, _ := s.compilers.LoadOrStore(projectName, newCompiler)
-	return compiler.(*Compiler)
-}
-
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
 	if req.Configuration == nil {
 		return nil, fmt.Errorf("configuration is required")
@@ -100,10 +90,8 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 
 	slog.Info("Updating configuration")
 
-	// Read current configuration to get system settings (which should be preserved)
 	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
-	// Preserve system settings from current configuration (ignore what client sends)
 	req.Configuration.System = currentResponse.Configuration.System
 
 	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {

@@ -10,7 +10,7 @@ service Api {
 
 message CompileRequest {
   int32 log_offset = 1;
-  string project_name = 2;
+  string project_name = 2; // Deprecated: no longer used by server
   string workspace = 3;
 }
 

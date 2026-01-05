@@ -26,7 +26,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
-func (c *Compiler) start(projectName string, workspace string) error {
+func (c *Compiler) start(workspace string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
