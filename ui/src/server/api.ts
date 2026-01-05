@@ -16,11 +16,15 @@ import { MessageType } from "@protobuf-ts/runtime";
  */
 export interface CompileRequest {
     /**
-     * @generated from protobuf field: int32 log_offset = 1
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: int32 log_offset = 2
      */
     logOffset: number;
     /**
-     * @generated from protobuf field: string workspace = 2
+     * @generated from protobuf field: string workspace = 3
      */
     workspace: string;
 }
@@ -239,12 +243,14 @@ export enum RpcProtocol {
 class CompileRequest$Type extends MessageType<CompileRequest> {
     constructor() {
         super("CompileRequest", [
-            { no: 1, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
         message.logOffset = 0;
         message.workspace = "";
         if (value !== undefined)
@@ -256,10 +262,13 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* int32 log_offset */ 1:
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* int32 log_offset */ 2:
                     message.logOffset = reader.int32();
                     break;
-                case /* string workspace */ 2:
+                case /* string workspace */ 3:
                     message.workspace = reader.string();
                     break;
                 default:
@@ -274,12 +283,15 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         return message;
     }
     internalBinaryWrite(message: CompileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* int32 log_offset = 1; */
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        /* int32 log_offset = 2; */
         if (message.logOffset !== 0)
-            writer.tag(1, WireType.Varint).int32(message.logOffset);
-        /* string workspace = 2; */
+            writer.tag(2, WireType.Varint).int32(message.logOffset);
+        /* string workspace = 3; */
         if (message.workspace !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.workspace);
+            writer.tag(3, WireType.LengthDelimited).string(message.workspace);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

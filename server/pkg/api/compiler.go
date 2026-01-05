@@ -26,7 +26,9 @@ func NewCompiler() *Compiler {
 	}
 }
 
-func (c *Compiler) start(workspace string) error {
+func (c *Compiler) start(id string, workspace string) error {
+	c.logger.debug("id: " + id)
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
