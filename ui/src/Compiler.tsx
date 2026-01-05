@@ -62,6 +62,9 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     const signal = abortControllers.current[projectName].signal;
 
     try {
+      // Generate unique ID for this compilation
+      const compilationId = crypto.randomUUID();
+
       // Set initial running state with start time using functional update
       onUpdate((prevProjects) => {
         const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
@@ -72,6 +75,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           ...prevProjects[index],
           compilation: {
             ...prevProjects[index].compilation,
+            id: compilationId,
             status: "running",
             startTime: Date.now(),
             logOffset: 0,
@@ -81,7 +85,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       });
 
       // Start polling
-      await pollCompilation(projectName, signal);
+      await pollCompilation(projectName, compilationId, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -89,7 +93,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     }
   };
 
-  const pollCompilation = async (projectName: string, signal: AbortSignal) => {
+  const pollCompilation = async (projectName: string, compilationId: string, signal: AbortSignal) => {
     while (!signal.aborted) {
       // Find project by name to avoid stale index references
       const projectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
@@ -97,8 +101,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       if (!project || projectIndex === -1) return;
 
       const { response } = await client.compile({
+        id: compilationId,
         logOffset: project.compilation.logOffset || 0,
-        projectName: project.configuration.name,
         workspace: project.configuration.workspace,
       });
 

@@ -12,6 +12,7 @@ export interface Project {
 export type CompilationStatus = "pending" | "running" | "success" | "error";
 
 export interface Compilation {
+  id?: string;
   status: CompilationStatus;
   logs: Log[];
   duration?: string;
