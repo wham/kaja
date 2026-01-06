@@ -6,7 +6,7 @@ import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 
 interface NewProjectFormProps {
   isOpen: boolean;
-  onSubmit: (project: { name: string; url: string; protocol: RpcProtocol; workspace: string }) => void;
+  onSubmit: (project: { name: string; url: string; protocol: RpcProtocol; protoDir: string }) => void;
   onClose: () => void;
 }
 
@@ -14,17 +14,17 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
-  const [workspace, setWorkspace] = useState("");
+  const [protoDir, setProtoDir] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     if (name && url) {
-      onSubmit({ name, url, protocol, workspace });
+      onSubmit({ name, url, protocol, protoDir });
       // Reset form
       setName("");
       setUrl("");
       setProtocol(RpcProtocol.GRPC);
-      setWorkspace("");
+      setProtoDir("");
     }
   };
 
@@ -33,7 +33,7 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
     setName("");
     setUrl("");
     setProtocol(RpcProtocol.GRPC);
-    setWorkspace("");
+    setProtoDir("");
     onClose();
   };
 
@@ -84,18 +84,18 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
         </FormControl>
 
         <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>Workspace</FormControl.Label>
+          <FormControl.Label>Proto Directory</FormControl.Label>
           <TextInput
-            value={workspace}
-            onChange={(e) => setWorkspace(e.target.value)}
-            placeholder="Path to workspace"
+            value={protoDir}
+            onChange={(e) => setProtoDir(e.target.value)}
+            placeholder="Path to proto directory"
             block
             trailingAction={
               <TextInput.Action
                 onClick={async () => {
                   const path = await OpenDirectoryDialog();
                   if (path) {
-                    setWorkspace(path);
+                    setProtoDir(path);
                   }
                 }}
                 icon={FileDirectoryIcon}

@@ -24,9 +24,9 @@ export interface CompileRequest {
      */
     logOffset: number;
     /**
-     * @generated from protobuf field: string workspace = 3
+     * @generated from protobuf field: string proto_dir = 3
      */
-    workspace: string;
+    protoDir: string;
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -149,9 +149,9 @@ export interface ConfigurationProject {
      */
     url: string;
     /**
-     * @generated from protobuf field: string workspace = 4
+     * @generated from protobuf field: string proto_dir = 4
      */
-    workspace: string;
+    protoDir: string;
 }
 /**
  * @generated from protobuf message ConfigurationAI
@@ -245,14 +245,14 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         super("CompileRequest", [
             { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.id = "";
         message.logOffset = 0;
-        message.workspace = "";
+        message.protoDir = "";
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
         return message;
@@ -268,8 +268,8 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
                 case /* int32 log_offset */ 2:
                     message.logOffset = reader.int32();
                     break;
-                case /* string workspace */ 3:
-                    message.workspace = reader.string();
+                case /* string proto_dir */ 3:
+                    message.protoDir = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -289,9 +289,9 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* int32 log_offset = 2; */
         if (message.logOffset !== 0)
             writer.tag(2, WireType.Varint).int32(message.logOffset);
-        /* string workspace = 3; */
-        if (message.workspace !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.workspace);
+        /* string proto_dir = 3; */
+        if (message.protoDir !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -698,7 +698,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "workspace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -706,7 +706,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.name = "";
         message.protocol = 0;
         message.url = "";
-        message.workspace = "";
+        message.protoDir = "";
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -725,8 +725,8 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                 case /* string url */ 3:
                     message.url = reader.string();
                     break;
-                case /* string workspace */ 4:
-                    message.workspace = reader.string();
+                case /* string proto_dir */ 4:
+                    message.protoDir = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -749,9 +749,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* string url = 3; */
         if (message.url !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.url);
-        /* string workspace = 4; */
-        if (message.workspace !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.workspace);
+        /* string proto_dir = 4; */
+        if (message.protoDir !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.protoDir);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
