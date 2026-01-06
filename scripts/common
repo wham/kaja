@@ -11,9 +11,9 @@ build_demo_apps() {
     cd workspace
     
     protoc --proto_path=. \
-        --plugin=protoc-gen-go=../build/protoc-gen-go --go_out=. \
-        --plugin=protoc-gen-twirp=../build/protoc-gen-twirp --twirp_out=. \
-        --plugin=protoc-gen-go-grpc=../build/protoc-gen-go-grpc --go-grpc_out=. \
+        --plugin=protoc-gen-go=../server/build/protoc-gen-go --go_out=. \
+        --plugin=protoc-gen-twirp=../server/build/protoc-gen-twirp --twirp_out=. \
+        --plugin=protoc-gen-go-grpc=../server/build/protoc-gen-go-grpc --go-grpc_out=. \
         -Iproto/ $(find . -iname "*.proto")
 
     echo "Building gRPC demo app"
