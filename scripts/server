@@ -124,5 +124,6 @@ start_demo_apps
 cd "server"
 go run cmd/build-ui/main.go
 protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find proto -iname "*.proto")
-go build -tags development -o /tmp/kaja-server ./cmd/server
-AI_API_KEY=$AI_API_KEY /tmp/kaja-server
+mkdir -p /tmp/kaja
+go build -tags development -o /tmp/kaja/kaja ./cmd/server
+AI_API_KEY=$AI_API_KEY /tmp/kaja/kaja
