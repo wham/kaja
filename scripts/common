@@ -9,7 +9,7 @@ setup_trap() {
 build_demo_apps() {
     local original_dir=$(pwd)
     cd workspace
-    
+
     protoc --proto_path=. \
         --plugin=protoc-gen-go=../server/build/protoc-gen-go --go_out=. \
         --plugin=protoc-gen-twirp=../server/build/protoc-gen-twirp --twirp_out=. \

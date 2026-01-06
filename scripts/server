@@ -3,234 +3,73 @@ set -e
 
 source "$(dirname "$0")/common"
 
-# Detect OS
-OS="$(uname -s)"
+cd "$(dirname "$0")/.."
 
-# Check if running in non-interactive mode (CI, cloud, no TTY)
-is_interactive() {
-    [[ -t 0 && -z "${CI:-}" && -z "${NONINTERACTIVE:-}" ]]
-}
-
-# Install package based on OS
-install_package() {
-    local package_name="$1"
-    local brew_package="${2:-$1}"
-    local apt_package="${3:-$1}"
-
-    case "$OS" in
-        Darwin)
-            if command -v brew &> /dev/null; then
-                echo "Installing $package_name using Homebrew..."
-                brew install "$brew_package"
-            else
-                echo "Error: Homebrew is not installed. Please install Homebrew first:"
-                echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-                exit 1
-            fi
-            ;;
-        Linux)
-            if command -v apt-get &> /dev/null; then
-                echo "Installing $package_name using apt-get..."
-                if [[ $EUID -eq 0 ]]; then
-                    apt-get update && apt-get install -y "$apt_package"
-                else
-                    sudo apt-get update && sudo apt-get install -y "$apt_package"
-                fi
-            elif command -v brew &> /dev/null; then
-                echo "Installing $package_name using Homebrew on Linux..."
-                brew install "$brew_package"
-            else
-                echo "Error: No supported package manager found (apt-get or brew)."
-                echo "Please install $package_name manually."
-                exit 1
-            fi
-            ;;
-        *)
-            echo "Error: Unsupported operating system: $OS"
-            exit 1
-            ;;
-    esac
-}
-
-# Install protoc using npm package (works in restricted environments)
-install_protoc_from_npm() {
-    local SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-    echo "Installing protoc via npm package..."
-    cd "$SCRIPT_DIR"
-    npm install protoc --save-dev
-
-    # Create a wrapper script in ~/.local/bin
-    local INSTALL_DIR="${HOME}/.local"
-    mkdir -p "${INSTALL_DIR}/bin"
-
-    cat > "${INSTALL_DIR}/bin/protoc" << 'WRAPPER'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Find protoc in common locations
-for dir in "./node_modules/.bin" "../node_modules/.bin" "../../node_modules/.bin"; do
-    if [ -x "$dir/protoc" ]; then
-        exec "$dir/protoc" "$@"
-    fi
-done
-# Try npx as fallback
-exec npx protoc "$@"
-WRAPPER
-    chmod +x "${INSTALL_DIR}/bin/protoc"
-
-    export PATH="${INSTALL_DIR}/bin:${PATH}"
-    echo "protoc installed via npm and wrapper created at ${INSTALL_DIR}/bin/protoc"
-}
-
-# Install protoc by downloading from GitHub releases
-install_protoc_from_github() {
-    local PROTOC_VERSION="28.3"
-    local PROTOC_ARCH
-    local PROTOC_OS
-
-    case "$OS" in
-        Darwin)
-            PROTOC_OS="osx"
-            case "$(uname -m)" in
-                arm64) PROTOC_ARCH="aarch_64" ;;
-                x86_64) PROTOC_ARCH="x86_64" ;;
-                *) echo "Error: Unsupported architecture: $(uname -m)"; exit 1 ;;
-            esac
-            ;;
-        Linux)
-            PROTOC_OS="linux"
-            case "$(uname -m)" in
-                aarch64) PROTOC_ARCH="aarch_64" ;;
-                x86_64) PROTOC_ARCH="x86_64" ;;
-                *) echo "Error: Unsupported architecture: $(uname -m)"; exit 1 ;;
-            esac
-            ;;
-        *)
-            echo "Error: Unsupported operating system: $OS"
-            exit 1
-            ;;
-    esac
-
-    local PROTOC_ZIP="protoc-${PROTOC_VERSION}-${PROTOC_OS}-${PROTOC_ARCH}.zip"
-    local PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
-    local INSTALL_DIR="${HOME}/.local"
-
-    echo "Downloading protoc ${PROTOC_VERSION} from GitHub..."
-    mkdir -p "${INSTALL_DIR}/bin"
-
-    local TMP_DIR=$(mktemp -d)
-    trap "rm -rf ${TMP_DIR}" RETURN
-
-    if command -v curl &> /dev/null; then
-        curl -fsSL -o "${TMP_DIR}/${PROTOC_ZIP}" "${PROTOC_URL}"
-    elif command -v wget &> /dev/null; then
-        wget -q -O "${TMP_DIR}/${PROTOC_ZIP}" "${PROTOC_URL}"
-    else
-        echo "Error: Neither curl nor wget found. Cannot download protoc."
-        return 1
-    fi
-
-    unzip -q -o "${TMP_DIR}/${PROTOC_ZIP}" -d "${TMP_DIR}"
-    mv "${TMP_DIR}/bin/protoc" "${INSTALL_DIR}/bin/"
-    chmod +x "${INSTALL_DIR}/bin/protoc"
-
-    # Add to PATH for this session
-    export PATH="${INSTALL_DIR}/bin:${PATH}"
-
-    echo "protoc installed to ${INSTALL_DIR}/bin/protoc"
-    echo "Add ${INSTALL_DIR}/bin to your PATH to use it permanently."
-}
-
-# Try multiple methods to install protoc
+# Install protoc to server/build using npm package
 install_protoc() {
-    # Try GitHub download first (faster, standalone binary)
-    if install_protoc_from_github 2>/dev/null; then
+    local INSTALL_DIR="$PWD/server/build"
+
+    if [ -x "$INSTALL_DIR/protoc" ]; then
+        echo "protoc already installed at $INSTALL_DIR/protoc"
         return 0
     fi
 
-    echo "GitHub download failed, trying npm package..."
-    # Fall back to npm package
-    install_protoc_from_npm
+    echo "Installing protoc via npm..."
+    mkdir -p "$INSTALL_DIR"
+
+    # Install npm protoc package
+    npm install protoc --save-dev
+
+    # Determine platform-specific binary
+    local OS="$(uname -s)"
+    local ARCH="$(uname -m)"
+    local PROTOC_BIN
+
+    case "$OS" in
+        Darwin) PROTOC_BIN="protoc-osx" ;;
+        Linux)  PROTOC_BIN="protoc-linux" ;;
+        *)      echo "Error: Unsupported OS: $OS"; exit 1 ;;
+    esac
+
+    case "$ARCH" in
+        arm64|aarch64) PROTOC_BIN="${PROTOC_BIN}-aarch_64" ;;
+        x86_64)        PROTOC_BIN="${PROTOC_BIN}-x86_64" ;;
+        *)             echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
+    esac
+
+    # Create bin subdirectory and copy protoc there
+    mkdir -p "$INSTALL_DIR/bin"
+    cp "./node_modules/protoc/bin/${PROTOC_BIN}" "$INSTALL_DIR/bin/protoc"
+    chmod +x "$INSTALL_DIR/bin/protoc"
+
+    # Copy include files (protoc looks for ../include relative to binary)
+    cp -r "./node_modules/protoc/include" "$INSTALL_DIR/"
+
+    # Create wrapper script at expected location
+    cat > "$INSTALL_DIR/protoc" << 'EOF'
+#!/bin/bash
+exec "$(dirname "$0")/bin/protoc" "$@"
+EOF
+    chmod +x "$INSTALL_DIR/protoc"
+
+    echo "protoc installed to $INSTALL_DIR/protoc"
 }
 
-# Prompt for installation or auto-install in non-interactive mode
-prompt_install() {
-    local tool_name="$1"
-    local brew_package="$2"
-    local apt_package="$3"
-
-    echo "$tool_name is not installed."
-
-    if is_interactive; then
-        read -p "Would you like to install $tool_name? (y/n) " -n 1 -r
-        echo    # Move to a new line
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_package "$tool_name" "$brew_package" "$apt_package"
-        else
-            echo "$tool_name installation skipped. Exiting script."
-            exit 1
-        fi
-    else
-        echo "Non-interactive mode: automatically installing $tool_name..."
-        install_package "$tool_name" "$brew_package" "$apt_package"
-    fi
-}
-
-# Check if Go is installed
-if ! command -v go &> /dev/null; then
-    prompt_install "Go" "go" "golang-go"
-fi
-
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    prompt_install "Node.js" "node" "nodejs"
-fi
-
-# Check if npm is installed (sometimes separate from nodejs on Linux)
-if ! command -v npm &> /dev/null; then
-    prompt_install "npm" "node" "npm"
-fi
-
-# Check if protoc is installed
-if ! command -v protoc &> /dev/null; then
-    echo "protoc is not installed."
-    if is_interactive; then
-        read -p "Would you like to install protoc? (y/n) " -n 1 -r
-        echo    # Move to a new line
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            install_protoc
-        else
-            echo "protoc installation skipped. Exiting script."
-            exit 1
-        fi
-    else
-        echo "Non-interactive mode: automatically installing protoc..."
-        install_protoc
-    fi
-fi
+install_protoc
 
 setup_trap
 
-cd "$(dirname "$0")/.."
-PROJECT_ROOT=$PWD
-
 [ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
 
-# Ensure npm protoc is installed for restricted environments
-if ! command -v protoc &> /dev/null; then
-    npm install protoc --save-dev 2>/dev/null || true
-fi
-
 export GOBIN=$PWD/server/build
-# Add node_modules/.bin to PATH for npm-installed protoc
-export PATH=$PROJECT_ROOT/node_modules/.bin:$GOBIN:$PATH
+export PATH=$GOBIN:$PATH
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 cd "./ui"
 npm i
-# Run protoc directly using PATH protoc instead of npm script (which uses @protobuf-ts/protoc wrapper)
-protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_opt=generate_dependencies --ts_out ./src/server --proto_path ../server/proto api.proto
+npm run protoc
 
 cd ..
 build_demo_apps
@@ -238,6 +77,6 @@ start_demo_apps
 
 cd "server"
 go run cmd/build-ui/main.go
-protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto")
+protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find . -iname "*.proto" -not -path './build/include/*')
 go build -tags development -o /tmp/kaja ./cmd/server
 AI_API_KEY=$AI_API_KEY /tmp/kaja
