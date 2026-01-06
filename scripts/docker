@@ -7,6 +7,9 @@ setup_trap
 
 cd "$(dirname "$0")/.."
 
+export GOBIN=$PWD/server/build
+export PATH=$GOBIN:$PATH
+
 build_demo_apps
 start_demo_apps
 
