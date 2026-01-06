@@ -103,7 +103,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       const { response } = await client.compile({
         id: compilationId,
         logOffset: project.compilation.logOffset || 0,
-        workspace: project.configuration.workspace,
+        protoDir: project.configuration.protoDir,
       });
 
       if (signal.aborted) return;

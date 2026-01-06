@@ -39,7 +39,7 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 				"name": "test-project",
 				"protocol": "RPC_PROTOCOL_GRPC",
 				"url": "http://localhost:8080",
-				"workspace": "test-workspace"
+				"protoDir": "test-protoDir"
 			}
 		],
 		"pathPrefix": "test-prefix",
@@ -83,8 +83,8 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 	if project.Url != "http://localhost:8080" {
 		t.Errorf("expected URL 'http://localhost:8080', got %q", project.Url)
 	}
-	if project.Workspace != "test-workspace" {
-		t.Errorf("expected workspace 'test-workspace', got %q", project.Workspace)
+	if project.ProtoDir != "test-protoDir" {
+		t.Errorf("expected protoDir 'test-protoDir', got %q", project.ProtoDir)
 	}
 
 	if getConfigurationResponse.Configuration.PathPrefix != "/test-prefix" {
@@ -242,8 +242,8 @@ func TestLoadGetConfigurationResponse_DefaultProjectFromBaseURL(t *testing.T) {
 	if project.Url != testURL {
 		t.Errorf("expected URL %q, got %q", testURL, project.Url)
 	}
-	if project.Workspace != "" {
-		t.Errorf("expected empty workspace, got %q", project.Workspace)
+	if project.ProtoDir != "" {
+		t.Errorf("expected empty protoDir, got %q", project.ProtoDir)
 	}
 
 	foundInfo := false
