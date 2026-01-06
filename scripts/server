@@ -35,21 +35,65 @@ then
     fi
 fi
 
-# Check if protoc is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v protoc &> /dev/null
-then
-    echo "protoc is not installed."
-    read -p "Would you like to install protoc using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing protoc using Homebrew..."
-        brew install protobuf
-    else
-        echo "protoc installation skipped. Exiting script."
-        exit 1
+# Install protoc pre-compiled binary to server/build if not already present
+install_protoc() {
+    local PROTOC_VERSION="30.2"
+    local BUILD_DIR="$PWD/server/build"
+    local PROTOC_BIN="$BUILD_DIR/protoc"
+
+    # Check if protoc is already installed in build directory
+    if [ -x "$PROTOC_BIN" ]; then
+        echo "protoc already installed in $BUILD_DIR"
+        return 0
     fi
-fi
+
+    echo "Installing protoc $PROTOC_VERSION to $BUILD_DIR..."
+
+    # Detect OS
+    local OS=""
+    case "$(uname -s)" in
+        Linux*)  OS="linux";;
+        Darwin*) OS="osx";;
+        *)       echo "Unsupported OS: $(uname -s)"; exit 1;;
+    esac
+
+    # Detect architecture
+    local ARCH=""
+    case "$(uname -m)" in
+        x86_64)  ARCH="x86_64";;
+        aarch64) ARCH="aarch_64";;
+        arm64)   ARCH="aarch_64";;
+        *)       echo "Unsupported architecture: $(uname -m)"; exit 1;;
+    esac
+
+    local PROTOC_ZIP="protoc-${PROTOC_VERSION}-${OS}-${ARCH}.zip"
+    local DOWNLOAD_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
+
+    # Create build directory if it doesn't exist
+    mkdir -p "$BUILD_DIR"
+
+    # Download and extract protoc
+    local TMP_DIR=$(mktemp -d)
+    echo "Downloading $DOWNLOAD_URL..."
+    curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/$PROTOC_ZIP"
+
+    echo "Extracting protoc..."
+    unzip -q "$TMP_DIR/$PROTOC_ZIP" -d "$TMP_DIR/protoc"
+
+    # Move protoc binary and include files to build directory
+    mv "$TMP_DIR/protoc/bin/protoc" "$BUILD_DIR/"
+    chmod +x "$BUILD_DIR/protoc"
+
+    # Copy include files (well-known types) if needed
+    if [ -d "$TMP_DIR/protoc/include" ]; then
+        cp -r "$TMP_DIR/protoc/include" "$BUILD_DIR/"
+    fi
+
+    # Cleanup
+    rm -rf "$TMP_DIR"
+
+    echo "protoc installed successfully to $BUILD_DIR"
+}
 
 setup_trap
 
@@ -59,6 +103,9 @@ cd "$(dirname "$0")/.."
 
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
+
+# Install protoc to server/build
+install_protoc
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
