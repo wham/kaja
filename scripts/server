@@ -36,6 +36,9 @@ then
 fi
 
 # Install protoc pre-compiled binary to server/build if not already present
+# Unlike Go and Node.js, we don't use homebrew here - we want this to work in Claude Code on the web environment too.
+# Go and Node.js are pre-installed in Claude Code on the web, homebrew is not.
+# The pre-complied binary installation works both locally on macOS and in Claude Code on the web.
 install_protoc() {
     local PROTOC_VERSION="30.2"
     local BUILD_DIR="$PWD/server/build"
