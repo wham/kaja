@@ -68,10 +68,10 @@ func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
 		logger.info("BASE_URL is set, configuring default project from environment variables")
 
 		defaultProject := &ConfigurationProject{
-			Name:      "default",
-			Protocol:  getProtocolFromEnv(),
-			Url:       baseURL,
-			Workspace: "", // Default workspace
+			Name:     "default",
+			Protocol: getProtocolFromEnv(),
+			Url:      baseURL,
+			ProtoDir: "", // Default protoDir
 		}
 
 		if len(configuration.Projects) > 0 {

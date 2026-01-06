@@ -26,7 +26,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
-func (c *Compiler) start(id string, workspace string) error {
+func (c *Compiler) start(id string, protoDir string) error {
 	c.logger.debug("id: " + id)
 
 	cwd, err := os.Getwd()
@@ -46,7 +46,7 @@ func (c *Compiler) start(id string, workspace string) error {
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
 	c.logger.debug("Starting compilation")
-	err = c.protoc(cwd, sourcesDir, workspace)
+	err = c.protoc(cwd, sourcesDir, protoDir)
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Compilation failed", err)
@@ -101,19 +101,19 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-func (c *Compiler) protoc(cwd string, sourcesDir string, workspace string) error {
-	var workspaceDir string
-	if filepath.IsAbs(workspace) {
-		workspaceDir = workspace
+func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
+	var protoDirPath string
+	if filepath.IsAbs(protoDir) {
+		protoDirPath = protoDir
 	} else {
-		workspaceDir = filepath.Join(cwd, "../workspace/"+workspace)
+		protoDirPath = filepath.Join(cwd, "../workspace/"+protoDir)
 	}
-	c.logger.debug("workspaceDir: " + workspaceDir)
+	c.logger.debug("protoDirPath: " + protoDirPath)
 
 	buildDir := filepath.Join(cwd, "./build")
 	c.logger.debug("buildDir: " + buildDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + workspaceDir + " $(find " + workspaceDir + " -iname \"*.proto\")"
+	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDirPath + " $(find " + protoDirPath + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 

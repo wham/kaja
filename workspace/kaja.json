@@ -4,13 +4,13 @@
       "name": "grpc-demo",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "dns:localhost:41521",
-      "workspace": ""
+      "protoDir": ""
     },
     {
       "name": "twirp-demo",
       "protocol": "RPC_PROTOCOL_TWIRP",
       "url": "http://localhost:41522",
-      "workspace": ""
+      "protoDir": ""
     }
   ],
   "ai": {

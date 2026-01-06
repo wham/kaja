@@ -57,6 +57,7 @@ Supported configuration options:
   - `name`: Display name.
   - `protocol`: Use `RPC_PROTOCOL_TWIRP` for Twirp and `RPC_PROTOCOL_GRPC` for gRPC.
   - `url`: The URL where the application is serving Twirp or gRPC requests.
+  - `protoDir`: (Optional) Path to the directory containing `.proto` files. If empty, defaults to `/workspace`.
 
 # Development
 

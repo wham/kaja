@@ -11,7 +11,7 @@ service Api {
 message CompileRequest {
   string id = 1;
   int32 log_offset = 2;
-  string workspace = 3;
+  string proto_dir = 3;
 }
 
 message CompileResponse {
@@ -78,7 +78,7 @@ message ConfigurationProject {
   string name = 1;
   RpcProtocol protocol = 2;
   string url = 3;
-  string workspace = 4;
+  string proto_dir = 4;
 }
 
 message ConfigurationAI {

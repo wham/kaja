@@ -22,7 +22,7 @@ func TestGetConfiguration_RedactsAIApiKey(t *testing.T) {
 				"name": "test-project",
 				"protocol": "RPC_PROTOCOL_GRPC",
 				"url": "http://localhost:8080",
-				"workspace": "test-workspace"
+				"protoDir": "test-protoDir"
 			}
 		]
 	}`
