@@ -102,18 +102,15 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 }
 
 func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
-	var protoDirPath string
-	if filepath.IsAbs(protoDir) {
-		protoDirPath = protoDir
-	} else {
-		protoDirPath = filepath.Join(cwd, "../workspace/"+protoDir)
+	if !filepath.IsAbs(protoDir) {
+		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
 	}
-	c.logger.debug("protoDirPath: " + protoDirPath)
+	c.logger.debug("protoDir: " + protoDir)
 
 	buildDir := filepath.Join(cwd, "./build")
 	c.logger.debug("buildDir: " + buildDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDirPath + " $(find " + protoDirPath + " -iname \"*.proto\")"
+	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 
