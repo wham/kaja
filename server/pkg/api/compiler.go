@@ -101,16 +101,40 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
+// getBinDir returns the directory containing protoc and protoc-gen-ts binaries.
+// For macOS .app bundles, it returns Contents/Resources/bin inside the bundle.
+// Otherwise, it returns the build directory relative to cwd.
+func getBinDir(cwd string) string {
+	execPath, err := os.Executable()
+	if err == nil {
+		// Check if running from a macOS .app bundle
+		if strings.Contains(execPath, ".app/Contents/MacOS") {
+			// Extract the .app bundle path
+			appIndex := strings.Index(execPath, ".app/Contents/MacOS")
+			bundlePath := execPath[:appIndex+4] // Include ".app"
+			resourcesBin := filepath.Join(bundlePath, "Contents", "Resources", "bin")
+			if _, err := os.Stat(resourcesBin); err == nil {
+				return resourcesBin
+			}
+		}
+	}
+	// Default: use build directory relative to cwd
+	return filepath.Join(cwd, "./build")
+}
+
 func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
 	if !filepath.IsAbs(protoDir) {
 		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
 	}
 	c.logger.debug("protoDir: " + protoDir)
 
-	buildDir := filepath.Join(cwd, "./build")
-	c.logger.debug("buildDir: " + buildDir)
+	binDir := getBinDir(cwd)
+	c.logger.debug("binDir: " + binDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	protocBin := filepath.Join(binDir, "protoc")
+	protocGenTs := filepath.Join(binDir, "protoc-gen-ts")
+
+	protocCommand := protocBin + " --plugin=protoc-gen-ts=" + protocGenTs + " --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 
