@@ -18,8 +18,7 @@
 ├── ui/               # Frontend UI (React/TypeScript)
 ├── workspace/        # Demo workspace with example proto definitions
 ├── scripts/          # Build and development scripts
-├── docs/             # Documentation
-└── build/            # (gitignored) Protocol buffer compiler plugins
+└── docs/             # Documentation
 ```
 
 ### Build Directories
@@ -28,11 +27,8 @@ There are multiple `build/` directories, each serving a different purpose:
 
 | Directory | Purpose | Gitignored |
 |-----------|---------|------------|
-| `/build/` | Protoc plugins (protoc-gen-go, protoc-gen-twirp, protoc-gen-ts) | Yes |
-| `/server/build/` | Bundled UI assets (main.js, main.css, monaco workers) | Yes |
-| `/desktop/build/` | Desktop app icon and platform-specific files | Partial |
-| `/desktop/build/bin/` | Final desktop executable binaries | Yes |
-| `/desktop/build/sources/` | Desktop build intermediates | Yes |
+| `/server/build/` | Protoc plugins (protoc-gen-*) and bundled UI assets (main.js, main.css, monaco workers) | Yes |
+| `/desktop/build/` | Desktop executable binaries, platform files, and protoc-gen-ts (copied from server/build) | Yes |
 | `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build) | Yes |
 | `$TMPDIR/kaja/` | Compilation temp folders (auto-cleaned after 60 min) | N/A |
 

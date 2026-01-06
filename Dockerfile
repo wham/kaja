@@ -24,7 +24,7 @@ RUN go build -o /build/server ./cmd/server
 
 FROM alpine:latest AS runner
 COPY --from=builder /build/server /server/
-COPY --from=builder /build/protoc-gen-ts /build/
+COPY --from=builder /server/build/protoc-gen-ts /server/build/
 RUN apk add --update nodejs
 RUN apk update && apk add --no-cache make protobuf-dev
 WORKDIR /server
