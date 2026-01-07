@@ -6,6 +6,128 @@ setup_trap() {
     trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 }
 
+# Install protoc pre-compiled binary to a target directory
+# Unlike Go and Node.js, we don't use homebrew here - we want this to work in Claude Code on the web environment too.
+# Go and Node.js are pre-installed in Claude Code on the web, homebrew is not.
+# The pre-compiled binary installation works both locally on macOS and in Claude Code on the web.
+#
+# Usage: install_protoc [target_dir]
+#   target_dir: Directory to install protoc to (defaults to $PWD/server/build)
+install_protoc() {
+    local PROTOC_VERSION="30.2"
+    local BUILD_DIR="${1:-$PWD/server/build}"
+    local PROTOC_BIN="$BUILD_DIR/protoc"
+
+    # Check if protoc is already installed in build directory
+    if [ -x "$PROTOC_BIN" ]; then
+        echo "protoc already installed in $BUILD_DIR"
+        return 0
+    fi
+
+    echo "Installing protoc $PROTOC_VERSION to $BUILD_DIR..."
+
+    # Detect OS
+    local OS=""
+    case "$(uname -s)" in
+        Linux*)  OS="linux";;
+        Darwin*) OS="osx";;
+        *)       echo "Unsupported OS: $(uname -s)"; exit 1;;
+    esac
+
+    # Detect architecture
+    local ARCH=""
+    case "$(uname -m)" in
+        x86_64)  ARCH="x86_64";;
+        aarch64) ARCH="aarch_64";;
+        arm64)   ARCH="aarch_64";;
+        *)       echo "Unsupported architecture: $(uname -m)"; exit 1;;
+    esac
+
+    local PROTOC_ZIP="protoc-${PROTOC_VERSION}-${OS}-${ARCH}.zip"
+    local DOWNLOAD_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
+
+    # Create build directory if it doesn't exist
+    mkdir -p "$BUILD_DIR"
+
+    # Download and extract protoc
+    local TMP_DIR=$(mktemp -d)
+    echo "Downloading $DOWNLOAD_URL..."
+    curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/$PROTOC_ZIP"
+
+    echo "Extracting protoc..."
+    unzip -q "$TMP_DIR/$PROTOC_ZIP" -d "$TMP_DIR/protoc"
+
+    # Move protoc binary and include files to build directory
+    mv "$TMP_DIR/protoc/bin/protoc" "$BUILD_DIR/"
+    chmod +x "$BUILD_DIR/protoc"
+
+    # Copy include files (well-known types) if needed
+    if [ -d "$TMP_DIR/protoc/include" ]; then
+        cp -r "$TMP_DIR/protoc/include" "$BUILD_DIR/"
+    fi
+
+    # Cleanup
+    rm -rf "$TMP_DIR"
+
+    echo "protoc installed successfully to $BUILD_DIR"
+}
+
+# Install Node.js binary to a target directory (for bundling with desktop app)
+# Downloads the official Node.js binary from nodejs.org
+#
+# Usage: install_nodejs [target_dir]
+#   target_dir: Directory to install node to (defaults to $PWD/server/build)
+install_nodejs() {
+    local NODE_VERSION="22.12.0"
+    local BUILD_DIR="${1:-$PWD/server/build}"
+    local NODE_BIN="$BUILD_DIR/node"
+
+    # Check if node is already installed in build directory
+    if [ -x "$NODE_BIN" ]; then
+        echo "node already installed in $BUILD_DIR"
+        return 0
+    fi
+
+    echo "Installing Node.js $NODE_VERSION to $BUILD_DIR..."
+
+    # Only support macOS for desktop bundling
+    if [ "$(uname -s)" != "Darwin" ]; then
+        echo "Node.js bundling only supported on macOS"
+        exit 1
+    fi
+
+    # Detect architecture
+    local ARCH=""
+    case "$(uname -m)" in
+        x86_64) ARCH="x64";;
+        arm64)  ARCH="arm64";;
+        *)      echo "Unsupported architecture: $(uname -m)"; exit 1;;
+    esac
+
+    local NODE_TAR="node-v${NODE_VERSION}-darwin-${ARCH}.tar.gz"
+    local DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TAR}"
+
+    # Create build directory if it doesn't exist
+    mkdir -p "$BUILD_DIR"
+
+    # Download and extract Node.js
+    local TMP_DIR=$(mktemp -d)
+    echo "Downloading $DOWNLOAD_URL..."
+    curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/$NODE_TAR"
+
+    echo "Extracting node binary..."
+    tar -xzf "$TMP_DIR/$NODE_TAR" -C "$TMP_DIR"
+
+    # Copy just the node binary
+    cp "$TMP_DIR/node-v${NODE_VERSION}-darwin-${ARCH}/bin/node" "$BUILD_DIR/"
+    chmod +x "$BUILD_DIR/node"
+
+    # Cleanup
+    rm -rf "$TMP_DIR"
+
+    echo "Node.js installed successfully to $BUILD_DIR"
+}
+
 build_demo_apps() {
     local original_dir=$(pwd)
     cd workspace

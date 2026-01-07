@@ -101,16 +101,51 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
+// getBinDir returns the directory containing protoc and protoc-gen-ts binaries.
+// For macOS .app bundles, it returns Contents/MacOS (same as main executable).
+// Otherwise, it returns the build directory relative to cwd.
+func getBinDir(cwd string) string {
+	execPath, err := os.Executable()
+	if err == nil {
+		// Check if running from a macOS .app bundle
+		if strings.Contains(execPath, ".app/Contents/MacOS") {
+			return filepath.Dir(execPath)
+		}
+	}
+	// Default: use build directory relative to cwd
+	return filepath.Join(cwd, "./build")
+}
+
+// getIncludeDir returns the directory containing protobuf well-known types.
+// For macOS .app bundles, it returns Contents/Resources/include.
+// Otherwise, it returns the build/include directory relative to cwd.
+func getIncludeDir(cwd string) string {
+	execPath, err := os.Executable()
+	if err == nil {
+		// Check if running from a macOS .app bundle
+		if strings.Contains(execPath, ".app/Contents/MacOS") {
+			appIndex := strings.Index(execPath, ".app/Contents/MacOS")
+			bundlePath := execPath[:appIndex+4]
+			return filepath.Join(bundlePath, "Contents", "Resources", "include")
+		}
+	}
+	// Default: use build/include directory relative to cwd
+	return filepath.Join(cwd, "./build/include")
+}
+
 func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
 	if !filepath.IsAbs(protoDir) {
 		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
 	}
 	c.logger.debug("protoDir: " + protoDir)
 
-	buildDir := filepath.Join(cwd, "./build")
-	c.logger.debug("buildDir: " + buildDir)
+	binDir := getBinDir(cwd)
+	c.logger.debug("binDir: " + binDir)
 
-	protocCommand := "protoc --plugin=protoc-gen-ts=" + buildDir + "/protoc-gen-ts --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	includeDir := getIncludeDir(cwd)
+	c.logger.debug("includeDir: " + includeDir)
+
+	protocCommand := "PATH=" + binDir + ":$PATH protoc --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 
