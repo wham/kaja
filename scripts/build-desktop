@@ -63,6 +63,7 @@ if [ -d "$APP_BUNDLE" ]; then
 
     echo ""
     echo "Build complete: $APP_BUNDLE"
+    open "$APP_BUNDLE"
 else
     echo "Error: App bundle not found at $APP_BUNDLE"
     exit 1
