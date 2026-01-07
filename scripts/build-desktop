@@ -54,9 +54,14 @@ APP_BUNDLE="./build/bin/desktop.app"
 if [ -d "$APP_BUNDLE" ]; then
     echo "Bundling protoc into macOS app..."
 
+    # Executables go in MacOS (per Apple guidelines)
     MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
     cp ../server/build/protoc "$MACOS_DIR/"
     cp ../server/build/protoc-gen-ts "$MACOS_DIR/"
+
+    # Include files (well-known types) go in Resources
+    RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+    cp -r ../server/build/include "$RESOURCES_DIR/"
 
     echo ""
     echo "Build complete: $APP_BUNDLE"
