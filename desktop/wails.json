@@ -9,6 +9,6 @@
   },
   "frontend:build": "../build-frontend.sh",
   "postBuildHooks": {
-    "darwin/*": "./postbuild-darwin.sh ${bin}"
+    "darwin/*": "desktop/postbuild-darwin.sh ${bin}"
   }
 }

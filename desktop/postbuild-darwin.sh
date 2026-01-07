@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-# Script runs from desktop/ directory after wails build
 # $1 is the path to the compiled binary (e.g., ./build/bin/desktop.app/Contents/MacOS/desktop)
+# Navigate to script's directory to ensure correct paths
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 BIN="$1"
 BINDIR=$(dirname "$BIN")
