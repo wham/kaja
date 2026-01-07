@@ -58,12 +58,14 @@ if [ -d "$APP_BUNDLE" ]; then
 
     # Executables go in MacOS (per Apple guidelines)
     MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
+    rm -f "$MACOS_DIR/protoc" "$MACOS_DIR/protoc-gen-ts" "$MACOS_DIR/node"
     cp ../server/build/protoc "$MACOS_DIR/"
     cp ../server/build/protoc-gen-ts "$MACOS_DIR/"
     cp ../server/build/node "$MACOS_DIR/"
 
     # Include files (well-known types) go in Resources
     RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+    rm -rf "$RESOURCES_DIR/include"
     cp -r ../server/build/include "$RESOURCES_DIR/"
 
     echo ""
