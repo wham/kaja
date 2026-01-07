@@ -102,20 +102,14 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 }
 
 // getBinDir returns the directory containing protoc and protoc-gen-ts binaries.
-// For macOS .app bundles, it returns Contents/Resources inside the bundle.
+// For macOS .app bundles, it returns Contents/MacOS (same as main executable).
 // Otherwise, it returns the build directory relative to cwd.
 func getBinDir(cwd string) string {
 	execPath, err := os.Executable()
 	if err == nil {
 		// Check if running from a macOS .app bundle
 		if strings.Contains(execPath, ".app/Contents/MacOS") {
-			// Extract the .app bundle path
-			appIndex := strings.Index(execPath, ".app/Contents/MacOS")
-			bundlePath := execPath[:appIndex+4] // Include ".app"
-			resources := filepath.Join(bundlePath, "Contents", "Resources")
-			if _, err := os.Stat(resources); err == nil {
-				return resources
-			}
+			return filepath.Dir(execPath)
 		}
 	}
 	// Default: use build directory relative to cwd
