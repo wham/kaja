@@ -6,7 +6,7 @@
 
 ![](docs/screenshot.png)
 
-You can embedd `kaja` into your development workflow as a Docker container. Desktop version is coming later.
+You can embed `kaja` into your development workflow as a Docker container. A desktop version is coming later.
 
 ```
 docker run --pull always --name kaja -d -p 41520:41520 \
@@ -24,7 +24,7 @@ docker run --pull always --name kaja -d -p 41520:41520 \
 - `-p 41520:41520` - Expose the container's port 41520 on the host's port 41520. `kaja` listens on port 41520 by default.
 - `-v /my_app/proto:/workspace/proto` - Mount the `/my_app/proto` directory from the host file system into the container's `/workspace/proto` directory. `kaja` will recursively search for `.proto` files in the `/workspace` directory. `/my_app/proto` should be your application's [--proto_path](https://protobuf.dev/reference/cpp/api-docs/google.protobuf.compiler.command_line_interface/), the directory where your `.proto` files are located.
 - `-v /my_app/kaja.json:/workspace/kaja.json` - Mount the `kaja` [configuration file](#configuration) from the host file system into a predefined location where `kaja` expects it.
-- `--add-host=host.docker.internal:host-gateway` - Expose the host's locahost to the container. This is required for `kaja` to be able to call the Twirp and gRPC APIs from inside the container.
+- `--add-host=host.docker.internal:host-gateway` - Expose the host's localhost to the container. This is required for `kaja` to be able to call the Twirp and gRPC APIs from inside the container.
 - `-e AI_API_KEY="*****"` - Selected [configuration options](#configuration) can be provided as environment variables too.
 - `kajatools/kaja:latest` - `kaja` is available on [Docker Hub](https://hub.docker.com/r/kajatools/kaja).
 
