@@ -6,9 +6,5 @@
   "author": {
     "name": "Tomas Vesely",
     "email": "448809+wham@users.noreply.github.com"
-  },
-  "frontend:build": "../build-frontend.sh",
-  "postBuildHooks": {
-    "darwin/*": "desktop/postbuild-darwin.sh ${bin}"
   }
 }

@@ -1,0 +1,69 @@
+#!/bin/bash
+set -e
+
+source "$(dirname "$0")/common"
+
+# Check if Wails is installed
+if ! command -v wails &> /dev/null
+then
+    echo "Wails is not installed."
+    read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing Wails using Homebrew..."
+        brew install wails
+    else
+        echo "Wails installation skipped. Exiting script."
+        exit 1
+    fi
+fi
+
+cd "$(dirname "$0")/.."
+
+export GOBIN=$PWD/server/build
+export PATH=$GOBIN:$PATH
+
+# Install protoc to server/build
+echo "Installing protoc..."
+install_protoc
+
+# Build UI assets
+echo "Building UI..."
+cd "./server"
+go run cmd/build-ui/main.go
+
+cd ".."
+
+# Prepare desktop frontend assets
+echo "Preparing desktop frontend..."
+rm -rf desktop/frontend/dist || true
+mkdir -p desktop/frontend/dist
+cp server/build/main.css desktop/frontend/dist/main.css
+cp server/build/main.js desktop/frontend/dist/main.js
+cp -r server/static desktop/frontend/dist/
+mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
+
+# Build desktop app with Wails
+echo "Building desktop app..."
+cd "./desktop"
+wails build -platform darwin/universal -skipbindings
+
+# Bundle protoc into the macOS app
+APP_BUNDLE="./build/bin/desktop.app"
+if [ -d "$APP_BUNDLE" ]; then
+    echo "Bundling protoc into macOS app..."
+
+    RESOURCES_BIN="$APP_BUNDLE/Contents/Resources/bin"
+    mkdir -p "$RESOURCES_BIN"
+
+    cp ../server/build/protoc "$RESOURCES_BIN/"
+    cp ../server/build/protoc-gen-ts "$RESOURCES_BIN/"
+    chmod +x "$RESOURCES_BIN/protoc" "$RESOURCES_BIN/protoc-gen-ts"
+
+    echo ""
+    echo "Build complete: $APP_BUNDLE"
+else
+    echo "Error: App bundle not found at $APP_BUNDLE"
+    exit 1
+fi
