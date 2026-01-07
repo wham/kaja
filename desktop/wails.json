@@ -7,7 +7,7 @@
     "name": "Tomas Vesely",
     "email": "448809+wham@users.noreply.github.com"
   },
-  "frontend:build": "./build-frontend.sh",
+  "frontend:build": "../build-frontend.sh",
   "postBuildHooks": {
     "darwin/*": "BINDIR=$(dirname ${bin}) && mkdir -p $BINDIR/../Resources/bin && cp ../server/build/protoc $BINDIR/../Resources/bin/ && cp ../server/build/protoc-gen-ts $BINDIR/../Resources/bin/ && chmod +x $BINDIR/../Resources/bin/protoc $BINDIR/../Resources/bin/protoc-gen-ts"
   }

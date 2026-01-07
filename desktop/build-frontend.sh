@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-cd ..
+# Script runs from desktop/frontend/ directory (wails frontend:build context)
+cd ../..
 source scripts/common
 install_protoc
 
