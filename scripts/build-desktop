@@ -24,9 +24,11 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-# Install protoc to server/build
+# Install protoc and Node.js to server/build
 echo "Installing protoc..."
 install_protoc
+echo "Installing Node.js..."
+install_nodejs
 
 # Build UI assets
 echo "Building UI..."
@@ -58,6 +60,7 @@ if [ -d "$APP_BUNDLE" ]; then
     MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
     cp ../server/build/protoc "$MACOS_DIR/"
     cp ../server/build/protoc-gen-ts "$MACOS_DIR/"
+    cp ../server/build/node "$MACOS_DIR/"
 
     # Include files (well-known types) go in Resources
     RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"

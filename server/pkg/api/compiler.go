@@ -153,6 +153,8 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error 
 	c.logger.debug(protocCommand)
 
 	cmd := exec.Command("sh", "-c", protocCommand)
+	// Set PATH to include binDir so protoc-gen-ts can find bundled node
+	cmd.Env = append(os.Environ(), "PATH="+binDir+":"+os.Getenv("PATH"))
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
