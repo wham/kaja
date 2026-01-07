@@ -54,12 +54,10 @@ APP_BUNDLE="./build/bin/desktop.app"
 if [ -d "$APP_BUNDLE" ]; then
     echo "Bundling protoc into macOS app..."
 
-    RESOURCES_BIN="$APP_BUNDLE/Contents/Resources/bin"
-    mkdir -p "$RESOURCES_BIN"
-
-    cp ../server/build/protoc "$RESOURCES_BIN/"
-    cp ../server/build/protoc-gen-ts "$RESOURCES_BIN/"
-    chmod +x "$RESOURCES_BIN/protoc" "$RESOURCES_BIN/protoc-gen-ts"
+    RESOURCES="$APP_BUNDLE/Contents/Resources"
+    cp ../server/build/protoc "$RESOURCES/"
+    cp ../server/build/protoc-gen-ts "$RESOURCES/"
+    chmod +x "$RESOURCES/protoc" "$RESOURCES/protoc-gen-ts"
 
     echo ""
     echo "Build complete: $APP_BUNDLE"
