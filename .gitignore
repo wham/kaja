@@ -1,4 +1,4 @@
-/desktop/build
+/desktop/build/bin
 /desktop/frontend/dist
 /server/build
 /ui/node_modules

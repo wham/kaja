@@ -38,7 +38,8 @@ mkdir -p desktop/frontend/dist
 cp server/build/main.css desktop/frontend/dist/main.css
 cp server/build/main.js desktop/frontend/dist/main.js
 cp -r server/static desktop/frontend/dist/
-cp server/build/protoc-gen-ts desktop/build/protoc-gen-ts
+mkdir -p desktop/build/bin
+cp server/build/protoc-gen-ts desktop/build/bin/protoc-gen-ts
 mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd "./desktop"
