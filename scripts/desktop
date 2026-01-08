@@ -3,6 +3,17 @@ set -e
 
 source "$(dirname "$0")/common"
 
+# Parse arguments
+PROD_MODE=false
+for arg in "$@"; do
+    case $arg in
+        --prod)
+            PROD_MODE=true
+            shift
+            ;;
+    esac
+done
+
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
 then
@@ -23,16 +34,23 @@ setup_trap
 
 cd "$(dirname "$0")/.."
 
-export GOBIN=$PWD/server/build
-export PATH=$GOBIN:$PATH
+# Install protoc and Node.js
+echo "Installing protoc..."
+install_protoc
+echo "Installing Node.js..."
+install_nodejs
 
 build_demo_apps
 start_demo_apps
 
+# Build UI assets
+echo "Building UI..."
 cd "./server"
 go run cmd/build-ui/main.go
 
 cd ".."
+
+# Prepare desktop frontend assets
 rm -rf desktop/frontend/dist || true
 mkdir -p desktop/frontend/dist
 cp server/build/main.css desktop/frontend/dist/main.css
@@ -41,4 +59,17 @@ cp -r server/static desktop/frontend/dist/
 mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd "./desktop"
-wails dev
+
+if [ "$PROD_MODE" = true ]; then
+    echo "Building desktop app..."
+    wails build
+
+    APP_BUNDLE="./build/bin/desktop.app"
+    if [ -d "$APP_BUNDLE" ]; then
+        echo ""
+        echo "Build complete: $APP_BUNDLE"
+        open "$APP_BUNDLE"
+    fi
+else
+    wails dev
+fi

@@ -4,7 +4,7 @@
   "outputfilename": "desktop",
   "wailsjsdir": "../ui/src",
   "postBuildHooks": {
-    "*/*": "sh -c '../../../scripts/demo-post-build.sh \"$0\"' ${bin}"
+    "*/*": "../../../scripts/desktop-post-build ${bin}"
   },
   "author": {
     "name": "Tomas Vesely",

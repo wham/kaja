@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+# Post-build hook for wails desktop app
+# Called from desktop/build/bin directory with ${bin} as argument
+# Copies protoc, protoc-gen-ts, node, and include files into the app bundle
+
+BIN_PATH="$1"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+SERVER_BUILD="$PROJECT_ROOT/server/build"
+
+# Derive app bundle path from binary path (e.g., ./desktop.app/Contents/MacOS/desktop -> ./desktop.app)
+if [[ "$BIN_PATH" == *.app/Contents/MacOS/* ]]; then
+    APP_BUNDLE="${BIN_PATH%/Contents/MacOS/*}"
+elif [[ -d "${BIN_PATH}.app" ]]; then
+    APP_BUNDLE="${BIN_PATH}.app"
+else
+    echo "Not a macOS app bundle build, skipping post-build hook"
+    exit 0
+fi
+
+if [ ! -d "$APP_BUNDLE" ]; then
+    echo "App bundle not found: $APP_BUNDLE"
+    exit 1
+fi
+
+echo "Bundling protoc and node into $APP_BUNDLE..."
+
+MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
+RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+
+# Copy executables to MacOS directory
+rm -f "$MACOS_DIR/protoc" "$MACOS_DIR/protoc-gen-ts" "$MACOS_DIR/node"
+cp "$SERVER_BUILD/protoc" "$MACOS_DIR/"
+cp "$SERVER_BUILD/protoc-gen-ts" "$MACOS_DIR/"
+cp "$SERVER_BUILD/node" "$MACOS_DIR/"
+
+# Copy include files (well-known types) to Resources
+rm -rf "$RESOURCES_DIR/include"
+cp -r "$SERVER_BUILD/include" "$RESOURCES_DIR/"
+
+echo "Post-build complete: bundled protoc, protoc-gen-ts, node into $APP_BUNDLE"
