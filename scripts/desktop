@@ -73,6 +73,9 @@ if [ "$PROD_MODE" = true ]; then
         echo "Build complete: $APP_BUNDLE"
         open "$APP_BUNDLE"
     fi
+
+    echo "Press Ctrl+C to stop demo apps and exit..."
+    wait
 else
     wails dev
 fi
