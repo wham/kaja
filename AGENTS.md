@@ -25,24 +25,27 @@
 
 There are multiple `build/` directories, each serving a different purpose:
 
-| Directory | Purpose | Gitignored |
-|-----------|---------|------------|
-| `/server/build/` | Protoc plugins (protoc-gen-*) and bundled UI assets (main.js, main.css, monaco workers) | Yes |
-| `/desktop/build/` | Desktop executable binaries, platform files, and protoc-gen-ts (copied from server/build) | Yes |
-| `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build) | Yes |
-| `$TMPDIR/kaja/` | Compilation temp folders (auto-cleaned after 60 min) | N/A |
+| Directory                 | Purpose                                                                                  | Gitignored |
+| ------------------------- | ---------------------------------------------------------------------------------------- | ---------- |
+| `/server/build/`          | Protoc plugins (protoc-gen-\*) and bundled UI assets (main.js, main.css, monaco workers) | Yes        |
+| `/desktop/build/`         | Platform files (app icons, Info.plist) - tracked in git                                  | No         |
+| `/desktop/build/bin/`     | Desktop executable binaries                                                              | Yes        |
+| `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build)                             | Yes        |
+| `$TMPDIR/kaja/`           | Compilation temp folders (auto-cleaned after 60 min)                                     | N/A        |
 
 ### Development vs Production Builds
 
 The server uses Go build tags to switch between development and production modes:
 
 **Development** (`-tags development`):
+
 - `server/assets_development.go` is used
 - Reads UI files from filesystem at runtime
 - Calls `ui.BuildForDevelopment()` to rebuild assets on startup
 - Allows hot-reload during development
 
 **Production** (default, no tags):
+
 - `server/assets_production.go` is used
 - All assets are embedded in the binary via `//go:embed`
 - No filesystem access needed for serving UI
@@ -53,12 +56,14 @@ The server uses Go build tags to switch between development and production modes
 Both share the same backend code but differ in how they're packaged:
 
 **Server (Web)**:
+
 - Single Go binary with embedded React UI
 - Serves HTTP API on port 41520
 - Run with: `scripts/server`
 - Assets from `/server/build/` and `/server/static/`
 
 **Desktop (Wails)**:
+
 - Uses Wails framework (Go + webview)
 - Embeds frontend via `//go:embed all:frontend/dist`
 - Frontend files copied from server build to `/desktop/frontend/dist/`
@@ -68,11 +73,13 @@ Both share the same backend code but differ in how they're packaged:
 ### Source Directories
 
 **`/ui/`** - React/TypeScript frontend:
+
 - `src/*.tsx` - React components
 - `src/server/` - Generated proto client code (from `/server/proto/api.proto`)
 - `src/wailsjs/` - Generated Wails bindings (auto-generated)
 
 **`/server/`** - Go backend:
+
 - `cmd/server/` - Main server application
 - `cmd/build-ui/` - Tool to bundle React UI with esbuild
 - `pkg/api/` - Generated proto code (Go)
@@ -80,10 +87,12 @@ Both share the same backend code but differ in how they're packaged:
 - `static/` - Static files (index.html, favicon)
 
 **`/desktop/`** - Wails desktop app:
+
 - `main.go` - Wails app entry point
 - `frontend/dist/` - Copied from server build (gitignored)
 
 **`/workspace/`** - Example workspace for development and testing:
+
 - This is a self-contained demo workspace that developers use to test Kaja
 - `kaja.json` - Configuration file defining two demo projects:
   - `grpc-demo` on `localhost:41521` (gRPC protocol)
