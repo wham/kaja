@@ -34,6 +34,9 @@ setup_trap
 
 cd "$(dirname "$0")/.."
 
+export GOBIN=$PWD/server/build
+export PATH=$GOBIN:$PATH
+
 # Install protoc and Node.js
 echo "Installing protoc..."
 install_protoc
