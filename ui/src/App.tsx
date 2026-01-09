@@ -203,22 +203,32 @@ export function App() {
       setConfiguration(response.configuration);
     }
 
+    // Check if this is the last project
+    const isLastProject = projects.length === 1;
+
     // Remove project from state
     setProjects((prevProjects) => prevProjects.filter((p) => p.configuration.name !== projectName));
 
-    // Clean up tabs related to this project
-    setTabs((prevTabs) => {
-      const newTabs = prevTabs.filter((tab) => {
-        if (tab.type === "task") {
-          return tab.originMethod.name !== projectName;
+    if (isLastProject) {
+      // Show compiler tab when last project is deleted
+      setTabs([{ type: "compiler" }]);
+      setActiveTabIndex(0);
+      setSelectedMethod(undefined);
+    } else {
+      // Clean up tabs related to this project
+      setTabs((prevTabs) => {
+        const newTabs = prevTabs.filter((tab) => {
+          if (tab.type === "task") {
+            return tab.originMethod.name !== projectName;
+          }
+          return true;
+        });
+        if (activeTabIndex >= newTabs.length) {
+          setActiveTabIndex(Math.max(0, newTabs.length - 1));
         }
-        return true;
+        return newTabs;
       });
-      if (activeTabIndex >= newTabs.length) {
-        setActiveTabIndex(Math.max(0, newTabs.length - 1));
-      }
-      return newTabs;
-    });
+    }
   };
 
   return (
