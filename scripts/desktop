@@ -67,7 +67,7 @@ if [ "$PROD_MODE" = true ]; then
     echo "Building desktop app..."
     wails build
 
-    APP_BUNDLE="./build/bin/desktop.app"
+    APP_BUNDLE="./build/bin/kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
         # Sign the app for distribution
         # Use CODESIGN_IDENTITY env var, or default to local development cert
