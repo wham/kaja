@@ -72,9 +72,11 @@ if [ "$PROD_MODE" = true ]; then
         # Sign the app for distribution
         # Use CODESIGN_IDENTITY env var, or default to local development cert
         CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Apple Development: Tomas Vesely (6C7UYVXQK7)}"
+        ENTITLEMENTS="./build/darwin/entitlements.plist"
         echo "Signing app with: $CODESIGN_IDENTITY"
         codesign --force --options runtime --deep \
             --sign "$CODESIGN_IDENTITY" \
+            --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE"
         echo "App signed successfully"
 
