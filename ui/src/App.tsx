@@ -185,6 +185,42 @@ export function App() {
     setShowNewProjectForm(false);
   };
 
+  const onDeleteProject = async (projectName: string) => {
+    if (!configuration) {
+      return;
+    }
+
+    // Update configuration to remove the project
+    const updatedConfiguration: Configuration = {
+      ...configuration,
+      projects: configuration.projects.filter((p) => p.name !== projectName),
+    };
+
+    // Save configuration via API
+    const client = getApiClient();
+    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
+    if (response.configuration) {
+      setConfiguration(response.configuration);
+    }
+
+    // Remove project from state
+    setProjects((prevProjects) => prevProjects.filter((p) => p.configuration.name !== projectName));
+
+    // Clean up tabs related to this project
+    setTabs((prevTabs) => {
+      const newTabs = prevTabs.filter((tab) => {
+        if (tab.type === "task") {
+          return tab.originMethod.name !== projectName;
+        }
+        return true;
+      });
+      if (activeTabIndex >= newTabs.length) {
+        setActiveTabIndex(Math.max(0, newTabs.length - 1));
+      }
+      return newTabs;
+    });
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -207,6 +243,7 @@ export function App() {
               currentMethod={selectedMethod}
               onCompilerClick={onCompilerClick}
               onNewProjectClick={onNewProjectClick}
+              onDeleteProject={onDeleteProject}
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
