@@ -184,7 +184,7 @@ func main() {
 	app := NewApp(twirpHandler)
 
 	err = wails.Run(&options.App{
-		Title:  "Kaja Compiler",
+		Title:  "kaja",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
