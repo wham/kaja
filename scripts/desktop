@@ -68,7 +68,21 @@ if [ "$PROD_MODE" = true ]; then
     wails build
 
     APP_BUNDLE="./build/bin/desktop.app"
+    CODESIGN_IDENTITY="Apple Development: Tomas Vesely (6C7UYVXQK7)"
     if [ -d "$APP_BUNDLE" ]; then
+        # Sign the app with sandbox entitlements
+        ENTITLEMENTS="./build/darwin/entitlements.plist"
+        if [ -f "$ENTITLEMENTS" ]; then
+            echo "Signing app with sandbox entitlements..."
+            codesign --force --options runtime --deep \
+                --sign "${CODESIGN_IDENTITY:--}" \
+                --entitlements "$ENTITLEMENTS" \
+                "$APP_BUNDLE"
+            echo "App signed successfully"
+        else
+            echo "Warning: entitlements.plist not found, skipping code signing"
+        fi
+
         echo ""
         echo "Build complete: $APP_BUNDLE"
         open "$APP_BUNDLE"
