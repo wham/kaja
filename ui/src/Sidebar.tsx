@@ -42,7 +42,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         {projects.map((project) => {
           return (
             <nav key={project.configuration.name} aria-label="Services and methods">
-              {projects.length > 1 && (
+              {(projects.length > 1 || canUpdateConfiguration) && (
                 <div
                   style={{
                     fontSize: 12,
