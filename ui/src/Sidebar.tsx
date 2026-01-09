@@ -47,7 +47,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                   style={{
                     fontSize: 12,
                     fontWeight: "bold",
-                    padding: "2px 4px",
+                    padding: "2px 0",
                     color: "var(--fgColor-muted)",
                     display: "flex",
                     alignItems: "center",
