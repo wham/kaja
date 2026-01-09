@@ -1,5 +1,5 @@
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, PlusIcon } from "@primer/octicons-react";
+import { CpuIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
@@ -9,9 +9,10 @@ interface SidebarProps {
   onSelect: (method: Method) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
+  onDeleteProject: (projectName: string) => void;
 }
 
-export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick }: SidebarProps) {
+export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onDeleteProject }: SidebarProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div
@@ -41,16 +42,28 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         {projects.map((project) => {
           return (
             <nav key={project.configuration.name} aria-label="Services and methods">
-              {projects.length > 1 && (
+              {(projects.length > 1 || canUpdateConfiguration) && (
                 <div
                   style={{
                     fontSize: 12,
                     fontWeight: "bold",
-                    padding: "2px 4px",
+                    padding: "2px 0",
                     color: "var(--fgColor-muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
                 >
-                  {project.configuration.name}
+                  <span>{project.configuration.name}</span>
+                  {canUpdateConfiguration && (
+                    <IconButton
+                      icon={TrashIcon}
+                      size="small"
+                      variant="invisible"
+                      aria-label={`Delete ${project.configuration.name}`}
+                      onClick={() => onDeleteProject(project.configuration.name)}
+                    />
+                  )}
                 </div>
               )}
               <TreeView aria-label="Services and methods">
