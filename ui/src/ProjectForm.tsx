@@ -130,6 +130,3 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
     </Dialog>
   );
 }
-
-// Backwards compatibility alias
-export { ProjectForm as NewProjectForm };

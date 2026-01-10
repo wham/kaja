@@ -9,7 +9,7 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
-import { ProjectForm } from "./NewProjectForm";
+import { ProjectForm } from "./ProjectForm";
 import { remapSourcesToNewName } from "./sources";
 import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
