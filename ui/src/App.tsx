@@ -255,10 +255,10 @@ export function App() {
         );
         registerAIProvider(projects.map((p) => (p.configuration.name === originalName ? updatedProject : p)));
       } else {
-        // Only url or other non-critical fields changed
+        // URL or protocol changed - recreate clients
         const urlChanged = originalProject.configuration.url !== project.url;
-        if (urlChanged) {
-          // URL changed - recreate clients with new URL
+        const protocolChanged = originalProject.configuration.protocol !== project.protocol;
+        if (urlChanged || protocolChanged) {
           const newClients = createClients(originalProject.services, originalProject.stub, project);
           setProjects((prevProjects) =>
             prevProjects.map((p) =>

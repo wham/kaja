@@ -2,7 +2,6 @@
   "projects":  [
     {
       "name":  "grpc-demo12",
-      "protocol":  "RPC_PROTOCOL_GRPC",
       "url":  "dns:localhost:41521"
     },
     {
