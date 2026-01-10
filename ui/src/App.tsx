@@ -322,8 +322,14 @@ export function App() {
     // Check if this is the last project
     const isLastProject = projects.length === 1;
 
+    // Clean up Monaco models for deleted project
+    disposeMonacoModelsForProject(projectName);
+
     // Remove project from state
     setProjects((prevProjects) => prevProjects.filter((p) => p.configuration.name !== projectName));
+
+    // Refresh open editors to show red squiggles for broken imports
+    refreshOpenTaskEditors();
 
     if (isLastProject) {
       // Show compiler tab when last project is deleted
