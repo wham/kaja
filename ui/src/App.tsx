@@ -9,7 +9,7 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
-import { NewProjectForm } from "./NewProjectForm";
+import { ProjectForm } from "./NewProjectForm";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
@@ -28,7 +28,8 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<ConfigurationProject | undefined>();
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -142,20 +143,34 @@ export function App() {
   };
 
   const onNewProjectClick = () => {
-    setShowNewProjectForm(true);
+    setEditingProject(undefined);
+    setShowProjectForm(true);
   };
 
-  const onNewProjectSubmit = async (project: ConfigurationProject) => {
-    setShowNewProjectForm(false);
+  const onEditProject = (projectName: string) => {
+    const project = projects.find((p) => p.configuration.name === projectName);
+    if (project) {
+      setEditingProject(project.configuration);
+      setShowProjectForm(true);
+    }
+  };
+
+  const onProjectFormSubmit = async (project: ConfigurationProject, originalName?: string) => {
+    setShowProjectForm(false);
+    setEditingProject(undefined);
 
     if (!configuration) {
       return;
     }
 
-    // Update configuration with new project
+    const isEdit = originalName !== undefined;
+
+    // Update configuration
     const updatedConfiguration: Configuration = {
       ...configuration,
-      projects: [...configuration.projects, project],
+      projects: isEdit
+        ? configuration.projects.map((p) => (p.name === originalName ? project : p))
+        : [...configuration.projects, project],
     };
 
     // Save configuration via API
@@ -165,24 +180,48 @@ export function App() {
       setConfiguration(response.configuration);
     }
 
-    // Add project to the projects list
-    const newProject: Project = {
-      configuration: project,
-      compilation: {
-        status: "pending",
-        logs: [],
-      },
-      services: [],
-      clients: {},
-      sources: [],
-    };
-
-    setProjects((prevProjects) => [...prevProjects, newProject]);
-    onCompilerClick();
+    if (isEdit) {
+      // Update existing project in state
+      setProjects((prevProjects) =>
+        prevProjects.map((p) =>
+          p.configuration.name === originalName
+            ? {
+                ...p,
+                configuration: project,
+                // Mark for recompilation if proto dir or url changed
+                compilation:
+                  p.configuration.protoDir !== project.protoDir || p.configuration.url !== project.url
+                    ? { status: "pending" as const, logs: [] }
+                    : p.compilation,
+              }
+            : p
+        )
+      );
+      // Trigger recompilation if needed
+      const originalProject = projects.find((p) => p.configuration.name === originalName);
+      if (originalProject && (originalProject.configuration.protoDir !== project.protoDir || originalProject.configuration.url !== project.url)) {
+        onCompilerClick();
+      }
+    } else {
+      // Add new project
+      const newProject: Project = {
+        configuration: project,
+        compilation: {
+          status: "pending",
+          logs: [],
+        },
+        services: [],
+        clients: {},
+        sources: [],
+      };
+      setProjects((prevProjects) => [...prevProjects, newProject]);
+      onCompilerClick();
+    }
   };
 
-  const onNewProjectClose = () => {
-    setShowNewProjectForm(false);
+  const onProjectFormClose = () => {
+    setShowProjectForm(false);
+    setEditingProject(undefined);
   };
 
   const onDeleteProject = async (projectName: string) => {
@@ -253,6 +292,7 @@ export function App() {
               currentMethod={selectedMethod}
               onCompilerClick={onCompilerClick}
               onNewProjectClick={onNewProjectClick}
+              onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
             />
           </div>
@@ -303,7 +343,13 @@ export function App() {
             )}
           </div>
         </div>
-        <NewProjectForm isOpen={showNewProjectForm} onSubmit={onNewProjectSubmit} onClose={onNewProjectClose} />
+        <ProjectForm
+          isOpen={showProjectForm}
+          mode={editingProject ? "edit" : "create"}
+          initialData={editingProject}
+          onSubmit={onProjectFormSubmit}
+          onClose={onProjectFormClose}
+        />
       </BaseStyles>
     </ThemeProvider>
   );

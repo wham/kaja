@@ -1,47 +1,69 @@
 import { FileDirectoryIcon } from "@primer/octicons-react";
 import { Dialog, FormControl, Select, TextInput } from "@primer/react";
-import { useState, useRef } from "react";
-import { RpcProtocol } from "./server/api";
+import { useState, useRef, useEffect } from "react";
+import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 
-interface NewProjectFormProps {
+interface ProjectFormProps {
   isOpen: boolean;
-  onSubmit: (project: { name: string; url: string; protocol: RpcProtocol; protoDir: string }) => void;
+  mode: "create" | "edit";
+  initialData?: ConfigurationProject;
+  onSubmit: (project: ConfigurationProject, originalName?: string) => void;
   onClose: () => void;
 }
 
-export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProps) {
+export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: ProjectFormProps) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
   const [protoDir, setProtoDir] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Populate form when editing or reset when creating
+  useEffect(() => {
+    if (isOpen) {
+      if (mode === "edit" && initialData) {
+        setName(initialData.name);
+        setUrl(initialData.url);
+        setProtocol(initialData.protocol);
+        setProtoDir(initialData.protoDir);
+      } else {
+        setName("");
+        setUrl("");
+        setProtocol(RpcProtocol.GRPC);
+        setProtoDir("");
+      }
+    }
+  }, [isOpen, mode, initialData]);
+
   const handleSubmit = () => {
     if (name && url) {
-      onSubmit({ name, url, protocol, protoDir });
-      // Reset form
-      setName("");
-      setUrl("");
-      setProtocol(RpcProtocol.GRPC);
-      setProtoDir("");
+      onSubmit({ name, url, protocol, protoDir }, mode === "edit" ? initialData?.name : undefined);
+      resetForm();
     }
   };
 
-  const handleClose = (gesture: "close-button" | "escape") => {
-    // Reset form on close
+  const resetForm = () => {
     setName("");
     setUrl("");
     setProtocol(RpcProtocol.GRPC);
     setProtoDir("");
+  };
+
+  const handleClose = (gesture: "close-button" | "escape") => {
+    resetForm();
     onClose();
   };
 
   if (!isOpen) return null;
 
+  const isEditMode = mode === "edit";
+  const title = isEditMode ? "Edit Project" : "New Project";
+  const submitLabel = isEditMode ? "Save Changes" : "Add Project";
+
   return (
     <Dialog
-      title="New Project"
+      title={title}
       width="large"
       onClose={handleClose}
       initialFocusRef={nameInputRef as React.RefObject<HTMLElement>}
@@ -51,7 +73,7 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
           onClick: () => handleClose("close-button"),
         },
         {
-          content: "Add Project",
+          content: submitLabel,
           buttonType: "primary",
           onClick: handleSubmit,
           disabled: !name || !url,
@@ -108,3 +130,6 @@ export function NewProjectForm({ isOpen, onSubmit, onClose }: NewProjectFormProp
     </Dialog>
   );
 }
+
+// Backwards compatibility alias
+export { ProjectForm as NewProjectForm };
