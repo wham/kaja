@@ -10,6 +10,7 @@
 - When I prompt you to make changes that are radically different from what's documented here, please update this file accordingly.
 - Don't commit changes to `kaja.json`
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
+- Use lower-case for the product name "kaja" in documentation, UIs, and labels.
 
 ## Directory Structure
 
@@ -95,7 +96,7 @@ Both share the same backend code but differ in how they're packaged:
 
 **`/workspace/`** - Example workspace for development and testing:
 
-- This is a self-contained demo workspace that developers use to test Kaja
+- This is a self-contained demo workspace that developers use to test kaja
 - `kaja.json` - Configuration file defining two demo projects:
   - `grpc-demo` on `localhost:41521` (gRPC protocol)
   - `twirp-demo` on `localhost:41522` (Twirp protocol)
@@ -103,7 +104,7 @@ Both share the same backend code but differ in how they're packaged:
 - `cmd/grpc-server/` - Demo gRPC server implementation
 - `cmd/twirp-server/` - Demo Twirp server implementation
 - `internal/demo-app/` - Generated Go code from proto files
-- The `scripts/server` script starts Kaja with this workspace by default
+- The `scripts/server` script starts kaja with this workspace by default
 
 ### Code Generation Flow
 
