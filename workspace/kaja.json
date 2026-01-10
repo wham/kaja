@@ -15,5 +15,8 @@
   ],
   "ai": {
     "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models"
+  },
+  "system": {
+    "canUpdateConfiguration": false
   }
 }
