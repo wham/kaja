@@ -1,0 +1,24 @@
+#!/bin/bash
+set -e
+
+# This script rebuilds the UI and copies it to the desktop frontend directory.
+# It's called by Wails when UI source files change during development.
+
+cd "$(dirname "$0")/.."
+
+# Build UI assets
+echo "Rebuilding UI..."
+cd "./server"
+go run cmd/build-ui/main.go
+
+cd ".."
+
+# Copy to desktop frontend
+rm -rf desktop/frontend/dist || true
+mkdir -p desktop/frontend/dist
+cp server/build/main.css desktop/frontend/dist/main.css
+cp server/build/main.js desktop/frontend/dist/main.js
+cp -r server/static desktop/frontend/dist/
+mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
+
+echo "UI rebuild complete"

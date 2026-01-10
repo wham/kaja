@@ -4,6 +4,7 @@
   "outputfilename": "kaja",
   "wailsjsdir": "../ui/src",
   "reloaddirs": "../ui/src",
+  "frontend:build": "../scripts/desktop-rebuild-ui",
   "postBuildHooks": {
     "*/*": "../../../scripts/desktop-post-build ${bin}"
   },
