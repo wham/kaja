@@ -21,6 +21,7 @@ done
 # Hardcoded signing profiles
 DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
 DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
+NOTARY_PROFILE="kaja-notary"
 
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
@@ -91,6 +92,30 @@ if [ -n "$BUILD_MODE" ]; then
             --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE"
         echo "App signed successfully"
+
+        # Notarize distribution builds
+        if [ "$BUILD_MODE" = "distribution" ]; then
+            echo ""
+            echo "Notarizing app..."
+            APP_ZIP="./build/bin/kaja.zip"
+
+            # Create zip for notarization
+            ditto -c -k --keepParent "$APP_BUNDLE" "$APP_ZIP"
+
+            # Submit for notarization and wait
+            xcrun notarytool submit "$APP_ZIP" \
+                --keychain-profile "$NOTARY_PROFILE" \
+                --wait
+
+            # Staple the notarization ticket
+            echo "Stapling notarization ticket..."
+            xcrun stapler staple "$APP_BUNDLE"
+
+            # Clean up
+            rm "$APP_ZIP"
+
+            echo "Notarization complete"
+        fi
 
         echo ""
         echo "Build complete: $APP_BUNDLE"
