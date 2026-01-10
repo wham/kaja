@@ -58,6 +58,25 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
   return sources;
 }
 
+export function remapSourcesToNewName(sources: Sources, oldName: string, newName: string): Sources {
+  return sources.map((source) => {
+    // Replace old project name prefix with new one
+    const relativePath = source.path.slice(oldName.length + 1); // +1 for the "/"
+    const newPath = newName + "/" + relativePath;
+    const newImportPath = newPath.replace(".ts", "");
+
+    // Recreate the TypeScript SourceFile with the new filename
+    const newFile = ts.createSourceFile(newPath, source.file.text, ts.ScriptTarget.Latest);
+
+    return {
+      ...source,
+      path: newPath,
+      importPath: newImportPath,
+      file: newFile,
+    };
+  });
+}
+
 export function findInterface(sources: Sources, interfaceName: string): [ts.InterfaceDeclaration, Source] | undefined {
   for (const source of sources) {
     const interfaceDeclaration = source.interfaces[interfaceName];

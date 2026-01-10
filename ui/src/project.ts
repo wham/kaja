@@ -1,5 +1,5 @@
 import { Kaja } from "./kaja";
-import { Sources } from "./sources";
+import { Sources, Stub } from "./sources";
 import { ConfigurationProject, Log } from "./server/api";
 export interface Project {
   configuration: ConfigurationProject;
@@ -7,6 +7,7 @@ export interface Project {
   services: Service[];
   clients: Clients;
   sources: Sources;
+  stub: Stub;
 }
 
 export type CompilationStatus = "pending" | "running" | "success" | "error";

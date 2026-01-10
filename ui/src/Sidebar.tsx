@@ -1,5 +1,5 @@
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
+import { CpuIcon, PencilIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
 
 interface SidebarProps {
@@ -9,10 +9,11 @@ interface SidebarProps {
   onSelect: (method: Method) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
+  onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
 }
 
-export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onDeleteProject }: SidebarProps) {
+export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div
@@ -56,13 +57,22 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                 >
                   <span>{project.configuration.name}</span>
                   {canUpdateConfiguration && (
-                    <IconButton
-                      icon={TrashIcon}
-                      size="small"
-                      variant="invisible"
-                      aria-label={`Delete ${project.configuration.name}`}
-                      onClick={() => onDeleteProject(project.configuration.name)}
-                    />
+                    <span style={{ display: "flex", gap: 2 }}>
+                      <IconButton
+                        icon={PencilIcon}
+                        size="small"
+                        variant="invisible"
+                        aria-label={`Edit ${project.configuration.name}`}
+                        onClick={() => onEditProject(project.configuration.name)}
+                      />
+                      <IconButton
+                        icon={TrashIcon}
+                        size="small"
+                        variant="invisible"
+                        aria-label={`Delete ${project.configuration.name}`}
+                        onClick={() => onDeleteProject(project.configuration.name)}
+                      />
+                    </span>
                   )}
                 </div>
               )}

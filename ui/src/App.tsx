@@ -9,7 +9,9 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
-import { NewProjectForm } from "./NewProjectForm";
+import { ProjectForm } from "./ProjectForm";
+import { remapSourcesToNewName } from "./sources";
+import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
@@ -28,7 +30,8 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<ConfigurationProject | undefined>();
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -141,21 +144,66 @@ export function App() {
     });
   };
 
-  const onNewProjectClick = () => {
-    setShowNewProjectForm(true);
+  const disposeMonacoModelsForProject = (projectName: string) => {
+    // Find and dispose all Monaco models for this project
+    monaco.editor.getModels().forEach((model) => {
+      if (model.uri.path.startsWith("/" + projectName + "/")) {
+        model.dispose();
+      }
+    });
   };
 
-  const onNewProjectSubmit = async (project: ConfigurationProject) => {
-    setShowNewProjectForm(false);
+  const createMonacoModelsForProject = (project: Project) => {
+    project.sources.forEach((source) => {
+      const uri = monaco.Uri.parse("ts:/" + source.path);
+      const existingModel = monaco.editor.getModel(uri);
+      if (!existingModel) {
+        monaco.editor.createModel(source.file.text, "typescript", uri);
+      } else {
+        existingModel.setValue(source.file.text);
+      }
+    });
+  };
+
+  const refreshOpenTaskEditors = () => {
+    // Touch task models to trigger re-validation against updated source models
+    tabs.forEach((tab) => {
+      if (tab.type === "task") {
+        const value = tab.model.getValue();
+        tab.model.setValue(value);
+      }
+    });
+  };
+
+  const onNewProjectClick = () => {
+    setEditingProject(undefined);
+    setShowProjectForm(true);
+  };
+
+  const onEditProject = (projectName: string) => {
+    const project = projects.find((p) => p.configuration.name === projectName);
+    if (project) {
+      setEditingProject(project.configuration);
+      setShowProjectForm(true);
+    }
+  };
+
+  const onProjectFormSubmit = async (project: ConfigurationProject, originalName?: string) => {
+    setShowProjectForm(false);
+    setEditingProject(undefined);
 
     if (!configuration) {
       return;
     }
 
-    // Update configuration with new project
+    const isEdit = originalName !== undefined;
+
+    // Update configuration
     const updatedConfiguration: Configuration = {
       ...configuration,
-      projects: [...configuration.projects, project],
+      projects: isEdit
+        ? configuration.projects.map((p) => (p.name === originalName ? project : p))
+        : [...configuration.projects, project],
     };
 
     // Save configuration via API
@@ -165,24 +213,92 @@ export function App() {
       setConfiguration(response.configuration);
     }
 
-    // Add project to the projects list
-    const newProject: Project = {
-      configuration: project,
-      compilation: {
-        status: "pending",
-        logs: [],
-      },
-      services: [],
-      clients: {},
-      sources: [],
-    };
+    if (isEdit) {
+      const originalProject = projects.find((p) => p.configuration.name === originalName);
+      if (!originalProject) {
+        return;
+      }
 
-    setProjects((prevProjects) => [...prevProjects, newProject]);
-    onCompilerClick();
+      const protoDirChanged = originalProject.configuration.protoDir !== project.protoDir;
+      const nameChanged = originalName !== project.name;
+
+      if (protoDirChanged) {
+        // protoDir changed - need full recompilation
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.configuration.name === originalName
+              ? {
+                  ...p,
+                  configuration: project,
+                  compilation: { status: "pending" as const, logs: [] },
+                }
+              : p
+          )
+        );
+        if (nameChanged) {
+          disposeMonacoModelsForProject(originalName);
+        }
+        onCompilerClick();
+      } else if (nameChanged) {
+        // Name changed but protoDir didn't - remap sources without recompilation
+        disposeMonacoModelsForProject(originalName);
+        const remappedSources = remapSourcesToNewName(originalProject.sources, originalName, project.name);
+        const updatedProject: Project = {
+          ...originalProject,
+          configuration: project,
+          sources: remappedSources,
+        };
+        createMonacoModelsForProject(updatedProject);
+        refreshOpenTaskEditors();
+        setProjects((prevProjects) =>
+          prevProjects.map((p) => (p.configuration.name === originalName ? updatedProject : p))
+        );
+        registerAIProvider(projects.map((p) => (p.configuration.name === originalName ? updatedProject : p)));
+      } else {
+        // URL or protocol changed - recreate clients
+        const urlChanged = originalProject.configuration.url !== project.url;
+        const protocolChanged = originalProject.configuration.protocol !== project.protocol;
+        if (urlChanged || protocolChanged) {
+          const newClients = createClients(originalProject.services, originalProject.stub, project);
+          setProjects((prevProjects) =>
+            prevProjects.map((p) =>
+              p.configuration.name === originalName
+                ? { ...p, configuration: project, clients: newClients }
+                : p
+            )
+          );
+        } else {
+          // Just update config
+          setProjects((prevProjects) =>
+            prevProjects.map((p) =>
+              p.configuration.name === originalName
+                ? { ...p, configuration: project }
+                : p
+            )
+          );
+        }
+      }
+    } else {
+      // Add new project
+      const newProject: Project = {
+        configuration: project,
+        compilation: {
+          status: "pending",
+          logs: [],
+        },
+        services: [],
+        clients: {},
+        sources: [],
+        stub: {},
+      };
+      setProjects((prevProjects) => [...prevProjects, newProject]);
+      onCompilerClick();
+    }
   };
 
-  const onNewProjectClose = () => {
-    setShowNewProjectForm(false);
+  const onProjectFormClose = () => {
+    setShowProjectForm(false);
+    setEditingProject(undefined);
   };
 
   const onDeleteProject = async (projectName: string) => {
@@ -206,8 +322,14 @@ export function App() {
     // Check if this is the last project
     const isLastProject = projects.length === 1;
 
+    // Clean up Monaco models for deleted project
+    disposeMonacoModelsForProject(projectName);
+
     // Remove project from state
     setProjects((prevProjects) => prevProjects.filter((p) => p.configuration.name !== projectName));
+
+    // Refresh open editors to show red squiggles for broken imports
+    refreshOpenTaskEditors();
 
     if (isLastProject) {
       // Show compiler tab when last project is deleted
@@ -253,6 +375,7 @@ export function App() {
               currentMethod={selectedMethod}
               onCompilerClick={onCompilerClick}
               onNewProjectClick={onNewProjectClick}
+              onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
             />
           </div>
@@ -303,7 +426,13 @@ export function App() {
             )}
           </div>
         </div>
-        <NewProjectForm isOpen={showNewProjectForm} onSubmit={onNewProjectSubmit} onClose={onNewProjectClose} />
+        <ProjectForm
+          isOpen={showProjectForm}
+          mode={editingProject ? "edit" : "create"}
+          initialData={editingProject}
+          onSubmit={onProjectFormSubmit}
+          onClose={onProjectFormClose}
+        />
       </BaseStyles>
     </ThemeProvider>
   );

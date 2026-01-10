@@ -76,10 +76,11 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     services,
     clients: createClients(services, stub, configuration),
     sources: kajaSources,
+    stub,
   };
 }
 
-function createClients(services: Service[], stub: Stub, configuration: ConfigurationProject): Clients {
+export function createClients(services: Service[], stub: Stub, configuration: ConfigurationProject): Clients {
   const clients: Clients = {};
 
   for (const service of services) {
