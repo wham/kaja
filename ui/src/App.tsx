@@ -164,6 +164,16 @@ export function App() {
     });
   };
 
+  const refreshOpenTaskEditors = () => {
+    // Touch task models to trigger re-validation against updated source models
+    tabs.forEach((tab) => {
+      if (tab.type === "task") {
+        const value = tab.model.getValue();
+        tab.model.setValue(value);
+      }
+    });
+  };
+
   const onNewProjectClick = () => {
     setEditingProject(undefined);
     setShowProjectForm(true);
@@ -238,6 +248,7 @@ export function App() {
           sources: remappedSources,
         };
         createMonacoModelsForProject(updatedProject);
+        refreshOpenTaskEditors();
         setProjects((prevProjects) =>
           prevProjects.map((p) => (p.configuration.name === originalName ? updatedProject : p))
         );
