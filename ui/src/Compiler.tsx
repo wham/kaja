@@ -216,6 +216,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           services: [],
           clients: {},
           sources: [],
+          stub: {},
         }));
 
         onUpdate(initialProjects);

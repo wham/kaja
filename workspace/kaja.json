@@ -3,17 +3,18 @@
     {
       "name": "grpc-demo",
       "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:localhost:41521",
-      "protoDir": ""
+      "url": "dns:localhost:41521"
     },
     {
       "name": "twirp-demo",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "http://localhost:41522",
-      "protoDir": ""
+      "url": "http://localhost:41522"
     }
   ],
   "ai": {
-    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models"
+    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models",
+    "apiKey": "*****"
+  },
+  "system": {
+    "canUpdateConfiguration": true
   }
 }
