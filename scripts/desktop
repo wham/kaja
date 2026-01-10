@@ -4,15 +4,24 @@ set -e
 source "$(dirname "$0")/common"
 
 # Parse arguments
-PROD_MODE=false
+BUILD_MODE=""
 for arg in "$@"; do
     case $arg in
-        --prod)
-            PROD_MODE=true
+        --build=development)
+            BUILD_MODE="development"
+            shift
+            ;;
+        --build=distribution)
+            BUILD_MODE="distribution"
             shift
             ;;
     esac
 done
+
+# Hardcoded signing profiles
+DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
+DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
+NOTARY_PROFILE="kaja-notary"
 
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
@@ -63,15 +72,19 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd "./desktop"
 
-if [ "$PROD_MODE" = true ]; then
-    echo "Building desktop app..."
+if [ -n "$BUILD_MODE" ]; then
+    echo "Building desktop app ($BUILD_MODE)..."
     wails build
 
     APP_BUNDLE="./build/bin/kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
-        # Sign the app for distribution
-        # Use CODESIGN_IDENTITY env var, or default to local development cert
-        CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Apple Development: Tomas Vesely (6C7UYVXQK7)}"
+        # Select signing profile based on build mode
+        if [ "$BUILD_MODE" = "distribution" ]; then
+            CODESIGN_IDENTITY="$DISTRIBUTION_PROFILE"
+        else
+            CODESIGN_IDENTITY="$DEVELOPMENT_PROFILE"
+        fi
+
         ENTITLEMENTS="./build/darwin/entitlements.plist"
         echo "Signing app with: $CODESIGN_IDENTITY"
         codesign --force --options runtime --deep \
@@ -79,6 +92,64 @@ if [ "$PROD_MODE" = true ]; then
             --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE"
         echo "App signed successfully"
+
+        # Notarize and create DMG for distribution builds
+        if [ "$BUILD_MODE" = "distribution" ]; then
+            echo ""
+            echo "Notarizing app..."
+            APP_ZIP="./build/bin/kaja.zip"
+
+            # Create zip for notarization
+            ditto -c -k --keepParent "$APP_BUNDLE" "$APP_ZIP"
+
+            # Submit for notarization and wait
+            xcrun notarytool submit "$APP_ZIP" \
+                --keychain-profile "$NOTARY_PROFILE" \
+                --wait
+
+            # Staple the notarization ticket
+            echo "Stapling notarization ticket..."
+            xcrun stapler staple "$APP_BUNDLE"
+
+            # Clean up
+            rm "$APP_ZIP"
+
+            echo "App notarization complete"
+
+            # Create DMG
+            echo ""
+            echo "Creating DMG..."
+            DMG_PATH="./build/bin/kaja.dmg"
+            rm -f "$DMG_PATH"
+
+            if command -v create-dmg &> /dev/null; then
+                create-dmg \
+                    --volname "kaja" \
+                    --window-size 600 400 \
+                    --icon-size 100 \
+                    --icon "kaja.app" 150 200 \
+                    --app-drop-link 450 200 \
+                    "$DMG_PATH" \
+                    "$APP_BUNDLE"
+            else
+                echo "create-dmg not found, using hdiutil..."
+                hdiutil create -volname "kaja" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
+            fi
+
+            # Notarize DMG
+            echo ""
+            echo "Notarizing DMG..."
+            xcrun notarytool submit "$DMG_PATH" \
+                --keychain-profile "$NOTARY_PROFILE" \
+                --wait
+
+            # Staple DMG
+            echo "Stapling DMG..."
+            xcrun stapler staple "$DMG_PATH"
+
+            echo ""
+            echo "Distribution complete: $DMG_PATH"
+        fi
 
         echo ""
         echo "Build complete: $APP_BUNDLE"
