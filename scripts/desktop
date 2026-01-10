@@ -20,7 +20,7 @@ done
 
 # Hardcoded signing profiles
 DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
-DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (V4P5RN5L6R)"
+DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
 
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
