@@ -1,22 +1,20 @@
 {
-  "projects": [
+  "projects":  [
     {
-      "name": "grpc-demo",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:localhost:41521",
-      "protoDir": ""
+      "name":  "grpc-demo12",
+      "protocol":  "RPC_PROTOCOL_GRPC",
+      "url":  "dns:localhost:41521"
     },
     {
-      "name": "twirp-demo",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "http://localhost:41522",
-      "protoDir": ""
+      "name":  "twirp-demo",
+      "url":  "http://localhost:41522"
     }
   ],
-  "ai": {
-    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models"
+  "ai":  {
+    "baseUrl":  "https://aistudioaiservices071516461653.services.ai.azure.com/models",
+    "apiKey":  "*****"
   },
-  "system": {
-    "canUpdateConfiguration": false
+  "system":  {
+    "canUpdateConfiguration":  true
   }
 }

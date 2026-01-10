@@ -11,6 +11,7 @@ import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./NewProjectForm";
 import { remapSourcesToNewName } from "./sources";
+import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
@@ -254,14 +255,28 @@ export function App() {
         );
         registerAIProvider(projects.map((p) => (p.configuration.name === originalName ? updatedProject : p)));
       } else {
-        // Only url or other non-critical fields changed - just update config
-        setProjects((prevProjects) =>
-          prevProjects.map((p) =>
-            p.configuration.name === originalName
-              ? { ...p, configuration: project }
-              : p
-          )
-        );
+        // Only url or other non-critical fields changed
+        const urlChanged = originalProject.configuration.url !== project.url;
+        if (urlChanged) {
+          // URL changed - recreate clients with new URL
+          const newClients = createClients(originalProject.services, originalProject.stub, project);
+          setProjects((prevProjects) =>
+            prevProjects.map((p) =>
+              p.configuration.name === originalName
+                ? { ...p, configuration: project, clients: newClients }
+                : p
+            )
+          );
+        } else {
+          // Just update config
+          setProjects((prevProjects) =>
+            prevProjects.map((p) =>
+              p.configuration.name === originalName
+                ? { ...p, configuration: project }
+                : p
+            )
+          );
+        }
       }
     } else {
       // Add new project
@@ -274,6 +289,7 @@ export function App() {
         services: [],
         clients: {},
         sources: [],
+        stub: {},
       };
       setProjects((prevProjects) => [...prevProjects, newProject]);
       onCompilerClick();
