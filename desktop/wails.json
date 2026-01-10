@@ -3,6 +3,7 @@
   "name": "kaja",
   "outputfilename": "kaja",
   "wailsjsdir": "../ui/src",
+  "reloaddirs": "../ui/src",
   "postBuildHooks": {
     "*/*": "../../../scripts/desktop-post-build ${bin}"
   },
