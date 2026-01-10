@@ -4,15 +4,23 @@ set -e
 source "$(dirname "$0")/common"
 
 # Parse arguments
-PROD_MODE=false
+BUILD_MODE=""
 for arg in "$@"; do
     case $arg in
-        --prod)
-            PROD_MODE=true
+        --build=development)
+            BUILD_MODE="development"
+            shift
+            ;;
+        --build=distribution)
+            BUILD_MODE="distribution"
             shift
             ;;
     esac
 done
+
+# Hardcoded signing profiles
+DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
+DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (V4P5RN5L6R)"
 
 # Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
 if ! command -v wails &> /dev/null
@@ -63,15 +71,19 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd "./desktop"
 
-if [ "$PROD_MODE" = true ]; then
-    echo "Building desktop app..."
+if [ -n "$BUILD_MODE" ]; then
+    echo "Building desktop app ($BUILD_MODE)..."
     wails build
 
     APP_BUNDLE="./build/bin/kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
-        # Sign the app for distribution
-        # Use CODESIGN_IDENTITY env var, or default to local development cert
-        CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Apple Development: Tomas Vesely (6C7UYVXQK7)}"
+        # Select signing profile based on build mode
+        if [ "$BUILD_MODE" = "distribution" ]; then
+            CODESIGN_IDENTITY="$DISTRIBUTION_PROFILE"
+        else
+            CODESIGN_IDENTITY="$DEVELOPMENT_PROFILE"
+        fi
+
         ENTITLEMENTS="./build/darwin/entitlements.plist"
         echo "Signing app with: $CODESIGN_IDENTITY"
         codesign --force --options runtime --deep \
