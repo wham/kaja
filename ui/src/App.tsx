@@ -10,6 +10,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./NewProjectForm";
+import { remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
@@ -142,6 +143,27 @@ export function App() {
     });
   };
 
+  const disposeMonacoModelsForProject = (projectName: string) => {
+    // Find and dispose all Monaco models for this project
+    monaco.editor.getModels().forEach((model) => {
+      if (model.uri.path.startsWith("/" + projectName + "/")) {
+        model.dispose();
+      }
+    });
+  };
+
+  const createMonacoModelsForProject = (project: Project) => {
+    project.sources.forEach((source) => {
+      const uri = monaco.Uri.parse("ts:/" + source.path);
+      const existingModel = monaco.editor.getModel(uri);
+      if (!existingModel) {
+        monaco.editor.createModel(source.file.text, "typescript", uri);
+      } else {
+        existingModel.setValue(source.file.text);
+      }
+    });
+  };
+
   const onNewProjectClick = () => {
     setEditingProject(undefined);
     setShowProjectForm(true);
@@ -181,26 +203,54 @@ export function App() {
     }
 
     if (isEdit) {
-      // Update existing project in state
-      setProjects((prevProjects) =>
-        prevProjects.map((p) =>
-          p.configuration.name === originalName
-            ? {
-                ...p,
-                configuration: project,
-                // Mark for recompilation if proto dir or url changed
-                compilation:
-                  p.configuration.protoDir !== project.protoDir || p.configuration.url !== project.url
-                    ? { status: "pending" as const, logs: [] }
-                    : p.compilation,
-              }
-            : p
-        )
-      );
-      // Trigger recompilation if needed
       const originalProject = projects.find((p) => p.configuration.name === originalName);
-      if (originalProject && (originalProject.configuration.protoDir !== project.protoDir || originalProject.configuration.url !== project.url)) {
+      if (!originalProject) {
+        return;
+      }
+
+      const protoDirChanged = originalProject.configuration.protoDir !== project.protoDir;
+      const nameChanged = originalName !== project.name;
+
+      if (protoDirChanged) {
+        // protoDir changed - need full recompilation
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.configuration.name === originalName
+              ? {
+                  ...p,
+                  configuration: project,
+                  compilation: { status: "pending" as const, logs: [] },
+                }
+              : p
+          )
+        );
+        if (nameChanged) {
+          disposeMonacoModelsForProject(originalName);
+        }
         onCompilerClick();
+      } else if (nameChanged) {
+        // Name changed but protoDir didn't - remap sources without recompilation
+        disposeMonacoModelsForProject(originalName);
+        const remappedSources = remapSourcesToNewName(originalProject.sources, originalName, project.name);
+        const updatedProject: Project = {
+          ...originalProject,
+          configuration: project,
+          sources: remappedSources,
+        };
+        createMonacoModelsForProject(updatedProject);
+        setProjects((prevProjects) =>
+          prevProjects.map((p) => (p.configuration.name === originalName ? updatedProject : p))
+        );
+        registerAIProvider(projects.map((p) => (p.configuration.name === originalName ? updatedProject : p)));
+      } else {
+        // Only url or other non-critical fields changed - just update config
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.configuration.name === originalName
+              ? { ...p, configuration: project }
+              : p
+          )
+        );
       }
     } else {
       // Add new project
