@@ -6,6 +6,11 @@
   "postBuildHooks": {
     "*/*": "../../../scripts/desktop-post-build ${bin}"
   },
+  "info": {
+    "productName": "kaja",
+    "productVersion": "main",
+    "copyright": "2026 Tomas Vesely"
+  },
   "author": {
     "name": "Tomas Vesely",
     "email": "448809+wham@users.noreply.github.com"
