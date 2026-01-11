@@ -3,7 +3,7 @@ import { BaseStyles, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
-import { GetStartedBlankslate } from "./Blankslate";
+import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
