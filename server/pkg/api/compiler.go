@@ -65,7 +65,7 @@ func (c *Compiler) start(id string, protoDir string) error {
 	c.stub = string(stub)
 
 	c.status = CompileStatus_STATUS_READY
-	c.logger.info("Compilation completed successfully, kaja is ready to go")
+	c.logger.info("Compilation completed successfully, Kaja is ready to go")
 
 	return nil
 }

@@ -10,7 +10,7 @@
 - When I prompt you to make changes that are radically different from what's documented here, please update this file accordingly.
 - Don't commit changes to `kaja.json`
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
-- Use lower-case for the product name "kaja" in documentation, UIs, and labels.
+- Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
 
 ## Directory Structure
 

@@ -1,13 +1,13 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "kaja",
-  "outputfilename": "kaja",
+  "name": "Kaja",
+  "outputfilename": "Kaja",
   "wailsjsdir": "../ui/src",
   "postBuildHooks": {
     "*/*": "../../../scripts/desktop-post-build ${bin}"
   },
   "info": {
-    "productName": "kaja",
+    "productName": "Kaja",
     "productVersion": "main",
     "copyright": "2026 Tomas Vesely"
   },

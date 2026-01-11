@@ -206,7 +206,7 @@ func main() {
 	app := NewApp(twirpHandler)
 
 	err = wails.Run(&options.App{
-		Title:  "kaja",
+		Title:  "Kaja",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
