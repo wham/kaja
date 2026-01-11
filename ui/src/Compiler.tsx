@@ -1,6 +1,6 @@
-import { CheckIcon, ChevronRightIcon, PlusIcon, XIcon } from "@primer/octicons-react";
+import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner } from "@primer/react";
-import { Blankslate } from "@primer/react/experimental";
+import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
@@ -331,27 +331,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     }
 
     // Configuration loaded but no projects
-    if (canUpdateConfiguration) {
-      return (
-        <Blankslate>
-          <Blankslate.Visual>
-            <PlusIcon size="medium" />
-          </Blankslate.Visual>
-          <Blankslate.Heading>No projects configured</Blankslate.Heading>
-          <Blankslate.Description>Add a project to get started.</Blankslate.Description>
-          <Blankslate.PrimaryAction onClick={onNewProjectClick}>New Project</Blankslate.PrimaryAction>
-        </Blankslate>
-      );
-    }
-
     return (
-      <Blankslate>
-        <Blankslate.Visual>
-          <PlusIcon size="medium" />
-        </Blankslate.Visual>
-        <Blankslate.Heading>No projects configured</Blankslate.Heading>
-        <Blankslate.Description>Contact your administrator to add projects.</Blankslate.Description>
-      </Blankslate>
+      <FirstProjectBlankslate canUpdateConfiguration={canUpdateConfiguration} onNewProjectClick={onNewProjectClick} />
     );
   }
 
