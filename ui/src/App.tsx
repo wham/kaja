@@ -3,7 +3,7 @@ import { BaseStyles, ThemeProvider } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
-import { Blankslate } from "./Blankslate";
+import { GetStartedBlankslate } from "./Blankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
@@ -258,7 +258,7 @@ export function App() {
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
-            {tabs.length === 0 && <Blankslate />}
+            {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
                 {tabs.map((tab, index) => {

@@ -1,16 +1,25 @@
 import { RocketIcon } from "@primer/octicons-react";
-import { Blankslate as PrimerBlankslate } from "@primer/react/experimental";
+import { Blankslate } from "@primer/react/experimental";
 
-export function Blankslate() {
+export function GetStartedBlankslate() {
   return (
-    <PrimerBlankslate>
-      <PrimerBlankslate.Visual>
-        <RocketIcon size="medium" />
-      </PrimerBlankslate.Visual>
-      <PrimerBlankslate.Heading>Welcome to kaja</PrimerBlankslate.Heading>
-      <PrimerBlankslate.Description>
-        Select a method from the sidebar to get started.
-      </PrimerBlankslate.Description>
-    </PrimerBlankslate>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+      }}
+    >
+      <Blankslate>
+        <Blankslate.Visual>
+          <RocketIcon size="medium" />
+        </Blankslate.Visual>
+        <Blankslate.Heading>Welcome to kaja</Blankslate.Heading>
+        <Blankslate.Description>
+          Select a method from the sidebar to get started.
+        </Blankslate.Description>
+      </Blankslate>
+    </div>
   );
 }
