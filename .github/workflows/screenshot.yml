@@ -9,61 +9,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.22"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install protoc
-        run: |
-          PROTOC_VERSION="30.2"
-          curl -sL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" -o protoc.zip
-          unzip -q protoc.zip -d protoc
-          sudo mv protoc/bin/protoc /usr/local/bin/
-          sudo chmod +x /usr/local/bin/protoc
-
-      - name: Build Go tools
-        run: |
-          cd server
-          mkdir -p build
-          export GOBIN=$PWD/build
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-      - name: Build demo apps
-        run: |
-          cd workspace
-          protoc --proto_path=. \
-            --plugin=protoc-gen-go=../server/build/protoc-gen-go --go_out=. \
-            --plugin=protoc-gen-twirp=../server/build/protoc-gen-twirp --twirp_out=. \
-            --plugin=protoc-gen-go-grpc=../server/build/protoc-gen-go-grpc --go-grpc_out=. \
-            -Iproto/ $(find . -iname "*.proto")
-          go build -o /tmp/demo-grpc-server ./cmd/grpc-server
-          go build -o /tmp/demo-twirp-server ./cmd/twirp-server
-
-      - name: Start demo apps
-        run: |
-          /tmp/demo-grpc-server &
-          /tmp/demo-twirp-server &
-
       - name: Build Docker image
         run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
 
       - name: Start Docker container
         run: |
-          # Replace localhost with host.docker.internal for Docker networking
-          sed 's/localhost/host.docker.internal/g' ./workspace/kaja.json > /tmp/kaja.json
-
           docker run --name kaja-dev -d -p 41520:41520 \
             -v $PWD/workspace:/workspace \
-            -v /tmp/kaja.json:/workspace/kaja.json \
-            --add-host=host.docker.internal:host-gateway kaja-dev:latest
+            kaja-dev:latest
 
           # Wait for server to start
           echo "Waiting for server to start..."
@@ -75,11 +28,9 @@ jobs:
             sleep 1
           done
 
-      - name: Install Playwright
-        run: npx playwright install chromium --with-deps
-
       - name: Take screenshot
         run: |
+          npx playwright install chromium --with-deps
           mkdir -p screenshots
           npx playwright screenshot --wait-for-timeout=3000 http://localhost:41520/ screenshots/kaja.png
 
