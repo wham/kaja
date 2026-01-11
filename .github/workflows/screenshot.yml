@@ -21,11 +21,9 @@ jobs:
 
       - name: Install protoc
         run: |
-          PROTOC_VERSION="30.2"
-          curl -sL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" -o protoc.zip
-          unzip -q protoc.zip -d protoc
-          sudo mv protoc/bin/protoc /usr/local/bin/
-          sudo chmod +x /usr/local/bin/protoc
+          source scripts/common
+          install_protoc
+          echo "$PWD/server/build" >> $GITHUB_PATH
 
       - name: Build Go tools
         run: |
@@ -36,21 +34,11 @@ jobs:
           go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-      - name: Build demo apps
+      - name: Build and start demo apps
         run: |
-          cd workspace
-          protoc --proto_path=. \
-            --plugin=protoc-gen-go=../server/build/protoc-gen-go --go_out=. \
-            --plugin=protoc-gen-twirp=../server/build/protoc-gen-twirp --twirp_out=. \
-            --plugin=protoc-gen-go-grpc=../server/build/protoc-gen-go-grpc --go-grpc_out=. \
-            -Iproto/ $(find . -iname "*.proto")
-          go build -o /tmp/demo-grpc-server ./cmd/grpc-server
-          go build -o /tmp/demo-twirp-server ./cmd/twirp-server
-
-      - name: Start demo apps
-        run: |
-          /tmp/demo-grpc-server &
-          /tmp/demo-twirp-server &
+          source scripts/common
+          build_demo_apps
+          start_demo_apps
 
       - name: Build Docker image
         run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
