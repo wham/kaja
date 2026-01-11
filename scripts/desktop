@@ -109,7 +109,7 @@ if [ -n "$BUILD_MODE" ]; then
     echo "Building desktop app ($BUILD_MODE)..."
     wails build
 
-    APP_BUNDLE="./build/bin/kaja.app"
+    APP_BUNDLE="./build/bin/Kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
         # Select signing profile based on build mode
         if [ "$BUILD_MODE" = "distribution" ]; then
@@ -130,7 +130,7 @@ if [ -n "$BUILD_MODE" ]; then
         if [ "$BUILD_MODE" = "distribution" ]; then
             echo ""
             echo "Notarizing app..."
-            APP_ZIP="./build/bin/kaja.zip"
+            APP_ZIP="./build/bin/Kaja.zip"
 
             # Create zip for notarization
             ditto -c -k --keepParent "$APP_BUNDLE" "$APP_ZIP"
@@ -152,15 +152,15 @@ if [ -n "$BUILD_MODE" ]; then
             # Create DMG
             echo ""
             echo "Creating DMG..."
-            DMG_PATH="./build/bin/kaja.dmg"
+            DMG_PATH="./build/bin/Kaja.dmg"
             rm -f "$DMG_PATH"
 
             create-dmg \
-                --volname "kaja" \
+                --volname "Kaja" \
                 --volicon "./build/appicon.png" \
                 --window-size 600 400 \
                 --icon-size 100 \
-                --icon "kaja.app" 150 200 \
+                --icon "Kaja.app" 150 200 \
                 --app-drop-link 450 200 \
                 "$DMG_PATH" \
                 "$APP_BUNDLE"

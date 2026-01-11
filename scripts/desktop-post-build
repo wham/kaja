@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR/.."
 SERVER_BUILD="$PROJECT_ROOT/server/build"
 
-# Derive app bundle path from binary path (e.g., ./kaja.app/Contents/MacOS/kaja -> ./kaja.app)
+# Derive app bundle path from binary path (e.g., ./Kaja.app/Contents/MacOS/Kaja -> ./Kaja.app)
 if [[ "$BIN_PATH" == *.app/Contents/MacOS/* ]]; then
     APP_BUNDLE="${BIN_PATH%/Contents/MacOS/*}"
 elif [[ -d "${BIN_PATH}.app" ]]; then
