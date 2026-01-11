@@ -73,6 +73,23 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 cd "./desktop"
 
 if [ -n "$BUILD_MODE" ]; then
+    # For distribution builds, update wails.json with git tag version
+    if [ "$BUILD_MODE" = "distribution" ]; then
+        GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+        if [ -n "$GIT_TAG" ]; then
+            echo "Setting productVersion to git tag: $GIT_TAG"
+            # Update productVersion in wails.json using jq
+            jq --arg version "$GIT_TAG" '.info.productVersion = $version' wails.json > wails.json.tmp && mv wails.json.tmp wails.json
+
+            # Commit and push the version update
+            git add wails.json
+            git commit -m "Update productVersion to $GIT_TAG"
+            git push origin "$GIT_TAG"
+        else
+            echo "Warning: No git tag found, using default version from wails.json"
+        fi
+    fi
+
     echo "Building desktop app ($BUILD_MODE)..."
     wails build
 

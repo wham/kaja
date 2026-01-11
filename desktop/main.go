@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/wham/kaja/v2/pkg/api"
@@ -23,6 +25,26 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+//go:embed wails.json
+var wailsJSON []byte
+
+// WailsConfig represents the wails.json configuration
+type WailsConfig struct {
+	Info struct {
+		ProductName    string `json:"productName"`
+		ProductVersion string `json:"productVersion"`
+		Copyright      string `json:"copyright"`
+	} `json:"info"`
+}
+
+var config WailsConfig
+
+func init() {
+	if err := json.Unmarshal(wailsJSON, &config); err != nil {
+		slog.Error("Failed to parse wails.json", "error", err)
+	}
+}
 
 // App struct
 type App struct {
@@ -196,6 +218,12 @@ func main() {
 			app,
 		},
 		LogLevel: logger.ERROR,
+		Mac: &mac.Options{
+			About: &mac.AboutInfo{
+				Title:   config.Info.ProductName + " " + config.Info.ProductVersion,
+				Message: config.Info.Copyright,
+			},
+		},
 	})
 
 	if err != nil {
