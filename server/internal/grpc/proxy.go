@@ -121,6 +121,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string)
 
 	res := []byte{}
 
+	// Ensure method has leading slash for gRPC
+	if !strings.HasPrefix(method, "/") {
+		method = "/" + method
+	}
+
 	slog.Info("Invoking gRPC server", "method", method)
 
 	err = client.Invoke(ctx, method, message, &res)
