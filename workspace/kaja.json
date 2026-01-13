@@ -8,12 +8,6 @@
     {
       "name": "twirp-demo",
       "url": "http://localhost:41522"
-    },
-    {
-      "name": "teams",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:kaja.tools:443",
-      "protoDir": "/Users/wham/code/website/apps/teams/proto"
     }
   ],
   "ai": {
