@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -38,15 +40,44 @@ func (c *grpcWebCodec) Unmarshal(data []byte, v interface{}) error {
 }
 
 func (c *grpcWebCodec) Name() string {
-	return "grpc-web"
+	return "proto"
 }
 
 type Proxy struct {
 	target *url.URL
+	useTLS bool
+}
+
+// shouldUseTLS determines if TLS should be used based on the target URL.
+// TLS is used when:
+// - The scheme is "https" or "grpcs"
+// - The port is 443 (common convention for TLS)
+func shouldUseTLS(target *url.URL) bool {
+	scheme := strings.ToLower(target.Scheme)
+	if scheme == "https" || scheme == "grpcs" {
+		return true
+	}
+
+	// Check if port is 443 (either explicit or from URL parsing)
+	port := target.Port()
+	if port == "443" {
+		return true
+	}
+
+	// For dns: scheme, the host might contain the port
+	// e.g., dns:kaja.tools:443 parses as Opaque="kaja.tools:443"
+	if target.Opaque != "" && strings.HasSuffix(target.Opaque, ":443") {
+		return true
+	}
+
+	return false
 }
 
 func NewProxy(target *url.URL) (*Proxy, error) {
-	return &Proxy{target: target}, nil
+	return &Proxy{
+		target: target,
+		useTLS: shouldUseTLS(target),
+	}, nil
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string) {
@@ -69,9 +100,17 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string)
 
 	codec := &grpcWebCodec{}
 
-	slog.Info("Dialing gRPC server", "target", p.target.String())
+	slog.Info("Dialing gRPC server", "target", p.target.String(), "tls", p.useTLS)
 
-	client, err := grpc.NewClient(p.target.String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+	// Choose transport credentials based on TLS setting
+	var creds credentials.TransportCredentials
+	if p.useTLS {
+		creds = credentials.NewTLS(&tls.Config{})
+	} else {
+		creds = insecure.NewCredentials()
+	}
+
+	client, err := grpc.NewClient(p.target.String(), grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
 
 	if err != nil {
 		slog.Error("Failed to connect gRPC server", "error", err)
@@ -81,6 +120,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string)
 	defer client.Close()
 
 	res := []byte{}
+
+	// Ensure method has leading slash for gRPC
+	if !strings.HasPrefix(method, "/") {
+		method = "/" + method
+	}
 
 	slog.Info("Invoking gRPC server", "method", method)
 
