@@ -40,7 +40,7 @@ func (c *grpcWebCodec) Unmarshal(data []byte, v interface{}) error {
 }
 
 func (c *grpcWebCodec) Name() string {
-	return "grpc-web"
+	return "proto"
 }
 
 type Proxy struct {
