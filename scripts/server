@@ -35,8 +35,6 @@ then
     fi
 fi
 
-setup_trap
-
 cd "$(dirname "$0")/.."
 
 [ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
@@ -48,17 +46,12 @@ export PATH=$GOBIN:$PATH
 install_protoc
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 cd "./ui"
 npm i
 npm run protoc
 
-cd ..
-build_demo_apps
-start_demo_apps
-
-cd "server"
+cd ../server
 go run cmd/build-ui/main.go
 protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find proto -iname "*.proto")
 mkdir -p /tmp/kaja

@@ -1,13 +1,26 @@
 {
   "projects": [
     {
-      "name": "grpc-demo",
+      "name": "grpc-quirks",
       "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:localhost:41521"
+      "url": "dns:kaja.tools:443",
+      "protoDir": "quirks"
     },
     {
-      "name": "twirp-demo",
-      "url": "http://localhost:41522"
+      "name": "twirp-quirks",
+      "url": "https://kaja.tools/twirp-quirks",
+      "protoDir": "quirks"
+    },
+    {
+      "name": "teams",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "dns:kaja.tools:443",
+      "protoDir": "teams/proto"
+    },
+    {
+      "name": "users",
+      "url": "https://kaja.tools/users",
+      "protoDir": "users/proto"
     }
   ],
   "ai": {
