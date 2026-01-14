@@ -2,13 +2,14 @@
 set -e
 
 # Fetches demo proto files from kaja-tools/website repository
-# and updates them in the workspace/proto directory
+# and updates them in the workspace directory
 
 cd "$(dirname "$0")/.."
 
 REPO_URL="https://github.com/kaja-tools/website.git"
-PROTO_SOURCE="apps/quirks/proto"
-WORKSPACE_PROTO="workspace/proto"
+
+# Services to copy (source path in repo -> destination folder in workspace)
+SERVICES="quirks users teams"
 
 echo "Fetching demo proto files from kaja-tools/website..."
 
@@ -19,14 +20,35 @@ trap "rm -rf $TMP_DIR" EXIT
 # Clone with sparse checkout to only get the proto files
 git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" "$TMP_DIR/website"
 cd "$TMP_DIR/website"
-git sparse-checkout set "$PROTO_SOURCE"
 
-cd -
+# Set up sparse checkout for all service proto directories
+PROTO_PATHS=""
+for service in $SERVICES; do
+    PROTO_PATHS="$PROTO_PATHS apps/$service/proto"
+done
+git sparse-checkout set $PROTO_PATHS
 
-# Remove existing proto files and copy new ones
-rm -rf "$WORKSPACE_PROTO"
-mkdir -p "$WORKSPACE_PROTO"
-cp -r "$TMP_DIR/website/$PROTO_SOURCE/"* "$WORKSPACE_PROTO/"
+cd - > /dev/null
 
-echo "Demo proto files updated in $WORKSPACE_PROTO:"
-find "$WORKSPACE_PROTO" -name "*.proto" | sort
+# Copy each service's proto files to workspace
+for service in $SERVICES; do
+    WORKSPACE_DIR="workspace/$service"
+    SOURCE_DIR="$TMP_DIR/website/apps/$service/proto"
+
+    echo "Updating $WORKSPACE_DIR..."
+
+    # Clean existing directory to remove stale files
+    rm -rf "$WORKSPACE_DIR"
+    mkdir -p "$WORKSPACE_DIR"
+
+    # Copy proto files
+    cp -r "$SOURCE_DIR/"* "$WORKSPACE_DIR/"
+done
+
+echo ""
+echo "Demo proto files updated:"
+for service in $SERVICES; do
+    echo ""
+    echo "workspace/$service:"
+    find "workspace/$service" -name "*.proto" | sort | sed 's/^/  /'
+done

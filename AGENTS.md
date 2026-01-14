@@ -97,11 +97,10 @@ Both share the same backend code but differ in how they're packaged:
 **`/workspace/`** - Example workspace for development and testing:
 
 - This is a demo workspace that developers use to test kaja
-- `kaja.json` - Configuration file defining two demo projects hosted on kaja.tools:
-  - `grpc-demo` at `kaja.tools:443` (gRPC protocol with TLS)
-  - `twirp-demo` at `kaja.tools/twirp-quirks` (Twirp protocol)
-- `proto/` - Example proto files fetched from kaja-tools/website
-- Run `scripts/demo-protos` to update proto files from the remote repository
+- `kaja.json` - Configuration file defining demo projects hosted on kaja.tools:
+  - quirks, users, teams services (both gRPC and Twirp protocols)
+- `quirks/`, `users/`, `teams/` - Proto files for each service
+- Run `scripts/demo-protos` to update proto files from kaja-tools/website
 - The `scripts/server` script starts kaja with this workspace by default
 
 ### Code Generation Flow
