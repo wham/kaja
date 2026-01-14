@@ -4,12 +4,12 @@
       "name": "grpc-quirks",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "dns:kaja.tools:443",
-      "protoDir": "quirks/proto"
+      "protoDir": "quirks"
     },
     {
       "name": "twirp-quirks",
       "url": "https://kaja.tools/twirp-quirks",
-      "protoDir": "quirks/proto"
+      "protoDir": "quirks"
     },
     {
       "name": "teams",
