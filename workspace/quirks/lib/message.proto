@@ -1,0 +1,12 @@
+syntax = "proto3";
+package lib;
+
+option go_package = "internal/api";
+
+message Message {
+    string name = 1;
+}
+
+message Void {
+
+}
