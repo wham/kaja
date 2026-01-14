@@ -55,8 +55,6 @@ then
     fi
 fi
 
-setup_trap
-
 cd "$(dirname "$0")/.."
 
 export GOBIN=$PWD/server/build
@@ -67,9 +65,6 @@ echo "Installing protoc..."
 install_protoc
 echo "Installing Node.js..."
 install_nodejs
-
-build_demo_apps
-start_demo_apps
 
 # Build UI assets
 echo "Building UI..."
@@ -185,8 +180,6 @@ if [ -n "$BUILD_MODE" ]; then
         open "$APP_BUNDLE"
     fi
 
-    echo "Press Ctrl+C to stop demo apps and exit..."
-    wait
 else
     wails dev
 fi

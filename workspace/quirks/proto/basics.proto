@@ -3,7 +3,7 @@ import "google/protobuf/timestamp.proto";
 import "proto/lib/enum.proto";
 import "proto/lib/message.proto";
 
-option go_package = "internal/demo-app";
+option go_package = "internal/api";
 
 /**
  * Test basic scenarios that kaja needs to support
@@ -32,7 +32,7 @@ enum Enum {
     KEY_1 = 1;
 }
 
-message RepeatedRequest {    
+message RepeatedRequest {
     repeated string string = 1;
     repeated int32 int32 = 2;
     repeated Enum enum = 3;
@@ -44,7 +44,7 @@ message TypesRequest {
         KEY_0 = 0;
         KEY_1 = 1;
     }
-    
+
     google.protobuf.Timestamp timestamp = 1;
     bool bool = 2;
     Enum enum = 3;

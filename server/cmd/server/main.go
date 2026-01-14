@@ -138,11 +138,16 @@ func main() {
 			proxy.ServeHTTP(w, r, r.PathValue("method"))
 			return
 		} else {
-			// Create a reverse proxy
+			// Create a reverse proxy for Twirp requests
 			proxy := httputil.NewSingleHostReverseProxy(target)
-
-			// Handle regular Twirp requests
-			r.URL.Path = strings.Replace(r.URL.Path, "/target/", "/twirp/", 1)
+			proxy.Director = func(req *http.Request) {
+				req.Host = target.Host
+				req.URL.Scheme = target.Scheme
+				req.URL.Host = target.Host
+				// Replace /target/ with /twirp/ and append to target path
+				path := strings.Replace(req.URL.Path, "/target/", "/twirp/", 1)
+				req.URL.Path = target.Path + path
+			}
 			proxy.ServeHTTP(w, r)
 		}
 	})
