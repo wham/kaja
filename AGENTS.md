@@ -99,7 +99,7 @@ Both share the same backend code but differ in how they're packaged:
 - This is a demo workspace that developers use to test kaja
 - `kaja.json` - Configuration file defining demo projects hosted on kaja.tools:
   - quirks, users, teams services (both gRPC and Twirp protocols)
-- `quirks/`, `users/`, `teams/` - Proto files for each service
+- `quirks/proto/`, `users/proto/`, `teams/proto/` - Proto files for each service
 - Run `scripts/demo-protos` to update proto files from kaja-tools/website
 - The `scripts/server` script starts kaja with this workspace by default
 
