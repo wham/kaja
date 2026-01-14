@@ -1,17 +1,7 @@
 #!/bin/sh
 set -e
 
-source "$(dirname "$0")/common"
-
-setup_trap
-
 cd "$(dirname "$0")/.."
-
-export GOBIN=$PWD/server/build
-export PATH=$GOBIN:$PATH
-
-build_demo_apps
-start_demo_apps
 
 # Stop and remove the container if it already exists
 docker rm -f kaja-dev &> /dev/null || true
@@ -21,14 +11,9 @@ docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
 rm pipe &> /dev/null || true
 mkfifo pipe
 
-# localhost in kaja.json needs to be replaced with host.docker.internal when running in Docker
-# Use a temporary file and make the replacement there
-sed 's/localhost/host.docker.internal/g' ./workspace/kaja.json > /tmp/kaja.json
-
 docker run --name kaja-dev -a STDOUT -p 41520:41520 \
     -v $PWD/workspace:/workspace \
-    -v /tmp/kaja.json:/workspace/kaja.json \
-    --add-host=host.docker.internal:host-gateway kaja-dev:latest > pipe &
+    kaja-dev:latest > pipe &
 
 while IFS= read -r line
 do

@@ -3,11 +3,11 @@
     {
       "name": "grpc-demo",
       "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:localhost:41521"
+      "url": "dns:kaja.tools:443"
     },
     {
       "name": "twirp-demo",
-      "url": "http://localhost:41522"
+      "url": "https://kaja.tools/twirp-quirks"
     }
   ],
   "ai": {

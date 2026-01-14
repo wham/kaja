@@ -96,14 +96,12 @@ Both share the same backend code but differ in how they're packaged:
 
 **`/workspace/`** - Example workspace for development and testing:
 
-- This is a self-contained demo workspace that developers use to test kaja
-- `kaja.json` - Configuration file defining two demo projects:
-  - `grpc-demo` on `localhost:41521` (gRPC protocol)
-  - `twirp-demo` on `localhost:41522` (Twirp protocol)
-- `proto/` - Example proto files (basics.proto, quirks.proto, lib/)
-- `cmd/grpc-server/` - Demo gRPC server implementation
-- `cmd/twirp-server/` - Demo Twirp server implementation
-- `internal/demo-app/` - Generated Go code from proto files
+- This is a demo workspace that developers use to test kaja
+- `kaja.json` - Configuration file defining two demo projects hosted on kaja.tools:
+  - `grpc-demo` at `kaja.tools:443` (gRPC protocol with TLS)
+  - `twirp-demo` at `kaja.tools/twirp-quirks` (Twirp protocol)
+- `proto/` - Example proto files fetched from kaja-tools/website
+- Run `scripts/demo-protos` to update proto files from the remote repository
 - The `scripts/server` script starts kaja with this workspace by default
 
 ### Code Generation Flow

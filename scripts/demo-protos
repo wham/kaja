@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+# Fetches demo proto files from kaja-tools/website repository
+# and updates them in the workspace/proto directory
+
+cd "$(dirname "$0")/.."
+
+REPO_URL="https://github.com/kaja-tools/website.git"
+PROTO_SOURCE="apps/quirks/proto"
+WORKSPACE_PROTO="workspace/proto"
+
+echo "Fetching demo proto files from kaja-tools/website..."
+
+# Create a temporary directory
+TMP_DIR=$(mktemp -d)
+trap "rm -rf $TMP_DIR" EXIT
+
+# Clone with sparse checkout to only get the proto files
+git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" "$TMP_DIR/website"
+cd "$TMP_DIR/website"
+git sparse-checkout set "$PROTO_SOURCE"
+
+cd -
+
+# Remove existing proto files and copy new ones
+rm -rf "$WORKSPACE_PROTO"
+mkdir -p "$WORKSPACE_PROTO"
+cp -r "$TMP_DIR/website/$PROTO_SOURCE/"* "$WORKSPACE_PROTO/"
+
+echo "Demo proto files updated in $WORKSPACE_PROTO:"
+find "$WORKSPACE_PROTO" -name "*.proto" | sort
