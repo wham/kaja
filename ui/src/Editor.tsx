@@ -66,6 +66,10 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         language: "typescript",
         theme: "vs-dark",
         automaticLayout: true,
+        padding: {
+          top: 16,
+          left: 16,
+        },
         minimap: {
           enabled: false,
         },
