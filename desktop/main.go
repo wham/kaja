@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -21,6 +22,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
 //go:embed all:frontend/dist
@@ -110,20 +112,45 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 // Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
 func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 	slog.Info("Target called", "target", target, "method", method, "req_length", len(req))
-	
+
 	if req == nil {
 		slog.Error("Received nil request")
 		return nil, fmt.Errorf("nil request")
 	}
-	
+
 	// Check if this is a gRPC target (starts with dns:)
 	if strings.HasPrefix(target, "dns:") {
-		// For gRPC targets, we need to return an error since gRPC-web is not supported in desktop mode
-		slog.Error("gRPC endpoints not supported in desktop mode", "target", target, "method", method)
-		return nil, fmt.Errorf("gRPC endpoints not supported in desktop mode")
+		return a.targetGRPC(target, method, req)
 	}
-	
+
 	// Handle HTTP/HTTPS Twirp endpoints
+	return a.targetTwirp(target, method, req)
+}
+
+// targetGRPC handles gRPC protocol calls using the shared gRPC client
+func (a *App) targetGRPC(target string, method string, req []byte) ([]byte, error) {
+	slog.Info("Invoking gRPC target", "target", target, "method", method)
+
+	client, err := grpc.NewClientFromString(target)
+	if err != nil {
+		slog.Error("Failed to create gRPC client", "target", target, "error", err)
+		return nil, err
+	}
+
+	slog.Info("gRPC client created", "target", target, "tls", client.UseTLS())
+
+	response, err := client.InvokeWithTimeout(method, req, 30*time.Second)
+	if err != nil {
+		slog.Error("gRPC invocation failed", "target", target, "method", method, "error", err)
+		return nil, err
+	}
+
+	slog.Info("gRPC response received", "target", target, "method", method, "response_length", len(response))
+	return response, nil
+}
+
+// targetTwirp handles Twirp protocol calls over HTTP
+func (a *App) targetTwirp(target string, method string, req []byte) ([]byte, error) {
 	var url string
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
 		// Already a valid HTTP URL
@@ -132,7 +159,7 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 		// Assume it's a host:port format, add http://
 		url = "http://" + target + "/twirp/" + method
 	}
-	
+
 	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(req))
 	if err != nil {
 		slog.Error("Failed to create HTTP request", "target", target, "method", method, "error", err)
@@ -141,7 +168,7 @@ func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
 
 	// Set appropriate headers for Twirp
 	httpReq.Header.Set("Content-Type", "application/protobuf")
-	
+
 	// Create HTTP client and make the request
 	client := &http.Client{}
 	resp, err := client.Do(httpReq)
