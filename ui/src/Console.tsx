@@ -1,3 +1,5 @@
+import { PlayIcon } from "@primer/octicons-react";
+import { Spinner } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
@@ -134,12 +136,12 @@ export function Console({ items }: ConsoleProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              gap: 6,
               color: "var(--fgColor-muted)",
               fontSize: 12,
-              fontFamily: "monospace",
             }}
           >
-            Select a call to view details
+            Press <PlayIcon size={12} /> to run
           </div>
         )}
       </div>
@@ -248,20 +250,6 @@ Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* Header with method name */}
-      <div
-        style={{
-          padding: "8px 12px",
-          borderBottom: "1px solid var(--borderColor-default)",
-          fontSize: 12,
-          fontFamily: "monospace",
-          fontWeight: 600,
-          color: "var(--fgColor-default)",
-        }}
-      >
-        {methodId(methodCall.service, methodCall.method)}
-      </div>
-
       {/* Tabs */}
       <div
         style={{
@@ -286,20 +274,11 @@ Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
               : "var(--fgColor-muted)",
           }}
         >
-          {methodCall.error ? "Error" : "Response"}
+          Response
           {!hasResponse && (
-            <span
-              style={{
-                marginLeft: 8,
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                border: "2px solid var(--fgColor-muted)",
-                borderTopColor: "transparent",
-                animation: "spin 1s linear infinite",
-              }}
-            />
+            <span style={{ marginLeft: 8, display: "inline-flex" }}>
+              <Spinner size="small" />
+            </span>
           )}
         </div>
       </div>
@@ -322,12 +301,6 @@ Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
         )}
       </div>
 
-      {/* Spinner animation */}
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };
