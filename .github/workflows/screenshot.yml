@@ -1,6 +1,7 @@
 name: screenshot
 on:
   workflow_dispatch:
+  pull_request:
 
 jobs:
   screenshot:
@@ -34,8 +35,75 @@ jobs:
           mkdir -p screenshots
           npx playwright screenshot --wait-for-timeout=3000 http://localhost:41520/ screenshots/kaja.png
 
-      - name: Upload screenshot
+      - name: Upload screenshot (artifact)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: screenshot
           path: screenshots/kaja.png
+
+      - name: Upload screenshot to repo
+        if: github.event_name == 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          SCREENSHOT_PATH=$(pwd)/screenshots/kaja.png
+          PR_NUMBER=${{ github.event.pull_request.number }}
+
+          # Fetch screenshots branch or create it
+          git fetch origin screenshots:screenshots 2>/dev/null || true
+
+          # Create a temporary worktree for the screenshots branch
+          if git rev-parse --verify screenshots >/dev/null 2>&1; then
+            git worktree add ../screenshots-branch screenshots
+          else
+            git worktree add --detach ../screenshots-branch
+            cd ../screenshots-branch
+            git checkout --orphan screenshots
+            git rm -rf . 2>/dev/null || true
+            cd -
+          fi
+
+          # Copy screenshot
+          mkdir -p ../screenshots-branch/pr-${PR_NUMBER}
+          cp "$SCREENSHOT_PATH" ../screenshots-branch/pr-${PR_NUMBER}/screenshot.png
+
+          # Commit and push
+          cd ../screenshots-branch
+          git add .
+          git commit -m "Update screenshot for PR #${PR_NUMBER}" --allow-empty
+          git push origin screenshots --force
+
+      - name: Update PR description
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO=${{ github.repository }}
+          RUN_ID=${{ github.run_id }}
+
+          # Screenshot URL with cache-busting query param
+          SCREENSHOT_URL="https://raw.githubusercontent.com/${REPO}/screenshots/pr-${PR_NUMBER}/screenshot.png?run=${RUN_ID}"
+
+          # Get current PR body
+          CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
+
+          # Remove existing Screenshots section if present
+          # Match from <details> with Screenshots summary to </details>
+          BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>Screenshots<\/summary>.*?<\/details>\s*//sg')
+
+          # Create new screenshots section (closed by default)
+          SCREENSHOTS_SECTION="<details>
+<summary>Screenshots</summary>
+
+![Screenshot](${SCREENSHOT_URL})
+
+</details>"
+
+          # Combine body with screenshots section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
+
+          # Update PR description
+          gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
