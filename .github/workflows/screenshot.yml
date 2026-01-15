@@ -1,0 +1,41 @@
+name: screenshot
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
+
+      - name: Start Docker container
+        run: |
+          docker run --name kaja-dev -d -p 41520:41520 \
+            -v $PWD/workspace:/workspace \
+            kaja-dev:latest
+
+          # Wait for server to start
+          echo "Waiting for server to start..."
+          for i in {1..60}; do
+            if docker logs kaja-dev 2>&1 | grep -q "Server started"; then
+              echo "Server started!"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Take screenshot
+        run: |
+          npx playwright install chromium --with-deps
+          mkdir -p screenshots
+          npx playwright screenshot --wait-for-timeout=3000 http://localhost:41520/ screenshots/kaja.png
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot
+          path: screenshots/kaja.png
