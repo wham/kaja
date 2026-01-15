@@ -49,12 +49,20 @@ async function takeScreenshots() {
     }
     await page.waitForTimeout(1000);
 
-    // Expand the first compiled project (click on ActionList item)
-    const projectItem = page.locator('[role="menuitem"]').first();
-    if ((await projectItem.count()) > 0) {
-      await projectItem.click();
-      await page.waitForTimeout(500);
+    // Expand the first compiled project by clicking on the row
+    // Projects are displayed as list items with chevron icons
+    const projectRow = page.locator('[role="listitem"]').first();
+    if ((await projectRow.count()) > 0) {
+      await projectRow.click();
+    } else {
+      // Fallback: click first item that looks like a project row
+      const firstProject = page.locator('text=/grpc-quirks|twirp-quirks/').first();
+      if ((await firstProject.count()) > 0) {
+        await firstProject.click();
+      }
     }
+    // Wait for logs to expand
+    await page.waitForTimeout(1000);
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/compiler.png` });
 
