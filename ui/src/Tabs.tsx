@@ -1,7 +1,6 @@
 import { XIcon } from "@primer/octicons-react";
 import { IconButton } from "@primer/react";
 import React, { ReactElement } from "react";
-import { LayoutColumn, LayoutFixed } from "./Layout";
 
 interface TabProps {
   tabId: string;
@@ -23,7 +22,7 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <LayoutColumn>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .tabs-header::-webkit-scrollbar {
           height: 2px;
@@ -64,12 +63,9 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           opacity: 1 !important;
         }
       `}</style>
-      <LayoutFixed
+      <div
         className="tabs-header"
-        style={{
-          display: "flex",
-          overflowX: "auto",
-        }}
+        style={{ display: "flex", overflowX: "auto", flexShrink: 0 }}
       >
         {React.Children.map(children, (child, index) => {
           const { tabId, tabLabel, isEphemeral } = child.props;
@@ -107,20 +103,23 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
             </div>
           );
         })}
-        <div style={{ flexGrow: 1, borderBottom: "1px solid", borderBottomColor: "var(--borderColor-default)" }} />
-      </LayoutFixed>
-      <LayoutColumn style={{ overflow: "hidden" }}>
+        <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {React.Children.map(children, (child, index) => (
-          <LayoutColumn
+          <div
             key={child.props.tabId}
             style={{
               display: index === activeTabIndex ? "flex" : "none",
+              flexDirection: "column",
+              flex: 1,
+              minHeight: 0,
             }}
           >
             {child}
-          </LayoutColumn>
+          </div>
         ))}
-      </LayoutColumn>
-    </LayoutColumn>
+      </div>
+    </div>
   );
 }

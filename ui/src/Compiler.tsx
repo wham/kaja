@@ -2,7 +2,6 @@ import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner } from "@primer/react";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
-import { LayoutColumn, LayoutScroll } from "./Layout";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, Configuration, RpcProtocol } from "./server/api";
@@ -314,8 +313,12 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   if (projects.length === 0) {
     if (!configurationLoaded) {
       return (
-        <LayoutColumn
+        <div
           style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minHeight: 0,
             alignItems: "center",
             justifyContent: "center",
             color: "var(--fgColor-muted)",
@@ -326,7 +329,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
             <Spinner size="medium" />
             <div style={{ marginTop: 12 }}>Loading configuration...</div>
           </div>
-        </LayoutColumn>
+        </div>
       );
     }
 
@@ -337,7 +340,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   }
 
   return (
-    <LayoutColumn style={{ backgroundColor: "var(--bgColor-default)" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-default)" }}>
       <style>{`
         @keyframes spin {
           from {
@@ -373,7 +376,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           background-color: var(--bgColor-default);
         }
       `}</style>
-      <LayoutScroll>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {projects.map((project, index) => {
           const isExpanded = expandedProjects.has(project.configuration.name);
           return (
@@ -455,8 +458,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
             </div>
           );
         })}
-      </LayoutScroll>
-    </LayoutColumn>
+      </div>
+    </div>
   );
 }
 

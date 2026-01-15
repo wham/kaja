@@ -2,7 +2,6 @@ import { Button, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
-import { LayoutScroll } from "./Layout";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
 
@@ -46,8 +45,11 @@ export function Console({ items }: ConsoleProps) {
   }, [items]);
 
   return (
-    <LayoutScroll
+    <div
       style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
         fontSize: 12,
         fontFamily: "monospace",
         color: "var(--fgColor-default)",
@@ -70,7 +72,7 @@ export function Console({ items }: ConsoleProps) {
         })}
       </div>
       <div ref={bottomRef} />
-    </LayoutScroll>
+    </div>
   );
 }
 

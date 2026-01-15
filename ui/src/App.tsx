@@ -17,7 +17,6 @@ import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
-import { LayoutRoot, LayoutColumn, LayoutFixed } from "./Layout";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -357,8 +356,8 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <LayoutRoot style={{ background: "var(--bgColor-default)" }}>
-          <LayoutFixed style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600 }}>
+        <div style={{ position: "fixed", inset: 0, display: "flex", overflow: "hidden", background: "var(--bgColor-default)" }}>
+          <div style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
               canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
@@ -369,9 +368,9 @@ export function App() {
               onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
             />
-          </LayoutFixed>
+          </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <LayoutColumn>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
@@ -415,8 +414,8 @@ export function App() {
                 })}
               </Tabs>
             )}
-          </LayoutColumn>
-        </LayoutRoot>
+          </div>
+        </div>
         <ProjectForm
           isOpen={showProjectForm}
           mode={editingProject ? "edit" : "create"}
