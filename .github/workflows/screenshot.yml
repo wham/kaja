@@ -1,6 +1,7 @@
 name: screenshot
 on:
   workflow_dispatch:
+  pull_request:
 
 jobs:
   screenshot:
@@ -28,14 +29,48 @@ jobs:
             sleep 1
           done
 
-      - name: Take screenshot
+      - name: Take screenshots
         run: |
+          npm install playwright
           npx playwright install chromium --with-deps
-          mkdir -p screenshots
-          npx playwright screenshot --wait-for-timeout=3000 http://localhost:41520/ screenshots/kaja.png
+          mkdir -p .github/screenshots
+          node .github/scripts/take-screenshots.js
 
-      - name: Upload screenshot
+      - name: Upload screenshots (artifact)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: screenshot
-          path: screenshots/kaja.png
+          name: screenshots
+          path: .github/screenshots/
+
+      - name: Setup CML
+        if: github.event_name == 'pull_request'
+        uses: iterative/setup-cml@v2
+
+      - name: Update PR description
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+
+          # Upload images to GitHub CDN via CML
+          HOME_URL=$(cml publish .github/screenshots/home.png)
+          CALL_URL=$(cml publish .github/screenshots/call.png)
+          COMPILER_URL=$(cml publish .github/screenshots/compiler.png)
+
+          # Get current PR body
+          CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
+
+          # Remove existing Screenshots section if present
+          BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Screenshots.*?<\/summary>.*?<\/details>\s*//sg')
+
+          # Create new screenshots section (closed by default)
+          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)\n\n</details>' "$HOME_URL" "$CALL_URL" "$COMPILER_URL")
+
+          # Combine body with screenshots section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
+
+          # Update PR description
+          gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
