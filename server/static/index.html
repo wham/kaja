@@ -21,36 +21,6 @@
       .monaco-editor {
         position: absolute !important;
       }
-
-      /* Desktop: fixed app-like behavior */
-      html, body {
-        overscroll-behavior: none;
-      }
-
-      /* Touch devices: enable scrolling */
-      @media (pointer: coarse) {
-        html, body {
-          overscroll-behavior: contain;
-        }
-        .app-root {
-          overflow: scroll !important;
-          -webkit-overflow-scrolling: touch;
-        }
-        .tab-content {
-          overflow: scroll !important;
-          -webkit-overflow-scrolling: touch;
-        }
-        /* Force minimum widths so content exceeds viewport, enabling scroll */
-        .sidebar-container {
-          flex-shrink: 0 !important;
-          min-width: 250px !important;
-          width: 250px !important;
-        }
-        .main-content {
-          flex-shrink: 0 !important;
-          min-width: 300px !important;
-        }
-      }
     </style>
   </head>
   <body style="background-color: black;">

@@ -1,5 +1,5 @@
 import { XIcon } from "@primer/octicons-react";
-import { IconButton } from "@primer/react";
+import { IconButton, useResponsiveValue } from "@primer/react";
 import React, { ReactElement } from "react";
 
 interface TabProps {
@@ -21,6 +21,9 @@ export function Tab({ children }: TabProps) {
 }
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
+  const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const overflow = isNarrow ? "auto" : "hidden";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
@@ -105,7 +108,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         })}
         <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
       </div>
-      <div className="tab-content" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow, WebkitOverflowScrolling: isNarrow ? "touch" : undefined }}>
         {React.Children.map(children, (child, index) => (
           <div
             key={child.props.tabId}
