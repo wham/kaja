@@ -95,12 +95,7 @@ jobs:
           BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>Screenshots<\/summary>.*?<\/details>\s*//sg')
 
           # Create new screenshots section (closed by default)
-          SCREENSHOTS_SECTION="<details>
-<summary>Screenshots</summary>
-
-![Screenshot](${SCREENSHOT_URL})
-
-</details>"
+          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>Screenshots</summary>\n\n![Screenshot](%s)\n\n</details>' "$SCREENSHOT_URL")
 
           # Combine body with screenshots section at the end
           printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
