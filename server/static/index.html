@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="overscroll-behavior: contain">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./static/favicon.svg" />
@@ -21,9 +21,30 @@
       .monaco-editor {
         position: absolute !important;
       }
+
+      /* Desktop: fixed app-like behavior */
+      html, body {
+        overscroll-behavior: none;
+      }
+
+      /* Touch devices: enable scrolling */
+      @media (pointer: coarse) {
+        html, body {
+          overscroll-behavior: contain;
+          touch-action: manipulation;
+        }
+        .app-root {
+          overflow: auto !important;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tab-content {
+          overflow: auto !important;
+          -webkit-overflow-scrolling: touch;
+        }
+      }
     </style>
   </head>
-  <body style="background-color: black; overscroll-behavior: contain; touch-action: manipulation">
+  <body style="background-color: black;">
     <div id="root"></div>
     <script type="module" src="./main.js"></script>
   </body>

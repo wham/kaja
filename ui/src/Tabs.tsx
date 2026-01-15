@@ -105,7 +105,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
         })}
         <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="tab-content" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {React.Children.map(children, (child, index) => (
           <div
             key={child.props.tabId}
