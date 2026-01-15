@@ -9,7 +9,8 @@ export function GetStartedBlankslate() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        height: "100%",
+        flex: 1,
+        minHeight: 0,
       }}
     >
       <Blankslate.Visual>

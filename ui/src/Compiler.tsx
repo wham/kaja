@@ -315,7 +315,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       return (
         <div
           style={{
-            height: "100%",
+            flex: 1,
+            minHeight: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
