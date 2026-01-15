@@ -3,7 +3,7 @@ import { Blankslate } from "@primer/react/experimental";
 
 export function GetStartedBlankslate() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, justifyContent: "center" }}>
       <Blankslate>
         <Blankslate.Visual>
           <RocketIcon size="medium" />

@@ -8,7 +8,7 @@ interface FirstProjectBlankslateProps {
 
 export function FirstProjectBlankslate({ canUpdateConfiguration, onNewProjectClick }: FirstProjectBlankslateProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, justifyContent: "center" }}>
       <Blankslate>
         <Blankslate.Visual>
           <PlusIcon size="medium" />
