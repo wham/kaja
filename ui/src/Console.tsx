@@ -14,6 +14,7 @@ interface ConsoleProps {
 
 export function Console({ items }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"request" | "response">("response");
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -47,7 +48,7 @@ export function Console({ items }: ConsoleProps) {
   };
 
   return (
-    <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .console-row {
           display: flex;
@@ -84,21 +85,20 @@ export function Console({ items }: ConsoleProps) {
         }
       `}</style>
 
-      {/* Left panel - Call list */}
+      {/* Header row */}
       <div
-        ref={listRef}
         style={{
-          width: 300,
-          minWidth: 200,
-          borderRight: "1px solid var(--borderColor-default)",
-          overflowY: "auto",
-          flexShrink: 0,
+          display: "flex",
+          borderBottom: "1px solid var(--borderColor-default)",
         }}
       >
         <div
           style={{
+            width: 300,
+            minWidth: 200,
+            flexShrink: 0,
             padding: "8px 12px",
-            borderBottom: "1px solid var(--borderColor-default)",
+            borderRight: "1px solid var(--borderColor-default)",
             fontSize: 11,
             fontWeight: 600,
             color: "var(--fgColor-muted)",
@@ -108,42 +108,69 @@ export function Console({ items }: ConsoleProps) {
         >
           Calls
         </div>
-        {items.map((item, index) => {
-          if (Array.isArray(item)) {
-            return <Console.LogRow key={index} logs={item} />;
-          } else if ("method" in item) {
-            return (
-              <Console.MethodCallRow
-                key={index}
-                methodCall={item}
-                isSelected={selectedIndex === index}
-                onClick={() => handleRowClick(index)}
-              />
-            );
-          }
-          return null;
-        })}
+        {selectedMethodCall && (
+          <Console.DetailTabs
+            methodCall={selectedMethodCall}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )}
       </div>
 
-      {/* Right panel - Details */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {selectedMethodCall ? (
-          <Console.DetailPanel methodCall={selectedMethodCall} />
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              color: "var(--fgColor-muted)",
-              fontSize: 12,
-            }}
-          >
-            Press <PlayIcon size={12} /> to run
-          </div>
-        )}
+      {/* Content row */}
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        {/* Left panel - Call list */}
+        <div
+          ref={listRef}
+          style={{
+            width: 300,
+            minWidth: 200,
+            borderRight: "1px solid var(--borderColor-default)",
+            overflowY: "auto",
+            flexShrink: 0,
+          }}
+        >
+          {items.map((item, index) => {
+            if (Array.isArray(item)) {
+              return <Console.LogRow key={index} logs={item} />;
+            } else if ("method" in item) {
+              return (
+                <Console.MethodCallRow
+                  key={index}
+                  methodCall={item}
+                  isSelected={selectedIndex === index}
+                  onClick={() => handleRowClick(index)}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
+
+        {/* Right panel - Details */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          {selectedMethodCall ? (
+            <Console.DetailContent
+              methodCall={selectedMethodCall}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                color: "var(--fgColor-muted)",
+                fontSize: 12,
+              }}
+            >
+              Press <PlayIcon size={12} /> to run
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -212,15 +239,53 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick }: MethodCal
   );
 };
 
-interface DetailPanelProps {
+interface DetailTabsProps {
   methodCall: MethodCall;
+  activeTab: "request" | "response";
+  onTabChange: (tab: "request" | "response") => void;
 }
 
-Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
-  const [activeTab, setActiveTab] = useState<"request" | "response">("response");
-  const [html, setHtml] = useState<string>("");
+Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
+  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
 
-  // Determine which tabs are available
+  return (
+    <div style={{ display: "flex" }}>
+      <div
+        className={`console-tab ${activeTab === "request" ? "active" : ""}`}
+        onClick={() => onTabChange("request")}
+      >
+        Request
+      </div>
+      <div
+        className={`console-tab ${activeTab === "response" ? "active" : ""}`}
+        onClick={() => onTabChange("response")}
+        style={{
+          color: methodCall.error
+            ? "var(--fgColor-danger)"
+            : activeTab === "response"
+            ? "var(--fgColor-default)"
+            : "var(--fgColor-muted)",
+        }}
+      >
+        Response
+        {!hasResponse && (
+          <span style={{ marginLeft: 8, display: "inline-flex" }}>
+            <Spinner size="small" />
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface DetailContentProps {
+  methodCall: MethodCall;
+  activeTab: "request" | "response";
+  onTabChange: (tab: "request" | "response") => void;
+}
+
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
+  const [html, setHtml] = useState<string>("");
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
 
   useEffect(() => {
@@ -244,63 +309,26 @@ Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
   // Switch to response tab when response arrives
   useEffect(() => {
     if (hasResponse && activeTab === "request") {
-      setActiveTab("response");
+      onTabChange("response");
     }
   }, [hasResponse]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid var(--borderColor-default)",
-        }}
-      >
-        <div
-          className={`console-tab ${activeTab === "request" ? "active" : ""}`}
-          onClick={() => setActiveTab("request")}
-        >
-          Request
-        </div>
-        <div
-          className={`console-tab ${activeTab === "response" ? "active" : ""}`}
-          onClick={() => setActiveTab("response")}
-          style={{
-            color: methodCall.error
-              ? "var(--fgColor-danger)"
-              : activeTab === "response"
-              ? "var(--fgColor-default)"
-              : "var(--fgColor-muted)",
-          }}
-        >
-          Response
-          {!hasResponse && (
-            <span style={{ marginLeft: 8, display: "inline-flex" }}>
-              <Spinner size="small" />
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          padding: 12,
-          fontSize: 12,
-          fontFamily: "monospace",
-        }}
-      >
-        {activeTab === "response" && !hasResponse ? (
-          <div style={{ color: "var(--fgColor-muted)" }}>Waiting for response...</div>
-        ) : (
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
-        )}
-      </div>
-
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
+        padding: 12,
+        fontSize: 12,
+        fontFamily: "monospace",
+      }}
+    >
+      {activeTab === "response" && !hasResponse ? (
+        <div style={{ color: "var(--fgColor-muted)" }}>Waiting for response...</div>
+      ) : (
+        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
+      )}
     </div>
   );
 };
