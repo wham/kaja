@@ -362,7 +362,7 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <div style={{ position: "fixed", inset: 0, display: "flex", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined }}>
+        <div style={{ position: "fixed", inset: 0, display: "flex", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
           <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
