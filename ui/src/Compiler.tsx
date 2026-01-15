@@ -340,7 +340,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   return (
     <div
       style={{
-        height: "100%",
+        flex: 1,
+        minHeight: 0,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
