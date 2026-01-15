@@ -31,7 +31,6 @@
       @media (pointer: coarse) {
         html, body {
           overscroll-behavior: contain;
-          touch-action: manipulation;
         }
         .app-root {
           overflow: scroll !important;
@@ -41,9 +40,15 @@
           overflow: scroll !important;
           -webkit-overflow-scrolling: touch;
         }
+        /* Force minimum widths so content exceeds viewport, enabling scroll */
         .sidebar-container {
-          flex-shrink: 1 !important;
-          min-width: 200px !important;
+          flex-shrink: 0 !important;
+          min-width: 250px !important;
+          width: 250px !important;
+        }
+        .main-content {
+          flex-shrink: 0 !important;
+          min-width: 300px !important;
         }
       }
     </style>
