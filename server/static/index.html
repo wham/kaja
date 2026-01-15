@@ -34,12 +34,16 @@
           touch-action: manipulation;
         }
         .app-root {
-          overflow: auto !important;
+          overflow: scroll !important;
           -webkit-overflow-scrolling: touch;
         }
         .tab-content {
-          overflow: auto !important;
+          overflow: scroll !important;
           -webkit-overflow-scrolling: touch;
+        }
+        .sidebar-container {
+          flex-shrink: 1 !important;
+          min-width: 200px !important;
         }
       }
     </style>

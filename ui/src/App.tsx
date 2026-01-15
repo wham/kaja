@@ -357,7 +357,7 @@ export function App() {
     <ThemeProvider colorMode="night">
       <BaseStyles>
         <div className="app-root" style={{ position: "fixed", inset: 0, display: "flex", overflow: "hidden", background: "var(--bgColor-default)" }}>
-          <div style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, display: "flex", flexShrink: 0 }}>
+          <div className="sidebar-container" style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
               canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
