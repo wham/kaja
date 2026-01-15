@@ -1,6 +1,26 @@
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
+import { RpcProtocol } from "./server/api";
+
+function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
+  const isGrpc = protocol === RpcProtocol.GRPC;
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 500,
+        padding: "1px 5px",
+        borderRadius: 4,
+        marginLeft: 6,
+        backgroundColor: isGrpc ? "rgba(210, 153, 34, 0.2)" : "rgba(88, 166, 255, 0.2)",
+        color: isGrpc ? "var(--fgColor-attention)" : "var(--fgColor-accent)",
+      }}
+    >
+      {isGrpc ? "gRPC" : "Twirp"}
+    </span>
+  );
+}
 
 interface SidebarProps {
   projects: Project[];
@@ -55,7 +75,10 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                     justifyContent: "space-between",
                   }}
                 >
-                  <span>{project.configuration.name}</span>
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                      {project.configuration.name}
+                      <ProtocolPill protocol={project.configuration.protocol} />
+                    </span>
                   {canUpdateConfiguration && (
                     <span style={{ display: "flex", gap: 2 }}>
                       <IconButton
