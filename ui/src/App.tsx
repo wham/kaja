@@ -1,5 +1,5 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
-import { BaseStyles, ThemeProvider } from "@primer/react";
+import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { registerAIProvider } from "./ai";
@@ -32,6 +32,12 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ConfigurationProject | undefined>();
+
+  // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
+  const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const overflow = isNarrow ? "auto" : "hidden";
+  const sidebarMinWidth = isNarrow ? 250 : 100;
+  const mainMinWidth = isNarrow ? 300 : 0;
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -356,8 +362,8 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <div style={{ position: "fixed", inset: 0, display: "flex", overflow: "hidden", background: "var(--bgColor-default)" }}>
-          <div style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, display: "flex", flexShrink: 0 }}>
+        <div style={{ position: "fixed", inset: 0, display: "flex", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
+          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
               canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
@@ -370,7 +376,7 @@ export function App() {
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
