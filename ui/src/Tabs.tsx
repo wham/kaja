@@ -22,7 +22,7 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .tabs-header::-webkit-scrollbar {
           height: 2px;
@@ -116,7 +116,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
             style={{
               display: index === activeTabIndex ? "flex" : "none",
               flexDirection: "column",
-              height: "100%",
+              flex: 1,
+              minHeight: 0,
               overflow: "hidden",
             }}
           >

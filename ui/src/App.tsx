@@ -380,7 +380,7 @@ export function App() {
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
