@@ -356,18 +356,8 @@ export function App() {
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
-        <div style={{ display: "flex", width: "100vw", height: "100vh", background: "var(--bgColor-default)" }}>
-          <div
-            style={{
-              width: sidebarWidth,
-              minWidth: 100,
-              maxWidth: 600,
-              flexShrink: 0,
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+        <div style={{ position: "fixed", inset: 0, display: "flex", overflow: "hidden", background: "var(--bgColor-default)" }}>
+          <div style={{ width: sidebarWidth, minWidth: 100, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
               canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
@@ -380,7 +370,7 @@ export function App() {
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "100%" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>

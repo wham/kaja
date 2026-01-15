@@ -68,7 +68,7 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         automaticLayout: true,
         padding: {
           top: 16,
-          left: 16,
+          bottom: 16,
         },
         minimap: {
           enabled: false,

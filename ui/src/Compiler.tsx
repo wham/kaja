@@ -315,8 +315,10 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       return (
         <div
           style={{
-            height: "100%",
             display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minHeight: 0,
             alignItems: "center",
             justifyContent: "center",
             color: "var(--fgColor-muted)",
@@ -338,15 +340,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   }
 
   return (
-    <div
-      style={{
-        height: "100%",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        backgroundColor: "var(--bgColor-default)",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-default)" }}>
       <style>{`
         @keyframes spin {
           from {
@@ -382,7 +376,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           background-color: var(--bgColor-default);
         }
       `}</style>
-      <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {projects.map((project, index) => {
           const isExpanded = expandedProjects.has(project.configuration.name);
           return (

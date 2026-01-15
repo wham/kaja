@@ -22,7 +22,7 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .tabs-header::-webkit-scrollbar {
           height: 2px;
@@ -65,11 +65,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
       `}</style>
       <div
         className="tabs-header"
-        style={{
-          display: "flex",
-          overflowX: "auto",
-          flexShrink: 0,
-        }}
+        style={{ display: "flex", overflowX: "auto", flexShrink: 0 }}
       >
         {React.Children.map(children, (child, index) => {
           const { tabId, tabLabel, isEphemeral } = child.props;
@@ -107,17 +103,17 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
             </div>
           );
         })}
-        <div style={{ flexGrow: 1, borderBottom: "1px solid", borderBottomColor: "var(--borderColor-default)" }} />
+        <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
       </div>
-      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {React.Children.map(children, (child, index) => (
           <div
             key={child.props.tabId}
             style={{
               display: index === activeTabIndex ? "flex" : "none",
               flexDirection: "column",
-              height: "100%",
-              overflow: "hidden",
+              flex: 1,
+              minHeight: 0,
             }}
           >
             {child}

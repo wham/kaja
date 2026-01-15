@@ -47,17 +47,13 @@ export function Console({ items }: ConsoleProps) {
   return (
     <div
       style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
         fontSize: 12,
         fontFamily: "monospace",
         color: "var(--fgColor-default)",
-        overflowY: "scroll",
-        paddingLeft: 16,
-        paddingRight: 8,
-        paddingTop: 12,
-        paddingBottom: 4,
-        flexGrow: 1,
-        minHeight: 0,
-        height: 0,
+        padding: 16,
       }}
     >
       <div ref={containerRef}>
