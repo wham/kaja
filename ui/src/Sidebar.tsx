@@ -1,5 +1,6 @@
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
+import { LayoutColumn, LayoutFixed, LayoutScroll } from "./Layout";
 import { Method, Project, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 
@@ -35,8 +36,8 @@ interface SidebarProps {
 
 export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div
+    <LayoutColumn>
+      <LayoutFixed
         style={{
           display: "flex",
           alignItems: "center",
@@ -58,8 +59,8 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         </div>
         {canUpdateConfiguration && <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />}
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
-      </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
+      </LayoutFixed>
+      <LayoutScroll style={{ padding: "8px 12px" }}>
         {projects.map((project) => {
           return (
             <nav key={project.configuration.name} aria-label="Services and methods">
@@ -125,8 +126,8 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
             </nav>
           );
         })}
-      </div>
-    </div>
+      </LayoutScroll>
+    </LayoutColumn>
   );
 }
 

@@ -2,6 +2,7 @@ import { Button, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
+import { LayoutScroll } from "./Layout";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
 
@@ -45,19 +46,15 @@ export function Console({ items }: ConsoleProps) {
   }, [items]);
 
   return (
-    <div
+    <LayoutScroll
       style={{
         fontSize: 12,
         fontFamily: "monospace",
         color: "var(--fgColor-default)",
-        overflowY: "scroll",
         paddingLeft: 16,
         paddingRight: 8,
         paddingTop: 12,
         paddingBottom: 4,
-        flexGrow: 1,
-        minHeight: 0,
-        height: 0,
       }}
     >
       <div ref={containerRef}>
@@ -73,7 +70,7 @@ export function Console({ items }: ConsoleProps) {
         })}
       </div>
       <div ref={bottomRef} />
-    </div>
+    </LayoutScroll>
   );
 }
 

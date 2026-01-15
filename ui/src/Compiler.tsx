@@ -2,6 +2,7 @@ import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner } from "@primer/react";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
+import { LayoutColumn, LayoutScroll } from "./Layout";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, Configuration, RpcProtocol } from "./server/api";
@@ -313,11 +314,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   if (projects.length === 0) {
     if (!configurationLoaded) {
       return (
-        <div
+        <LayoutColumn
           style={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "var(--fgColor-muted)",
@@ -328,7 +326,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
             <Spinner size="medium" />
             <div style={{ marginTop: 12 }}>Loading configuration...</div>
           </div>
-        </div>
+        </LayoutColumn>
       );
     }
 
@@ -339,16 +337,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
   }
 
   return (
-    <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        backgroundColor: "var(--bgColor-default)",
-      }}
-    >
+    <LayoutColumn style={{ backgroundColor: "var(--bgColor-default)" }}>
       <style>{`
         @keyframes spin {
           from {
@@ -384,7 +373,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           background-color: var(--bgColor-default);
         }
       `}</style>
-      <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+      <LayoutScroll>
         {projects.map((project, index) => {
           const isExpanded = expandedProjects.has(project.configuration.name);
           return (
@@ -466,8 +455,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
             </div>
           );
         })}
-      </div>
-    </div>
+      </LayoutScroll>
+    </LayoutColumn>
   );
 }
 

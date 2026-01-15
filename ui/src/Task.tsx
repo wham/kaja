@@ -5,6 +5,7 @@ import { ControlBar } from "./ControlBar";
 import { Editor, onGoToDefinition } from "./Editor";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
+import { LayoutColumn, LayoutFixed } from "./Layout";
 import { Project } from "./project";
 import { runTask } from "./taskRunner";
 
@@ -56,19 +57,13 @@ export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskP
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div
-        style={{
-          height: editorHeight,
-          position: "relative",
-          flexShrink: 0,
-        }}
-      >
+    <LayoutColumn>
+      <LayoutFixed style={{ height: editorHeight, position: "relative" }}>
         <ControlBar onRun={onRun} />
         <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
-      </div>
+      </LayoutFixed>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
       <Console items={consoleItems} />
-    </div>
+    </LayoutColumn>
   );
 }

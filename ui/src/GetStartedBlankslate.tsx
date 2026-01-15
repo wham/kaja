@@ -1,18 +1,11 @@
 import { RocketIcon } from "@primer/octicons-react";
 import { Blankslate } from "@primer/react/experimental";
+import { LayoutColumn } from "./Layout";
 
 export function GetStartedBlankslate() {
   return (
-    <Blankslate
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
+    <LayoutColumn style={{ alignItems: "center", justifyContent: "center" }}>
+      <Blankslate>
       <Blankslate.Visual>
         <RocketIcon size="medium" />
       </Blankslate.Visual>
@@ -20,6 +13,7 @@ export function GetStartedBlankslate() {
       <Blankslate.Description>
         Select a method from the sidebar to get started.
       </Blankslate.Description>
-    </Blankslate>
+      </Blankslate>
+    </LayoutColumn>
   );
 }

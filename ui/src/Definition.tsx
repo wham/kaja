@@ -1,5 +1,6 @@
 import { editor } from "monaco-editor";
 import { Editor, onGoToDefinition } from "./Editor";
+import { LayoutColumn } from "./Layout";
 
 interface DefinitionProps {
   model: editor.ITextModel;
@@ -10,8 +11,8 @@ interface DefinitionProps {
 
 export function Definition({ model, onGoToDefinition, startLineNumber, startColumn }: DefinitionProps) {
   return (
-    <div style={{ flex: 1, minHeight: 0 }}>
+    <LayoutColumn>
       <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} startLineNumber={startLineNumber} startColumn={startColumn} />
-    </div>
+    </LayoutColumn>
   );
 }

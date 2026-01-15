@@ -1,6 +1,7 @@
 import { XIcon } from "@primer/octicons-react";
 import { IconButton } from "@primer/react";
 import React, { ReactElement } from "react";
+import { LayoutColumn, LayoutFixed } from "./Layout";
 
 interface TabProps {
   tabId: string;
@@ -22,7 +23,7 @@ export function Tab({ children }: TabProps) {
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: TabsProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <LayoutColumn>
       <style>{`
         .tabs-header::-webkit-scrollbar {
           height: 2px;
@@ -63,12 +64,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           opacity: 1 !important;
         }
       `}</style>
-      <div
+      <LayoutFixed
         className="tabs-header"
         style={{
           display: "flex",
           overflowX: "auto",
-          flexShrink: 0,
         }}
       >
         {React.Children.map(children, (child, index) => {
@@ -108,23 +108,19 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab }: Tabs
           );
         })}
         <div style={{ flexGrow: 1, borderBottom: "1px solid", borderBottomColor: "var(--borderColor-default)" }} />
-      </div>
-      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      </LayoutFixed>
+      <LayoutColumn style={{ overflow: "hidden" }}>
         {React.Children.map(children, (child, index) => (
-          <div
+          <LayoutColumn
             key={child.props.tabId}
             style={{
               display: index === activeTabIndex ? "flex" : "none",
-              flexDirection: "column",
-              flex: 1,
-              minHeight: 0,
-              overflow: "hidden",
             }}
           >
             {child}
-          </div>
+          </LayoutColumn>
         ))}
-      </div>
-    </div>
+      </LayoutColumn>
+    </LayoutColumn>
   );
 }
