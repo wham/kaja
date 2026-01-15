@@ -29,12 +29,50 @@ jobs:
             sleep 1
           done
 
+      - name: Setup CML
+        if: github.event_name == 'pull_request'
+        uses: iterative/setup-cml@v2
+
       - name: Take screenshots
+        id: screenshots
         run: |
           npm install playwright
           npx playwright install chromium --with-deps
           mkdir -p .github/screenshots
           node .github/scripts/take-screenshots.js
+
+      - name: Upload error screenshot (artifact)
+        if: failure() && steps.screenshots.outcome == 'failure' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Error
+          path: .github/screenshots/error.png
+
+      - name: Attach error screenshot to PR
+        if: failure() && steps.screenshots.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+
+          # Upload error image to GitHub CDN via CML
+          ERROR_URL=$(cml publish .github/screenshots/error.png)
+
+          # Get current PR body
+          CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
+
+          # Remove existing Error section if present
+          BODY_WITHOUT_ERROR=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Error.*?<\/summary>.*?<\/details>\s*//sg')
+
+          # Create error section
+          ERROR_SECTION=$(printf '<details open>\n<summary>❌ Error</summary>\n\n![Error](%s)\n\n</details>' "$ERROR_URL")
+
+          # Combine body with error section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_ERROR" "$ERROR_SECTION"
+
+          # Update PR description
+          gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
 
       - name: Upload screenshots (artifact)
         if: github.event_name == 'workflow_dispatch'
@@ -42,10 +80,6 @@ jobs:
         with:
           name: screenshots
           path: .github/screenshots/
-
-      - name: Setup CML
-        if: github.event_name == 'pull_request'
-        uses: iterative/setup-cml@v2
 
       - name: Update PR description
         if: github.event_name == 'pull_request'
