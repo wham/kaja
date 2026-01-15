@@ -34,6 +34,7 @@ jobs:
 
       - name: Take screenshots
         run: |
+          npm install playwright
           npx playwright install chromium --with-deps
           mkdir -p .github/screenshots
           node .github/scripts/take-screenshots.js
