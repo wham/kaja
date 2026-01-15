@@ -1,5 +1,4 @@
 import { PlayIcon } from "@primer/octicons-react";
-import { Spinner } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
@@ -246,8 +245,6 @@ interface DetailTabsProps {
 }
 
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
-  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
-
   return (
     <div style={{ display: "flex" }}>
       <div
@@ -268,11 +265,6 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
         }}
       >
         Response
-        {!hasResponse && (
-          <span style={{ marginLeft: 8, display: "inline-flex" }}>
-            <Spinner size="small" />
-          </span>
-        )}
       </div>
     </div>
   );
