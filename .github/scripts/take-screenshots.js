@@ -49,18 +49,30 @@ async function takeScreenshots() {
     }
     await page.waitForTimeout(1000);
 
-    // Expand the first compiled project by clicking on the row
-    // Projects are displayed as list items with chevron icons
-    const projectRow = page.locator('[role="listitem"]').first();
-    if ((await projectRow.count()) > 0) {
-      await projectRow.click();
-    } else {
-      // Fallback: click first item that looks like a project row
-      const firstProject = page.locator('text=/grpc-quirks|twirp-quirks/').first();
-      if ((await firstProject.count()) > 0) {
-        await firstProject.click();
+    // Expand the first compiled project by clicking on the ActionList.Item
+    // Try multiple selectors since Primer components can render differently
+    const selectors = [
+      '.compiler-item-wrapper >> li',
+      '.compiler-item-wrapper [role="option"]',
+      '.compiler-item-wrapper button',
+      '[class*="ActionListItem"]',
+    ];
+
+    let clicked = false;
+    for (const selector of selectors) {
+      const item = page.locator(selector).first();
+      if ((await item.count()) > 0) {
+        await item.click();
+        clicked = true;
+        break;
       }
     }
+
+    if (!clicked) {
+      // Last resort: click by visible text
+      await page.getByText('grpc-quirks').first().click();
+    }
+
     // Wait for logs to expand
     await page.waitForTimeout(1000);
 
