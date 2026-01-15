@@ -1,6 +1,26 @@
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
+import { RpcProtocol } from "./server/api";
+
+function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
+  const isGrpc = protocol === RpcProtocol.GRPC;
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: "bold",
+        padding: "1px 5px",
+        borderRadius: 4,
+        marginLeft: 6,
+        backgroundColor: isGrpc ? "var(--bgColor-severe-muted)" : "var(--bgColor-done-muted)",
+        color: isGrpc ? "var(--fgColor-severe)" : "var(--fgColor-done)",
+      }}
+    >
+      {isGrpc ? "gRPC" : "Twirp"}
+    </span>
+  );
+}
 
 interface SidebarProps {
   projects: Project[];
@@ -15,14 +35,8 @@ interface SidebarProps {
 
 export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "4px 12px",
-        }}
-      >
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }}>
         <div
           style={{
             flex: 1,
@@ -39,7 +53,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         {canUpdateConfiguration && <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />}
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project) => {
           return (
             <nav key={project.configuration.name} aria-label="Services and methods">
@@ -55,7 +69,10 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                     justifyContent: "space-between",
                   }}
                 >
-                  <span>{project.configuration.name}</span>
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                      {project.configuration.name}
+                      <ProtocolPill protocol={project.configuration.protocol} />
+                    </span>
                   {canUpdateConfiguration && (
                     <span style={{ display: "flex", gap: 2 }}>
                       <IconButton

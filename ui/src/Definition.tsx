@@ -9,5 +9,9 @@ interface DefinitionProps {
 }
 
 export function Definition({ model, onGoToDefinition, startLineNumber, startColumn }: DefinitionProps) {
-  return <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} startLineNumber={startLineNumber} startColumn={startColumn} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <Editor model={model} onGoToDefinition={onGoToDefinition} readOnly={true} startLineNumber={startLineNumber} startColumn={startColumn} />
+    </div>
+  );
 }
