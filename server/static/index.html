@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="overscroll-behavior: none">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./static/favicon.svg" />
@@ -21,9 +21,14 @@
       .monaco-editor {
         position: absolute !important;
       }
+
+      /* Prevent Safari bounce/elastic scrolling on desktop */
+      html, body {
+        overscroll-behavior: none;
+      }
     </style>
   </head>
-  <body style="background-color: black; overscroll-behavior: none">
+  <body style="background-color: black;">
     <div id="root"></div>
     <script type="module" src="./main.js"></script>
   </body>
