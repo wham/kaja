@@ -67,8 +67,8 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         theme: "vs-dark",
         automaticLayout: true,
         padding: {
-          top: 20,
-          bottom: 20,
+          top: 16,
+          bottom: 16,
         },
         minimap: {
           enabled: false,

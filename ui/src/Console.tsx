@@ -53,7 +53,7 @@ export function Console({ items }: ConsoleProps) {
         fontSize: 12,
         fontFamily: "monospace",
         color: "var(--fgColor-default)",
-        padding: "20px 40px",
+        padding: 16,
       }}
     >
       <div ref={containerRef}>
