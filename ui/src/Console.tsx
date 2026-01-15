@@ -1,4 +1,3 @@
-import { Button, Text } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
 import { MethodCall } from "./kaja";
@@ -12,140 +11,324 @@ interface ConsoleProps {
 }
 
 export function Console({ items }: ConsoleProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
-  const scrollToBottom = () => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
-    }
-  };
+  // Filter items into method calls for easier access
+  const methodCalls = items
+    .map((item, index) => ({ item, index }))
+    .filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
 
-  const onMethodCallInteract = () => {
-    autoScrollRef.current = false;
-  };
+  // Get selected method call
+  const selectedMethodCall =
+    selectedIndex !== null && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
 
+  // Auto-scroll to bottom when new items arrive
   useEffect(() => {
-    if (!containerRef.current) {
-      return;
+    if (autoScrollRef.current && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-
-    const observer = new ResizeObserver(() => {
-      if (autoScrollRef.current) {
-        scrollToBottom();
-      }
-    });
-
-    observer.observe(containerRef.current);
-  }, []);
-
-  useEffect(() => {
-    autoScrollRef.current = true;
   }, [items]);
 
-  return (
-    <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: "auto",
-        fontSize: 12,
-        fontFamily: "monospace",
-        color: "var(--fgColor-default)",
-        padding: 16,
-      }}
-    >
-      <div ref={containerRef}>
-        {items.map((item, index) => {
-          let itemElement;
-          if (Array.isArray(item)) {
-            itemElement = <Console.Logs logs={item} />;
-          } else if ("method" in item) {
-            itemElement = <Console.MethodCall methodCall={item} onInteract={onMethodCallInteract} />;
-          }
+  // Auto-select latest method call
+  useEffect(() => {
+    if (methodCalls.length > 0) {
+      const latest = methodCalls[methodCalls.length - 1];
+      setSelectedIndex(latest.index);
+    }
+  }, [items.length]);
 
-          return <div key={index}>{itemElement}</div>;
+  const handleRowClick = (index: number) => {
+    autoScrollRef.current = false;
+    setSelectedIndex(index);
+  };
+
+  return (
+    <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <style>{`
+        .console-row {
+          display: flex;
+          align-items: center;
+          padding: 6px 12px;
+          cursor: pointer;
+          border-bottom: 1px solid var(--borderColor-muted);
+          font-size: 12px;
+          font-family: monospace;
+        }
+        .console-row:hover {
+          background-color: var(--bgColor-neutral-muted);
+        }
+        .console-row.selected {
+          background-color: var(--bgColor-accent-muted);
+        }
+        .console-row.selected:hover {
+          background-color: var(--bgColor-accent-muted);
+        }
+        .console-tab {
+          padding: 8px 16px;
+          cursor: pointer;
+          font-size: 12px;
+          font-family: monospace;
+          border-bottom: 2px solid transparent;
+          color: var(--fgColor-muted);
+        }
+        .console-tab:hover {
+          color: var(--fgColor-default);
+        }
+        .console-tab.active {
+          color: var(--fgColor-default);
+          border-bottom-color: var(--fgColor-accent);
+        }
+      `}</style>
+
+      {/* Left panel - Call list */}
+      <div
+        ref={listRef}
+        style={{
+          width: 300,
+          minWidth: 200,
+          borderRight: "1px solid var(--borderColor-default)",
+          overflowY: "auto",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            padding: "8px 12px",
+            borderBottom: "1px solid var(--borderColor-default)",
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--fgColor-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
+          Calls
+        </div>
+        {items.map((item, index) => {
+          if (Array.isArray(item)) {
+            return <Console.LogRow key={index} logs={item} />;
+          } else if ("method" in item) {
+            return (
+              <Console.MethodCallRow
+                key={index}
+                methodCall={item}
+                isSelected={selectedIndex === index}
+                onClick={() => handleRowClick(index)}
+              />
+            );
+          }
+          return null;
         })}
       </div>
-      <div ref={bottomRef} />
+
+      {/* Right panel - Details */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        {selectedMethodCall ? (
+          <Console.DetailPanel methodCall={selectedMethodCall} />
+        ) : (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--fgColor-muted)",
+              fontSize: 12,
+              fontFamily: "monospace",
+            }}
+          >
+            Select a call to view details
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-interface LogsProps {
+interface LogRowProps {
   logs: Log[];
 }
 
-Console.Logs = function ({ logs }: LogsProps) {
+Console.LogRow = function ({ logs }: LogRowProps) {
+  if (logs.length === 0) return null;
+
+  // Show summary of logs with highest severity
+  const highestSeverity = Math.max(...logs.map((l) => l.level));
+  const color = colorForLogLevel(highestSeverity);
+
   return (
-    <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-      {logs.map((log, index) => (
-        <span key={index} style={{ color: colorForLogLevel(log.level) }}>
-          {log.message}
-          {"\n"}
-        </span>
-      ))}
-    </pre>
+    <div
+      className="console-row"
+      style={{ color, opacity: 0.8 }}
+      title={logs.map((l) => l.message).join("\n")}
+    >
+      <span style={{ marginRight: 8, fontSize: 10 }}>LOG</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}
+      </span>
+    </div>
   );
 };
 
-interface MethodCallProps {
+interface MethodCallRowProps {
   methodCall: MethodCall;
-  onInteract: () => void;
+  isSelected: boolean;
+  onClick: () => void;
 }
 
-Console.MethodCall = function ({ methodCall, onInteract }: MethodCallProps) {
-  const [html, setHtml] = useState<string>("");
-  const [showingOutput, setShowingOutput] = useState(true);
+Console.MethodCallRow = function ({ methodCall, isSelected, onClick }: MethodCallRowProps) {
+  const status = methodCall.error ? "error" : methodCall.output ? "success" : "pending";
 
-  const onInputClick = async () => {
-    onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.input));
-    setShowingOutput(false);
-  };
+  const statusColor = {
+    pending: "var(--fgColor-muted)",
+    success: "var(--fgColor-success)",
+    error: "var(--fgColor-danger)",
+  }[status];
 
-  const onOutputClick = async () => {
-    onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.output));
-    setShowingOutput(true);
-  };
-
-  const onErrorClick = async () => {
-    onInteract();
-    setHtml(await formatAndColorizeJson(methodCall.error));
-    setShowingOutput(true);
-  };
-
-  useEffect(() => {
-    formatAndColorizeJson(methodCall.output || methodCall.error).then((html) => {
-      setHtml(html);
-      setShowingOutput(true);
-    });
-  }, [methodCall]);
+  const statusIcon = {
+    pending: "○",
+    success: "●",
+    error: "●",
+  }[status];
 
   return (
-    <>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <span style={{ color: "var(--fgColor-muted)" }}>{methodId(methodCall.service, methodCall.method) + "("}</span>
-        <Button inactive={!showingOutput} size="small" variant="invisible" onClick={onInputClick} style={{ color: "var(--fgColor-accent)" }}>
-          input
-        </Button>
-        <span style={{ color: "var(--fgColor-muted)" }}>):&nbsp;</span>
-        {methodCall.output && (
-          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onOutputClick} style={{ color: "var(--fgColor-accent)" }}>
-            output
-          </Button>
-        )}
-        {methodCall.error && (
-          <Button inactive={showingOutput} size="small" variant="invisible" onClick={onErrorClick} style={{ color: "var(--fgColor-danger)" }}>
-            error
-          </Button>
-        )}
-        {!methodCall.output && !methodCall.error && <Button size="small" loading={true} />}
+    <div className={`console-row ${isSelected ? "selected" : ""}`} onClick={onClick}>
+      <span style={{ color: statusColor, marginRight: 8, fontSize: 10 }}>{statusIcon}</span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          color: "var(--fgColor-default)",
+        }}
+      >
+        {methodId(methodCall.service, methodCall.method)}
+      </span>
+    </div>
+  );
+};
+
+interface DetailPanelProps {
+  methodCall: MethodCall;
+}
+
+Console.DetailPanel = function ({ methodCall }: DetailPanelProps) {
+  const [activeTab, setActiveTab] = useState<"request" | "response">("response");
+  const [html, setHtml] = useState<string>("");
+
+  // Determine which tabs are available
+  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
+
+  useEffect(() => {
+    async function updateHtml() {
+      let content: any;
+      if (activeTab === "request") {
+        content = methodCall.input;
+      } else {
+        content = methodCall.error || methodCall.output;
+      }
+      if (content !== undefined) {
+        const formatted = await formatAndColorizeJson(content);
+        setHtml(formatted);
+      } else {
+        setHtml("");
+      }
+    }
+    updateHtml();
+  }, [methodCall, activeTab]);
+
+  // Switch to response tab when response arrives
+  useEffect(() => {
+    if (hasResponse && activeTab === "request") {
+      setActiveTab("response");
+    }
+  }, [hasResponse]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Header with method name */}
+      <div
+        style={{
+          padding: "8px 12px",
+          borderBottom: "1px solid var(--borderColor-default)",
+          fontSize: 12,
+          fontFamily: "monospace",
+          fontWeight: 600,
+          color: "var(--fgColor-default)",
+        }}
+      >
+        {methodId(methodCall.service, methodCall.method)}
       </div>
-      <pre style={{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
-    </>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          borderBottom: "1px solid var(--borderColor-default)",
+        }}
+      >
+        <div
+          className={`console-tab ${activeTab === "request" ? "active" : ""}`}
+          onClick={() => setActiveTab("request")}
+        >
+          Request
+        </div>
+        <div
+          className={`console-tab ${activeTab === "response" ? "active" : ""}`}
+          onClick={() => setActiveTab("response")}
+          style={{
+            color: methodCall.error
+              ? "var(--fgColor-danger)"
+              : activeTab === "response"
+              ? "var(--fgColor-default)"
+              : "var(--fgColor-muted)",
+          }}
+        >
+          {methodCall.error ? "Error" : "Response"}
+          {!hasResponse && (
+            <span
+              style={{
+                marginLeft: 8,
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                border: "2px solid var(--fgColor-muted)",
+                borderTopColor: "transparent",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: 12,
+          fontSize: 12,
+          fontFamily: "monospace",
+        }}
+      >
+        {activeTab === "response" && !hasResponse ? (
+          <div style={{ color: "var(--fgColor-muted)" }}>Waiting for response...</div>
+        ) : (
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
+        )}
+      </div>
+
+      {/* Spinner animation */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
   );
 };
 
