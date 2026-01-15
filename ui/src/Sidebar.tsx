@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, PencilIcon, PlusIcon, TrashIcon } from "@primer/octicons-react";
+import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 
@@ -34,6 +35,25 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
+  // Initialize with first two projects expanded by default
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    projects.slice(0, 2).forEach((p) => initial.add(p.configuration.name));
+    return initial;
+  });
+
+  const toggleProjectExpanded = (projectName: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectName)) {
+        next.delete(projectName);
+      } else {
+        next.add(projectName);
+      }
+      return next;
+    });
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }}>
@@ -54,10 +74,14 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
-        {projects.map((project) => {
+        {projects.map((project, projectIndex) => {
+          const projectName = project.configuration.name;
+          const isExpanded = expandedProjects.has(projectName);
+          const showProjectHeader = projects.length > 1 || canUpdateConfiguration;
+
           return (
-            <nav key={project.configuration.name} aria-label="Services and methods">
-              {(projects.length > 1 || canUpdateConfiguration) && (
+            <nav key={projectName} aria-label="Services and methods">
+              {showProjectHeader && (
                 <div
                   style={{
                     fontSize: 12,
@@ -67,55 +91,79 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    cursor: "pointer",
+                    userSelect: "none",
                   }}
+                  onClick={() => toggleProjectExpanded(projectName)}
                 >
-                  <span style={{ display: "flex", alignItems: "center" }}>
-                      {project.configuration.name}
-                      <ProtocolPill protocol={project.configuration.protocol} />
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                        transition: "transform 0.15s ease",
+                      }}
+                    >
+                      <ChevronRightIcon size={12} />
                     </span>
-                  {canUpdateConfiguration && (
+                    {projectName}
+                    <ProtocolPill protocol={project.configuration.protocol} />
+                  </span>
+                  {canUpdateConfiguration && isExpanded && (
                     <span style={{ display: "flex", gap: 2 }}>
                       <IconButton
                         icon={PencilIcon}
                         size="small"
                         variant="invisible"
-                        aria-label={`Edit ${project.configuration.name}`}
-                        onClick={() => onEditProject(project.configuration.name)}
+                        aria-label={`Edit ${projectName}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditProject(projectName);
+                        }}
                       />
                       <IconButton
                         icon={TrashIcon}
                         size="small"
                         variant="invisible"
-                        aria-label={`Delete ${project.configuration.name}`}
-                        onClick={() => onDeleteProject(project.configuration.name)}
+                        aria-label={`Delete ${projectName}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteProject(projectName);
+                        }}
                       />
                     </span>
                   )}
                 </div>
               )}
-              <TreeView aria-label="Services and methods">
-                {project.compilation.status === "running" || project.compilation.status === "pending" ? (
-                  <LoadingTreeViewItem />
-                ) : (
-                  project.services.map((service, index) => (
-                    <TreeView.Item id={service.name} key={service.name} defaultExpanded={index === 0}>
-                      {service.name}
-                      <TreeView.SubTree>
-                        {service.methods.map((method) => (
-                          <TreeView.Item
-                            id={methodId(service, method)}
-                            key={methodId(service, method)}
-                            onSelect={() => onSelect(method)}
-                            current={currentMethod === method}
-                          >
-                            {method.name}
-                          </TreeView.Item>
-                        ))}
-                      </TreeView.SubTree>
-                    </TreeView.Item>
-                  ))
-                )}
-              </TreeView>
+              {(isExpanded || !showProjectHeader) && (
+                <TreeView aria-label="Services and methods">
+                  {project.compilation.status === "running" || project.compilation.status === "pending" ? (
+                    <LoadingTreeViewItem />
+                  ) : (
+                    project.services.map((service, serviceIndex) => (
+                      <TreeView.Item
+                        id={`${projectName}-${service.name}`}
+                        key={service.name}
+                        defaultExpanded={projectIndex < 2 && serviceIndex === 0}
+                      >
+                        {service.name}
+                        <TreeView.SubTree>
+                          {service.methods.map((method) => (
+                            <TreeView.Item
+                              id={methodId(service, method)}
+                              key={methodId(service, method)}
+                              onSelect={() => onSelect(method)}
+                              current={currentMethod === method}
+                            >
+                              {method.name}
+                            </TreeView.Item>
+                          ))}
+                        </TreeView.SubTree>
+                      </TreeView.Item>
+                    ))
+                  )}
+                </TreeView>
+              )}
             </nav>
           );
         })}
