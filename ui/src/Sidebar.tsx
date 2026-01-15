@@ -13,8 +13,8 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
         padding: "1px 5px",
         borderRadius: 4,
         marginLeft: 6,
-        backgroundColor: isGrpc ? "rgba(210, 153, 34, 0.2)" : "rgba(88, 166, 255, 0.2)",
-        color: isGrpc ? "var(--fgColor-attention)" : "var(--fgColor-accent)",
+        backgroundColor: isGrpc ? "var(--bgColor-success-muted)" : "var(--bgColor-done-muted)",
+        color: isGrpc ? "var(--fgColor-success)" : "var(--fgColor-done)",
       }}
     >
       {isGrpc ? "gRPC" : "Twirp"}
