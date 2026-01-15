@@ -8,8 +8,8 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   return (
     <span
       style={{
-        fontSize: 10,
-        fontWeight: 500,
+        fontSize: 9,
+        fontWeight: "bold",
         padding: "1px 5px",
         borderRadius: 4,
         marginLeft: 6,
