@@ -62,14 +62,14 @@ jobs:
           # Get current PR body
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
 
-          # Remove existing Error section if present
-          BODY_WITHOUT_ERROR=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Error.*?<\/summary>.*?<\/details>\s*//sg')
+          # Remove existing Screenshots section if present
+          BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Screenshots.*?<\/summary>.*?<\/details>\s*//sg')
 
-          # Create error section
-          ERROR_SECTION=$(printf '<details open>\n<summary>❌ Error</summary>\n\n![Error](%s)\n\n</details>' "$ERROR_URL")
+          # Create screenshots section with error (collapsed by default)
+          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Error\n![Error](%s)\n\n</details>' "$ERROR_URL")
 
-          # Combine body with error section at the end
-          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_ERROR" "$ERROR_SECTION"
+          # Combine body with screenshots section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
 
           # Update PR description
           gh pr edit ${PR_NUMBER} --body "$NEW_BODY"

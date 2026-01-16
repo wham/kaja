@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
@@ -35,12 +35,17 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
-  // Initialize with first two projects expanded by default
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    projects.slice(0, 2).forEach((p) => initial.add(p.configuration.name));
-    return initial;
-  });
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  // Expand first two projects when projects first load
+  useEffect(() => {
+    setExpandedProjects((prev) => {
+      if (prev.size === 0 && projects.length > 0) {
+        return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
+      }
+      return prev;
+    });
+  }, [projects]);
 
   const toggleProjectExpanded = (projectName: string) => {
     setExpandedProjects((prev) => {
@@ -80,57 +85,63 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
           const showProjectHeader = projects.length > 1 || canUpdateConfiguration;
 
           return (
-            <nav key={projectName} aria-label="Services and methods">
+            <nav key={projectName} aria-label="Services and methods" style={{ marginTop: projectIndex > 0 ? 12 : 0 }}>
               {showProjectHeader && (
                 <div
                   style={{
                     fontSize: 12,
                     fontWeight: "bold",
                     padding: "2px 0",
+                    marginLeft: -12,
+                    paddingLeft: 4,
                     color: "var(--fgColor-muted)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
+                    minHeight: 24,
                   }}
                   onClick={() => toggleProjectExpanded(projectName)}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <span
                       style={{
                         display: "inline-flex",
                         transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                        transition: "transform 0.15s ease",
+                        transition: "transform 0.12s ease",
+                        color: "var(--fgColor-muted)",
                       }}
                     >
-                      <ChevronRightIcon size={12} />
+                      <ChevronRightIcon size={16} />
                     </span>
                     {projectName}
                     <ProtocolPill protocol={project.configuration.protocol} />
                   </span>
                   {canUpdateConfiguration && isExpanded && (
-                    <span style={{ display: "flex", gap: 2 }}>
-                      <IconButton
-                        icon={PencilIcon}
-                        size="small"
-                        variant="invisible"
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4 }}>
+                      <span
+                        role="button"
                         aria-label={`Edit ${projectName}`}
+                        style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onEditProject(projectName);
                         }}
-                      />
-                      <IconButton
-                        icon={TrashIcon}
-                        size="small"
-                        variant="invisible"
+                      >
+                        <PencilIcon size={14} />
+                      </span>
+                      <span
+                        role="button"
                         aria-label={`Delete ${projectName}`}
+                        style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteProject(projectName);
                         }}
-                      />
+                      >
+                        <TrashIcon size={14} />
+                      </span>
                     </span>
                   )}
                 </div>
