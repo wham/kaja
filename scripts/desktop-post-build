@@ -4,9 +4,6 @@ set -e
 # Post-build hook for wails desktop app
 # Called from desktop/build/bin directory with ${bin} as argument
 # Copies protoc, protoc-gen-ts, node, include files, and demo resources into the app bundle
-#
-# Environment variables:
-#   KAJA_FILTER_QUIRKS=1  - Filter out quirks projects from demo configuration
 
 BIN_PATH="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -44,30 +41,19 @@ cp "$SERVER_BUILD/node" "$MACOS_DIR/"
 rm -rf "$RESOURCES_DIR/include"
 cp -r "$SERVER_BUILD/include" "$RESOURCES_DIR/"
 
-# Copy demo resources to Resources/demo
+# Copy demo resources to Resources/demo (excluding quirks)
 echo "Bundling demo resources..."
 DEMO_DIR="$RESOURCES_DIR/demo"
 rm -rf "$DEMO_DIR"
 mkdir -p "$DEMO_DIR"
 
-# Copy proto directories from workspace
+# Copy proto directories from workspace (teams and users only)
 cp -r "$WORKSPACE/teams" "$DEMO_DIR/"
 cp -r "$WORKSPACE/users" "$DEMO_DIR/"
 
-if [ "$KAJA_FILTER_QUIRKS" = "1" ]; then
-    echo "Filtering out quirks projects from demo configuration..."
-    # Filter out quirks projects and create demo kaja.json
-    cat "$WORKSPACE/kaja.json" | \
-        jq 'del(.ai) | del(.system) | .projects = [.projects[] | select(.name | contains("quirks") | not)]' \
-        > "$DEMO_DIR/kaja.json"
-else
-    echo "Including all projects in demo configuration..."
-    # Copy quirks proto directory
-    cp -r "$WORKSPACE/quirks" "$DEMO_DIR/"
-    # Include all projects but remove ai and system config
-    cat "$WORKSPACE/kaja.json" | \
-        jq 'del(.ai) | del(.system)' \
-        > "$DEMO_DIR/kaja.json"
-fi
+# Filter out quirks projects and create demo kaja.json
+cat "$WORKSPACE/kaja.json" | \
+    jq 'del(.ai) | del(.system) | .projects = [.projects[] | select(.name | contains("quirks") | not)]' \
+    > "$DEMO_DIR/kaja.json"
 
 echo "Post-build complete: bundled protoc, protoc-gen-ts, node, demo into $APP_BUNDLE"
