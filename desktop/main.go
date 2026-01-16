@@ -31,9 +31,6 @@ var assets embed.FS
 //go:embed wails.json
 var wailsJSON []byte
 
-//go:embed all:demo
-var demoFS embed.FS
-
 // WailsConfig represents the wails.json configuration
 type WailsConfig struct {
 	Info struct {
@@ -77,7 +74,7 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	})
 }
 
-// InstallDemo copies demo kaja.json and proto files from embedded resources to ~/.kaja
+// InstallDemo copies demo kaja.json and proto files from app Resources to ~/.kaja
 func (a *App) InstallDemo() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -88,8 +85,15 @@ func (a *App) InstallDemo() error {
 	kajaDir := filepath.Join(homeDir, ".kaja")
 	slog.Info("Installing demo to", "path", kajaDir)
 
-	// Copy all files from embedded demo FS to ~/.kaja
-	err = copyEmbeddedDir(demoFS, "demo", kajaDir)
+	// Get the demo directory from app Resources
+	demoDir, err := getResourcesPath("demo")
+	if err != nil {
+		slog.Error("Failed to get demo resources path", "error", err)
+		return fmt.Errorf("failed to get demo resources path: %w", err)
+	}
+
+	// Copy all files from demo directory to ~/.kaja
+	err = copyDir(demoDir, kajaDir)
 	if err != nil {
 		slog.Error("Failed to copy demo files", "error", err)
 		return fmt.Errorf("failed to copy demo files: %w", err)
@@ -99,28 +103,49 @@ func (a *App) InstallDemo() error {
 	return nil
 }
 
-// copyEmbeddedDir recursively copies files from an embedded FS to the destination directory
-func copyEmbeddedDir(srcFS embed.FS, srcDir string, dstDir string) error {
-	entries, err := srcFS.ReadDir(srcDir)
+// getResourcesPath returns the path to a resource within the app bundle's Resources directory
+func getResourcesPath(resourceName string) (string, error) {
+	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to read directory %s: %w", srcDir, err)
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	// On macOS, the executable is at Kaja.app/Contents/MacOS/Kaja
+	// Resources are at Kaja.app/Contents/Resources/
+	execDir := filepath.Dir(execPath)
+	resourcesDir := filepath.Join(execDir, "..", "Resources", resourceName)
+
+	// Resolve to absolute path
+	resourcesDir, err = filepath.Abs(resourcesDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve resources path: %w", err)
+	}
+
+	return resourcesDir, nil
+}
+
+// copyDir recursively copies a directory from src to dst
+func copyDir(src string, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", src, err)
 	}
 
 	for _, entry := range entries {
-		srcPath := filepath.Join(srcDir, entry.Name())
-		dstPath := filepath.Join(dstDir, entry.Name())
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
 			// Create directory and recurse
 			if err := os.MkdirAll(dstPath, 0755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
 			}
-			if err := copyEmbeddedDir(srcFS, srcPath, dstPath); err != nil {
+			if err := copyDir(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
 			// Copy file
-			content, err := srcFS.ReadFile(srcPath)
+			content, err := os.ReadFile(srcPath)
 			if err != nil {
 				return fmt.Errorf("failed to read file %s: %w", srcPath, err)
 			}
