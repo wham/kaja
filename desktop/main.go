@@ -31,6 +31,9 @@ var assets embed.FS
 //go:embed wails.json
 var wailsJSON []byte
 
+//go:embed all:demo
+var demoFS embed.FS
+
 // WailsConfig represents the wails.json configuration
 type WailsConfig struct {
 	Info struct {
@@ -72,6 +75,63 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Workspace Directory",
 	})
+}
+
+// InstallDemo copies demo kaja.json and proto files from embedded resources to ~/.kaja
+func (a *App) InstallDemo() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Failed to get user home directory", "error", err)
+		return fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	kajaDir := filepath.Join(homeDir, ".kaja")
+	slog.Info("Installing demo to", "path", kajaDir)
+
+	// Copy all files from embedded demo FS to ~/.kaja
+	err = copyEmbeddedDir(demoFS, "demo", kajaDir)
+	if err != nil {
+		slog.Error("Failed to copy demo files", "error", err)
+		return fmt.Errorf("failed to copy demo files: %w", err)
+	}
+
+	slog.Info("Demo installed successfully")
+	return nil
+}
+
+// copyEmbeddedDir recursively copies files from an embedded FS to the destination directory
+func copyEmbeddedDir(srcFS embed.FS, srcDir string, dstDir string) error {
+	entries, err := srcFS.ReadDir(srcDir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", srcDir, err)
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(srcDir, entry.Name())
+		dstPath := filepath.Join(dstDir, entry.Name())
+
+		if entry.IsDir() {
+			// Create directory and recurse
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+			}
+			if err := copyEmbeddedDir(srcFS, srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy file
+			content, err := srcFS.ReadFile(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read file %s: %w", srcPath, err)
+			}
+			if err := os.WriteFile(dstPath, content, 0644); err != nil {
+				return fmt.Errorf("failed to write file %s: %w", dstPath, err)
+			}
+			slog.Info("Copied demo file", "path", dstPath)
+		}
+	}
+
+	return nil
 }
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {

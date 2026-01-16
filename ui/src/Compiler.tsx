@@ -13,6 +13,7 @@ interface CompilerProps {
   onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void;
   onConfigurationLoaded?: (configuration: Configuration) => void;
   onNewProjectClick?: () => void;
+  onDemoClick?: () => void;
 }
 
 // Constants
@@ -26,7 +27,7 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigurationLoaded, onNewProjectClick }: CompilerProps) {
+export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigurationLoaded, onNewProjectClick, onDemoClick }: CompilerProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
@@ -335,7 +336,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
 
     // Configuration loaded but no projects
     return (
-      <FirstProjectBlankslate canUpdateConfiguration={canUpdateConfiguration} onNewProjectClick={onNewProjectClick} />
+      <FirstProjectBlankslate canUpdateConfiguration={canUpdateConfiguration} onNewProjectClick={onNewProjectClick} onDemoClick={onDemoClick} />
     );
   }
 

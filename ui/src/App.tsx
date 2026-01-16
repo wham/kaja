@@ -1,7 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { registerAIProvider } from "./ai";
 import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
@@ -17,6 +17,8 @@ import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
+import { isWailsEnvironment } from "./wails";
+import { InstallDemo } from "./wailsjs/go/main/App";
 
 // https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
 (BigInt.prototype as any)["toJSON"] = function () {
@@ -32,6 +34,7 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ConfigurationProject | undefined>();
+  const [compilerKey, setCompilerKey] = useState(0);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
@@ -359,6 +362,31 @@ export function App() {
     }
   };
 
+  const onDemoClick = async () => {
+    if (!isWailsEnvironment()) {
+      console.log("Demo installation is only available in the desktop app");
+      return;
+    }
+
+    try {
+      // Install demo files to ~/.kaja
+      await InstallDemo();
+      console.log("Demo installed successfully");
+
+      // Reset state to trigger reload
+      setProjects([]);
+      setConfiguration(undefined);
+      setSelectedMethod(undefined);
+      setTabs([{ type: "compiler" }]);
+      setActiveTabIndex(0);
+
+      // Force Compiler to remount and reload configuration
+      setCompilerKey((prev) => prev + 1);
+    } catch (error) {
+      console.error("Failed to install demo:", error);
+    }
+  };
+
   return (
     <ThemeProvider colorMode="night">
       <BaseStyles>
@@ -385,11 +413,13 @@ export function App() {
                     return (
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
                         <Compiler
+                          key={compilerKey}
                           projects={projects}
                           canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
                           onUpdate={onCompilationUpdate}
                           onConfigurationLoaded={setConfiguration}
                           onNewProjectClick={onNewProjectClick}
+                          onDemoClick={onDemoClick}
                         />
                       </Tab>
                     );
