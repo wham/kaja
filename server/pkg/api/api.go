@@ -46,8 +46,14 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		compiler.status = CompileStatus_STATUS_RUNNING
 		compiler.logger = NewLogger()
 		compiler.sources = []*Source{}
-		compiler.logger.info("Starting compilation")
-		go compiler.start(req.Id, req.ProtoDir)
+
+		if req.UseReflection {
+			compiler.logger.info("Starting reflection-based discovery")
+			go compiler.startReflection(req.Id, req.Url)
+		} else {
+			compiler.logger.info("Starting compilation")
+			go compiler.start(req.Id, req.ProtoDir)
+		}
 	}
 
 	logOffset := int(req.LogOffset)

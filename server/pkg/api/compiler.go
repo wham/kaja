@@ -1,15 +1,18 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
 type Compiler struct {
@@ -66,6 +69,94 @@ func (c *Compiler) start(id string, protoDir string) error {
 
 	c.status = CompileStatus_STATUS_READY
 	c.logger.info("Compilation completed successfully, Kaja is ready to go")
+
+	return nil
+}
+
+// startReflection discovers services via gRPC reflection and compiles them.
+func (c *Compiler) startReflection(id string, targetURL string) error {
+	c.logger.debug("id: " + id)
+	c.logger.info("Using gRPC reflection to discover services from " + targetURL)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to get working directory", err)
+		return err
+	}
+	c.logger.debug("cwd: " + cwd)
+
+	// Create temp directory for generated proto files
+	protoDir, err := tempdir.NewSourcesDir()
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to create temp directory for protos", err)
+		return err
+	}
+	c.logger.debug("protoDir (temp): " + protoDir)
+
+	// Create reflection client and discover services
+	c.logger.info("Connecting to server for reflection...")
+	client, err := grpc.NewReflectionClientFromString(targetURL)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to create reflection client", err)
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := client.Discover(ctx)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to discover services via reflection", err)
+		return err
+	}
+
+	c.logger.info(fmt.Sprintf("Discovered %d services: %v", len(result.Services), result.Services))
+	c.logger.info(fmt.Sprintf("Retrieved %d file descriptors", len(result.FileDescriptors)))
+
+	// Write proto files to temp directory
+	c.logger.debug("Writing proto files to temp directory")
+	err = grpc.WriteProtoFiles(result, protoDir)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to write proto files", err)
+		return err
+	}
+
+	// Create sources directory for TypeScript output
+	sourcesDir, err := tempdir.NewSourcesDir()
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to create temp directory for sources", err)
+		return err
+	}
+	c.logger.debug("sourcesDir: " + sourcesDir)
+
+	// Run protoc on the generated proto files
+	c.logger.debug("Starting compilation")
+	err = c.protoc(cwd, sourcesDir, protoDir)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Compilation failed", err)
+		return err
+	}
+
+	c.sources = c.getSources(sourcesDir)
+
+	c.logger.debug("Building stub")
+	stub, err := ui.BuildStub(sourcesDir)
+	if err != nil {
+		c.status = CompileStatus_STATUS_ERROR
+		c.logger.error("Failed to build stub", err)
+		return err
+	}
+	c.stub = string(stub)
+
+	c.status = CompileStatus_STATUS_READY
+	c.logger.info("Reflection-based compilation completed successfully, Kaja is ready to go")
 
 	return nil
 }

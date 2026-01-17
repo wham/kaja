@@ -104,6 +104,8 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
         id: compilationId,
         logOffset: project.compilation.logOffset || 0,
         protoDir: project.configuration.protoDir,
+        useReflection: project.configuration.useReflection,
+        url: project.configuration.url,
       });
 
       if (signal.aborted) return;

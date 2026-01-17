@@ -27,6 +27,14 @@ export interface CompileRequest {
      * @generated from protobuf field: string proto_dir = 3
      */
     protoDir: string;
+    /**
+     * @generated from protobuf field: bool use_reflection = 4
+     */
+    useReflection: boolean;
+    /**
+     * @generated from protobuf field: string url = 5
+     */
+    url: string; // Target URL for reflection-based discovery
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -152,6 +160,10 @@ export interface ConfigurationProject {
      * @generated from protobuf field: string proto_dir = 4
      */
     protoDir: string;
+    /**
+     * @generated from protobuf field: bool use_reflection = 5
+     */
+    useReflection: boolean;
 }
 /**
  * @generated from protobuf message ConfigurationAI
@@ -245,7 +257,9 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         super("CompileRequest", [
             { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
@@ -253,6 +267,8 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         message.id = "";
         message.logOffset = 0;
         message.protoDir = "";
+        message.useReflection = false;
+        message.url = "";
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
         return message;
@@ -270,6 +286,12 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
                     break;
                 case /* string proto_dir */ 3:
                     message.protoDir = reader.string();
+                    break;
+                case /* bool use_reflection */ 4:
+                    message.useReflection = reader.bool();
+                    break;
+                case /* string url */ 5:
+                    message.url = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -292,6 +314,12 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* string proto_dir = 3; */
         if (message.protoDir !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
+        /* bool use_reflection = 4; */
+        if (message.useReflection !== false)
+            writer.tag(4, WireType.Varint).bool(message.useReflection);
+        /* string url = 5; */
+        if (message.url !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.url);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -698,7 +726,8 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -707,6 +736,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.protocol = 0;
         message.url = "";
         message.protoDir = "";
+        message.useReflection = false;
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -727,6 +757,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                     break;
                 case /* string proto_dir */ 4:
                     message.protoDir = reader.string();
+                    break;
+                case /* bool use_reflection */ 5:
+                    message.useReflection = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -752,6 +785,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* string proto_dir = 4; */
         if (message.protoDir !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.protoDir);
+        /* bool use_reflection = 5; */
+        if (message.useReflection !== false)
+            writer.tag(5, WireType.Varint).bool(message.useReflection);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

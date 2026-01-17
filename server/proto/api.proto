@@ -12,6 +12,8 @@ message CompileRequest {
   string id = 1;
   int32 log_offset = 2;
   string proto_dir = 3;
+  bool use_reflection = 4;
+  string url = 5;  // Target URL for reflection-based discovery
 }
 
 message CompileResponse {
@@ -79,6 +81,7 @@ message ConfigurationProject {
   RpcProtocol protocol = 2;
   string url = 3;
   string proto_dir = 4;
+  bool use_reflection = 5;
 }
 
 message ConfigurationAI {
