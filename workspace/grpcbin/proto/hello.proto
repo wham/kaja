@@ -1,4 +1,6 @@
-syntax = "proto3";
+// based on https://grpc.io/docs/guides/concepts.html
+
+syntax = "proto2";
 
 package hello;
 
@@ -10,9 +12,9 @@ service HelloService {
 }
 
 message HelloRequest {
-  string greeting = 1;
+  optional string greeting = 1;
 }
 
 message HelloResponse {
-  string reply = 1;
+  required string reply = 1;
 }

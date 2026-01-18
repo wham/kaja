@@ -5,33 +5,20 @@ package teams;
 option go_package = "internal/api";
 
 service Teams {
-    rpc CreateTeam(CreateTeamRequest) returns (CreateTeamResponse);
-    rpc GetTeam(GetTeamRequest) returns (GetTeamResponse);
-    rpc DeleteTeam(DeleteTeamRequest) returns (DeleteTeamResponse);
     rpc GetAllTeams(GetAllTeamsRequest) returns (GetAllTeamsResponse);
+    rpc GetTeam(GetTeamRequest) returns (GetTeamResponse);
+    rpc CreateTeam(CreateTeamRequest) returns (CreateTeamResponse);
+    rpc DeleteTeam(DeleteTeamRequest) returns (DeleteTeamResponse);
     rpc AddTeamMember(AddTeamMemberRequest) returns (AddTeamMemberResponse);
     rpc RemoveTeamMember(RemoveTeamMemberRequest) returns (RemoveTeamMemberResponse);
     rpc UpdateTeamMemberRole(UpdateTeamMemberRoleRequest) returns (UpdateTeamMemberRoleResponse);
 }
 
-message TeamMember {
-    string user_id = 1;
-    Role role = 2;
+message GetAllTeamsRequest {
 }
 
-message Team {
-    string id = 1;
-    string name = 2;
-    repeated TeamMember members = 3;
-    string created_at = 4;
-}
-
-message CreateTeamRequest {
-    string name = 1;
-}
-
-message CreateTeamResponse {
-    Team team = 1;
+message GetAllTeamsResponse {
+    repeated Team teams = 1;
 }
 
 message GetTeamRequest {
@@ -42,24 +29,19 @@ message GetTeamResponse {
     Team team = 1;
 }
 
+message CreateTeamRequest {
+    string name = 1;
+}
+
+message CreateTeamResponse {
+    Team team = 1;
+}
+
 message DeleteTeamRequest {
     string id = 1;
 }
 
 message DeleteTeamResponse {
-}
-
-message GetAllTeamsRequest {
-}
-
-message GetAllTeamsResponse {
-    repeated Team teams = 1;
-}
-
-enum Role {
-    ROLE_UNKNOWN = 0;
-    ROLE_MEMBER = 1;
-    ROLE_ADMIN = 2;
 }
 
 message AddTeamMemberRequest {
@@ -86,4 +68,22 @@ message UpdateTeamMemberRoleRequest {
 }
 
 message UpdateTeamMemberRoleResponse {
-} 
+}
+
+message Team {
+    string id = 1;
+    string name = 2;
+    repeated TeamMember members = 3;
+    string created_at = 4;
+}
+
+message TeamMember {
+    string user_id = 1;
+    Role role = 2;
+}
+
+enum Role {
+    ROLE_UNKNOWN = 0;
+    ROLE_MEMBER = 1;
+    ROLE_ADMIN = 2;
+}

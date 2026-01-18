@@ -64,6 +64,7 @@ message DummyMessage {
   repeated bytes f_bytess = 14;
   float f_float = 15;
   repeated float f_floats = 16;
+  // TODO: timestamp, duration, oneof, any, maps, fieldmask, wrapper type, struct, listvalue, value, nullvalue, deprecated
 }
 
 message IndexReply {

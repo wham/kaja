@@ -14,7 +14,7 @@
     {
       "name":  "grpcb.in",
       "protocol":  "RPC_PROTOCOL_GRPC",
-      "url":  "dns:grpcb.in:9001",
+      "url":  "dns:grpcb.in:9000",
       "protoDir":  "grpcbin/proto"
     },
     {
