@@ -13,7 +13,7 @@ interface CompletionContext {
   model: monaco.editor.ITextModel;
 }
 
-const modelName = "gpt-5-nano";
+const modelName = "gpt-4o-mini";
 const DEBOUNCE_DELAY = 1000;
 
 let debounceTimer: NodeJS.Timeout | null = null;
