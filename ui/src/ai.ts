@@ -193,7 +193,7 @@ Current line prefix: "${prefix}"`;
       ],
       temperature: 0.1,
       topP: 0.95,
-      maxTokens: 200,
+      maxCompletionTokens: 200,
       stop: ["```", "\n\n\n", "Note:", "Here's"],
     });
 

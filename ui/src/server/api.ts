@@ -238,9 +238,9 @@ export interface ChatCompletionsRequest {
      */
     topP: number;
     /**
-     * @generated from protobuf field: int32 max_tokens = 5
+     * @generated from protobuf field: int32 max_completion_tokens = 5
      */
-    maxTokens: number;
+    maxCompletionTokens: number;
     /**
      * @generated from protobuf field: repeated string stop = 6
      */
@@ -1186,7 +1186,7 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
             { no: 2, name: "messages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatMessage },
             { no: 3, name: "temperature", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
             { no: 4, name: "top_p", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
-            { no: 5, name: "max_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 5, name: "max_completion_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 6, name: "stop", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
@@ -1196,7 +1196,7 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
         message.messages = [];
         message.temperature = 0;
         message.topP = 0;
-        message.maxTokens = 0;
+        message.maxCompletionTokens = 0;
         message.stop = [];
         if (value !== undefined)
             reflectionMergePartial<ChatCompletionsRequest>(this, message, value);
@@ -1219,8 +1219,8 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
                 case /* double top_p */ 4:
                     message.topP = reader.double();
                     break;
-                case /* int32 max_tokens */ 5:
-                    message.maxTokens = reader.int32();
+                case /* int32 max_completion_tokens */ 5:
+                    message.maxCompletionTokens = reader.int32();
                     break;
                 case /* repeated string stop */ 6:
                     message.stop.push(reader.string());
@@ -1249,9 +1249,9 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
         /* double top_p = 4; */
         if (message.topP !== 0)
             writer.tag(4, WireType.Bit64).double(message.topP);
-        /* int32 max_tokens = 5; */
-        if (message.maxTokens !== 0)
-            writer.tag(5, WireType.Varint).int32(message.maxTokens);
+        /* int32 max_completion_tokens = 5; */
+        if (message.maxCompletionTokens !== 0)
+            writer.tag(5, WireType.Varint).int32(message.maxCompletionTokens);
         /* repeated string stop = 6; */
         for (let i = 0; i < message.stop.length; i++)
             writer.tag(6, WireType.LengthDelimited).string(message.stop[i]);

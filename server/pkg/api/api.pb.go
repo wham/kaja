@@ -979,15 +979,15 @@ func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 }
 
 type ChatCompletionsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Model         string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
-	Messages      []*ChatMessage         `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
-	Temperature   float64                `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	TopP          float64                `protobuf:"fixed64,4,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
-	MaxTokens     int32                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
-	Stop          []string               `protobuf:"bytes,6,rep,name=stop,proto3" json:"stop,omitempty"` // Stop sequences to halt generation
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Model               string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Messages            []*ChatMessage         `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
+	Temperature         float64                `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	TopP                float64                `protobuf:"fixed64,4,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
+	MaxCompletionTokens int32                  `protobuf:"varint,5,opt,name=max_completion_tokens,json=maxCompletionTokens,proto3" json:"max_completion_tokens,omitempty"`
+	Stop                []string               `protobuf:"bytes,6,rep,name=stop,proto3" json:"stop,omitempty"` // Stop sequences to halt generation
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ChatCompletionsRequest) Reset() {
@@ -1048,9 +1048,9 @@ func (x *ChatCompletionsRequest) GetTopP() float64 {
 	return 0
 }
 
-func (x *ChatCompletionsRequest) GetMaxTokens() int32 {
+func (x *ChatCompletionsRequest) GetMaxCompletionTokens() int32 {
 	if x != nil {
-		return x.MaxTokens
+		return x.MaxCompletionTokens
 	}
 	return 0
 }
@@ -1361,14 +1361,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xc2\x01\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xd7\x01\n" +
 	"\x16ChatCompletionsRequest\x12\x14\n" +
 	"\x05model\x18\x01 \x01(\tR\x05model\x12(\n" +
 	"\bmessages\x18\x02 \x03(\v2\f.ChatMessageR\bmessages\x12 \n" +
 	"\vtemperature\x18\x03 \x01(\x01R\vtemperature\x12\x13\n" +
-	"\x05top_p\x18\x04 \x01(\x01R\x04topP\x12\x1d\n" +
-	"\n" +
-	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\x12\x12\n" +
+	"\x05top_p\x18\x04 \x01(\x01R\x04topP\x122\n" +
+	"\x15max_completion_tokens\x18\x05 \x01(\x05R\x13maxCompletionTokens\x12\x12\n" +
 	"\x04stop\x18\x06 \x03(\tR\x04stop\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +

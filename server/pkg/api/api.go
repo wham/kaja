@@ -200,7 +200,7 @@ func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRe
 		Messages:    make([]openAIMessage, len(req.Messages)),
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
-		MaxTokens:   int(req.MaxTokens),
+		MaxCompletionTokens: int(req.MaxCompletionTokens),
 		Stop:        req.Stop,
 	}
 
@@ -284,12 +284,12 @@ func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRe
 
 // OpenAI API types for JSON serialization
 type openAIChatRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openAIMessage `json:"messages"`
-	Temperature float64         `json:"temperature,omitempty"`
-	TopP        float64         `json:"top_p,omitempty"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Stop        []string        `json:"stop,omitempty"`
+	Model               string          `json:"model"`
+	Messages            []openAIMessage `json:"messages"`
+	Temperature         float64         `json:"temperature,omitempty"`
+	TopP                float64         `json:"top_p,omitempty"`
+	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	Stop                []string        `json:"stop,omitempty"`
 }
 
 type openAIMessage struct {
