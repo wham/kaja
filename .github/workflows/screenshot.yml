@@ -17,6 +17,7 @@ jobs:
         run: |
           docker run --name kaja-dev -d -p 41520:41520 \
             -v $PWD/workspace:/workspace \
+            -e CAN_UPDATE_CONFIGURATION=true \
             kaja-dev:latest
 
           # Wait for server to start

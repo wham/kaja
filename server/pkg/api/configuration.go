@@ -64,6 +64,15 @@ func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
 		configuration.PathPrefix = pathPrefix
 	}
 
+	// Allow overriding canUpdateConfiguration via environment variable
+	if canUpdate := os.Getenv("CAN_UPDATE_CONFIGURATION"); canUpdate == "true" {
+		logger.info("CAN_UPDATE_CONFIGURATION env variable applied")
+		if configuration.System == nil {
+			configuration.System = &ConfigurationSystem{}
+		}
+		configuration.System.CanUpdateConfiguration = true
+	}
+
 	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
 		logger.info("BASE_URL is set, configuring default project from environment variables")
 
