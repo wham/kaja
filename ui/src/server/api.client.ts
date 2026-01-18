@@ -4,6 +4,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { ChatCompletionsResponse } from "./api";
+import type { ChatCompletionsRequest } from "./api";
 import type { UpdateConfigurationResponse } from "./api";
 import type { UpdateConfigurationRequest } from "./api";
 import type { GetConfigurationResponse } from "./api";
@@ -35,6 +37,10 @@ export interface IApiClient {
      * @generated from protobuf rpc: UpdateConfiguration
      */
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse>;
+    /**
+     * @generated from protobuf rpc: ChatCompletions
+     */
+    chatCompletions(input: ChatCompletionsRequest, options?: RpcOptions): UnaryCall<ChatCompletionsRequest, ChatCompletionsResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -72,5 +78,12 @@ export class ApiClient implements IApiClient, ServiceInfo {
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
         const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ChatCompletions
+     */
+    chatCompletions(input: ChatCompletionsRequest, options?: RpcOptions): UnaryCall<ChatCompletionsRequest, ChatCompletionsResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ChatCompletionsRequest, ChatCompletionsResponse>("unary", this._transport, method, opt, input);
     }
 }

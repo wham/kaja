@@ -57,6 +57,8 @@ fi
 
 cd "$(dirname "$0")/.."
 
+[ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
+
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
