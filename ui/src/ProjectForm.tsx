@@ -1,5 +1,5 @@
 import { FileDirectoryIcon } from "@primer/octicons-react";
-import { Dialog, FormControl, Select, TextInput } from "@primer/react";
+import { Checkbox, Dialog, FormControl, Select, TextInput } from "@primer/react";
 import { useState, useRef, useEffect } from "react";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
@@ -17,6 +17,7 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
   const [protoDir, setProtoDir] = useState("");
+  const [useReflection, setUseReflection] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form when editing or reset when creating
@@ -27,18 +28,20 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
         setUrl(initialData.url);
         setProtocol(initialData.protocol);
         setProtoDir(initialData.protoDir);
+        setUseReflection(initialData.useReflection);
       } else {
         setName("");
         setUrl("");
         setProtocol(RpcProtocol.GRPC);
         setProtoDir("");
+        setUseReflection(false);
       }
     }
   }, [isOpen, mode, initialData]);
 
   const handleSubmit = () => {
     if (name && url) {
-      onSubmit({ name, url, protocol, protoDir }, mode === "edit" ? initialData?.name : undefined);
+      onSubmit({ name, url, protocol, protoDir, useReflection }, mode === "edit" ? initialData?.name : undefined);
       resetForm();
     }
   };
@@ -48,6 +51,7 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
     setUrl("");
     setProtocol(RpcProtocol.GRPC);
     setProtoDir("");
+    setUseReflection(false);
   };
 
   const handleClose = (gesture: "close-button" | "escape") => {
@@ -105,27 +109,39 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
           </Select>
         </FormControl>
 
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>Proto Directory</FormControl.Label>
-          <TextInput
-            value={protoDir}
-            onChange={(e) => setProtoDir(e.target.value)}
-            placeholder="Path to proto directory"
-            block
-            trailingAction={
-              <TextInput.Action
-                onClick={async () => {
-                  const path = await OpenDirectoryDialog();
-                  if (path) {
-                    setProtoDir(path);
-                  }
-                }}
-                icon={FileDirectoryIcon}
-                aria-label="Select directory"
-              />
-            }
-          />
-        </FormControl>
+        {protocol === RpcProtocol.GRPC && (
+          <FormControl style={{ marginTop: 24 }}>
+            <Checkbox checked={useReflection} onChange={(e) => setUseReflection(e.target.checked)} />
+            <FormControl.Label>Use gRPC Reflection</FormControl.Label>
+            <FormControl.Caption>
+              Discover services automatically from the server instead of using proto files
+            </FormControl.Caption>
+          </FormControl>
+        )}
+
+        {!useReflection && (
+          <FormControl style={{ marginTop: 24 }}>
+            <FormControl.Label>Proto Directory</FormControl.Label>
+            <TextInput
+              value={protoDir}
+              onChange={(e) => setProtoDir(e.target.value)}
+              placeholder="Path to proto directory"
+              block
+              trailingAction={
+                <TextInput.Action
+                  onClick={async () => {
+                    const path = await OpenDirectoryDialog();
+                    if (path) {
+                      setProtoDir(path);
+                    }
+                  }}
+                  icon={FileDirectoryIcon}
+                  aria-label="Select directory"
+                />
+              }
+            />
+          </FormControl>
+        )}
       </Dialog.Body>
     </Dialog>
   );

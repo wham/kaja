@@ -226,10 +226,11 @@ export function App() {
       }
 
       const protoDirChanged = originalProject.configuration.protoDir !== project.protoDir;
+      const useReflectionChanged = originalProject.configuration.useReflection !== project.useReflection;
       const nameChanged = originalName !== project.name;
 
-      if (protoDirChanged) {
-        // protoDir changed - need full recompilation
+      if (protoDirChanged || useReflectionChanged) {
+        // protoDir or useReflection changed - need full recompilation
         setProjects((prevProjects) =>
           prevProjects.map((p) =>
             p.configuration.name === originalName
