@@ -1,33 +1,34 @@
 {
-  "projects": [
+  "projects":  [
     {
-      "name": "grpc-quirks",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:kaja.tools:443",
-      "protoDir": "quirks"
+      "name":  "grpc-quirks",
+      "protocol":  "RPC_PROTOCOL_GRPC",
+      "url":  "dns:kaja.tools:443",
+      "protoDir":  "quirks"
     },
     {
-      "name": "twirp-quirks",
-      "url": "https://kaja.tools/twirp-quirks",
-      "protoDir": "quirks"
+      "name":  "twirp-quirks",
+      "url":  "https://kaja.tools/twirp-quirks",
+      "protoDir":  "quirks"
     },
     {
-      "name": "teams",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:kaja.tools:443",
-      "protoDir": "teams/proto"
+      "name":  "teams",
+      "protocol":  "RPC_PROTOCOL_GRPC",
+      "url":  "dns:kaja.tools:443",
+      "protoDir":  "teams/proto",
+      "useReflection":  true
     },
     {
-      "name": "users",
-      "url": "https://kaja.tools/users",
-      "protoDir": "users/proto"
+      "name":  "users",
+      "url":  "https://kaja.tools/users",
+      "protoDir":  "users/proto"
     }
   ],
-  "ai": {
-    "baseUrl": "https://aistudioaiservices071516461653.services.ai.azure.com/models",
-    "apiKey": "*****"
+  "ai":  {
+    "baseUrl":  "https://aistudioaiservices071516461653.services.ai.azure.com/models",
+    "apiKey":  "*****"
   },
-  "system": {
-    "canUpdateConfiguration": true
+  "system":  {
+    "canUpdateConfiguration":  true
   }
 }

@@ -29,6 +29,32 @@ export interface CompileRequest {
     protoDir: string;
 }
 /**
+ * @generated from protobuf message ReflectRequest
+ */
+export interface ReflectRequest {
+    /**
+     * @generated from protobuf field: string url = 1
+     */
+    url: string; // Target gRPC server URL for reflection discovery
+}
+/**
+ * @generated from protobuf message ReflectResponse
+ */
+export interface ReflectResponse {
+    /**
+     * @generated from protobuf field: ReflectStatus status = 1
+     */
+    status: ReflectStatus;
+    /**
+     * @generated from protobuf field: repeated Log logs = 2
+     */
+    logs: Log[];
+    /**
+     * @generated from protobuf field: string proto_dir = 3
+     */
+    protoDir: string; // Temp directory containing discovered proto files (only set on success)
+}
+/**
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
@@ -152,6 +178,10 @@ export interface ConfigurationProject {
      * @generated from protobuf field: string proto_dir = 4
      */
     protoDir: string;
+    /**
+     * @generated from protobuf field: bool use_reflection = 5
+     */
+    useReflection: boolean;
 }
 /**
  * @generated from protobuf message ConfigurationAI
@@ -183,6 +213,23 @@ export interface UpdateConfigurationResponse {
      * @generated from protobuf field: Configuration configuration = 1
      */
     configuration?: Configuration;
+}
+/**
+ * @generated from protobuf enum ReflectStatus
+ */
+export enum ReflectStatus {
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_UNKNOWN = 0;
+     */
+    UNKNOWN = 0,
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_OK = 1;
+     */
+    OK = 1,
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_ERROR = 2;
+     */
+    ERROR = 2
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -302,6 +349,116 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
  * @generated MessageType for protobuf message CompileRequest
  */
 export const CompileRequest = new CompileRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReflectRequest$Type extends MessageType<ReflectRequest> {
+    constructor() {
+        super("ReflectRequest", [
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReflectRequest>): ReflectRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.url = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReflectRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReflectRequest): ReflectRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string url */ 1:
+                    message.url = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReflectRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string url = 1; */
+        if (message.url !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.url);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ReflectRequest
+ */
+export const ReflectRequest = new ReflectRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReflectResponse$Type extends MessageType<ReflectResponse> {
+    constructor() {
+        super("ReflectResponse", [
+            { no: 1, name: "status", kind: "enum", T: () => ["ReflectStatus", ReflectStatus, "REFLECT_STATUS_"] },
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReflectResponse>): ReflectResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = 0;
+        message.logs = [];
+        message.protoDir = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReflectResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReflectResponse): ReflectResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* ReflectStatus status */ 1:
+                    message.status = reader.int32();
+                    break;
+                case /* repeated Log logs */ 2:
+                    message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string proto_dir */ 3:
+                    message.protoDir = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReflectResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* ReflectStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
+        /* repeated Log logs = 2; */
+        for (let i = 0; i < message.logs.length; i++)
+            Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string proto_dir = 3; */
+        if (message.protoDir !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ReflectResponse
+ */
+export const ReflectResponse = new ReflectResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
@@ -698,7 +855,8 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -707,6 +865,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.protocol = 0;
         message.url = "";
         message.protoDir = "";
+        message.useReflection = false;
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -727,6 +886,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                     break;
                 case /* string proto_dir */ 4:
                     message.protoDir = reader.string();
+                    break;
+                case /* bool use_reflection */ 5:
+                    message.useReflection = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -752,6 +914,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* string proto_dir = 4; */
         if (message.protoDir !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.protoDir);
+        /* bool use_reflection = 5; */
+        if (message.useReflection !== false)
+            writer.tag(5, WireType.Varint).bool(message.useReflection);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -914,6 +1079,7 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
  */
 export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
+    { name: "Reflect", options: {}, I: ReflectRequest, O: ReflectResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);

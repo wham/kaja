@@ -4,7 +4,7 @@ import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, Configuration, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
@@ -64,6 +64,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     try {
       // Generate unique ID for this compilation
       const compilationId = crypto.randomUUID();
+      let protoDir = project.configuration.protoDir;
 
       // Set initial running state with start time using functional update
       onUpdate((prevProjects) => {
@@ -84,8 +85,60 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
         return updatedProjects;
       });
 
-      // Start polling
-      await pollCompilation(projectName, compilationId, signal);
+      // If using reflection, first get proto files from the server
+      if (project.configuration.useReflection) {
+        const { response: reflectResponse } = await client.reflect({
+          url: project.configuration.url,
+        });
+
+        // Update logs from reflection
+        onUpdate((prevProjects) => {
+          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+          if (index === -1) return prevProjects;
+
+          const updatedProjects = [...prevProjects];
+          updatedProjects[index] = {
+            ...prevProjects[index],
+            compilation: {
+              ...prevProjects[index].compilation,
+              logs: reflectResponse.logs,
+            },
+          };
+          return updatedProjects;
+        });
+
+        if (reflectResponse.status === ReflectStatus.ERROR) {
+          // Reflection failed
+          const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
+          const duration = formatDuration(Date.now() - (finalProject?.compilation.startTime || 0));
+
+          onUpdate((prevProjects) => {
+            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+            if (index === -1) return prevProjects;
+
+            const updatedProjects = [...prevProjects];
+            updatedProjects[index] = {
+              ...prevProjects[index],
+              compilation: {
+                status: "error",
+                logs: reflectResponse.logs,
+                duration,
+              },
+            };
+            return updatedProjects;
+          });
+
+          delete abortControllers.current[projectName];
+          return;
+        }
+
+        protoDir = reflectResponse.protoDir;
+      }
+
+      if (signal.aborted) return;
+
+      // Start polling compilation
+      await pollCompilation(projectName, compilationId, protoDir, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -93,7 +146,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     }
   };
 
-  const pollCompilation = async (projectName: string, compilationId: string, signal: AbortSignal) => {
+  const pollCompilation = async (projectName: string, compilationId: string, protoDir: string, signal: AbortSignal) => {
     while (!signal.aborted) {
       // Find project by name to avoid stale index references
       const projectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
@@ -103,7 +156,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       const { response } = await client.compile({
         id: compilationId,
         logOffset: project.compilation.logOffset || 0,
-        protoDir: project.configuration.protoDir,
+        protoDir,
       });
 
       if (signal.aborted) return;

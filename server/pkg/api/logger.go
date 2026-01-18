@@ -31,7 +31,12 @@ func (l *Logger) warn(message string) {
 
 func (l *Logger) error(message string, err error) {
 	slog.Error(message, "error", err)
-	l.log(LogLevel_LEVEL_ERROR, message)
+	// Include the error details in the UI message
+	if err != nil {
+		l.log(LogLevel_LEVEL_ERROR, message+": "+err.Error())
+	} else {
+		l.log(LogLevel_LEVEL_ERROR, message)
+	}
 }
 
 func (l *Logger) log(level LogLevel, message string) {
