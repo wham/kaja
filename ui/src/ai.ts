@@ -14,41 +14,128 @@ interface CompletionContext {
 }
 
 const modelName = "gpt-4o";
-const DEBOUNCE_DELAY = 1000; // 1 second delay
+const DEBOUNCE_DELAY = 1000;
 
 let debounceTimer: NodeJS.Timeout | null = null;
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests
+const MIN_REQUEST_INTERVAL = 2000;
 
 let isCompletionsDisabled = false;
 
-// Function to generate system prompt with available services and methods
+interface ServiceInfo {
+  serviceName: string;
+  methods: string[];
+}
+
+function extractServiceInfo(projects: Project[]): ServiceInfo[] {
+  const services: ServiceInfo[] = [];
+
+  for (const project of projects) {
+    for (const service of project.services) {
+      services.push({
+        serviceName: service.name,
+        methods: service.methods.map((m) => m.name),
+      });
+    }
+  }
+
+  return services;
+}
+
 function generateSystemPrompt(projects: Project[]): string {
-  const servicesList = projects
-    .map((project) => {
-      const projectSources = project.sources
-        .map((source) => {
-          return `  ${source.path}:\n${source.file.text}`;
-        })
-        .join("\n\n");
-      return `${project.configuration.name}:\n${projectSources}`;
+  const services = extractServiceInfo(projects);
+
+  const apiReference = services
+    .map((s) => {
+      const methods = s.methods.map((m) => `  - ${m}(request): Promise<Response>`).join("\n");
+      return `${s.serviceName}:\n${methods}`;
     })
     .join("\n\n");
 
-  return `You are a helpful code completion assistant. Provide concise code completions based on the context.
+  const protoSummary = projects
+    .map((project) => {
+      return project.sources
+        .map((source) => {
+          return `// ${source.path}\n${source.file.text}`;
+        })
+        .join("\n\n");
+    })
+    .join("\n\n---\n\n");
 
-Here are the files that are available for import:
+  return `You are a TypeScript code completion engine for gRPC/Twirp client code.
 
-${servicesList}
+CRITICAL RULES:
+- Output ONLY the code to insert at the cursor position
+- NO explanations, NO markdown, NO comments about the code
+- Match the existing code style exactly
+- Use async/await for all RPC calls
+- Import types from the generated client modules
 
-Tips for code completion:
-1. Use async/await for API calls
-2. Check response fields before using them
-3. Handle pagination when needed
-4. Specify positions for index calls
-5. Use proper error handling
+AVAILABLE SERVICE METHODS:
+${apiReference}
 
-Provide suggestions that match the available API methods and follow TypeScript best practices.`;
+GENERATED TYPESCRIPT DEFINITIONS (for field reference):
+${protoSummary}
+
+Remember: Output ONLY the completion code, nothing else.`;
+}
+
+function buildFocusedContext(
+  model: monaco.editor.ITextModel,
+  position: monaco.Position
+): { beforeCursor: string; afterCursor: string; currentLine: string } {
+  const lineCount = model.getLineCount();
+  const startLine = Math.max(1, position.lineNumber - 30);
+  const endLine = Math.min(lineCount, position.lineNumber + 5);
+
+  const beforeCursor = model.getValueInRange({
+    startLineNumber: startLine,
+    startColumn: 1,
+    endLineNumber: position.lineNumber,
+    endColumn: position.column,
+  });
+
+  const afterCursor = model.getValueInRange({
+    startLineNumber: position.lineNumber,
+    startColumn: position.column,
+    endLineNumber: endLine,
+    endColumn: model.getLineMaxColumn(endLine),
+  });
+
+  const currentLine = model.getLineContent(position.lineNumber);
+
+  return { beforeCursor, afterCursor, currentLine };
+}
+
+function extractCompletion(response: string): string {
+  let completion = response;
+
+  // Strip markdown code block markers if present
+  completion = completion.replace(/^```(?:typescript|ts|javascript|js)?\n?/m, "");
+  completion = completion.replace(/\n?```$/m, "");
+
+  // If response starts with explanation text, try to extract just the code
+  if (completion.match(/^(Here|This|The|I'll|Let me|To |You can|Based on)/i)) {
+    // Look for code in backticks
+    const inlineCodeMatch = completion.match(/`([^`]+)`/);
+    if (inlineCodeMatch) {
+      return inlineCodeMatch[1].trim();
+    }
+
+    // Look for a line that starts with code-like patterns
+    const lines = completion.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (
+        trimmed.match(/^(const |let |var |await |return |if |for |while |function |async |import |export |class )/) ||
+        trimmed.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*\s*[(.=]/)
+      ) {
+        return trimmed;
+      }
+    }
+  }
+
+  return completion.trim();
 }
 
 async function debouncedFetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
@@ -74,13 +161,23 @@ async function debouncedFetchAICompletions(context: CompletionContext, projects:
 }
 
 async function fetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
-  const fileContent = context.model.getValue();
   const position = context.position;
-  const lineContent = context.model.getLineContent(position.lineNumber);
-  const prefix = lineContent.substring(0, position.column - 1);
+  const { beforeCursor, afterCursor, currentLine } = buildFocusedContext(context.model, position);
+
+  const prefix = currentLine.substring(0, position.column - 1).trim();
 
   try {
     const client = getApiClient();
+
+    const userMessage = `Complete the TypeScript code at <CURSOR>. Output ONLY the completion code.
+
+<code_before_cursor>
+${beforeCursor}
+</code_before_cursor><CURSOR><code_after_cursor>
+${afterCursor}
+</code_after_cursor>
+
+Current line prefix: "${prefix}"`;
 
     const response = await client.chatCompletions({
       model: modelName,
@@ -91,17 +188,16 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
         },
         {
           role: "user",
-          content: `Complete the following code:\n\n${fileContent}\n\nCurrent position: Line ${position.lineNumber}, Column ${position.column}\nPrefix: ${prefix}`,
+          content: userMessage,
         },
       ],
-      temperature: 0.7,
-      topP: 1.0,
-      maxTokens: 150,
+      temperature: 0.1,
+      topP: 0.95,
+      maxTokens: 200,
+      stop: ["```", "\n\n\n", "Note:", "Here's", "This will"],
     });
 
-    // Check for error in response
     if (response.response.error) {
-      // Check if this is a configuration error and disable further completions
       if (response.response.error.includes("not configured")) {
         isCompletionsDisabled = true;
         console.info("Completions disabled: AI not configured");
@@ -118,11 +214,9 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
     let suggestion = response.response.choices[0].message?.content;
     if (!suggestion) return [];
 
-    // Strip markdown code block markers if present
-    suggestion = suggestion
-      .replace(/^```(?:typescript)?\n?/, "")
-      .replace(/\n?```$/, "")
-      .trim();
+    suggestion = extractCompletion(suggestion);
+
+    if (!suggestion) return [];
 
     return [
       {
@@ -130,31 +224,27 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
         range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
       },
     ];
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching AI completions:", error);
     return [];
   }
 }
 
-// Keep track of registered providers to clean up
 let registeredProvider: monaco.IDisposable | null = null;
 
 export function registerAIProvider(projects: Project[]) {
-  // Clean up previous provider if it exists
   if (registeredProvider) {
     registeredProvider.dispose();
   }
 
   registeredProvider = monaco.languages.registerInlineCompletionsProvider("typescript", {
     provideInlineCompletions: async (model, position, context, token) => {
-      // Don't trigger on empty lines or very short prefixes
       const lineContent = model.getLineContent(position.lineNumber);
       const prefix = lineContent.substring(0, position.column - 1).trim();
       if (!prefix || prefix.length < 2) {
         return { items: [], enableForwardStability: true };
       }
 
-      // Skip completions if disabled
       if (isCompletionsDisabled) {
         return { items: [], enableForwardStability: true };
       }
@@ -167,7 +257,6 @@ export function registerAIProvider(projects: Project[]) {
 
       const suggestions = await debouncedFetchAICompletions(completionContext, projects);
 
-      // Ensure suggestions are not empty and have content
       if (!suggestions.length || !suggestions[0].text.trim()) {
         return { items: [], enableForwardStability: true };
       }

@@ -201,6 +201,7 @@ func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRe
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
 		MaxTokens:   int(req.MaxTokens),
+		Stop:        req.Stop,
 	}
 
 	for i, msg := range req.Messages {
@@ -288,6 +289,7 @@ type openAIChatRequest struct {
 	Temperature float64         `json:"temperature,omitempty"`
 	TopP        float64         `json:"top_p,omitempty"`
 	MaxTokens   int             `json:"max_tokens,omitempty"`
+	Stop        []string        `json:"stop,omitempty"`
 }
 
 type openAIMessage struct {
