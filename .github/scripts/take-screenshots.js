@@ -18,7 +18,27 @@ async function takeScreenshots() {
     console.log("Taking home screenshot...");
     await page.screenshot({ path: `${SCREENSHOT_DIR}/home.png` });
 
-    // 2. Call screenshot - click first method, run it, wait for results
+    // 2. New Project screenshot - open the new project form
+    // Take this early while configuration is fresh
+    console.log("Taking new project screenshot...");
+
+    // Wait for the New Project button to appear (it becomes visible after configuration loads)
+    const newProjectButton = page.locator('button[aria-label="New Project"]');
+    await newProjectButton.waitFor({ state: "visible", timeout: 10000 });
+
+    await newProjectButton.click();
+
+    // Wait for the dialog to appear
+    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+    await page.waitForTimeout(500);
+
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
+
+    // Close the dialog
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
+
+    // 3. Call screenshot - click first method, run it, wait for results
     console.log("Taking call screenshot...");
 
     // Click on the first method in the sidebar tree
@@ -36,7 +56,7 @@ async function takeScreenshots() {
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/call.png` });
 
-    // 3. Compiler screenshot - click Compiler button and expand first project
+    // 4. Compiler screenshot - click Compiler button and expand first project
     console.log("Taking compiler screenshot...");
 
     // Click the Compiler button (CPU icon in sidebar header)
@@ -77,24 +97,6 @@ async function takeScreenshots() {
     await page.waitForTimeout(1000);
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/compiler.png` });
-
-    // 4. New Project screenshot - open the new project form
-    console.log("Taking new project screenshot...");
-
-    // Wait for the New Project button to appear (it becomes visible after configuration loads)
-    const newProjectButton = page.locator('button[aria-label="New Project"]');
-    await newProjectButton.waitFor({ state: "visible", timeout: 10000 });
-
-    await newProjectButton.click();
-
-    // Wait for the dialog to appear
-    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
-    await page.waitForTimeout(500);
-
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
-
-    // Close the dialog
-    await page.keyboard.press("Escape");
 
     console.log("All screenshots taken successfully!");
   } catch (error) {
