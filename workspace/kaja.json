@@ -15,7 +15,7 @@
       "name":  "grpcb.in",
       "protocol":  "RPC_PROTOCOL_GRPC",
       "url":  "dns:grpcb.in:9001",
-      "useReflection":  true
+      "protoDir":  "grpcbin/proto"
     },
     {
       "name":  "teams",
