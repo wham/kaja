@@ -25,7 +25,7 @@
     }
   ],
   "ai":  {
-    "baseUrl":  "https://aistudioaiservices071516461653.services.ai.azure.com/models",
+    "baseUrl":  "https://models.github.ai/inference",
     "apiKey":  "*****"
   },
   "system":  {
