@@ -18,26 +18,27 @@ async function takeScreenshots() {
     console.log("Taking home screenshot...");
     await page.screenshot({ path: `${SCREENSHOT_DIR}/home.png` });
 
-    // 2. New Project screenshot - open the new project form
-    // Take this early while configuration is fresh
-    console.log("Taking new project screenshot...");
-
-    // Wait for the New Project button to appear (plus icon button in sidebar header)
-    // Try multiple selectors as Primer React IconButton may render aria-label differently
+    // 2. New Project screenshot - open the new project form (optional)
+    // Only take this screenshot if the New Project button is present
+    console.log("Checking for New Project button...");
     const newProjectButton = page.locator('button[aria-label="New Project"], button:has(svg.octicon-plus)').first();
-    await newProjectButton.waitFor({ state: "visible", timeout: 10000 });
 
-    await newProjectButton.click();
+    if ((await newProjectButton.count()) > 0 && (await newProjectButton.isVisible())) {
+      console.log("Taking new project screenshot...");
+      await newProjectButton.click();
 
-    // Wait for the dialog to appear
-    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
-    await page.waitForTimeout(500);
+      // Wait for the dialog to appear
+      await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+      await page.waitForTimeout(500);
 
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
+      await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
 
-    // Close the dialog
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(500);
+      // Close the dialog
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(500);
+    } else {
+      console.log("New Project button not found, skipping screenshot");
+    }
 
     // 3. Call screenshot - click first method, run it, wait for results
     console.log("Taking call screenshot...");
