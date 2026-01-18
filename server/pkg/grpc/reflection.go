@@ -60,7 +60,7 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 
 	conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
+		return nil, fmt.Errorf("failed to create gRPC client for %s (TLS=%v): %w", c.target, c.useTLS, err)
 	}
 	defer conn.Close()
 
@@ -69,7 +69,7 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 	// Create a bidirectional stream for reflection requests
 	stream, err := client.ServerReflectionInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create reflection stream: %w", err)
+		return nil, fmt.Errorf("failed to create reflection stream (target=%s, TLS=%v): %w - ensure the server has gRPC reflection enabled", c.target, c.useTLS, err)
 	}
 
 	// List all services
@@ -84,7 +84,7 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive list services response: %w", err)
+		return nil, fmt.Errorf("failed to receive list services response: %w (the server may not have gRPC reflection enabled)", err)
 	}
 
 	listResp := resp.GetListServicesResponse()
