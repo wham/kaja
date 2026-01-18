@@ -42,17 +42,17 @@ export interface ReflectRequest {
  */
 export interface ReflectResponse {
     /**
-     * @generated from protobuf field: string proto_dir = 1
+     * @generated from protobuf field: ReflectStatus status = 1
      */
-    protoDir: string; // Temp directory containing discovered proto files
+    status: ReflectStatus;
     /**
      * @generated from protobuf field: repeated Log logs = 2
      */
     logs: Log[];
     /**
-     * @generated from protobuf field: string error = 3
+     * @generated from protobuf field: string proto_dir = 3
      */
-    error: string; // Error message if reflection failed
+    protoDir: string; // Temp directory containing discovered proto files (only set on success)
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -213,6 +213,23 @@ export interface UpdateConfigurationResponse {
      * @generated from protobuf field: Configuration configuration = 1
      */
     configuration?: Configuration;
+}
+/**
+ * @generated from protobuf enum ReflectStatus
+ */
+export enum ReflectStatus {
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_UNKNOWN = 0;
+     */
+    UNKNOWN = 0,
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_OK = 1;
+     */
+    OK = 1,
+    /**
+     * @generated from protobuf enum value: REFLECT_STATUS_ERROR = 2;
+     */
+    ERROR = 2
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -383,16 +400,16 @@ export const ReflectRequest = new ReflectRequest$Type();
 class ReflectResponse$Type extends MessageType<ReflectResponse> {
     constructor() {
         super("ReflectResponse", [
-            { no: 1, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 1, name: "status", kind: "enum", T: () => ["ReflectStatus", ReflectStatus, "REFLECT_STATUS_"] },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-            { no: 3, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ReflectResponse>): ReflectResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.protoDir = "";
+        message.status = 0;
         message.logs = [];
-        message.error = "";
+        message.protoDir = "";
         if (value !== undefined)
             reflectionMergePartial<ReflectResponse>(this, message, value);
         return message;
@@ -402,14 +419,14 @@ class ReflectResponse$Type extends MessageType<ReflectResponse> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string proto_dir */ 1:
-                    message.protoDir = reader.string();
+                case /* ReflectStatus status */ 1:
+                    message.status = reader.int32();
                     break;
                 case /* repeated Log logs */ 2:
                     message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* string error */ 3:
-                    message.error = reader.string();
+                case /* string proto_dir */ 3:
+                    message.protoDir = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -423,15 +440,15 @@ class ReflectResponse$Type extends MessageType<ReflectResponse> {
         return message;
     }
     internalBinaryWrite(message: ReflectResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string proto_dir = 1; */
-        if (message.protoDir !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.protoDir);
+        /* ReflectStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
         /* repeated Log logs = 2; */
         for (let i = 0; i < message.logs.length; i++)
             Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* string error = 3; */
-        if (message.error !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.error);
+        /* string proto_dir = 3; */
+        if (message.protoDir !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -20,9 +20,15 @@ message ReflectRequest {
 }
 
 message ReflectResponse {
-  string proto_dir = 1;  // Temp directory containing discovered proto files
+  ReflectStatus status = 1;
   repeated Log logs = 2;
-  string error = 3;  // Error message if reflection failed
+  string proto_dir = 3;  // Temp directory containing discovered proto files (only set on success)
+}
+
+enum ReflectStatus {
+  REFLECT_STATUS_UNKNOWN = 0;
+  REFLECT_STATUS_OK = 1;
+  REFLECT_STATUS_ERROR = 2;
 }
 
 message CompileResponse {

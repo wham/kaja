@@ -4,7 +4,7 @@ import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, Project } from "./project";
 import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, Configuration, RpcProtocol } from "./server/api";
+import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 interface CompilerProps {
@@ -107,7 +107,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
           return updatedProjects;
         });
 
-        if (reflectResponse.error) {
+        if (reflectResponse.status === ReflectStatus.ERROR) {
           // Reflection failed
           const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
           const duration = formatDuration(Date.now() - (finalProject?.compilation.startTime || 0));

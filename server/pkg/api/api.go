@@ -83,8 +83,8 @@ func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*Reflect
 	if err != nil {
 		logger.error("Failed to create temp directory", err)
 		return &ReflectResponse{
-			Logs:  logger.logs,
-			Error: err.Error(),
+			Status: ReflectStatus_REFLECT_STATUS_ERROR,
+			Logs:   logger.logs,
 		}, nil
 	}
 	logger.debug("Proto output directory: " + protoDir)
@@ -94,8 +94,8 @@ func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*Reflect
 	if err != nil {
 		logger.error("Failed to create reflection client", err)
 		return &ReflectResponse{
-			Logs:  logger.logs,
-			Error: err.Error(),
+			Status: ReflectStatus_REFLECT_STATUS_ERROR,
+			Logs:   logger.logs,
 		}, nil
 	}
 
@@ -108,8 +108,8 @@ func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*Reflect
 	if err != nil {
 		logger.error("Failed to discover services", err)
 		return &ReflectResponse{
-			Logs:  logger.logs,
-			Error: err.Error(),
+			Status: ReflectStatus_REFLECT_STATUS_ERROR,
+			Logs:   logger.logs,
 		}, nil
 	}
 
@@ -121,16 +121,17 @@ func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*Reflect
 	if err != nil {
 		logger.error("Failed to write proto files", err)
 		return &ReflectResponse{
-			Logs:  logger.logs,
-			Error: err.Error(),
+			Status: ReflectStatus_REFLECT_STATUS_ERROR,
+			Logs:   logger.logs,
 		}, nil
 	}
 
 	logger.info("Proto files written to " + protoDir)
 
 	return &ReflectResponse{
-		ProtoDir: protoDir,
+		Status:   ReflectStatus_REFLECT_STATUS_OK,
 		Logs:     logger.logs,
+		ProtoDir: protoDir,
 	}, nil
 }
 
