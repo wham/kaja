@@ -200,7 +200,7 @@ func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRe
 		Messages:    make([]openAIMessage, len(req.Messages)),
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
-		MaxCompletionTokens: int(req.MaxCompletionTokens),
+		MaxTokens:   int(req.MaxTokens),
 		Stop:        req.Stop,
 	}
 
@@ -288,7 +288,7 @@ type openAIChatRequest struct {
 	Messages            []openAIMessage `json:"messages"`
 	Temperature         float64         `json:"temperature,omitempty"`
 	TopP                float64         `json:"top_p,omitempty"`
-	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	MaxTokens           int             `json:"max_tokens,omitempty"`
 	Stop                []string        `json:"stop,omitempty"`
 }
 
