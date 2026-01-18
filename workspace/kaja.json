@@ -12,6 +12,12 @@
       "protoDir":  "quirks"
     },
     {
+      "name":  "grpcb.in",
+      "protocol":  "RPC_PROTOCOL_GRPC",
+      "url":  "dns:grpcb.in:9001",
+      "useReflection":  true
+    },
+    {
       "name":  "teams",
       "protocol":  "RPC_PROTOCOL_GRPC",
       "url":  "dns:kaja.tools:443",
