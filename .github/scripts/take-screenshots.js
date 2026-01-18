@@ -22,8 +22,9 @@ async function takeScreenshots() {
     // Take this early while configuration is fresh
     console.log("Taking new project screenshot...");
 
-    // Wait for the New Project button to appear (it becomes visible after configuration loads)
-    const newProjectButton = page.locator('button[aria-label="New Project"]');
+    // Wait for the New Project button to appear (plus icon button in sidebar header)
+    // Try multiple selectors as Primer React IconButton may render aria-label differently
+    const newProjectButton = page.locator('button[aria-label="New Project"], button:has(svg.octicon-plus)').first();
     await newProjectButton.waitFor({ state: "visible", timeout: 10000 });
 
     await newProjectButton.click();
