@@ -78,6 +78,22 @@ async function takeScreenshots() {
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/compiler.png` });
 
+    // 4. New Project screenshot - open the new project form
+    console.log("Taking new project screenshot...");
+
+    // Click the New Project button (Plus icon in sidebar header)
+    const newProjectButton = page.locator('button[aria-label="New Project"]');
+    await newProjectButton.click();
+
+    // Wait for the dialog to appear
+    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+    await page.waitForTimeout(500);
+
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
+
+    // Close the dialog
+    await page.keyboard.press("Escape");
+
     console.log("All screenshots taken successfully!");
   } catch (error) {
     console.error("Error taking screenshots:", error);
