@@ -1,8 +1,7 @@
 import * as monaco from "monaco-editor";
-import OpenAI from "openai";
 import { Project } from "./project";
-import { getBaseUrlForAi } from "./server/connection";
-import { isWailsEnvironment } from "./wails";
+import { getApiClient } from "./server/connection";
+
 interface AICompletion {
   text: string;
   range: monaco.Range;
@@ -75,21 +74,16 @@ async function debouncedFetchAICompletions(context: CompletionContext, projects:
 }
 
 async function fetchAICompletions(context: CompletionContext, projects: Project[]): Promise<AICompletion[]> {
-  if (isWailsEnvironment()) {
-    // In desktop mode, AI functionality might not be available or needs different configuration
-    console.info("AI completions not available in desktop mode");
-    return [];
-  }
-
   const fileContent = context.model.getValue();
   const position = context.position;
   const lineContent = context.model.getLineContent(position.lineNumber);
   const prefix = lineContent.substring(0, position.column - 1);
 
   try {
-    const client = new OpenAI({ baseURL: getBaseUrlForAi(), apiKey: "*****", dangerouslyAllowBrowser: true });
+    const client = getApiClient();
 
-    const response = await client.chat.completions.create({
+    const response = await client.chatComplete({
+      model: modelName,
       messages: [
         {
           role: "system",
@@ -101,12 +95,27 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
         },
       ],
       temperature: 0.7,
-      top_p: 1.0,
-      max_tokens: 150,
-      model: modelName,
+      topP: 1.0,
+      maxTokens: 150,
     });
 
-    let suggestion = response.choices[0].message.content;
+    // Check for error in response
+    if (response.response.error) {
+      // Check if this is a configuration error and disable further completions
+      if (response.response.error.includes("not configured")) {
+        isCompletionsDisabled = true;
+        console.info("Completions disabled: AI not configured");
+      } else {
+        console.error("AI completion error:", response.response.error);
+      }
+      return [];
+    }
+
+    if (!response.response.choices || response.response.choices.length === 0) {
+      return [];
+    }
+
+    let suggestion = response.response.choices[0].message?.content;
     if (!suggestion) return [];
 
     // Strip markdown code block markers if present
@@ -122,14 +131,7 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
       },
     ];
   } catch (error: any) {
-    // Check if the error is due to missing AI configuration and disable further completions
-    if (error.message && error.message.includes("400")) {
-      isCompletionsDisabled = true;
-      console.info("Completions disabled: AI not configured");
-    } else {
-      console.error("Error fetching AI completions:", error);
-    }
-
+    console.error("Error fetching AI completions:", error);
     return [];
   }
 }

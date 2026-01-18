@@ -7,6 +7,7 @@ service Api {
   rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
+  rpc ChatComplete(ChatCompleteRequest) returns (ChatCompleteResponse);
 }
 
 message CompileRequest {
@@ -110,4 +111,40 @@ message UpdateConfigurationRequest {
 
 message UpdateConfigurationResponse {
   Configuration configuration = 1;
+}
+
+// ChatComplete mimics the OpenAI Chat Completion API
+// https://platform.openai.com/docs/api-reference/chat/create
+
+message ChatCompleteRequest {
+  string model = 1;
+  repeated ChatMessage messages = 2;
+  double temperature = 3;
+  double top_p = 4;
+  int32 max_tokens = 5;
+}
+
+message ChatMessage {
+  string role = 1;    // "system", "user", "assistant"
+  string content = 2;
+}
+
+message ChatCompleteResponse {
+  string id = 1;
+  string model = 2;
+  repeated ChatChoice choices = 3;
+  ChatUsage usage = 4;
+  string error = 5;  // Non-empty if there was an error
+}
+
+message ChatChoice {
+  int32 index = 1;
+  ChatMessage message = 2;
+  string finish_reason = 3;  // "stop", "length", etc.
+}
+
+message ChatUsage {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
 }

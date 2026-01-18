@@ -21,55 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type ReflectStatus int32
-
-const (
-	ReflectStatus_REFLECT_STATUS_UNKNOWN ReflectStatus = 0
-	ReflectStatus_REFLECT_STATUS_OK      ReflectStatus = 1
-	ReflectStatus_REFLECT_STATUS_ERROR   ReflectStatus = 2
-)
-
-// Enum value maps for ReflectStatus.
-var (
-	ReflectStatus_name = map[int32]string{
-		0: "REFLECT_STATUS_UNKNOWN",
-		1: "REFLECT_STATUS_OK",
-		2: "REFLECT_STATUS_ERROR",
-	}
-	ReflectStatus_value = map[string]int32{
-		"REFLECT_STATUS_UNKNOWN": 0,
-		"REFLECT_STATUS_OK":      1,
-		"REFLECT_STATUS_ERROR":   2,
-	}
-)
-
-func (x ReflectStatus) Enum() *ReflectStatus {
-	p := new(ReflectStatus)
-	*p = x
-	return p
-}
-
-func (x ReflectStatus) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ReflectStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[0].Descriptor()
-}
-
-func (ReflectStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[0]
-}
-
-func (x ReflectStatus) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ReflectStatus.Descriptor instead.
-func (ReflectStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{0}
-}
-
 type CompileStatus int32
 
 const (
@@ -106,11 +57,11 @@ func (x CompileStatus) String() string {
 }
 
 func (CompileStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[1].Descriptor()
+	return file_proto_api_proto_enumTypes[0].Descriptor()
 }
 
 func (CompileStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[1]
+	return &file_proto_api_proto_enumTypes[0]
 }
 
 func (x CompileStatus) Number() protoreflect.EnumNumber {
@@ -119,7 +70,7 @@ func (x CompileStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CompileStatus.Descriptor instead.
 func (CompileStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
+	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
 type LogLevel int32
@@ -158,11 +109,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[2].Descriptor()
+	return file_proto_api_proto_enumTypes[1].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[2]
+	return &file_proto_api_proto_enumTypes[1]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -171,7 +122,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
 }
 
 type RpcProtocol int32
@@ -204,11 +155,11 @@ func (x RpcProtocol) String() string {
 }
 
 func (RpcProtocol) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[3].Descriptor()
+	return file_proto_api_proto_enumTypes[2].Descriptor()
 }
 
 func (RpcProtocol) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[3]
+	return &file_proto_api_proto_enumTypes[2]
 }
 
 func (x RpcProtocol) Number() protoreflect.EnumNumber {
@@ -217,7 +168,7 @@ func (x RpcProtocol) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RpcProtocol.Descriptor instead.
 func (RpcProtocol) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 type CompileRequest struct {
@@ -280,110 +231,6 @@ func (x *CompileRequest) GetProtoDir() string {
 	return ""
 }
 
-type ReflectRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"` // Target gRPC server URL for reflection discovery
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReflectRequest) Reset() {
-	*x = ReflectRequest{}
-	mi := &file_proto_api_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReflectRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReflectRequest) ProtoMessage() {}
-
-func (x *ReflectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReflectRequest.ProtoReflect.Descriptor instead.
-func (*ReflectRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *ReflectRequest) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-type ReflectResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        ReflectStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=ReflectStatus" json:"status,omitempty"`
-	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
-	ProtoDir      string                 `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"` // Temp directory containing discovered proto files (only set on success)
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReflectResponse) Reset() {
-	*x = ReflectResponse{}
-	mi := &file_proto_api_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReflectResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReflectResponse) ProtoMessage() {}
-
-func (x *ReflectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReflectResponse.ProtoReflect.Descriptor instead.
-func (*ReflectResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *ReflectResponse) GetStatus() ReflectStatus {
-	if x != nil {
-		return x.Status
-	}
-	return ReflectStatus_REFLECT_STATUS_UNKNOWN
-}
-
-func (x *ReflectResponse) GetLogs() []*Log {
-	if x != nil {
-		return x.Logs
-	}
-	return nil
-}
-
-func (x *ReflectResponse) GetProtoDir() string {
-	if x != nil {
-		return x.ProtoDir
-	}
-	return ""
-}
-
 type CompileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
@@ -396,7 +243,7 @@ type CompileResponse struct {
 
 func (x *CompileResponse) Reset() {
 	*x = CompileResponse{}
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +255,7 @@ func (x *CompileResponse) String() string {
 func (*CompileResponse) ProtoMessage() {}
 
 func (x *CompileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +268,7 @@ func (x *CompileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompileResponse.ProtoReflect.Descriptor instead.
 func (*CompileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CompileResponse) GetStatus() CompileStatus {
@@ -462,7 +309,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +321,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +334,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Log) GetLevel() LogLevel {
@@ -514,7 +361,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -526,7 +373,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -539,7 +386,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Source) GetPath() string {
@@ -564,7 +411,7 @@ type GetConfigurationRequest struct {
 
 func (x *GetConfigurationRequest) Reset() {
 	*x = GetConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +423,7 @@ func (x *GetConfigurationRequest) String() string {
 func (*GetConfigurationRequest) ProtoMessage() {}
 
 func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +436,7 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
 }
 
 type GetConfigurationResponse struct {
@@ -602,7 +449,7 @@ type GetConfigurationResponse struct {
 
 func (x *GetConfigurationResponse) Reset() {
 	*x = GetConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +461,7 @@ func (x *GetConfigurationResponse) String() string {
 func (*GetConfigurationResponse) ProtoMessage() {}
 
 func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +474,7 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{7}
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
@@ -661,7 +508,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +520,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +533,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{8}
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -727,7 +574,7 @@ type ConfigurationSystem struct {
 
 func (x *ConfigurationSystem) Reset() {
 	*x = ConfigurationSystem{}
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +586,7 @@ func (x *ConfigurationSystem) String() string {
 func (*ConfigurationSystem) ProtoMessage() {}
 
 func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +599,7 @@ func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationSystem.ProtoReflect.Descriptor instead.
 func (*ConfigurationSystem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{9}
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
@@ -768,14 +615,13 @@ type ConfigurationProject struct {
 	Protocol      RpcProtocol            `protobuf:"varint,2,opt,name=protocol,proto3,enum=RpcProtocol" json:"protocol,omitempty"`
 	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	ProtoDir      string                 `protobuf:"bytes,4,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
-	UseReflection bool                   `protobuf:"varint,5,opt,name=use_reflection,json=useReflection,proto3" json:"use_reflection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfigurationProject) Reset() {
 	*x = ConfigurationProject{}
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -787,7 +633,7 @@ func (x *ConfigurationProject) String() string {
 func (*ConfigurationProject) ProtoMessage() {}
 
 func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +646,7 @@ func (x *ConfigurationProject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationProject.ProtoReflect.Descriptor instead.
 func (*ConfigurationProject) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{10}
+	return file_proto_api_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ConfigurationProject) GetName() string {
@@ -831,13 +677,6 @@ func (x *ConfigurationProject) GetProtoDir() string {
 	return ""
 }
 
-func (x *ConfigurationProject) GetUseReflection() bool {
-	if x != nil {
-		return x.UseReflection
-	}
-	return false
-}
-
 type ConfigurationAI struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BaseUrl       string                 `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
@@ -848,7 +687,7 @@ type ConfigurationAI struct {
 
 func (x *ConfigurationAI) Reset() {
 	*x = ConfigurationAI{}
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -860,7 +699,7 @@ func (x *ConfigurationAI) String() string {
 func (*ConfigurationAI) ProtoMessage() {}
 
 func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -873,7 +712,7 @@ func (x *ConfigurationAI) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationAI.ProtoReflect.Descriptor instead.
 func (*ConfigurationAI) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{11}
+	return file_proto_api_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ConfigurationAI) GetBaseUrl() string {
@@ -899,7 +738,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +750,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +763,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{12}
+	return file_proto_api_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -943,7 +782,7 @@ type UpdateConfigurationResponse struct {
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +794,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -968,7 +807,7 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{13}
+	return file_proto_api_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
@@ -976,6 +815,330 @@ func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 		return x.Configuration
 	}
 	return nil
+}
+
+type ChatCompleteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Model         string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Messages      []*ChatMessage         `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
+	Temperature   float64                `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	TopP          float64                `protobuf:"fixed64,4,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
+	MaxTokens     int32                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatCompleteRequest) Reset() {
+	*x = ChatCompleteRequest{}
+	mi := &file_proto_api_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatCompleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatCompleteRequest) ProtoMessage() {}
+
+func (x *ChatCompleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatCompleteRequest.ProtoReflect.Descriptor instead.
+func (*ChatCompleteRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ChatCompleteRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ChatCompleteRequest) GetMessages() []*ChatMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *ChatCompleteRequest) GetTemperature() float64 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *ChatCompleteRequest) GetTopP() float64 {
+	if x != nil {
+		return x.TopP
+	}
+	return 0
+}
+
+func (x *ChatCompleteRequest) GetMaxTokens() int32 {
+	if x != nil {
+		return x.MaxTokens
+	}
+	return 0
+}
+
+type ChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"` // "system", "user", "assistant"
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatMessage) Reset() {
+	*x = ChatMessage{}
+	mi := &file_proto_api_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatMessage) ProtoMessage() {}
+
+func (x *ChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
+func (*ChatMessage) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ChatMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ChatMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type ChatCompleteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	Choices       []*ChatChoice          `protobuf:"bytes,3,rep,name=choices,proto3" json:"choices,omitempty"`
+	Usage         *ChatUsage             `protobuf:"bytes,4,opt,name=usage,proto3" json:"usage,omitempty"`
+	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"` // Non-empty if there was an error
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatCompleteResponse) Reset() {
+	*x = ChatCompleteResponse{}
+	mi := &file_proto_api_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatCompleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatCompleteResponse) ProtoMessage() {}
+
+func (x *ChatCompleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatCompleteResponse.ProtoReflect.Descriptor instead.
+func (*ChatCompleteResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ChatCompleteResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ChatCompleteResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ChatCompleteResponse) GetChoices() []*ChatChoice {
+	if x != nil {
+		return x.Choices
+	}
+	return nil
+}
+
+func (x *ChatCompleteResponse) GetUsage() *ChatUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+func (x *ChatCompleteResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChatChoice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Message       *ChatMessage           `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	FinishReason  string                 `protobuf:"bytes,3,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"` // "stop", "length", etc.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatChoice) Reset() {
+	*x = ChatChoice{}
+	mi := &file_proto_api_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatChoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatChoice) ProtoMessage() {}
+
+func (x *ChatChoice) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatChoice.ProtoReflect.Descriptor instead.
+func (*ChatChoice) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ChatChoice) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *ChatChoice) GetMessage() *ChatMessage {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *ChatChoice) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
+type ChatUsage struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	PromptTokens     int32                  `protobuf:"varint,1,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	CompletionTokens int32                  `protobuf:"varint,2,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	TotalTokens      int32                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ChatUsage) Reset() {
+	*x = ChatUsage{}
+	mi := &file_proto_api_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatUsage) ProtoMessage() {}
+
+func (x *ChatUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatUsage.ProtoReflect.Descriptor instead.
+func (*ChatUsage) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ChatUsage) GetPromptTokens() int32 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *ChatUsage) GetCompletionTokens() int32 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
+}
+
+func (x *ChatUsage) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
 }
 
 var File_proto_api_proto protoreflect.FileDescriptor
@@ -987,12 +1150,6 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"\"\n" +
-	"\x0eReflectRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"p\n" +
-	"\x0fReflectResponse\x12&\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x0e.ReflectStatusR\x06status\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"\x8a\x01\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
@@ -1016,24 +1173,45 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x02ai\x18\x03 \x01(\v2\x10.ConfigurationAIR\x02ai\x12,\n" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"O\n" +
 	"\x13ConfigurationSystem\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xaa\x01\n" +
+	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\x83\x01\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1b\n" +
-	"\tproto_dir\x18\x04 \x01(\tR\bprotoDir\x12%\n" +
-	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\"E\n" +
+	"\tproto_dir\x18\x04 \x01(\tR\bprotoDir\"E\n" +
 	"\x0fConfigurationAI\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x17\n" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"R\n" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration*\\\n" +
-	"\rReflectStatus\x12\x1a\n" +
-	"\x16REFLECT_STATUS_UNKNOWN\x10\x00\x12\x15\n" +
-	"\x11REFLECT_STATUS_OK\x10\x01\x12\x18\n" +
-	"\x14REFLECT_STATUS_ERROR\x10\x02*[\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xab\x01\n" +
+	"\x13ChatCompleteRequest\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12(\n" +
+	"\bmessages\x18\x02 \x03(\v2\f.ChatMessageR\bmessages\x12 \n" +
+	"\vtemperature\x18\x03 \x01(\x01R\vtemperature\x12\x13\n" +
+	"\x05top_p\x18\x04 \x01(\x01R\x04topP\x12\x1d\n" +
+	"\n" +
+	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\";\n" +
+	"\vChatMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x9b\x01\n" +
+	"\x14ChatCompleteResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\x12%\n" +
+	"\achoices\x18\x03 \x03(\v2\v.ChatChoiceR\achoices\x12 \n" +
+	"\x05usage\x18\x04 \x01(\v2\n" +
+	".ChatUsageR\x05usage\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"o\n" +
+	"\n" +
+	"ChatChoice\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12&\n" +
+	"\amessage\x18\x02 \x01(\v2\f.ChatMessageR\amessage\x12#\n" +
+	"\rfinish_reason\x18\x03 \x01(\tR\ffinishReason\"\x80\x01\n" +
+	"\tChatUsage\x12#\n" +
+	"\rprompt_tokens\x18\x01 \x01(\x05R\fpromptTokens\x12+\n" +
+	"\x11completion_tokens\x18\x02 \x01(\x05R\x10completionTokens\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens*[\n" +
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +
@@ -1048,12 +1226,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vLEVEL_ERROR\x10\x03*<\n" +
 	"\vRpcProtocol\x12\x16\n" +
 	"\x12RPC_PROTOCOL_TWIRP\x10\x00\x12\x15\n" +
-	"\x11RPC_PROTOCOL_GRPC\x10\x012\xfc\x01\n" +
+	"\x11RPC_PROTOCOL_GRPC\x10\x012\x8b\x02\n" +
 	"\x03Api\x12,\n" +
-	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
-	"\aReflect\x12\x0f.ReflectRequest\x1a\x10.ReflectResponse\x12G\n" +
+	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
-	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponseB\tZ\apkg/apib\x06proto3"
+	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12;\n" +
+	"\fChatComplete\x12\x14.ChatCompleteRequest\x1a\x15.ChatCompleteResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -1067,56 +1245,60 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_proto_api_proto_goTypes = []any{
-	(ReflectStatus)(0),                  // 0: ReflectStatus
-	(CompileStatus)(0),                  // 1: CompileStatus
-	(LogLevel)(0),                       // 2: LogLevel
-	(RpcProtocol)(0),                    // 3: RpcProtocol
-	(*CompileRequest)(nil),              // 4: CompileRequest
-	(*ReflectRequest)(nil),              // 5: ReflectRequest
-	(*ReflectResponse)(nil),             // 6: ReflectResponse
-	(*CompileResponse)(nil),             // 7: CompileResponse
-	(*Log)(nil),                         // 8: Log
-	(*Source)(nil),                      // 9: Source
-	(*GetConfigurationRequest)(nil),     // 10: GetConfigurationRequest
-	(*GetConfigurationResponse)(nil),    // 11: GetConfigurationResponse
-	(*Configuration)(nil),               // 12: Configuration
-	(*ConfigurationSystem)(nil),         // 13: ConfigurationSystem
-	(*ConfigurationProject)(nil),        // 14: ConfigurationProject
-	(*ConfigurationAI)(nil),             // 15: ConfigurationAI
-	(*UpdateConfigurationRequest)(nil),  // 16: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 17: UpdateConfigurationResponse
+	(CompileStatus)(0),                  // 0: CompileStatus
+	(LogLevel)(0),                       // 1: LogLevel
+	(RpcProtocol)(0),                    // 2: RpcProtocol
+	(*CompileRequest)(nil),              // 3: CompileRequest
+	(*CompileResponse)(nil),             // 4: CompileResponse
+	(*Log)(nil),                         // 5: Log
+	(*Source)(nil),                      // 6: Source
+	(*GetConfigurationRequest)(nil),     // 7: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil),    // 8: GetConfigurationResponse
+	(*Configuration)(nil),               // 9: Configuration
+	(*ConfigurationSystem)(nil),         // 10: ConfigurationSystem
+	(*ConfigurationProject)(nil),        // 11: ConfigurationProject
+	(*ConfigurationAI)(nil),             // 12: ConfigurationAI
+	(*UpdateConfigurationRequest)(nil),  // 13: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 14: UpdateConfigurationResponse
+	(*ChatCompleteRequest)(nil),         // 15: ChatCompleteRequest
+	(*ChatMessage)(nil),                 // 16: ChatMessage
+	(*ChatCompleteResponse)(nil),        // 17: ChatCompleteResponse
+	(*ChatChoice)(nil),                  // 18: ChatChoice
+	(*ChatUsage)(nil),                   // 19: ChatUsage
 }
 var file_proto_api_proto_depIdxs = []int32{
-	0,  // 0: ReflectResponse.status:type_name -> ReflectStatus
-	8,  // 1: ReflectResponse.logs:type_name -> Log
-	1,  // 2: CompileResponse.status:type_name -> CompileStatus
-	8,  // 3: CompileResponse.logs:type_name -> Log
-	9,  // 4: CompileResponse.sources:type_name -> Source
-	2,  // 5: Log.level:type_name -> LogLevel
-	12, // 6: GetConfigurationResponse.configuration:type_name -> Configuration
-	8,  // 7: GetConfigurationResponse.logs:type_name -> Log
-	14, // 8: Configuration.projects:type_name -> ConfigurationProject
-	15, // 9: Configuration.ai:type_name -> ConfigurationAI
-	13, // 10: Configuration.system:type_name -> ConfigurationSystem
-	3,  // 11: ConfigurationProject.protocol:type_name -> RpcProtocol
-	12, // 12: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	12, // 13: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	4,  // 14: Api.Compile:input_type -> CompileRequest
-	5,  // 15: Api.Reflect:input_type -> ReflectRequest
-	10, // 16: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	16, // 17: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	7,  // 18: Api.Compile:output_type -> CompileResponse
-	6,  // 19: Api.Reflect:output_type -> ReflectResponse
-	11, // 20: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	17, // 21: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	18, // [18:22] is the sub-list for method output_type
-	14, // [14:18] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	0,  // 0: CompileResponse.status:type_name -> CompileStatus
+	5,  // 1: CompileResponse.logs:type_name -> Log
+	6,  // 2: CompileResponse.sources:type_name -> Source
+	1,  // 3: Log.level:type_name -> LogLevel
+	9,  // 4: GetConfigurationResponse.configuration:type_name -> Configuration
+	5,  // 5: GetConfigurationResponse.logs:type_name -> Log
+	11, // 6: Configuration.projects:type_name -> ConfigurationProject
+	12, // 7: Configuration.ai:type_name -> ConfigurationAI
+	10, // 8: Configuration.system:type_name -> ConfigurationSystem
+	2,  // 9: ConfigurationProject.protocol:type_name -> RpcProtocol
+	9,  // 10: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	9,  // 11: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	16, // 12: ChatCompleteRequest.messages:type_name -> ChatMessage
+	18, // 13: ChatCompleteResponse.choices:type_name -> ChatChoice
+	19, // 14: ChatCompleteResponse.usage:type_name -> ChatUsage
+	16, // 15: ChatChoice.message:type_name -> ChatMessage
+	3,  // 16: Api.Compile:input_type -> CompileRequest
+	7,  // 17: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	13, // 18: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	15, // 19: Api.ChatComplete:input_type -> ChatCompleteRequest
+	4,  // 20: Api.Compile:output_type -> CompileResponse
+	8,  // 21: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	14, // 22: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	17, // 23: Api.ChatComplete:output_type -> ChatCompleteResponse
+	20, // [20:24] is the sub-list for method output_type
+	16, // [16:20] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -1129,8 +1311,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   14,
+			NumEnums:      3,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
