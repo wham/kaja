@@ -3,12 +3,27 @@ syntax = "proto3";
 option go_package = "internal/api";
 
 service Users {
-    rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+    rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
     rpc GetUser(GetUserRequest) returns (GetUserResponse);
+    rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
     rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
     rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
-    rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
     rpc DeleteAllUsers(DeleteAllUsersRequest) returns (DeleteAllUsersResponse);
+}
+
+message GetAllUsersRequest {
+}
+
+message GetAllUsersResponse {
+    repeated User users = 1;
+}
+
+message GetUserRequest {
+    string id = 1;
+}
+
+message GetUserResponse {
+    User user = 1;
 }
 
 message CreateUserRequest {
@@ -18,14 +33,6 @@ message CreateUserRequest {
 message CreateUserResponse {
     string message = 1;
     User user = 2;
-}
-
-message GetUserRequest {
-    string id = 1;
-}
-
-message GetUserResponse {
-    User user = 1;
 }
 
 message UpdateUserRequest {
@@ -42,13 +49,6 @@ message DeleteUserRequest {
 }
 
 message DeleteUserResponse {
-}
-
-message GetAllUsersRequest {
-}
-
-message GetAllUsersResponse {
-    repeated User users = 1;
 }
 
 message DeleteAllUsersRequest {

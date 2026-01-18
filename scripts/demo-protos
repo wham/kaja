@@ -46,9 +46,38 @@ for service in $SERVICES; do
 done
 
 echo ""
+
+# Fetch grpcb.in proto files from moul/pb repository
+echo "Fetching grpcb.in proto files from moul/pb..."
+
+GRPCBIN_REPO_URL="https://github.com/moul/pb.git"
+GRPCBIN_DIR="workspace/grpcbin/proto"
+
+# Clone moul/pb with sparse checkout
+git clone --depth 1 --filter=blob:none --sparse "$GRPCBIN_REPO_URL" "$TMP_DIR/pb"
+cd "$TMP_DIR/pb"
+git sparse-checkout set grpcbin hello addsvc
+cd - > /dev/null
+
+# Clean and recreate grpcbin directory
+rm -rf "workspace/grpcbin"
+mkdir -p "$GRPCBIN_DIR"
+
+# Copy proto files (they're in subdirectories named after the service)
+cp "$TMP_DIR/pb/grpcbin/grpcbin.proto" "$GRPCBIN_DIR/"
+cp "$TMP_DIR/pb/hello/hello.proto" "$GRPCBIN_DIR/"
+cp "$TMP_DIR/pb/addsvc/addsvc.proto" "$GRPCBIN_DIR/"
+
+echo "Updated $GRPCBIN_DIR"
+
+echo ""
 echo "Demo proto files updated:"
 for service in $SERVICES; do
     echo ""
     echo "workspace/$service/proto:"
     find "workspace/$service/proto" -name "*.proto" | sort | sed 's/^/  /'
 done
+
+echo ""
+echo "$GRPCBIN_DIR:"
+find "$GRPCBIN_DIR" -name "*.proto" | sort | sed 's/^/  /'
