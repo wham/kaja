@@ -29,6 +29,6 @@
     "apiKey":  "*****"
   },
   "system":  {
-    "can_update_configuration":  true
+    "canUpdateConfiguration":  true
   }
 }
