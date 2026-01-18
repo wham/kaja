@@ -94,6 +94,13 @@ jobs:
           CALL_URL=$(cml publish .github/screenshots/call.png)
           COMPILER_URL=$(cml publish .github/screenshots/compiler.png)
 
+          # New Project screenshot is optional
+          NEWPROJECT_SECTION=""
+          if [ -f .github/screenshots/newproject.png ]; then
+            NEWPROJECT_URL=$(cml publish .github/screenshots/newproject.png)
+            NEWPROJECT_SECTION=$(printf '\n\n### New Project\n![New Project](%s)' "$NEWPROJECT_URL")
+          fi
+
           # Get current PR body
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
 
@@ -101,7 +108,7 @@ jobs:
           BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Screenshots.*?<\/summary>.*?<\/details>\s*//sg')
 
           # Create new screenshots section (closed by default)
-          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)\n\n</details>' "$HOME_URL" "$CALL_URL" "$COMPILER_URL")
+          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)%s\n\n</details>' "$HOME_URL" "$CALL_URL" "$COMPILER_URL" "$NEWPROJECT_SECTION")
 
           # Combine body with screenshots section at the end
           printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
