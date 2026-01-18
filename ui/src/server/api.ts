@@ -214,6 +214,106 @@ export interface UpdateConfigurationResponse {
      */
     configuration?: Configuration;
 }
+// ChatCompletions mimics the OpenAI Chat Completions API
+// https://platform.openai.com/docs/api-reference/chat/create
+
+/**
+ * @generated from protobuf message ChatCompletionsRequest
+ */
+export interface ChatCompletionsRequest {
+    /**
+     * @generated from protobuf field: string model = 1
+     */
+    model: string;
+    /**
+     * @generated from protobuf field: repeated ChatMessage messages = 2
+     */
+    messages: ChatMessage[];
+    /**
+     * @generated from protobuf field: double temperature = 3
+     */
+    temperature: number;
+    /**
+     * @generated from protobuf field: double top_p = 4
+     */
+    topP: number;
+    /**
+     * @generated from protobuf field: int32 max_tokens = 5
+     */
+    maxTokens: number;
+}
+/**
+ * @generated from protobuf message ChatMessage
+ */
+export interface ChatMessage {
+    /**
+     * @generated from protobuf field: string role = 1
+     */
+    role: string; // "system", "user", "assistant"
+    /**
+     * @generated from protobuf field: string content = 2
+     */
+    content: string;
+}
+/**
+ * @generated from protobuf message ChatCompletionsResponse
+ */
+export interface ChatCompletionsResponse {
+    /**
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: string model = 2
+     */
+    model: string;
+    /**
+     * @generated from protobuf field: repeated ChatChoice choices = 3
+     */
+    choices: ChatChoice[];
+    /**
+     * @generated from protobuf field: ChatUsage usage = 4
+     */
+    usage?: ChatUsage;
+    /**
+     * @generated from protobuf field: string error = 5
+     */
+    error: string; // Non-empty if there was an error
+}
+/**
+ * @generated from protobuf message ChatChoice
+ */
+export interface ChatChoice {
+    /**
+     * @generated from protobuf field: int32 index = 1
+     */
+    index: number;
+    /**
+     * @generated from protobuf field: ChatMessage message = 2
+     */
+    message?: ChatMessage;
+    /**
+     * @generated from protobuf field: string finish_reason = 3
+     */
+    finishReason: string; // "stop", "length", etc.
+}
+/**
+ * @generated from protobuf message ChatUsage
+ */
+export interface ChatUsage {
+    /**
+     * @generated from protobuf field: int32 prompt_tokens = 1
+     */
+    promptTokens: number;
+    /**
+     * @generated from protobuf field: int32 completion_tokens = 2
+     */
+    completionTokens: number;
+    /**
+     * @generated from protobuf field: int32 total_tokens = 3
+     */
+    totalTokens: number;
+}
 /**
  * @generated from protobuf enum ReflectStatus
  */
@@ -1074,6 +1174,343 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
  * @generated MessageType for protobuf message UpdateConfigurationResponse
  */
 export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
+    constructor() {
+        super("ChatCompletionsRequest", [
+            { no: 1, name: "model", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "messages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatMessage },
+            { no: 3, name: "temperature", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
+            { no: 4, name: "top_p", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
+            { no: 5, name: "max_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChatCompletionsRequest>): ChatCompletionsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.model = "";
+        message.messages = [];
+        message.temperature = 0;
+        message.topP = 0;
+        message.maxTokens = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ChatCompletionsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompletionsRequest): ChatCompletionsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string model */ 1:
+                    message.model = reader.string();
+                    break;
+                case /* repeated ChatMessage messages */ 2:
+                    message.messages.push(ChatMessage.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* double temperature */ 3:
+                    message.temperature = reader.double();
+                    break;
+                case /* double top_p */ 4:
+                    message.topP = reader.double();
+                    break;
+                case /* int32 max_tokens */ 5:
+                    message.maxTokens = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChatCompletionsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string model = 1; */
+        if (message.model !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.model);
+        /* repeated ChatMessage messages = 2; */
+        for (let i = 0; i < message.messages.length; i++)
+            ChatMessage.internalBinaryWrite(message.messages[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* double temperature = 3; */
+        if (message.temperature !== 0)
+            writer.tag(3, WireType.Bit64).double(message.temperature);
+        /* double top_p = 4; */
+        if (message.topP !== 0)
+            writer.tag(4, WireType.Bit64).double(message.topP);
+        /* int32 max_tokens = 5; */
+        if (message.maxTokens !== 0)
+            writer.tag(5, WireType.Varint).int32(message.maxTokens);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ChatCompletionsRequest
+ */
+export const ChatCompletionsRequest = new ChatCompletionsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChatMessage$Type extends MessageType<ChatMessage> {
+    constructor() {
+        super("ChatMessage", [
+            { no: 1, name: "role", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChatMessage>): ChatMessage {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.role = "";
+        message.content = "";
+        if (value !== undefined)
+            reflectionMergePartial<ChatMessage>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatMessage): ChatMessage {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string role */ 1:
+                    message.role = reader.string();
+                    break;
+                case /* string content */ 2:
+                    message.content = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChatMessage, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string role = 1; */
+        if (message.role !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.role);
+        /* string content = 2; */
+        if (message.content !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.content);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ChatMessage
+ */
+export const ChatMessage = new ChatMessage$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChatCompletionsResponse$Type extends MessageType<ChatCompletionsResponse> {
+    constructor() {
+        super("ChatCompletionsResponse", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "model", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "choices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatChoice },
+            { no: 4, name: "usage", kind: "message", T: () => ChatUsage },
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChatCompletionsResponse>): ChatCompletionsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        message.model = "";
+        message.choices = [];
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<ChatCompletionsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompletionsResponse): ChatCompletionsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* string model */ 2:
+                    message.model = reader.string();
+                    break;
+                case /* repeated ChatChoice choices */ 3:
+                    message.choices.push(ChatChoice.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* ChatUsage usage */ 4:
+                    message.usage = ChatUsage.internalBinaryRead(reader, reader.uint32(), options, message.usage);
+                    break;
+                case /* string error */ 5:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChatCompletionsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        /* string model = 2; */
+        if (message.model !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.model);
+        /* repeated ChatChoice choices = 3; */
+        for (let i = 0; i < message.choices.length; i++)
+            ChatChoice.internalBinaryWrite(message.choices[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* ChatUsage usage = 4; */
+        if (message.usage)
+            ChatUsage.internalBinaryWrite(message.usage, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string error = 5; */
+        if (message.error !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ChatCompletionsResponse
+ */
+export const ChatCompletionsResponse = new ChatCompletionsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChatChoice$Type extends MessageType<ChatChoice> {
+    constructor() {
+        super("ChatChoice", [
+            { no: 1, name: "index", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "message", kind: "message", T: () => ChatMessage },
+            { no: 3, name: "finish_reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChatChoice>): ChatChoice {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.index = 0;
+        message.finishReason = "";
+        if (value !== undefined)
+            reflectionMergePartial<ChatChoice>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatChoice): ChatChoice {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 index */ 1:
+                    message.index = reader.int32();
+                    break;
+                case /* ChatMessage message */ 2:
+                    message.message = ChatMessage.internalBinaryRead(reader, reader.uint32(), options, message.message);
+                    break;
+                case /* string finish_reason */ 3:
+                    message.finishReason = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChatChoice, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 index = 1; */
+        if (message.index !== 0)
+            writer.tag(1, WireType.Varint).int32(message.index);
+        /* ChatMessage message = 2; */
+        if (message.message)
+            ChatMessage.internalBinaryWrite(message.message, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string finish_reason = 3; */
+        if (message.finishReason !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.finishReason);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ChatChoice
+ */
+export const ChatChoice = new ChatChoice$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ChatUsage$Type extends MessageType<ChatUsage> {
+    constructor() {
+        super("ChatUsage", [
+            { no: 1, name: "prompt_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "completion_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "total_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ChatUsage>): ChatUsage {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.promptTokens = 0;
+        message.completionTokens = 0;
+        message.totalTokens = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ChatUsage>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatUsage): ChatUsage {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 prompt_tokens */ 1:
+                    message.promptTokens = reader.int32();
+                    break;
+                case /* int32 completion_tokens */ 2:
+                    message.completionTokens = reader.int32();
+                    break;
+                case /* int32 total_tokens */ 3:
+                    message.totalTokens = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChatUsage, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 prompt_tokens = 1; */
+        if (message.promptTokens !== 0)
+            writer.tag(1, WireType.Varint).int32(message.promptTokens);
+        /* int32 completion_tokens = 2; */
+        if (message.completionTokens !== 0)
+            writer.tag(2, WireType.Varint).int32(message.completionTokens);
+        /* int32 total_tokens = 3; */
+        if (message.totalTokens !== 0)
+            writer.tag(3, WireType.Varint).int32(message.totalTokens);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ChatUsage
+ */
+export const ChatUsage = new ChatUsage$Type();
 /**
  * @generated ServiceType for protobuf service Api
  */
@@ -1081,5 +1518,6 @@ export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
     { name: "Reflect", options: {}, I: ReflectRequest, O: ReflectResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
-    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
+    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "ChatCompletions", options: {}, I: ChatCompletionsRequest, O: ChatCompletionsResponse }
 ]);
