@@ -985,6 +985,7 @@ type ChatCompletionsRequest struct {
 	Temperature   float64                `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
 	TopP          float64                `protobuf:"fixed64,4,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
 	MaxTokens     int32                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	Stop          []string               `protobuf:"bytes,6,rep,name=stop,proto3" json:"stop,omitempty"` // Stop sequences to halt generation
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1052,6 +1053,13 @@ func (x *ChatCompletionsRequest) GetMaxTokens() int32 {
 		return x.MaxTokens
 	}
 	return 0
+}
+
+func (x *ChatCompletionsRequest) GetStop() []string {
+	if x != nil {
+		return x.Stop
+	}
+	return nil
 }
 
 type ChatMessage struct {
@@ -1353,14 +1361,15 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xae\x01\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xc2\x01\n" +
 	"\x16ChatCompletionsRequest\x12\x14\n" +
 	"\x05model\x18\x01 \x01(\tR\x05model\x12(\n" +
 	"\bmessages\x18\x02 \x03(\v2\f.ChatMessageR\bmessages\x12 \n" +
 	"\vtemperature\x18\x03 \x01(\x01R\vtemperature\x12\x13\n" +
 	"\x05top_p\x18\x04 \x01(\x01R\x04topP\x12\x1d\n" +
 	"\n" +
-	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\";\n" +
+	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\x12\x12\n" +
+	"\x04stop\x18\x06 \x03(\tR\x04stop\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\x9e\x01\n" +

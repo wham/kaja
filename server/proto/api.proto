@@ -122,6 +122,7 @@ message ChatCompletionsRequest {
   double temperature = 3;
   double top_p = 4;
   int32 max_tokens = 5;
+  repeated string stop = 6;  // Stop sequences to halt generation
 }
 
 message ChatMessage {
