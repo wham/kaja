@@ -179,7 +179,7 @@ ${afterCursor}
 
 Current line prefix: "${prefix}"`;
 
-    const response = await client.chatCompletions({
+    const { response } = await client.chatCompletions({
       model: modelName,
       messages: [
         {
@@ -197,21 +197,21 @@ Current line prefix: "${prefix}"`;
       stop: ["```", "\n\n\n", "Note:", "Here's"],
     });
 
-    if (response.response.error) {
-      if (response.response.error.includes("not configured")) {
+    if (response.error) {
+      if (response.error.includes("not configured")) {
         isCompletionsDisabled = true;
         console.info("Completions disabled: AI not configured");
       } else {
-        console.error("AI completion error:", response.response.error);
+        console.error("AI completion error:", response.error);
       }
       return [];
     }
 
-    if (!response.response.choices || response.response.choices.length === 0) {
+    if (!response.choices || response.choices.length === 0) {
       return [];
     }
 
-    let suggestion = response.response.choices[0].message?.content;
+    let suggestion = response.choices[0].message?.content;
     if (!suggestion) return [];
 
     suggestion = extractCompletion(suggestion);
