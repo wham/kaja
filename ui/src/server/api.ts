@@ -241,6 +241,10 @@ export interface ChatCompletionsRequest {
      * @generated from protobuf field: int32 max_tokens = 5
      */
     maxTokens: number;
+    /**
+     * @generated from protobuf field: repeated string stop = 6
+     */
+    stop: string[]; // Stop sequences to halt generation
 }
 /**
  * @generated from protobuf message ChatMessage
@@ -1182,7 +1186,8 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
             { no: 2, name: "messages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatMessage },
             { no: 3, name: "temperature", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
             { no: 4, name: "top_p", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
-            { no: 5, name: "max_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 5, name: "max_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 6, name: "stop", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ChatCompletionsRequest>): ChatCompletionsRequest {
@@ -1192,6 +1197,7 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
         message.temperature = 0;
         message.topP = 0;
         message.maxTokens = 0;
+        message.stop = [];
         if (value !== undefined)
             reflectionMergePartial<ChatCompletionsRequest>(this, message, value);
         return message;
@@ -1215,6 +1221,9 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
                     break;
                 case /* int32 max_tokens */ 5:
                     message.maxTokens = reader.int32();
+                    break;
+                case /* repeated string stop */ 6:
+                    message.stop.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1243,6 +1252,9 @@ class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
         /* int32 max_tokens = 5; */
         if (message.maxTokens !== 0)
             writer.tag(5, WireType.Varint).int32(message.maxTokens);
+        /* repeated string stop = 6; */
+        for (let i = 0; i < message.stop.length; i++)
+            writer.tag(6, WireType.LengthDelimited).string(message.stop[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
