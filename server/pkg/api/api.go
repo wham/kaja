@@ -5,8 +5,10 @@ import (
 	fmt "fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
+	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
 type ApiService struct {
@@ -46,14 +48,8 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		compiler.status = CompileStatus_STATUS_RUNNING
 		compiler.logger = NewLogger()
 		compiler.sources = []*Source{}
-
-		if req.UseReflection {
-			compiler.logger.info("Starting reflection-based discovery")
-			go compiler.startReflection(req.Id, req.Url)
-		} else {
-			compiler.logger.info("Starting compilation")
-			go compiler.start(req.Id, req.ProtoDir)
-		}
+		compiler.logger.info("Starting compilation")
+		go compiler.start(req.Id, req.ProtoDir)
 	}
 
 	logOffset := int(req.LogOffset)
@@ -71,6 +67,70 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		Logs:    logs,
 		Sources: compiler.sources,
 		Stub:    compiler.stub,
+	}, nil
+}
+
+func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*ReflectResponse, error) {
+	if req.Url == "" {
+		return nil, fmt.Errorf("url is required")
+	}
+
+	logger := NewLogger()
+	logger.info("Starting gRPC reflection for " + req.Url)
+
+	// Create temp directory for proto files
+	protoDir, err := tempdir.NewSourcesDir()
+	if err != nil {
+		logger.error("Failed to create temp directory", err)
+		return &ReflectResponse{
+			Logs:  logger.logs,
+			Error: err.Error(),
+		}, nil
+	}
+	logger.debug("Proto output directory: " + protoDir)
+
+	// Create reflection client
+	client, err := grpc.NewReflectionClientFromString(req.Url)
+	if err != nil {
+		logger.error("Failed to create reflection client", err)
+		return &ReflectResponse{
+			Logs:  logger.logs,
+			Error: err.Error(),
+		}, nil
+	}
+
+	// Discover services with timeout
+	discoverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	logger.info("Connecting to server...")
+	result, err := client.Discover(discoverCtx)
+	if err != nil {
+		logger.error("Failed to discover services", err)
+		return &ReflectResponse{
+			Logs:  logger.logs,
+			Error: err.Error(),
+		}, nil
+	}
+
+	logger.info(fmt.Sprintf("Discovered %d services: %v", len(result.Services), result.Services))
+	logger.info(fmt.Sprintf("Retrieved %d file descriptors", len(result.FileDescriptors)))
+
+	// Write proto files
+	err = grpc.WriteProtoFiles(result, protoDir)
+	if err != nil {
+		logger.error("Failed to write proto files", err)
+		return &ReflectResponse{
+			Logs:  logger.logs,
+			Error: err.Error(),
+		}, nil
+	}
+
+	logger.info("Proto files written to " + protoDir)
+
+	return &ReflectResponse{
+		ProtoDir: protoDir,
+		Logs:     logger.logs,
 	}, nil
 }
 

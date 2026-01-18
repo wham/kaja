@@ -4,6 +4,7 @@ option go_package = "pkg/api";
 
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
+  rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
 }
@@ -12,8 +13,16 @@ message CompileRequest {
   string id = 1;
   int32 log_offset = 2;
   string proto_dir = 3;
-  bool use_reflection = 4;
-  string url = 5;  // Target URL for reflection-based discovery
+}
+
+message ReflectRequest {
+  string url = 1;  // Target gRPC server URL for reflection discovery
+}
+
+message ReflectResponse {
+  string proto_dir = 1;  // Temp directory containing discovered proto files
+  repeated Log logs = 2;
+  string error = 3;  // Error message if reflection failed
 }
 
 message CompileResponse {

@@ -27,14 +27,32 @@ export interface CompileRequest {
      * @generated from protobuf field: string proto_dir = 3
      */
     protoDir: string;
+}
+/**
+ * @generated from protobuf message ReflectRequest
+ */
+export interface ReflectRequest {
     /**
-     * @generated from protobuf field: bool use_reflection = 4
+     * @generated from protobuf field: string url = 1
      */
-    useReflection: boolean;
+    url: string; // Target gRPC server URL for reflection discovery
+}
+/**
+ * @generated from protobuf message ReflectResponse
+ */
+export interface ReflectResponse {
     /**
-     * @generated from protobuf field: string url = 5
+     * @generated from protobuf field: string proto_dir = 1
      */
-    url: string; // Target URL for reflection-based discovery
+    protoDir: string; // Temp directory containing discovered proto files
+    /**
+     * @generated from protobuf field: repeated Log logs = 2
+     */
+    logs: Log[];
+    /**
+     * @generated from protobuf field: string error = 3
+     */
+    error: string; // Error message if reflection failed
 }
 /**
  * @generated from protobuf message CompileResponse
@@ -257,9 +275,7 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         super("CompileRequest", [
             { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
@@ -267,8 +283,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         message.id = "";
         message.logOffset = 0;
         message.protoDir = "";
-        message.useReflection = false;
-        message.url = "";
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
         return message;
@@ -286,12 +300,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
                     break;
                 case /* string proto_dir */ 3:
                     message.protoDir = reader.string();
-                    break;
-                case /* bool use_reflection */ 4:
-                    message.useReflection = reader.bool();
-                    break;
-                case /* string url */ 5:
-                    message.url = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -314,12 +322,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* string proto_dir = 3; */
         if (message.protoDir !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
-        /* bool use_reflection = 4; */
-        if (message.useReflection !== false)
-            writer.tag(4, WireType.Varint).bool(message.useReflection);
-        /* string url = 5; */
-        if (message.url !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.url);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -330,6 +332,116 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
  * @generated MessageType for protobuf message CompileRequest
  */
 export const CompileRequest = new CompileRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReflectRequest$Type extends MessageType<ReflectRequest> {
+    constructor() {
+        super("ReflectRequest", [
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReflectRequest>): ReflectRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.url = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReflectRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReflectRequest): ReflectRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string url */ 1:
+                    message.url = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReflectRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string url = 1; */
+        if (message.url !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.url);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ReflectRequest
+ */
+export const ReflectRequest = new ReflectRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReflectResponse$Type extends MessageType<ReflectResponse> {
+    constructor() {
+        super("ReflectResponse", [
+            { no: 1, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
+            { no: 3, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReflectResponse>): ReflectResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.protoDir = "";
+        message.logs = [];
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReflectResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReflectResponse): ReflectResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string proto_dir */ 1:
+                    message.protoDir = reader.string();
+                    break;
+                case /* repeated Log logs */ 2:
+                    message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string error */ 3:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReflectResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string proto_dir = 1; */
+        if (message.protoDir !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.protoDir);
+        /* repeated Log logs = 2; */
+        for (let i = 0; i < message.logs.length; i++)
+            Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string error = 3; */
+        if (message.error !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ReflectResponse
+ */
+export const ReflectResponse = new ReflectResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
@@ -950,6 +1062,7 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
  */
 export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
+    { name: "Reflect", options: {}, I: ReflectRequest, O: ReflectResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);
