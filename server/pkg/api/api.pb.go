@@ -817,6 +817,330 @@ func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 	return nil
 }
 
+type ChatCompletionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Model         string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Messages      []*ChatMessage         `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
+	Temperature   float64                `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	TopP          float64                `protobuf:"fixed64,4,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
+	MaxTokens     int32                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatCompletionsRequest) Reset() {
+	*x = ChatCompletionsRequest{}
+	mi := &file_proto_api_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatCompletionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatCompletionsRequest) ProtoMessage() {}
+
+func (x *ChatCompletionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatCompletionsRequest.ProtoReflect.Descriptor instead.
+func (*ChatCompletionsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ChatCompletionsRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ChatCompletionsRequest) GetMessages() []*ChatMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *ChatCompletionsRequest) GetTemperature() float64 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *ChatCompletionsRequest) GetTopP() float64 {
+	if x != nil {
+		return x.TopP
+	}
+	return 0
+}
+
+func (x *ChatCompletionsRequest) GetMaxTokens() int32 {
+	if x != nil {
+		return x.MaxTokens
+	}
+	return 0
+}
+
+type ChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"` // "system", "user", "assistant"
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatMessage) Reset() {
+	*x = ChatMessage{}
+	mi := &file_proto_api_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatMessage) ProtoMessage() {}
+
+func (x *ChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
+func (*ChatMessage) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ChatMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ChatMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type ChatCompletionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	Choices       []*ChatChoice          `protobuf:"bytes,3,rep,name=choices,proto3" json:"choices,omitempty"`
+	Usage         *ChatUsage             `protobuf:"bytes,4,opt,name=usage,proto3" json:"usage,omitempty"`
+	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"` // Non-empty if there was an error
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatCompletionsResponse) Reset() {
+	*x = ChatCompletionsResponse{}
+	mi := &file_proto_api_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatCompletionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatCompletionsResponse) ProtoMessage() {}
+
+func (x *ChatCompletionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatCompletionsResponse.ProtoReflect.Descriptor instead.
+func (*ChatCompletionsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ChatCompletionsResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ChatCompletionsResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ChatCompletionsResponse) GetChoices() []*ChatChoice {
+	if x != nil {
+		return x.Choices
+	}
+	return nil
+}
+
+func (x *ChatCompletionsResponse) GetUsage() *ChatUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+func (x *ChatCompletionsResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ChatChoice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Message       *ChatMessage           `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	FinishReason  string                 `protobuf:"bytes,3,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"` // "stop", "length", etc.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatChoice) Reset() {
+	*x = ChatChoice{}
+	mi := &file_proto_api_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatChoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatChoice) ProtoMessage() {}
+
+func (x *ChatChoice) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatChoice.ProtoReflect.Descriptor instead.
+func (*ChatChoice) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ChatChoice) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *ChatChoice) GetMessage() *ChatMessage {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *ChatChoice) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
+type ChatUsage struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	PromptTokens     int32                  `protobuf:"varint,1,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	CompletionTokens int32                  `protobuf:"varint,2,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	TotalTokens      int32                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ChatUsage) Reset() {
+	*x = ChatUsage{}
+	mi := &file_proto_api_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatUsage) ProtoMessage() {}
+
+func (x *ChatUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatUsage.ProtoReflect.Descriptor instead.
+func (*ChatUsage) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ChatUsage) GetPromptTokens() int32 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *ChatUsage) GetCompletionTokens() int32 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
+}
+
+func (x *ChatUsage) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
 var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
@@ -861,7 +1185,33 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration*[\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xae\x01\n" +
+	"\x16ChatCompletionsRequest\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12(\n" +
+	"\bmessages\x18\x02 \x03(\v2\f.ChatMessageR\bmessages\x12 \n" +
+	"\vtemperature\x18\x03 \x01(\x01R\vtemperature\x12\x13\n" +
+	"\x05top_p\x18\x04 \x01(\x01R\x04topP\x12\x1d\n" +
+	"\n" +
+	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\";\n" +
+	"\vChatMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x9e\x01\n" +
+	"\x17ChatCompletionsResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\x12%\n" +
+	"\achoices\x18\x03 \x03(\v2\v.ChatChoiceR\achoices\x12 \n" +
+	"\x05usage\x18\x04 \x01(\v2\n" +
+	".ChatUsageR\x05usage\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"o\n" +
+	"\n" +
+	"ChatChoice\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12&\n" +
+	"\amessage\x18\x02 \x01(\v2\f.ChatMessageR\amessage\x12#\n" +
+	"\rfinish_reason\x18\x03 \x01(\tR\ffinishReason\"\x80\x01\n" +
+	"\tChatUsage\x12#\n" +
+	"\rprompt_tokens\x18\x01 \x01(\x05R\fpromptTokens\x12+\n" +
+	"\x11completion_tokens\x18\x02 \x01(\x05R\x10completionTokens\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens*[\n" +
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +
@@ -876,11 +1226,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vLEVEL_ERROR\x10\x03*<\n" +
 	"\vRpcProtocol\x12\x16\n" +
 	"\x12RPC_PROTOCOL_TWIRP\x10\x00\x12\x15\n" +
-	"\x11RPC_PROTOCOL_GRPC\x10\x012\xce\x01\n" +
+	"\x11RPC_PROTOCOL_GRPC\x10\x012\x94\x02\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
-	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponseB\tZ\apkg/apib\x06proto3"
+	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12D\n" +
+	"\x0fChatCompletions\x12\x17.ChatCompletionsRequest\x1a\x18.ChatCompletionsResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -895,7 +1246,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_proto_api_proto_goTypes = []any{
 	(CompileStatus)(0),                  // 0: CompileStatus
 	(LogLevel)(0),                       // 1: LogLevel
@@ -912,6 +1263,11 @@ var file_proto_api_proto_goTypes = []any{
 	(*ConfigurationAI)(nil),             // 12: ConfigurationAI
 	(*UpdateConfigurationRequest)(nil),  // 13: UpdateConfigurationRequest
 	(*UpdateConfigurationResponse)(nil), // 14: UpdateConfigurationResponse
+	(*ChatCompletionsRequest)(nil),      // 15: ChatCompletionsRequest
+	(*ChatMessage)(nil),                 // 16: ChatMessage
+	(*ChatCompletionsResponse)(nil),     // 17: ChatCompletionsResponse
+	(*ChatChoice)(nil),                  // 18: ChatChoice
+	(*ChatUsage)(nil),                   // 19: ChatUsage
 }
 var file_proto_api_proto_depIdxs = []int32{
 	0,  // 0: CompileResponse.status:type_name -> CompileStatus
@@ -926,17 +1282,23 @@ var file_proto_api_proto_depIdxs = []int32{
 	2,  // 9: ConfigurationProject.protocol:type_name -> RpcProtocol
 	9,  // 10: UpdateConfigurationRequest.configuration:type_name -> Configuration
 	9,  // 11: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	3,  // 12: Api.Compile:input_type -> CompileRequest
-	7,  // 13: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	13, // 14: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	4,  // 15: Api.Compile:output_type -> CompileResponse
-	8,  // 16: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	14, // 17: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	15, // [15:18] is the sub-list for method output_type
-	12, // [12:15] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	16, // 12: ChatCompletionsRequest.messages:type_name -> ChatMessage
+	18, // 13: ChatCompletionsResponse.choices:type_name -> ChatChoice
+	19, // 14: ChatCompletionsResponse.usage:type_name -> ChatUsage
+	16, // 15: ChatChoice.message:type_name -> ChatMessage
+	3,  // 16: Api.Compile:input_type -> CompileRequest
+	7,  // 17: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	13, // 18: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	15, // 19: Api.ChatCompletions:input_type -> ChatCompletionsRequest
+	4,  // 20: Api.Compile:output_type -> CompileResponse
+	8,  // 21: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	14, // 22: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	17, // 23: Api.ChatCompletions:output_type -> ChatCompletionsResponse
+	20, // [20:24] is the sub-list for method output_type
+	16, // [16:20] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -950,7 +1312,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   12,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
