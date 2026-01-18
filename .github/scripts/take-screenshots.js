@@ -81,8 +81,10 @@ async function takeScreenshots() {
     // 4. New Project screenshot - open the new project form
     console.log("Taking new project screenshot...");
 
-    // Click the New Project button (Plus icon in sidebar header)
+    // Wait for the New Project button to appear (it becomes visible after configuration loads)
     const newProjectButton = page.locator('button[aria-label="New Project"]');
+    await newProjectButton.waitFor({ state: "visible", timeout: 10000 });
+
     await newProjectButton.click();
 
     // Wait for the dialog to appear
