@@ -82,7 +82,7 @@ async function fetchAICompletions(context: CompletionContext, projects: Project[
   try {
     const client = getApiClient();
 
-    const response = await client.chatComplete({
+    const response = await client.chatCompletions({
       model: modelName,
       messages: [
         {

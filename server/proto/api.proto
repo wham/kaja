@@ -6,7 +6,7 @@ service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
-  rpc ChatComplete(ChatCompleteRequest) returns (ChatCompleteResponse);
+  rpc ChatCompletions(ChatCompletionsRequest) returns (ChatCompletionsResponse);
 }
 
 message CompileRequest {
@@ -95,10 +95,10 @@ message UpdateConfigurationResponse {
   Configuration configuration = 1;
 }
 
-// ChatComplete mimics the OpenAI Chat Completion API
+// ChatCompletions mimics the OpenAI Chat Completions API
 // https://platform.openai.com/docs/api-reference/chat/create
 
-message ChatCompleteRequest {
+message ChatCompletionsRequest {
   string model = 1;
   repeated ChatMessage messages = 2;
   double temperature = 3;
@@ -111,7 +111,7 @@ message ChatMessage {
   string content = 2;
 }
 
-message ChatCompleteResponse {
+message ChatCompletionsResponse {
   string id = 1;
   string model = 2;
   repeated ChatChoice choices = 3;

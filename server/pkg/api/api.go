@@ -113,16 +113,16 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}, nil
 }
 
-// ChatComplete implements an OpenAI-compatible chat completion API
-func (s *ApiService) ChatComplete(ctx context.Context, req *ChatCompleteRequest) (*ChatCompleteResponse, error) {
-	slog.Info("ChatComplete called", "model", req.Model, "messages", len(req.Messages))
+// ChatCompletions implements an OpenAI-compatible chat completions API
+func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRequest) (*ChatCompletionsResponse, error) {
+	slog.Info("ChatCompletions called", "model", req.Model, "messages", len(req.Messages))
 
 	// Load configuration to get AI settings (with actual API key)
 	configResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 	aiConfig := configResponse.Configuration.Ai
 
 	if aiConfig == nil || aiConfig.BaseUrl == "" || aiConfig.ApiKey == "" {
-		return &ChatCompleteResponse{
+		return &ChatCompletionsResponse{
 			Error: "AI is not configured. Set ai.baseUrl and ai.apiKey in kaja.json or via AI_BASE_URL and AI_API_KEY environment variables.",
 		}, nil
 	}
@@ -161,7 +161,7 @@ func (s *ApiService) ChatComplete(ctx context.Context, req *ChatCompleteRequest)
 	client := &http.Client{}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return &ChatCompleteResponse{
+		return &ChatCompletionsResponse{
 			Error: fmt.Sprintf("failed to make request: %v", err),
 		}, nil
 	}
@@ -174,7 +174,7 @@ func (s *ApiService) ChatComplete(ctx context.Context, req *ChatCompleteRequest)
 
 	if resp.StatusCode != http.StatusOK {
 		slog.Error("AI API error", "status", resp.StatusCode, "body", string(respBody))
-		return &ChatCompleteResponse{
+		return &ChatCompletionsResponse{
 			Error: fmt.Sprintf("AI API error: %s", string(respBody)),
 		}, nil
 	}
@@ -186,7 +186,7 @@ func (s *ApiService) ChatComplete(ctx context.Context, req *ChatCompleteRequest)
 	}
 
 	// Convert to our response format
-	response := &ChatCompleteResponse{
+	response := &ChatCompletionsResponse{
 		Id:      openAIResp.ID,
 		Model:   openAIResp.Model,
 		Choices: make([]*ChatChoice, len(openAIResp.Choices)),

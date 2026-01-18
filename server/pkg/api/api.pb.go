@@ -817,7 +817,7 @@ func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 	return nil
 }
 
-type ChatCompleteRequest struct {
+type ChatCompletionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Model         string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	Messages      []*ChatMessage         `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
@@ -828,20 +828,20 @@ type ChatCompleteRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ChatCompleteRequest) Reset() {
-	*x = ChatCompleteRequest{}
+func (x *ChatCompletionsRequest) Reset() {
+	*x = ChatCompletionsRequest{}
 	mi := &file_proto_api_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatCompleteRequest) String() string {
+func (x *ChatCompletionsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatCompleteRequest) ProtoMessage() {}
+func (*ChatCompletionsRequest) ProtoMessage() {}
 
-func (x *ChatCompleteRequest) ProtoReflect() protoreflect.Message {
+func (x *ChatCompletionsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -853,40 +853,40 @@ func (x *ChatCompleteRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatCompleteRequest.ProtoReflect.Descriptor instead.
-func (*ChatCompleteRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatCompletionsRequest.ProtoReflect.Descriptor instead.
+func (*ChatCompletionsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *ChatCompleteRequest) GetModel() string {
+func (x *ChatCompletionsRequest) GetModel() string {
 	if x != nil {
 		return x.Model
 	}
 	return ""
 }
 
-func (x *ChatCompleteRequest) GetMessages() []*ChatMessage {
+func (x *ChatCompletionsRequest) GetMessages() []*ChatMessage {
 	if x != nil {
 		return x.Messages
 	}
 	return nil
 }
 
-func (x *ChatCompleteRequest) GetTemperature() float64 {
+func (x *ChatCompletionsRequest) GetTemperature() float64 {
 	if x != nil {
 		return x.Temperature
 	}
 	return 0
 }
 
-func (x *ChatCompleteRequest) GetTopP() float64 {
+func (x *ChatCompletionsRequest) GetTopP() float64 {
 	if x != nil {
 		return x.TopP
 	}
 	return 0
 }
 
-func (x *ChatCompleteRequest) GetMaxTokens() int32 {
+func (x *ChatCompletionsRequest) GetMaxTokens() int32 {
 	if x != nil {
 		return x.MaxTokens
 	}
@@ -945,7 +945,7 @@ func (x *ChatMessage) GetContent() string {
 	return ""
 }
 
-type ChatCompleteResponse struct {
+type ChatCompletionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
@@ -956,20 +956,20 @@ type ChatCompleteResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ChatCompleteResponse) Reset() {
-	*x = ChatCompleteResponse{}
+func (x *ChatCompletionsResponse) Reset() {
+	*x = ChatCompletionsResponse{}
 	mi := &file_proto_api_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatCompleteResponse) String() string {
+func (x *ChatCompletionsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatCompleteResponse) ProtoMessage() {}
+func (*ChatCompletionsResponse) ProtoMessage() {}
 
-func (x *ChatCompleteResponse) ProtoReflect() protoreflect.Message {
+func (x *ChatCompletionsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -981,40 +981,40 @@ func (x *ChatCompleteResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatCompleteResponse.ProtoReflect.Descriptor instead.
-func (*ChatCompleteResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatCompletionsResponse.ProtoReflect.Descriptor instead.
+func (*ChatCompletionsResponse) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ChatCompleteResponse) GetId() string {
+func (x *ChatCompletionsResponse) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *ChatCompleteResponse) GetModel() string {
+func (x *ChatCompletionsResponse) GetModel() string {
 	if x != nil {
 		return x.Model
 	}
 	return ""
 }
 
-func (x *ChatCompleteResponse) GetChoices() []*ChatChoice {
+func (x *ChatCompletionsResponse) GetChoices() []*ChatChoice {
 	if x != nil {
 		return x.Choices
 	}
 	return nil
 }
 
-func (x *ChatCompleteResponse) GetUsage() *ChatUsage {
+func (x *ChatCompletionsResponse) GetUsage() *ChatUsage {
 	if x != nil {
 		return x.Usage
 	}
 	return nil
 }
 
-func (x *ChatCompleteResponse) GetError() string {
+func (x *ChatCompletionsResponse) GetError() string {
 	if x != nil {
 		return x.Error
 	}
@@ -1185,8 +1185,8 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xab\x01\n" +
-	"\x13ChatCompleteRequest\x12\x14\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\xae\x01\n" +
+	"\x16ChatCompletionsRequest\x12\x14\n" +
 	"\x05model\x18\x01 \x01(\tR\x05model\x12(\n" +
 	"\bmessages\x18\x02 \x03(\v2\f.ChatMessageR\bmessages\x12 \n" +
 	"\vtemperature\x18\x03 \x01(\x01R\vtemperature\x12\x13\n" +
@@ -1195,8 +1195,8 @@ const file_proto_api_proto_rawDesc = "" +
 	"max_tokens\x18\x05 \x01(\x05R\tmaxTokens\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\"\x9b\x01\n" +
-	"\x14ChatCompleteResponse\x12\x0e\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x9e\x01\n" +
+	"\x17ChatCompletionsResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12%\n" +
 	"\achoices\x18\x03 \x03(\v2\v.ChatChoiceR\achoices\x12 \n" +
@@ -1226,12 +1226,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vLEVEL_ERROR\x10\x03*<\n" +
 	"\vRpcProtocol\x12\x16\n" +
 	"\x12RPC_PROTOCOL_TWIRP\x10\x00\x12\x15\n" +
-	"\x11RPC_PROTOCOL_GRPC\x10\x012\x8b\x02\n" +
+	"\x11RPC_PROTOCOL_GRPC\x10\x012\x94\x02\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
-	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12;\n" +
-	"\fChatComplete\x12\x14.ChatCompleteRequest\x1a\x15.ChatCompleteResponseB\tZ\apkg/apib\x06proto3"
+	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12D\n" +
+	"\x0fChatCompletions\x12\x17.ChatCompletionsRequest\x1a\x18.ChatCompletionsResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -1263,9 +1263,9 @@ var file_proto_api_proto_goTypes = []any{
 	(*ConfigurationAI)(nil),             // 12: ConfigurationAI
 	(*UpdateConfigurationRequest)(nil),  // 13: UpdateConfigurationRequest
 	(*UpdateConfigurationResponse)(nil), // 14: UpdateConfigurationResponse
-	(*ChatCompleteRequest)(nil),         // 15: ChatCompleteRequest
+	(*ChatCompletionsRequest)(nil),      // 15: ChatCompletionsRequest
 	(*ChatMessage)(nil),                 // 16: ChatMessage
-	(*ChatCompleteResponse)(nil),        // 17: ChatCompleteResponse
+	(*ChatCompletionsResponse)(nil),     // 17: ChatCompletionsResponse
 	(*ChatChoice)(nil),                  // 18: ChatChoice
 	(*ChatUsage)(nil),                   // 19: ChatUsage
 }
@@ -1282,18 +1282,18 @@ var file_proto_api_proto_depIdxs = []int32{
 	2,  // 9: ConfigurationProject.protocol:type_name -> RpcProtocol
 	9,  // 10: UpdateConfigurationRequest.configuration:type_name -> Configuration
 	9,  // 11: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	16, // 12: ChatCompleteRequest.messages:type_name -> ChatMessage
-	18, // 13: ChatCompleteResponse.choices:type_name -> ChatChoice
-	19, // 14: ChatCompleteResponse.usage:type_name -> ChatUsage
+	16, // 12: ChatCompletionsRequest.messages:type_name -> ChatMessage
+	18, // 13: ChatCompletionsResponse.choices:type_name -> ChatChoice
+	19, // 14: ChatCompletionsResponse.usage:type_name -> ChatUsage
 	16, // 15: ChatChoice.message:type_name -> ChatMessage
 	3,  // 16: Api.Compile:input_type -> CompileRequest
 	7,  // 17: Api.GetConfiguration:input_type -> GetConfigurationRequest
 	13, // 18: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	15, // 19: Api.ChatComplete:input_type -> ChatCompleteRequest
+	15, // 19: Api.ChatCompletions:input_type -> ChatCompletionsRequest
 	4,  // 20: Api.Compile:output_type -> CompileResponse
 	8,  // 21: Api.GetConfiguration:output_type -> GetConfigurationResponse
 	14, // 22: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	17, // 23: Api.ChatComplete:output_type -> ChatCompleteResponse
+	17, // 23: Api.ChatCompletions:output_type -> ChatCompletionsResponse
 	20, // [20:24] is the sub-list for method output_type
 	16, // [16:20] is the sub-list for method input_type
 	16, // [16:16] is the sub-list for extension type_name
