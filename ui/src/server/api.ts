@@ -214,13 +214,13 @@ export interface UpdateConfigurationResponse {
      */
     configuration?: Configuration;
 }
-// ChatComplete mimics the OpenAI Chat Completion API
+// ChatCompletions mimics the OpenAI Chat Completions API
 // https://platform.openai.com/docs/api-reference/chat/create
 
 /**
- * @generated from protobuf message ChatCompleteRequest
+ * @generated from protobuf message ChatCompletionsRequest
  */
-export interface ChatCompleteRequest {
+export interface ChatCompletionsRequest {
     /**
      * @generated from protobuf field: string model = 1
      */
@@ -256,9 +256,9 @@ export interface ChatMessage {
     content: string;
 }
 /**
- * @generated from protobuf message ChatCompleteResponse
+ * @generated from protobuf message ChatCompletionsResponse
  */
-export interface ChatCompleteResponse {
+export interface ChatCompletionsResponse {
     /**
      * @generated from protobuf field: string id = 1
      */
@@ -1175,9 +1175,9 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
  */
 export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ChatCompleteRequest$Type extends MessageType<ChatCompleteRequest> {
+class ChatCompletionsRequest$Type extends MessageType<ChatCompletionsRequest> {
     constructor() {
-        super("ChatCompleteRequest", [
+        super("ChatCompletionsRequest", [
             { no: 1, name: "model", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "messages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatMessage },
             { no: 3, name: "temperature", kind: "scalar", T: 1 /*ScalarType.DOUBLE*/ },
@@ -1185,7 +1185,7 @@ class ChatCompleteRequest$Type extends MessageType<ChatCompleteRequest> {
             { no: 5, name: "max_tokens", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
-    create(value?: PartialMessage<ChatCompleteRequest>): ChatCompleteRequest {
+    create(value?: PartialMessage<ChatCompletionsRequest>): ChatCompletionsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.model = "";
         message.messages = [];
@@ -1193,10 +1193,10 @@ class ChatCompleteRequest$Type extends MessageType<ChatCompleteRequest> {
         message.topP = 0;
         message.maxTokens = 0;
         if (value !== undefined)
-            reflectionMergePartial<ChatCompleteRequest>(this, message, value);
+            reflectionMergePartial<ChatCompletionsRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompleteRequest): ChatCompleteRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompletionsRequest): ChatCompletionsRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1227,7 +1227,7 @@ class ChatCompleteRequest$Type extends MessageType<ChatCompleteRequest> {
         }
         return message;
     }
-    internalBinaryWrite(message: ChatCompleteRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ChatCompletionsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string model = 1; */
         if (message.model !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.model);
@@ -1250,9 +1250,9 @@ class ChatCompleteRequest$Type extends MessageType<ChatCompleteRequest> {
     }
 }
 /**
- * @generated MessageType for protobuf message ChatCompleteRequest
+ * @generated MessageType for protobuf message ChatCompletionsRequest
  */
-export const ChatCompleteRequest = new ChatCompleteRequest$Type();
+export const ChatCompletionsRequest = new ChatCompletionsRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ChatMessage$Type extends MessageType<ChatMessage> {
     constructor() {
@@ -1309,9 +1309,9 @@ class ChatMessage$Type extends MessageType<ChatMessage> {
  */
 export const ChatMessage = new ChatMessage$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ChatCompleteResponse$Type extends MessageType<ChatCompleteResponse> {
+class ChatCompletionsResponse$Type extends MessageType<ChatCompletionsResponse> {
     constructor() {
-        super("ChatCompleteResponse", [
+        super("ChatCompletionsResponse", [
             { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "model", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "choices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ChatChoice },
@@ -1319,17 +1319,17 @@ class ChatCompleteResponse$Type extends MessageType<ChatCompleteResponse> {
             { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<ChatCompleteResponse>): ChatCompleteResponse {
+    create(value?: PartialMessage<ChatCompletionsResponse>): ChatCompletionsResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.id = "";
         message.model = "";
         message.choices = [];
         message.error = "";
         if (value !== undefined)
-            reflectionMergePartial<ChatCompleteResponse>(this, message, value);
+            reflectionMergePartial<ChatCompletionsResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompleteResponse): ChatCompleteResponse {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChatCompletionsResponse): ChatCompletionsResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1360,7 +1360,7 @@ class ChatCompleteResponse$Type extends MessageType<ChatCompleteResponse> {
         }
         return message;
     }
-    internalBinaryWrite(message: ChatCompleteResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ChatCompletionsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string id = 1; */
         if (message.id !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.id);
@@ -1383,9 +1383,9 @@ class ChatCompleteResponse$Type extends MessageType<ChatCompleteResponse> {
     }
 }
 /**
- * @generated MessageType for protobuf message ChatCompleteResponse
+ * @generated MessageType for protobuf message ChatCompletionsResponse
  */
-export const ChatCompleteResponse = new ChatCompleteResponse$Type();
+export const ChatCompletionsResponse = new ChatCompletionsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ChatChoice$Type extends MessageType<ChatChoice> {
     constructor() {
@@ -1519,5 +1519,5 @@ export const Api = new ServiceType("Api", [
     { name: "Reflect", options: {}, I: ReflectRequest, O: ReflectResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
-    { name: "ChatComplete", options: {}, I: ChatCompleteRequest, O: ChatCompleteResponse }
+    { name: "ChatCompletions", options: {}, I: ChatCompletionsRequest, O: ChatCompletionsResponse }
 ]);
