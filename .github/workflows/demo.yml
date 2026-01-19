@@ -41,6 +41,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
+          rm .github/demo/demo.webm
 
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
@@ -49,7 +50,7 @@ jobs:
           name: demo
           path: .github/demo/
 
-      - name: Post demo to PR
+      - name: Upload demo assets and post comment
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,43 +58,73 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
 
-          # Try GitHub's undocumented upload API (used by web UI)
-          # First test with a smaller PNG to verify the API works
-          echo "Attempting to upload PNG via GitHub uploads API..."
+          # Save demo files before switching branches
+          cp -r .github/demo /tmp/demo-files
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/json" \
-            -F "file=@.github/demo/home.png;type=image/png" \
-            "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=home.png")
+          # Setup git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          # Create or update demo-assets branch
+          # Each PR gets its own folder to avoid conflicts
+          git fetch origin demo-assets 2>/dev/null || true
 
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $BODY"
-
-          # Try to extract URL from response
-          GIF_URL=$(echo "$BODY" | jq -r '.href // .url // .asset_url // empty' 2>/dev/null)
-
-          if [ -n "$GIF_URL" ] && [ "$GIF_URL" != "null" ]; then
-            echo "Upload successful! URL: $GIF_URL"
+          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
+            git checkout demo-assets
+            git pull origin demo-assets --rebase || true
           else
-            echo "Upload failed or URL not found in response"
-            echo "Full response for debugging: $BODY"
-            echo "$BODY" | jq . 2>/dev/null || echo "(not valid JSON)"
+            git checkout --orphan demo-assets
+            git rm -rf . 2>/dev/null || true
+            git commit --allow-empty -m "Initialize demo-assets branch"
           fi
 
-          # Post the response info as a comment for debugging
-          echo "## 🎬 Demo - Upload API Test" > /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "**HTTP Code:** $HTTP_CODE" >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "**Response:**" >> /tmp/comment.md
-          echo '```json' >> /tmp/comment.md
-          echo "$BODY" >> /tmp/comment.md
-          echo '```' >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "**Extracted URL:** $GIF_URL" >> /tmp/comment.md
+          # Copy demo files to PR-specific folder
+          mkdir -p "pr-${PR_NUMBER}"
+          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
 
-          gh pr comment ${PR_NUMBER} --body-file /tmp/comment.md
+          # Commit and push
+          git add "pr-${PR_NUMBER}/"
+          git commit -m "Demo assets for PR #${PR_NUMBER}" || echo "No changes"
+          git push origin demo-assets
+
+          # Build URLs
+          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
+          GIF_URL="${BASE_URL}/demo.gif"
+          HOME_URL="${BASE_URL}/home.png"
+          CALL_URL="${BASE_URL}/call.png"
+          COMPILER_URL="${BASE_URL}/compiler.png"
+
+          # Build comment
+          echo "## 🎬 Demo" > /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "![Demo](${GIF_URL})" >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "<details>" >> /tmp/comment.md
+          echo "<summary>Screenshots</summary>" >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "### Home" >> /tmp/comment.md
+          echo "![Home](${HOME_URL})" >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "### Call" >> /tmp/comment.md
+          echo "![Call](${CALL_URL})" >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "### Compiler" >> /tmp/comment.md
+          echo "![Compiler](${COMPILER_URL})" >> /tmp/comment.md
+
+          if [ -f /tmp/demo-files/newproject.png ]; then
+            echo "" >> /tmp/comment.md
+            echo "### New Project" >> /tmp/comment.md
+            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/comment.md
+          fi
+
+          echo "" >> /tmp/comment.md
+          echo "</details>" >> /tmp/comment.md
+
+          # Update or create comment
+          EXISTING_COMMENT=$(gh pr view ${PR_NUMBER} --json comments --jq '.comments[] | select(.body | startswith("## 🎬 Demo")) | .id' | head -1)
+
+          if [ -n "$EXISTING_COMMENT" ]; then
+            gh api repos/${REPO}/issues/comments/${EXISTING_COMMENT} -X PATCH -f body="$(cat /tmp/comment.md)"
+          else
+            gh pr comment ${PR_NUMBER} --body-file /tmp/comment.md
+          fi
