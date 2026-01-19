@@ -41,6 +41,12 @@ jobs:
           mkdir -p .github/demo
           node .github/scripts/take-demo.js
 
+      - name: Convert video to GIF
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          # Convert webm to GIF for inline playback (GitHub renders GIFs inline)
+          ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
+
       - name: Upload error screenshot (artifact)
         if: failure() && steps.demo.outcome == 'failure' && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -71,71 +77,37 @@ jobs:
       - name: Post demo to PR comment
         if: github.event_name == 'pull_request'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
+          printf '%s\n' \
+            "## 🎬 Demo" \
+            "" \
+            "![Demo](.github/demo/demo.gif)" \
+            "" \
+            "<details>" \
+            "<summary>Screenshots</summary>" \
+            "" \
+            "### Home" \
+            "![Home](.github/demo/home.png)" \
+            "" \
+            "### Call" \
+            "![Call](.github/demo/call.png)" \
+            "" \
+            "### Compiler" \
+            "![Compiler](.github/demo/compiler.png)" \
+            > .github/demo/report.md
 
-          # Upload video to GitHub's native CDN using their upload API
-          # This creates a user-attachments URL that renders inline
-          VIDEO_RESPONSE=$(curl -s -X POST \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Content-Type: video/webm" \
-            -H "Accept: application/json" \
-            --data-binary @.github/demo/demo.webm \
-            "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=demo.webm")
-
-          VIDEO_URL=$(echo "$VIDEO_RESPONSE" | jq -r '.href // .url // empty')
-
-          # If native upload failed, fall back to CML
-          if [ -z "$VIDEO_URL" ]; then
-            echo "Native upload failed, using CML fallback"
-            echo "$VIDEO_RESPONSE"
-            # Use CML as fallback (will be a link, not inline)
+          if [ -f .github/demo/newproject.png ]; then
             printf '%s\n' \
-              "## 🎬 Demo" \
               "" \
-              "### Video" \
-              "" \
-              "![Demo](.github/demo/demo.webm)" \
-              "" \
-              "### Home" \
-              "![Home](.github/demo/home.png)" \
-              "" \
-              "### Call" \
-              "![Call](.github/demo/call.png)" \
-              "" \
-              "### Compiler" \
-              "![Compiler](.github/demo/compiler.png)" \
-              > .github/demo/report.md
-            cml comment create --update .github/demo/report.md
-          else
-            echo "Video uploaded to: $VIDEO_URL"
-            # Upload images via CML and build comment with native video
-            printf '%s\n' \
-              "## 🎬 Demo" \
-              "" \
-              "### Video" \
-              "" \
-              "$VIDEO_URL" \
-              "" \
-              "### Home" \
-              "![Home](.github/demo/home.png)" \
-              "" \
-              "### Call" \
-              "![Call](.github/demo/call.png)" \
-              "" \
-              "### Compiler" \
-              "![Compiler](.github/demo/compiler.png)" \
-              > .github/demo/report.md
-
-            if [ -f .github/demo/newproject.png ]; then
-              printf '%s\n' \
-                "" \
-                "### New Project" \
-                "![New Project](.github/demo/newproject.png)" \
-                >> .github/demo/report.md
-            fi
-
-            cml comment create --update .github/demo/report.md
+              "### New Project" \
+              "![New Project](.github/demo/newproject.png)" \
+              >> .github/demo/report.md
           fi
+
+          printf '%s\n' \
+            "" \
+            "</details>" \
+            >> .github/demo/report.md
+
+          cml comment create --update .github/demo/report.md
