@@ -9,9 +9,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
 
       - name: Build Docker image
         run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
@@ -44,7 +41,6 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
-          rm .github/demo/demo.webm
 
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
@@ -53,66 +49,51 @@ jobs:
           name: demo
           path: .github/demo/
 
-      - name: Commit and post demo
+      - name: Post demo to PR
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
-          BRANCH="${{ github.head_ref }}"
 
-          # Commit demo assets to PR branch
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/demo/
-          git commit -m "Demo assets [skip ci]" || echo "No changes to commit"
-          git push origin HEAD:${BRANCH}
+          # Try GitHub's undocumented upload API (used by web UI)
+          echo "Attempting to upload GIF via GitHub uploads API..."
 
-          # Get the commit SHA for raw URLs
-          COMMIT_SHA=$(git rev-parse HEAD)
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: image/gif" \
+            -H "Accept: application/json" \
+            --data-binary @.github/demo/demo.gif \
+            "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=demo.gif")
 
-          # Build URLs using raw.githubusercontent.com
-          BASE_URL="https://raw.githubusercontent.com/${REPO}/${COMMIT_SHA}/.github/demo"
-          GIF_URL="${BASE_URL}/demo.gif"
-          HOME_URL="${BASE_URL}/home.png"
-          CALL_URL="${BASE_URL}/call.png"
-          COMPILER_URL="${BASE_URL}/compiler.png"
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
 
-          # Build comment body
-          BODY="## 🎬 Demo
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response: $BODY"
 
-![Demo](${GIF_URL})
+          # Try to extract URL from response
+          GIF_URL=$(echo "$BODY" | jq -r '.href // .url // .asset_url // empty' 2>/dev/null)
 
-<details>
-<summary>Screenshots</summary>
-
-### Home
-![Home](${HOME_URL})
-
-### Call
-![Call](${CALL_URL})
-
-### Compiler
-![Compiler](${COMPILER_URL})"
-
-          if [ -f .github/demo/newproject.png ]; then
-            NEWPROJECT_URL="${BASE_URL}/newproject.png"
-            BODY="${BODY}
-
-### New Project
-![New Project](${NEWPROJECT_URL})"
-          fi
-
-          BODY="${BODY}
-
-</details>"
-
-          # Update or create comment
-          EXISTING_COMMENT=$(gh pr view ${PR_NUMBER} --json comments --jq '.comments[] | select(.body | startswith("## 🎬 Demo")) | .id' | head -1)
-
-          if [ -n "$EXISTING_COMMENT" ]; then
-            gh api repos/${REPO}/issues/comments/${EXISTING_COMMENT} -X PATCH -f body="$BODY"
+          if [ -n "$GIF_URL" ] && [ "$GIF_URL" != "null" ]; then
+            echo "Upload successful! URL: $GIF_URL"
           else
-            gh pr comment ${PR_NUMBER} --body "$BODY"
+            echo "Upload failed or URL not found in response"
+            echo "Full response for debugging: $BODY"
+
+            # Try alternative: maybe the response has a different structure
+            echo "$BODY" | jq . 2>/dev/null || echo "(not valid JSON)"
           fi
+
+          # For now, just post the response info as a comment for debugging
+          gh pr comment ${PR_NUMBER} --body "## 🎬 Demo - Upload API Test
+
+**HTTP Code:** $HTTP_CODE
+
+**Response:**
+\`\`\`json
+$BODY
+\`\`\`
+
+**Extracted URL:** $GIF_URL"
