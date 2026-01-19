@@ -37,12 +37,6 @@ jobs:
           mkdir -p .github/demo
           node .github/scripts/take-demo.js
 
-      - name: Convert video to GIF
-        run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
-          rm .github/demo/demo.webm
-
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -50,7 +44,7 @@ jobs:
           name: demo
           path: .github/demo/
 
-      - name: Upload demo assets and post comment
+      - name: Upload demo assets and update PR description
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,7 +60,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Create or update demo-assets branch
-          # Each PR gets its own folder to avoid conflicts
           git fetch origin demo-assets 2>/dev/null || true
 
           if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
@@ -80,7 +73,7 @@ jobs:
 
           # Copy demo files to PR-specific folder
           mkdir -p "pr-${PR_NUMBER}"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
+          cp /tmp/demo-files/*.webm /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
 
           # Commit and push
           git add "pr-${PR_NUMBER}/"
@@ -89,43 +82,47 @@ jobs:
 
           # Build URLs
           BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
-          GIF_URL="${BASE_URL}/demo.gif"
+          VIDEO_URL="${BASE_URL}/demo.webm"
           HOME_URL="${BASE_URL}/home.png"
           CALL_URL="${BASE_URL}/call.png"
           COMPILER_URL="${BASE_URL}/compiler.png"
 
-          # Build comment
-          echo "## 🎬 Demo" > /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "![Demo](${GIF_URL})" >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "<details>" >> /tmp/comment.md
-          echo "<summary>Screenshots</summary>" >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "### Home" >> /tmp/comment.md
-          echo "![Home](${HOME_URL})" >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "### Call" >> /tmp/comment.md
-          echo "![Call](${CALL_URL})" >> /tmp/comment.md
-          echo "" >> /tmp/comment.md
-          echo "### Compiler" >> /tmp/comment.md
-          echo "![Compiler](${COMPILER_URL})" >> /tmp/comment.md
+          # Build demo section
+          DEMO_SECTION="## 🎬 Demo
+
+${VIDEO_URL}
+
+<details>
+<summary>Screenshots</summary>
+
+### Home
+![Home](${HOME_URL})
+
+### Call
+![Call](${CALL_URL})
+
+### Compiler
+![Compiler](${COMPILER_URL})"
 
           if [ -f /tmp/demo-files/newproject.png ]; then
-            echo "" >> /tmp/comment.md
-            echo "### New Project" >> /tmp/comment.md
-            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/comment.md
+            DEMO_SECTION="${DEMO_SECTION}
+
+### New Project
+![New Project](${BASE_URL}/newproject.png)"
           fi
 
-          echo "" >> /tmp/comment.md
-          echo "</details>" >> /tmp/comment.md
+          DEMO_SECTION="${DEMO_SECTION}
 
-          # Update or create comment
-          # Use databaseId for REST API (id is GraphQL node ID)
-          EXISTING_COMMENT=$(gh api repos/${REPO}/issues/${PR_NUMBER}/comments --jq '.[] | select(.body | startswith("## 🎬 Demo")) | .id' 2>/dev/null | head -1)
+</details>"
 
-          if [ -n "$EXISTING_COMMENT" ]; then
-            gh api repos/${REPO}/issues/comments/${EXISTING_COMMENT} -X PATCH -f body="$(cat /tmp/comment.md)"
-          else
-            gh pr comment ${PR_NUMBER} --body-file /tmp/comment.md
-          fi
+          # Get current PR body and remove existing Demo section
+          CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body --jq '.body')
+          BODY_WITHOUT_DEMO=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*## 🎬 Demo.*?(<\/details>)//sg')
+
+          # Combine body with demo section
+          NEW_BODY="${BODY_WITHOUT_DEMO}
+
+${DEMO_SECTION}"
+
+          # Update PR description
+          gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
