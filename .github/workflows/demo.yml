@@ -62,9 +62,8 @@ jobs:
 
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: token $GH_TOKEN" \
-            -H "Content-Type: image/gif" \
             -H "Accept: application/json" \
-            --data-binary @.github/demo/demo.gif \
+            -F "file=@.github/demo/demo.gif;type=image/gif" \
             "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=demo.gif")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
