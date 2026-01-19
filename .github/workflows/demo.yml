@@ -81,19 +81,19 @@ jobs:
           else
             echo "Upload failed or URL not found in response"
             echo "Full response for debugging: $BODY"
-
-            # Try alternative: maybe the response has a different structure
             echo "$BODY" | jq . 2>/dev/null || echo "(not valid JSON)"
           fi
 
-          # For now, just post the response info as a comment for debugging
-          gh pr comment ${PR_NUMBER} --body "## 🎬 Demo - Upload API Test
+          # Post the response info as a comment for debugging
+          echo "## 🎬 Demo - Upload API Test" > /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "**HTTP Code:** $HTTP_CODE" >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "**Response:**" >> /tmp/comment.md
+          echo '```json' >> /tmp/comment.md
+          echo "$BODY" >> /tmp/comment.md
+          echo '```' >> /tmp/comment.md
+          echo "" >> /tmp/comment.md
+          echo "**Extracted URL:** $GIF_URL" >> /tmp/comment.md
 
-**HTTP Code:** $HTTP_CODE
-
-**Response:**
-\`\`\`json
-$BODY
-\`\`\`
-
-**Extracted URL:** $GIF_URL"
+          gh pr comment ${PR_NUMBER} --body-file /tmp/comment.md
