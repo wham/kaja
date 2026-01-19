@@ -121,7 +121,8 @@ jobs:
           echo "</details>" >> /tmp/comment.md
 
           # Update or create comment
-          EXISTING_COMMENT=$(gh pr view ${PR_NUMBER} --json comments --jq '.comments[] | select(.body | startswith("## 🎬 Demo")) | .id' | head -1)
+          # Use databaseId for REST API (id is GraphQL node ID)
+          EXISTING_COMMENT=$(gh api repos/${REPO}/issues/${PR_NUMBER}/comments --jq '.[] | select(.body | startswith("## 🎬 Demo")) | .id' 2>/dev/null | head -1)
 
           if [ -n "$EXISTING_COMMENT" ]; then
             gh api repos/${REPO}/issues/comments/${EXISTING_COMMENT} -X PATCH -f body="$(cat /tmp/comment.md)"
