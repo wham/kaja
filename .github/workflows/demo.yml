@@ -56,8 +56,8 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
-          # Upload error image to GitHub CDN via CML
-          ERROR_URL=$(cml publish .github/demo/error.png)
+          # Upload error image to GitHub's native CDN via CML
+          ERROR_URL=$(cml publish --native .github/demo/error.png)
 
           # Get current PR body
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
@@ -89,18 +89,19 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
-          # Upload video to GitHub CDN via CML
-          VIDEO_URL=$(cml publish .github/demo/demo.webm)
+          # Upload video to GitHub's native CDN for inline playback
+          # Use --native to ensure GitHub hosts the video directly
+          VIDEO_URL=$(cml publish --native .github/demo/demo.webm)
 
           # Upload images to GitHub CDN via CML
-          HOME_URL=$(cml publish .github/demo/home.png)
-          CALL_URL=$(cml publish .github/demo/call.png)
-          COMPILER_URL=$(cml publish .github/demo/compiler.png)
+          HOME_URL=$(cml publish --native .github/demo/home.png)
+          CALL_URL=$(cml publish --native .github/demo/call.png)
+          COMPILER_URL=$(cml publish --native .github/demo/compiler.png)
 
           # New Project screenshot is optional
           NEWPROJECT_SECTION=""
           if [ -f .github/demo/newproject.png ]; then
-            NEWPROJECT_URL=$(cml publish .github/demo/newproject.png)
+            NEWPROJECT_URL=$(cml publish --native .github/demo/newproject.png)
             NEWPROJECT_SECTION=$(printf '\n\n### New Project\n![New Project](%s)' "$NEWPROJECT_URL")
           fi
 
@@ -111,6 +112,7 @@ jobs:
           BODY_WITHOUT_DEMO=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Demo.*?<\/summary>.*?<\/details>\s*//sg')
 
           # Create new demo section (closed by default) - video first, then screenshots
+          # Video URL on its own line enables GitHub's native video player
           DEMO_SECTION=$(printf '<details>\n<summary>🎬 Demo</summary>\n\n### Video\n\n%s\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)%s\n\n</details>' "$VIDEO_URL" "$HOME_URL" "$CALL_URL" "$COMPILER_URL" "$NEWPROJECT_SECTION")
 
           # Combine body with demo section at the end
