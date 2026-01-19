@@ -1,11 +1,23 @@
 const { chromium } = require("playwright");
+const fs = require("fs");
+const path = require("path");
 
-const SCREENSHOT_DIR = ".github/screenshots";
+const DEMO_DIR = ".github/demo";
 const APP_URL = "http://localhost:41520";
 
-async function takeScreenshots() {
+async function takeDemo() {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+  // Create a browser context with video recording enabled
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    recordVideo: {
+      dir: DEMO_DIR,
+      size: { width: 1280, height: 800 },
+    },
+  });
+
+  const page = await context.newPage();
 
   try {
     // Navigate to the app
@@ -16,7 +28,7 @@ async function takeScreenshots() {
 
     // 1. Home screenshot - app once loaded
     console.log("Taking home screenshot...");
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/home.png` });
+    await page.screenshot({ path: `${DEMO_DIR}/home.png` });
 
     // 2. New Project screenshot - open the new project form (optional)
     // Only take this screenshot if the New Project button is present
@@ -31,7 +43,7 @@ async function takeScreenshots() {
       await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
       await page.waitForTimeout(500);
 
-      await page.screenshot({ path: `${SCREENSHOT_DIR}/newproject.png` });
+      await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
       // Close the dialog
       await page.keyboard.press("Escape");
@@ -56,7 +68,7 @@ async function takeScreenshots() {
     // The console shows output in pre tags or buttons with "output"
     await page.waitForTimeout(3000);
 
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/call.png` });
+    await page.screenshot({ path: `${DEMO_DIR}/call.png` });
 
     // 4. Compiler screenshot - click Compiler button and expand first project
     console.log("Taking compiler screenshot...");
@@ -98,17 +110,32 @@ async function takeScreenshots() {
     // Wait for logs to expand
     await page.waitForTimeout(1000);
 
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/compiler.png` });
+    await page.screenshot({ path: `${DEMO_DIR}/compiler.png` });
 
     console.log("All screenshots taken successfully!");
   } catch (error) {
-    console.error("Error taking screenshots:", error);
+    console.error("Error taking demo:", error);
     // Take a debug screenshot on error
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/error.png` });
+    await page.screenshot({ path: `${DEMO_DIR}/error.png` });
     throw error;
   } finally {
+    // Close page and context to finalize video recording
+    await page.close();
+    await context.close();
+
+    // Rename the video file to demo.webm
+    // Playwright saves videos with auto-generated names, we need to rename
+    const files = fs.readdirSync(DEMO_DIR);
+    const videoFile = files.find(f => f.endsWith('.webm') && f !== 'demo.webm');
+    if (videoFile) {
+      const oldPath = path.join(DEMO_DIR, videoFile);
+      const newPath = path.join(DEMO_DIR, 'demo.webm');
+      fs.renameSync(oldPath, newPath);
+      console.log("Video saved as demo.webm");
+    }
+
     await browser.close();
   }
 }
 
-takeScreenshots();
+takeDemo();

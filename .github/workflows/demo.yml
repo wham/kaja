@@ -1,10 +1,10 @@
-name: screenshot
+name: demo
 on:
   workflow_dispatch:
   pull_request:
 
 jobs:
-  screenshot:
+  demo:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,23 +33,23 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: iterative/setup-cml@v2
 
-      - name: Take screenshots
-        id: screenshots
+      - name: Take demo video and screenshots
+        id: demo
         run: |
           npm install playwright
           npx playwright install chromium --with-deps
-          mkdir -p .github/screenshots
-          node .github/scripts/take-screenshots.js
+          mkdir -p .github/demo
+          node .github/scripts/take-demo.js
 
       - name: Upload error screenshot (artifact)
-        if: failure() && steps.screenshots.outcome == 'failure' && github.event_name == 'workflow_dispatch'
+        if: failure() && steps.demo.outcome == 'failure' && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: Error
-          path: .github/screenshots/error.png
+          path: .github/demo/error.png
 
       - name: Attach error screenshot to PR
-        if: failure() && steps.screenshots.outcome == 'failure' && github.event_name == 'pull_request'
+        if: failure() && steps.demo.outcome == 'failure' && github.event_name == 'pull_request'
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,29 +57,29 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
 
           # Upload error image to GitHub CDN via CML
-          ERROR_URL=$(cml publish .github/screenshots/error.png)
+          ERROR_URL=$(cml publish .github/demo/error.png)
 
           # Get current PR body
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
 
-          # Remove existing Screenshots section if present
-          BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Screenshots.*?<\/summary>.*?<\/details>\s*//sg')
+          # Remove existing Demo section if present
+          BODY_WITHOUT_DEMO=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Demo.*?<\/summary>.*?<\/details>\s*//sg')
 
-          # Create screenshots section with error (collapsed by default)
-          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Error\n![Error](%s)\n\n</details>' "$ERROR_URL")
+          # Create demo section with error (collapsed by default)
+          DEMO_SECTION=$(printf '<details>\n<summary>🎬 Demo</summary>\n\n### Error\n![Error](%s)\n\n</details>' "$ERROR_URL")
 
-          # Combine body with screenshots section at the end
-          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
+          # Combine body with demo section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_DEMO" "$DEMO_SECTION"
 
           # Update PR description
           gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
 
-      - name: Upload screenshots (artifact)
+      - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
-          path: .github/screenshots/
+          name: demo
+          path: .github/demo/
 
       - name: Update PR description
         if: github.event_name == 'pull_request'
@@ -89,29 +89,32 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
+          # Upload video to GitHub CDN via CML
+          VIDEO_URL=$(cml publish .github/demo/demo.webm)
+
           # Upload images to GitHub CDN via CML
-          HOME_URL=$(cml publish .github/screenshots/home.png)
-          CALL_URL=$(cml publish .github/screenshots/call.png)
-          COMPILER_URL=$(cml publish .github/screenshots/compiler.png)
+          HOME_URL=$(cml publish .github/demo/home.png)
+          CALL_URL=$(cml publish .github/demo/call.png)
+          COMPILER_URL=$(cml publish .github/demo/compiler.png)
 
           # New Project screenshot is optional
           NEWPROJECT_SECTION=""
-          if [ -f .github/screenshots/newproject.png ]; then
-            NEWPROJECT_URL=$(cml publish .github/screenshots/newproject.png)
+          if [ -f .github/demo/newproject.png ]; then
+            NEWPROJECT_URL=$(cml publish .github/demo/newproject.png)
             NEWPROJECT_SECTION=$(printf '\n\n### New Project\n![New Project](%s)' "$NEWPROJECT_URL")
           fi
 
           # Get current PR body
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body -q .body)
 
-          # Remove existing Screenshots section if present
-          BODY_WITHOUT_SCREENSHOTS=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Screenshots.*?<\/summary>.*?<\/details>\s*//sg')
+          # Remove existing Demo section if present
+          BODY_WITHOUT_DEMO=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*<details>\s*<summary>.*?Demo.*?<\/summary>.*?<\/details>\s*//sg')
 
-          # Create new screenshots section (closed by default)
-          SCREENSHOTS_SECTION=$(printf '<details>\n<summary>📸 Screenshots</summary>\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)%s\n\n</details>' "$HOME_URL" "$CALL_URL" "$COMPILER_URL" "$NEWPROJECT_SECTION")
+          # Create new demo section (closed by default) - video first, then screenshots
+          DEMO_SECTION=$(printf '<details>\n<summary>🎬 Demo</summary>\n\n### Video\n\n%s\n\n### Home\n![Home](%s)\n\n### Call\n![Call](%s)\n\n### Compiler\n![Compiler](%s)%s\n\n</details>' "$VIDEO_URL" "$HOME_URL" "$CALL_URL" "$COMPILER_URL" "$NEWPROJECT_SECTION")
 
-          # Combine body with screenshots section at the end
-          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_SCREENSHOTS" "$SCREENSHOTS_SECTION"
+          # Combine body with demo section at the end
+          printf -v NEW_BODY '%s\n\n%s' "$BODY_WITHOUT_DEMO" "$DEMO_SECTION"
 
           # Update PR description
           gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
