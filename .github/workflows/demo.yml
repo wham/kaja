@@ -29,10 +29,6 @@ jobs:
             sleep 1
           done
 
-      - name: Setup CML
-        if: github.event_name == 'pull_request'
-        uses: iterative/setup-cml@v2
-
       - name: Take demo video and screenshots
         id: demo
         run: |
@@ -44,7 +40,6 @@ jobs:
       - name: Convert video to GIF
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          # Convert webm to GIF for inline playback (GitHub renders GIFs inline)
           ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
 
       - name: Upload error screenshot (artifact)
@@ -57,15 +52,32 @@ jobs:
       - name: Attach error to PR comment
         if: failure() && steps.demo.outcome == 'failure' && github.event_name == 'pull_request'
         env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          printf '%s\n' \
-            "## 🎬 Demo" \
-            "" \
-            "### Error" \
-            "![Error](.github/demo/error.png)" \
-            > .github/demo/report.md
-          cml comment create --update .github/demo/report.md
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO="${{ github.repository }}"
+          COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+
+          # Push error screenshot to demo-assets branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin demo-assets || git checkout --orphan demo-assets
+          git checkout demo-assets || git checkout --orphan demo-assets
+
+          mkdir -p "pr-${PR_NUMBER}"
+          cp .github/demo/error.png "pr-${PR_NUMBER}/"
+          git add "pr-${PR_NUMBER}/"
+          git commit -m "Demo assets for PR #${PR_NUMBER}" --allow-empty
+          git push origin demo-assets --force
+
+          # Create comment with raw GitHub URL
+          ERROR_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}/error.png"
+
+          gh pr comment ${PR_NUMBER} --body "## 🎬 Demo
+
+### Error
+![Error](${ERROR_URL})"
 
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
@@ -77,37 +89,73 @@ jobs:
       - name: Post demo to PR comment
         if: github.event_name == 'pull_request'
         env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          printf '%s\n' \
-            "## 🎬 Demo" \
-            "" \
-            "![Demo](.github/demo/demo.gif)" \
-            "" \
-            "<details>" \
-            "<summary>Screenshots</summary>" \
-            "" \
-            "### Home" \
-            "![Home](.github/demo/home.png)" \
-            "" \
-            "### Call" \
-            "![Call](.github/demo/call.png)" \
-            "" \
-            "### Compiler" \
-            "![Compiler](.github/demo/compiler.png)" \
-            > .github/demo/report.md
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO="${{ github.repository }}"
 
-          if [ -f .github/demo/newproject.png ]; then
-            printf '%s\n' \
-              "" \
-              "### New Project" \
-              "![New Project](.github/demo/newproject.png)" \
-              >> .github/demo/report.md
+          # Push demo assets to demo-assets branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stash demo files before switching branches
+          cp -r .github/demo /tmp/demo-files
+
+          # Create or checkout demo-assets branch
+          git fetch origin demo-assets 2>/dev/null && git checkout demo-assets || {
+            git checkout --orphan demo-assets
+            git rm -rf . 2>/dev/null || true
+          }
+
+          # Copy demo files and commit
+          mkdir -p "pr-${PR_NUMBER}"
+          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
+          git add "pr-${PR_NUMBER}/"
+          git commit -m "Demo assets for PR #${PR_NUMBER}" --allow-empty
+          git push origin demo-assets --force
+
+          # Build URLs
+          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
+          GIF_URL="${BASE_URL}/demo.gif"
+          HOME_URL="${BASE_URL}/home.png"
+          CALL_URL="${BASE_URL}/call.png"
+          COMPILER_URL="${BASE_URL}/compiler.png"
+
+          # Build comment body
+          BODY="## 🎬 Demo
+
+![Demo](${GIF_URL})
+
+<details>
+<summary>Screenshots</summary>
+
+### Home
+![Home](${HOME_URL})
+
+### Call
+![Call](${CALL_URL})
+
+### Compiler
+![Compiler](${COMPILER_URL})"
+
+          # Add new project screenshot if exists
+          if [ -f /tmp/demo-files/newproject.png ]; then
+            NEWPROJECT_URL="${BASE_URL}/newproject.png"
+            BODY="${BODY}
+
+### New Project
+![New Project](${NEWPROJECT_URL})"
           fi
 
-          printf '%s\n' \
-            "" \
-            "</details>" \
-            >> .github/demo/report.md
+          BODY="${BODY}
 
-          cml comment create --update .github/demo/report.md
+</details>"
+
+          # Find and update existing demo comment, or create new one
+          EXISTING_COMMENT=$(gh pr view ${PR_NUMBER} --json comments --jq '.comments[] | select(.body | startswith("## 🎬 Demo")) | .id' | head -1)
+
+          if [ -n "$EXISTING_COMMENT" ]; then
+            gh api repos/${REPO}/issues/comments/${EXISTING_COMMENT} -X PATCH -f body="$BODY"
+          else
+            gh pr comment ${PR_NUMBER} --body "$BODY"
+          fi
