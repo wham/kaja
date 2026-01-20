@@ -1,40 +1,40 @@
 {
-  "projects":  [
+  "projects": [
     {
-      "name":  "grpc-quirks",
-      "protocol":  "RPC_PROTOCOL_GRPC",
-      "url":  "dns:kaja.tools:443",
-      "protoDir":  "quirks"
+      "name": "grpc-quirks",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "dns:kaja.tools:443",
+      "protoDir": "quirks"
     },
     {
-      "name":  "twirp-quirks",
-      "url":  "https://kaja.tools/twirp-quirks",
-      "protoDir":  "quirks"
+      "name": "twirp-quirks",
+      "url": "https://kaja.tools/twirp-quirks",
+      "protoDir": "quirks"
     },
     {
-      "name":  "grpcb.in",
-      "protocol":  "RPC_PROTOCOL_GRPC",
-      "url":  "dns:grpcb.in:9000",
-      "protoDir":  "grpcbin/proto"
+      "name": "grpcb.in",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "grpc://grpcb.in:9000",
+      "protoDir": "grpcbin/proto"
     },
     {
-      "name":  "teams",
-      "protocol":  "RPC_PROTOCOL_GRPC",
-      "url":  "dns:kaja.tools:443",
-      "protoDir":  "teams/proto",
-      "useReflection":  true
+      "name": "teams",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "dns:kaja.tools:443",
+      "protoDir": "teams/proto",
+      "useReflection": true
     },
     {
-      "name":  "users",
-      "url":  "https://kaja.tools/users",
-      "protoDir":  "users/proto"
+      "name": "users",
+      "url": "https://kaja.tools/users",
+      "protoDir": "users/proto"
     }
   ],
-  "ai":  {
-    "baseUrl":  "https://models.github.ai/inference",
-    "apiKey":  "*****"
+  "ai": {
+    "baseUrl": "https://models.github.ai/inference",
+    "apiKey": "*****"
   },
-  "system":  {
-    "canUpdateConfiguration":  true
+  "system": {
+    "canUpdateConfiguration": true
   }
 }
