@@ -1,5 +1,5 @@
-import { FileDirectoryIcon, FileIcon, XCircleFillIcon } from "@primer/octicons-react";
-import { Dialog, FormControl, Radio, RadioGroup, Select, TextInput } from "@primer/react";
+import { FileDirectoryIcon, FileIcon, PlusIcon, XIcon } from "@primer/octicons-react";
+import { ActionList, Button, Dialog, FormControl, IconButton, Radio, RadioGroup, Select, Stack, TextInput } from "@primer/react";
 import { useState, useRef, useEffect } from "react";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog, OpenMultipleFilesDialog } from "./wailsjs/go/main/App";
@@ -106,36 +106,33 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
       ]}
     >
       <Dialog.Body>
-        <FormControl>
-          <FormControl.Label>Name</FormControl.Label>
-          <TextInput
-            ref={nameInputRef}
-            value={name}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-            placeholder="Project name"
-            block
-          />
-        </FormControl>
+        <Stack direction="vertical" gap="spacious">
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <TextInput
+              ref={nameInputRef}
+              value={name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              placeholder="Project name"
+              block
+            />
+          </FormControl>
 
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>URL</FormControl.Label>
-          <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
-        </FormControl>
+          <FormControl>
+            <FormControl.Label>URL</FormControl.Label>
+            <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
+          </FormControl>
 
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>Protocol</FormControl.Label>
-          <Select value={String(protocol)} onChange={(e) => setProtocol(Number(e.target.value) as RpcProtocol)} block>
-            <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
-            <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
-          </Select>
-        </FormControl>
+          <FormControl>
+            <FormControl.Label>Protocol</FormControl.Label>
+            <Select value={String(protocol)} onChange={(e) => setProtocol(Number(e.target.value) as RpcProtocol)} block>
+              <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
+              <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
+            </Select>
+          </FormControl>
 
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>Proto Source</FormControl.Label>
           <RadioGroup name="protoSource" onChange={(value) => setProtoSourceType(value as ProtoSourceType)}>
-            {protocol === RpcProtocol.GRPC && (
-              <RadioGroup.Label visuallyHidden>Proto Source</RadioGroup.Label>
-            )}
+            <RadioGroup.Label>Proto Source</RadioGroup.Label>
             {protocol === RpcProtocol.GRPC && (
               <FormControl>
                 <Radio value="reflection" checked={protoSourceType === "reflection"} />
@@ -154,107 +151,84 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
               <FormControl.Caption>Select individual proto files</FormControl.Caption>
             </FormControl>
           </RadioGroup>
-        </FormControl>
 
-        {protoSourceType === "protoDir" && (
-          <FormControl style={{ marginTop: 24 }}>
-            <FormControl.Label>Proto Directory</FormControl.Label>
-            <TextInput
-              value={protoDir}
-              onChange={(e) => setProtoDir(e.target.value)}
-              placeholder="Path to proto directory"
-              block
-              trailingAction={
-                <TextInput.Action
-                  onClick={async () => {
-                    const path = await OpenDirectoryDialog();
-                    if (path) {
-                      setProtoDir(path);
-                    }
-                  }}
-                  icon={FileDirectoryIcon}
-                  aria-label="Select directory"
-                />
-              }
-            />
-          </FormControl>
-        )}
-
-        {protoSourceType === "protoFiles" && (
-          <FormControl style={{ marginTop: 24 }}>
-            <FormControl.Label>Proto Files</FormControl.Label>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: 8,
-                border: "1px solid var(--borderColor-default)",
-                borderRadius: 6,
-                minHeight: 80,
-              }}
-            >
-              {protoFiles.map((file, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: 4,
-                    backgroundColor: "var(--bgColor-muted)",
-                    borderRadius: 4,
-                  }}
-                >
-                  <FileIcon size={16} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>
-                    {file}
-                  </span>
-                  <button
-                    type="button"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 4,
-                      display: "flex",
-                      alignItems: "center",
-                      color: "var(--fgColor-muted)",
+          {protoSourceType === "protoDir" && (
+            <FormControl>
+              <FormControl.Label>Proto Directory</FormControl.Label>
+              <TextInput
+                value={protoDir}
+                onChange={(e) => setProtoDir(e.target.value)}
+                placeholder="Path to proto directory"
+                block
+                trailingAction={
+                  <TextInput.Action
+                    onClick={async () => {
+                      const path = await OpenDirectoryDialog();
+                      if (path) {
+                        setProtoDir(path);
+                      }
                     }}
-                    aria-label="Remove file"
-                    onClick={() => setProtoFiles(protoFiles.filter((_, i) => i !== index))}
-                  >
-                    <XCircleFillIcon size={16} />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={async () => {
-                  const files = await OpenMultipleFilesDialog();
-                  if (files && files.length > 0) {
-                    setProtoFiles([...protoFiles, ...files.filter((f) => !protoFiles.includes(f))]);
-                  }
-                }}
+                    icon={FileDirectoryIcon}
+                    aria-label="Select directory"
+                  />
+                }
+              />
+            </FormControl>
+          )}
+
+          {protoSourceType === "protoFiles" && (
+            <FormControl>
+              <FormControl.Label>Proto Files</FormControl.Label>
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  padding: 8,
-                  border: "1px dashed var(--borderColor-default)",
-                  borderRadius: 4,
-                  backgroundColor: "transparent",
-                  cursor: "pointer",
-                  color: "var(--fgColor-muted)",
+                  border: "1px solid var(--borderColor-default)",
+                  borderRadius: 6,
+                  overflow: "hidden",
                 }}
               >
-                <FileIcon size={16} />
-                Add proto files...
-              </button>
-            </div>
-          </FormControl>
-        )}
+                {protoFiles.length > 0 && (
+                  <ActionList>
+                    {protoFiles.map((file, index) => (
+                      <ActionList.Item key={index}>
+                        <ActionList.LeadingVisual>
+                          <FileIcon size={16} />
+                        </ActionList.LeadingVisual>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file}</span>
+                        <ActionList.TrailingVisual>
+                          <IconButton
+                            icon={XIcon}
+                            variant="invisible"
+                            size="small"
+                            aria-label="Remove file"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setProtoFiles(protoFiles.filter((_, i) => i !== index));
+                            }}
+                          />
+                        </ActionList.TrailingVisual>
+                      </ActionList.Item>
+                    ))}
+                  </ActionList>
+                )}
+                <div style={{ padding: 8, borderTop: protoFiles.length > 0 ? "1px solid var(--borderColor-default)" : "none" }}>
+                  <Button
+                    variant="invisible"
+                    leadingVisual={PlusIcon}
+                    onClick={async () => {
+                      const files = await OpenMultipleFilesDialog();
+                      if (files && files.length > 0) {
+                        setProtoFiles([...protoFiles, ...files.filter((f) => !protoFiles.includes(f))]);
+                      }
+                    }}
+                    block
+                  >
+                    Add proto files
+                  </Button>
+                </div>
+              </div>
+            </FormControl>
+          )}
+        </Stack>
       </Dialog.Body>
     </Dialog>
   );
