@@ -3,8 +3,6 @@
 
 export function OpenDirectoryDialog():Promise<string>;
 
-export function OpenMultipleFilesDialog():Promise<Array<string>>;
-
 export function Target(arg1:string,arg2:string,arg3:Array<number>,arg4:number):Promise<Array<number>>;
 
 export function Twirp(arg1:string,arg2:Array<number>):Promise<Array<number>>;

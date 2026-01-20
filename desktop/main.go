@@ -74,19 +74,6 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	})
 }
 
-// OpenMultipleFilesDialog opens a native file picker dialog for selecting multiple proto files
-func (a *App) OpenMultipleFilesDialog() ([]string, error) {
-	return runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select Proto Files",
-		Filters: []runtime.FileFilter{
-			{
-				DisplayName: "Proto Files (*.proto)",
-				Pattern:     "*.proto",
-			},
-		},
-	})
-}
-
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	slog.Info("Twirp called", "method", method, "req_length", len(req))
 	

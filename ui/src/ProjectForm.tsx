@@ -1,10 +1,10 @@
-import { FileDirectoryIcon, FileIcon, PlusIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, Button, Dialog, FormControl, IconButton, Radio, RadioGroup, Select, Stack, TextInput } from "@primer/react";
+import { FileDirectoryIcon } from "@primer/octicons-react";
+import { Dialog, FormControl, Radio, RadioGroup, Select, Stack, TextInput } from "@primer/react";
 import { useState, useRef, useEffect } from "react";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
-import { OpenDirectoryDialog, OpenMultipleFilesDialog } from "./wailsjs/go/main/App";
+import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 
-type ProtoSourceType = "reflection" | "protoDir" | "protoFiles";
+type ProtoSourceType = "reflection" | "protoDir";
 
 interface ProjectFormProps {
   isOpen: boolean;
@@ -17,7 +17,6 @@ interface ProjectFormProps {
 // Determine proto source type from configuration data
 function getProtoSourceType(data: ConfigurationProject): ProtoSourceType {
   if (data.useReflection) return "reflection";
-  if (data.protoFiles && data.protoFiles.length > 0) return "protoFiles";
   return "protoDir";
 }
 
@@ -26,7 +25,6 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
   const [protoDir, setProtoDir] = useState("");
-  const [protoFiles, setProtoFiles] = useState<string[]>([]);
   const [protoSourceType, setProtoSourceType] = useState<ProtoSourceType>("protoDir");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,14 +36,12 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
         setUrl(initialData.url);
         setProtocol(initialData.protocol);
         setProtoDir(initialData.protoDir);
-        setProtoFiles(initialData.protoFiles || []);
         setProtoSourceType(getProtoSourceType(initialData));
       } else {
         setName("");
         setUrl("");
         setProtocol(RpcProtocol.GRPC);
         setProtoDir("");
-        setProtoFiles([]);
         setProtoSourceType("protoDir");
       }
     }
@@ -59,7 +55,6 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
         protocol,
         protoDir: protoSourceType === "protoDir" ? protoDir : "",
         useReflection: protoSourceType === "reflection",
-        protoFiles: protoSourceType === "protoFiles" ? protoFiles : [],
       };
       onSubmit(project, mode === "edit" ? initialData?.name : undefined);
       resetForm();
@@ -71,7 +66,6 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
     setUrl("");
     setProtocol(RpcProtocol.GRPC);
     setProtoDir("");
-    setProtoFiles([]);
     setProtoSourceType("protoDir");
   };
 
@@ -145,11 +139,6 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
               <FormControl.Label>Proto directory</FormControl.Label>
               <FormControl.Caption>Use all proto files from a directory</FormControl.Caption>
             </FormControl>
-            <FormControl>
-              <Radio value="protoFiles" checked={protoSourceType === "protoFiles"} />
-              <FormControl.Label>Proto files</FormControl.Label>
-              <FormControl.Caption>Select individual proto files</FormControl.Caption>
-            </FormControl>
           </RadioGroup>
 
           {protoSourceType === "protoDir" && (
@@ -173,59 +162,6 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
                   />
                 }
               />
-            </FormControl>
-          )}
-
-          {protoSourceType === "protoFiles" && (
-            <FormControl>
-              <FormControl.Label>Proto Files</FormControl.Label>
-              <div
-                style={{
-                  border: "1px solid var(--borderColor-default)",
-                  borderRadius: 6,
-                  overflow: "hidden",
-                }}
-              >
-                {protoFiles.length > 0 && (
-                  <ActionList>
-                    {protoFiles.map((file, index) => (
-                      <ActionList.Item key={index}>
-                        <ActionList.LeadingVisual>
-                          <FileIcon size={16} />
-                        </ActionList.LeadingVisual>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file}</span>
-                        <ActionList.TrailingVisual>
-                          <IconButton
-                            icon={XIcon}
-                            variant="invisible"
-                            size="small"
-                            aria-label="Remove file"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setProtoFiles(protoFiles.filter((_, i) => i !== index));
-                            }}
-                          />
-                        </ActionList.TrailingVisual>
-                      </ActionList.Item>
-                    ))}
-                  </ActionList>
-                )}
-                <div style={{ padding: 8, borderTop: protoFiles.length > 0 ? "1px solid var(--borderColor-default)" : "none" }}>
-                  <Button
-                    variant="invisible"
-                    leadingVisual={PlusIcon}
-                    onClick={async () => {
-                      const files = await OpenMultipleFilesDialog();
-                      if (files && files.length > 0) {
-                        setProtoFiles([...protoFiles, ...files.filter((f) => !protoFiles.includes(f))]);
-                      }
-                    }}
-                    block
-                  >
-                    Add proto files
-                  </Button>
-                </div>
-              </div>
             </FormControl>
           )}
         </Stack>

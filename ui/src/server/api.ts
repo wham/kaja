@@ -27,10 +27,6 @@ export interface CompileRequest {
      * @generated from protobuf field: string proto_dir = 3
      */
     protoDir: string;
-    /**
-     * @generated from protobuf field: repeated string proto_files = 4
-     */
-    protoFiles: string[];
 }
 /**
  * @generated from protobuf message ReflectRequest
@@ -186,10 +182,6 @@ export interface ConfigurationProject {
      * @generated from protobuf field: bool use_reflection = 5
      */
     useReflection: boolean;
-    /**
-     * @generated from protobuf field: repeated string proto_files = 6
-     */
-    protoFiles: string[];
 }
 /**
  * @generated from protobuf message ConfigurationAI
@@ -404,8 +396,7 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         super("CompileRequest", [
             { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "log_offset", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "proto_files", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CompileRequest>): CompileRequest {
@@ -413,7 +404,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         message.id = "";
         message.logOffset = 0;
         message.protoDir = "";
-        message.protoFiles = [];
         if (value !== undefined)
             reflectionMergePartial<CompileRequest>(this, message, value);
         return message;
@@ -431,9 +421,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
                     break;
                 case /* string proto_dir */ 3:
                     message.protoDir = reader.string();
-                    break;
-                case /* repeated string proto_files */ 4:
-                    message.protoFiles.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -456,9 +443,6 @@ class CompileRequest$Type extends MessageType<CompileRequest> {
         /* string proto_dir = 3; */
         if (message.protoDir !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
-        /* repeated string proto_files = 4; */
-        for (let i = 0; i < message.protoFiles.length; i++)
-            writer.tag(4, WireType.LengthDelimited).string(message.protoFiles[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -976,8 +960,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 6, name: "proto_files", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -987,7 +970,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.url = "";
         message.protoDir = "";
         message.useReflection = false;
-        message.protoFiles = [];
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -1011,9 +993,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                     break;
                 case /* bool use_reflection */ 5:
                     message.useReflection = reader.bool();
-                    break;
-                case /* repeated string proto_files */ 6:
-                    message.protoFiles.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1042,9 +1021,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* bool use_reflection = 5; */
         if (message.useReflection !== false)
             writer.tag(5, WireType.Varint).bool(message.useReflection);
-        /* repeated string proto_files = 6; */
-        for (let i = 0; i < message.protoFiles.length; i++)
-            writer.tag(6, WireType.LengthDelimited).string(message.protoFiles[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

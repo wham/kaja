@@ -15,10 +15,7 @@
       "name": "grpcb.in",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "grpc://grpcb.in:9000",
-      "protoFiles": [
-        "grpcbin/proto/grpcbin.proto",
-        "grpcbin/proto/hello.proto"
-      ]
+      "protoDir": "grpcbin/proto"
     },
     {
       "name": "teams",

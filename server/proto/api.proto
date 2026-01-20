@@ -14,7 +14,6 @@ message CompileRequest {
   string id = 1;
   int32 log_offset = 2;
   string proto_dir = 3;
-  repeated string proto_files = 4;
 }
 
 message ReflectRequest {
@@ -99,7 +98,6 @@ message ConfigurationProject {
   string url = 3;
   string proto_dir = 4;
   bool use_reflection = 5;
-  repeated string proto_files = 6;
 }
 
 message ConfigurationAI {
