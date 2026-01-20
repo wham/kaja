@@ -113,16 +113,14 @@ jobs:
           echo "" >> /tmp/demo.md
           echo "</details>" >> /tmp/demo.md
 
-          DEMO_SECTION=$(cat /tmp/demo.md)
-
           # Get current PR body and remove existing Demo section
-          CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body --jq '.body')
-          BODY_WITHOUT_DEMO=$(echo "$CURRENT_BODY" | perl -0777 -pe 's/\n*## 🎬 Demo.*?(<\/details>)//sg')
+          gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
+          perl -0777 -pe 's/\n*## 🎬 Demo.*?(<\/details>)//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Combine body with demo section
-          NEW_BODY="${BODY_WITHOUT_DEMO}
-
-${DEMO_SECTION}"
+          cat /tmp/body_clean.txt > /tmp/new_body.txt
+          echo "" >> /tmp/new_body.txt
+          cat /tmp/demo.md >> /tmp/new_body.txt
 
           # Update PR description
-          gh pr edit ${PR_NUMBER} --body "$NEW_BODY"
+          gh pr edit ${PR_NUMBER} --body-file /tmp/new_body.txt
