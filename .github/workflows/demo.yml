@@ -88,32 +88,32 @@ jobs:
           COMPILER_URL="${BASE_URL}/compiler.png"
 
           # Build demo section
-          DEMO_SECTION="## 🎬 Demo
-
-${VIDEO_URL}
-
-<details>
-<summary>Screenshots</summary>
-
-### Home
-![Home](${HOME_URL})
-
-### Call
-![Call](${CALL_URL})
-
-### Compiler
-![Compiler](${COMPILER_URL})"
+          echo "## 🎬 Demo" > /tmp/demo.md
+          echo "" >> /tmp/demo.md
+          echo "${VIDEO_URL}" >> /tmp/demo.md
+          echo "" >> /tmp/demo.md
+          echo "<details>" >> /tmp/demo.md
+          echo "<summary>Screenshots</summary>" >> /tmp/demo.md
+          echo "" >> /tmp/demo.md
+          echo "### Home" >> /tmp/demo.md
+          echo "![Home](${HOME_URL})" >> /tmp/demo.md
+          echo "" >> /tmp/demo.md
+          echo "### Call" >> /tmp/demo.md
+          echo "![Call](${CALL_URL})" >> /tmp/demo.md
+          echo "" >> /tmp/demo.md
+          echo "### Compiler" >> /tmp/demo.md
+          echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
 
           if [ -f /tmp/demo-files/newproject.png ]; then
-            DEMO_SECTION="${DEMO_SECTION}
-
-### New Project
-![New Project](${BASE_URL}/newproject.png)"
+            echo "" >> /tmp/demo.md
+            echo "### New Project" >> /tmp/demo.md
+            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/demo.md
           fi
 
-          DEMO_SECTION="${DEMO_SECTION}
+          echo "" >> /tmp/demo.md
+          echo "</details>" >> /tmp/demo.md
 
-</details>"
+          DEMO_SECTION=$(cat /tmp/demo.md)
 
           # Get current PR body and remove existing Demo section
           CURRENT_BODY=$(gh pr view ${PR_NUMBER} --json body --jq '.body')
