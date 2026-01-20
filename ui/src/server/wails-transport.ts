@@ -17,7 +17,7 @@ export type WailsTransportMode = "api" | "target";
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   targetUrl?: string; // Required for "target" mode
-  protocol?: number; // RPC protocol: 0 = Twirp, 1 = gRPC (required for "target" mode)
+  protocol: number; // RPC protocol: 0 = Twirp, 1 = gRPC
 }
 
 /**
@@ -32,7 +32,7 @@ export class WailsTransport implements RpcTransport {
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
     this.targetUrl = options.targetUrl;
-    this.protocol = options.protocol ?? 0; // Default to Twirp
+    this.protocol = options.protocol;
 
     if (this.mode === "target" && !this.targetUrl) {
       throw new Error("targetUrl is required when mode is 'target'");

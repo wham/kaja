@@ -122,12 +122,14 @@ func (a *App) Target(target string, method string, req []byte, protocol int) ([]
 	}
 
 	// Use protocol enum to determine which handler to use
-	if protocol == 1 { // RPC_PROTOCOL_GRPC
+	switch protocol {
+	case 0: // RPC_PROTOCOL_TWIRP
+		return a.targetTwirp(target, method, req)
+	case 1: // RPC_PROTOCOL_GRPC
 		return a.targetGRPC(target, method, req)
+	default:
+		return nil, fmt.Errorf("invalid protocol: %d (must be 0 for Twirp or 1 for gRPC)", protocol)
 	}
-
-	// Default to Twirp (protocol == 0 or any other value)
-	return a.targetTwirp(target, method, req)
 }
 
 // targetGRPC handles gRPC protocol calls using the shared gRPC client
