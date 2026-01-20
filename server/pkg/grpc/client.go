@@ -67,10 +67,39 @@ func ShouldUseTLS(target *url.URL) bool {
 	return false
 }
 
+// ToGRPCTarget converts a URL to a gRPC target string.
+// Supported formats:
+// - dns:host:port -> dns:host:port (passthrough)
+// - grpc://host:port -> dns:host:port
+// - grpcs://host:port -> dns:host:port (TLS determined by ShouldUseTLS)
+// - http://host:port -> dns:host:port
+// - https://host:port -> dns:host:port
+// - host:port -> dns:host:port
+func ToGRPCTarget(target *url.URL) string {
+	scheme := strings.ToLower(target.Scheme)
+
+	// dns: scheme is already in gRPC format
+	if scheme == "dns" {
+		return target.String()
+	}
+
+	// For grpc://, grpcs://, http://, https:// - convert to dns: format
+	if scheme == "grpc" || scheme == "grpcs" || scheme == "http" || scheme == "https" {
+		host := target.Host
+		if host == "" {
+			host = target.Opaque
+		}
+		return "dns:" + host
+	}
+
+	// Fallback: assume it's already a valid gRPC target
+	return target.String()
+}
+
 // NewClient creates a new gRPC client for the given target URL.
 func NewClient(target *url.URL) *Client {
 	return &Client{
-		target: target.String(),
+		target: ToGRPCTarget(target),
 		useTLS: ShouldUseTLS(target),
 	}
 }
