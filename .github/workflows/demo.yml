@@ -88,12 +88,11 @@ jobs:
           COMPILER_URL="${BASE_URL}/compiler.png"
 
           # Build demo section
-          echo "## 🎬 Demo" > /tmp/demo.md
+          echo "<details>" > /tmp/demo.md
+          echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
+          echo "### Video" >> /tmp/demo.md
           echo "${VIDEO_URL}" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "<details>" >> /tmp/demo.md
-          echo "<summary>Screenshots</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Home" >> /tmp/demo.md
           echo "![Home](${HOME_URL})" >> /tmp/demo.md
@@ -115,7 +114,7 @@ jobs:
 
           # Get current PR body and remove existing Demo section
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*## 🎬 Demo.*?(<\/details>)//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Combine body with demo section
           cat /tmp/body_clean.txt > /tmp/new_body.txt
