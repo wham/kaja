@@ -17,6 +17,7 @@ export type WailsTransportMode = "api" | "target";
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   targetUrl?: string; // Required for "target" mode
+  protocol?: number; // RPC protocol: 0 = Twirp, 1 = gRPC (required for "target" mode)
 }
 
 /**
@@ -26,10 +27,12 @@ export interface WailsTransportOptions {
 export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
   private targetUrl?: string;
+  private protocol: number;
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
     this.targetUrl = options.targetUrl;
+    this.protocol = options.protocol ?? 0; // Default to Twirp
 
     if (this.mode === "target" && !this.targetUrl) {
       throw new Error("targetUrl is required when mode is 'target'");
@@ -125,8 +128,8 @@ export class WailsTransport implements RpcTransport {
       } else {
         // mode === "target"
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        console.log("Calling Wails Target with method:", fullMethodPath);
-        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray);
+        console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol);
+        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray, this.protocol);
       }
 
       console.log(`Wails ${this.mode} result length:`, responseArray?.length);

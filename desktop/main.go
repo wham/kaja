@@ -110,20 +110,23 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 }
 
 // Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
-func (a *App) Target(target string, method string, req []byte) ([]byte, error) {
-	slog.Info("Target called", "target", target, "method", method, "req_length", len(req))
+// The protocol parameter indicates which RPC protocol to use:
+// - 0 = Twirp (RPC_PROTOCOL_TWIRP)
+// - 1 = gRPC (RPC_PROTOCOL_GRPC)
+func (a *App) Target(target string, method string, req []byte, protocol int) ([]byte, error) {
+	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req))
 
 	if req == nil {
 		slog.Error("Received nil request")
 		return nil, fmt.Errorf("nil request")
 	}
 
-	// Check if this is a gRPC target (starts with dns:)
-	if strings.HasPrefix(target, "dns:") {
+	// Use protocol enum to determine which handler to use
+	if protocol == 1 { // RPC_PROTOCOL_GRPC
 		return a.targetGRPC(target, method, req)
 	}
 
-	// Handle HTTP/HTTPS Twirp endpoints
+	// Default to Twirp (protocol == 0 or any other value)
 	return a.targetTwirp(target, method, req)
 }
 

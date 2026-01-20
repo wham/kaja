@@ -6,8 +6,8 @@ export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
 }
 
-export function Target(arg1, arg2, arg3) {
-  return window['go']['main']['App']['Target'](arg1, arg2, arg3);
+export function Target(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['Target'](arg1, arg2, arg3, arg4);
 }
 
 export function Twirp(arg1, arg2) {

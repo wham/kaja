@@ -16,7 +16,7 @@ export function createClient(service: Service, stub: Stub, configuration: Config
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
     // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
-    transport = new WailsTransport({ mode: "target", targetUrl: configuration.url });
+    transport = new WailsTransport({ mode: "target", targetUrl: configuration.url, protocol: configuration.protocol });
   } else {
     transport =
       configuration.protocol == RpcProtocol.GRPC
