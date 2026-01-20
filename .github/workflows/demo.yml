@@ -37,6 +37,12 @@ jobs:
           mkdir -p .github/demo
           node .github/scripts/take-demo.js
 
+      - name: Convert video to GIF
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
+          rm .github/demo/demo.webm
+
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -73,7 +79,7 @@ jobs:
 
           # Copy demo files to PR-specific folder
           mkdir -p "pr-${PR_NUMBER}"
-          cp /tmp/demo-files/*.webm /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
+          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
 
           # Commit and push
           git add "pr-${PR_NUMBER}/"
@@ -82,7 +88,7 @@ jobs:
 
           # Build URLs
           BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
-          VIDEO_URL="${BASE_URL}/demo.webm"
+          GIF_URL="${BASE_URL}/demo.gif"
           HOME_URL="${BASE_URL}/home.png"
           CALL_URL="${BASE_URL}/call.png"
           COMPILER_URL="${BASE_URL}/compiler.png"
@@ -91,8 +97,7 @@ jobs:
           echo "<details>" > /tmp/demo.md
           echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
-          echo "### Video" >> /tmp/demo.md
-          echo "${VIDEO_URL}" >> /tmp/demo.md
+          echo "![Demo](${GIF_URL})" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Home" >> /tmp/demo.md
           echo "![Home](${HOME_URL})" >> /tmp/demo.md
