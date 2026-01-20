@@ -26,7 +26,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
-func (c *Compiler) start(id string, protoDir string) error {
+func (c *Compiler) start(id string, protoDir string, protoFiles []string) error {
 	c.logger.debug("id: " + id)
 
 	cwd, err := os.Getwd()
@@ -46,7 +46,7 @@ func (c *Compiler) start(id string, protoDir string) error {
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
 	c.logger.debug("Starting compilation")
-	err = c.protoc(cwd, sourcesDir, protoDir)
+	err = c.protoc(cwd, sourcesDir, protoDir, protoFiles)
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Compilation failed", err)
@@ -133,19 +133,56 @@ func getIncludeDir(cwd string) string {
 	return filepath.Join(cwd, "./build/include")
 }
 
-func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
-	if !filepath.IsAbs(protoDir) {
-		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
-	}
-	c.logger.debug("protoDir: " + protoDir)
-
+func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string, protoFiles []string) error {
 	binDir := getBinDir(cwd)
 	c.logger.debug("binDir: " + binDir)
 
 	includeDir := getIncludeDir(cwd)
 	c.logger.debug("includeDir: " + includeDir)
 
-	protocCommand := "PATH=" + binDir + ":$PATH protoc --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	var protocCommand string
+
+	if len(protoFiles) > 0 {
+		// Use individual proto files
+		c.logger.debug(fmt.Sprintf("Using %d individual proto files", len(protoFiles)))
+
+		// Resolve proto files paths (relative to workspace if not absolute)
+		resolvedFiles := make([]string, len(protoFiles))
+		includeDirs := make(map[string]bool)
+		for i, f := range protoFiles {
+			if !filepath.IsAbs(f) {
+				resolvedFiles[i] = filepath.Join(cwd, "../workspace/"+f)
+			} else {
+				resolvedFiles[i] = f
+			}
+			// Add the directory of each proto file as an include path
+			includeDirs[filepath.Dir(resolvedFiles[i])] = true
+		}
+
+		// Build include paths from all proto file directories
+		var includeFlags strings.Builder
+		includeFlags.WriteString("-I" + includeDir)
+		for dir := range includeDirs {
+			includeFlags.WriteString(" -I" + dir)
+		}
+
+		// Quote file paths for shell
+		quotedFiles := make([]string, len(resolvedFiles))
+		for i, f := range resolvedFiles {
+			quotedFiles[i] = "\"" + f + "\""
+		}
+
+		protocCommand = "PATH=" + binDir + ":$PATH protoc --ts_out " + sourcesDir + " --ts_opt long_type_bigint " + includeFlags.String() + " " + strings.Join(quotedFiles, " ")
+	} else {
+		// Use proto directory (original behavior)
+		if !filepath.IsAbs(protoDir) {
+			protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
+		}
+		c.logger.debug("protoDir: " + protoDir)
+
+		protocCommand = "PATH=" + binDir + ":$PATH protoc --ts_out " + sourcesDir + " --ts_opt long_type_bigint -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	}
+
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 

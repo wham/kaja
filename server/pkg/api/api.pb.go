@@ -225,6 +225,7 @@ type CompileRequest struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	LogOffset     int32                  `protobuf:"varint,2,opt,name=log_offset,json=logOffset,proto3" json:"log_offset,omitempty"`
 	ProtoDir      string                 `protobuf:"bytes,3,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
+	ProtoFiles    []string               `protobuf:"bytes,4,rep,name=proto_files,json=protoFiles,proto3" json:"proto_files,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,6 +279,13 @@ func (x *CompileRequest) GetProtoDir() string {
 		return x.ProtoDir
 	}
 	return ""
+}
+
+func (x *CompileRequest) GetProtoFiles() []string {
+	if x != nil {
+		return x.ProtoFiles
+	}
+	return nil
 }
 
 type ReflectRequest struct {
@@ -769,6 +777,7 @@ type ConfigurationProject struct {
 	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	ProtoDir      string                 `protobuf:"bytes,4,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
 	UseReflection bool                   `protobuf:"varint,5,opt,name=use_reflection,json=useReflection,proto3" json:"use_reflection,omitempty"`
+	ProtoFiles    []string               `protobuf:"bytes,6,rep,name=proto_files,json=protoFiles,proto3" json:"proto_files,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -836,6 +845,13 @@ func (x *ConfigurationProject) GetUseReflection() bool {
 		return x.UseReflection
 	}
 	return false
+}
+
+func (x *ConfigurationProject) GetProtoFiles() []string {
+	if x != nil {
+		return x.ProtoFiles
+	}
+	return nil
 }
 
 type ConfigurationAI struct {
@@ -1314,12 +1330,14 @@ var File_proto_api_proto protoreflect.FileDescriptor
 
 const file_proto_api_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/api.proto\"\\\n" +
+	"\x0fproto/api.proto\"}\n" +
 	"\x0eCompileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"log_offset\x18\x02 \x01(\x05R\tlogOffset\x12\x1b\n" +
-	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\"\"\n" +
+	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x1f\n" +
+	"\vproto_files\x18\x04 \x03(\tR\n" +
+	"protoFiles\"\"\n" +
 	"\x0eReflectRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"p\n" +
 	"\x0fReflectResponse\x12&\n" +
@@ -1348,13 +1366,15 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x02ai\x18\x03 \x01(\v2\x10.ConfigurationAIR\x02ai\x12,\n" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"O\n" +
 	"\x13ConfigurationSystem\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xaa\x01\n" +
+	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xcb\x01\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1b\n" +
 	"\tproto_dir\x18\x04 \x01(\tR\bprotoDir\x12%\n" +
-	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\"E\n" +
+	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\x12\x1f\n" +
+	"\vproto_files\x18\x06 \x03(\tR\n" +
+	"protoFiles\"E\n" +
 	"\x0fConfigurationAI\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x17\n" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"R\n" +

@@ -65,6 +65,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       // Generate unique ID for this compilation
       const compilationId = crypto.randomUUID();
       let protoDir = project.configuration.protoDir;
+      let protoFiles = project.configuration.protoFiles || [];
 
       // Set initial running state with start time using functional update
       onUpdate((prevProjects) => {
@@ -138,7 +139,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
       if (signal.aborted) return;
 
       // Start polling compilation
-      await pollCompilation(projectName, compilationId, protoDir, signal);
+      await pollCompilation(projectName, compilationId, protoDir, protoFiles, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -146,7 +147,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
     }
   };
 
-  const pollCompilation = async (projectName: string, compilationId: string, protoDir: string, signal: AbortSignal) => {
+  const pollCompilation = async (projectName: string, compilationId: string, protoDir: string, protoFiles: string[], signal: AbortSignal) => {
     while (!signal.aborted) {
       // Find project by name to avoid stale index references
       const projectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
@@ -157,6 +158,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
         id: compilationId,
         logOffset: project.compilation.logOffset || 0,
         protoDir,
+        protoFiles,
       });
 
       if (signal.aborted) return;
