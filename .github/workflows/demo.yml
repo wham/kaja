@@ -97,6 +97,7 @@ jobs:
           echo "<details>" > /tmp/demo.md
           echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
+          echo "### Video" >> /tmp/demo.md
           echo "![Demo](${GIF_URL})" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Home" >> /tmp/demo.md
