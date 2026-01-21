@@ -1,6 +1,7 @@
 import { PlayIcon } from "@primer/octicons-react";
 import { useEffect, useRef, useState } from "react";
 import { formatAndColorizeJson } from "./formatter";
+import { Gutter } from "./Gutter";
 import { MethodCall } from "./kaja";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
@@ -14,8 +15,13 @@ interface ConsoleProps {
 export function Console({ items }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response">("response");
+  const [callListWidth, setCallListWidth] = useState(300);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  const onCallListResize = (delta: number) => {
+    setCallListWidth((prev) => Math.max(150, Math.min(600, prev + delta)));
+  };
 
   // Filter items into method calls for easier access
   const methodCalls = items
@@ -93,11 +99,9 @@ export function Console({ items }: ConsoleProps) {
       >
         <div
           style={{
-            width: 300,
-            minWidth: 200,
+            width: callListWidth,
             flexShrink: 0,
             padding: "8px 12px",
-            borderRight: "1px solid var(--borderColor-default)",
             fontSize: 11,
             fontWeight: 600,
             color: "var(--fgColor-muted)",
@@ -122,9 +126,7 @@ export function Console({ items }: ConsoleProps) {
         <div
           ref={listRef}
           style={{
-            width: 300,
-            minWidth: 200,
-            borderRight: "1px solid var(--borderColor-default)",
+            width: callListWidth,
             overflowY: "auto",
             flexShrink: 0,
           }}
@@ -145,6 +147,8 @@ export function Console({ items }: ConsoleProps) {
             return null;
           })}
         </div>
+
+        <Gutter orientation="vertical" onResize={onCallListResize} />
 
         {/* Right panel - Details */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
