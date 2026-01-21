@@ -119,21 +119,44 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
 
           <FormControl>
             <FormControl.Label>Protocol</FormControl.Label>
-            <Select value={String(protocol)} onChange={(e) => setProtocol(Number(e.target.value) as RpcProtocol)} block>
+            <Select
+              value={String(protocol)}
+              onChange={(e) => {
+                const newProtocol = Number(e.target.value) as RpcProtocol;
+                setProtocol(newProtocol);
+                if (newProtocol === RpcProtocol.TWIRP && protoSourceType === "reflection") {
+                  setProtoSourceType("protoDir");
+                }
+              }}
+              block
+            >
               <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
               <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
             </Select>
           </FormControl>
 
-          <RadioGroup name="protoSource" onChange={(value) => setProtoSourceType(value as ProtoSourceType)}>
+          <RadioGroup
+            name="protoSource"
+            onChange={(value) => {
+              if (protocol === RpcProtocol.GRPC || value !== "reflection") {
+                setProtoSourceType(value as ProtoSourceType);
+              }
+            }}
+          >
             <RadioGroup.Label>Proto Source</RadioGroup.Label>
-            {protocol === RpcProtocol.GRPC && (
-              <FormControl>
-                <Radio value="reflection" checked={protoSourceType === "reflection"} />
-                <FormControl.Label>Reflection</FormControl.Label>
-                <FormControl.Caption>Discover services automatically from the server</FormControl.Caption>
-              </FormControl>
-            )}
+            <FormControl disabled={protocol === RpcProtocol.TWIRP}>
+              <Radio
+                value="reflection"
+                checked={protoSourceType === "reflection"}
+                disabled={protocol === RpcProtocol.TWIRP}
+              />
+              <FormControl.Label>Reflection</FormControl.Label>
+              <FormControl.Caption>
+                {protocol === RpcProtocol.TWIRP
+                  ? "Twirp does not support reflection"
+                  : "Discover services automatically from the server"}
+              </FormControl.Caption>
+            </FormControl>
             <FormControl>
               <Radio value="protoDir" checked={protoSourceType === "protoDir"} />
               <FormControl.Label>Proto directory</FormControl.Label>
@@ -141,29 +164,29 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
             </FormControl>
           </RadioGroup>
 
-          {protoSourceType === "protoDir" && (
-            <FormControl>
-              <FormControl.Label>Proto Directory</FormControl.Label>
-              <TextInput
-                value={protoDir}
-                onChange={(e) => setProtoDir(e.target.value)}
-                placeholder="Path to proto directory"
-                block
-                trailingAction={
-                  <TextInput.Action
-                    onClick={async () => {
-                      const path = await OpenDirectoryDialog();
-                      if (path) {
-                        setProtoDir(path);
-                      }
-                    }}
-                    icon={FileDirectoryIcon}
-                    aria-label="Select directory"
-                  />
-                }
-              />
-            </FormControl>
-          )}
+          <FormControl disabled={protoSourceType === "reflection"}>
+            <FormControl.Label>Proto Directory</FormControl.Label>
+            <TextInput
+              value={protoDir}
+              onChange={(e) => setProtoDir(e.target.value)}
+              placeholder="Path to proto directory"
+              block
+              disabled={protoSourceType === "reflection"}
+              trailingAction={
+                <TextInput.Action
+                  onClick={async () => {
+                    const path = await OpenDirectoryDialog();
+                    if (path) {
+                      setProtoDir(path);
+                    }
+                  }}
+                  icon={FileDirectoryIcon}
+                  aria-label="Select directory"
+                  disabled={protoSourceType === "reflection"}
+                />
+              }
+            />
+          </FormControl>
         </Stack>
       </Dialog.Body>
     </Dialog>
