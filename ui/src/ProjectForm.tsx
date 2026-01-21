@@ -1,8 +1,10 @@
 import { FileDirectoryIcon } from "@primer/octicons-react";
-import { Checkbox, Dialog, FormControl, Select, TextInput } from "@primer/react";
+import { Dialog, FormControl, Radio, RadioGroup, Select, Stack, TextInput } from "@primer/react";
 import { useState, useRef, useEffect } from "react";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
+
+type ProtoSourceType = "reflection" | "protoDir";
 
 interface ProjectFormProps {
   isOpen: boolean;
@@ -12,12 +14,18 @@ interface ProjectFormProps {
   onClose: () => void;
 }
 
+// Determine proto source type from configuration data
+function getProtoSourceType(data: ConfigurationProject): ProtoSourceType {
+  if (data.useReflection) return "reflection";
+  return "protoDir";
+}
+
 export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: ProjectFormProps) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
   const [protoDir, setProtoDir] = useState("");
-  const [useReflection, setUseReflection] = useState(false);
+  const [protoSourceType, setProtoSourceType] = useState<ProtoSourceType>("protoDir");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form when editing or reset when creating
@@ -28,20 +36,27 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
         setUrl(initialData.url);
         setProtocol(initialData.protocol);
         setProtoDir(initialData.protoDir);
-        setUseReflection(initialData.useReflection);
+        setProtoSourceType(getProtoSourceType(initialData));
       } else {
         setName("");
         setUrl("");
         setProtocol(RpcProtocol.GRPC);
         setProtoDir("");
-        setUseReflection(false);
+        setProtoSourceType("protoDir");
       }
     }
   }, [isOpen, mode, initialData]);
 
   const handleSubmit = () => {
     if (name && url) {
-      onSubmit({ name, url, protocol, protoDir, useReflection }, mode === "edit" ? initialData?.name : undefined);
+      const project: ConfigurationProject = {
+        name,
+        url,
+        protocol,
+        protoDir: protoSourceType === "protoDir" ? protoDir : "",
+        useReflection: protoSourceType === "reflection",
+      };
+      onSubmit(project, mode === "edit" ? initialData?.name : undefined);
       resetForm();
     }
   };
@@ -51,7 +66,7 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
     setUrl("");
     setProtocol(RpcProtocol.GRPC);
     setProtoDir("");
-    setUseReflection(false);
+    setProtoSourceType("protoDir");
   };
 
   const handleClose = (gesture: "close-button" | "escape") => {
@@ -85,48 +100,78 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
       ]}
     >
       <Dialog.Body>
-        <FormControl>
-          <FormControl.Label>Name</FormControl.Label>
-          <TextInput
-            ref={nameInputRef}
-            value={name}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-            placeholder="Project name"
-            block
-          />
-        </FormControl>
-
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>URL</FormControl.Label>
-          <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
-        </FormControl>
-
-        <FormControl style={{ marginTop: 24 }}>
-          <FormControl.Label>Protocol</FormControl.Label>
-          <Select value={String(protocol)} onChange={(e) => setProtocol(Number(e.target.value) as RpcProtocol)} block>
-            <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
-            <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
-          </Select>
-        </FormControl>
-
-        {protocol === RpcProtocol.GRPC && (
-          <FormControl style={{ marginTop: 24 }}>
-            <Checkbox checked={useReflection} onChange={(e) => setUseReflection(e.target.checked)} />
-            <FormControl.Label>Use gRPC Reflection</FormControl.Label>
-            <FormControl.Caption>
-              Discover services automatically from the server instead of using proto files
-            </FormControl.Caption>
+        <Stack direction="vertical" gap="spacious">
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <TextInput
+              ref={nameInputRef}
+              value={name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              placeholder="Project name"
+              block
+            />
           </FormControl>
-        )}
 
-        {!useReflection && (
-          <FormControl style={{ marginTop: 24 }}>
+          <FormControl>
+            <FormControl.Label>URL</FormControl.Label>
+            <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
+          </FormControl>
+
+          <FormControl>
+            <FormControl.Label>Protocol</FormControl.Label>
+            <Select
+              value={String(protocol)}
+              onChange={(e) => {
+                const newProtocol = Number(e.target.value) as RpcProtocol;
+                setProtocol(newProtocol);
+                if (newProtocol === RpcProtocol.TWIRP && protoSourceType === "reflection") {
+                  setProtoSourceType("protoDir");
+                }
+              }}
+              block
+            >
+              <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
+              <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
+            </Select>
+          </FormControl>
+
+          <RadioGroup
+            name="protoSource"
+            onChange={(value) => {
+              if (protocol === RpcProtocol.GRPC || value !== "reflection") {
+                setProtoSourceType(value as ProtoSourceType);
+              }
+            }}
+          >
+            <RadioGroup.Label>Proto Source</RadioGroup.Label>
+            <FormControl disabled={protocol === RpcProtocol.TWIRP}>
+              <Radio
+                value="reflection"
+                checked={protoSourceType === "reflection"}
+                disabled={protocol === RpcProtocol.TWIRP}
+              />
+              <FormControl.Label>Reflection</FormControl.Label>
+              <FormControl.Caption>
+                {protocol === RpcProtocol.TWIRP
+                  ? "Twirp does not support reflection"
+                  : "Discover services automatically from the server"}
+              </FormControl.Caption>
+            </FormControl>
+            <FormControl>
+              <Radio value="protoDir" checked={protoSourceType === "protoDir"} />
+              <FormControl.Label>Proto directory</FormControl.Label>
+              <FormControl.Caption>Use all proto files from a directory</FormControl.Caption>
+            </FormControl>
+          </RadioGroup>
+
+          <FormControl disabled={protoSourceType === "reflection"}>
             <FormControl.Label>Proto Directory</FormControl.Label>
             <TextInput
               value={protoDir}
               onChange={(e) => setProtoDir(e.target.value)}
               placeholder="Path to proto directory"
               block
+              disabled={protoSourceType === "reflection"}
               trailingAction={
                 <TextInput.Action
                   onClick={async () => {
@@ -137,11 +182,12 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
                   }}
                   icon={FileDirectoryIcon}
                   aria-label="Select directory"
+                  disabled={protoSourceType === "reflection"}
                 />
               }
             />
           </FormControl>
-        )}
+        </Stack>
       </Dialog.Body>
     </Dialog>
   );
