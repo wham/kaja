@@ -25,7 +25,7 @@ docker run --pull always --name kaja -d -p 41520:41520 \
 - `-v /my_app/proto:/workspace/proto` - Mount the `/my_app/proto` directory from the host file system into the container's `/workspace/proto` directory. Kaja will recursively search for `.proto` files in the `/workspace` directory. `/my_app/proto` should be your application's [--proto_path](https://protobuf.dev/reference/cpp/api-docs/google.protobuf.compiler.command_line_interface/), the directory where your `.proto` files are located.
 - `-v /my_app/kaja.json:/workspace/kaja.json` - Mount the Kaja [configuration file](#configuration) from the host file system into a predefined location where Kaja expects it.
 - `--add-host=host.docker.internal:host-gateway` - Make the host's localhost accessible from the container. This is required for Kaja to call Twirp and gRPC APIs running on the host.
-- `-e AI_API_KEY="*****"` - Some [configuration options](#configuration) can also be provided as environment variables.
+- `-e AI_API_KEY="*****"` - AI configuration can be provided via `AI_API_KEY` and `AI_BASE_URL` environment variables.
 - `kajatools/kaja:latest` - Kaja is available on [Docker Hub](https://hub.docker.com/r/kajatools/kaja).
 
 A minimal `kaja.json` [configuration file](#configuration) looks like this:
@@ -48,7 +48,7 @@ A minimal `kaja.json` [configuration file](#configuration) looks like this:
 
 # Configuration
 
-Kaja is configured with a `kaja.json` file in the `/workspace` directory and/or environment variables.
+Kaja is configured with a `kaja.json` file in the `/workspace` directory.
 
 Supported configuration options:
 

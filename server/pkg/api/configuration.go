@@ -38,7 +38,7 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 	file, err := os.Open(configurationPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.info(fmt.Sprintf("Configuration file %s not found. Only environment variables will be used.", configurationPath))
+			logger.info(fmt.Sprintf("Configuration file %s not found.", configurationPath))
 		} else {
 			logger.error(fmt.Sprintf("Failed opening configuration file %s", configurationPath), err)
 		}
@@ -59,28 +59,6 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 }
 
 func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
-	if pathPrefix := os.Getenv("PATH_PREFIX"); pathPrefix != "" {
-		logger.info("PATH_PREFIX env variable applied")
-		configuration.PathPrefix = pathPrefix
-	}
-
-	if baseURL := os.Getenv("BASE_URL"); baseURL != "" {
-		logger.info("BASE_URL is set, configuring default project from environment variables")
-
-		defaultProject := &ConfigurationProject{
-			Name:     "default",
-			Protocol: getProtocolFromEnv(),
-			Url:      baseURL,
-			ProtoDir: "", // Default protoDir
-		}
-
-		if len(configuration.Projects) > 0 {
-			logger.warn(fmt.Sprintf("%d projects defined in configuration file will be ignored", len(configuration.Projects)))
-		}
-
-		configuration.Projects = []*ConfigurationProject{defaultProject}
-	}
-
 	if configuration.Ai == nil {
 		configuration.Ai = &ConfigurationAI{}
 	}
@@ -108,7 +86,6 @@ func normalize(configuration *Configuration, logger *Logger) {
 }
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
-	// Only save projects, ai, and system fields (not path_prefix which is set via env)
 	configurationToSave := &Configuration{
 		Projects: configuration.Projects,
 		Ai:       configuration.Ai,
@@ -128,17 +105,4 @@ func SaveConfiguration(configurationPath string, configuration *Configuration) e
 	}
 
 	return nil
-}
-
-// Standalone helper functions
-func getProtocolFromEnv() RpcProtocol {
-	protocol := strings.ToUpper(os.Getenv("RPC_PROTOCOL"))
-	switch protocol {
-	case "RPC_PROTOCOL_GRPC":
-		return RpcProtocol_RPC_PROTOCOL_GRPC
-	case "RPC_PROTOCOL_TWIRP":
-		return RpcProtocol_RPC_PROTOCOL_TWIRP
-	default:
-		return RpcProtocol_RPC_PROTOCOL_TWIRP // Default to TWIRP
-	}
 }
