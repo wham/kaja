@@ -57,7 +57,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   return ts.factory.createNull();
 }
 
-function defaultScalar(value: ScalarType, long?: LongType): ts.TrueLiteral | ts.NumericLiteral | ts.StringLiteral | ts.BigIntLiteral {
+function defaultScalar(value: ScalarType, long?: LongType): ts.TrueLiteral | ts.NumericLiteral | ts.StringLiteral {
   switch (value) {
     case ScalarType.DOUBLE:
     case ScalarType.FLOAT:
@@ -71,8 +71,8 @@ function defaultScalar(value: ScalarType, long?: LongType): ts.TrueLiteral | ts.
     case ScalarType.SFIXED64:
     case ScalarType.SINT32:
     case ScalarType.SINT64:
-      if (long === LongType.BIGINT) {
-        return ts.factory.createBigIntLiteral("0n");
+      if (long === LongType.STRING) {
+        return ts.factory.createStringLiteral("0");
       }
       return ts.factory.createNumericLiteral(0);
     case ScalarType.BOOL:
