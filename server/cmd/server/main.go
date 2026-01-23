@@ -101,9 +101,7 @@ func main() {
 	for _, worker := range ui.MonacoWorkerNames {
 		mux.HandleFunc("GET /monaco."+worker+".worker.js", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript")
-
 			data, err := assets.ReadMonacoWorker(worker)
-
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				slog.Error("Failed to read monaco worker", "error", err)

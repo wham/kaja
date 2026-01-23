@@ -4,15 +4,6 @@ import { formatTypeScript } from "./formatter";
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (_, label) {
-    if (label === "json") {
-      return "./monaco.json.worker.js";
-    }
-    if (label === "css" || label === "scss" || label === "less") {
-      return "./monaco.css.worker.js";
-    }
-    if (label === "html" || label === "handlebars" || label === "razor") {
-      return "./monaco.html.worker.js";
-    }
     if (label === "typescript" || label === "javascript") {
       return "./monaco.ts.worker.js";
     }
