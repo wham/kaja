@@ -28,6 +28,11 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
     const path = projectName + "/" + apiSource.path;
     const file = ts.createSourceFile(path, apiSource.content, ts.ScriptTarget.Latest);
 
+    // Convert source path to stub module identifier
+    // e.g., "basics/lib/enum.ts" -> "basics$lib$enum"
+    const stubModuleId = apiSource.path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$");
+    const stubModule = stub[stubModuleId] || {};
+
     const source: Source = {
       path,
       importPath: file.fileName.replace(".ts", ""),
@@ -45,7 +50,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
         source.interfaces[statement.name.text] = statement;
       } else if (ts.isEnumDeclaration(statement)) {
         const enumName = statement.name.text;
-        const object = stub[enumName];
+        const object = stubModule[enumName];
         if (object) {
           source.enums[enumName] = { object };
         }
@@ -94,6 +99,17 @@ export function findEnum(sources: Sources, object: any): [string, Source] | unde
       }
     }
   }
+}
+
+// Find an export by name across all stub modules
+export function findInStub(stub: Stub, name: string): any {
+  for (const moduleId in stub) {
+    const module = stub[moduleId];
+    if (module && typeof module === "object" && name in module) {
+      return module[name];
+    }
+  }
+  return undefined;
 }
 
 function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): string | undefined {
