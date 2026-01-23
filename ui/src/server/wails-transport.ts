@@ -17,7 +17,7 @@ export type WailsTransportMode = "api" | "target";
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   targetUrl?: string; // Required for "target" mode
-  protocol: number; // RPC protocol: 0 = Twirp, 1 = gRPC
+  protocol: number; // RPC protocol: 1 = Twirp, 2 = gRPC (0 = unspecified, invalid)
 }
 
 /**
