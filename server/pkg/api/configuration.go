@@ -59,11 +59,6 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 }
 
 func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
-	if pathPrefix := os.Getenv("PATH_PREFIX"); pathPrefix != "" {
-		logger.info("PATH_PREFIX env variable applied")
-		configuration.PathPrefix = pathPrefix
-	}
-
 	if configuration.Ai == nil {
 		configuration.Ai = &ConfigurationAI{}
 	}
@@ -91,7 +86,6 @@ func normalize(configuration *Configuration, logger *Logger) {
 }
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
-	// Only save projects, ai, and system fields (not path_prefix which is set via env)
 	configurationToSave := &Configuration{
 		Projects: configuration.Projects,
 		Ai:       configuration.Ai,
