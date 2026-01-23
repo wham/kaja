@@ -17,6 +17,8 @@ type UiBundle struct {
 	CodiconTtfName string
 }
 
+var MonacoWorkerNames = []string{"ts", "editor"}
+
 func BuildForDevelopment() *UiBundle {
 	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints: []string{"../ui/src/main.tsx"},
@@ -101,34 +103,6 @@ func BuildProtocGenTs() ([]byte, error) {
 	return result.OutputFiles[0].Contents, nil
 }
 
-var MonacoWorkerNames = []string{"json", "css", "html", "ts", "editor"}
-
-func BuildMonacoWorker(name string) ([]byte, error) {
-	path := fmt.Sprintf("language/%s/%s.worker.js", name, name)
-
-	if name == "ts" {
-		path = "language/typescript/ts.worker.js"
-	}
-
-	if name == "editor" {
-		path = "editor/editor.worker.js"
-	}
-
-	result := esbuild.Build(esbuild.BuildOptions{
-		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
-		Bundle:      true,
-		Format:      esbuild.FormatIIFE,
-		Platform:    esbuild.PlatformBrowser,
-	})
-
-	if len(result.Errors) > 0 {
-		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
-		return nil, fmt.Errorf("failed to build monaco worker %s", name)
-	}
-
-	return result.OutputFiles[0].Contents, nil
-}
-
 func BuildStub(sourcesDir string) ([]byte, error) {
 	var stubContent strings.Builder
 	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {
@@ -166,4 +140,25 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 	first := result.OutputFiles[0]
 
 	return first.Contents, nil
+}
+
+func BuildMonacoWorker(name string) ([]byte, error) {
+	path := "editor/editor.worker.js"
+	if name == "ts" {
+		path = "language/typescript/ts.worker.js"
+	}
+
+	result := esbuild.Build(esbuild.BuildOptions{
+		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
+		Bundle:      true,
+		Format:      esbuild.FormatIIFE,
+		Platform:    esbuild.PlatformBrowser,
+	})
+
+	if len(result.Errors) > 0 {
+		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
+		return nil, fmt.Errorf("failed to build monaco worker %s", name)
+	}
+
+	return result.OutputFiles[0].Contents, nil
 }
