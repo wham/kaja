@@ -144,7 +144,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "auto", flex: 1, minWidth: 0 }}
+          style={{ display: "flex", overflowX: "auto", flex: 1, minWidth: 0, background: "var(--bgColor-default)" }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
