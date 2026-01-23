@@ -18,11 +18,6 @@ import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } 
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 
-// https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1006088574
-(BigInt.prototype as any)["toJSON"] = function () {
-  return this.toString();
-};
-
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   const [projects, setProjects] = useState<Project[]>([]);
