@@ -1,22 +1,20 @@
+import editorWorkerSource from "./workers/editor.worker.txt";
+import tsWorkerSource from "./workers/ts.worker.txt";
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
 
+function createWorkerBlob(source: string): Worker {
+  const blob = new Blob([source], { type: "application/javascript" });
+  return new Worker(URL.createObjectURL(blob));
+}
+
 self.MonacoEnvironment = {
-  getWorkerUrl: function (_, label) {
-    if (label === "json") {
-      return "./monaco.json.worker.js";
-    }
-    if (label === "css" || label === "scss" || label === "less") {
-      return "./monaco.css.worker.js";
-    }
-    if (label === "html" || label === "handlebars" || label === "razor") {
-      return "./monaco.html.worker.js";
-    }
+  getWorker: function (_, label) {
     if (label === "typescript" || label === "javascript") {
-      return "./monaco.ts.worker.js";
+      return createWorkerBlob(tsWorkerSource);
     }
-    return "./monaco.editor.worker.js";
+    return createWorkerBlob(editorWorkerSource);
   },
 };
 

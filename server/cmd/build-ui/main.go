@@ -15,6 +15,12 @@ func main() {
 }
 
 func build() error {
+	slog.Info("Building Monaco workers...")
+
+	if err := ui.BuildMonacoWorkers(); err != nil {
+		return err
+	}
+
 	slog.Info("Building UI for production...")
 
 	data, err := ui.BuildForProduction()
@@ -64,20 +70,6 @@ func build() error {
 	}
 
 	slog.Info("protoc-gen-ts built successfully", "outputFile", outputFile)
-
-	for _, worker := range ui.MonacoWorkerNames {
-		d, err := ui.BuildMonacoWorker(worker)
-		if err != nil {
-			return err
-		}
-		outputFile = path.Join(outputDirectory, "monaco."+worker+".worker.js")
-		if err := os.WriteFile(outputFile, d, 0644); err != nil {
-			slog.Error("Failed to write output file", "error", err)
-			return err
-		}
-
-		slog.Info("monaco worker built successfully", "outputFile", outputFile)
-	}
 
 	return nil
 }

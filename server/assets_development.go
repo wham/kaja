@@ -18,7 +18,3 @@ func init() {
 func ReadUiBundle() *ui.UiBundle {
 	return ui.BuildForDevelopment()
 }
-
-func ReadMonacoWorker(name string) ([]byte, error) {
-	return ui.BuildMonacoWorker(name)
-}
