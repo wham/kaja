@@ -4,7 +4,7 @@ import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
 import { Clients, Method, Project, Service } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
-import { findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { findInStub, findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
   const stub = await parseStub(stubCode);
@@ -16,11 +16,10 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     source.serviceNames.forEach((serviceName) => {
-      if (!stub[serviceName]) {
+      const serviceInfo: ServiceInfo | undefined = findInStub(stub, serviceName);
+      if (!serviceInfo) {
         return;
       }
-
-      const serviceInfo: ServiceInfo = stub[serviceName];
       const methods: Method[] = [];
       serviceInfo.methods.forEach((methodInfo) => {
         const methodName = methodInfo.name;

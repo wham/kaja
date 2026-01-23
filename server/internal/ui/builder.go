@@ -111,7 +111,12 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 		}
 		if !info.IsDir() {
 			relativePath, _ := filepath.Rel(sourcesDir, path)
-			stubContent.WriteString("export * from \"./" + relativePath + "\";\n")
+			// Use namespace exports to avoid name collisions when multiple packages
+			// define the same enum name (e.g., basics.lib.Position and quirks.lib.Position)
+			identifier := strings.TrimSuffix(relativePath, ".ts")
+			identifier = strings.ReplaceAll(identifier, "/", "$")
+			identifier = strings.ReplaceAll(identifier, ".", "$")
+			stubContent.WriteString("export * as " + identifier + " from \"./" + relativePath + "\";\n")
 		}
 		return nil
 	})
