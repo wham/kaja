@@ -194,6 +194,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
+          <div style={{ flexGrow: 1 }} />
         </div>
         {onCloseAll && tabCount > 0 && (
           <div style={{ display: "flex", alignItems: "center", borderLeft: "1px solid var(--borderColor-default)", paddingLeft: 4, paddingRight: 4, flexShrink: 0 }}>
