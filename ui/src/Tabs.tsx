@@ -111,7 +111,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
           background-color: var(--bgColor-neutral-muted);
-          border-bottom-color: var(--bgColor-neutral-muted);
+          border-bottom-color: var(--bgColor-default);
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -140,11 +140,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div style={{ display: "flex", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }}>
+      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "scroll", overflowY: "hidden", flex: 1, minWidth: 0 }}
+          style={{ display: "flex", overflowX: "scroll", overflowY: "hidden", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
@@ -197,7 +197,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           <div style={{ flexGrow: 1 }} />
         </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", borderLeft: "1px solid var(--borderColor-default)", paddingLeft: 4, paddingRight: 4, flexShrink: 0 }}>
+          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)" }}>
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
