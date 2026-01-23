@@ -1,7 +1,7 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
-import "proto/basics/lib/enum.proto";
-import "proto/basics/lib/message.proto";
+import "proto/lib/enum.proto";
+import "proto/lib/message.proto";
 
 option go_package = "internal/api";
 
@@ -12,7 +12,7 @@ service Basics {
     // All possible protobuf types
     rpc Types(TypesRequest) returns(TypesRequest);
     rpc Map(MapRequest) returns(MapRequest);
-    rpc Panic(basics.lib.Void) returns(basics.lib.Message);
+    rpc Panic(lib.Void) returns(lib.Message);
     rpc Repeated(RepeatedRequest) returns(RepeatedRequest);
 }
 
@@ -36,7 +36,7 @@ message RepeatedRequest {
     repeated string string = 1;
     repeated int32 int32 = 2;
     repeated Enum enum = 3;
-    repeated basics.lib.Message message = 4;
+    repeated lib.Message message = 4;
 }
 
 message TypesRequest {
@@ -49,5 +49,5 @@ message TypesRequest {
     bool bool = 2;
     Enum enum = 3;
     NestedEnum nested_enum = 4;
-    basics.lib.Position position = 5;
+    lib.Position position = 5;
 }
