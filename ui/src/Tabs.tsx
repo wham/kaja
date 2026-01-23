@@ -137,7 +137,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }}>
+      <div style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)", overflow: "hidden" }}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
