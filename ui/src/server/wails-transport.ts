@@ -11,13 +11,14 @@ import type {
 } from "@protobuf-ts/runtime-rpc";
 import { UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { Twirp, Target } from "../wailsjs/go/main/App";
+import { RpcProtocol } from "./api";
 
 export type WailsTransportMode = "api" | "target";
 
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   targetUrl?: string; // Required for "target" mode
-  protocol: number; // RPC protocol: 1 = Twirp, 2 = gRPC (0 = unspecified, invalid)
+  protocol: RpcProtocol;
 }
 
 /**
