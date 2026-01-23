@@ -16,6 +16,7 @@ func LoadGetConfigurationResponse(configurationPath string, canUpdateConfigurati
 
 	applyEnvironmentVariables(configuration, logger)
 	normalize(configuration, logger)
+	validateProjects(configuration, logger)
 
 	// Set system-level settings (file override takes precedence)
 	if configuration.System != nil && configuration.System.CanUpdateConfiguration {
@@ -83,6 +84,18 @@ func normalize(configuration *Configuration, logger *Logger) {
 		configuration.PathPrefix = pathPrefix
 		logger.debug(fmt.Sprintf("pathPrefix normalized from \"%s\" to \"%s\"", configuration.PathPrefix, pathPrefix))
 	}
+}
+
+func validateProjects(configuration *Configuration, logger *Logger) {
+	validProjects := []*ConfigurationProject{}
+	for _, project := range configuration.Projects {
+		if project.Protocol == RpcProtocol_RPC_PROTOCOL_UNSPECIFIED {
+			logger.error(fmt.Sprintf("Project %q has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.", project.Name), nil)
+			continue
+		}
+		validProjects = append(validProjects, project)
+	}
+	configuration.Projects = validProjects
 }
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {

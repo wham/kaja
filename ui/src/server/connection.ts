@@ -1,5 +1,6 @@
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { ApiClient } from "./api.client";
+import { RpcProtocol } from "./api";
 import { WailsTransport } from "./wails-transport";
 import { isWailsEnvironment } from "../wails";
 
@@ -10,7 +11,7 @@ export function getApiClient(): ApiClient {
 
   if (isWails) {
     console.log("Using WailsTransport in API mode");
-    return new ApiClient(new WailsTransport({ mode: "api" }));
+    return new ApiClient(new WailsTransport({ mode: "api", protocol: RpcProtocol.TWIRP }));
   } else {
     console.log("Using TwirpFetchTransport with baseUrl:", getBaseUrlForApi());
     return new ApiClient(

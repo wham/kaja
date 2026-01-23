@@ -177,19 +177,22 @@ func (LogLevel) EnumDescriptor() ([]byte, []int) {
 type RpcProtocol int32
 
 const (
-	RpcProtocol_RPC_PROTOCOL_TWIRP RpcProtocol = 0
-	RpcProtocol_RPC_PROTOCOL_GRPC  RpcProtocol = 1
+	RpcProtocol_RPC_PROTOCOL_UNSPECIFIED RpcProtocol = 0
+	RpcProtocol_RPC_PROTOCOL_GRPC        RpcProtocol = 1
+	RpcProtocol_RPC_PROTOCOL_TWIRP       RpcProtocol = 2
 )
 
 // Enum value maps for RpcProtocol.
 var (
 	RpcProtocol_name = map[int32]string{
-		0: "RPC_PROTOCOL_TWIRP",
+		0: "RPC_PROTOCOL_UNSPECIFIED",
 		1: "RPC_PROTOCOL_GRPC",
+		2: "RPC_PROTOCOL_TWIRP",
 	}
 	RpcProtocol_value = map[string]int32{
-		"RPC_PROTOCOL_TWIRP": 0,
-		"RPC_PROTOCOL_GRPC":  1,
+		"RPC_PROTOCOL_UNSPECIFIED": 0,
+		"RPC_PROTOCOL_GRPC":        1,
+		"RPC_PROTOCOL_TWIRP":       2,
 	}
 )
 
@@ -814,7 +817,7 @@ func (x *ConfigurationProject) GetProtocol() RpcProtocol {
 	if x != nil {
 		return x.Protocol
 	}
-	return RpcProtocol_RPC_PROTOCOL_TWIRP
+	return RpcProtocol_RPC_PROTOCOL_UNSPECIFIED
 }
 
 func (x *ConfigurationProject) GetUrl() string {
@@ -1404,10 +1407,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"LEVEL_INFO\x10\x01\x12\x0e\n" +
 	"\n" +
 	"LEVEL_WARN\x10\x02\x12\x0f\n" +
-	"\vLEVEL_ERROR\x10\x03*<\n" +
-	"\vRpcProtocol\x12\x16\n" +
-	"\x12RPC_PROTOCOL_TWIRP\x10\x00\x12\x15\n" +
-	"\x11RPC_PROTOCOL_GRPC\x10\x012\xc2\x02\n" +
+	"\vLEVEL_ERROR\x10\x03*Z\n" +
+	"\vRpcProtocol\x12\x1c\n" +
+	"\x18RPC_PROTOCOL_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11RPC_PROTOCOL_GRPC\x10\x01\x12\x16\n" +
+	"\x12RPC_PROTOCOL_TWIRP\x10\x022\xc2\x02\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
 	"\aReflect\x12\x0f.ReflectRequest\x1a\x10.ReflectResponse\x12G\n" +

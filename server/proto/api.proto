@@ -59,8 +59,9 @@ enum LogLevel {
 }
 
 enum RpcProtocol {
-  RPC_PROTOCOL_TWIRP = 0;
+  RPC_PROTOCOL_UNSPECIFIED = 0;
   RPC_PROTOCOL_GRPC = 1;
+  RPC_PROTOCOL_TWIRP = 2;
 }
 
 message Source {
