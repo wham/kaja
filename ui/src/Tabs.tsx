@@ -139,62 +139,64 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div
-        ref={tabsHeaderRef}
-        className="tabs-header"
-        style={{ display: "flex", overflowX: "auto", flexShrink: 0 }}
-      >
-        {React.Children.map(children, (child, index) => {
-          const { tabId, tabLabel, isEphemeral } = child.props;
-          const isActive = index === activeTabIndex;
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <div
+          ref={tabsHeaderRef}
+          className="tabs-header"
+          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
+        >
+          {React.Children.map(children, (child, index) => {
+            const { tabId, tabLabel, isEphemeral } = child.props;
+            const isActive = index === activeTabIndex;
 
-          return (
-            <div
-              key={tabId}
-              ref={(el) => {
-                if (el) tabRefs.current.set(index, el);
-                else tabRefs.current.delete(index);
-              }}
-              className={`tab-item ${isActive ? "active" : ""}`}
-              onClick={() => onSelectTab(index)}
-              onContextMenu={(e) => handleContextMenu(e, index)}
-            >
-              <span
-                style={{
-                  fontSize: "inherit",
-                  color: isActive ? "var(--fgColor-default)" : "var(--fgColor-muted)",
-                  fontStyle: isEphemeral ? "italic" : "normal",
-                  userSelect: "none",
-                  marginRight: 8,
+            return (
+              <div
+                key={tabId}
+                ref={(el) => {
+                  if (el) tabRefs.current.set(index, el);
+                  else tabRefs.current.delete(index);
                 }}
+                className={`tab-item ${isActive ? "active" : ""}`}
+                onClick={() => onSelectTab(index)}
+                onContextMenu={(e) => handleContextMenu(e, index)}
               >
-                {tabLabel}
-              </span>
-              {onCloseTab && (
-                <IconButton
-                  icon={XIcon}
-                  aria-label={`Close ${tabLabel}`}
-                  variant="invisible"
-                  size="small"
-                  className="tab-close-button"
+                <span
                   style={{
-                    padding: 1,
-                    height: 16,
-                    width: 16,
-                    opacity: isActive ? 0.7 : 0,
+                    fontSize: "inherit",
+                    color: isActive ? "var(--fgColor-default)" : "var(--fgColor-muted)",
+                    fontStyle: isEphemeral ? "italic" : "normal",
+                    userSelect: "none",
+                    marginRight: 8,
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(index);
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-        <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
+                >
+                  {tabLabel}
+                </span>
+                {onCloseTab && (
+                  <IconButton
+                    icon={XIcon}
+                    aria-label={`Close ${tabLabel}`}
+                    variant="invisible"
+                    size="small"
+                    className="tab-close-button"
+                    style={{
+                      padding: 1,
+                      height: 16,
+                      width: 16,
+                      opacity: isActive ? 0.7 : 0,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseTab(index);
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
+        </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--borderColor-default)", paddingLeft: 4, paddingRight: 4 }}>
+          <div style={{ position: "absolute", right: 0, top: 0, bottom: 2, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "#1e1e1e" }}>
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
