@@ -8,6 +8,7 @@
     },
     {
       "name": "twirp-quirks",
+      "protocol": "RPC_PROTOCOL_TWIRP",
       "url": "https://kaja.tools/twirp-quirks",
       "protoDir": "quirks"
     },
@@ -26,6 +27,7 @@
     },
     {
       "name": "users",
+      "protocol": "RPC_PROTOCOL_TWIRP",
       "url": "https://kaja.tools/users",
       "protoDir": "users/proto"
     }

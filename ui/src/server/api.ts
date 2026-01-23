@@ -382,13 +382,17 @@ export enum LogLevel {
  */
 export enum RpcProtocol {
     /**
-     * @generated from protobuf enum value: RPC_PROTOCOL_TWIRP = 0;
+     * @generated from protobuf enum value: RPC_PROTOCOL_UNSPECIFIED = 0;
      */
-    TWIRP = 0,
+    UNSPECIFIED = 0,
     /**
      * @generated from protobuf enum value: RPC_PROTOCOL_GRPC = 1;
      */
-    GRPC = 1
+    GRPC = 1,
+    /**
+     * @generated from protobuf enum value: RPC_PROTOCOL_TWIRP = 2;
+     */
+    TWIRP = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileRequest$Type extends MessageType<CompileRequest> {
