@@ -87,11 +87,15 @@ func normalize(configuration *Configuration, logger *Logger) {
 }
 
 func validateProjects(configuration *Configuration, logger *Logger) {
+	validProjects := []*ConfigurationProject{}
 	for _, project := range configuration.Projects {
 		if project.Protocol == RpcProtocol_RPC_PROTOCOL_UNSPECIFIED {
-			logger.error(fmt.Sprintf("Project %q has no protocol specified. Set protocol to RPC_PROTOCOL_TWIRP or RPC_PROTOCOL_GRPC.", project.Name), nil)
+			logger.error(fmt.Sprintf("Project %q has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.", project.Name), nil)
+			continue
 		}
+		validProjects = append(validProjects, project)
 	}
+	configuration.Projects = validProjects
 }
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
