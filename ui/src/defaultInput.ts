@@ -1,4 +1,4 @@
-import { EnumInfo, FieldInfo, IMessageType, LongType, ScalarType } from "@protobuf-ts/runtime";
+import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
 
@@ -36,7 +36,7 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
 
 function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports): ts.Expression {
   if (field.kind === "scalar") {
-    return defaultScalar(field.T, field.L);
+    return defaultScalar(field.T);
   }
 
   if (field.kind === "map") {
@@ -57,23 +57,22 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   return ts.factory.createNull();
 }
 
-function defaultScalar(value: ScalarType, long?: LongType): ts.TrueLiteral | ts.NumericLiteral | ts.StringLiteral | ts.BigIntLiteral {
+function defaultScalar(value: ScalarType): ts.TrueLiteral | ts.NumericLiteral | ts.StringLiteral {
+  // 64-bit integer types are represented as strings (with long_type_string option)
   switch (value) {
-    case ScalarType.DOUBLE:
-    case ScalarType.FLOAT:
     case ScalarType.INT64:
     case ScalarType.UINT64:
-    case ScalarType.INT32:
     case ScalarType.FIXED64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      return ts.factory.createStringLiteral("0");
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+    case ScalarType.INT32:
     case ScalarType.FIXED32:
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
-    case ScalarType.SFIXED64:
     case ScalarType.SINT32:
-    case ScalarType.SINT64:
-      if (long === LongType.BIGINT) {
-        return ts.factory.createBigIntLiteral("0n");
-      }
       return ts.factory.createNumericLiteral(0);
     case ScalarType.BOOL:
       return ts.factory.createTrue();
@@ -108,7 +107,6 @@ type mapValueType =
   | {
       kind: "scalar";
       T: ScalarType;
-      L?: LongType;
     }
   | {
       kind: "enum";
@@ -122,7 +120,7 @@ type mapValueType =
 function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports): ts.Expression {
   switch (value.kind) {
     case "scalar":
-      return defaultScalar(value.T, value.L);
+      return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
     case "message":
