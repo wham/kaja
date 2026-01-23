@@ -196,7 +196,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--borderColor-default)", paddingRight: 4, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--borderColor-default)", borderLeft: "1px solid var(--borderColor-default)", paddingLeft: 4, paddingRight: 4, flexShrink: 0 }}>
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
