@@ -110,7 +110,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
           background-color: var(--bgColor-neutral-muted);
-          border-bottom-color: transparent;
+          border-bottom-color: var(--bgColor-neutral-muted);
         }
         .tab-close-button:hover {
           opacity: 1 !important;
