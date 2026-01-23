@@ -110,7 +110,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
           background-color: var(--bgColor-neutral-muted);
-          border-bottom-color: var(--bgColor-neutral-muted);
+          border-bottom-color: transparent;
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -139,7 +139,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div style={{ position: "relative", flexShrink: 0, background: "var(--bgColor-default)" }}>
+      <div style={{ position: "relative", flexShrink: 0 }}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
