@@ -12,6 +12,10 @@ import { isWailsEnvironment } from "./wails";
 export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
   const client: Client = { methods: {} };
 
+  if (configuration.protocol === RpcProtocol.UNSPECIFIED) {
+    throw new Error(`Project "${configuration.name}" has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
+  }
+
   let transport;
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
@@ -19,7 +23,7 @@ export function createClient(service: Service, stub: Stub, configuration: Config
     transport = new WailsTransport({ mode: "target", targetUrl: configuration.url, protocol: configuration.protocol });
   } else {
     transport =
-      configuration.protocol == RpcProtocol.GRPC
+      configuration.protocol === RpcProtocol.GRPC
         ? new GrpcWebFetchTransport({
             baseUrl: getBaseUrlForTarget(),
           })
