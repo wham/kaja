@@ -22,7 +22,7 @@ func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
 
 	foundInfo := false
 	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "Configuration file non_existent_config.json not found. Only environment variables will be used." {
+		if log.Level == LogLevel_LEVEL_INFO && log.Message == "Configuration file non_existent_config.json not found." {
 			foundInfo = true
 			break
 		}
@@ -206,54 +206,5 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 	}
 	if !foundDebug {
 		t.Error("expected to find debug log about path prefix normalization")
-	}
-}
-
-func TestLoadGetConfigurationResponse_DefaultProjectFromBaseURL(t *testing.T) {
-	const testURL = "http://test-url:8080"
-	os.Setenv("BASE_URL", testURL)
-	os.Setenv("RPC_PROTOCOL", "RPC_PROTOCOL_GRPC")
-	defer func() {
-		os.Unsetenv("BASE_URL")
-		os.Unsetenv("RPC_PROTOCOL")
-	}()
-
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json", false)
-
-	if getConfigurationResponse == nil {
-		t.Fatal("expected non-nil response")
-	}
-
-	if getConfigurationResponse.Configuration == nil {
-		t.Fatal("expected non-nil configuration")
-	}
-
-	if len(getConfigurationResponse.Configuration.Projects) != 1 {
-		t.Fatalf("expected exactly 1 project (from BASE_URL), got %d", len(getConfigurationResponse.Configuration.Projects))
-	}
-
-	project := getConfigurationResponse.Configuration.Projects[0]
-	if project.Name != "default" {
-		t.Errorf("expected project name 'default', got %q", project.Name)
-	}
-	if project.Protocol != RpcProtocol_RPC_PROTOCOL_GRPC {
-		t.Errorf("expected protocol GRPC, got %v", project.Protocol)
-	}
-	if project.Url != testURL {
-		t.Errorf("expected URL %q, got %q", testURL, project.Url)
-	}
-	if project.ProtoDir != "" {
-		t.Errorf("expected empty protoDir, got %q", project.ProtoDir)
-	}
-
-	foundInfo := false
-	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "BASE_URL is set, configuring default project from environment variables" {
-			foundInfo = true
-			break
-		}
-	}
-	if !foundInfo {
-		t.Error("expected to find info log about BASE_URL configuration")
 	}
 }
