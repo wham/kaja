@@ -85,7 +85,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           height: 2px;
         }
         .tabs-header::-webkit-scrollbar-track {
-          background-color: var(--bgColor-neutral-muted);
+          background-color: var(--bgColor-default);
         }
         .tabs-header:hover::-webkit-scrollbar-thumb {
           background-color: var(--fgColor-muted);
