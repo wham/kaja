@@ -91,6 +91,7 @@ export function App() {
       }
 
       setTabs(addTaskTab([], defaultMethod));
+      setActiveTabIndex(0);
     }
   };
 
@@ -120,19 +121,39 @@ export function App() {
   };
 
   const onCloseTab = (index: number) => {
-    if (tabs[index].type === "task") {
-      tabs[index].model.dispose();
-    }
-
-    setTabs((tabs) => {
-      const newTabs = tabs.filter((_, i) => i !== index);
-      // Calculate new active index in the same update
+    setTabs((prevTabs) => {
+      const tab = prevTabs[index];
+      if (tab?.type === "task") {
+        tab.model.dispose();
+      }
+      const newTabs = prevTabs.filter((_, i) => i !== index);
       const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
-
-      // Schedule active index update for next render
-      Promise.resolve().then(() => setActiveTabIndex(newActiveIndex));
-
+      setActiveTabIndex(newActiveIndex);
       return newTabs;
+    });
+  };
+
+  const onCloseAll = () => {
+    setTabs((prevTabs) => {
+      prevTabs.forEach((tab) => {
+        if (tab.type === "task") {
+          tab.model.dispose();
+        }
+      });
+      setActiveTabIndex(0);
+      return [];
+    });
+  };
+
+  const onCloseOthers = (keepIndex: number) => {
+    setTabs((prevTabs) => {
+      prevTabs.forEach((tab, i) => {
+        if (i !== keepIndex && tab.type === "task") {
+          tab.model.dispose();
+        }
+      });
+      setActiveTabIndex(0);
+      return prevTabs.filter((_, i) => i === keepIndex);
     });
   };
 
@@ -380,7 +401,7 @@ export function App() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
-              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab}>
+              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
                 {tabs.map((tab, index) => {
                   if (tab.type === "compiler") {
                     return (
