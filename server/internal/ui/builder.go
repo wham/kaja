@@ -17,14 +17,9 @@ type UiBundle struct {
 	CodiconTtfName string
 }
 
-func BuildForDevelopment() *UiBundle {
-	// Ensure Monaco workers are built before building the main bundle
-	if _, err := os.Stat("../ui/src/workers/editor.worker.txt"); os.IsNotExist(err) {
-		if err := BuildMonacoWorkers(); err != nil {
-			slog.Error("Failed to build Monaco workers", "error", err)
-		}
-	}
+var MonacoWorkerNames = []string{"ts", "editor"}
 
+func BuildForDevelopment() *UiBundle {
 	result := esbuild.Build(esbuild.BuildOptions{
 		EntryPoints: []string{"../ui/src/main.tsx"},
 		Bundle:      true,
@@ -33,7 +28,6 @@ func BuildForDevelopment() *UiBundle {
 		Outdir:      "build",
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
-			".txt": esbuild.LoaderText,
 		},
 	})
 
@@ -53,7 +47,6 @@ func BuildForProduction() (*UiBundle, error) {
 		Outdir:            "build",
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
-			".txt": esbuild.LoaderText,
 		},
 	})
 
@@ -149,39 +142,23 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 	return first.Contents, nil
 }
 
-// BuildMonacoWorkers builds the Monaco editor workers and saves them as .txt files
-// that can be imported and used as blob URLs at runtime.
-func BuildMonacoWorkers() error {
-	workers := map[string]string{
-		"editor": "editor/editor.worker.js",
-		"ts":     "language/typescript/ts.worker.js",
+func BuildMonacoWorker(name string) ([]byte, error) {
+	path := "editor/editor.worker.js"
+	if name == "ts" {
+		path = "language/typescript/ts.worker.js"
 	}
 
-	outputDir := "../ui/src/workers"
-	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create workers directory: %w", err)
+	result := esbuild.Build(esbuild.BuildOptions{
+		EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
+		Bundle:      true,
+		Format:      esbuild.FormatIIFE,
+		Platform:    esbuild.PlatformBrowser,
+	})
+
+	if len(result.Errors) > 0 {
+		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
+		return nil, fmt.Errorf("failed to build monaco worker %s", name)
 	}
 
-	for name, path := range workers {
-		result := esbuild.Build(esbuild.BuildOptions{
-			EntryPoints: []string{fmt.Sprintf("../ui/node_modules/monaco-editor/esm/vs/%s", path)},
-			Bundle:      true,
-			Format:      esbuild.FormatIIFE,
-			Platform:    esbuild.PlatformBrowser,
-		})
-
-		if len(result.Errors) > 0 {
-			slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
-			return fmt.Errorf("failed to build monaco worker %s", name)
-		}
-
-		outputFile := filepath.Join(outputDir, name+".worker.txt")
-		if err := os.WriteFile(outputFile, result.OutputFiles[0].Contents, 0644); err != nil {
-			return fmt.Errorf("failed to write worker file %s: %w", outputFile, err)
-		}
-
-		slog.Info("Monaco worker built", "name", name, "output", outputFile)
-	}
-
-	return nil
+	return result.OutputFiles[0].Contents, nil
 }

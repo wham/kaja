@@ -2,6 +2,5 @@
 /desktop/frontend/dist
 /server/build
 /ui/node_modules
-/ui/src/workers/*.txt
 
 .ai_api_key
