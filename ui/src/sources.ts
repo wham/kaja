@@ -91,6 +91,34 @@ export function findInterface(sources: Sources, interfaceName: string): [ts.Inte
   }
 }
 
+export function findTimestampPaths(sources: Sources, interfaceName: string, prefix: string = ""): string[] {
+  const result = findInterface(sources, interfaceName);
+  if (!result) return [];
+
+  const [interfaceDecl, source] = result;
+  const paths: string[] = [];
+
+  for (const member of interfaceDecl.members) {
+    if (!ts.isPropertySignature(member) || !member.name || !member.type) continue;
+
+    const fieldName = member.name.getText(source.file);
+    const currentPath = prefix ? `${prefix}.${fieldName}` : fieldName;
+
+    // Check if type contains Timestamp (handles "Timestamp", "Timestamp | undefined", etc.)
+    const typeText = member.type.getText(source.file);
+    if (typeText.includes("Timestamp")) {
+      paths.push(currentPath);
+    } else if (ts.isTypeReferenceNode(member.type)) {
+      // Recursively check nested message types
+      const typeName = member.type.typeName.getText(source.file);
+      const nestedPaths = findTimestampPaths(sources, typeName, currentPath);
+      paths.push(...nestedPaths);
+    }
+  }
+
+  return paths;
+}
+
 export function findEnum(sources: Sources, object: any): [string, Source] | undefined {
   for (const source of sources) {
     for (const enumName in source.enums) {

@@ -27,6 +27,8 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
         methods.push({
           name: methodName,
           editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
+          inputTypeName: methodInfo.I.typeName,
+          outputTypeName: methodInfo.O.typeName,
         });
       });
       services.push({

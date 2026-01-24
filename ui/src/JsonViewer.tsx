@@ -3,16 +3,46 @@ import { IconButton } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import { formatJson } from "./formatter";
+import { timestampToDate, formatDateForDisplay } from "./timestampPicker";
 
 interface JsonViewerProps {
   value: any;
+  timestampPaths?: string[];
 }
 
-export function JsonViewer({ value }: JsonViewerProps) {
+interface TimestampInfo {
+  path: string;
+  seconds: string;
+  nanos: number;
+}
+
+function getValueAtPath(obj: any, path: string): any {
+  const parts = path.split(".");
+  let current = obj;
+  for (const part of parts) {
+    if (current === undefined || current === null) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
+function extractTimestampInfos(value: any, paths: string[]): TimestampInfo[] {
+  const infos: TimestampInfo[] = [];
+  for (const path of paths) {
+    const ts = getValueAtPath(value, path);
+    if (ts && typeof ts.seconds === "string" && typeof ts.nanos === "number") {
+      infos.push({ path, seconds: ts.seconds, nanos: ts.nanos });
+    }
+  }
+  return infos;
+}
+
+export function JsonViewer({ value, timestampPaths = [] }: JsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [copied, setCopied] = useState(false);
   const [jsonText, setJsonText] = useState("");
+  const codeLensProviderRef = useRef<monaco.IDisposable | null>(null);
 
   // Format JSON and update editor
   useEffect(() => {
@@ -31,6 +61,57 @@ export function JsonViewer({ value }: JsonViewerProps) {
     updateContent();
   }, [value]);
 
+  // Update Code Lens when value or timestampPaths change
+  useEffect(() => {
+    if (!editorRef.current || !jsonText) return;
+
+    // Dispose previous provider
+    codeLensProviderRef.current?.dispose();
+
+    const timestampInfos = extractTimestampInfos(value, timestampPaths);
+    if (timestampInfos.length === 0) return;
+
+    // Find line numbers for each timestamp by looking for "seconds" in the JSON
+    const lines = jsonText.split("\n");
+    const lenses: monaco.languages.CodeLens[] = [];
+
+    for (const info of timestampInfos) {
+      // Find the line with "seconds" for this timestamp
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('"seconds"') && line.includes(`"${info.seconds}"`)) {
+          const date = timestampToDate(info.seconds, info.nanos);
+          const displayDate = formatDateForDisplay(date);
+
+          lenses.push({
+            range: new monaco.Range(i + 1, 1, i + 1, 1),
+            command: {
+              id: "",
+              title: `📅 ${displayDate}`,
+            },
+          });
+          break;
+        }
+      }
+    }
+
+    if (lenses.length > 0) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        codeLensProviderRef.current = monaco.languages.registerCodeLensProvider(
+          { language: "javascript", pattern: model.uri.path },
+          {
+            provideCodeLenses: () => ({ lenses, dispose: () => {} }),
+          }
+        );
+      }
+    }
+
+    return () => {
+      codeLensProviderRef.current?.dispose();
+    };
+  }, [jsonText, value, timestampPaths]);
+
   // Create editor
   useEffect(() => {
     if (!containerRef.current) {
@@ -39,49 +120,43 @@ export function JsonViewer({ value }: JsonViewerProps) {
 
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
-      language: "javascript",  // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
+      language: "javascript",
       theme: "vs-dark",
       automaticLayout: true,
-      // Read-only configuration
       readOnly: true,
       domReadOnly: true,
-      // Disable interactive features
       contextmenu: false,
       cursorStyle: "block",
       cursorBlinking: "solid",
       renderLineHighlight: "none",
       selectionHighlight: false,
       occurrencesHighlight: "off",
-      // Enable folding
       folding: true,
       foldingStrategy: "indentation",
       foldingHighlight: true,
       showFoldingControls: "always",
-      // Visual settings
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       lineNumbers: "off",
       glyphMargin: false,
       padding: { top: 12, bottom: 12 },
       tabSize: 2,
-      // Scrollbar
       scrollbar: {
         vertical: "auto",
         horizontal: "auto",
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
       },
-      // Disable hints and suggestions
       quickSuggestions: false,
       parameterHints: { enabled: false },
       suggestOnTriggerCharacters: false,
       acceptSuggestionOnEnter: "off",
       wordBasedSuggestions: "off",
-      // Links
       links: false,
     });
 
     return () => {
+      codeLensProviderRef.current?.dispose();
       editorRef.current?.dispose();
       editorRef.current = null;
     };
@@ -114,9 +189,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
           background-color: #0d1117 !important;
         }
       `}</style>
-      {/* Editor */}
       <div ref={containerRef} className="json-viewer-container" style={{ height: "100%" }} />
-      {/* Floating toolbar */}
       <div
         style={{
           position: "absolute",

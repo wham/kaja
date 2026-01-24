@@ -90,18 +90,19 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
   private domNode: HTMLDivElement;
   private root: Root;
   private position: monaco.IPosition;
-  private range: monaco.Range;
+  private editRange: monaco.Range;
 
   constructor(
     editor: monaco.editor.IStandaloneCodeEditor,
-    range: monaco.Range,
+    displayRange: monaco.Range,
+    editRange: monaco.Range,
     fieldName: string,
     seconds: string,
     nanos: number,
     onClose: () => void
   ) {
-    this.range = range;
-    this.position = { lineNumber: range.startLineNumber, column: range.startColumn };
+    this.editRange = editRange;
+    this.position = { lineNumber: displayRange.startLineNumber, column: displayRange.startColumn };
 
     this.domNode = document.createElement("div");
     this.domNode.style.zIndex = "1000";
@@ -115,7 +116,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
         onSelect={(newCode) => {
           editor.executeEdits("timestamp-picker", [
             {
-              range: this.range,
+              range: this.editRange,
               text: newCode,
             },
           ]);

@@ -62,7 +62,7 @@ export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskP
         <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
       </div>
       <Gutter orientation="horizontal" onResize={onEditorResize} />
-      <Console items={consoleItems} />
+      <Console items={consoleItems} projects={projects} />
     </div>
   );
 }

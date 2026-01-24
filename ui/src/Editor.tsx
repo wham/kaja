@@ -39,7 +39,7 @@ function registerTimestampCommand() {
 
   monaco.editor.registerCommand(
     TIMESTAMP_PICKER_COMMAND,
-    (_accessor, editorId: string, range: monaco.Range, fieldName: string, seconds: string, nanos: number) => {
+    (_accessor, editorId: string, range: monaco.Range, fullRange: monaco.Range, fieldName: string, seconds: string, nanos: number) => {
       const editors = monaco.editor.getEditors();
       const codeEditor = editors.find((e) => e.getId() === editorId);
       if (!codeEditor) return;
@@ -53,7 +53,7 @@ function registerTimestampCommand() {
         activeWidgetEditor = null;
       }
 
-      const widget = new TimestampPickerContentWidget(editor, range, fieldName, seconds, nanos, () => {
+      const widget = new TimestampPickerContentWidget(editor, range, fullRange, fieldName, seconds, nanos, () => {
         if (activeTimestampWidget && activeWidgetEditor) {
           activeWidgetEditor.removeContentWidget(activeTimestampWidget);
           activeTimestampWidget.dispose();
@@ -84,7 +84,7 @@ function registerTimestampCommand() {
           command: {
             id: TIMESTAMP_PICKER_COMMAND,
             title: `📅 ${displayDate}`,
-            arguments: [editorId, ts.range, ts.fieldName, ts.seconds, ts.nanos],
+            arguments: [editorId, ts.range, ts.fullRange, ts.fieldName, ts.seconds, ts.nanos],
           },
         };
       });
