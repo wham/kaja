@@ -119,15 +119,20 @@ export function JsonViewer({ value }: JsonViewerProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Toolbar */}
+    <div style={{ position: "relative", height: "100%" }}>
+      {/* Editor */}
+      <div ref={containerRef} style={{ height: "100%" }} />
+      {/* Floating toolbar */}
       <div
         style={{
+          position: "absolute",
+          top: 8,
+          right: 20,
           display: "flex",
-          justifyContent: "flex-end",
-          gap: 4,
-          padding: "4px 8px",
-          borderBottom: "1px solid var(--borderColor-muted)",
+          gap: 2,
+          background: "rgba(13, 17, 23, 0.8)",
+          borderRadius: 6,
+          padding: 2,
         }}
       >
         <ToolbarButton onClick={handleFoldAll} title="Fold all">
@@ -140,8 +145,6 @@ export function JsonViewer({ value }: JsonViewerProps) {
           {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
         </ToolbarButton>
       </div>
-      {/* Editor */}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
     </div>
   );
 }
