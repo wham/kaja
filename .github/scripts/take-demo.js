@@ -39,14 +39,17 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the dialog to appear
-      await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+      // Wait for the project form tab to appear (tab label is "New Project")
+      await page.waitForSelector('.tab-item:has-text("New Project")', { timeout: 5000 });
       await page.waitForTimeout(500);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
-      // Close the dialog
-      await page.keyboard.press("Escape");
+      // Close the tab by clicking the close button
+      const closeButton = page.locator('button[aria-label="Close New Project"]');
+      if ((await closeButton.count()) > 0) {
+        await closeButton.click();
+      }
       await page.waitForTimeout(500);
     } else {
       console.log("New Project button not found, skipping screenshot");
