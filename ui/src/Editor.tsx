@@ -1,6 +1,8 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
 import { formatTypeScript } from "./formatter";
+import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
+import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (_, label) {
@@ -26,6 +28,75 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   target: monaco.typescript.ScriptTarget.ESNext,
   module: monaco.typescript.ModuleKind.ESNext,
 });
+
+const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
+let timestampCommandRegistered = false;
+let activeTimestampWidget: TimestampPickerContentWidget | null = null;
+let activeWidgetEditor: monaco.editor.IStandaloneCodeEditor | null = null;
+
+function registerTimestampCommand() {
+  if (timestampCommandRegistered) return;
+
+  monaco.editor.registerCommand(
+    TIMESTAMP_PICKER_COMMAND,
+    (_accessor, editorId: string, range: monaco.Range, fieldName: string, seconds: string, nanos: number) => {
+      const editors = monaco.editor.getEditors();
+      const codeEditor = editors.find((e) => e.getId() === editorId);
+      if (!codeEditor) return;
+
+      const editor = codeEditor as monaco.editor.IStandaloneCodeEditor;
+
+      if (activeTimestampWidget && activeWidgetEditor) {
+        activeWidgetEditor.removeContentWidget(activeTimestampWidget);
+        activeTimestampWidget.dispose();
+        activeTimestampWidget = null;
+        activeWidgetEditor = null;
+      }
+
+      const widget = new TimestampPickerContentWidget(editor, range, fieldName, seconds, nanos, () => {
+        if (activeTimestampWidget && activeWidgetEditor) {
+          activeWidgetEditor.removeContentWidget(activeTimestampWidget);
+          activeTimestampWidget.dispose();
+          activeTimestampWidget = null;
+          activeWidgetEditor = null;
+        }
+      });
+
+      editor.addContentWidget(widget);
+      activeTimestampWidget = widget;
+      activeWidgetEditor = editor;
+    }
+  );
+
+  monaco.languages.registerCodeLensProvider("typescript", {
+    provideCodeLenses: (model) => {
+      const timestamps = findTimestamps(model);
+      const editors = monaco.editor.getEditors();
+      const editor = editors.find((e) => e.getModel() === model);
+      const editorId = editor?.getId() ?? "";
+
+      const lenses: monaco.languages.CodeLens[] = timestamps.map((ts) => {
+        const date = timestampToDate(ts.seconds, ts.nanos);
+        const displayDate = formatDateForDisplay(date);
+
+        return {
+          range: ts.range,
+          command: {
+            id: TIMESTAMP_PICKER_COMMAND,
+            title: `📅 ${displayDate}`,
+            arguments: [editorId, ts.range, ts.fieldName, ts.seconds, ts.nanos],
+          },
+        };
+      });
+
+      return { lenses, dispose: () => {} };
+    },
+  });
+
+  timestampCommandRegistered = true;
+}
+
+registerTimestampCommand();
 
 interface EditorProps {
   model: monaco.editor.ITextModel;
