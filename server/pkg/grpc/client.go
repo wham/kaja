@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // grpcCodec is a gRPC codec that passes through raw bytes without modification.
@@ -122,7 +123,8 @@ func (c *Client) UseTLS() bool {
 // Invoke calls a gRPC method on the target server.
 // The method should be in the format "/package.Service/Method".
 // The request and response are raw protobuf bytes.
-func (c *Client) Invoke(ctx context.Context, method string, request []byte) ([]byte, error) {
+// Headers are passed as gRPC metadata.
+func (c *Client) Invoke(ctx context.Context, method string, request []byte, headers map[string]string) ([]byte, error) {
 	// Ensure method has leading slash for gRPC
 	if !strings.HasPrefix(method, "/") {
 		method = "/" + method
@@ -143,6 +145,12 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte) ([]b
 	}
 	defer conn.Close()
 
+	// Add headers as gRPC metadata to the context
+	if len(headers) > 0 {
+		md := metadata.New(headers)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+
 	var response []byte
 	err = conn.Invoke(ctx, method, request, &response)
 	if err != nil {
@@ -153,8 +161,9 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte) ([]b
 }
 
 // InvokeWithTimeout calls a gRPC method with a default timeout.
-func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration) ([]byte, error) {
+// Headers are passed as gRPC metadata.
+func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.Duration, headers map[string]string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return c.Invoke(ctx, method, request)
+	return c.Invoke(ctx, method, request, headers)
 }

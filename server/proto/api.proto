@@ -99,6 +99,7 @@ message ConfigurationProject {
   string url = 3;
   string proto_dir = 4;
   bool use_reflection = 5;
+  map<string, string> headers = 6;
 }
 
 message ConfigurationAI {

@@ -124,6 +124,16 @@ func main() {
 			w.Write([]byte("Invalid X-Target header"))
 			return
 		}
+
+		// Extract headers with X-Header- prefix to forward to target
+		forwardHeaders := make(map[string]string)
+		for name, values := range r.Header {
+			if strings.HasPrefix(name, "X-Header-") && len(values) > 0 {
+				headerName := strings.TrimPrefix(name, "X-Header-")
+				forwardHeaders[headerName] = values[0]
+			}
+		}
+
 		if strings.HasPrefix(contentType, "application/grpc-web") ||
 			strings.HasPrefix(contentType, "application/grpc-web-text") {
 
@@ -133,7 +143,7 @@ func main() {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			proxy.ServeHTTP(w, r, r.PathValue("method"))
+			proxy.ServeHTTP(w, r, r.PathValue("method"), forwardHeaders)
 			return
 		} else {
 			// Create a reverse proxy for Twirp requests
@@ -145,6 +155,10 @@ func main() {
 				// Replace /target/ with /twirp/ and append to target path
 				path := strings.Replace(req.URL.Path, "/target/", "/twirp/", 1)
 				req.URL.Path = target.Path + path
+				// Forward configured headers to target
+				for name, value := range forwardHeaders {
+					req.Header.Set(name, value)
+				}
 			}
 			proxy.ServeHTTP(w, r)
 		}
