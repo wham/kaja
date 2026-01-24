@@ -19,6 +19,7 @@ export interface WailsTransportOptions {
   mode: WailsTransportMode;
   targetUrl?: string; // Required for "target" mode
   protocol: RpcProtocol;
+  headers?: { [key: string]: string }; // Headers to pass with target requests
 }
 
 /**
@@ -29,11 +30,13 @@ export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
   private targetUrl?: string;
   private protocol: number;
+  private headers?: { [key: string]: string };
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
     this.targetUrl = options.targetUrl;
     this.protocol = options.protocol;
+    this.headers = options.headers;
 
     if (this.mode === "target" && !this.targetUrl) {
       throw new Error("targetUrl is required when mode is 'target'");
@@ -129,8 +132,10 @@ export class WailsTransport implements RpcTransport {
       } else {
         // mode === "target"
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol);
-        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray, this.protocol);
+        // Serialize headers as JSON string for Go consumption
+        const headersJson = this.headers ? JSON.stringify(this.headers) : "{}";
+        console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
+        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray, this.protocol, headersJson);
       }
 
       console.log(`Wails ${this.mode} result length:`, responseArray?.length);

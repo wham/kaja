@@ -772,6 +772,7 @@ type ConfigurationProject struct {
 	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	ProtoDir      string                 `protobuf:"bytes,4,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
 	UseReflection bool                   `protobuf:"varint,5,opt,name=use_reflection,json=useReflection,proto3" json:"use_reflection,omitempty"`
+	Headers       map[string]string      `protobuf:"bytes,6,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -839,6 +840,13 @@ func (x *ConfigurationProject) GetUseReflection() bool {
 		return x.UseReflection
 	}
 	return false
+}
+
+func (x *ConfigurationProject) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
 }
 
 type ConfigurationAI struct {
@@ -1351,13 +1359,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x02ai\x18\x03 \x01(\v2\x10.ConfigurationAIR\x02ai\x12,\n" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"O\n" +
 	"\x13ConfigurationSystem\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xaa\x01\n" +
+	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xa4\x02\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1b\n" +
 	"\tproto_dir\x18\x04 \x01(\tR\bprotoDir\x12%\n" +
-	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\"E\n" +
+	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\x12<\n" +
+	"\aheaders\x18\x06 \x03(\v2\".ConfigurationProject.HeadersEntryR\aheaders\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\x0fConfigurationAI\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x17\n" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"R\n" +
@@ -1432,7 +1444,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_proto_api_proto_goTypes = []any{
 	(ReflectStatus)(0),                  // 0: ReflectStatus
 	(CompileStatus)(0),                  // 1: CompileStatus
@@ -1457,6 +1469,7 @@ var file_proto_api_proto_goTypes = []any{
 	(*ChatCompletionsResponse)(nil),     // 20: ChatCompletionsResponse
 	(*ChatChoice)(nil),                  // 21: ChatChoice
 	(*ChatUsage)(nil),                   // 22: ChatUsage
+	nil,                                 // 23: ConfigurationProject.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
 	0,  // 0: ReflectResponse.status:type_name -> ReflectStatus
@@ -1471,27 +1484,28 @@ var file_proto_api_proto_depIdxs = []int32{
 	15, // 9: Configuration.ai:type_name -> ConfigurationAI
 	13, // 10: Configuration.system:type_name -> ConfigurationSystem
 	3,  // 11: ConfigurationProject.protocol:type_name -> RpcProtocol
-	12, // 12: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	12, // 13: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	19, // 14: ChatCompletionsRequest.messages:type_name -> ChatMessage
-	21, // 15: ChatCompletionsResponse.choices:type_name -> ChatChoice
-	22, // 16: ChatCompletionsResponse.usage:type_name -> ChatUsage
-	19, // 17: ChatChoice.message:type_name -> ChatMessage
-	4,  // 18: Api.Compile:input_type -> CompileRequest
-	5,  // 19: Api.Reflect:input_type -> ReflectRequest
-	10, // 20: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	16, // 21: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	18, // 22: Api.ChatCompletions:input_type -> ChatCompletionsRequest
-	7,  // 23: Api.Compile:output_type -> CompileResponse
-	6,  // 24: Api.Reflect:output_type -> ReflectResponse
-	11, // 25: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	17, // 26: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	20, // 27: Api.ChatCompletions:output_type -> ChatCompletionsResponse
-	23, // [23:28] is the sub-list for method output_type
-	18, // [18:23] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	23, // 12: ConfigurationProject.headers:type_name -> ConfigurationProject.HeadersEntry
+	12, // 13: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	12, // 14: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	19, // 15: ChatCompletionsRequest.messages:type_name -> ChatMessage
+	21, // 16: ChatCompletionsResponse.choices:type_name -> ChatChoice
+	22, // 17: ChatCompletionsResponse.usage:type_name -> ChatUsage
+	19, // 18: ChatChoice.message:type_name -> ChatMessage
+	4,  // 19: Api.Compile:input_type -> CompileRequest
+	5,  // 20: Api.Reflect:input_type -> ReflectRequest
+	10, // 21: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	16, // 22: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	18, // 23: Api.ChatCompletions:input_type -> ChatCompletionsRequest
+	7,  // 24: Api.Compile:output_type -> CompileResponse
+	6,  // 25: Api.Reflect:output_type -> ReflectResponse
+	11, // 26: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	17, // 27: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	20, // 28: Api.ChatCompletions:output_type -> ChatCompletionsResponse
+	24, // [24:29] is the sub-list for method output_type
+	19, // [19:24] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -1505,7 +1519,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

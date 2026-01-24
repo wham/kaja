@@ -57,7 +57,9 @@ Supported configuration options:
   - `name`: Display name.
   - `protocol`: Use `RPC_PROTOCOL_TWIRP` for Twirp and `RPC_PROTOCOL_GRPC` for gRPC.
   - `url`: The URL where the application is serving Twirp or gRPC requests.
-  - `protoDir`: (Optional) Path to the directory containing `.proto` files. If empty, defaults to `/workspace`.
+  - `protoDir`: (Optional) Path to the directory containing `.proto` files. Required unless `useReflection` is enabled.
+  - `useReflection`: (Optional) Set to `true` to use [gRPC server reflection](https://grpc.io/docs/guides/reflection/) instead of local proto files. Only works with gRPC.
+  - `headers`: (Optional) Headers to send with each request. Useful for authentication. Example: `{"Authorization": "Bearer xxx"}`. For gRPC, headers are sent as metadata.
 
 # Development
 

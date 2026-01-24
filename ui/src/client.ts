@@ -20,7 +20,12 @@ export function createClient(service: Service, stub: Stub, configuration: Config
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
     // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
-    transport = new WailsTransport({ mode: "target", targetUrl: configuration.url, protocol: configuration.protocol });
+    transport = new WailsTransport({
+      mode: "target",
+      targetUrl: configuration.url,
+      protocol: configuration.protocol,
+      headers: configuration.headers,
+    });
   } else {
     transport =
       configuration.protocol === RpcProtocol.GRPC
@@ -37,13 +42,19 @@ export function createClient(service: Service, stub: Stub, configuration: Config
   const options: RpcOptions = {
     interceptors: [
       {
-        // adds X-Target header for web environment (not needed in Wails)
+        // adds X-Target header and configured headers for web environment
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};
           }
           if (!isWailsEnvironment()) {
             options.meta["X-Target"] = configuration.url;
+            // Pass configured headers with X-Header- prefix for the backend to forward
+            if (configuration.headers) {
+              for (const [key, value] of Object.entries(configuration.headers)) {
+                options.meta["X-Header-" + key] = value;
+              }
+            }
           }
           return next(method, input, options);
         },

@@ -182,6 +182,12 @@ export interface ConfigurationProject {
      * @generated from protobuf field: bool use_reflection = 5
      */
     useReflection: boolean;
+    /**
+     * @generated from protobuf field: map<string, string> headers = 6
+     */
+    headers: {
+        [key: string]: string;
+    };
 }
 /**
  * @generated from protobuf message ConfigurationAI
@@ -964,7 +970,8 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 2, name: "protocol", kind: "enum", T: () => ["RpcProtocol", RpcProtocol, "RPC_PROTOCOL_"] },
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -974,6 +981,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.url = "";
         message.protoDir = "";
         message.useReflection = false;
+        message.headers = {};
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -998,6 +1006,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                 case /* bool use_reflection */ 5:
                     message.useReflection = reader.bool();
                     break;
+                case /* map<string, string> headers */ 6:
+                    this.binaryReadMap6(message.headers, reader, options);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1008,6 +1019,22 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             }
         }
         return message;
+    }
+    private binaryReadMap6(map: ConfigurationProject["headers"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof ConfigurationProject["headers"] | undefined, val: ConfigurationProject["headers"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for ConfigurationProject.headers");
+            }
+        }
+        map[key ?? ""] = val ?? "";
     }
     internalBinaryWrite(message: ConfigurationProject, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string name = 1; */
@@ -1025,6 +1052,9 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* bool use_reflection = 5; */
         if (message.useReflection !== false)
             writer.tag(5, WireType.Varint).bool(message.useReflection);
+        /* map<string, string> headers = 6; */
+        for (let k of globalThis.Object.keys(message.headers))
+            writer.tag(6, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
