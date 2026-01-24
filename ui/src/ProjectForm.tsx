@@ -55,6 +55,7 @@ export function ProjectForm({ isOpen, mode, initialData, onSubmit, onClose }: Pr
         protocol,
         protoDir: protoSourceType === "protoDir" ? protoDir : "",
         useReflection: protoSourceType === "reflection",
+        headers: initialData?.headers ?? {},
       };
       onSubmit(project, mode === "edit" ? initialData?.name : undefined);
       resetForm();

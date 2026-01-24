@@ -24,7 +24,7 @@ func NewProxy(target *url.URL) (*Proxy, error) {
 	}, nil
 }
 
-func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string) {
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string, headers map[string]string) {
 	// Check if using text format
 	isText := strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc-web-text")
 
@@ -38,9 +38,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string)
 	}
 	slog.Info("Received message", "length", len(message))
 
-	slog.Info("Invoking gRPC server", "method", method, "tls", p.client.UseTLS())
+	slog.Info("Invoking gRPC server", "method", method, "tls", p.client.UseTLS(), "headers", len(headers))
 
-	res, err := p.client.InvokeWithTimeout(method, message, 5*time.Second)
+	res, err := p.client.InvokeWithTimeout(method, message, 5*time.Second, headers)
 	if err != nil {
 		slog.Error("gRPC invocation failed", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

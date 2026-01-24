@@ -113,28 +113,38 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 // The protocol parameter indicates which RPC protocol to use:
 // - 1 = gRPC (RPC_PROTOCOL_GRPC)
 // - 2 = Twirp (RPC_PROTOCOL_TWIRP)
-func (a *App) Target(target string, method string, req []byte, protocol int) ([]byte, error) {
-	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req))
+// The headersJson parameter is a JSON-encoded map of headers to forward to the target.
+func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) ([]byte, error) {
+	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req), "headers", headersJson)
 
 	if req == nil {
 		slog.Error("Received nil request")
 		return nil, fmt.Errorf("nil request")
 	}
 
+	// Parse headers from JSON
+	headers := make(map[string]string)
+	if headersJson != "" && headersJson != "{}" {
+		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
+			slog.Error("Failed to parse headers JSON", "error", err)
+			return nil, fmt.Errorf("failed to parse headers: %w", err)
+		}
+	}
+
 	// Use protocol enum to determine which handler to use
 	switch protocol {
 	case 1: // RPC_PROTOCOL_GRPC
-		return a.targetGRPC(target, method, req)
+		return a.targetGRPC(target, method, req, headers)
 	case 2: // RPC_PROTOCOL_TWIRP
-		return a.targetTwirp(target, method, req)
+		return a.targetTwirp(target, method, req, headers)
 	default:
 		return nil, fmt.Errorf("invalid protocol: %d (must be 1 for gRPC or 2 for Twirp)", protocol)
 	}
 }
 
 // targetGRPC handles gRPC protocol calls using the shared gRPC client
-func (a *App) targetGRPC(target string, method string, req []byte) ([]byte, error) {
-	slog.Info("Invoking gRPC target", "target", target, "method", method)
+func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string) ([]byte, error) {
+	slog.Info("Invoking gRPC target", "target", target, "method", method, "headers", len(headers))
 
 	client, err := grpc.NewClientFromString(target)
 	if err != nil {
@@ -144,7 +154,7 @@ func (a *App) targetGRPC(target string, method string, req []byte) ([]byte, erro
 
 	slog.Info("gRPC client created", "target", target, "tls", client.UseTLS())
 
-	response, err := client.InvokeWithTimeout(method, req, 30*time.Second)
+	response, err := client.InvokeWithTimeout(method, req, 30*time.Second, headers)
 	if err != nil {
 		slog.Error("gRPC invocation failed", "target", target, "method", method, "error", err)
 		return nil, err
@@ -155,7 +165,7 @@ func (a *App) targetGRPC(target string, method string, req []byte) ([]byte, erro
 }
 
 // targetTwirp handles Twirp protocol calls over HTTP
-func (a *App) targetTwirp(target string, method string, req []byte) ([]byte, error) {
+func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) ([]byte, error) {
 	var url string
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
 		// Already a valid HTTP URL
@@ -173,6 +183,11 @@ func (a *App) targetTwirp(target string, method string, req []byte) ([]byte, err
 
 	// Set appropriate headers for Twirp
 	httpReq.Header.Set("Content-Type", "application/protobuf")
+
+	// Forward configured headers to target
+	for name, value := range headers {
+		httpReq.Header.Set(name, value)
+	}
 
 	// Create HTTP client and make the request
 	client := &http.Client{}
