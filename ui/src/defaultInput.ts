@@ -57,7 +57,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   return ts.factory.createNull();
 }
 
-function defaultScalar(value: ScalarType): ts.TrueLiteral | ts.NumericLiteral | ts.StringLiteral {
+function defaultScalar(value: ScalarType): ts.Expression {
   // 64-bit integer types are represented as strings (with long_type_string option)
   switch (value) {
     case ScalarType.INT64:
@@ -76,6 +76,8 @@ function defaultScalar(value: ScalarType): ts.TrueLiteral | ts.NumericLiteral | 
       return ts.factory.createNumericLiteral(0);
     case ScalarType.BOOL:
       return ts.factory.createTrue();
+    case ScalarType.BYTES:
+      return ts.factory.createNewExpression(ts.factory.createIdentifier("Uint8Array"), undefined, []);
   }
 
   return ts.factory.createStringLiteral("");
