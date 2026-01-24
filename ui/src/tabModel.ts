@@ -1,5 +1,5 @@
 import * as monaco from "monaco-editor";
-import { Method } from "./project";
+import { Method, Project } from "./project";
 
 interface CompilerTab {
   type: "compiler";
@@ -9,6 +9,7 @@ interface TaskTab {
   type: "task";
   id: string;
   originMethod: Method;
+  originProject: Project;
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
 }
@@ -29,8 +30,8 @@ function generateId(type: string): string {
   return `${type}-${idGenerator++}`;
 }
 
-export function addTaskTab(tabs: TabModel[], originMethod: Method): TabModel[] {
-  const newTab = newTaskTab(originMethod);
+export function addTaskTab(tabs: TabModel[], originMethod: Method, originProject: Project): TabModel[] {
+  const newTab = newTaskTab(originMethod, originProject);
   const lastTab = tabs[tabs.length - 1];
   // If the last task tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
@@ -46,13 +47,14 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method): TabModel[] {
   return [...tabs, newTab];
 }
 
-function newTaskTab(originMethod: Method): TaskTab {
+function newTaskTab(originMethod: Method, originProject: Project): TaskTab {
   const id = generateId("task");
 
   return {
     type: "task",
     id,
     originMethod,
+    originProject,
     hasInteraction: false,
     model: monaco.editor.createModel(originMethod.editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
   };
