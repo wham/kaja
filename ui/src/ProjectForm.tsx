@@ -321,7 +321,7 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "8px 16px", borderTop: "1px solid var(--borderColor-default)" }}>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
         <Button onClick={handleCancel}>Cancel</Button>
         <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
           {submitLabel}
