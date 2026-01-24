@@ -17,6 +17,8 @@ import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
+import { isWailsEnvironment } from "./wails";
+import { WindowSetTitle } from "./wailsjs/runtime";
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
@@ -39,6 +41,18 @@ export function App() {
       setTabs([{ type: "compiler" }]);
     }
   }, [tabs.length, projects.length]);
+
+  useEffect(() => {
+    const activeTab = tabs[activeTabIndex];
+    let title = "Kaja";
+    if (activeTab?.type === "task" && activeTab.originProject) {
+      title = `${activeTab.originProject.configuration.name} - Kaja`;
+    }
+    document.title = title;
+    if (isWailsEnvironment()) {
+      WindowSetTitle(title);
+    }
+  }, [tabs, activeTabIndex]);
 
   const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
     // Handle both direct array and functional updates
@@ -85,15 +99,15 @@ export function App() {
         return;
       }
 
-      setTabs(addTaskTab([], defaultMethod));
+      setTabs(addTaskTab([], defaultMethod, updatedProjects[0]));
       setActiveTabIndex(0);
     }
   };
 
-  const onMethodSelect = (method: Method) => {
+  const onMethodSelect = (method: Method, project: Project) => {
     setSelectedMethod(method);
     setTabs((tabs) => {
-      tabs = addTaskTab(tabs, method);
+      tabs = addTaskTab(tabs, method, project);
       setActiveTabIndex(tabs.length - 1);
       return tabs;
     });
@@ -364,7 +378,7 @@ export function App() {
       setTabs((prevTabs) => {
         const newTabs = prevTabs.filter((tab) => {
           if (tab.type === "task") {
-            return tab.originMethod.name !== projectName;
+            return tab.originProject.configuration.name !== projectName;
           }
           return true;
         });
