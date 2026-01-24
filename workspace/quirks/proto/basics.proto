@@ -14,6 +14,10 @@ service Basics {
     rpc Map(MapRequest) returns(MapRequest);
     rpc Panic(lib.Void) returns(lib.Message);
     rpc Repeated(RepeatedRequest) returns(RepeatedRequest);
+    // Returns 403 Unauthorized error
+    rpc Unauthorized(lib.Void) returns(lib.Void);
+    // Returns all headers passed to the method
+    rpc Headers(lib.Void) returns(HeadersResponse);
 }
 
 message MapRequest {
@@ -45,9 +49,44 @@ message TypesRequest {
         KEY_1 = 1;
     }
 
-    google.protobuf.Timestamp timestamp = 1;
-    bool bool = 2;
-    Enum enum = 3;
-    NestedEnum nested_enum = 4;
-    lib.Position position = 5;
+    // Floating point types
+    double double = 1;
+    float float = 2;
+
+    // Signed integers (variable-length encoding)
+    int32 int32 = 3;
+    int64 int64 = 4;
+
+    // Unsigned integers (variable-length encoding)
+    uint32 uint32 = 5;
+    uint64 uint64 = 6;
+
+    // Signed integers (ZigZag encoding, efficient for negative numbers)
+    sint32 sint32 = 7;
+    sint64 sint64 = 8;
+
+    // Fixed-size integers (always 4/8 bytes, efficient for large numbers)
+    fixed32 fixed32 = 9;
+    fixed64 fixed64 = 10;
+    sfixed32 sfixed32 = 11;
+    sfixed64 sfixed64 = 12;
+
+    // Boolean
+    bool bool = 13;
+
+    // String and bytes
+    string string = 14;
+    bytes bytes = 15;
+
+    // Well-known types
+    google.protobuf.Timestamp timestamp = 16;
+
+    // Enum types
+    Enum enum = 17;
+    NestedEnum nested_enum = 18;
+    lib.Position position = 19;
+}
+
+message HeadersResponse {
+    map<string, string> headers = 1;
 }
