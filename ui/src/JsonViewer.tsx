@@ -3,6 +3,19 @@ import * as monaco from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import { formatJson } from "./formatter";
 
+// Define a custom dark theme with darker background for console
+monaco.editor.defineTheme("json-viewer-dark", {
+  base: "vs-dark",
+  inherit: true,
+  rules: [],
+  colors: {
+    "editor.background": "#0d1117",
+    "editorLineNumber.foreground": "#484f58",
+    "editorLineNumber.activeForeground": "#7d8590",
+    "editorGutter.background": "#0d1117",
+  },
+});
+
 interface JsonViewerProps {
   value: any;
 }
@@ -39,7 +52,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
       language: "json",
-      theme: "vs-dark",
+      theme: "json-viewer-dark",
       automaticLayout: true,
       // Read-only configuration
       readOnly: true,
