@@ -9,6 +9,34 @@ import { formatJson } from "./formatter";
 type ProtoSourceType = "reflection" | "protoDir";
 type EditMode = "form" | "json";
 
+const projectJsonSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string", description: "Project name" },
+    protocol: { type: "string", enum: ["grpc", "twirp"], description: "RPC protocol" },
+    url: { type: "string", description: "Server URL (e.g., http://localhost:8080)" },
+    protoDir: { type: "string", description: "Path to proto directory" },
+    useReflection: { type: "boolean", description: "Use gRPC reflection to discover services" },
+    headers: {
+      type: "object",
+      additionalProperties: { type: "string" },
+      description: "Custom headers to send with requests",
+    },
+  },
+  required: ["name", "url"],
+};
+
+monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+  validate: true,
+  schemas: [
+    {
+      uri: "http://kaja/project-schema.json",
+      fileMatch: ["**/project-config.json"],
+      schema: projectJsonSchema,
+    },
+  ],
+});
+
 interface ProjectFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationProject;
@@ -202,22 +230,12 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
     onCancel();
   };
 
-  const isEditMode = mode === "edit";
-  const title = isEditMode ? "Edit Project" : "New Project";
-  const submitLabel = isEditMode ? "Save Changes" : "Add Project";
+  const submitLabel = mode === "edit" ? "Save Changes" : "Add Project";
 
   const isValid = editMode === "form" ? name && url : !jsonError;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-default)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{title}</div>
-        <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
-          <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
-          <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
-        </SegmentedControl>
-      </div>
-
       {jsonError && (
         <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>
           {jsonError}
@@ -321,11 +339,17 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
-        <Button onClick={handleCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
-          {submitLabel}
-        </Button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
+        <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
+          <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
+          <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
+        </SegmentedControl>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button onClick={handleCancel}>Cancel</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
+            {submitLabel}
+          </Button>
+        </div>
       </div>
     </div>
   );
