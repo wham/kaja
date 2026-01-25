@@ -8,12 +8,18 @@ export class Kaja {
   }
 }
 
+export interface MethodCallHeaders {
+  [key: string]: string;
+}
+
 export interface MethodCall {
   service: Service;
   method: Method;
   input: any;
   output?: any;
   error?: any;
+  requestHeaders?: MethodCallHeaders;
+  responseHeaders?: MethodCallHeaders;
 }
 
 export interface MethodCallUpdate {
