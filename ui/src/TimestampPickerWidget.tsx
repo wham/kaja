@@ -151,6 +151,10 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
               text: newCode,
             },
           ]);
+          // Update editRange for next edit - new text is on a single line
+          const startLine = this.editRange.startLineNumber;
+          const startCol = this.editRange.startColumn;
+          this.editRange = new monaco.Range(startLine, startCol, startLine, startCol + newCode.length);
         }}
         onClose={onClose}
       />
