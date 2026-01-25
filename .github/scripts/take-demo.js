@@ -41,9 +41,11 @@ async function takeDemo() {
 
       // Wait for the project form tab to appear and be active
       await page.waitForSelector('.tab-item.active:has-text("New Project")', { timeout: 5000 });
-      // Wait for the form content to render (SegmentedControl in the form)
+      // Wait for the form content to render (project selector dropdown and SegmentedControl)
+      await page.waitForSelector('select option[value="__new__"]', { timeout: 5000 });
       await page.waitForSelector('[aria-label="Edit mode"]', { timeout: 5000 });
-      await page.waitForTimeout(500);
+      // Extra wait for React to finish rendering
+      await page.waitForTimeout(1000);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
