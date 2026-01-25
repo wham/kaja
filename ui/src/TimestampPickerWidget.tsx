@@ -143,7 +143,8 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
               text: newCode,
             },
           ]);
-          this.onCloseCallback();
+          // Delay close to allow Code Lens to refresh first, reducing blink
+          setTimeout(() => this.onCloseCallback(), 100);
         }}
       />
     );

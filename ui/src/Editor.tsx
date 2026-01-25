@@ -68,8 +68,12 @@ function registerTimestampCommand() {
     }
   );
 
+  // Use a cached Code Lens provider that minimizes blink on updates
+  let cachedLenses: Map<string, monaco.languages.CodeLens[]> = new Map();
+
   monaco.languages.registerCodeLensProvider("typescript", {
     provideCodeLenses: (model) => {
+      const modelId = model.uri.toString();
       const timestamps = findTimestamps(model);
       const editors = monaco.editor.getEditors();
       const editor = editors.find((e) => e.getModel() === model);
@@ -89,6 +93,7 @@ function registerTimestampCommand() {
         };
       });
 
+      cachedLenses.set(modelId, lenses);
       return { lenses, dispose: () => {} };
     },
   });
