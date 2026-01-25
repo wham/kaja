@@ -51,7 +51,18 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   if (field.kind === "message") {
-    return defaultMessage(field.T(), sources, imports);
+    const messageType = field.T();
+    // Special case for Timestamp: use current time instead of epoch
+    if (messageType.typeName === "google.protobuf.Timestamp") {
+      const now = new Date();
+      const seconds = Math.floor(now.getTime() / 1000);
+      const nanos = (now.getTime() % 1000) * 1_000_000;
+      return ts.factory.createObjectLiteralExpression([
+        ts.factory.createPropertyAssignment("seconds", ts.factory.createStringLiteral(seconds.toString())),
+        ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
+      ]);
+    }
+    return defaultMessage(messageType, sources, imports);
   }
 
   return ts.factory.createNull();
