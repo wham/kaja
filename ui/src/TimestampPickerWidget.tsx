@@ -37,7 +37,9 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
     return `${hours}:${minutes}`;
   };
 
-  const handleDateOrTimeChange = () => {
+  const handleDateOrTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Blur to close native picker
+    e.target.blur();
     const dateInput = document.getElementById("timestamp-date-input") as HTMLInputElement;
     const timeInput = document.getElementById("timestamp-time-input") as HTMLInputElement;
     if (dateInput?.value && timeInput?.value) {

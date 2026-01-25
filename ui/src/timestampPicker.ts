@@ -61,7 +61,7 @@ export function formatTimestampCode(fieldName: string, seconds: string, nanos: n
 
 export function formatDateForDisplay(date: Date): string {
   if (date.getTime() === 0) {
-    return "Not set (epoch)";
+    return "Not set";
   }
   // Display in local timezone with timezone abbreviation
   const timeZone = new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "";
