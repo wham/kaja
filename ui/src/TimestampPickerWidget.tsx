@@ -9,7 +9,6 @@ interface TimestampPickerProps {
   initialNanos: number;
   fieldName: string;
   onApply: (newCode: string) => void;
-  onClose: () => void;
 }
 
 function getTimezoneAbbr(): string {
@@ -31,7 +30,7 @@ function formatTimeForInput(date: Date, isEpoch: boolean): string {
   return `${hours}:${minutes}`;
 }
 
-function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply, onClose }: TimestampPickerProps) {
+function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: TimestampPickerProps) {
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
@@ -108,10 +107,6 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply, onC
         <Button size="small" variant="danger" onClick={handleClear}>
           Clear
         </Button>
-        <span style={{ flex: 1 }} />
-        <Button size="small" variant="invisible" onClick={onClose}>
-          Close
-        </Button>
       </div>
     </div>
   );
@@ -151,10 +146,6 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
               text: newCode,
             },
           ]);
-          this.onCloseCallback();
-        }}
-        onClose={() => {
-          if (this.disposed) return;
           this.onCloseCallback();
         }}
       />
