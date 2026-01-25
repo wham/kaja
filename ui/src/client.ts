@@ -64,16 +64,40 @@ export function createClient(service: Service, stub: Stub, configuration: Config
 
   for (const method of service.methods) {
     client.methods[method.name] = async (input: any) => {
+      // Capture request headers from configuration
+      const requestHeaders: { [key: string]: string } = {};
+      if (configuration.headers) {
+        for (const [key, value] of Object.entries(configuration.headers)) {
+          requestHeaders[key] = value;
+        }
+      }
+
       const methodCall: MethodCall = {
         service,
         method,
         input,
+        requestHeaders,
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
       try {
-        let { response } = await clientStub[lcfirst(method.name)](input, options);
+        const call = clientStub[lcfirst(method.name)](input, options);
+        const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
         methodCall.output = response;
+
+        // Capture response headers and trailers
+        const responseHeaders: { [key: string]: string } = {};
+        if (headers) {
+          for (const [key, value] of Object.entries(headers)) {
+            responseHeaders[key] = String(value);
+          }
+        }
+        if (trailers) {
+          for (const [key, value] of Object.entries(trailers)) {
+            responseHeaders[key] = String(value);
+          }
+        }
+        methodCall.responseHeaders = responseHeaders;
       } catch (error) {
         methodCall.error = error;
       }
