@@ -52,13 +52,11 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
     const { seconds, nanos } = dateToTimestamp(new Date());
     const newCode = formatTimestampCode(fieldName, seconds, nanos);
     onChange(newCode);
-    onClose();
   };
 
   const handleClear = () => {
     const newCode = formatTimestampCode(fieldName, "0", 0);
     onChange(newCode);
-    onClose();
   };
 
   const inputStyle = {
@@ -151,10 +149,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
               text: newCode,
             },
           ]);
-          // Update editRange for next edit - new text is on a single line
-          const startLine = this.editRange.startLineNumber;
-          const startCol = this.editRange.startColumn;
-          this.editRange = new monaco.Range(startLine, startCol, startLine, startCol + newCode.length);
+          onClose();
         }}
         onClose={onClose}
       />
