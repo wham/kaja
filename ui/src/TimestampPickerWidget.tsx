@@ -11,51 +11,33 @@ interface TimestampPickerProps {
   onClose: () => void;
 }
 
+// Get timezone abbreviation (e.g., "PST", "EST", "CET")
+function getTimezoneAbbr(): string {
+  return new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "Local";
+}
+
 function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, onClose }: TimestampPickerProps) {
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
-  // Format date part (YYYY-MM-DD) in UTC
-  const formatDatePart = (date: Date) => {
+  // Format date for datetime-local input in local timezone
+  const formatDateForInput = (date: Date) => {
     if (isEpoch) return "";
-    return date.toISOString().slice(0, 10);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  // Format time part (HH:MM:SS) in UTC 24h format
-  const formatTimePart = (date: Date) => {
-    if (isEpoch) return "";
-    return date.toISOString().slice(11, 19);
-  };
-
-  const applyChange = (datePart: string, timePart: string) => {
-    if (datePart && timePart) {
-      const date = new Date(datePart + "T" + timePart + "Z");
-      if (!isNaN(date.getTime())) {
-        const { seconds, nanos } = dateToTimestamp(date);
-        const newCode = formatTimestampCode(fieldName, seconds, nanos);
-        onSelect(newCode);
-      }
-    }
-  };
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateInput = e.target.parentElement?.querySelector('input[type="date"]') as HTMLInputElement;
-    const timeInput = e.target.parentElement?.querySelector('input[type="text"]') as HTMLInputElement;
-    if (dateInput && timeInput) {
-      applyChange(dateInput.value, timeInput.value || "00:00:00");
-    }
-  };
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const container = e.target.closest("div")?.parentElement;
-    const dateInput = container?.querySelector('input[type="date"]') as HTMLInputElement;
-    let timeValue = e.target.value;
-    // Add seconds if not present
-    if (timeValue && timeValue.split(":").length === 2) {
-      timeValue += ":00";
-    }
-    if (dateInput && timeValue) {
-      applyChange(dateInput.value, timeValue);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value) {
+      const date = new Date(value);
+      const { seconds, nanos } = dateToTimestamp(date);
+      const newCode = formatTimestampCode(fieldName, seconds, nanos);
+      onSelect(newCode);
     }
   };
 
@@ -70,16 +52,6 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, on
     onSelect(newCode);
   };
 
-  const inputStyle = {
-    padding: "8px 12px",
-    backgroundColor: "#0d1117",
-    border: "1px solid #444c56",
-    borderRadius: "6px",
-    color: "#e6edf3",
-    colorScheme: "dark" as const,
-    fontSize: "14px",
-  };
-
   return (
     <div
       style={{
@@ -92,22 +64,22 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, on
       }}
     >
       <FormControl>
-        <FormControl.Label>Date and time (UTC)</FormControl.Label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="date"
-            defaultValue={formatDatePart(initialDate)}
-            onChange={handleDateChange}
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <input
-            type="text"
-            defaultValue={formatTimePart(initialDate)}
-            placeholder="HH:MM:SS"
-            onChange={handleTimeChange}
-            style={{ ...inputStyle, width: "100px" }}
-          />
-        </div>
+        <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
+        <input
+          type="datetime-local"
+          defaultValue={formatDateForInput(initialDate)}
+          onChange={handleChange}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            backgroundColor: "#0d1117",
+            border: "1px solid #444c56",
+            borderRadius: "6px",
+            color: "#e6edf3",
+            colorScheme: "dark",
+            fontSize: "14px",
+          }}
+        />
       </FormControl>
       <Stack direction="horizontal" gap="condensed" style={{ marginTop: "12px" }}>
         <Button size="small" onClick={handleSetNow}>

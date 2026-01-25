@@ -63,6 +63,7 @@ export function formatDateForDisplay(date: Date): string {
   if (date.getTime() === 0) {
     return "Not set (epoch)";
   }
-  // Display in UTC with 24h format
-  return date.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  // Display in local timezone with timezone abbreviation
+  const timeZone = new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "";
+  return date.toLocaleString() + " " + timeZone;
 }
