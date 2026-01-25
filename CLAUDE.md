@@ -12,6 +12,7 @@
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
 - Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
 - Use pure Primer when possible, avoid custom wrappers and abstractions.
+- Ask me before creating custom UI components; prefer direct use of Primer components.
 
 ## Directory Structure
 
