@@ -20,21 +20,28 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
-  // Format date for datetime-local input in local timezone
+  // Format date (YYYY-MM-DD) in local timezone
   const formatDateForInput = (date: Date) => {
     if (isEpoch) return "";
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    return `${year}-${month}-${day}`;
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value) {
-      const date = new Date(value);
+  // Format time (HH:MM) in local timezone
+  const formatTimeForInput = (date: Date) => {
+    if (isEpoch) return "";
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const handleDateOrTimeChange = () => {
+    const dateInput = document.getElementById("timestamp-date-input") as HTMLInputElement;
+    const timeInput = document.getElementById("timestamp-time-input") as HTMLInputElement;
+    if (dateInput?.value && timeInput?.value) {
+      const date = new Date(`${dateInput.value}T${timeInput.value}`);
       const { seconds, nanos } = dateToTimestamp(date);
       const newCode = formatTimestampCode(fieldName, seconds, nanos);
       onChange(newCode);
@@ -54,6 +61,16 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
     onClose();
   };
 
+  const inputStyle = {
+    padding: "8px 12px",
+    backgroundColor: "#0d1117",
+    border: "1px solid #444c56",
+    borderRadius: "6px",
+    color: "#e6edf3",
+    colorScheme: "dark" as const,
+    fontSize: "14px",
+  };
+
   return (
     <div
       style={{
@@ -67,21 +84,22 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
     >
       <FormControl>
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
-        <input
-          type="datetime-local"
-          defaultValue={formatDateForInput(initialDate)}
-          onChange={handleChange}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            backgroundColor: "#0d1117",
-            border: "1px solid #444c56",
-            borderRadius: "6px",
-            color: "#e6edf3",
-            colorScheme: "dark",
-            fontSize: "14px",
-          }}
-        />
+        <Stack direction="horizontal" gap="condensed">
+          <input
+            id="timestamp-date-input"
+            type="date"
+            defaultValue={formatDateForInput(initialDate)}
+            onChange={handleDateOrTimeChange}
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <input
+            id="timestamp-time-input"
+            type="time"
+            defaultValue={formatTimeForInput(initialDate)}
+            onChange={handleDateOrTimeChange}
+            style={{ ...inputStyle, width: "110px" }}
+          />
+        </Stack>
       </FormControl>
       <Stack direction="horizontal" gap="condensed" style={{ marginTop: "12px" }}>
         <Button size="small" onClick={handleSetNow}>
