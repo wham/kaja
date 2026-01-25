@@ -5,36 +5,15 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ConfigurationProject as ConfigurationProjectType, ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
+import { generateJsonSchema } from "./jsonSchema";
 
 type ProtoSourceType = "reflection" | "protoDir";
 type EditMode = "form" | "json";
 
-// Generate JSON schema from protobuf-ts MessageType reflection data
-function generateJsonSchemaFromProto(): object {
-  const fields = ConfigurationProjectType.fields;
-  const properties: Record<string, object> = {};
-
-  for (const field of fields) {
-    const jsonName = field.jsonName || field.name;
-    if (field.kind === "scalar") {
-      // ScalarType: 8 = BOOL, 9 = STRING
-      properties[jsonName] = { type: field.T === 8 ? "boolean" : "string" };
-    } else if (field.kind === "enum") {
-      // For protocol enum, use string values
-      properties[jsonName] = { type: "string", enum: ["grpc", "twirp"] };
-    } else if (field.kind === "map") {
-      properties[jsonName] = { type: "object", additionalProperties: { type: "string" } };
-    }
-  }
-
-  return {
-    type: "object",
-    properties,
-    required: ["name", "url"],
-  };
-}
-
-const projectJsonSchema = generateJsonSchemaFromProto();
+const projectJsonSchema = generateJsonSchema(ConfigurationProjectType, {
+  required: ["name", "url"],
+  enumValues: { protocol: ["grpc", "twirp"] },
+});
 
 monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
   validate: true,
