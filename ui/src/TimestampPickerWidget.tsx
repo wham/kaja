@@ -15,15 +15,17 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, on
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
+  // Format date for datetime-local input (YYYY-MM-DDTHH:MM) in UTC
   const formatDateForInput = (date: Date) => {
     if (isEpoch) return "";
     return date.toISOString().slice(0, 16);
   };
 
+  // Parse datetime-local value as UTC (append Z to treat as UTC)
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value) {
-      const date = new Date(value);
+      const date = new Date(value + "Z");
       const { seconds, nanos } = dateToTimestamp(date);
       const newCode = formatTimestampCode(fieldName, seconds, nanos);
       onSelect(newCode);
@@ -53,7 +55,7 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, on
       }}
     >
       <FormControl>
-        <FormControl.Label>Pick a date and time</FormControl.Label>
+        <FormControl.Label>Pick a date and time (UTC)</FormControl.Label>
         <input
           type="datetime-local"
           defaultValue={formatDateForInput(initialDate)}

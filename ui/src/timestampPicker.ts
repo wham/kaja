@@ -63,5 +63,6 @@ export function formatDateForDisplay(date: Date): string {
   if (date.getTime() === 0) {
     return "Not set (epoch)";
   }
-  return date.toLocaleString();
+  // Display in UTC with 24h format
+  return date.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 }
