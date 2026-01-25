@@ -15,16 +15,14 @@ function getTimezoneAbbr(): string {
   return new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "Local";
 }
 
-function formatDateForInput(date: Date, isEpoch: boolean): string {
-  if (isEpoch) return "";
+function formatDateForInput(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
-function formatTimeForInput(date: Date, isEpoch: boolean): string {
-  if (isEpoch) return "00:00";
+function formatTimeForInput(date: Date): string {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
@@ -32,10 +30,9 @@ function formatTimeForInput(date: Date, isEpoch: boolean): string {
 
 function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: TimestampPickerProps) {
   const initialDate = timestampToDate(initialSeconds, initialNanos);
-  const isEpoch = initialDate.getTime() === 0;
 
-  const [dateValue, setDateValue] = useState(formatDateForInput(initialDate, isEpoch));
-  const [timeValue, setTimeValue] = useState(formatTimeForInput(initialDate, isEpoch));
+  const [dateValue, setDateValue] = useState(formatDateForInput(initialDate));
+  const [timeValue, setTimeValue] = useState(formatTimeForInput(initialDate));
 
   const handleApply = () => {
     if (!dateValue) return;
@@ -50,8 +47,8 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
 
   const handleSetNow = () => {
     const now = new Date();
-    setDateValue(formatDateForInput(now, false));
-    setTimeValue(formatTimeForInput(now, false));
+    setDateValue(formatDateForInput(now));
+    setTimeValue(formatTimeForInput(now));
   };
 
   const handleClear = () => {
@@ -98,7 +95,7 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
         </div>
       </FormControl>
       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-        <Button size="small" variant="primary" onClick={handleApply} disabled={!dateValue}>
+        <Button size="small" variant="primary" onClick={handleApply}>
           Apply
         </Button>
         <Button size="small" onClick={handleSetNow}>
