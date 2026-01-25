@@ -1,7 +1,7 @@
 import { PlayIcon } from "@primer/octicons-react";
 import { useEffect, useRef, useState } from "react";
-import { formatAndColorizeJson } from "./formatter";
 import { Gutter } from "./Gutter";
+import { JsonViewer } from "./JsonViewer";
 import { MethodCall } from "./kaja";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
@@ -281,26 +281,7 @@ interface DetailContentProps {
 }
 
 Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
-  const [html, setHtml] = useState<string>("");
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
-
-  useEffect(() => {
-    async function updateHtml() {
-      let content: any;
-      if (activeTab === "request") {
-        content = methodCall.input;
-      } else {
-        content = methodCall.error || methodCall.output;
-      }
-      if (content !== undefined) {
-        const formatted = await formatAndColorizeJson(content);
-        setHtml(formatted);
-      } else {
-        setHtml("");
-      }
-    }
-    updateHtml();
-  }, [methodCall, activeTab]);
 
   // Switch to response tab when response arrives
   useEffect(() => {
@@ -309,21 +290,32 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
     }
   }, [hasResponse]);
 
+  const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
+
   return (
     <div
       style={{
         flex: 1,
         minHeight: 0,
-        overflowY: "auto",
-        padding: 12,
-        fontSize: 12,
-        fontFamily: "monospace",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {activeTab === "response" && !hasResponse ? (
-        <div style={{ color: "var(--fgColor-muted)" }}>Waiting for response...</div>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--fgColor-muted)",
+            fontSize: 12,
+          }}
+        >
+          Waiting for response...
+        </div>
       ) : (
-        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML={{ __html: html }} />
+        <JsonViewer value={content} />
       )}
     </div>
   );
