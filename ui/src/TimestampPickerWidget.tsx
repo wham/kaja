@@ -46,9 +46,9 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
   };
 
   const handleSetNow = () => {
-    const now = new Date();
-    setDateValue(formatDateForInput(now));
-    setTimeValue(formatTimeForInput(now));
+    const { seconds, nanos } = dateToTimestamp(new Date());
+    const newCode = formatTimestampCode(fieldName, seconds, nanos);
+    onApply(newCode);
   };
 
   const handleClear = () => {
