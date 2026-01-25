@@ -39,13 +39,17 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the project form tab to appear and be active
-      await page.waitForSelector('.tab-item.active:has-text("New Project")', { timeout: 5000 });
-      // Wait for the form content to render (project selector dropdown and SegmentedControl)
-      await page.waitForSelector('select option[value="__new__"]', { timeout: 5000 });
-      await page.waitForSelector('[aria-label="Edit mode"]', { timeout: 5000 });
-      // Extra wait for React to finish rendering
-      await page.waitForTimeout(1000);
+      // Wait for the project form tab to appear
+      const newProjectTab = page.locator('.tab-item:has-text("New Project")');
+      await newProjectTab.waitFor({ state: 'visible', timeout: 5000 });
+
+      // Click on the tab to ensure it's active
+      await newProjectTab.click();
+      await page.waitForTimeout(300);
+
+      // Wait for the form content - look for the Name input field which is always visible
+      await page.waitForSelector('input[placeholder="Project name"]', { state: 'visible', timeout: 5000 });
+      await page.waitForTimeout(500);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
