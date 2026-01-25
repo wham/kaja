@@ -1,4 +1,5 @@
-import { CopyIcon, CheckIcon, FoldIcon, UnfoldIcon } from "@primer/octicons-react";
+import { CheckIcon, CopyIcon, FoldIcon, UnfoldIcon } from "@primer/octicons-react";
+import { IconButton } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import { formatJson } from "./formatter";
@@ -128,52 +129,28 @@ export function JsonViewer({ value }: JsonViewerProps) {
           padding: 2,
         }}
       >
-        <ToolbarButton onClick={handleFoldAll} title="Fold all">
-          <FoldIcon size={14} />
-        </ToolbarButton>
-        <ToolbarButton onClick={handleUnfoldAll} title="Unfold all">
-          <UnfoldIcon size={14} />
-        </ToolbarButton>
-        <ToolbarButton onClick={handleCopy} title="Copy JSON">
-          {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-        </ToolbarButton>
+        <IconButton
+          icon={FoldIcon}
+          size="small"
+          variant="invisible"
+          aria-label="Fold all"
+          onClick={handleFoldAll}
+        />
+        <IconButton
+          icon={UnfoldIcon}
+          size="small"
+          variant="invisible"
+          aria-label="Unfold all"
+          onClick={handleUnfoldAll}
+        />
+        <IconButton
+          icon={copied ? CheckIcon : CopyIcon}
+          size="small"
+          variant="invisible"
+          aria-label="Copy JSON"
+          onClick={handleCopy}
+        />
       </div>
     </div>
-  );
-}
-
-interface ToolbarButtonProps {
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}
-
-function ToolbarButton({ onClick, title, children }: ToolbarButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        background: "transparent",
-        border: "none",
-        padding: "4px 6px",
-        cursor: "pointer",
-        color: "var(--fgColor-muted)",
-        borderRadius: 4,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--bgColor-neutral-muted)";
-        e.currentTarget.style.color = "var(--fgColor-default)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "transparent";
-        e.currentTarget.style.color = "var(--fgColor-muted)";
-      }}
-    >
-      {children}
-    </button>
   );
 }
