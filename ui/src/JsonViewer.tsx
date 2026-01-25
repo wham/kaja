@@ -59,8 +59,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
       // Visual settings
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
-      lineNumbers: "on",
-      lineNumbersMinChars: 3,
+      lineNumbers: "off",
       glyphMargin: false,
       padding: { top: 12, bottom: 12 },
       tabSize: 2,
