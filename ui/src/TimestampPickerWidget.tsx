@@ -7,7 +7,7 @@ interface TimestampPickerProps {
   initialSeconds: string;
   initialNanos: number;
   fieldName: string;
-  onSelect: (newCode: string) => void;
+  onChange: (newCode: string) => void;
   onClose: () => void;
 }
 
@@ -16,7 +16,7 @@ function getTimezoneAbbr(): string {
   return new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "Local";
 }
 
-function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, onClose }: TimestampPickerProps) {
+function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, onClose }: TimestampPickerProps) {
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
@@ -37,19 +37,21 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onSelect, on
       const date = new Date(value);
       const { seconds, nanos } = dateToTimestamp(date);
       const newCode = formatTimestampCode(fieldName, seconds, nanos);
-      onSelect(newCode);
+      onChange(newCode);
     }
   };
 
   const handleSetNow = () => {
     const { seconds, nanos } = dateToTimestamp(new Date());
     const newCode = formatTimestampCode(fieldName, seconds, nanos);
-    onSelect(newCode);
+    onChange(newCode);
+    onClose();
   };
 
   const handleClear = () => {
     const newCode = formatTimestampCode(fieldName, "0", 0);
-    onSelect(newCode);
+    onChange(newCode);
+    onClose();
   };
 
   return (
@@ -124,14 +126,13 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
         initialSeconds={seconds}
         initialNanos={nanos}
         fieldName={fieldName}
-        onSelect={(newCode) => {
+        onChange={(newCode) => {
           editor.executeEdits("timestamp-picker", [
             {
               range: this.editRange,
               text: newCode,
             },
           ]);
-          onClose();
         }}
         onClose={onClose}
       />
