@@ -39,8 +39,10 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the project form tab to appear (tab label is "New Project")
-      await page.waitForSelector('.tab-item:has-text("New Project")', { timeout: 5000 });
+      // Wait for the project form tab to appear and be active
+      await page.waitForSelector('.tab-item.active:has-text("New Project")', { timeout: 5000 });
+      // Wait for the form content to render (SegmentedControl in the form)
+      await page.waitForSelector('[aria-label="Edit mode"]', { timeout: 5000 });
       await page.waitForTimeout(500);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
