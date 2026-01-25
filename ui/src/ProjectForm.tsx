@@ -236,6 +236,13 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-default)" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
+        <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
+          <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
+          <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
+        </SegmentedControl>
+      </div>
+
       {jsonError && (
         <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>
           {jsonError}
@@ -339,17 +346,11 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
-        <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
-          <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
-          <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
-        </SegmentedControl>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button onClick={handleCancel}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
-            {submitLabel}
-          </Button>
-        </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
+        <Button onClick={handleCancel}>Cancel</Button>
+        <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
+          {submitLabel}
+        </Button>
       </div>
     </div>
   );
