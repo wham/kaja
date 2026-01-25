@@ -40,8 +40,9 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
   const handleDateOrTimeChange = () => {
     const dateInput = document.getElementById("timestamp-date-input") as HTMLInputElement;
     const timeInput = document.getElementById("timestamp-time-input") as HTMLInputElement;
-    if (dateInput?.value && timeInput?.value) {
-      const date = new Date(`${dateInput.value}T${timeInput.value}`);
+    if (dateInput?.value) {
+      const timeValue = timeInput?.value || "00:00";
+      const date = new Date(`${dateInput.value}T${timeValue}`);
       const { seconds, nanos } = dateToTimestamp(date);
       const newCode = formatTimestampCode(fieldName, seconds, nanos);
       onChange(newCode);
