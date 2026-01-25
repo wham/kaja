@@ -1,5 +1,5 @@
 import * as monaco from "monaco-editor";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { Button, FormControl } from "@primer/react";
 import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
@@ -12,12 +12,10 @@ interface TimestampPickerProps {
   onClose: () => void;
 }
 
-// Get timezone abbreviation (e.g., "PST", "EST", "CET")
 function getTimezoneAbbr(): string {
   return new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "Local";
 }
 
-// Format date (YYYY-MM-DD) in local timezone
 function formatDateForInput(date: Date, isEpoch: boolean): string {
   if (isEpoch) return "";
   const year = date.getFullYear();
@@ -26,9 +24,8 @@ function formatDateForInput(date: Date, isEpoch: boolean): string {
   return `${year}-${month}-${day}`;
 }
 
-// Format time (HH:MM) in local timezone
 function formatTimeForInput(date: Date, isEpoch: boolean): string {
-  if (isEpoch) return "";
+  if (isEpoch) return "00:00";
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
@@ -40,41 +37,22 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply, onC
 
   const [dateValue, setDateValue] = useState(formatDateForInput(initialDate, isEpoch));
   const [timeValue, setTimeValue] = useState(formatTimeForInput(initialDate, isEpoch));
-  const dateRef = useRef<HTMLInputElement>(null);
-  const timeRef = useRef<HTMLInputElement>(null);
 
-  const applyValue = (date: string, time: string) => {
-    if (date) {
-      const finalTime = time || "00:00";
-      const newDate = new Date(`${date}T${finalTime}`);
-      if (!isNaN(newDate.getTime())) {
-        const { seconds, nanos } = dateToTimestamp(newDate);
-        const newCode = formatTimestampCode(fieldName, seconds, nanos);
-        onApply(newCode);
-      }
-    }
-  };
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = e.target.value;
-    setDateValue(newDate);
-    if (newDate) {
-      applyValue(newDate, timeValue);
-    }
-  };
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = e.target.value;
-    setTimeValue(newTime);
-    if (dateValue && newTime) {
-      applyValue(dateValue, newTime);
+  const handleApply = () => {
+    if (!dateValue) return;
+    const finalTime = timeValue || "00:00";
+    const newDate = new Date(`${dateValue}T${finalTime}`);
+    if (!isNaN(newDate.getTime())) {
+      const { seconds, nanos } = dateToTimestamp(newDate);
+      const newCode = formatTimestampCode(fieldName, seconds, nanos);
+      onApply(newCode);
     }
   };
 
   const handleSetNow = () => {
-    const { seconds, nanos } = dateToTimestamp(new Date());
-    const newCode = formatTimestampCode(fieldName, seconds, nanos);
-    onApply(newCode);
+    const now = new Date();
+    setDateValue(formatDateForInput(now, false));
+    setTimeValue(formatTimeForInput(now, false));
   };
 
   const handleClear = () => {
@@ -107,22 +85,23 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply, onC
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
         <div style={{ display: "flex", gap: "8px" }}>
           <input
-            ref={dateRef}
             type="date"
             value={dateValue}
-            onChange={handleDateChange}
+            onChange={(e) => setDateValue(e.target.value)}
             style={{ ...inputStyle, flex: 1 }}
           />
           <input
-            ref={timeRef}
             type="time"
             value={timeValue}
-            onChange={handleTimeChange}
+            onChange={(e) => setTimeValue(e.target.value)}
             style={{ ...inputStyle, width: "110px" }}
           />
         </div>
       </FormControl>
       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+        <Button size="small" variant="primary" onClick={handleApply} disabled={!dateValue}>
+          Apply
+        </Button>
         <Button size="small" onClick={handleSetNow}>
           Now
         </Button>
@@ -142,19 +121,17 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
   private domNode: HTMLDivElement;
   private root: Root;
   private position: monaco.IPosition;
-  private editRange: monaco.Range;
   private disposed = false;
 
   constructor(
     private editor: monaco.editor.IStandaloneCodeEditor,
     displayRange: monaco.Range,
-    editRange: monaco.Range,
+    private editRange: monaco.Range,
     fieldName: string,
     seconds: string,
     nanos: number,
     private onCloseCallback: () => void
   ) {
-    this.editRange = editRange;
     this.position = { lineNumber: displayRange.startLineNumber, column: displayRange.startColumn };
 
     this.domNode = document.createElement("div");
