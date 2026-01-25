@@ -1,13 +1,14 @@
 import * as monaco from "monaco-editor";
+import { useState, useRef } from "react";
 import { createRoot, Root } from "react-dom/client";
-import { Button, FormControl, Stack } from "@primer/react";
+import { Button, FormControl } from "@primer/react";
 import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
 
 interface TimestampPickerProps {
   initialSeconds: string;
   initialNanos: number;
   fieldName: string;
-  onChange: (newCode: string) => void;
+  onApply: (newCode: string) => void;
   onClose: () => void;
 }
 
@@ -16,57 +17,78 @@ function getTimezoneAbbr(): string {
   return new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop() || "Local";
 }
 
-function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, onClose }: TimestampPickerProps) {
+// Format date (YYYY-MM-DD) in local timezone
+function formatDateForInput(date: Date, isEpoch: boolean): string {
+  if (isEpoch) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Format time (HH:MM) in local timezone
+function formatTimeForInput(date: Date, isEpoch: boolean): string {
+  if (isEpoch) return "";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply, onClose }: TimestampPickerProps) {
   const initialDate = timestampToDate(initialSeconds, initialNanos);
   const isEpoch = initialDate.getTime() === 0;
 
-  // Format date (YYYY-MM-DD) in local timezone
-  const formatDateForInput = (date: Date) => {
-    if (isEpoch) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+  const [dateValue, setDateValue] = useState(formatDateForInput(initialDate, isEpoch));
+  const [timeValue, setTimeValue] = useState(formatTimeForInput(initialDate, isEpoch));
+  const dateRef = useRef<HTMLInputElement>(null);
+  const timeRef = useRef<HTMLInputElement>(null);
+
+  const applyValue = (date: string, time: string) => {
+    if (date) {
+      const finalTime = time || "00:00";
+      const newDate = new Date(`${date}T${finalTime}`);
+      if (!isNaN(newDate.getTime())) {
+        const { seconds, nanos } = dateToTimestamp(newDate);
+        const newCode = formatTimestampCode(fieldName, seconds, nanos);
+        onApply(newCode);
+      }
+    }
   };
 
-  // Format time (HH:MM) in local timezone
-  const formatTimeForInput = (date: Date) => {
-    if (isEpoch) return "";
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${hours}:${minutes}`;
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setDateValue(newDate);
+    if (newDate) {
+      applyValue(newDate, timeValue);
+    }
   };
 
-  const handleDateOrTimeChange = () => {
-    const dateInput = document.getElementById("timestamp-date-input") as HTMLInputElement;
-    const timeInput = document.getElementById("timestamp-time-input") as HTMLInputElement;
-    if (dateInput?.value) {
-      const timeValue = timeInput?.value || "00:00";
-      const date = new Date(`${dateInput.value}T${timeValue}`);
-      const { seconds, nanos } = dateToTimestamp(date);
-      const newCode = formatTimestampCode(fieldName, seconds, nanos);
-      onChange(newCode);
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = e.target.value;
+    setTimeValue(newTime);
+    if (dateValue && newTime) {
+      applyValue(dateValue, newTime);
     }
   };
 
   const handleSetNow = () => {
     const { seconds, nanos } = dateToTimestamp(new Date());
     const newCode = formatTimestampCode(fieldName, seconds, nanos);
-    onChange(newCode);
+    onApply(newCode);
   };
 
   const handleClear = () => {
     const newCode = formatTimestampCode(fieldName, "0", 0);
-    onChange(newCode);
+    onApply(newCode);
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     padding: "8px 12px",
     backgroundColor: "#0d1117",
     border: "1px solid #444c56",
     borderRadius: "6px",
     color: "#e6edf3",
-    colorScheme: "dark" as const,
+    colorScheme: "dark",
     fontSize: "14px",
   };
 
@@ -83,24 +105,24 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
     >
       <FormControl>
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
-        <Stack direction="horizontal" gap="condensed">
+        <div style={{ display: "flex", gap: "8px" }}>
           <input
-            id="timestamp-date-input"
+            ref={dateRef}
             type="date"
-            defaultValue={formatDateForInput(initialDate)}
-            onChange={handleDateOrTimeChange}
+            value={dateValue}
+            onChange={handleDateChange}
             style={{ ...inputStyle, flex: 1 }}
           />
           <input
-            id="timestamp-time-input"
+            ref={timeRef}
             type="time"
-            defaultValue={formatTimeForInput(initialDate)}
-            onChange={handleDateOrTimeChange}
+            value={timeValue}
+            onChange={handleTimeChange}
             style={{ ...inputStyle, width: "110px" }}
           />
-        </Stack>
+        </div>
       </FormControl>
-      <Stack direction="horizontal" gap="condensed" style={{ marginTop: "12px" }}>
+      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
         <Button size="small" onClick={handleSetNow}>
           Now
         </Button>
@@ -111,7 +133,7 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onChange, on
         <Button size="small" variant="invisible" onClick={onClose}>
           Close
         </Button>
-      </Stack>
+      </div>
     </div>
   );
 }
@@ -121,15 +143,16 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
   private root: Root;
   private position: monaco.IPosition;
   private editRange: monaco.Range;
+  private disposed = false;
 
   constructor(
-    editor: monaco.editor.IStandaloneCodeEditor,
+    private editor: monaco.editor.IStandaloneCodeEditor,
     displayRange: monaco.Range,
     editRange: monaco.Range,
     fieldName: string,
     seconds: string,
     nanos: number,
-    onClose: () => void
+    private onCloseCallback: () => void
   ) {
     this.editRange = editRange;
     this.position = { lineNumber: displayRange.startLineNumber, column: displayRange.startColumn };
@@ -143,16 +166,20 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
         initialSeconds={seconds}
         initialNanos={nanos}
         fieldName={fieldName}
-        onChange={(newCode) => {
-          editor.executeEdits("timestamp-picker", [
+        onApply={(newCode) => {
+          if (this.disposed) return;
+          this.editor.executeEdits("timestamp-picker", [
             {
               range: this.editRange,
               text: newCode,
             },
           ]);
-          onClose();
+          this.onCloseCallback();
         }}
-        onClose={onClose}
+        onClose={() => {
+          if (this.disposed) return;
+          this.onCloseCallback();
+        }}
       />
     );
   }
@@ -176,6 +203,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
   }
 
   dispose(): void {
+    this.disposed = true;
     this.root.unmount();
   }
 }
