@@ -29,8 +29,6 @@ export interface Service {
 export interface Method {
   name: string;
   editorCode: string;
-  inputTypeName: string;
-  outputTypeName: string;
 }
 
 export interface Clients {

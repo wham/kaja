@@ -3,18 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
 import { JsonViewer } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { methodId, Project } from "./project";
+import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
-import { findTimestampPaths } from "./sources";
 
 export type ConsoleItem = Log[] | MethodCall;
 
 interface ConsoleProps {
   items: ConsoleItem[];
-  projects: Project[];
 }
 
-export function Console({ items, projects }: ConsoleProps) {
+export function Console({ items }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response">("response");
   const [callListWidth, setCallListWidth] = useState(300);
@@ -159,7 +157,6 @@ export function Console({ items, projects }: ConsoleProps) {
               methodCall={selectedMethodCall}
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              projects={projects}
             />
           ) : (
             <div
@@ -281,10 +278,9 @@ interface DetailContentProps {
   methodCall: MethodCall;
   activeTab: "request" | "response";
   onTabChange: (tab: "request" | "response") => void;
-  projects: Project[];
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, projects }: DetailContentProps) {
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
 
   // Switch to response tab when response arrives
@@ -295,17 +291,6 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, projects
   }, [hasResponse]);
 
   const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
-
-  // Find timestamp paths based on the method's type
-  const typeName = activeTab === "request" ? methodCall.method.inputTypeName : methodCall.method.outputTypeName;
-  let timestampPaths: string[] = [];
-  for (const project of projects) {
-    const paths = findTimestampPaths(project.sources, typeName);
-    if (paths.length > 0) {
-      timestampPaths = paths;
-      break;
-    }
-  }
 
   return (
     <div
@@ -330,7 +315,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, projects
           Waiting for response...
         </div>
       ) : (
-        <JsonViewer value={content} timestampPaths={timestampPaths} />
+        <JsonViewer value={content} />
       )}
     </div>
   );
