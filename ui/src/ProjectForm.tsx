@@ -2,29 +2,39 @@ import { FileDirectoryIcon } from "@primer/octicons-react";
 import { Button, FormControl, Radio, RadioGroup, SegmentedControl, Select, Stack, TextInput } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ConfigurationProject, RpcProtocol } from "./server/api";
+import { ConfigurationProject as ConfigurationProjectType, ConfigurationProject, RpcProtocol } from "./server/api";
 import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
 
 type ProtoSourceType = "reflection" | "protoDir";
 type EditMode = "form" | "json";
 
-const projectJsonSchema = {
-  type: "object",
-  properties: {
-    name: { type: "string", description: "Project name" },
-    protocol: { type: "string", enum: ["grpc", "twirp"], description: "RPC protocol" },
-    url: { type: "string", description: "Server URL (e.g., http://localhost:8080)" },
-    protoDir: { type: "string", description: "Path to proto directory" },
-    useReflection: { type: "boolean", description: "Use gRPC reflection to discover services" },
-    headers: {
-      type: "object",
-      additionalProperties: { type: "string" },
-      description: "Custom headers to send with requests",
-    },
-  },
-  required: ["name", "url"],
-};
+// Generate JSON schema from protobuf-ts MessageType reflection data
+function generateJsonSchemaFromProto(): object {
+  const fields = ConfigurationProjectType.fields;
+  const properties: Record<string, object> = {};
+
+  for (const field of fields) {
+    const jsonName = field.jsonName || field.name;
+    if (field.kind === "scalar") {
+      // ScalarType: 8 = BOOL, 9 = STRING
+      properties[jsonName] = { type: field.T === 8 ? "boolean" : "string" };
+    } else if (field.kind === "enum") {
+      // For protocol enum, use string values
+      properties[jsonName] = { type: "string", enum: ["grpc", "twirp"] };
+    } else if (field.kind === "map") {
+      properties[jsonName] = { type: "object", additionalProperties: { type: "string" } };
+    }
+  }
+
+  return {
+    type: "object",
+    properties,
+    required: ["name", "url"],
+  };
+}
+
+const projectJsonSchema = generateJsonSchemaFromProto();
 
 monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
   validate: true,
