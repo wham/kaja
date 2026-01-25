@@ -14,7 +14,7 @@ import { remapSourcesToNewName } from "./sources";
 import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
-import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getTabLabel, markInteraction, TabModel } from "./tabModel";
+import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getProjectFormTabLabel, getTabLabel, markInteraction, TabModel, updateProjectFormTab } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 import { isWailsEnvironment } from "./wails";
@@ -353,6 +353,19 @@ export function App() {
     closeProjectFormTab();
   };
 
+  const onProjectFormSelect = (projectName: string | null) => {
+    if (projectName === null) {
+      // Switch to new project mode
+      setTabs((tabs) => updateProjectFormTab(tabs, "create"));
+    } else {
+      // Switch to edit mode for the selected project
+      const project = projects.find((p) => p.configuration.name === projectName);
+      if (project) {
+        setTabs((tabs) => updateProjectFormTab(tabs, "edit", project.configuration));
+      }
+    }
+  };
+
   const onDeleteProject = async (projectName: string) => {
     if (!configuration) {
       return;
@@ -463,14 +476,16 @@ export function App() {
                   }
 
                   if (tab.type === "projectForm") {
-                    const label = tab.mode === "edit" ? "Edit Project" : "New Project";
+                    const label = getProjectFormTabLabel(tab);
                     return (
                       <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
                         <ProjectForm
                           mode={tab.mode}
                           initialData={tab.initialData}
+                          allProjects={configuration?.projects ?? []}
                           onSubmit={onProjectFormSubmit}
                           onCancel={onProjectFormCancel}
+                          onProjectSelect={onProjectFormSelect}
                         />
                       </Tab>
                     );

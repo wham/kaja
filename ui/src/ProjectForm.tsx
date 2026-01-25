@@ -26,11 +26,15 @@ monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
   ],
 });
 
+const NEW_PROJECT_VALUE = "__new__";
+
 interface ProjectFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationProject;
+  allProjects: ConfigurationProject[];
   onSubmit: (project: ConfigurationProject, originalName?: string) => void;
   onCancel: () => void;
+  onProjectSelect: (projectName: string | null) => void;
 }
 
 function getProtoSourceType(data: ConfigurationProject): ProtoSourceType {
@@ -80,7 +84,7 @@ function jsonToProject(json: any): ConfigurationProject {
   };
 }
 
-export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFormProps) {
+export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel, onProjectSelect }: ProjectFormProps) {
   const [editMode, setEditMode] = useState<EditMode>("form");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -223,9 +227,36 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
 
   const isValid = editMode === "form" ? name && url : !jsonError;
 
+  const selectedProjectValue = mode === "edit" && initialData?.name ? initialData.name : NEW_PROJECT_VALUE;
+
+  const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    // Reset JSON editor when switching projects
+    editorRef.current?.dispose();
+    editorRef.current = null;
+    monacoModelRef.current?.dispose();
+    monacoModelRef.current = null;
+    setEditMode("form");
+    setJsonError(null);
+
+    if (value === NEW_PROJECT_VALUE) {
+      onProjectSelect(null);
+    } else {
+      onProjectSelect(value);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-default)" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
+        <Select value={selectedProjectValue} onChange={handleProjectChange} style={{ minWidth: 200 }}>
+          <Select.Option value={NEW_PROJECT_VALUE}>+ New Project</Select.Option>
+          {allProjects.length > 0 && <Select.OptGroup label="Edit existing">{allProjects.map((p) => (
+            <Select.Option key={p.name} value={p.name}>
+              {p.name}
+            </Select.Option>
+          ))}</Select.OptGroup>}
+        </Select>
         <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
           <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
           <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
