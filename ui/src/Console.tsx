@@ -14,7 +14,7 @@ interface ConsoleProps {
 
 export function Console({ items }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"request" | "response">("response");
+  const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -242,10 +242,12 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick }: MethodCal
   );
 };
 
+type ConsoleTab = "request" | "response" | "headers";
+
 interface DetailTabsProps {
   methodCall: MethodCall;
-  activeTab: "request" | "response";
-  onTabChange: (tab: "request" | "response") => void;
+  activeTab: ConsoleTab;
+  onTabChange: (tab: ConsoleTab) => void;
 }
 
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
@@ -270,14 +272,20 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
       >
         Response
       </div>
+      <div
+        className={`console-tab ${activeTab === "headers" ? "active" : ""}`}
+        onClick={() => onTabChange("headers")}
+      >
+        Headers
+      </div>
     </div>
   );
 };
 
 interface DetailContentProps {
   methodCall: MethodCall;
-  activeTab: "request" | "response";
-  onTabChange: (tab: "request" | "response") => void;
+  activeTab: ConsoleTab;
+  onTabChange: (tab: ConsoleTab) => void;
 }
 
 Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
@@ -289,6 +297,10 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
       onTabChange("response");
     }
   }, [hasResponse]);
+
+  if (activeTab === "headers") {
+    return <Console.HeadersContent methodCall={methodCall} />;
+  }
 
   const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
 
@@ -318,6 +330,107 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
         <JsonViewer value={content} />
       )}
     </div>
+  );
+};
+
+interface HeadersContentProps {
+  methodCall: MethodCall;
+}
+
+Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
+  const requestHeaders = methodCall.requestHeaders || {};
+  const responseHeaders = methodCall.responseHeaders || {};
+  const hasRequestHeaders = Object.keys(requestHeaders).length > 0;
+  const hasResponseHeaders = Object.keys(responseHeaders).length > 0;
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: "auto",
+        padding: 16,
+        fontFamily: "monospace",
+        fontSize: 12,
+      }}
+    >
+      <div style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            marginBottom: 8,
+            color: "var(--fgColor-default)",
+          }}
+        >
+          Request Headers
+        </div>
+        {hasRequestHeaders ? (
+          <Console.HeadersTable headers={requestHeaders} />
+        ) : (
+          <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No request headers</div>
+        )}
+      </div>
+
+      <div>
+        <div
+          style={{
+            fontWeight: 600,
+            marginBottom: 8,
+            color: "var(--fgColor-default)",
+          }}
+        >
+          Response Headers
+        </div>
+        {hasResponseHeaders ? (
+          <Console.HeadersTable headers={responseHeaders} />
+        ) : (
+          <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No response headers</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface HeadersTableProps {
+  headers: { [key: string]: string };
+}
+
+Console.HeadersTable = function ({ headers }: HeadersTableProps) {
+  const sortedKeys = Object.keys(headers).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  return (
+    <table
+      style={{
+        borderCollapse: "collapse",
+        width: "100%",
+      }}
+    >
+      <tbody>
+        {sortedKeys.map((key) => (
+          <tr key={key}>
+            <td
+              style={{
+                padding: "4px 12px 4px 0",
+                color: "var(--fgColor-muted)",
+                verticalAlign: "top",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {key}:
+            </td>
+            <td
+              style={{
+                padding: "4px 0",
+                color: "var(--fgColor-default)",
+                wordBreak: "break-all",
+              }}
+            >
+              {headers[key]}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 };
 
