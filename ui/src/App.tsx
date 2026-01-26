@@ -7,11 +7,10 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
-import { getDefaultMethod, Method, Project } from "./project";
+import { createProjectRef, getDefaultMethod, Method, Project, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getProjectFormTabLabel, getTabLabel, markInteraction, TabModel, updateProjectFormTab } from "./tabModel";
@@ -25,6 +24,7 @@ import { WindowSetTitle } from "./wailsjs/runtime";
 function createPendingProject(config: ConfigurationProject): Project {
   return {
     configuration: config,
+    projectRef: createProjectRef(config),
     compilation: { status: "pending", logs: [] },
     services: [],
     clients: {},
@@ -44,6 +44,8 @@ function applyProjectRename(project: Project, newConfig: ConfigurationProject): 
       editorCode: remapEditorCode(method.editorCode, originalName, newConfig.name),
     })),
   }));
+  // Update the existing projectRef in place so clients use new values
+  updateProjectRef(project.projectRef, newConfig);
   return {
     ...project,
     configuration: newConfig,
@@ -166,19 +168,14 @@ export function App() {
       const prev = existingProject.configuration;
       const protoDirChanged = prev.protoDir !== newConfig.protoDir;
       const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
-      const urlChanged = prev.url !== newConfig.url;
-      const protocolChanged = prev.protocol !== newConfig.protocol;
 
       if (protoDirChanged || useReflectionChanged) {
         // Needs recompilation
         disposeMonacoModelsForProject(existingProject.configuration.name);
         updatedProjects.push(createPendingProject(newConfig));
-      } else if (urlChanged || protocolChanged) {
-        // Recreate clients only
-        const newClients = createClients(existingProject.services, existingProject.stub, newConfig);
-        updatedProjects.push({ ...existingProject, configuration: newConfig, clients: newClients });
       } else {
-        // Just update configuration (headers, etc.)
+        // Update the projectRef in place - clients will pick up new URL/headers dynamically
+        updateProjectRef(existingProject.projectRef, newConfig);
         updatedProjects.push({ ...existingProject, configuration: newConfig });
       }
     }

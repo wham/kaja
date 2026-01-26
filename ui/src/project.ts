@@ -1,8 +1,25 @@
 import { Kaja } from "./kaja";
 import { Sources, Stub } from "./sources";
 import { ConfigurationProject, Log } from "./server/api";
+
+// Mutable reference that clients read at request time for dynamic access to project properties
+export interface ProjectRef {
+  configuration: ConfigurationProject;
+}
+
+export function createProjectRef(configuration: ConfigurationProject): ProjectRef {
+  return {
+    configuration: { ...configuration, headers: { ...(configuration.headers || {}) } },
+  };
+}
+
+export function updateProjectRef(projectRef: ProjectRef, configuration: ConfigurationProject): void {
+  projectRef.configuration = { ...configuration, headers: { ...(configuration.headers || {}) } };
+}
+
 export interface Project {
   configuration: ConfigurationProject;
+  projectRef: ProjectRef;
   compilation: Compilation;
   services: Service[];
   clients: Clients;
