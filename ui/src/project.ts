@@ -42,6 +42,7 @@ export interface Service {
   name: string;
   packageName: string;
   sourcePath: string;
+  clientStubModuleId: string;
   methods: Array<Method>;
 }
 
