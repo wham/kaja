@@ -1,5 +1,6 @@
 import * as monaco from "monaco-editor";
 import { Method, Project } from "./project";
+import { ConfigurationProject } from "./server/api";
 
 interface CompilerTab {
   type: "compiler";
@@ -22,7 +23,15 @@ interface DefinitionTab {
   startColumn: number;
 }
 
-export type TabModel = CompilerTab | TaskTab | DefinitionTab;
+interface ProjectFormTab {
+  type: "projectForm";
+  id: string;
+  mode: "create" | "edit";
+  editingProjectName?: string;
+  initialData?: ConfigurationProject;
+}
+
+export type TabModel = CompilerTab | TaskTab | DefinitionTab | ProjectFormTab;
 
 let idGenerator = 0;
 
@@ -96,4 +105,58 @@ export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
 
 export function getTabLabel(path: string): string {
   return path.split("/").pop() || path;
+}
+
+export function addProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
+  // Check if there's already a project form tab open
+  const existingIndex = tabs.findIndex((tab) => tab.type === "projectForm");
+  if (existingIndex !== -1) {
+    // Update existing tab
+    const existingTab = tabs[existingIndex] as ProjectFormTab;
+    const updatedTabs = [...tabs];
+    updatedTabs[existingIndex] = {
+      type: "projectForm",
+      id: existingTab.id,
+      mode,
+      editingProjectName: initialData?.name,
+      initialData,
+    };
+    return updatedTabs;
+  }
+
+  const newTab: ProjectFormTab = {
+    type: "projectForm",
+    id: generateId("projectForm"),
+    mode,
+    editingProjectName: initialData?.name,
+    initialData,
+  };
+  return [...tabs, newTab];
+}
+
+export function updateProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
+  const existingIndex = tabs.findIndex((tab) => tab.type === "projectForm");
+  if (existingIndex === -1) return tabs;
+
+  const existingTab = tabs[existingIndex] as ProjectFormTab;
+  const updatedTabs = [...tabs];
+  updatedTabs[existingIndex] = {
+    type: "projectForm",
+    id: existingTab.id,
+    mode,
+    editingProjectName: initialData?.name,
+    initialData,
+  };
+  return updatedTabs;
+}
+
+export function getProjectFormTabLabel(tab: ProjectFormTab): string {
+  if (tab.mode === "edit" && tab.editingProjectName) {
+    return `Edit ${tab.editingProjectName}`;
+  }
+  return "New Project";
+}
+
+export function getProjectFormTabIndex(tabs: TabModel[]): number {
+  return tabs.findIndex((tab) => tab.type === "projectForm");
 }

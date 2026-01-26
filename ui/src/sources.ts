@@ -82,6 +82,13 @@ export function remapSourcesToNewName(sources: Sources, oldName: string, newName
   });
 }
 
+export function remapEditorCode(editorCode: string, oldName: string, newName: string): string {
+  // Replace import paths that reference the old project name
+  // e.g. import { Foo } from "oldName/path" -> import { Foo } from "newName/path"
+  const importRegex = new RegExp(`from "${oldName}/`, "g");
+  return editorCode.replace(importRegex, `from "${newName}/`);
+}
+
 export function findInterface(sources: Sources, interfaceName: string): [ts.InterfaceDeclaration, Source] | undefined {
   for (const source of sources) {
     const interfaceDeclaration = source.interfaces[interfaceName];
