@@ -168,17 +168,18 @@ export function App() {
       const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
       const urlChanged = prev.url !== newConfig.url;
       const protocolChanged = prev.protocol !== newConfig.protocol;
+      const headersChanged = JSON.stringify(prev.headers || {}) !== JSON.stringify(newConfig.headers || {});
 
       if (protoDirChanged || useReflectionChanged) {
         // Needs recompilation
         disposeMonacoModelsForProject(existingProject.configuration.name);
         updatedProjects.push(createPendingProject(newConfig));
-      } else if (urlChanged || protocolChanged) {
+      } else if (urlChanged || protocolChanged || headersChanged) {
         // Recreate clients only
         const newClients = createClients(existingProject.services, existingProject.stub, newConfig);
         updatedProjects.push({ ...existingProject, configuration: newConfig, clients: newClients });
       } else {
-        // Just update configuration (headers, etc.)
+        // Just update configuration
         updatedProjects.push({ ...existingProject, configuration: newConfig });
       }
     }
