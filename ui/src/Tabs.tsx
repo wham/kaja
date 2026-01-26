@@ -39,8 +39,16 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
 
   const scrollToTab = useCallback((index: number) => {
     const tabElement = tabRefs.current.get(index);
-    if (tabElement && tabsHeaderRef.current) {
-      tabElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    const container = tabsHeaderRef.current;
+    if (tabElement && container) {
+      const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
+      const visibleRight = container.scrollLeft + container.clientWidth;
+      if (tabRight > visibleRight) {
+        container.scrollTo({
+          left: tabRight - container.clientWidth + 8,
+          behavior: "smooth",
+        });
+      }
     }
   }, []);
 
