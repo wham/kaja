@@ -41,6 +41,7 @@ export interface Compilation {
 export interface Service {
   name: string;
   packageName: string;
+  sourcePath: string;
   methods: Array<Method>;
 }
 
@@ -56,6 +57,10 @@ export interface Clients {
 export interface Client {
   kaja?: Kaja;
   methods: { [key: string]: (input: any) => {} };
+}
+
+export function serviceId(service: Service): string {
+  return service.packageName ? `${service.packageName}.${service.name}` : service.name;
 }
 
 export function methodId(service: Service, method: Method): string {

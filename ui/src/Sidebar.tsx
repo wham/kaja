@@ -23,9 +23,9 @@ function ServiceName({ service, showPackage }: { service: Service; showPackage: 
     return <>{service.name}</>;
   }
   return (
-    <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-      <span style={{ fontSize: 10, color: "var(--fgColor-muted)" }}>{service.packageName}</span>
-      <span>{service.name}</span>
+    <span>
+      <span style={{ fontSize: 10, color: "var(--fgColor-muted)" }}>{service.packageName}.</span>
+      {service.name}
     </span>
   );
 }

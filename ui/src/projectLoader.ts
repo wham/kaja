@@ -2,9 +2,9 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, createProjectRef, Method, Project, ProjectRef, Service } from "./project";
+import { Clients, createProjectRef, Method, Project, ProjectRef, Service, serviceId } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
-import { findInStub, findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { findInStubForSource, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
   const stub = await parseStub(stubCode);
@@ -16,7 +16,7 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     source.serviceNames.forEach((serviceName) => {
-      const serviceInfo: ServiceInfo | undefined = findInStub(stub, serviceName);
+      const serviceInfo: ServiceInfo | undefined = findInStubForSource(stub, source, serviceName);
       if (!serviceInfo) {
         return;
       }
@@ -37,13 +37,19 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
       services.push({
         name: serviceName,
         packageName,
+        sourcePath: source.importPath,
         methods,
       });
 
-      const result = findInterface(sources, "I" + serviceName + "Client");
-      if (result) {
-        const [interfaceDeclaration, source] = result;
-        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file, serviceInfo);
+      // Look for the client interface in the corresponding .client source file
+      // e.g., proto/v1/quirks.ts -> proto/v1/quirks.client.ts
+      const interfaceName = "I" + serviceName + "Client";
+      const clientSourcePath = source.importPath + ".client";
+      const clientSource = sources.find((s) => s.importPath === clientSourcePath);
+
+      const interfaceDeclaration = clientSource?.interfaces[interfaceName];
+      if (interfaceDeclaration && clientSource) {
+        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, serviceInfo);
         serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
     });
@@ -92,7 +98,7 @@ export function createClients(services: Service[], stub: Stub, projectRef: Proje
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[service.name] = createClient(service, stub, projectRef);
+    clients[serviceId(service)] = createClient(service, stub, projectRef);
   }
 
   return clients;

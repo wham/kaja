@@ -2,7 +2,7 @@ import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner } from "@primer/react";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { useEffect, useRef, useState } from "react";
-import { CompilationStatus, Project } from "./project";
+import { CompilationStatus, createProjectRef, Project } from "./project";
 import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -262,6 +262,7 @@ export function Compiler({ projects, canUpdateConfiguration, onUpdate, onConfigu
 
         const initialProjects: Project[] = configProjects.map((configProject) => ({
           configuration: configProject,
+          projectRef: createProjectRef(configProject),
           compilation: {
             status: "pending",
             logs: response.logs || [],

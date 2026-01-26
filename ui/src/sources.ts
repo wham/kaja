@@ -119,6 +119,19 @@ export function findInStub(stub: Stub, name: string): any {
   return undefined;
 }
 
+// Find an export by name in the stub module corresponding to a source file
+export function findInStubForSource(stub: Stub, source: Source, name: string): any {
+  // Convert source path to stub module identifier
+  // e.g., "project/proto/v1/quirks.ts" -> "proto$v1$quirks"
+  const pathWithoutProject = source.path.split("/").slice(1).join("/"); // Remove project name prefix
+  const stubModuleId = pathWithoutProject.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$");
+  const module = stub[stubModuleId];
+  if (module && typeof module === "object" && name in module) {
+    return module[name];
+  }
+  return undefined;
+}
+
 function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): string | undefined {
   if (!ts.isVariableStatement(statement)) {
     return;
