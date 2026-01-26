@@ -6,10 +6,11 @@ interface JsonSchemaProperty {
   additionalProperties?: { type: string };
 }
 
-interface JsonSchema {
+export interface JsonSchema {
   type: string;
   properties: Record<string, JsonSchemaProperty>;
   required?: string[];
+  additionalProperties?: boolean;
 }
 
 // Scalar type constants from protobuf-ts
@@ -40,5 +41,6 @@ export function generateJsonSchema(messageType: MessageType<any>, options?: { re
     type: "object",
     properties,
     required: options?.required,
+    additionalProperties: false,
   };
 }

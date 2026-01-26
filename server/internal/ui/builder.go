@@ -17,7 +17,7 @@ type UiBundle struct {
 	CodiconTtfName string
 }
 
-var MonacoWorkerNames = []string{"ts", "editor"}
+var MonacoWorkerNames = []string{"ts", "editor", "json"}
 
 func BuildForDevelopment() *UiBundle {
 	result := esbuild.Build(esbuild.BuildOptions{
@@ -149,8 +149,11 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 
 func BuildMonacoWorker(name string) ([]byte, error) {
 	path := "editor/editor.worker.js"
-	if name == "ts" {
+	switch name {
+	case "ts":
 		path = "language/typescript/ts.worker.js"
+	case "json":
+		path = "language/json/json.worker.js"
 	}
 
 	result := esbuild.Build(esbuild.BuildOptions{

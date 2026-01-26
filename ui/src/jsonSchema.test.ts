@@ -18,6 +18,7 @@ describe("generateJsonSchema", () => {
     expect(schema.type).toBe("object");
     expect(schema.properties.name).toEqual({ type: "string" });
     expect(schema.properties.url).toEqual({ type: "string" });
+    expect(schema.additionalProperties).toBe(false);
   });
 
   it("should generate schema for boolean scalar fields", () => {
@@ -118,6 +119,7 @@ describe("generateJsonSchema", () => {
         headers: { type: "object", additionalProperties: { type: "string" } },
       },
       required: ["name", "url"],
+      additionalProperties: false,
     });
   });
 });

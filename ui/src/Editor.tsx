@@ -7,6 +7,9 @@ self.MonacoEnvironment = {
     if (label === "typescript" || label === "javascript") {
       return "./monaco.ts.worker.js";
     }
+    if (label === "json") {
+      return "./monaco.json.worker.js";
+    }
     return "./monaco.editor.worker.js";
   },
 };

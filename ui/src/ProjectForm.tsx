@@ -7,20 +7,23 @@ import { OpenDirectoryDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
 import { generateJsonSchema } from "./jsonSchema";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const jsonDefaults = (monaco.languages as any).json.jsonDefaults;
+
 type ProtoSourceType = "reflection" | "protoDir";
 type EditMode = "form" | "json";
 
 const projectJsonSchema = generateJsonSchema(ConfigurationProjectType, {
   required: ["name", "url"],
-  enumValues: { protocol: ["grpc", "twirp"] },
+  enumValues: { protocol: ["RPC_PROTOCOL_GRPC", "RPC_PROTOCOL_TWIRP"] },
 });
 
-monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+jsonDefaults.setDiagnosticsOptions({
   validate: true,
   schemas: [
     {
       uri: "http://kaja/project-schema.json",
-      fileMatch: ["**/project-config.json"],
+      fileMatch: ["*"],
       schema: projectJsonSchema,
     },
   ],
@@ -56,7 +59,7 @@ function createEmptyProject(): ConfigurationProject {
 function projectToJson(project: ConfigurationProject): object {
   return {
     name: project.name,
-    protocol: project.protocol === RpcProtocol.GRPC ? "grpc" : project.protocol === RpcProtocol.TWIRP ? "twirp" : "unspecified",
+    protocol: project.protocol === RpcProtocol.GRPC ? "RPC_PROTOCOL_GRPC" : project.protocol === RpcProtocol.TWIRP ? "RPC_PROTOCOL_TWIRP" : "RPC_PROTOCOL_UNSPECIFIED",
     url: project.url,
     protoDir: project.protoDir,
     useReflection: project.useReflection,
@@ -66,9 +69,9 @@ function projectToJson(project: ConfigurationProject): object {
 
 function jsonToProject(json: any): ConfigurationProject {
   let protocol = RpcProtocol.GRPC;
-  if (json.protocol === "twirp") {
+  if (json.protocol === "RPC_PROTOCOL_TWIRP") {
     protocol = RpcProtocol.TWIRP;
-  } else if (json.protocol === "grpc") {
+  } else if (json.protocol === "RPC_PROTOCOL_GRPC") {
     protocol = RpcProtocol.GRPC;
   } else if (typeof json.protocol === "number") {
     protocol = json.protocol;
@@ -125,30 +128,62 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
     }
   }, [mode, initialData, updateFormFromProject]);
 
+  // Track which project is currently loaded in the JSON editor
+  const loadedProjectNameRef = useRef<string | null>(null);
+
+  // Get the project data to display in JSON editor
+  const getJsonProjectData = useCallback((): ConfigurationProject => {
+    if (mode === "edit" && initialData) {
+      return initialData;
+    }
+    return createEmptyProject();
+  }, [mode, initialData]);
+
   useEffect(() => {
-    if (editMode === "json" && editorContainerRef.current && !editorRef.current) {
-      const currentProject = getCurrentProject();
-      const jsonStr = JSON.stringify(projectToJson(currentProject), null, 2);
+    if (editMode === "json" && editorContainerRef.current) {
+      const projectData = getJsonProjectData();
+      const currentProjectKey = mode === "edit" ? initialData?.name : "__new__";
 
-      monacoModelRef.current = monaco.editor.createModel(jsonStr, "json", monaco.Uri.parse("json://project-config.json"));
+      if (!editorRef.current) {
+        // Create new editor
+        loadedProjectNameRef.current = currentProjectKey ?? null;
+        const jsonStr = JSON.stringify(projectToJson(projectData), null, 2);
 
-      editorRef.current = monaco.editor.create(editorContainerRef.current, {
-        model: monacoModelRef.current,
-        theme: "vs-dark",
-        automaticLayout: true,
-        padding: { top: 16, bottom: 16 },
-        minimap: { enabled: false },
-        renderLineHighlight: "none",
-        formatOnPaste: true,
-        formatOnType: true,
-        tabSize: 2,
-      });
-
-      formatJson(jsonStr).then((formatted) => {
-        if (monacoModelRef.current) {
-          monacoModelRef.current.setValue(formatted);
+        const modelUri = monaco.Uri.file("/project-config.json");
+        const existingModel = monaco.editor.getModel(modelUri);
+        if (existingModel) {
+          existingModel.dispose();
         }
-      });
+        monacoModelRef.current = monaco.editor.createModel(jsonStr, "json", modelUri);
+
+        editorRef.current = monaco.editor.create(editorContainerRef.current, {
+          model: monacoModelRef.current,
+          theme: "vs-dark",
+          automaticLayout: true,
+          padding: { top: 16, bottom: 16 },
+          minimap: { enabled: false },
+          renderLineHighlight: "none",
+          formatOnPaste: true,
+          formatOnType: true,
+          tabSize: 2,
+        });
+
+        formatJson(jsonStr).then((formatted) => {
+          if (monacoModelRef.current) {
+            monacoModelRef.current.setValue(formatted);
+          }
+        });
+      } else if (loadedProjectNameRef.current !== currentProjectKey) {
+        // Project changed - update editor content
+        loadedProjectNameRef.current = currentProjectKey ?? null;
+        const jsonStr = JSON.stringify(projectToJson(projectData), null, 2);
+
+        formatJson(jsonStr).then((formatted) => {
+          if (monacoModelRef.current) {
+            monacoModelRef.current.setValue(formatted);
+          }
+        });
+      }
     }
 
     return () => {
@@ -157,9 +192,10 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
         editorRef.current = null;
         monacoModelRef.current?.dispose();
         monacoModelRef.current = null;
+        loadedProjectNameRef.current = null;
       }
     };
-  }, [editMode, getCurrentProject]);
+  }, [editMode, mode, initialData, getJsonProjectData]);
 
   const handleModeChange = async (index: number) => {
     const newMode = index === 0 ? "form" : "json";
@@ -231,12 +267,6 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
 
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    // Reset JSON editor when switching projects
-    editorRef.current?.dispose();
-    editorRef.current = null;
-    monacoModelRef.current?.dispose();
-    monacoModelRef.current = null;
-    setEditMode("form");
     setJsonError(null);
 
     if (value === NEW_PROJECT_VALUE) {

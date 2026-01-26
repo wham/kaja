@@ -27,6 +27,9 @@ var monacoTsWorkerJs []byte
 //go:embed build/monaco.editor.worker.js
 var monacoEditorWorkerJs []byte
 
+//go:embed build/monaco.json.worker.js
+var monacoJsonWorkerJs []byte
+
 func ReadUiBundle() *ui.UiBundle {
 	return &ui.UiBundle{
 		MainJs:     mainJs,
@@ -41,6 +44,8 @@ func ReadMonacoWorker(name string) ([]byte, error) {
 		return monacoTsWorkerJs, nil
 	case "editor":
 		return monacoEditorWorkerJs, nil
+	case "json":
+		return monacoJsonWorkerJs, nil
 	}
 	return nil, fmt.Errorf("unknown monaco worker: %s", name)
 }

@@ -10,7 +10,7 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./ProjectForm";
-import { remapSourcesToNewName } from "./sources";
+import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -277,29 +277,39 @@ export function App() {
 
       if (protoDirChanged || useReflectionChanged) {
         // protoDir or useReflection changed - need full recompilation
+        // Clear all project data so nothing stale remains if recompilation fails
+        disposeMonacoModelsForProject(originalName);
         setProjects((prevProjects) =>
           prevProjects.map((p) =>
             p.configuration.name === originalName
               ? {
-                  ...p,
                   configuration: project,
                   compilation: { status: "pending" as const, logs: [] },
+                  services: [],
+                  clients: {},
+                  sources: [],
+                  stub: { serviceInfos: {} },
                 }
               : p
           )
         );
-        if (nameChanged) {
-          disposeMonacoModelsForProject(originalName);
-        }
         onCompilerClick();
       } else if (nameChanged) {
-        // Name changed but protoDir didn't - remap sources without recompilation
+        // Name changed but protoDir didn't - remap sources and editor code without recompilation
         disposeMonacoModelsForProject(originalName);
         const remappedSources = remapSourcesToNewName(originalProject.sources, originalName, project.name);
+        const remappedServices = originalProject.services.map((service) => ({
+          ...service,
+          methods: service.methods.map((method) => ({
+            ...method,
+            editorCode: remapEditorCode(method.editorCode, originalName, project.name),
+          })),
+        }));
         const updatedProject: Project = {
           ...originalProject,
           configuration: project,
           sources: remappedSources,
+          services: remappedServices,
         };
         createMonacoModelsForProject(updatedProject);
         refreshOpenTaskEditors();
