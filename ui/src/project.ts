@@ -40,6 +40,7 @@ export interface Compilation {
 
 export interface Service {
   name: string;
+  packageName: string;
   methods: Array<Method>;
 }
 

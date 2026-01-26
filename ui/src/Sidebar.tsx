@@ -1,8 +1,34 @@
 import { useState, useEffect, useRef } from "react";
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon } from "@primer/octicons-react";
-import { Method, Project, methodId } from "./project";
+import { Method, Project, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
+
+function getDuplicateServiceNames(services: Service[]): Set<string> {
+  const nameCount = new Map<string, number>();
+  for (const service of services) {
+    nameCount.set(service.name, (nameCount.get(service.name) || 0) + 1);
+  }
+  const duplicates = new Set<string>();
+  for (const [name, count] of nameCount) {
+    if (count > 1) {
+      duplicates.add(name);
+    }
+  }
+  return duplicates;
+}
+
+function ServiceName({ service, showPackage }: { service: Service; showPackage: boolean }) {
+  if (!showPackage || !service.packageName) {
+    return <>{service.name}</>;
+  }
+  return (
+    <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+      <span style={{ fontSize: 10, color: "var(--fgColor-muted)" }}>{service.packageName}</span>
+      <span>{service.name}</span>
+    </span>
+  );
+}
 
 function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   const isGrpc = protocol === RpcProtocol.GRPC;
@@ -181,23 +207,27 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                   {project.compilation.status === "running" || project.compilation.status === "pending" ? (
                     <LoadingTreeViewItem />
                   ) : (
-                    project.services.map((service, serviceIndex) => {
-                      const serviceId = `${projectName}-${service.name}`;
-                      return (
-                        <TreeView.Item
-                          id={serviceId}
-                          key={service.name}
-                          ref={(el: HTMLElement | null) => {
-                            if (el) elementRefs.current.set(serviceId, el);
-                            else elementRefs.current.delete(serviceId);
-                          }}
-                          defaultExpanded={projectIndex < 2 && serviceIndex === 0}
-                          onExpandedChange={(expanded) => {
-                            if (expanded) scrollIntoView(serviceId);
-                          }}
-                        >
-                          {service.name}
-                          <TreeView.SubTree>
+                    (() => {
+                      const duplicateNames = getDuplicateServiceNames(project.services);
+                      return project.services.map((service, serviceIndex) => {
+                        const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
+                        const serviceId = `${projectName}-${serviceKey}`;
+                        const showPackage = duplicateNames.has(service.name);
+                        return (
+                          <TreeView.Item
+                            id={serviceId}
+                            key={serviceKey}
+                            ref={(el: HTMLElement | null) => {
+                              if (el) elementRefs.current.set(serviceId, el);
+                              else elementRefs.current.delete(serviceId);
+                            }}
+                            defaultExpanded={projectIndex < 2 && serviceIndex === 0}
+                            onExpandedChange={(expanded) => {
+                              if (expanded) scrollIntoView(serviceId);
+                            }}
+                          >
+                            <ServiceName service={service} showPackage={showPackage} />
+                            <TreeView.SubTree>
                           {service.methods.map((method) => (
                             <TreeView.Item
                               id={methodId(service, method)}
@@ -208,10 +238,11 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                               {method.name}
                             </TreeView.Item>
                           ))}
-                          </TreeView.SubTree>
-                        </TreeView.Item>
-                      );
-                    })
+                            </TreeView.SubTree>
+                          </TreeView.Item>
+                        );
+                      });
+                    })()
                   )}
                 </TreeView>
               )}

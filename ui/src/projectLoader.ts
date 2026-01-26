@@ -29,8 +29,14 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
           editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
         });
       });
+      // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")
+      const typeName = serviceInfo.typeName || serviceName;
+      const lastDotIndex = typeName.lastIndexOf(".");
+      const packageName = lastDotIndex > 0 ? typeName.substring(0, lastDotIndex) : "";
+
       services.push({
         name: serviceName,
+        packageName,
         methods,
       });
 
