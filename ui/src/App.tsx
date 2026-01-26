@@ -10,11 +10,11 @@ import { Gutter } from "./Gutter";
 import { getDefaultMethod, Method, Project } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./ProjectForm";
-import { remapSourcesToNewName } from "./sources";
+import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { createClients } from "./projectLoader";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
-import { addDefinitionTab, addTaskTab, getTabLabel, markInteraction, TabModel } from "./tabModel";
+import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getProjectFormTabLabel, getTabLabel, markInteraction, TabModel, updateProjectFormTab } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 import { isWailsEnvironment } from "./wails";
@@ -27,8 +27,6 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [showProjectForm, setShowProjectForm] = useState(false);
-  const [editingProject, setEditingProject] = useState<ConfigurationProject | undefined>();
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
@@ -212,21 +210,39 @@ export function App() {
   };
 
   const onNewProjectClick = () => {
-    setEditingProject(undefined);
-    setShowProjectForm(true);
+    setTabs((tabs) => {
+      const newTabs = addProjectFormTab(tabs, "create");
+      const formIndex = getProjectFormTabIndex(newTabs);
+      setActiveTabIndex(formIndex);
+      return newTabs;
+    });
   };
 
   const onEditProject = (projectName: string) => {
     const project = projects.find((p) => p.configuration.name === projectName);
     if (project) {
-      setEditingProject(project.configuration);
-      setShowProjectForm(true);
+      setTabs((tabs) => {
+        const newTabs = addProjectFormTab(tabs, "edit", project.configuration);
+        const formIndex = getProjectFormTabIndex(newTabs);
+        setActiveTabIndex(formIndex);
+        return newTabs;
+      });
     }
   };
 
+  const closeProjectFormTab = () => {
+    setTabs((prevTabs) => {
+      const formIndex = getProjectFormTabIndex(prevTabs);
+      if (formIndex === -1) return prevTabs;
+      const newTabs = prevTabs.filter((_, i) => i !== formIndex);
+      const newActiveIndex = formIndex === activeTabIndex ? Math.max(0, newTabs.length - 1) : formIndex < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
+      setActiveTabIndex(newActiveIndex);
+      return newTabs;
+    });
+  };
+
   const onProjectFormSubmit = async (project: ConfigurationProject, originalName?: string) => {
-    setShowProjectForm(false);
-    setEditingProject(undefined);
+    closeProjectFormTab();
 
     if (!configuration) {
       return;
@@ -261,29 +277,39 @@ export function App() {
 
       if (protoDirChanged || useReflectionChanged) {
         // protoDir or useReflection changed - need full recompilation
+        // Clear all project data so nothing stale remains if recompilation fails
+        disposeMonacoModelsForProject(originalName);
         setProjects((prevProjects) =>
           prevProjects.map((p) =>
             p.configuration.name === originalName
               ? {
-                  ...p,
                   configuration: project,
                   compilation: { status: "pending" as const, logs: [] },
+                  services: [],
+                  clients: {},
+                  sources: [],
+                  stub: { serviceInfos: {} },
                 }
               : p
           )
         );
-        if (nameChanged) {
-          disposeMonacoModelsForProject(originalName);
-        }
         onCompilerClick();
       } else if (nameChanged) {
-        // Name changed but protoDir didn't - remap sources without recompilation
+        // Name changed but protoDir didn't - remap sources and editor code without recompilation
         disposeMonacoModelsForProject(originalName);
         const remappedSources = remapSourcesToNewName(originalProject.sources, originalName, project.name);
+        const remappedServices = originalProject.services.map((service) => ({
+          ...service,
+          methods: service.methods.map((method) => ({
+            ...method,
+            editorCode: remapEditorCode(method.editorCode, originalName, project.name),
+          })),
+        }));
         const updatedProject: Project = {
           ...originalProject,
           configuration: project,
           sources: remappedSources,
+          services: remappedServices,
         };
         createMonacoModelsForProject(updatedProject);
         refreshOpenTaskEditors();
@@ -333,9 +359,21 @@ export function App() {
     }
   };
 
-  const onProjectFormClose = () => {
-    setShowProjectForm(false);
-    setEditingProject(undefined);
+  const onProjectFormCancel = () => {
+    closeProjectFormTab();
+  };
+
+  const onProjectFormSelect = (projectName: string | null) => {
+    if (projectName === null) {
+      // Switch to new project mode
+      setTabs((tabs) => updateProjectFormTab(tabs, "create"));
+    } else {
+      // Switch to edit mode for the selected project
+      const project = projects.find((p) => p.configuration.name === projectName);
+      if (project) {
+        setTabs((tabs) => updateProjectFormTab(tabs, "edit", project.configuration));
+      }
+    }
   };
 
   const onDeleteProject = async (projectName: string) => {
@@ -447,19 +485,28 @@ export function App() {
                     );
                   }
 
+                  if (tab.type === "projectForm") {
+                    const label = getProjectFormTabLabel(tab);
+                    return (
+                      <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                        <ProjectForm
+                          mode={tab.mode}
+                          initialData={tab.initialData}
+                          allProjects={configuration?.projects ?? []}
+                          onSubmit={onProjectFormSubmit}
+                          onCancel={onProjectFormCancel}
+                          onProjectSelect={onProjectFormSelect}
+                        />
+                      </Tab>
+                    );
+                  }
+
                   throw new Error("Unknown tab type");
                 })}
               </Tabs>
             )}
           </div>
         </div>
-        <ProjectForm
-          isOpen={showProjectForm}
-          mode={editingProject ? "edit" : "create"}
-          initialData={editingProject}
-          onSubmit={onProjectFormSubmit}
-          onClose={onProjectFormClose}
-        />
       </BaseStyles>
     </ThemeProvider>
   );
