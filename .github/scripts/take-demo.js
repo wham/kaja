@@ -39,16 +39,17 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the project form tab to appear
+      // Wait for the project form tab to appear and be active
       const newProjectTab = page.locator('.tab-item:has-text("New Project")');
       await newProjectTab.waitFor({ state: 'visible', timeout: 5000 });
 
       // Click on the tab to ensure it's active
       await newProjectTab.click();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
 
-      // Wait for the form content - look for the Name input field which is always visible
-      await page.waitForSelector('input[placeholder="Project name"]', { state: 'visible', timeout: 5000 });
+      // Wait for the form content - look for the project selector or Name input
+      // The form has a project selector dropdown and form fields
+      await page.waitForSelector('input[placeholder="Project name"], select', { state: 'visible', timeout: 5000 });
       await page.waitForTimeout(500);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
