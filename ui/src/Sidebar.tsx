@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon } from "@primer/octicons-react";
 import { Method, Project, methodId } from "./project";
@@ -36,6 +36,8 @@ interface SidebarProps {
 
 export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const projectRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const pendingScrollRef = useRef<string | null>(null);
 
   // Expand first two projects when projects first load
   useEffect(() => {
@@ -47,6 +49,20 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
     });
   }, [projects]);
 
+  // Scroll expanded project into view after DOM updates
+  useEffect(() => {
+    if (pendingScrollRef.current) {
+      const projectName = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      requestAnimationFrame(() => {
+        const element = projectRefs.current.get(projectName);
+        if (element) {
+          element.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      });
+    }
+  }, [expandedProjects]);
+
   const toggleProjectExpanded = (projectName: string) => {
     setExpandedProjects((prev) => {
       const next = new Set(prev);
@@ -54,6 +70,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         next.delete(projectName);
       } else {
         next.add(projectName);
+        pendingScrollRef.current = projectName;
       }
       return next;
     });
@@ -85,7 +102,15 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
           const showProjectHeader = projects.length > 1 || canUpdateConfiguration;
 
           return (
-            <nav key={projectName} aria-label="Services and methods" style={{ marginTop: projectIndex > 0 ? 12 : 0 }}>
+            <nav
+              key={projectName}
+              ref={(el) => {
+                if (el) projectRefs.current.set(projectName, el);
+                else projectRefs.current.delete(projectName);
+              }}
+              aria-label="Services and methods"
+              style={{ marginTop: projectIndex > 0 ? 12 : 0 }}
+            >
               {showProjectHeader && (
                 <div
                   style={{
