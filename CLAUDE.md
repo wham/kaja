@@ -13,6 +13,7 @@
 - Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
 - Use pure Primer when possible, avoid custom wrappers and abstractions.
 - Ask me before creating custom UI components; prefer direct use of Primer components.
+- Keep pull-request descriptions super short - one or two sentences summarizing the change.
 
 ## Directory Structure
 
