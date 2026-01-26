@@ -50,14 +50,16 @@ func init() {
 
 // App struct
 type App struct {
-	ctx          context.Context
-	twirpHandler api.TwirpServer
+	ctx                  context.Context
+	twirpHandler         api.TwirpServer
+	configurationWatcher *api.ConfigurationWatcher
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer) *App {
+func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher) *App {
 	return &App{
-		twirpHandler: twirpHandler,
+		twirpHandler:         twirpHandler,
+		configurationWatcher: configurationWatcher,
 	}
 }
 
@@ -65,6 +67,13 @@ func NewApp(twirpHandler api.TwirpServer) *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// Subscribe to configuration changes and emit Wails events
+	if a.configurationWatcher != nil {
+		a.configurationWatcher.Subscribe(func() {
+			runtime.EventsEmit(ctx, "configuration:changed")
+		})
+	}
 }
 
 // OpenDirectoryDialog opens a native directory picker dialog
@@ -248,9 +257,15 @@ func main() {
 	// Create API service without embedded binaries
 	apiService := api.NewApiService(configurationPath, true)
 	twirpHandler := api.NewApiServer(apiService)
-	
+
+	// Start configuration file watcher
+	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
+	if err != nil {
+		slog.Warn("Failed to start configuration watcher", "error", err)
+	}
+
 	// Create application with options
-	app := NewApp(twirpHandler)
+	app := NewApp(twirpHandler, configurationWatcher)
 
 	err = wails.Run(&options.App{
 		Title:  "Kaja",
@@ -261,6 +276,11 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown: func(ctx context.Context) {
+			if configurationWatcher != nil {
+				configurationWatcher.Close()
+			}
+		},
 		Bind: []interface{}{
 			app,
 		},

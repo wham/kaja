@@ -1,7 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { registerAIProvider } from "./ai";
 import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
@@ -17,8 +17,40 @@ import { getApiClient } from "./server/connection";
 import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getProjectFormTabLabel, getTabLabel, markInteraction, TabModel, updateProjectFormTab } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
+import { useConfigurationChanges } from "./useConfigurationChanges";
 import { isWailsEnvironment } from "./wails";
 import { WindowSetTitle } from "./wailsjs/runtime";
+
+// Helper: Create a new project in pending compilation state
+function createPendingProject(config: ConfigurationProject): Project {
+  return {
+    configuration: config,
+    compilation: { status: "pending", logs: [] },
+    services: [],
+    clients: {},
+    sources: [],
+    stub: { serviceInfos: {} },
+  };
+}
+
+// Helper: Apply rename to a project (remap sources and services)
+function applyProjectRename(project: Project, newConfig: ConfigurationProject): Project {
+  const originalName = project.configuration.name;
+  const remappedSources = remapSourcesToNewName(project.sources, originalName, newConfig.name);
+  const remappedServices = project.services.map((service) => ({
+    ...service,
+    methods: service.methods.map((method) => ({
+      ...method,
+      editorCode: remapEditorCode(method.editorCode, originalName, newConfig.name),
+    })),
+  }));
+  return {
+    ...project,
+    configuration: newConfig,
+    sources: remappedSources,
+    services: remappedServices,
+  };
+}
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
@@ -27,12 +59,182 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
+
+  // Dispose Monaco source models for a project
+  const disposeMonacoModelsForProject = useCallback((projectName: string) => {
+    monaco.editor.getModels().forEach((model) => {
+      if (model.uri.path.startsWith("/" + projectName + "/")) {
+        model.dispose();
+      }
+    });
+  }, []);
+
+  // Create Monaco source models for a project
+  const createMonacoModelsForProject = useCallback((project: Project) => {
+    project.sources.forEach((source) => {
+      const uri = monaco.Uri.parse("ts:/" + source.path);
+      const existingModel = monaco.editor.getModel(uri);
+      if (!existingModel) {
+        monaco.editor.createModel(source.file.text, "typescript", uri);
+      } else {
+        existingModel.setValue(source.file.text);
+      }
+    });
+  }, []);
+
+  // Dispose task tabs for given project names, returns filtered tabs
+  const disposeTaskTabsForProjects = useCallback((projectNames: Set<string>, prevTabs: TabModel[]): TabModel[] => {
+    const newTabs: TabModel[] = [];
+    for (const tab of prevTabs) {
+      if (tab.type === "task" && projectNames.has(tab.originProject.configuration.name)) {
+        tab.model.dispose();
+      } else {
+        newTabs.push(tab);
+      }
+    }
+    return newTabs;
+  }, []);
+
+  // Refresh open task editors to trigger re-validation
+  const refreshOpenTaskEditors = useCallback(() => {
+    tabsRef.current.forEach((tab) => {
+      if (tab.type === "task") {
+        const value = tab.model.getValue();
+        tab.model.setValue(value);
+      }
+    });
+  }, []);
+
+  // Core function: Sync projects state from a new configuration
+  // This is the single source of truth for project state changes
+  const syncProjectsFromConfiguration = useCallback((
+    newConfiguration: Configuration,
+    prevProjects: Project[]
+  ): { updatedProjects: Project[]; removedNames: Set<string>; renamedProjects: boolean } => {
+    const updatedProjects: Project[] = [];
+    const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
+    const prevByName = new Map(prevProjects.map((p) => [p.configuration.name, p]));
+
+    // Find orphans (removed) and newcomers (added)
+    const orphans = prevProjects.filter((p) => !newConfigByName.has(p.configuration.name));
+    const newcomerConfigs = newConfiguration.projects.filter((p) => !prevByName.has(p.name));
+
+    // Detect renames: match orphans to newcomers by protoDir/url
+    const renameMap = new Map<string, Project>(); // newName -> oldProject
+    for (const newcomer of newcomerConfigs) {
+      const matchingOrphan = orphans.find((orphan) => {
+        if (newcomer.useReflection && orphan.configuration.useReflection) {
+          return newcomer.url === orphan.configuration.url;
+        }
+        return newcomer.protoDir === orphan.configuration.protoDir && newcomer.protoDir !== "";
+      });
+      if (matchingOrphan && !renameMap.has(newcomer.name)) {
+        renameMap.set(newcomer.name, matchingOrphan);
+        const idx = orphans.indexOf(matchingOrphan);
+        if (idx !== -1) orphans.splice(idx, 1);
+      }
+    }
+
+    // Process each project in the new configuration
+    for (const newConfig of newConfiguration.projects) {
+      const existingProject = prevByName.get(newConfig.name);
+      const renamedFrom = renameMap.get(newConfig.name);
+
+      if (renamedFrom) {
+        // Rename: remap sources and services
+        disposeMonacoModelsForProject(renamedFrom.configuration.name);
+        const renamedProject = applyProjectRename(renamedFrom, newConfig);
+        createMonacoModelsForProject(renamedProject);
+        updatedProjects.push(renamedProject);
+        continue;
+      }
+
+      if (!existingProject) {
+        // New project
+        updatedProjects.push(createPendingProject(newConfig));
+        continue;
+      }
+
+      const prev = existingProject.configuration;
+      const protoDirChanged = prev.protoDir !== newConfig.protoDir;
+      const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
+      const urlChanged = prev.url !== newConfig.url;
+      const protocolChanged = prev.protocol !== newConfig.protocol;
+
+      if (protoDirChanged || useReflectionChanged) {
+        // Needs recompilation
+        disposeMonacoModelsForProject(existingProject.configuration.name);
+        updatedProjects.push(createPendingProject(newConfig));
+      } else if (urlChanged || protocolChanged) {
+        // Recreate clients only
+        const newClients = createClients(existingProject.services, existingProject.stub, newConfig);
+        updatedProjects.push({ ...existingProject, configuration: newConfig, clients: newClients });
+      } else {
+        // Just update configuration (headers, etc.)
+        updatedProjects.push({ ...existingProject, configuration: newConfig });
+      }
+    }
+
+    // Clean up removed projects
+    const removedNames = new Set(orphans.map((p) => p.configuration.name));
+    for (const orphan of orphans) {
+      disposeMonacoModelsForProject(orphan.configuration.name);
+    }
+
+    return { updatedProjects, removedNames, renamedProjects: renameMap.size > 0 };
+  }, [disposeMonacoModelsForProject, createMonacoModelsForProject]);
+
+  // Apply configuration and sync all state
+  const applyConfiguration = useCallback((newConfiguration: Configuration) => {
+    setConfiguration(newConfiguration);
+
+    setProjects((prevProjects) => {
+      const { updatedProjects, removedNames, renamedProjects } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
+
+      // Clean up task tabs for removed projects
+      if (removedNames.size > 0) {
+        setTabs((prevTabs) => {
+          const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
+          if (updatedProjects.length === 0 && !newTabs.some((t) => t.type === "compiler")) {
+            setSelectedMethod(undefined);
+            setActiveTabIndex(0);
+            return [{ type: "compiler" as const }];
+          }
+          if (newTabs.length !== prevTabs.length) {
+            setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
+          }
+          return newTabs;
+        });
+      }
+
+      // Refresh editors and AI provider if there were renames
+      if (renamedProjects) {
+        refreshOpenTaskEditors();
+        registerAIProvider(updatedProjects);
+      }
+
+      return updatedProjects;
+    });
+  }, [syncProjectsFromConfiguration, disposeTaskTabsForProjects, refreshOpenTaskEditors]);
+
+  // Handle external configuration file changes (hot reload)
+  const handleConfigurationFileChange = useCallback(async () => {
+    const client = getApiClient();
+    const { response } = await client.getConfiguration({});
+    if (response.configuration) {
+      applyConfiguration(response.configuration);
+    }
+  }, [applyConfiguration]);
+
+  useConfigurationChanges(handleConfigurationFileChange);
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
@@ -97,7 +299,15 @@ export function App() {
         return;
       }
 
-      setTabs(addTaskTab([], defaultMethod, updatedProjects[0]));
+      setTabs((prevTabs) => {
+        // Dispose old task models before replacing
+        prevTabs.forEach((tab) => {
+          if (tab.type === "task") {
+            tab.model.dispose();
+          }
+        });
+        return addTaskTab([], defaultMethod, updatedProjects[0]);
+      });
       setActiveTabIndex(0);
     }
   };
@@ -178,37 +388,6 @@ export function App() {
     });
   };
 
-  const disposeMonacoModelsForProject = (projectName: string) => {
-    // Find and dispose all Monaco models for this project
-    monaco.editor.getModels().forEach((model) => {
-      if (model.uri.path.startsWith("/" + projectName + "/")) {
-        model.dispose();
-      }
-    });
-  };
-
-  const createMonacoModelsForProject = (project: Project) => {
-    project.sources.forEach((source) => {
-      const uri = monaco.Uri.parse("ts:/" + source.path);
-      const existingModel = monaco.editor.getModel(uri);
-      if (!existingModel) {
-        monaco.editor.createModel(source.file.text, "typescript", uri);
-      } else {
-        existingModel.setValue(source.file.text);
-      }
-    });
-  };
-
-  const refreshOpenTaskEditors = () => {
-    // Touch task models to trigger re-validation against updated source models
-    tabs.forEach((tab) => {
-      if (tab.type === "task") {
-        const value = tab.model.getValue();
-        tab.model.setValue(value);
-      }
-    });
-  };
-
   const onNewProjectClick = () => {
     setTabs((tabs) => {
       const newTabs = addProjectFormTab(tabs, "create");
@@ -249,6 +428,13 @@ export function App() {
     }
 
     const isEdit = originalName !== undefined;
+    const needsRecompilation = isEdit && (() => {
+      const originalProject = projects.find((p) => p.configuration.name === originalName);
+      if (!originalProject) return false;
+      return originalProject.configuration.protoDir !== project.protoDir ||
+             originalProject.configuration.useReflection !== project.useReflection;
+    })();
+    const isNewProject = !isEdit;
 
     // Update configuration
     const updatedConfiguration: Configuration = {
@@ -258,103 +444,15 @@ export function App() {
         : [...configuration.projects, project],
     };
 
-    // Save configuration via API
+    // Save configuration via API and apply changes through unified path
     const client = getApiClient();
     const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
     if (response.configuration) {
-      setConfiguration(response.configuration);
+      applyConfiguration(response.configuration);
     }
 
-    if (isEdit) {
-      const originalProject = projects.find((p) => p.configuration.name === originalName);
-      if (!originalProject) {
-        return;
-      }
-
-      const protoDirChanged = originalProject.configuration.protoDir !== project.protoDir;
-      const useReflectionChanged = originalProject.configuration.useReflection !== project.useReflection;
-      const nameChanged = originalName !== project.name;
-
-      if (protoDirChanged || useReflectionChanged) {
-        // protoDir or useReflection changed - need full recompilation
-        // Clear all project data so nothing stale remains if recompilation fails
-        disposeMonacoModelsForProject(originalName);
-        setProjects((prevProjects) =>
-          prevProjects.map((p) =>
-            p.configuration.name === originalName
-              ? {
-                  configuration: project,
-                  compilation: { status: "pending" as const, logs: [] },
-                  services: [],
-                  clients: {},
-                  sources: [],
-                  stub: { serviceInfos: {} },
-                }
-              : p
-          )
-        );
-        onCompilerClick();
-      } else if (nameChanged) {
-        // Name changed but protoDir didn't - remap sources and editor code without recompilation
-        disposeMonacoModelsForProject(originalName);
-        const remappedSources = remapSourcesToNewName(originalProject.sources, originalName, project.name);
-        const remappedServices = originalProject.services.map((service) => ({
-          ...service,
-          methods: service.methods.map((method) => ({
-            ...method,
-            editorCode: remapEditorCode(method.editorCode, originalName, project.name),
-          })),
-        }));
-        const updatedProject: Project = {
-          ...originalProject,
-          configuration: project,
-          sources: remappedSources,
-          services: remappedServices,
-        };
-        createMonacoModelsForProject(updatedProject);
-        refreshOpenTaskEditors();
-        setProjects((prevProjects) =>
-          prevProjects.map((p) => (p.configuration.name === originalName ? updatedProject : p))
-        );
-        registerAIProvider(projects.map((p) => (p.configuration.name === originalName ? updatedProject : p)));
-      } else {
-        // URL or protocol changed - recreate clients
-        const urlChanged = originalProject.configuration.url !== project.url;
-        const protocolChanged = originalProject.configuration.protocol !== project.protocol;
-        if (urlChanged || protocolChanged) {
-          const newClients = createClients(originalProject.services, originalProject.stub, project);
-          setProjects((prevProjects) =>
-            prevProjects.map((p) =>
-              p.configuration.name === originalName
-                ? { ...p, configuration: project, clients: newClients }
-                : p
-            )
-          );
-        } else {
-          // Just update config
-          setProjects((prevProjects) =>
-            prevProjects.map((p) =>
-              p.configuration.name === originalName
-                ? { ...p, configuration: project }
-                : p
-            )
-          );
-        }
-      }
-    } else {
-      // Add new project
-      const newProject: Project = {
-        configuration: project,
-        compilation: {
-          status: "pending",
-          logs: [],
-        },
-        services: [],
-        clients: {},
-        sources: [],
-        stub: {},
-      };
-      setProjects((prevProjects) => [...prevProjects, newProject]);
+    // Show compiler tab for new projects or when recompilation is needed
+    if (isNewProject || needsRecompilation) {
       onCompilerClick();
     }
   };
@@ -387,44 +485,13 @@ export function App() {
       projects: configuration.projects.filter((p) => p.name !== projectName),
     };
 
-    // Save configuration via API
+    // Save configuration via API and apply changes through unified path
     const client = getApiClient();
     const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
     if (response.configuration) {
-      setConfiguration(response.configuration);
-    }
-
-    // Check if this is the last project
-    const isLastProject = projects.length === 1;
-
-    // Clean up Monaco models for deleted project
-    disposeMonacoModelsForProject(projectName);
-
-    // Remove project from state
-    setProjects((prevProjects) => prevProjects.filter((p) => p.configuration.name !== projectName));
-
-    // Refresh open editors to show red squiggles for broken imports
-    refreshOpenTaskEditors();
-
-    if (isLastProject) {
-      // Show compiler tab when last project is deleted
-      setTabs([{ type: "compiler" }]);
-      setActiveTabIndex(0);
-      setSelectedMethod(undefined);
-    } else {
-      // Clean up tabs related to this project
-      setTabs((prevTabs) => {
-        const newTabs = prevTabs.filter((tab) => {
-          if (tab.type === "task") {
-            return tab.originProject.configuration.name !== projectName;
-          }
-          return true;
-        });
-        if (activeTabIndex >= newTabs.length) {
-          setActiveTabIndex(Math.max(0, newTabs.length - 1));
-        }
-        return newTabs;
-      });
+      applyConfiguration(response.configuration);
+      // Refresh remaining editors to show broken import errors
+      refreshOpenTaskEditors();
     }
   };
 
