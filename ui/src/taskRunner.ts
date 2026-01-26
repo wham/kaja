@@ -12,7 +12,7 @@ export function runTask(code: string, kaja: Kaja, projects: Project[]) {
     if (ts.isImportDeclaration(statement)) {
       // slice(1, -1) - remove quotes
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
-      const project = projects.find((project) => path.includes(project.configuration.name));
+      const project = projects.find((project) => path.startsWith(project.configuration.name + "/"));
       if (!project) {
         return;
       }

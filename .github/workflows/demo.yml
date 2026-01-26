@@ -50,8 +50,41 @@ jobs:
           name: demo
           path: .github/demo/
 
+      - name: Remove demo from PR on failure
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO="${{ github.repository }}"
+
+          # Setup git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove demo assets from demo-assets branch if it exists
+          git fetch origin demo-assets 2>/dev/null || true
+          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
+            git checkout demo-assets
+            if [ -d "pr-${PR_NUMBER}" ]; then
+              git rm -rf "pr-${PR_NUMBER}"
+              git commit -m "Remove demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
+              git push origin demo-assets
+            fi
+          fi
+
+          # Remove Demo section from PR description
+          gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+
+          # Only update if there was a demo section to remove
+          if ! diff -q /tmp/current_body.txt /tmp/body_clean.txt > /dev/null 2>&1; then
+            gh pr edit ${PR_NUMBER} --body-file /tmp/body_clean.txt
+            echo "Removed demo section from PR description"
+          fi
+
       - name: Upload demo assets and update PR description
-        if: github.event_name == 'pull_request'
+        if: success() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

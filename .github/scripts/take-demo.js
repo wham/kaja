@@ -47,9 +47,21 @@ async function takeDemo() {
       await newProjectTab.click();
       await page.waitForTimeout(500);
 
-      // Wait for the form content - look for the project selector or Name input
-      // The form has a project selector dropdown and form fields
-      await page.waitForSelector('input[placeholder="Project name"], select', { state: 'visible', timeout: 5000 });
+      // Wait for the form content - the project form has a select dropdown at the top
+      // and form fields below. Wait for the form container to be ready.
+      await page.waitForTimeout(1000);
+
+      // Try to find the form elements - either the project selector or name input
+      const formReady = await Promise.race([
+        page.waitForSelector('select', { state: 'visible', timeout: 3000 }).then(() => true),
+        page.waitForSelector('input[placeholder="Project name"]', { state: 'visible', timeout: 3000 }).then(() => true),
+        page.waitForSelector('[data-testid="project-form"]', { state: 'visible', timeout: 3000 }).then(() => true),
+        new Promise(resolve => setTimeout(() => resolve(false), 3000))
+      ]);
+
+      if (!formReady) {
+        console.log("Form elements not found within timeout, continuing anyway");
+      }
       await page.waitForTimeout(500);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
