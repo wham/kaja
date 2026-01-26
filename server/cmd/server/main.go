@@ -58,6 +58,14 @@ func main() {
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, false)
 	configuration := getConfigurationResponse.Configuration
 
+	// Start configuration file watcher
+	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
+	if err != nil {
+		slog.Warn("Failed to start configuration watcher", "error", err)
+	} else {
+		defer configurationWatcher.Close()
+	}
+
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
@@ -112,6 +120,52 @@ func main() {
 	}
 
 	mux.HandleFunc("GET /status", handleStatus)
+
+	// SSE endpoint for configuration change notifications
+	mux.HandleFunc("GET /configuration-changes", func(w http.ResponseWriter, r *http.Request) {
+		if configurationWatcher == nil {
+			http.Error(w, "Configuration watcher not available", http.StatusServiceUnavailable)
+			return
+		}
+
+		// Set SSE headers
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		// Send initial connection event
+		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
+		flusher.Flush()
+
+		// Channel to receive change notifications
+		notify := make(chan struct{}, 1)
+		unsubscribe := configurationWatcher.Subscribe(func() {
+			select {
+			case notify <- struct{}{}:
+			default:
+				// Already have a pending notification
+			}
+		})
+		defer unsubscribe()
+
+		// Keep connection alive and send events
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-notify:
+				fmt.Fprintf(w, "event: changed\ndata: {}\n\n")
+				flusher.Flush()
+			}
+		}
+	})
 
 	// Handle /target path
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
@@ -197,4 +251,10 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
