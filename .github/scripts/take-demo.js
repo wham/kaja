@@ -39,37 +39,18 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the project form tab to appear and be active
-      const newProjectTab = page.locator('.tab-item:has-text("New Project")');
-      await newProjectTab.waitFor({ state: 'visible', timeout: 5000 });
-
-      // Click on the tab to ensure it's active
-      await newProjectTab.click();
-      await page.waitForTimeout(500);
-
-      // Wait for the form content - the project form has a select dropdown at the top
-      // and form fields below. Wait for the form container to be ready.
-      await page.waitForTimeout(1000);
-
-      // Try to find the form elements - either the project selector or name input
-      const formReady = await Promise.race([
-        page.waitForSelector('select', { state: 'visible', timeout: 3000 }).then(() => true),
-        page.waitForSelector('input[placeholder="Project name"]', { state: 'visible', timeout: 3000 }).then(() => true),
-        page.waitForSelector('[data-testid="project-form"]', { state: 'visible', timeout: 3000 }).then(() => true),
-        new Promise(resolve => setTimeout(() => resolve(false), 3000))
-      ]);
-
-      if (!formReady) {
-        console.log("Form elements not found within timeout, continuing anyway");
-      }
-      await page.waitForTimeout(500);
+      // Wait for the form to render - just use a fixed delay since the form
+      // structure may vary and we don't want brittle selectors
+      await page.waitForTimeout(2000);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
-      // Close the tab by clicking the close button
+      // Close the tab by pressing Escape or clicking close button
       const closeButton = page.locator('button[aria-label="Close New Project"]');
       if ((await closeButton.count()) > 0) {
         await closeButton.click();
+      } else {
+        await page.keyboard.press("Escape");
       }
       await page.waitForTimeout(500);
     } else {
