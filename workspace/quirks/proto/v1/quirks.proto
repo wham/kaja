@@ -1,6 +1,6 @@
 syntax = "proto3";
 package quirks.v1;
-import "v1/lib/message.proto";
+import "proto/v1/lib/message.proto";
 
 option go_package = "internal/api/v1";
 

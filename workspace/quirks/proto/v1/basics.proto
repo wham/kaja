@@ -1,8 +1,8 @@
 syntax = "proto3";
 package quirks.v1;
 import "google/protobuf/timestamp.proto";
-import "v1/lib/message.proto";
-import "v1/lib/enum.proto";
+import "proto/v1/lib/message.proto";
+import "proto/v1/lib/enum.proto";
 
 option go_package = "internal/api/v1";
 
