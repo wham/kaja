@@ -12,14 +12,14 @@ import type {
 import { UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { Twirp, Target } from "../wailsjs/go/main/App";
 import { RpcProtocol } from "./api";
+import { ProjectRef } from "../project";
 
 export type WailsTransportMode = "api" | "target";
 
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
-  targetUrl?: string; // Required for "target" mode
+  projectRef?: ProjectRef; // Dynamic project reference for "target" mode
   protocol: RpcProtocol;
-  headers?: { [key: string]: string }; // Headers to pass with target requests
 }
 
 /**
@@ -28,18 +28,16 @@ export interface WailsTransportOptions {
  */
 export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
-  private targetUrl?: string;
+  private projectRef?: ProjectRef;
   private protocol: number;
-  private headers?: { [key: string]: string };
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
-    this.targetUrl = options.targetUrl;
+    this.projectRef = options.projectRef;
     this.protocol = options.protocol;
-    this.headers = options.headers;
 
-    if (this.mode === "target" && !this.targetUrl) {
-      throw new Error("targetUrl is required when mode is 'target'");
+    if (this.mode === "target" && !this.projectRef) {
+      throw new Error("projectRef is required when mode is 'target'");
     }
   }
 
@@ -81,7 +79,7 @@ export class WailsTransport implements RpcTransport {
     console.log(
       `Wails${this.mode === "target" ? "Target" : ""}Transport calling method:`,
       this.mode === "target" ? `${method.service.typeName}/${method.name}` : method.name,
-      this.mode === "target" ? `target: ${this.targetUrl}` : "",
+      this.mode === "target" ? `target: ${this.projectRef?.configuration.url}` : "",
     );
 
     const responsePromise = this.executeCall(method, input);
@@ -99,7 +97,7 @@ export class WailsTransport implements RpcTransport {
     try {
       console.log(`Executing Wails ${this.mode} call for method:`, method.name);
       if (this.mode === "target") {
-        console.log("Target URL:", this.targetUrl);
+        console.log("Target URL:", this.projectRef?.configuration.url);
       }
       console.log("Input object:", input);
 
@@ -130,12 +128,11 @@ export class WailsTransport implements RpcTransport {
         console.log("Calling Wails Twirp with method:", method.name);
         responseArray = await Twirp(method.name, inputArray);
       } else {
-        // mode === "target"
+        // mode === "target" - read URL and headers dynamically from projectRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        // Serialize headers as JSON string for Go consumption
-        const headersJson = this.headers ? JSON.stringify(this.headers) : "{}";
+        const headersJson = JSON.stringify(this.projectRef!.configuration.headers || {});
         console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
-        responseArray = await Target(this.targetUrl!, fullMethodPath, inputArray, this.protocol, headersJson);
+        responseArray = await Target(this.projectRef!.configuration.url, fullMethodPath, inputArray, this.protocol, headersJson);
       }
 
       console.log(`Wails ${this.mode} result length:`, responseArray?.length);

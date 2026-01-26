@@ -2,7 +2,7 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, Method, Project, Service } from "./project";
+import { Clients, createProjectRef, Method, Project, ProjectRef, Service } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
 import { findInStub, findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
@@ -66,24 +66,27 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     });
   });
 
+  const projectRef = createProjectRef(configuration);
+
   return {
     compilation: {
       status: "pending",
       logs: [],
     },
     configuration,
+    projectRef,
     services,
-    clients: createClients(services, stub, configuration),
+    clients: createClients(services, stub, projectRef),
     sources: kajaSources,
     stub,
   };
 }
 
-export function createClients(services: Service[], stub: Stub, configuration: ConfigurationProject): Clients {
+export function createClients(services: Service[], stub: Stub, projectRef: ProjectRef): Clients {
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[service.name] = createClient(service, stub, configuration);
+    clients[service.name] = createClient(service, stub, projectRef);
   }
 
   return clients;

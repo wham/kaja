@@ -2,33 +2,33 @@ import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { MethodCall } from "./kaja";
-import { Client, Service } from "./project";
-import { ConfigurationProject, RpcProtocol } from "./server/api";
+import { Client, ProjectRef, Service } from "./project";
+import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { findInStub, Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
 
-export function createClient(service: Service, stub: Stub, configuration: ConfigurationProject): Client {
+export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
   const client: Client = { methods: {} };
 
-  if (configuration.protocol === RpcProtocol.UNSPECIFIED) {
-    throw new Error(`Project "${configuration.name}" has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
+  if (projectRef.configuration.protocol === RpcProtocol.UNSPECIFIED) {
+    throw new Error(`Project has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
   }
 
   let transport;
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
     // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
+    // Pass projectRef so URL and headers are read dynamically at request time
     transport = new WailsTransport({
       mode: "target",
-      targetUrl: configuration.url,
-      protocol: configuration.protocol,
-      headers: configuration.headers,
+      projectRef,
+      protocol: projectRef.configuration.protocol,
     });
   } else {
     transport =
-      configuration.protocol === RpcProtocol.GRPC
+      projectRef.configuration.protocol === RpcProtocol.GRPC
         ? new GrpcWebFetchTransport({
             baseUrl: getBaseUrlForTarget(),
           })
@@ -43,17 +43,17 @@ export function createClient(service: Service, stub: Stub, configuration: Config
     interceptors: [
       {
         // adds X-Target header and configured headers for web environment
+        // Reads from projectRef dynamically at request time
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};
           }
           if (!isWailsEnvironment()) {
-            options.meta["X-Target"] = configuration.url;
+            options.meta["X-Target"] = projectRef.configuration.url;
             // Pass configured headers with X-Header- prefix for the backend to forward
-            if (configuration.headers) {
-              for (const [key, value] of Object.entries(configuration.headers)) {
-                options.meta["X-Header-" + key] = value;
-              }
+            const headers = projectRef.configuration.headers || {};
+            for (const [key, value] of Object.entries(headers)) {
+              options.meta["X-Header-" + key] = value;
             }
           }
           return next(method, input, options);
@@ -64,13 +64,8 @@ export function createClient(service: Service, stub: Stub, configuration: Config
 
   for (const method of service.methods) {
     client.methods[method.name] = async (input: any) => {
-      // Capture request headers from configuration
-      const requestHeaders: { [key: string]: string } = {};
-      if (configuration.headers) {
-        for (const [key, value] of Object.entries(configuration.headers)) {
-          requestHeaders[key] = value;
-        }
-      }
+      // Capture request headers from projectRef at request time
+      const requestHeaders: { [key: string]: string } = { ...(projectRef.configuration.headers || {}) };
 
       const methodCall: MethodCall = {
         service,
