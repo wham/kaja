@@ -37,6 +37,9 @@ fi
 
 cd "$(dirname "$0")/.."
 
+# Kill any existing server on port 41520
+lsof -ti:41520 | xargs kill 2>/dev/null || true
+
 [ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
 
 export GOBIN=$PWD/server/build
