@@ -22,24 +22,28 @@ export function ControlBar({ onRun }: ControlBarProps) {
   }, [onRun]);
 
   return (
-    <div style={{ position: "absolute", top: 20, right: 40, zIndex: 1 }}>
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        right: 20,
+        display: "flex",
+        gap: 2,
+        background: "rgba(13, 17, 23, 0.8)",
+        borderRadius: 6,
+        padding: 2,
+        zIndex: 1,
+      }}
+    >
       <Tooltip text="Run (F5)" direction="s">
         <Button
-          leadingVisual={() => <PlayIcon size={100} fill="var(--fgColor-success)" />}
+          leadingVisual={PlayIcon}
           onClick={onRun}
-          variant="invisible"
-          size="large"
-          style={{
-            width: 100,
-            height: 100,
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            backgroundColor: "transparent",
-          }}
-        />
+          size="small"
+          variant="primary"
+        >
+          Run
+        </Button>
       </Tooltip>
     </div>
   );
