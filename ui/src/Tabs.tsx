@@ -37,6 +37,27 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   const prevTabCount = useRef(React.Children.count(children));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, tabIndex: -1 });
   const [showScrollbar, setShowScrollbar] = useState(false);
+  const [scrollMetrics, setScrollMetrics] = useState({ left: 0, width: 0, clientWidth: 0 });
+
+  const updateScrollMetrics = useCallback(() => {
+    const el = tabsHeaderRef.current;
+    if (el) {
+      setScrollMetrics({ left: el.scrollLeft, width: el.scrollWidth, clientWidth: el.clientWidth });
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = tabsHeaderRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollMetrics);
+    const observer = new ResizeObserver(updateScrollMetrics);
+    observer.observe(el);
+    updateScrollMetrics();
+    return () => {
+      el.removeEventListener("scroll", updateScrollMetrics);
+      observer.disconnect();
+    };
+  }, [children, updateScrollMetrics]);
 
   const scrollToTab = useCallback((index: number) => {
     const tabElement = tabRefs.current.get(index);
@@ -92,13 +113,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .tabs-header::-webkit-scrollbar {
-          height: 2px;
-        }
-        .tabs-header::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .tabs-header::-webkit-scrollbar-thumb {
-          background-color: ${showScrollbar ? "var(--fgColor-muted)" : "transparent"};
+          display: none;
         }
         .tab-item {
           display: flex;
@@ -148,7 +163,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "overlay" as React.CSSProperties["overflowX"], paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
+          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
@@ -213,6 +228,21 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </ActionMenu.Overlay>
             </ActionMenu>
           </div>
+        )}
+        {showScrollbar && scrollMetrics.width > scrollMetrics.clientWidth && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: (scrollMetrics.left / scrollMetrics.width) * scrollMetrics.clientWidth,
+              width: (scrollMetrics.clientWidth / scrollMetrics.width) * scrollMetrics.clientWidth,
+              height: 2,
+              background: "var(--fgColor-muted)",
+              borderRadius: 1,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow, WebkitOverflowScrolling: isNarrow ? "touch" : undefined }}>
