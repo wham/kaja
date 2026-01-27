@@ -57,12 +57,11 @@ async function takeDemo() {
       console.log("New Project button not found, skipping screenshot");
     }
 
-    // 3. Call screenshot - click first method, run it, wait for results
+    // 3. Call screenshot - click Types method, run it, wait for results
     console.log("Taking call screenshot...");
 
-    // Click on the first method in the sidebar tree
-    // Methods are in TreeView items, look for clickable items
-    const methodItem = page.locator('[role="treeitem"]').first();
+    // Click on the Types method in the sidebar tree
+    const methodItem = page.getByText('Types', { exact: true }).first();
     await methodItem.click();
     await page.waitForTimeout(500);
 
