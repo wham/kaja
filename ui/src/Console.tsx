@@ -360,9 +360,6 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const responseHeaders = methodCall.responseHeaders || {};
   const hasRequestHeaders = Object.keys(requestHeaders).length > 0;
   const hasResponseHeaders = Object.keys(responseHeaders).length > 0;
-  const http = methodCall.http;
-  const hasError = methodCall.error !== undefined;
-  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
 
   return (
     <div
@@ -375,51 +372,6 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
         fontSize: 12,
       }}
     >
-      {/* Request URL */}
-      {http && (
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              fontWeight: 600,
-              marginBottom: 8,
-              color: "var(--fgColor-default)",
-            }}
-          >
-            Request
-          </div>
-          <div
-            style={{
-              color: "var(--fgColor-muted)",
-              wordBreak: "break-all",
-            }}
-          >
-            {http.method} {http.url}
-          </div>
-        </div>
-      )}
-
-      {/* Response Status */}
-      {http && hasResponse && (
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              fontWeight: 600,
-              marginBottom: 8,
-              color: "var(--fgColor-default)",
-            }}
-          >
-            Response
-          </div>
-          <div
-            style={{
-              color: hasError ? "var(--fgColor-danger)" : "var(--fgColor-success)",
-            }}
-          >
-            {http.status ? `${http.status} ${http.statusText || ""}`.trim() : hasError ? "Error" : "OK"}
-          </div>
-        </div>
-      )}
-
       <div style={{ marginBottom: 24 }}>
         <div
           style={{

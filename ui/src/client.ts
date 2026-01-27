@@ -12,20 +12,30 @@ import { isWailsEnvironment } from "./wails";
 function buildHttpInfo(service: Service, method: Method, projectRef: ProjectRef): MethodCallHttp {
   const baseUrl = projectRef.configuration.url.replace(/\/$/, "");
   const fullServiceName = serviceId(service);
-  const protocol = projectRef.configuration.protocol;
-
-  let path: string;
-  if (protocol === RpcProtocol.TWIRP) {
-    path = `/twirp/${fullServiceName}/${method.name}`;
-  } else {
-    path = `/${fullServiceName}/${method.name}`;
-  }
 
   return {
     method: "POST",
-    url: baseUrl + path,
+    url: `${baseUrl}/twirp/${fullServiceName}/${method.name}`,
   };
 }
+
+interface FetchStatus {
+  status: number;
+  statusText: string;
+}
+
+let lastFetchStatus: FetchStatus | undefined;
+
+function getLastFetchStatus(): FetchStatus | undefined {
+  return lastFetchStatus;
+}
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await originalFetch.call(globalThis, input, init);
+  lastFetchStatus = { status: response.status, statusText: response.statusText };
+  return response;
+};
 
 export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
   const client: Client = { methods: {} };
@@ -33,6 +43,8 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
   if (projectRef.configuration.protocol === RpcProtocol.UNSPECIFIED) {
     throw new Error(`Project has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
   }
+
+  const isTwirp = projectRef.configuration.protocol === RpcProtocol.TWIRP;
 
   let transport;
   if (isWailsEnvironment()) {
@@ -45,14 +57,13 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       protocol: projectRef.configuration.protocol,
     });
   } else {
-    transport =
-      projectRef.configuration.protocol === RpcProtocol.GRPC
-        ? new GrpcWebFetchTransport({
-            baseUrl: getBaseUrlForTarget(),
-          })
-        : new TwirpFetchTransport({
-            baseUrl: getBaseUrlForTarget(),
-          });
+    transport = isTwirp
+      ? new TwirpFetchTransport({
+          baseUrl: getBaseUrlForTarget(),
+        })
+      : new GrpcWebFetchTransport({
+          baseUrl: getBaseUrlForTarget(),
+        });
   }
 
   const ClientClass = stub[service.clientStubModuleId]?.[service.name + "Client"];
@@ -90,9 +101,11 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         method,
         input,
         requestHeaders,
-        http: buildHttpInfo(service, method, projectRef),
+        http: isTwirp ? buildHttpInfo(service, method, projectRef) : undefined,
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
+
+      lastFetchStatus = undefined;
 
       try {
         const call = clientStub[lcfirst(method.name)](input, options);
@@ -112,25 +125,15 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
           }
         }
         methodCall.responseHeaders = responseHeaders;
-
-        // Mark successful response
-        if (methodCall.http) {
-          methodCall.http.status = 200;
-          methodCall.http.statusText = "OK";
-        }
       } catch (error: any) {
         methodCall.error = error;
+      }
 
-        // Try to extract HTTP status from error
-        if (methodCall.http && error) {
-          const status = error.status ?? error.code ?? error.httpStatus;
-          if (typeof status === "number") {
-            methodCall.http.status = status;
-            methodCall.http.statusText = error.statusText ?? error.message ?? httpStatusText(status);
-          } else if (typeof status === "string" && /^\d+$/.test(status)) {
-            methodCall.http.status = parseInt(status, 10);
-            methodCall.http.statusText = error.statusText ?? error.message ?? httpStatusText(methodCall.http.status);
-          }
+      if (methodCall.http) {
+        const fetchStatus = getLastFetchStatus();
+        if (fetchStatus) {
+          methodCall.http.status = fetchStatus.status;
+          methodCall.http.statusText = fetchStatus.statusText;
         }
       }
 
@@ -145,23 +148,4 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
 
 function lcfirst(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-function httpStatusText(status: number): string {
-  const statusTexts: { [key: number]: string } = {
-    200: "OK",
-    400: "Bad Request",
-    401: "Unauthorized",
-    403: "Forbidden",
-    404: "Not Found",
-    405: "Method Not Allowed",
-    408: "Request Timeout",
-    409: "Conflict",
-    500: "Internal Server Error",
-    501: "Not Implemented",
-    502: "Bad Gateway",
-    503: "Service Unavailable",
-    504: "Gateway Timeout",
-  };
-  return statusTexts[status] || "Error";
 }
