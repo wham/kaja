@@ -1,9 +1,10 @@
 syntax = "proto3";
+package quirks.v1;
 import "google/protobuf/timestamp.proto";
-import "proto/lib/enum.proto";
-import "proto/lib/message.proto";
+import "proto/v1/lib/message.proto";
+import "proto/v1/lib/enum.proto";
 
-option go_package = "internal/api";
+option go_package = "internal/api/v1";
 
 /**
  * Test basic scenarios that kaja needs to support

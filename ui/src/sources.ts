@@ -4,6 +4,7 @@ import { Source as ApiSource } from "./server/api";
 export interface Source {
   path: string;
   importPath: string;
+  stubModuleId: string;
   file: ts.SourceFile;
   serviceNames: string[];
   interfaces: { [key: string]: ts.InterfaceDeclaration };
@@ -36,6 +37,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
     const source: Source = {
       path,
       importPath: file.fileName.replace(".ts", ""),
+      stubModuleId,
       file,
       serviceNames: [],
       interfaces: {},
@@ -108,15 +110,10 @@ export function findEnum(sources: Sources, object: any): [string, Source] | unde
   }
 }
 
-// Find an export by name across all stub modules
-export function findInStub(stub: Stub, name: string): any {
-  for (const moduleId in stub) {
-    const module = stub[moduleId];
-    if (module && typeof module === "object" && name in module) {
-      return module[name];
-    }
-  }
-  return undefined;
+// Find an export by name in the stub module corresponding to a source file
+export function findInStub(stub: Stub, source: Source, name: string): any {
+  const module = stub[source.stubModuleId];
+  return module?.[name];
 }
 
 function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): string | undefined {

@@ -6,7 +6,7 @@ import { Client, ProjectRef, Service } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
-import { findInStub, Stub } from "./sources";
+import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
 
 export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
@@ -37,7 +37,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
           });
   }
 
-  const ClientClass = findInStub(stub, service.name + "Client");
+  const ClientClass = stub[service.clientStubModuleId]?.[service.name + "Client"];
   const clientStub = new ClientClass(transport);
   const options: RpcOptions = {
     interceptors: [

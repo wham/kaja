@@ -1,0 +1,26 @@
+syntax = "proto3";
+package quirks.v1;
+import "proto/v1/lib/message.proto";
+
+option go_package = "internal/api/v1";
+
+message SumStringsRequest {
+    string a = 1;
+    string b = 2;
+}
+
+message SumStringsResponse {
+    string result = 1;
+}
+
+// Test unusual things
+service Quirks {
+    rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(lib.Void) returns(lib.Message);
+    // Concatenates two strings
+    rpc Sum(SumStringsRequest) returns(SumStringsResponse);
+}
+
+// Second service in the same file
+service quirks_2 {
+    rpc camelCaseMethod(lib.Void) returns(lib.Void);
+}
