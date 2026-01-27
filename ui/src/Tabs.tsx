@@ -43,14 +43,15 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     if (tabElement && container) {
       const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
       const visibleRight = container.scrollLeft + container.clientWidth;
-      if (tabRight > visibleRight) {
+      const menuButtonWidth = onCloseAll ? 40 : 0;
+      if (tabRight > visibleRight - menuButtonWidth) {
         container.scrollTo({
-          left: tabRight - container.clientWidth + 8,
+          left: tabRight - container.clientWidth + menuButtonWidth + 8,
           behavior: "smooth",
         });
       }
     }
-  }, []);
+  }, [onCloseAll]);
 
   useEffect(() => {
     const currentTabCount = React.Children.count(children);
