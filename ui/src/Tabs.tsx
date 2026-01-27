@@ -98,10 +98,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background-color: #1e1e1e;
         }
         .tabs-header::-webkit-scrollbar-thumb {
-          background-color: transparent;
-        }
-        .tabs-header.scrollbar-visible::-webkit-scrollbar-thumb {
-          background-color: var(--fgColor-muted);
+          background-color: ${showScrollbar ? "var(--fgColor-muted)" : "transparent"};
         }
         .tab-item {
           display: flex;
@@ -152,7 +149,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
       <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
         <div
           ref={tabsHeaderRef}
-          className={`tabs-header${showScrollbar ? " scrollbar-visible" : ""}`}
+          className="tabs-header"
           style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
         >
           {React.Children.map(children, (child, index) => {
