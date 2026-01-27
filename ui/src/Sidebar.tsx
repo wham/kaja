@@ -240,9 +240,6 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                                   onSelect={() => onSelect(method, project)}
                                   current={currentMethod === method}
                                 >
-                                  <TreeView.LeadingVisual>
-                                    <ChevronRightIcon size={12} />
-                                  </TreeView.LeadingVisual>
                                   <span style={{ fontWeight: 400 }}>{method.name}</span>
                                 </TreeView.Item>
                               ))}
