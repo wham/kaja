@@ -234,8 +234,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
             style={{
               position: "absolute",
               bottom: 0,
-              left: (scrollMetrics.left / scrollMetrics.width) * scrollMetrics.clientWidth,
-              width: (scrollMetrics.clientWidth / scrollMetrics.width) * scrollMetrics.clientWidth,
+              left: Math.max(0, Math.min((scrollMetrics.left / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth - 8)),
+              width: Math.min((scrollMetrics.clientWidth / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth),
               height: 2,
               background: "var(--fgColor-muted)",
               borderRadius: 1,
