@@ -290,6 +290,8 @@ interface DetailContentProps {
 
 Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
+  const hasError = methodCall.error !== undefined;
+  const http = methodCall.http;
 
   // Switch to response tab when response arrives
   useEffect(() => {
@@ -327,7 +329,23 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
           Waiting for response...
         </div>
       ) : (
-        <JsonViewer value={content} />
+        <>
+          {activeTab === "response" && hasError && http && (
+            <div
+              style={{
+                padding: "8px 12px",
+                fontFamily: "monospace",
+                fontSize: 12,
+                color: "var(--fgColor-danger)",
+                borderBottom: "1px solid var(--borderColor-muted)",
+                backgroundColor: "var(--bgColor-danger-muted)",
+              }}
+            >
+              {http.method} {http.url} → {http.status ? `${http.status} ${http.statusText || ""}`.trim() : "Error"}
+            </div>
+          )}
+          <JsonViewer value={content} />
+        </>
       )}
     </div>
   );
@@ -342,6 +360,9 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const responseHeaders = methodCall.responseHeaders || {};
   const hasRequestHeaders = Object.keys(requestHeaders).length > 0;
   const hasResponseHeaders = Object.keys(responseHeaders).length > 0;
+  const http = methodCall.http;
+  const hasError = methodCall.error !== undefined;
+  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
 
   return (
     <div
@@ -354,6 +375,51 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
         fontSize: 12,
       }}
     >
+      {/* Request URL */}
+      {http && (
+        <div style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              marginBottom: 8,
+              color: "var(--fgColor-default)",
+            }}
+          >
+            Request
+          </div>
+          <div
+            style={{
+              color: "var(--fgColor-muted)",
+              wordBreak: "break-all",
+            }}
+          >
+            {http.method} {http.url}
+          </div>
+        </div>
+      )}
+
+      {/* Response Status */}
+      {http && hasResponse && (
+        <div style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              marginBottom: 8,
+              color: "var(--fgColor-default)",
+            }}
+          >
+            Response
+          </div>
+          <div
+            style={{
+              color: hasError ? "var(--fgColor-danger)" : "var(--fgColor-success)",
+            }}
+          >
+            {http.status ? `${http.status} ${http.statusText || ""}`.trim() : hasError ? "Error" : "OK"}
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: 24 }}>
         <div
           style={{

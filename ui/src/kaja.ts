@@ -12,6 +12,13 @@ export interface MethodCallHeaders {
   [key: string]: string;
 }
 
+export interface MethodCallHttp {
+  method: string;
+  url: string;
+  status?: number;
+  statusText?: string;
+}
+
 export interface MethodCall {
   service: Service;
   method: Method;
@@ -20,6 +27,7 @@ export interface MethodCall {
   error?: any;
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;
+  http?: MethodCallHttp;
 }
 
 export interface MethodCallUpdate {

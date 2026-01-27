@@ -1,13 +1,31 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { MethodCall } from "./kaja";
-import { Client, ProjectRef, Service } from "./project";
+import { MethodCall, MethodCallHttp } from "./kaja";
+import { Client, ProjectRef, Service, Method, serviceId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
+
+function buildHttpInfo(service: Service, method: Method, projectRef: ProjectRef): MethodCallHttp {
+  const baseUrl = projectRef.configuration.url.replace(/\/$/, "");
+  const fullServiceName = serviceId(service);
+  const protocol = projectRef.configuration.protocol;
+
+  let path: string;
+  if (protocol === RpcProtocol.TWIRP) {
+    path = `/twirp/${fullServiceName}/${method.name}`;
+  } else {
+    path = `/${fullServiceName}/${method.name}`;
+  }
+
+  return {
+    method: "POST",
+    url: baseUrl + path,
+  };
+}
 
 export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
   const client: Client = { methods: {} };
@@ -72,6 +90,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         method,
         input,
         requestHeaders,
+        http: buildHttpInfo(service, method, projectRef),
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
@@ -93,8 +112,26 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
           }
         }
         methodCall.responseHeaders = responseHeaders;
-      } catch (error) {
+
+        // Mark successful response
+        if (methodCall.http) {
+          methodCall.http.status = 200;
+          methodCall.http.statusText = "OK";
+        }
+      } catch (error: any) {
         methodCall.error = error;
+
+        // Try to extract HTTP status from error
+        if (methodCall.http && error) {
+          const status = error.status ?? error.code ?? error.httpStatus;
+          if (typeof status === "number") {
+            methodCall.http.status = status;
+            methodCall.http.statusText = error.statusText ?? error.message ?? httpStatusText(status);
+          } else if (typeof status === "string" && /^\d+$/.test(status)) {
+            methodCall.http.status = parseInt(status, 10);
+            methodCall.http.statusText = error.statusText ?? error.message ?? httpStatusText(methodCall.http.status);
+          }
+        }
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);
@@ -108,4 +145,23 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
 
 function lcfirst(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+function httpStatusText(status: number): string {
+  const statusTexts: { [key: number]: string } = {
+    200: "OK",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    408: "Request Timeout",
+    409: "Conflict",
+    500: "Internal Server Error",
+    501: "Not Implemented",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+    504: "Gateway Timeout",
+  };
+  return statusTexts[status] || "Error";
 }
