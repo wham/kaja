@@ -36,13 +36,44 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const prevTabCount = useRef(React.Children.count(children));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, tabIndex: -1 });
+  const [showScrollbar, setShowScrollbar] = useState(false);
+  const [scrollMetrics, setScrollMetrics] = useState({ left: 0, width: 0, clientWidth: 0 });
+
+  const updateScrollMetrics = useCallback(() => {
+    const el = tabsHeaderRef.current;
+    if (el) {
+      setScrollMetrics({ left: el.scrollLeft, width: el.scrollWidth, clientWidth: el.clientWidth });
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = tabsHeaderRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollMetrics);
+    const observer = new ResizeObserver(updateScrollMetrics);
+    observer.observe(el);
+    updateScrollMetrics();
+    return () => {
+      el.removeEventListener("scroll", updateScrollMetrics);
+      observer.disconnect();
+    };
+  }, [children, updateScrollMetrics]);
 
   const scrollToTab = useCallback((index: number) => {
     const tabElement = tabRefs.current.get(index);
-    if (tabElement && tabsHeaderRef.current) {
-      tabElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    const container = tabsHeaderRef.current;
+    if (tabElement && container) {
+      const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
+      const visibleRight = container.scrollLeft + container.clientWidth;
+      const menuButtonWidth = onCloseAll ? 40 : 0;
+      if (tabRight > visibleRight - menuButtonWidth) {
+        container.scrollTo({
+          left: tabRight - container.clientWidth + menuButtonWidth + 8,
+          behavior: "smooth",
+        });
+      }
     }
-  }, []);
+  }, [onCloseAll]);
 
   useEffect(() => {
     const currentTabCount = React.Children.count(children);
@@ -82,23 +113,13 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
         .tabs-header::-webkit-scrollbar {
-          height: 2px;
-        }
-        .tabs-header::-webkit-scrollbar-track {
-          background-color: #1e1e1e;
-        }
-        .tabs-header:hover::-webkit-scrollbar-thumb {
-          background-color: var(--fgColor-muted);
-        }
-        .tabs-header::-webkit-scrollbar-thumb {
-          background-color: transparent;
+          display: none;
         }
         .tab-item {
           display: flex;
           align-items: center;
           padding: 8px 10px 8px 16px;
           border-top: 1px solid transparent;
-          border-bottom: 1px solid var(--borderColor-default);
           border-right: 1px solid var(--borderColor-default);
           font-size: 14px;
           cursor: pointer;
@@ -110,7 +131,6 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
           background-color: var(--bgColor-neutral-muted);
-          border-bottom-color: transparent;
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -139,7 +159,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div style={{ position: "relative", flexShrink: 0 }}>
+      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
@@ -193,10 +213,10 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
+          <div style={{ flexGrow: 1 }} />
         </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)", borderBottom: "1px solid var(--borderColor-default)" }}>
+          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)" }}>
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
@@ -208,6 +228,21 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </ActionMenu.Overlay>
             </ActionMenu>
           </div>
+        )}
+        {showScrollbar && scrollMetrics.width > scrollMetrics.clientWidth && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: Math.max(0, Math.min((scrollMetrics.left / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth - 8)),
+              width: Math.min((scrollMetrics.clientWidth / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth),
+              height: 2,
+              background: "var(--fgColor-muted)",
+              borderRadius: 1,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow, WebkitOverflowScrolling: isNarrow ? "touch" : undefined }}>
