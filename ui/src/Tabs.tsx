@@ -91,15 +91,6 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <style>{`
-        .tabs-header::-webkit-scrollbar {
-          height: 2px;
-        }
-        .tabs-header::-webkit-scrollbar-track {
-          background-color: #1e1e1e;
-        }
-        .tabs-header::-webkit-scrollbar-thumb {
-          background-color: ${showScrollbar ? "var(--fgColor-muted)" : "transparent"};
-        }
         .tab-item {
           display: flex;
           align-items: center;
@@ -148,7 +139,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
+          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0, scrollbarWidth: "thin", scrollbarColor: showScrollbar ? "var(--fgColor-muted) transparent" : "transparent transparent" }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
