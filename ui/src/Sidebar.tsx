@@ -140,18 +140,8 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                 else elementRefs.current.delete(projectName);
               }}
               aria-label="Services and methods"
-              style={{ marginTop: projectIndex > 0 ? 4 : 0 }}
+              style={{ marginTop: projectIndex > 0 ? 12 : 0 }}
             >
-              {projectIndex > 0 && (
-                <div
-                  style={{
-                    borderTop: "1px solid var(--borderColor-muted)",
-                    marginLeft: -12,
-                    marginRight: -12,
-                    marginBottom: 8,
-                  }}
-                />
-              )}
               {showProjectHeader && (
                 <div
                   style={{
