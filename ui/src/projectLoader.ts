@@ -2,9 +2,9 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, createProjectRef, Method, Project, ProjectRef, Service } from "./project";
+import { Clients, createProjectRef, Method, Project, ProjectRef, Service, serviceId } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
-import { findInStub, findInterface, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
 export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
   const stub = await parseStub(stubCode);
@@ -16,7 +16,7 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     const serviceInterfaceDefinitions: ts.VariableStatement[] = [];
 
     source.serviceNames.forEach((serviceName) => {
-      const serviceInfo: ServiceInfo | undefined = findInStub(stub, serviceName);
+      const serviceInfo: ServiceInfo | undefined = findInStub(stub, source, serviceName);
       if (!serviceInfo) {
         return;
       }
@@ -29,15 +29,28 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
           editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
         });
       });
+      // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")
+      const typeName = serviceInfo.typeName || serviceName;
+      const lastDotIndex = typeName.lastIndexOf(".");
+      const packageName = lastDotIndex > 0 ? typeName.substring(0, lastDotIndex) : "";
+
+      // Find the corresponding .client source file (e.g., proto/v1/quirks.client.ts)
+      const clientSourcePath = source.importPath + ".client";
+      const clientSource = sources.find((s) => s.importPath === clientSourcePath);
+
       services.push({
         name: serviceName,
+        packageName,
+        sourcePath: source.importPath,
+        clientStubModuleId: clientSource?.stubModuleId || "",
         methods,
       });
 
-      const result = findInterface(sources, "I" + serviceName + "Client");
-      if (result) {
-        const [interfaceDeclaration, source] = result;
-        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, source.file, serviceInfo);
+      // Look for the client interface to generate type definitions
+      const interfaceName = "I" + serviceName + "Client";
+      const interfaceDeclaration = clientSource?.interfaces[interfaceName];
+      if (interfaceDeclaration && clientSource) {
+        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, serviceInfo);
         serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
       }
     });
@@ -53,6 +66,7 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     kajaSources.push({
       path: source.path,
       importPath: source.importPath,
+      stubModuleId: source.stubModuleId,
       file: ts.createSourceFile(
         source.file.fileName,
         // If service source, replace the service class (last statement) with the service interface definitions
@@ -86,7 +100,7 @@ export function createClients(services: Service[], stub: Stub, projectRef: Proje
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[service.name] = createClient(service, stub, projectRef);
+    clients[serviceId(service)] = createClient(service, stub, projectRef);
   }
 
   return clients;

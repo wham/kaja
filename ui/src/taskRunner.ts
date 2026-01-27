@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { Kaja } from "./kaja";
-import { Client, Project } from "./project";
+import { Client, Project, serviceId } from "./project";
 import { printStatements } from "./projectLoader";
 
 export function runTask(code: string, kaja: Kaja, projects: Project[]) {
@@ -26,9 +26,14 @@ export function runTask(code: string, kaja: Kaja, projects: Project[]) {
         importClause.namedBindings.elements.forEach((importSpecifier) => {
           const alias = importSpecifier.name.text;
           const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
-          if (project.clients[name]) {
-            project.clients[name].kaja = kaja;
-            args[alias] = project.clients[name].methods;
+          // Find service by name and source path to handle duplicate service names
+          const service = project.services.find((s) => s.name === name && s.sourcePath === source.importPath);
+          if (service) {
+            const client = project.clients[serviceId(service)];
+            if (client) {
+              client.kaja = kaja;
+              args[alias] = client.methods;
+            }
           } else if (source.enums[name]) {
             args[alias] = source.enums[name].object;
           }
