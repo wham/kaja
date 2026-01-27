@@ -36,6 +36,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const prevTabCount = useRef(React.Children.count(children));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, tabIndex: -1 });
+  const [showScrollbar, setShowScrollbar] = useState(false);
 
   const scrollToTab = useCallback((index: number) => {
     const tabElement = tabRefs.current.get(index);
@@ -96,11 +97,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tabs-header::-webkit-scrollbar-track {
           background-color: #1e1e1e;
         }
-        .tabs-wrapper:hover .tabs-header::-webkit-scrollbar-thumb {
-          background-color: var(--fgColor-muted);
-        }
         .tabs-header::-webkit-scrollbar-thumb {
           background-color: transparent;
+        }
+        .tabs-header.scrollbar-visible::-webkit-scrollbar-thumb {
+          background-color: var(--fgColor-muted);
         }
         .tab-item {
           display: flex;
@@ -148,10 +149,10 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }}>
+      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
         <div
           ref={tabsHeaderRef}
-          className="tabs-header"
+          className={`tabs-header${showScrollbar ? " scrollbar-visible" : ""}`}
           style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
         >
           {React.Children.map(children, (child, index) => {
