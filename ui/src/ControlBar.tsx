@@ -39,9 +39,15 @@ export function ControlBar({ onRun }: ControlBarProps) {
         <Button
           leadingVisual={PlayIcon}
           onClick={onRun}
-          variant="invisible"
           size="small"
-          sx={{ color: "var(--fgColor-success)" }}
+          sx={{
+            backgroundColor: "var(--bgColor-success-emphasis)",
+            color: "var(--fgColor-white)",
+            "&:hover": {
+              backgroundColor: "var(--bgColor-success-emphasis)",
+              filter: "brightness(1.1)",
+            },
+          }}
         >
           Run
         </Button>
