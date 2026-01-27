@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon } from "@primer/octicons-react";
+import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
 import { Method, Project, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 
@@ -226,18 +226,23 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                               if (expanded) scrollIntoView(serviceId);
                             }}
                           >
-                            <ServiceName service={service} showPackage={showPackage} />
+                            <TreeView.LeadingVisual>
+                              <PackageIcon size={16} />
+                            </TreeView.LeadingVisual>
+                            <span style={{ fontWeight: 500 }}>
+                              <ServiceName service={service} showPackage={showPackage} />
+                            </span>
                             <TreeView.SubTree>
-                          {service.methods.map((method) => (
-                            <TreeView.Item
-                              id={methodId(service, method)}
-                              key={methodId(service, method)}
-                              onSelect={() => onSelect(method, project)}
-                              current={currentMethod === method}
-                            >
-                              {method.name}
-                            </TreeView.Item>
-                          ))}
+                              {service.methods.map((method) => (
+                                <TreeView.Item
+                                  id={methodId(service, method)}
+                                  key={methodId(service, method)}
+                                  onSelect={() => onSelect(method, project)}
+                                  current={currentMethod === method}
+                                >
+                                  <span style={{ fontWeight: 400 }}>{method.name}</span>
+                                </TreeView.Item>
+                              ))}
                             </TreeView.SubTree>
                           </TreeView.Item>
                         );
