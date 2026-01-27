@@ -96,7 +96,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tabs-header::-webkit-scrollbar-track {
           background-color: #1e1e1e;
         }
-        .tabs-header:hover::-webkit-scrollbar-thumb {
+        .tabs-wrapper:hover .tabs-header::-webkit-scrollbar-thumb {
           background-color: var(--fgColor-muted);
         }
         .tabs-header::-webkit-scrollbar-thumb {
@@ -148,7 +148,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div style={{ position: "relative", flexShrink: 0 }}>
+      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
