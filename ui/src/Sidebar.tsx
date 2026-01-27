@@ -229,9 +229,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                             <TreeView.LeadingVisual>
                               <PackageIcon size={16} />
                             </TreeView.LeadingVisual>
-                            <span style={{ fontWeight: 500 }}>
-                              <ServiceName service={service} showPackage={showPackage} />
-                            </span>
+                            <ServiceName service={service} showPackage={showPackage} />
                             <TreeView.SubTree>
                               {service.methods.map((method) => (
                                 <TreeView.Item
@@ -240,7 +238,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                                   onSelect={() => onSelect(method, project)}
                                   current={currentMethod === method}
                                 >
-                                  <span style={{ fontWeight: 400 }}>{method.name}</span>
+                                  {method.name}
                                 </TreeView.Item>
                               ))}
                             </TreeView.SubTree>
