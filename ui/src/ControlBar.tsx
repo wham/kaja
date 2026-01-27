@@ -40,14 +40,7 @@ export function ControlBar({ onRun }: ControlBarProps) {
           leadingVisual={PlayIcon}
           onClick={onRun}
           size="small"
-          sx={{
-            backgroundColor: "var(--bgColor-success-emphasis)",
-            color: "var(--fgColor-white)",
-            "&:hover": {
-              backgroundColor: "var(--bgColor-success-emphasis)",
-              filter: "brightness(1.1)",
-            },
-          }}
+          variant="primary"
         >
           Run
         </Button>
