@@ -19,24 +19,6 @@ function buildHttpInfo(service: Service, method: Method, projectRef: ProjectRef)
   };
 }
 
-interface FetchStatus {
-  status: number;
-  statusText: string;
-}
-
-let lastFetchStatus: FetchStatus | undefined;
-
-function getLastFetchStatus(): FetchStatus | undefined {
-  return lastFetchStatus;
-}
-
-const originalFetch = globalThis.fetch;
-globalThis.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const response = await originalFetch.call(globalThis, input, init);
-  lastFetchStatus = { status: response.status, statusText: response.statusText };
-  return response;
-};
-
 export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
   const client: Client = { methods: {} };
 
@@ -105,8 +87,6 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
-      lastFetchStatus = undefined;
-
       try {
         const call = clientStub[lcfirst(method.name)](input, options);
         const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
@@ -126,15 +106,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         }
         methodCall.responseHeaders = responseHeaders;
       } catch (error: any) {
-        methodCall.error = error;
-      }
-
-      if (methodCall.http) {
-        const fetchStatus = getLastFetchStatus();
-        if (fetchStatus) {
-          methodCall.http.status = fetchStatus.status;
-          methodCall.http.statusText = fetchStatus.statusText;
-        }
+        methodCall.error = serializeError(error);
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);
@@ -148,4 +120,15 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
 
 function lcfirst(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+function serializeError(error: any): any {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  const obj: any = { message: error.message };
+  for (const key of Object.keys(error)) {
+    obj[key] = (error as any)[key];
+  }
+  return obj;
 }

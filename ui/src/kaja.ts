@@ -15,8 +15,6 @@ export interface MethodCallHeaders {
 export interface MethodCallHttp {
   method: string;
   url: string;
-  status?: number;
-  statusText?: string;
 }
 
 export interface MethodCall {

@@ -341,7 +341,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
                 backgroundColor: "var(--bgColor-danger-muted)",
               }}
             >
-              {http.method} {http.url} → {http.status ? `${http.status} ${http.statusText || ""}`.trim() : "Error"}
+              {http.method} {http.url}
             </div>
           )}
           <JsonViewer value={content} />
