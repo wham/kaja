@@ -3,10 +3,12 @@ import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { registerAIProvider } from "./ai";
+import { Console, ConsoleItem } from "./Console";
 import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
+import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./ProjectForm";
@@ -58,8 +60,34 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [consoleHeight, setConsoleHeight] = useState(250);
+  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+
+  const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
+    setConsoleItems((consoleItems) => {
+      const index = consoleItems.findIndex((item) => item === methodCall);
+      if (index > -1) {
+        return consoleItems.map((item, i) => (i === index ? { ...methodCall } : item));
+      } else {
+        return [...consoleItems, methodCall];
+      }
+    });
+  }, []);
+
+  const kajaRef = useRef<Kaja>(null);
+  if (!kajaRef.current) {
+    kajaRef.current = new Kaja(onMethodCallUpdate);
+  }
+
+  const onClearConsole = useCallback(() => {
+    setConsoleItems([]);
+  }, []);
+
+  const onConsoleResize = useCallback((delta: number) => {
+    setConsoleHeight((height) => Math.max(100, Math.min(600, height - delta)));
+  }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
@@ -523,62 +551,71 @@ export function App() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
-              <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
-                {tabs.map((tab, index) => {
-                  if (tab.type === "compiler") {
-                    return (
-                      <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                        <Compiler
-                          projects={projects}
-                          onUpdate={onCompilationUpdate}
-                          onConfigurationLoaded={setConfiguration}
-                          onNewProjectClick={onNewProjectClick}
-                        />
-                      </Tab>
-                    );
-                  }
+              <>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
+                    {tabs.map((tab, index) => {
+                      if (tab.type === "compiler") {
+                        return (
+                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                            <Compiler
+                              projects={projects}
+                              onUpdate={onCompilationUpdate}
+                              onConfigurationLoaded={setConfiguration}
+                              onNewProjectClick={onNewProjectClick}
+                            />
+                          </Tab>
+                        );
+                      }
 
-                  if (tab.type === "task" && projects.length > 0) {
-                    return (
-                      <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                        <Task
-                          model={tab.model}
-                          projects={projects}
-                          onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
-                          onGoToDefinition={onGoToDefinition}
-                        />
-                      </Tab>
-                    );
-                  }
+                      if (tab.type === "task" && projects.length > 0) {
+                        return (
+                          <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
+                            <Task
+                              model={tab.model}
+                              projects={projects}
+                              kaja={kajaRef.current!}
+                              onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                              onGoToDefinition={onGoToDefinition}
+                            />
+                          </Tab>
+                        );
+                      }
 
-                  if (tab.type === "definition") {
-                    return (
-                      <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
-                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
-                      </Tab>
-                    );
-                  }
+                      if (tab.type === "definition") {
+                        return (
+                          <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
+                            <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
+                          </Tab>
+                        );
+                      }
 
-                  if (tab.type === "projectForm") {
-                    const label = getProjectFormTabLabel(tab);
-                    return (
-                      <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
-                        <ProjectForm
-                          mode={tab.mode}
-                          initialData={tab.initialData}
-                          allProjects={configuration?.projects ?? []}
-                          readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                          onSubmit={onProjectFormSubmit}
-                          onCancel={onProjectFormCancel}
-                          onProjectSelect={onProjectFormSelect}
-                        />
-                      </Tab>
-                    );
-                  }
+                      if (tab.type === "projectForm") {
+                        const label = getProjectFormTabLabel(tab);
+                        return (
+                          <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                            <ProjectForm
+                              mode={tab.mode}
+                              initialData={tab.initialData}
+                              allProjects={configuration?.projects ?? []}
+                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              onSubmit={onProjectFormSubmit}
+                              onCancel={onProjectFormCancel}
+                              onProjectSelect={onProjectFormSelect}
+                            />
+                          </Tab>
+                        );
+                      }
 
-                  throw new Error("Unknown tab type");
-                })}
-              </Tabs>
+                      throw new Error("Unknown tab type");
+                    })}
+                  </Tabs>
+                </div>
+                <Gutter orientation="horizontal" onResize={onConsoleResize} />
+                <div style={{ height: consoleHeight, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+                  <Console items={consoleItems} onClear={onClearConsole} />
+                </div>
+              </>
             )}
           </div>
         </div>

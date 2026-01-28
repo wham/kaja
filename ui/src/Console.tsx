@@ -1,4 +1,5 @@
-import { PlayIcon } from "@primer/octicons-react";
+import { PlayIcon, TrashIcon } from "@primer/octicons-react";
+import { IconButton } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
 import { JsonViewer } from "./JsonViewer";
@@ -10,9 +11,10 @@ export type ConsoleItem = Log[] | MethodCall;
 
 interface ConsoleProps {
   items: ConsoleItem[];
+  onClear?: () => void;
 }
 
-export function Console({ items }: ConsoleProps) {
+export function Console({ items, onClear }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
@@ -101,15 +103,32 @@ export function Console({ items }: ConsoleProps) {
           style={{
             width: callListWidth,
             flexShrink: 0,
-            padding: "8px 12px",
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--fgColor-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
+            padding: "4px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          Calls
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--fgColor-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Console
+          </span>
+          {onClear && items.length > 0 && (
+            <IconButton
+              icon={TrashIcon}
+              aria-label="Clear console"
+              size="small"
+              variant="invisible"
+              onClick={onClear}
+            />
+          )}
         </div>
         {selectedMethodCall && (
           <Console.DetailTabs

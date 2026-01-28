@@ -1,49 +1,24 @@
 import { editor } from "monaco-editor";
-import { useRef, useState } from "react";
-import { Console, ConsoleItem } from "./Console";
+import { useRef } from "react";
 import { ControlBar } from "./ControlBar";
 import { Editor, onGoToDefinition } from "./Editor";
-import { Gutter } from "./Gutter";
-import { Kaja, MethodCall } from "./kaja";
+import { Kaja } from "./kaja";
 import { Project } from "./project";
 import { runTask } from "./taskRunner";
 
 interface TaskProps {
   model: editor.ITextModel;
   projects: Project[];
+  kaja: Kaja;
   onInteraction: () => void;
   onGoToDefinition: onGoToDefinition;
 }
 
-export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskProps) {
-  const [editorHeight, setEditorHeight] = useState(400);
-  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
+export function Task({ model, projects, kaja, onInteraction, onGoToDefinition }: TaskProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-  const kajaRef = useRef(new Kaja(onMethodCallUpdate));
 
   function onEditorMount(editor: editor.IStandaloneCodeEditor) {
     editorRef.current = editor;
-  }
-
-  const onEditorResize = (delta: number) => {
-    setEditorHeight((height) => height + delta);
-  };
-
-  function onMethodCallUpdate(methodCall: MethodCall) {
-    setConsoleItems((consoleItems) => {
-      const index = consoleItems.findIndex((item) => item === methodCall);
-
-      if (index > -1) {
-        return consoleItems.map((item, i) => {
-          if (i === index) {
-            return { ...methodCall };
-          }
-          return item;
-        });
-      } else {
-        return [...consoleItems, methodCall];
-      }
-    });
   }
 
   async function onRun() {
@@ -51,18 +26,14 @@ export function Task({ model, projects, onInteraction, onGoToDefinition }: TaskP
       return;
     }
 
-    runTask(editorRef.current.getValue(), kajaRef.current, projects);
+    runTask(editorRef.current.getValue(), kaja, projects);
     onInteraction();
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ height: editorHeight, position: "relative", flexShrink: 0 }}>
-        <ControlBar onRun={onRun} />
-        <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
-      </div>
-      <Gutter orientation="horizontal" onResize={onEditorResize} />
-      <Console items={consoleItems} />
+      <ControlBar onRun={onRun} />
+      <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
     </div>
   );
 }
