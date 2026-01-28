@@ -291,7 +291,6 @@ interface DetailContentProps {
 Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
   const hasError = methodCall.error !== undefined;
-  const http = methodCall.http;
 
   // Switch to response tab when response arrives
   useEffect(() => {
@@ -330,7 +329,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
         </div>
       ) : (
         <>
-          {activeTab === "response" && hasError && http && (
+          {activeTab === "response" && hasError && methodCall.url && (
             <div
               style={{
                 padding: "6px 12px",
@@ -341,7 +340,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
                 backgroundColor: "var(--bgColor-danger-muted)",
               }}
             >
-              {http.method} {http.url}
+              POST {methodCall.url}
             </div>
           )}
           <JsonViewer value={content} />

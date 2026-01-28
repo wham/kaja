@@ -1,23 +1,13 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { MethodCall, MethodCallHttp } from "./kaja";
-import { Client, ProjectRef, Service, Method, serviceId } from "./project";
+import { MethodCall } from "./kaja";
+import { Client, ProjectRef, Service, serviceId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
-
-function buildHttpInfo(service: Service, method: Method, projectRef: ProjectRef): MethodCallHttp {
-  const baseUrl = projectRef.configuration.url.replace(/\/$/, "");
-  const fullServiceName = serviceId(service);
-
-  return {
-    method: "POST",
-    url: `${baseUrl}/twirp/${fullServiceName}/${method.name}`,
-  };
-}
 
 export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
   const client: Client = { methods: {} };
@@ -83,7 +73,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         method,
         input,
         requestHeaders,
-        http: isTwirp ? buildHttpInfo(service, method, projectRef) : undefined,
+        url: isTwirp ? `${projectRef.configuration.url.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
