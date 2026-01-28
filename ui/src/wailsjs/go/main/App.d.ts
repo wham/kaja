@@ -3,6 +3,12 @@
 
 export function OpenDirectoryDialog():Promise<string>;
 
-export function Target(arg1:string,arg2:string,arg3:Array<number>,arg4:number,arg5:string):Promise<Array<number>>;
+export interface TargetResult {
+  body: Array<number>;
+  statusCode: number;
+  status: string;
+}
+
+export function Target(arg1:string,arg2:string,arg3:Array<number>,arg4:number,arg5:string):Promise<TargetResult>;
 
 export function Twirp(arg1:string,arg2:Array<number>):Promise<Array<number>>;
