@@ -2,7 +2,7 @@ import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { MethodCall } from "./kaja";
-import { Client, ProjectRef, Service } from "./project";
+import { Client, ProjectRef, Service, serviceId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -16,6 +16,8 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
     throw new Error(`Project has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
   }
 
+  const isTwirp = projectRef.configuration.protocol === RpcProtocol.TWIRP;
+
   let transport;
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
@@ -27,14 +29,13 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       protocol: projectRef.configuration.protocol,
     });
   } else {
-    transport =
-      projectRef.configuration.protocol === RpcProtocol.GRPC
-        ? new GrpcWebFetchTransport({
-            baseUrl: getBaseUrlForTarget(),
-          })
-        : new TwirpFetchTransport({
-            baseUrl: getBaseUrlForTarget(),
-          });
+    transport = isTwirp
+      ? new TwirpFetchTransport({
+          baseUrl: getBaseUrlForTarget(),
+        })
+      : new GrpcWebFetchTransport({
+          baseUrl: getBaseUrlForTarget(),
+        });
   }
 
   const ClientClass = stub[service.clientStubModuleId]?.[service.name + "Client"];
@@ -72,6 +73,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         method,
         input,
         requestHeaders,
+        url: isTwirp ? `${projectRef.configuration.url.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
@@ -93,8 +95,8 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
           }
         }
         methodCall.responseHeaders = responseHeaders;
-      } catch (error) {
-        methodCall.error = error;
+      } catch (error: any) {
+        methodCall.error = serializeError(error);
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);
@@ -108,4 +110,15 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
 
 function lcfirst(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+function serializeError(error: any): any {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  const obj: any = { message: error.message };
+  for (const key of Object.keys(error)) {
+    obj[key] = (error as any)[key];
+  }
+  return obj;
 }

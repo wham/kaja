@@ -118,12 +118,19 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	return response, nil
 }
 
+// TargetResult holds the response from a Target call, including HTTP status for Twirp.
+type TargetResult struct {
+	Body       []byte `json:"body"`
+	StatusCode int    `json:"statusCode"`
+	Status     string `json:"status"`
+}
+
 // Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
 // The protocol parameter indicates which RPC protocol to use:
 // - 1 = gRPC (RPC_PROTOCOL_GRPC)
 // - 2 = Twirp (RPC_PROTOCOL_TWIRP)
 // The headersJson parameter is a JSON-encoded map of headers to forward to the target.
-func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) ([]byte, error) {
+func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) (*TargetResult, error) {
 	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req), "headers", headersJson)
 
 	if req == nil {
@@ -143,7 +150,11 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	// Use protocol enum to determine which handler to use
 	switch protocol {
 	case 1: // RPC_PROTOCOL_GRPC
-		return a.targetGRPC(target, method, req, headers)
+		resp, err := a.targetGRPC(target, method, req, headers)
+		if err != nil {
+			return nil, err
+		}
+		return &TargetResult{Body: resp}, nil
 	case 2: // RPC_PROTOCOL_TWIRP
 		return a.targetTwirp(target, method, req, headers)
 	default:
@@ -174,7 +185,7 @@ func (a *App) targetGRPC(target string, method string, req []byte, headers map[s
 }
 
 // targetTwirp handles Twirp protocol calls over HTTP
-func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) ([]byte, error) {
+func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) (*TargetResult, error) {
 	var url string
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
 		// Already a valid HTTP URL
@@ -218,12 +229,11 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 	response := responseBuffer.Bytes()
 	slog.Info("Target response", "target", target, "method", method, "status", resp.StatusCode, "response_length", len(response))
 
-	if resp.StatusCode != http.StatusOK {
-		slog.Error("Target request failed", "target", target, "method", method, "status", resp.StatusCode)
-		return nil, fmt.Errorf("target request failed with status %d", resp.StatusCode)
-	}
-
-	return response, nil
+	return &TargetResult{
+		Body:       response,
+		StatusCode: resp.StatusCode,
+		Status:     http.StatusText(resp.StatusCode),
+	}, nil
 }
 
 func main() {

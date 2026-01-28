@@ -20,6 +20,7 @@ export interface MethodCall {
   error?: any;
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;
+  url?: string;
 }
 
 export interface MethodCallUpdate {
