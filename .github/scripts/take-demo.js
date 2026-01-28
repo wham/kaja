@@ -69,9 +69,28 @@ async function takeDemo() {
 
     // Wait for app to fully load - sidebar with services tree
     await waitFor(page, 'nav[aria-label="Services and methods"]', "services navigation");
-    await waitFor(page, 'div[role="treeitem"]', "service tree items");
-    // Wait for any loading state to finish
-    await waitForTextHidden(page, "Loading", "loading state to complete");
+
+    // Wait for project compilation to complete (loading state disappears)
+    // The sidebar shows "Loading..." text while projects compile
+    console.log("  Waiting for: projects to compile...");
+    try {
+      await page.waitForFunction(() => {
+        const loadingItem = document.getElementById('loading-tree-view-item');
+        const loadingText = document.body.innerText.includes('Loading...');
+        return !loadingItem && !loadingText;
+      }, { timeout: 30000 });
+      console.log("  ✓ Projects compiled");
+    } catch {
+      console.log("  ⚠ Compilation wait timed out, checking for content anyway");
+    }
+
+    // Now wait for actual service/method tree items to appear
+    // These are TreeView items that are NOT the loading placeholder
+    await waitFor(page, 'li[role="treeitem"]:not(#loading-tree-view-item)', "service tree items", 10000).catch(async () => {
+      // Fallback: check for any clickable method text
+      console.log("  ⚠ TreeView items not found with role, trying text-based check");
+      await waitFor(page, 'nav[aria-label="Services and methods"] ul', "services list", 5000);
+    });
     await settleDelay(page);
 
     // 1. Home screenshot - app once loaded
