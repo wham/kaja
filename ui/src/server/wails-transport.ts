@@ -122,24 +122,39 @@ export class WailsTransport implements RpcTransport {
         }
       }
 
-      let responseArray: number[];
+      let responseBase64: unknown;
 
       if (this.mode === "api") {
         console.log("Calling Wails Twirp with method:", method.name);
-        responseArray = await Twirp(method.name, inputArray);
+        responseBase64 = await Twirp(method.name, inputArray);
       } else {
         // mode === "target" - read URL and headers dynamically from projectRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
         const headersJson = JSON.stringify(this.projectRef!.configuration.headers || {});
         console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
-        responseArray = await Target(this.projectRef!.configuration.url, fullMethodPath, inputArray, this.protocol, headersJson);
+        const result = await Target(this.projectRef!.configuration.url, fullMethodPath, inputArray, this.protocol, headersJson);
+
+        if (result.statusCode >= 400) {
+          // Twirp error responses are always JSON, even in binary mode
+          try {
+            const bodyBytes = Uint8Array.from(atob(result.body as unknown as string), (c) => c.charCodeAt(0));
+            const errorJson = JSON.parse(new TextDecoder().decode(bodyBytes));
+            throw new Error(errorJson.msg || errorJson.message || `HTTP ${result.statusCode}`);
+          } catch (parseError) {
+            if (parseError instanceof Error && !parseError.message.startsWith("HTTP ")) {
+              throw parseError;
+            }
+            throw new Error(`HTTP ${result.statusCode} ${result.status}`);
+          }
+        }
+
+        responseBase64 = result.body;
       }
 
-      console.log(`Wails ${this.mode} result length:`, responseArray?.length);
-      console.log(`Wails ${this.mode} result:`, responseArray);
+      console.log(`Wails ${this.mode} result:`, responseBase64);
 
       // Both API and Target modes use the same response handling (base64 decoding)
-      const responseBytes = Uint8Array.from(atob(responseArray as unknown as string), (c) => c.charCodeAt(0));
+      const responseBytes = Uint8Array.from(atob(responseBase64 as string), (c) => c.charCodeAt(0));
 
       const output = method.O.fromBinary(responseBytes);
       console.log(`Wails ${this.mode} output:`, output);
