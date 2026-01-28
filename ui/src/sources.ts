@@ -31,7 +31,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
 
     // Convert source path to stub module identifier
     // e.g., "basics/lib/enum.ts" -> "basics$lib$enum"
-    const stubModuleId = apiSource.path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$");
+    const stubModuleId = apiSource.path.replace(".ts", "").replace(/\//g, "$").replace(/\./g, "$").replace(/-/g, "$");
     const stubModule = stub[stubModuleId] || {};
 
     const source: Source = {
