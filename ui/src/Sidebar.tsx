@@ -52,7 +52,7 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
 interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
-  canUpdateConfiguration: boolean;
+  canDeleteProjects?: boolean;
   onSelect: (method: Method, project: Project) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
@@ -60,7 +60,7 @@ interface SidebarProps {
   onDeleteProject: (projectName: string) => void;
 }
 
-export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
+export function Sidebar({ projects, currentMethod, canDeleteProjects = true, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject }: SidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const elementRefs = useRef<Map<string, HTMLElement>>(new Map());
   const pendingScrollRef = useRef<string | null>(null);
@@ -123,14 +123,14 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
         >
           Explorer
         </div>
-        {canUpdateConfiguration && <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />}
+        <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
           const projectName = project.configuration.name;
           const isExpanded = expandedProjects.has(projectName);
-          const showProjectHeader = projects.length > 1 || canUpdateConfiguration;
+          const showProjectHeader = true;
 
           return (
             <nav
@@ -174,7 +174,7 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                     {projectName}
                     <ProtocolPill protocol={project.configuration.protocol} />
                   </span>
-                  {canUpdateConfiguration && isExpanded && (
+                  {isExpanded && (
                     <span style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4 }}>
                       <span
                         role="button"
@@ -187,17 +187,19 @@ export function Sidebar({ projects, currentMethod, canUpdateConfiguration, onSel
                       >
                         <PencilIcon size={14} />
                       </span>
-                      <span
-                        role="button"
-                        aria-label={`Delete ${projectName}`}
-                        style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteProject(projectName);
-                        }}
-                      >
-                        <TrashIcon size={14} />
-                      </span>
+                      {canDeleteProjects && (
+                        <span
+                          role="button"
+                          aria-label={`Delete ${projectName}`}
+                          style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteProject(projectName);
+                          }}
+                        >
+                          <TrashIcon size={14} />
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>

@@ -35,6 +35,7 @@ interface ProjectFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationProject;
   allProjects: ConfigurationProject[];
+  readOnly?: boolean;
   onSubmit: (project: ConfigurationProject, originalName?: string) => void;
   onCancel: () => void;
   onProjectSelect: (projectName: string | null) => void;
@@ -87,7 +88,7 @@ function jsonToProject(json: any): ConfigurationProject {
   };
 }
 
-export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel, onProjectSelect }: ProjectFormProps) {
+export function ProjectForm({ mode, initialData, allProjects, readOnly = false, onSubmit, onCancel, onProjectSelect }: ProjectFormProps) {
   const [editMode, setEditMode] = useState<EditMode>("form");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -166,6 +167,7 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
           formatOnPaste: true,
           formatOnType: true,
           tabSize: 2,
+          readOnly,
         });
 
         formatJson(jsonStr).then((formatted) => {
@@ -293,6 +295,12 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
         </SegmentedControl>
       </div>
 
+      {readOnly && (
+        <div style={{ padding: "8px 16px", background: "var(--bgColor-attention-muted)", color: "var(--fgColor-attention)", fontSize: 14 }}>
+          Configuration is read-only. Contact your administrator for changes.
+        </div>
+      )}
+
       {jsonError && (
         <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>
           {jsonError}
@@ -303,7 +311,7 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
         {editMode === "form" ? (
           <div style={{ maxWidth: 600, padding: 16 }}>
             <Stack direction="vertical" gap="spacious">
-              <FormControl>
+              <FormControl disabled={readOnly}>
                 <FormControl.Label>Name</FormControl.Label>
                 <TextInput
                   ref={nameInputRef}
@@ -311,15 +319,16 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                   placeholder="Project name"
                   block
+                  disabled={readOnly}
                 />
               </FormControl>
 
-              <FormControl>
+              <FormControl disabled={readOnly}>
                 <FormControl.Label>URL</FormControl.Label>
-                <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block />
+                <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8080" block disabled={readOnly} />
               </FormControl>
 
-              <FormControl>
+              <FormControl disabled={readOnly}>
                 <FormControl.Label>Protocol</FormControl.Label>
                 <Select
                   value={String(protocol)}
@@ -331,6 +340,7 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
                     }
                   }}
                   block
+                  disabled={readOnly}
                 >
                   <Select.Option value={String(RpcProtocol.GRPC)}>gRPC</Select.Option>
                   <Select.Option value={String(RpcProtocol.TWIRP)}>Twirp</Select.Option>
@@ -339,6 +349,7 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
 
               <RadioGroup
                 name="protoSource"
+                disabled={readOnly}
                 onChange={(value) => {
                   if (protocol === RpcProtocol.GRPC || value !== "reflection") {
                     setProtoSourceType(value as ProtoSourceType);
@@ -346,11 +357,11 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
                 }}
               >
                 <RadioGroup.Label>Proto Source</RadioGroup.Label>
-                <FormControl disabled={protocol === RpcProtocol.TWIRP}>
+                <FormControl disabled={readOnly || protocol === RpcProtocol.TWIRP}>
                   <Radio
                     value="reflection"
                     checked={protoSourceType === "reflection"}
-                    disabled={protocol === RpcProtocol.TWIRP}
+                    disabled={readOnly || protocol === RpcProtocol.TWIRP}
                   />
                   <FormControl.Label>Reflection</FormControl.Label>
                   <FormControl.Caption>
@@ -359,21 +370,21 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
                       : "Discover services automatically from the server"}
                   </FormControl.Caption>
                 </FormControl>
-                <FormControl>
-                  <Radio value="protoDir" checked={protoSourceType === "protoDir"} />
+                <FormControl disabled={readOnly}>
+                  <Radio value="protoDir" checked={protoSourceType === "protoDir"} disabled={readOnly} />
                   <FormControl.Label>Proto directory</FormControl.Label>
                   <FormControl.Caption>Use all proto files from a directory</FormControl.Caption>
                 </FormControl>
               </RadioGroup>
 
-              <FormControl disabled={protoSourceType === "reflection"}>
+              <FormControl disabled={readOnly || protoSourceType === "reflection"}>
                 <FormControl.Label>Proto Directory</FormControl.Label>
                 <TextInput
                   value={protoDir}
                   onChange={(e) => setProtoDir(e.target.value)}
                   placeholder="Path to proto directory"
                   block
-                  disabled={protoSourceType === "reflection"}
+                  disabled={readOnly || protoSourceType === "reflection"}
                   trailingAction={
                     <TextInput.Action
                       onClick={async () => {
@@ -384,7 +395,7 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
                       }}
                       icon={FileDirectoryIcon}
                       aria-label="Select directory"
-                      disabled={protoSourceType === "reflection"}
+                      disabled={readOnly || protoSourceType === "reflection"}
                     />
                   }
                 />
@@ -397,10 +408,12 @@ export function ProjectForm({ mode, initialData, allProjects, onSubmit, onCancel
       </div>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
-        <Button onClick={handleCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
-          {submitLabel}
-        </Button>
+        <Button onClick={handleCancel}>{readOnly ? "Close" : "Cancel"}</Button>
+        {!readOnly && (
+          <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
+            {submitLabel}
+          </Button>
+        )}
       </div>
     </div>
   );
