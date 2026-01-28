@@ -7,7 +7,7 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
-import { createProjectRef, getDefaultMethod, Method, Project, updateProjectRef } from "./project";
+import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
@@ -40,10 +40,6 @@ function applyProjectRename(project: Project, newConfig: ConfigurationProject): 
   const remappedServices = project.services.map((service) => ({
     ...service,
     sourcePath: newConfig.name + service.sourcePath.slice(originalName.length),
-    methods: service.methods.map((method) => ({
-      ...method,
-      editorCode: remapEditorCode(method.editorCode, originalName, newConfig.name),
-    })),
   }));
   // Update the existing projectRef in place so clients use new values
   updateProjectRef(project.projectRef, newConfig);
@@ -304,10 +300,10 @@ export function App() {
         return;
       }
 
-      const defaultMethod = getDefaultMethod(updatedProjects[0].services);
-      setSelectedMethod(defaultMethod);
+      const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);
+      setSelectedMethod(defaultMethodAndService?.method);
 
-      if (!defaultMethod) {
+      if (!defaultMethodAndService) {
         return;
       }
 
@@ -318,16 +314,16 @@ export function App() {
             tab.model.dispose();
           }
         });
-        return addTaskTab([], defaultMethod, updatedProjects[0]);
+        return addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
       });
       setActiveTabIndex(0);
     }
   };
 
-  const onMethodSelect = (method: Method, project: Project) => {
+  const onMethodSelect = (method: Method, service: Service, project: Project) => {
     setSelectedMethod(method);
     setTabs((tabs) => {
-      tabs = addTaskTab(tabs, method, project);
+      tabs = addTaskTab(tabs, method, service, project);
       setActiveTabIndex(tabs.length - 1);
       return tabs;
     });
