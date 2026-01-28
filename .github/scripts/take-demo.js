@@ -150,11 +150,38 @@ async function takeDemo() {
     await waitFor(page, 'div.tab-item.active', "method tab to become active");
     await settleDelay(page);
 
-    // Click the Run button (more reliable than F5 keyboard shortcut)
-    const runButton = page.locator('button:has-text("Run")').first();
-    await waitForLocator(runButton, "Run button");
-    await runButton.click();
-    console.log("  ✓ Clicked Run button");
+    // Click the Run button - try multiple selectors
+    // The button contains text "Run" and has a play icon (octicon-play)
+    const runButtonSelectors = [
+      'button:has(svg.octicon-play)',           // Button with play icon
+      'button:has-text("Run")',                  // Button containing "Run" text
+      'button[data-variant="primary"]:has-text("Run")', // Primary button with Run text
+    ];
+
+    let runButtonClicked = false;
+    for (const selector of runButtonSelectors) {
+      const btn = page.locator(selector).first();
+      if ((await btn.count()) > 0 && (await btn.isVisible())) {
+        await btn.click();
+        runButtonClicked = true;
+        console.log(`  ✓ Clicked Run button using: ${selector}`);
+        break;
+      }
+    }
+
+    if (!runButtonClicked) {
+      // Last resort: use getByRole
+      const roleButton = page.getByRole('button', { name: /run/i }).first();
+      if ((await roleButton.count()) > 0) {
+        await roleButton.click();
+        console.log("  ✓ Clicked Run button using role selector");
+        runButtonClicked = true;
+      }
+    }
+
+    if (!runButtonClicked) {
+      throw new Error("Could not find Run button with any selector");
+    }
 
     // Wait for console to show results
     // First wait for the call to appear in console
