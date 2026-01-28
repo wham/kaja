@@ -150,32 +150,32 @@ async function takeDemo() {
     await waitFor(page, 'div.tab-item.active', "method tab to become active");
     await settleDelay(page);
 
-    // Press F5 to run the method
-    await page.keyboard.press("F5");
+    // Click the Run button (more reliable than F5 keyboard shortcut)
+    const runButton = page.locator('button:has-text("Run")').first();
+    await waitForLocator(runButton, "Run button");
+    await runButton.click();
+    console.log("  ✓ Clicked Run button");
 
-    // Wait for console to show results - look for Response tab to be active with content
+    // Wait for console to show results
     // First wait for the call to appear in console
     await waitFor(page, 'div.console-row', "call to appear in console");
 
     // Wait for response to complete - the pending state shows hollow circle, completed shows filled
-    // We check that "Waiting for response" text disappears or Response tab has content
     console.log("  Waiting for: response to complete...");
     try {
-      // Wait for the response tab content to appear (not "Waiting for response...")
+      // Wait for filled status indicator (● means complete, ○ means pending)
       await page.waitForFunction(() => {
-        const responseTab = document.querySelector('div.console-tab.active');
-        const waitingText = document.body.innerText.includes('Waiting for response');
-        const hasResponseContent = document.querySelector('.console-row.selected');
-        return hasResponseContent && !waitingText;
-      }, { timeout: 10000 });
+        const rows = document.querySelectorAll('.console-row');
+        if (rows.length === 0) return false;
+        // Check if any row has the filled circle (success or error)
+        const text = rows[0].textContent || '';
+        return text.includes('●');
+      }, { timeout: 15000 });
       console.log("  ✓ Response completed");
     } catch {
-      // Fallback: just wait for filled status indicator
-      await waitFor(page, 'div.console-row span:has-text("●")', "response status indicator", 5000).catch(() => {
-        console.log("  ✓ Response assumed complete (status check fallback)");
-      });
+      console.log("  ⚠ Response completion check timed out, proceeding anyway");
     }
-    await settleDelay(page);
+    await settleDelay(page, 500);
 
     await page.screenshot({ path: `${DEMO_DIR}/call.png` });
 
