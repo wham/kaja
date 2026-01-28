@@ -39,6 +39,7 @@ function applyProjectRename(project: Project, newConfig: ConfigurationProject): 
   const remappedSources = remapSourcesToNewName(project.sources, originalName, newConfig.name);
   const remappedServices = project.services.map((service) => ({
     ...service,
+    sourcePath: newConfig.name + service.sourcePath.slice(originalName.length),
     methods: service.methods.map((method) => ({
       ...method,
       editorCode: remapEditorCode(method.editorCode, originalName, newConfig.name),
@@ -120,7 +121,7 @@ export function App() {
   const syncProjectsFromConfiguration = useCallback((
     newConfiguration: Configuration,
     prevProjects: Project[]
-  ): { updatedProjects: Project[]; removedNames: Set<string>; renamedProjects: boolean } => {
+  ): { updatedProjects: Project[]; removedNames: Set<string>; renames: Map<string, string> } => {
     const updatedProjects: Project[] = [];
     const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
     const prevByName = new Map(prevProjects.map((p) => [p.configuration.name, p]));
@@ -186,7 +187,13 @@ export function App() {
       disposeMonacoModelsForProject(orphan.configuration.name);
     }
 
-    return { updatedProjects, removedNames, renamedProjects: renameMap.size > 0 };
+    // Build renames: oldName -> newName
+    const renames = new Map<string, string>();
+    for (const [newName, oldProject] of renameMap) {
+      renames.set(oldProject.configuration.name, newName);
+    }
+
+    return { updatedProjects, removedNames, renames };
   }, [disposeMonacoModelsForProject, createMonacoModelsForProject]);
 
   // Apply configuration and sync all state
@@ -194,7 +201,7 @@ export function App() {
     setConfiguration(newConfiguration);
 
     setProjects((prevProjects) => {
-      const { updatedProjects, removedNames, renamedProjects } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
+      const { updatedProjects, removedNames, renames } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
 
       // Clean up task tabs for removed projects
       if (removedNames.size > 0) {
@@ -212,15 +219,23 @@ export function App() {
         });
       }
 
-      // Refresh editors and AI provider if there were renames
-      if (renamedProjects) {
-        refreshOpenTaskEditors();
+      // Remap import paths in open task editors and refresh
+      if (renames.size > 0) {
+        tabsRef.current.forEach((tab) => {
+          if (tab.type === "task") {
+            let value = tab.model.getValue();
+            for (const [oldName, newName] of renames) {
+              value = remapEditorCode(value, oldName, newName);
+            }
+            tab.model.setValue(value);
+          }
+        });
         registerAIProvider(updatedProjects);
       }
 
       return updatedProjects;
     });
-  }, [syncProjectsFromConfiguration, disposeTaskTabsForProjects, refreshOpenTaskEditors]);
+  }, [syncProjectsFromConfiguration, disposeTaskTabsForProjects]);
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {
