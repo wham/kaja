@@ -4,6 +4,49 @@ const path = require("path");
 
 const DEMO_DIR = ".github/demo";
 const APP_URL = "http://localhost:41520";
+const DEFAULT_TIMEOUT = 15000;
+
+// Helper to wait for a selector with clear logging
+async function waitFor(page, selector, description, timeout = DEFAULT_TIMEOUT) {
+  console.log(`  Waiting for: ${description}...`);
+  try {
+    await page.waitForSelector(selector, { timeout, state: "visible" });
+    console.log(`  ✓ ${description}`);
+  } catch (error) {
+    console.error(`  ✗ Timeout waiting for: ${description}`);
+    console.error(`    Selector: ${selector}`);
+    throw new Error(`Timeout waiting for: ${description} (selector: ${selector})`);
+  }
+}
+
+// Helper to wait for a locator to be visible
+async function waitForLocator(locator, description, timeout = DEFAULT_TIMEOUT) {
+  console.log(`  Waiting for: ${description}...`);
+  try {
+    await locator.waitFor({ timeout, state: "visible" });
+    console.log(`  ✓ ${description}`);
+  } catch (error) {
+    console.error(`  ✗ Timeout waiting for: ${description}`);
+    throw new Error(`Timeout waiting for: ${description}`);
+  }
+}
+
+// Helper to wait for text to disappear
+async function waitForTextHidden(page, text, description, timeout = DEFAULT_TIMEOUT) {
+  console.log(`  Waiting for: ${description}...`);
+  try {
+    await page.getByText(text).first().waitFor({ timeout, state: "hidden" });
+    console.log(`  ✓ ${description}`);
+  } catch (error) {
+    // Text might not exist at all, which is fine
+    console.log(`  ✓ ${description} (text not present)`);
+  }
+}
+
+// Small delay for visual stability before screenshots
+async function settleDelay(page, ms = 300) {
+  await page.waitForTimeout(ms);
+}
 
 async function takeDemo() {
   const browser = await chromium.launch();
@@ -21,10 +64,15 @@ async function takeDemo() {
 
   try {
     // Navigate to the app
+    console.log("Navigating to app...");
     await page.goto(APP_URL);
 
-    // Wait for app to fully load (sidebar with services)
-    await page.waitForTimeout(3000);
+    // Wait for app to fully load - sidebar with services tree
+    await waitFor(page, 'nav[aria-label="Services and methods"]', "services navigation");
+    await waitFor(page, 'div[role="treeitem"]', "service tree items");
+    // Wait for any loading state to finish
+    await waitForTextHidden(page, "Loading", "loading state to complete");
+    await settleDelay(page);
 
     // 1. Home screenshot - app once loaded
     console.log("Taking home screenshot...");
@@ -39,9 +87,21 @@ async function takeDemo() {
       console.log("Taking new project screenshot...");
       await newProjectButton.click();
 
-      // Wait for the form to render - just use a fixed delay since the form
-      // structure may vary and we don't want brittle selectors
-      await page.waitForTimeout(2000);
+      // Wait for the project form to be ready
+      await waitFor(page, 'div.tab-item.active', "new project tab to be active");
+      // Wait for form input or JSON editor to be ready
+      const formInput = page.locator('input[placeholder="Project name"]');
+      const jsonEditor = page.locator('.monaco-editor');
+      try {
+        await Promise.race([
+          formInput.waitFor({ timeout: 5000, state: "visible" }),
+          jsonEditor.waitFor({ timeout: 5000, state: "visible" })
+        ]);
+        console.log("  ✓ Project form content loaded");
+      } catch {
+        console.log("  ✓ Project form opened (content type unknown)");
+      }
+      await settleDelay(page);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
@@ -52,7 +112,9 @@ async function takeDemo() {
       } else {
         await page.keyboard.press("Escape");
       }
-      await page.waitForTimeout(500);
+      // Wait for the tab to close
+      await page.locator('div.tab-item:has-text("New Project")').waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+      await settleDelay(page);
     } else {
       console.log("New Project button not found, skipping screenshot");
     }
@@ -62,15 +124,39 @@ async function takeDemo() {
 
     // Click on the Types method in the sidebar tree
     const methodItem = page.getByText('Types', { exact: true }).first();
+    await waitForLocator(methodItem, "Types method in sidebar");
     await methodItem.click();
-    await page.waitForTimeout(500);
+
+    // Wait for method tab to become active
+    await waitFor(page, 'div.tab-item.active', "method tab to become active");
+    await settleDelay(page);
 
     // Press F5 to run the method
     await page.keyboard.press("F5");
 
-    // Wait for console results to appear
-    // The console shows output in pre tags or buttons with "output"
-    await page.waitForTimeout(3000);
+    // Wait for console to show results - look for Response tab to be active with content
+    // First wait for the call to appear in console
+    await waitFor(page, 'div.console-row', "call to appear in console");
+
+    // Wait for response to complete - the pending state shows hollow circle, completed shows filled
+    // We check that "Waiting for response" text disappears or Response tab has content
+    console.log("  Waiting for: response to complete...");
+    try {
+      // Wait for the response tab content to appear (not "Waiting for response...")
+      await page.waitForFunction(() => {
+        const responseTab = document.querySelector('div.console-tab.active');
+        const waitingText = document.body.innerText.includes('Waiting for response');
+        const hasResponseContent = document.querySelector('.console-row.selected');
+        return hasResponseContent && !waitingText;
+      }, { timeout: 10000 });
+      console.log("  ✓ Response completed");
+    } catch {
+      // Fallback: just wait for filled status indicator
+      await waitFor(page, 'div.console-row span:has-text("●")', "response status indicator", 5000).catch(() => {
+        console.log("  ✓ Response assumed complete (status check fallback)");
+      });
+    }
+    await settleDelay(page);
 
     await page.screenshot({ path: `${DEMO_DIR}/call.png` });
 
@@ -78,41 +164,63 @@ async function takeDemo() {
     console.log("Taking compiler screenshot...");
 
     // Click the Compiler button (CPU icon in sidebar header)
-    const compilerButton = page.locator('button:has(svg[class*="octicon-cpu"])');
+    const compilerButton = page.locator('button[aria-label="Open Compiler"]');
+    const compilerButtonFallback = page.locator('button:has(svg[class*="octicon-cpu"])');
+
     if ((await compilerButton.count()) > 0) {
       await compilerButton.click();
+    } else if ((await compilerButtonFallback.count()) > 0) {
+      await compilerButtonFallback.click();
     } else {
-      // Fallback: look for button with aria-label
+      // Last fallback
       await page.locator('button[aria-label*="ompiler"]').click();
     }
-    await page.waitForTimeout(1000);
+
+    // Wait for compiler tab to become active
+    await waitFor(page, 'div.tab-item.active:has-text("Compiler")', "Compiler tab to become active");
+
+    // Wait for compiler content to load - either project items or loading state to finish
+    await waitForTextHidden(page, "Loading configuration", "configuration to load");
+    await waitFor(page, 'div.compiler-item-wrapper', "compiler project items", 10000).catch(() => {
+      console.log("  ⚠ No compiler items found, continuing anyway");
+    });
+    await settleDelay(page);
 
     // Expand the first compiled project by clicking on the ActionList.Item
     // Try multiple selectors since Primer components can render differently
-    const selectors = [
-      '.compiler-item-wrapper >> li',
-      '.compiler-item-wrapper [role="option"]',
-      '.compiler-item-wrapper button',
-      '[class*="ActionListItem"]',
+    const compilerSelectors = [
+      'div.compiler-item-wrapper li',
+      'div.compiler-item-wrapper [role="option"]',
+      'div.compiler-item-wrapper button',
     ];
 
     let clicked = false;
-    for (const selector of selectors) {
+    for (const selector of compilerSelectors) {
       const item = page.locator(selector).first();
       if ((await item.count()) > 0) {
         await item.click();
         clicked = true;
+        console.log(`  ✓ Clicked compiler item using: ${selector}`);
         break;
       }
     }
 
     if (!clicked) {
       // Last resort: click by visible text
-      await page.getByText('grpc-quirks').first().click();
+      const textItem = page.getByText('grpc-quirks').first();
+      if ((await textItem.count()) > 0) {
+        await textItem.click();
+        console.log("  ✓ Clicked compiler item using text: grpc-quirks");
+      } else {
+        console.log("  ⚠ Could not find compiler item to expand");
+      }
     }
 
-    // Wait for logs to expand
-    await page.waitForTimeout(1000);
+    // Wait for logs to expand - look for expanded state or logs container
+    await waitFor(page, 'div.compiler-item-expanded, div.compiler-logs-container, span.chevron-icon.expanded', "logs to expand", 5000).catch(() => {
+      console.log("  ✓ Logs expansion state unknown, proceeding");
+    });
+    await settleDelay(page);
 
     await page.screenshot({ path: `${DEMO_DIR}/compiler.png` });
 
