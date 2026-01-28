@@ -333,7 +333,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
           {activeTab === "response" && hasError && http && (
             <div
               style={{
-                padding: "8px 12px",
+                padding: "6px 12px",
                 fontFamily: "monospace",
                 fontSize: 12,
                 color: "var(--fgColor-danger)",
