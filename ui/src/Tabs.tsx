@@ -130,7 +130,18 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
-          background-color: var(--bgColor-neutral-muted);
+          background-color: var(--bgColor-default);
+          position: relative;
+        }
+        .tab-item.active::after {
+          content: '';
+          position: absolute;
+          bottom: -1px;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: var(--bgColor-default);
+          z-index: 2;
         }
         .tab-close-button:hover {
           opacity: 1 !important;
