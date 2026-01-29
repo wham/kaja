@@ -611,10 +611,14 @@ export function App() {
                     })}
                   </Tabs>
                 </div>
-                <Gutter orientation="horizontal" onResize={onConsoleResize} />
-                <div style={{ height: consoleHeight, flexShrink: 0, display: "flex", flexDirection: "column" }}>
-                  <Console items={consoleItems} onClear={onClearConsole} />
-                </div>
+                {tabs[activeTabIndex]?.type === "task" && (
+                  <>
+                    <Gutter orientation="horizontal" onResize={onConsoleResize} />
+                    <div style={{ height: consoleHeight, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+                      <Console items={consoleItems} onClear={onClearConsole} />
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
