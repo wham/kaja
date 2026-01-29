@@ -514,7 +514,7 @@ export function App() {
           <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
-              canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
+              canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
               onSelect={onMethodSelect}
               currentMethod={selectedMethod}
               onCompilerClick={onCompilerClick}
@@ -534,7 +534,6 @@ export function App() {
                       <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
                         <Compiler
                           projects={projects}
-                          canUpdateConfiguration={configuration?.system?.canUpdateConfiguration ?? false}
                           onUpdate={onCompilationUpdate}
                           onConfigurationLoaded={setConfiguration}
                           onNewProjectClick={onNewProjectClick}
@@ -572,6 +571,7 @@ export function App() {
                           mode={tab.mode}
                           initialData={tab.initialData}
                           allProjects={configuration?.projects ?? []}
+                          readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
                           onSubmit={onProjectFormSubmit}
                           onCancel={onProjectFormCancel}
                           onProjectSelect={onProjectFormSelect}
