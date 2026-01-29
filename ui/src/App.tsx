@@ -60,7 +60,7 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [consoleHeight, setConsoleHeight] = useState(250);
+  const [consoleHeight, setConsoleHeight] = useState(400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;

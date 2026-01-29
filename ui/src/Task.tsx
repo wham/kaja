@@ -31,7 +31,7 @@ export function Task({ model, projects, kaja, onInteraction, onGoToDefinition }:
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" }}>
       <ControlBar onRun={onRun} />
       <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
     </div>

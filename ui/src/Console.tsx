@@ -21,6 +21,15 @@ export function Console({ items, onClear }: ConsoleProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
+  // Reset selectedIndex when items are cleared or become invalid
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelectedIndex(null);
+    } else if (selectedIndex !== null && selectedIndex >= items.length) {
+      setSelectedIndex(null);
+    }
+  }, [items.length, selectedIndex]);
+
   const onCallListResize = (delta: number) => {
     setCallListWidth((prev) => Math.max(150, Math.min(600, prev + delta)));
   };
@@ -32,7 +41,9 @@ export function Console({ items, onClear }: ConsoleProps) {
 
   // Get selected method call
   const selectedMethodCall =
-    selectedIndex !== null && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
+    selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex]
+      ? (items[selectedIndex] as MethodCall)
+      : null;
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -97,38 +108,22 @@ export function Console({ items, onClear }: ConsoleProps) {
         style={{
           display: "flex",
           borderBottom: "1px solid var(--borderColor-default)",
+          position: "relative",
         }}
       >
         <div
           style={{
             width: callListWidth,
             flexShrink: 0,
-            padding: "4px 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            padding: "8px 12px",
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--fgColor-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
           }}
         >
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--fgColor-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Console
-          </span>
-          {onClear && items.length > 0 && (
-            <IconButton
-              icon={TrashIcon}
-              aria-label="Clear console"
-              size="small"
-              variant="invisible"
-              onClick={onClear}
-            />
-          )}
+          Calls
         </div>
         {selectedMethodCall && (
           <Console.DetailTabs
@@ -136,6 +131,26 @@ export function Console({ items, onClear }: ConsoleProps) {
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
+        )}
+        {onClear && items.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 20,
+              background: "rgba(13, 17, 23, 0.8)",
+              borderRadius: 6,
+              padding: 2,
+            }}
+          >
+            <IconButton
+              icon={TrashIcon}
+              aria-label="Clear console"
+              size="small"
+              variant="invisible"
+              onClick={onClear}
+            />
+          </div>
         )}
       </div>
 
