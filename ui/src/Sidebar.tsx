@@ -53,7 +53,7 @@ interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
   canDeleteProjects?: boolean;
-  onSelect: (method: Method, project: Project) => void;
+  onSelect: (method: Method, service: Service, project: Project) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onEditProject: (projectName: string) => void;
@@ -237,7 +237,7 @@ export function Sidebar({ projects, currentMethod, canDeleteProjects = true, onS
                                 <TreeView.Item
                                   id={methodId(service, method)}
                                   key={methodId(service, method)}
-                                  onSelect={() => onSelect(method, project)}
+                                  onSelect={() => onSelect(method, service, project)}
                                   current={currentMethod === method}
                                 >
                                   {method.name}
