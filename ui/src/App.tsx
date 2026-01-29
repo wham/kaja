@@ -1,4 +1,5 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
+import "@primer/primitives/dist/css/functional/themes/light.css";
 import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
+import { StatusBar, ColorMode } from "./StatusBar";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationProject } from "./server/api";
@@ -62,6 +64,7 @@ export function App() {
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
+  const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
@@ -88,6 +91,10 @@ export function App() {
 
   const onEditorResize = useCallback((delta: number) => {
     setEditorHeight((height) => Math.max(100, height + delta));
+  }, []);
+
+  const onToggleColorMode = useCallback(() => {
+    setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
@@ -278,6 +285,11 @@ export function App() {
       setTabs([{ type: "compiler" }]);
     }
   }, [tabs.length, projects.length]);
+
+  useEffect(() => {
+    monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
+    document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+  }, [colorMode]);
 
   useEffect(() => {
     const activeTab = tabs[activeTabIndex];
@@ -533,9 +545,10 @@ export function App() {
   };
 
   return (
-    <ThemeProvider colorMode="night">
+    <ThemeProvider colorMode={colorMode}>
       <BaseStyles>
-        <div style={{ position: "fixed", inset: 0, display: "flex", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
+        <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
+          <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
             <Sidebar
               projects={projects}
@@ -623,6 +636,8 @@ export function App() {
               </>
             )}
           </div>
+          </div>
+          <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} />
         </div>
       </BaseStyles>
     </ThemeProvider>
