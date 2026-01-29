@@ -1,4 +1,5 @@
-import { PlayIcon } from "@primer/octicons-react";
+import { PlayIcon, TrashIcon } from "@primer/octicons-react";
+import { IconButton } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
 import { JsonViewer } from "./JsonViewer";
@@ -10,14 +11,24 @@ export type ConsoleItem = Log[] | MethodCall;
 
 interface ConsoleProps {
   items: ConsoleItem[];
+  onClear?: () => void;
 }
 
-export function Console({ items }: ConsoleProps) {
+export function Console({ items, onClear }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  // Reset selectedIndex when items are cleared or become invalid
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelectedIndex(null);
+    } else if (selectedIndex !== null && selectedIndex >= items.length) {
+      setSelectedIndex(null);
+    }
+  }, [items.length, selectedIndex]);
 
   const onCallListResize = (delta: number) => {
     setCallListWidth((prev) => Math.max(150, Math.min(600, prev + delta)));
@@ -30,7 +41,9 @@ export function Console({ items }: ConsoleProps) {
 
   // Get selected method call
   const selectedMethodCall =
-    selectedIndex !== null && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
+    selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex]
+      ? (items[selectedIndex] as MethodCall)
+      : null;
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -95,6 +108,7 @@ export function Console({ items }: ConsoleProps) {
         style={{
           display: "flex",
           borderBottom: "1px solid var(--borderColor-default)",
+          position: "relative",
         }}
       >
         <div
@@ -117,6 +131,26 @@ export function Console({ items }: ConsoleProps) {
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
+        )}
+        {onClear && items.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 20,
+              background: "rgba(13, 17, 23, 0.8)",
+              borderRadius: 6,
+              padding: 2,
+            }}
+          >
+            <IconButton
+              icon={TrashIcon}
+              aria-label="Clear console"
+              size="small"
+              variant="invisible"
+              onClick={onClear}
+            />
+          </div>
         )}
       </div>
 
