@@ -115,12 +115,23 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tabs-header::-webkit-scrollbar {
           display: none;
         }
+        .tabs-header::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: var(--borderColor-default);
+          pointer-events: none;
+        }
         .tab-item {
           display: flex;
           align-items: center;
           padding: 8px 10px 8px 16px;
           border-top: 1px solid transparent;
           border-right: 1px solid var(--borderColor-default);
+          border-bottom: 1px solid transparent;
           font-size: 14px;
           cursor: pointer;
           background-color: transparent;
@@ -130,7 +141,10 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
-          background-color: var(--bgColor-neutral-muted);
+          border-bottom-color: var(--bgColor-default);
+          background-color: var(--bgColor-default);
+          position: relative;
+          z-index: 1;
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -159,11 +173,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
+      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
+          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0, position: "relative" }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
