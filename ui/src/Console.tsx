@@ -109,13 +109,14 @@ export function Console({ items, onClear }: ConsoleProps) {
           display: "flex",
           borderBottom: "1px solid var(--borderColor-default)",
           position: "relative",
+          height: 35,
         }}
       >
         <div
           style={{
             width: callListWidth,
             flexShrink: 0,
-            padding: "8px 12px",
+            padding: "10px 12px",
             fontSize: 11,
             fontWeight: 600,
             color: "var(--fgColor-muted)",
@@ -136,7 +137,7 @@ export function Console({ items, onClear }: ConsoleProps) {
           <div
             style={{
               position: "absolute",
-              top: 4,
+              top: 2,
               right: 20,
               background: "rgba(13, 17, 23, 0.8)",
               borderRadius: 6,
