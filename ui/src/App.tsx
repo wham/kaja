@@ -19,6 +19,7 @@ import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 import { useConfigurationChanges } from "./useConfigurationChanges";
+import { usePersistedState } from "./usePersistedState";
 import { isWailsEnvironment } from "./wails";
 import { WindowSetTitle } from "./wailsjs/runtime";
 
@@ -59,8 +60,8 @@ export function App() {
   const [tabs, setTabs] = useState<TabModel[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
-  const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [consoleHeight, setConsoleHeight] = useState(400);
+  const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
+  const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
@@ -85,8 +86,8 @@ export function App() {
     setConsoleItems([]);
   }, []);
 
-  const onConsoleResize = useCallback((delta: number) => {
-    setConsoleHeight((height) => Math.max(100, Math.min(600, height - delta)));
+  const onEditorResize = useCallback((delta: number) => {
+    setEditorHeight((height) => Math.max(100, height + delta));
   }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
@@ -552,7 +553,7 @@ export function App() {
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flex: tabs[activeTabIndex]?.type === "task" ? undefined : 1, display: "flex", flexDirection: "column", minHeight: 0, flexShrink: 0 }}>
                   <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
@@ -613,8 +614,8 @@ export function App() {
                 </div>
                 {tabs[activeTabIndex]?.type === "task" && (
                   <>
-                    <Gutter orientation="horizontal" onResize={onConsoleResize} />
-                    <div style={{ height: consoleHeight, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+                    <Gutter orientation="horizontal" onResize={onEditorResize} />
+                    <div style={{ flex: 1, minHeight: 100, display: "flex", flexDirection: "column" }}>
                       <Console items={consoleItems} onClear={onClearConsole} />
                     </div>
                   </>
