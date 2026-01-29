@@ -6,6 +6,29 @@ import { Clients, createProjectRef, Method, Project, ProjectRef, Service, servic
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
+// Generate editor code for a method on-demand (when opening a task tab)
+export function generateMethodEditorCode(project: Project, service: Service, method: Method): string {
+  // Find the source that matches the service's source path
+  const source = project.sources.find((s) => s.importPath === service.sourcePath);
+  if (!source) {
+    return `// Error: Could not find source for service ${service.name}`;
+  }
+
+  // Find the ServiceInfo from the stub
+  const serviceInfo: ServiceInfo | undefined = findInStub(project.stub, source, service.name);
+  if (!serviceInfo) {
+    return `// Error: Could not find service info for ${service.name}`;
+  }
+
+  // Find the MethodInfo by matching the method name
+  const methodInfo = serviceInfo.methods.find((m) => m.name === method.name);
+  if (!methodInfo) {
+    return `// Error: Could not find method info for ${method.name}`;
+  }
+
+  return methodEditorCode(methodInfo, service.name, source, project.sources);
+}
+
 export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
@@ -22,11 +45,8 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
       }
       const methods: Method[] = [];
       serviceInfo.methods.forEach((methodInfo) => {
-        const methodName = methodInfo.name;
-
         methods.push({
-          name: methodName,
-          editorCode: methodEditorCode(methodInfo, serviceName, source, sources),
+          name: methodInfo.name,
         });
       });
       // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")

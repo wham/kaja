@@ -48,7 +48,6 @@ export interface Service {
 
 export interface Method {
   name: string;
-  editorCode: string;
 }
 
 export interface Clients {
@@ -68,10 +67,10 @@ export function methodId(service: Service, method: Method): string {
   return `${service.name}.${method.name}`;
 }
 
-export function getDefaultMethod(services: Service[]): Method | undefined {
+export function getDefaultMethod(services: Service[]): { method: Method; service: Service } | undefined {
   for (const service of services) {
     for (const method of service.methods) {
-      return method;
+      return { method, service };
     }
   }
   return undefined;
