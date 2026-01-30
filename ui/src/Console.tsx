@@ -143,7 +143,7 @@ export function Console({ items, onClear }: ConsoleProps) {
               gap: 2,
               background: "var(--bgColor-muted)",
               borderRadius: 6,
-              padding: 2,
+              padding: "1px 2px 3px 2px",
             }}
           >
             <IconButton
