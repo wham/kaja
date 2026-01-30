@@ -139,8 +139,6 @@ export function Console({ items, onClear }: ConsoleProps) {
               position: "absolute",
               top: 2,
               right: 20,
-              display: "flex",
-              gap: 2,
               background: "var(--bgColor-muted)",
               borderRadius: 6,
               padding: "3px 2px 1px 2px",
