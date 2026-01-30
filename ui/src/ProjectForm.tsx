@@ -35,6 +35,7 @@ interface ProjectFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationProject;
   allProjects: ConfigurationProject[];
+  colorMode?: "day" | "night";
   readOnly?: boolean;
   onSubmit: (project: ConfigurationProject, originalName?: string) => void;
   onCancel: () => void;
@@ -88,7 +89,7 @@ function jsonToProject(json: any): ConfigurationProject {
   };
 }
 
-export function ProjectForm({ mode, initialData, allProjects, readOnly = false, onSubmit, onCancel, onProjectSelect }: ProjectFormProps) {
+export function ProjectForm({ mode, initialData, allProjects, readOnly = false, onSubmit, onCancel, onProjectSelect, colorMode = "night" }: ProjectFormProps) {
   const [editMode, setEditMode] = useState<EditMode>("form");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -402,7 +403,18 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
             </Stack>
           </div>
         ) : (
-          <div ref={editorContainerRef} style={{ height: "100%", minHeight: 300 }} />
+          <>
+            {colorMode === "night" && (
+              <style>{`
+                .project-form-editor .monaco-editor,
+                .project-form-editor .monaco-editor-background,
+                .project-form-editor .monaco-editor .margin {
+                  background-color: var(--bgColor-default) !important;
+                }
+              `}</style>
+            )}
+            <div ref={editorContainerRef} className="project-form-editor" style={{ height: "100%", minHeight: 300 }} />
+          </>
         )}
       </div>
 
