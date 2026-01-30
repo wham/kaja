@@ -375,7 +375,7 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded, onNewProje
             alignItems: "center",
             justifyContent: "center",
             color: "var(--fgColor-muted)",
-            backgroundColor: "var(--bgColor-default)",
+            backgroundColor: "var(--bgColor-muted)",
           }}
         >
           <div>
@@ -393,7 +393,7 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded, onNewProje
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-default)" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-muted)" }}>
       <style>{`
         @keyframes spin {
           from {
