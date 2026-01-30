@@ -59,6 +59,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
       showFoldingControls: "always",
       // Visual settings
       minimap: { enabled: false },
+      stickyScroll: { enabled: false },
       scrollBeyondLastLine: false,
       lineNumbers: "off",
       glyphMargin: false,
