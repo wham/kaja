@@ -115,23 +115,13 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tabs-header::-webkit-scrollbar {
           display: none;
         }
-        .tabs-header::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 1px;
-          background: var(--borderColor-default);
-          pointer-events: none;
-        }
         .tab-item {
           display: flex;
           align-items: center;
           padding: 8px 10px 8px 16px;
           border-top: 1px solid transparent;
           border-right: 1px solid var(--borderColor-default);
-          border-bottom: 1px solid transparent;
+          border-bottom: 1px solid var(--borderColor-default);
           font-size: 14px;
           cursor: pointer;
           background-color: transparent;
@@ -175,7 +165,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
-          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0, position: "relative" }}
+          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
         >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
@@ -225,7 +215,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div style={{ flexGrow: 1 }} />
+          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
           <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)", borderBottom: "1px solid var(--borderColor-default)" }}>
