@@ -112,7 +112,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
         .json-viewer-container .monaco-editor,
         .json-viewer-container .monaco-editor-background,
         .json-viewer-container .monaco-editor .margin {
-          background-color: #0d1117 !important;
+          background-color: var(--bgColor-default) !important;
         }
       `}</style>
       {/* Editor */}
@@ -125,7 +125,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
           right: 20,
           display: "flex",
           gap: 2,
-          background: "rgba(13, 17, 23, 0.8)",
+          background: "var(--bgColor-muted)",
           borderRadius: 6,
           padding: 2,
         }}

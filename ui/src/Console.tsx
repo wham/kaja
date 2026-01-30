@@ -139,7 +139,7 @@ export function Console({ items, onClear }: ConsoleProps) {
               position: "absolute",
               top: 2,
               right: 20,
-              background: "rgba(13, 17, 23, 0.8)",
+              background: "var(--bgColor-muted)",
               borderRadius: 6,
               padding: 2,
             }}

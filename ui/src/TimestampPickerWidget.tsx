@@ -58,19 +58,18 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
 
   const inputStyle: React.CSSProperties = {
     padding: "8px 12px",
-    backgroundColor: "#0d1117",
-    border: "1px solid #444c56",
+    backgroundColor: "var(--bgColor-default)",
+    border: "1px solid var(--borderColor-default)",
     borderRadius: "6px",
-    color: "#e6edf3",
-    colorScheme: "dark",
+    color: "var(--fgColor-default)",
     fontSize: "14px",
   };
 
   return (
     <div
       style={{
-        backgroundColor: "#1c2128",
-        border: "1px solid #444c56",
+        backgroundColor: "var(--bgColor-muted)",
+        border: "1px solid var(--borderColor-default)",
         borderRadius: "6px",
         padding: "16px",
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
