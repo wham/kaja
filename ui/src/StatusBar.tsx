@@ -12,7 +12,7 @@ export function StatusBar({ colorMode, onToggleColorMode }: StatusBarProps) {
   return (
     <div
       style={{
-        height: 28,
+        height: 32,
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-end",
