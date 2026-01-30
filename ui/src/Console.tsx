@@ -139,9 +139,11 @@ export function Console({ items, onClear }: ConsoleProps) {
               position: "absolute",
               top: 2,
               right: 20,
+              display: "flex",
+              gap: 2,
               background: "var(--bgColor-muted)",
               borderRadius: 6,
-              padding: "2px 2px 4px 2px",
+              padding: 2,
             }}
           >
             <IconButton
