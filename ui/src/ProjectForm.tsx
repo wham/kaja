@@ -279,7 +279,7 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-default)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
         <Select value={selectedProjectValue} onChange={handleProjectChange} style={{ minWidth: 200 }}>
           <Select.Option value={NEW_PROJECT_VALUE}>+ New Project</Select.Option>
