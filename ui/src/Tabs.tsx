@@ -131,8 +131,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
-          border-bottom-color: var(--bgColor-default);
-          background-color: var(--bgColor-default);
+          border-bottom-color: var(--bgColor-muted);
+          background-color: var(--bgColor-muted);
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -218,7 +218,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)" }}>
+          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)", borderBottom: "1px solid var(--borderColor-default)" }}>
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
