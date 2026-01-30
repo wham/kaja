@@ -29,7 +29,7 @@ export function ControlBar({ onRun }: ControlBarProps) {
         right: 20,
         display: "flex",
         gap: 2,
-        background: "rgba(13, 17, 23, 0.8)",
+        background: "var(--bgColor-muted)",
         borderRadius: 6,
         padding: 2,
         zIndex: 1,
