@@ -165,7 +165,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
           ) : (
             filteredResults.map((result, index) => (
               <div
-                key={`${result.project.configuration.name}-${result.service.name}-${result.method.name}`}
+                key={index}
                 style={{
                   padding: "10px 12px",
                   cursor: "pointer",
