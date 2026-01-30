@@ -12,6 +12,7 @@ import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
+import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
@@ -66,6 +67,7 @@ export function App() {
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
 
@@ -302,6 +304,23 @@ export function App() {
       WindowSetTitle(title);
     }
   }, [tabs, activeTabIndex]);
+
+  // Global "/" keyboard shortcut to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in an input, textarea, or contenteditable
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
     // Handle both direct array and functional updates
@@ -559,6 +578,7 @@ export function App() {
               onNewProjectClick={onNewProjectClick}
               onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
+              onSearchClick={() => setIsSearchOpen(true)}
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
@@ -566,7 +586,7 @@ export function App() {
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <>
-                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flex: tabs[activeTabIndex]?.type === "task" ? undefined : 1, display: "flex", flexDirection: "column", minHeight: 0, flexShrink: 0 }}>
+                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
@@ -639,6 +659,12 @@ export function App() {
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} />
         </div>
+        <SearchPopup
+          isOpen={isSearchOpen}
+          projects={projects}
+          onClose={() => setIsSearchOpen(false)}
+          onSelect={onMethodSelect}
+        />
       </BaseStyles>
     </ThemeProvider>
   );
