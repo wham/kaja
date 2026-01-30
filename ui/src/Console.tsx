@@ -141,7 +141,7 @@ export function Console({ items, onClear }: ConsoleProps) {
               right: 20,
               background: "var(--bgColor-muted)",
               borderRadius: 6,
-              padding: "3px 2px 1px 2px",
+              padding: 2,
             }}
           >
             <IconButton
