@@ -12,9 +12,10 @@ export type ConsoleItem = Log[] | MethodCall;
 interface ConsoleProps {
   items: ConsoleItem[];
   onClear?: () => void;
+  colorMode?: "day" | "night";
 }
 
-export function Console({ items, onClear }: ConsoleProps) {
+export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
@@ -192,6 +193,7 @@ export function Console({ items, onClear }: ConsoleProps) {
               methodCall={selectedMethodCall}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              colorMode={colorMode}
             />
           ) : (
             <div
@@ -321,9 +323,10 @@ interface DetailContentProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
+  colorMode?: "day" | "night";
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: DetailContentProps) {
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night" }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
   const hasError = methodCall.error !== undefined;
 
@@ -378,7 +381,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange }: Detail
               POST {methodCall.url}
             </div>
           )}
-          <JsonViewer value={content} />
+          <JsonViewer value={content} colorMode={colorMode} />
         </>
       )}
     </div>

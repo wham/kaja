@@ -6,9 +6,10 @@ import { formatJson } from "./formatter";
 
 interface JsonViewerProps {
   value: any;
+  colorMode?: "day" | "night";
 }
 
-export function JsonViewer({ value }: JsonViewerProps) {
+export function JsonViewer({ value, colorMode = "night" }: JsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [copied, setCopied] = useState(false);
@@ -40,6 +41,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
       language: "javascript",  // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
+      theme: colorMode === "night" ? "vs-dark" : "vs",
       automaticLayout: true,
       // Read-only configuration
       readOnly: true,

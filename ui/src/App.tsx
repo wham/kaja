@@ -629,7 +629,7 @@ export function App() {
                   <>
                     <Gutter orientation="horizontal" onResize={onEditorResize} />
                     <div style={{ flex: 1, minHeight: 100, display: "flex", flexDirection: "column" }}>
-                      <Console items={consoleItems} onClear={onClearConsole} />
+                      <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
                     </div>
                   </>
                 )}
