@@ -108,15 +108,8 @@ export function JsonViewer({ value }: JsonViewerProps) {
 
   return (
     <div style={{ position: "relative", height: "100%" }}>
-      <style>{`
-        .json-viewer-container .monaco-editor,
-        .json-viewer-container .monaco-editor-background,
-        .json-viewer-container .monaco-editor .margin {
-          background-color: var(--bgColor-default) !important;
-        }
-      `}</style>
       {/* Editor */}
-      <div ref={containerRef} className="json-viewer-container" style={{ height: "100%" }} />
+      <div ref={containerRef} style={{ height: "100%" }} />
       {/* Floating toolbar */}
       <div
         style={{
