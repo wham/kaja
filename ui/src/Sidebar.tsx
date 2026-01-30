@@ -141,7 +141,17 @@ export function Sidebar({ projects, currentMethod, canDeleteProjects = true, onS
           userSelect: "none",
         }}
       >
-        Type / to search
+        Type <span style={{
+          display: "inline-block",
+          padding: "0 5px",
+          marginLeft: 2,
+          marginRight: 2,
+          fontSize: 11,
+          fontWeight: 500,
+          backgroundColor: "var(--bgColor-default)",
+          border: "1px solid var(--borderColor-default)",
+          borderRadius: 4,
+        }}>/</span> to search
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
