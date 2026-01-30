@@ -142,6 +142,7 @@ export function Console({ items, onClear }: ConsoleProps) {
               background: "var(--bgColor-muted)",
               borderRadius: 6,
               padding: 2,
+              display: "flex",
             }}
           >
             <IconButton
