@@ -6,9 +6,10 @@ import { formatJson } from "./formatter";
 
 interface JsonViewerProps {
   value: any;
+  colorMode?: "day" | "night";
 }
 
-export function JsonViewer({ value }: JsonViewerProps) {
+export function JsonViewer({ value, colorMode = "night" }: JsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [copied, setCopied] = useState(false);
@@ -40,7 +41,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
       language: "javascript",  // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
-      theme: "vs-dark",
+      theme: colorMode === "night" ? "vs-dark" : "vs",
       automaticLayout: true,
       // Read-only configuration
       readOnly: true,
@@ -108,13 +109,15 @@ export function JsonViewer({ value }: JsonViewerProps) {
 
   return (
     <div style={{ position: "relative", height: "100%" }}>
-      <style>{`
-        .json-viewer-container .monaco-editor,
-        .json-viewer-container .monaco-editor-background,
-        .json-viewer-container .monaco-editor .margin {
-          background-color: #0d1117 !important;
-        }
-      `}</style>
+      {colorMode === "night" && (
+        <style>{`
+          .json-viewer-container .monaco-editor,
+          .json-viewer-container .monaco-editor-background,
+          .json-viewer-container .monaco-editor .margin {
+            background-color: var(--bgColor-default) !important;
+          }
+        `}</style>
+      )}
       {/* Editor */}
       <div ref={containerRef} className="json-viewer-container" style={{ height: "100%" }} />
       {/* Floating toolbar */}
@@ -125,7 +128,7 @@ export function JsonViewer({ value }: JsonViewerProps) {
           right: 20,
           display: "flex",
           gap: 2,
-          background: "rgba(13, 17, 23, 0.8)",
+          background: "var(--bgColor-muted)",
           borderRadius: 6,
           padding: 2,
         }}

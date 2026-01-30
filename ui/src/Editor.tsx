@@ -136,7 +136,6 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
       editorRef.current = monaco.editor.create(containerRef.current, {
         model,
         language: "typescript",
-        theme: "vs-dark",
         automaticLayout: true,
         padding: {
           top: 16,
