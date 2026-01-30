@@ -1,15 +1,32 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
+import { getMemorizedValue } from "./typeMemory";
 
-export function defaultMessage<T extends object>(message: IMessageType<T>, sources: Sources, imports: Imports): ts.ObjectLiteralExpression {
+export interface MemoryContext {
+  methodKey: string;
+  pathPrefix: string;
+}
+
+export function defaultMessage<T extends object>(
+  message: IMessageType<T>,
+  sources: Sources,
+  imports: Imports,
+  memoryContext?: MemoryContext,
+): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
 
   message.fields.forEach((field) => {
-    let value = defaultMessageField(field, sources, imports);
+    const fieldPath = memoryContext ? (memoryContext.pathPrefix ? `${memoryContext.pathPrefix}.${field.localName}` : field.localName) : undefined;
+    const fieldContext = memoryContext && fieldPath ? { methodKey: memoryContext.methodKey, pathPrefix: fieldPath } : undefined;
+
+    let value = defaultMessageField(field, sources, imports, fieldContext);
 
     if (field.repeat) {
-      value = ts.factory.createArrayLiteralExpression([value]);
+      const arrayPath = fieldPath ? `${fieldPath}[0]` : undefined;
+      const arrayContext = memoryContext && arrayPath ? { methodKey: memoryContext.methodKey, pathPrefix: arrayPath } : undefined;
+      const arrayValue = defaultMessageField(field, sources, imports, arrayContext);
+      value = ts.factory.createArrayLiteralExpression([arrayValue]);
     }
 
     properties.push(ts.factory.createPropertyAssignment(field.localName, value));
@@ -34,14 +51,21 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports): ts.Expression {
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, memoryContext?: MemoryContext): ts.Expression {
+  if (memoryContext && (field.kind === "scalar" || (field.kind === "message" && field.T().typeName === "google.protobuf.Timestamp"))) {
+    const memorized = getMemorizedValue(memoryContext.methodKey, memoryContext.pathPrefix);
+    if (memorized !== undefined) {
+      return valueToExpression(memorized);
+    }
+  }
+
   if (field.kind === "scalar") {
     return defaultScalar(field.T);
   }
 
   if (field.kind === "map") {
     const properties: ts.PropertyAssignment[] = [];
-    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports)));
+    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, memoryContext)));
 
     return ts.factory.createObjectLiteralExpression(properties);
   }
@@ -52,7 +76,6 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
-    // Special case for Timestamp: use current time instead of epoch
     if (messageType.typeName === "google.protobuf.Timestamp") {
       const now = new Date();
       const seconds = Math.floor(now.getTime() / 1000);
@@ -62,9 +85,25 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
         ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
       ]);
     }
-    return defaultMessage(messageType, sources, imports);
+    return defaultMessage(messageType, sources, imports, memoryContext);
   }
 
+  return ts.factory.createNull();
+}
+
+function valueToExpression(value: any): ts.Expression {
+  if (typeof value === "string") {
+    return ts.factory.createStringLiteral(value);
+  }
+  if (typeof value === "number") {
+    if (value < 0) {
+      return ts.factory.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, ts.factory.createNumericLiteral(Math.abs(value)));
+    }
+    return ts.factory.createNumericLiteral(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? ts.factory.createTrue() : ts.factory.createFalse();
+  }
   return ts.factory.createNull();
 }
 
@@ -130,14 +169,14 @@ type mapValueType =
       T: () => IMessageType<any>;
     };
 
-function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports): ts.Expression {
+function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, memoryContext?: MemoryContext): ts.Expression {
   switch (value.kind) {
     case "scalar":
       return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
     case "message":
-      return defaultMessage(value.T(), sources, imports);
+      return defaultMessage(value.T(), sources, imports, memoryContext);
   }
 }
 

@@ -1,4 +1,5 @@
 import { Method, Service } from "./project";
+import { captureMethodInput } from "./typeMemory";
 
 export class Kaja {
   readonly _internal: KajaInternal;
@@ -13,6 +14,7 @@ export interface MethodCallHeaders {
 }
 
 export interface MethodCall {
+  projectName: string;
   service: Service;
   method: Method;
   input: any;
@@ -35,6 +37,9 @@ class KajaInternal {
   }
 
   methodCallUpdate(methodCall: MethodCall) {
+    if (methodCall.output && !methodCall.error) {
+      captureMethodInput(methodCall.projectName, methodCall.service.name, methodCall.method.name, methodCall.input);
+    }
     this.#onMethodCallUpdate(methodCall);
   }
 }
