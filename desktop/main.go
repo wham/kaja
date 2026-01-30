@@ -25,6 +25,9 @@ import (
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
+// GitRef is the git commit hash or tag, set at build time via ldflags
+var GitRef string
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
@@ -265,7 +268,7 @@ func main() {
 	}
 
 	// Create API service without embedded binaries
-	apiService := api.NewApiService(configurationPath, true)
+	apiService := api.NewApiService(configurationPath, true, GitRef)
 	twirpHandler := api.NewApiServer(apiService)
 
 	// Start configuration file watcher

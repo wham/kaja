@@ -99,13 +99,20 @@ if [ -n "$BUILD_MODE" ]; then
             git add wails.json
             git commit -m "Update productVersion to $GIT_TAG"
             git push origin "$GIT_TAG"
+
+            # Use tag as GitRef for distribution
+            GIT_REF="$GIT_TAG"
         else
             echo "Warning: No git tag found, using default version from wails.json"
+            GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
         fi
+    else
+        # Development build mode - use git hash
+        GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
     fi
 
     echo "Building desktop app ($BUILD_MODE)..."
-    wails build
+    wails build -ldflags "-X main.GitRef=$GIT_REF"
 
     APP_BUNDLE="./build/bin/Kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
@@ -184,5 +191,7 @@ if [ -n "$BUILD_MODE" ]; then
     fi
 
 else
-    wails dev
+    # Dev mode - use git hash
+    GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
+    wails dev -ldflags "-X main.GitRef=$GIT_REF"
 fi

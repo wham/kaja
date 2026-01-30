@@ -2,6 +2,7 @@
 
 FROM alpine:latest AS builder
 ARG RUN_TESTS=false
+ARG GIT_REF=""
 RUN apk add --update nodejs npm
 COPY --from=golang:1.22.4-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
@@ -20,7 +21,7 @@ RUN go run cmd/build-ui/main.go
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi
-RUN go build -o /build/server ./cmd/server
+RUN go build -ldflags "-X main.GitRef=$GIT_REF" -o /build/server ./cmd/server
 
 FROM alpine:latest AS runner
 COPY --from=builder /build/server /server/
