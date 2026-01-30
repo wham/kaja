@@ -616,7 +616,6 @@ export function App() {
                               onSubmit={onProjectFormSubmit}
                               onCancel={onProjectFormCancel}
                               onProjectSelect={onProjectFormSelect}
-                              colorMode={colorMode}
                             />
                           </Tab>
                         );
