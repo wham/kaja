@@ -159,7 +159,6 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
 
         editorRef.current = monaco.editor.create(editorContainerRef.current, {
           model: monacoModelRef.current,
-          theme: "vs-dark",
           automaticLayout: true,
           padding: { top: 16, bottom: 16 },
           minimap: { enabled: false },
