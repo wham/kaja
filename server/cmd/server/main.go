@@ -16,6 +16,9 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 )
 
+// GitRef is the git commit hash or tag, set at build time via ldflags
+var GitRef string
+
 func handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
@@ -69,7 +72,7 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := api.NewApiServer(api.NewApiService(configurationPath, false))
+	twirpHandler := api.NewApiServer(api.NewApiService(configurationPath, false, GitRef))
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

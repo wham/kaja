@@ -657,7 +657,7 @@ export function App() {
             )}
           </div>
           </div>
-          <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} />
+          <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
         </div>
         <SearchPopup
           isOpen={isSearchOpen}

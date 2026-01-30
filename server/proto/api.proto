@@ -91,6 +91,8 @@ message Configuration {
 message ConfigurationSystem {
   // Whether the UI can update configuration (true in desktop app, false in web server)
   bool can_update_configuration = 1;
+  // Git commit hash or tag for the currently running version
+  string git_ref = 2;
 }
 
 message ConfigurationProject {

@@ -157,6 +157,12 @@ export interface ConfigurationSystem {
      * @generated from protobuf field: bool can_update_configuration = 1
      */
     canUpdateConfiguration: boolean;
+    /**
+     * Git commit hash or tag for the currently running version
+     *
+     * @generated from protobuf field: string git_ref = 2
+     */
+    gitRef: string;
 }
 /**
  * @generated from protobuf message ConfigurationProject
@@ -919,12 +925,14 @@ export const Configuration = new Configuration$Type();
 class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
     constructor() {
         super("ConfigurationSystem", [
-            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.canUpdateConfiguration = false;
+        message.gitRef = "";
         if (value !== undefined)
             reflectionMergePartial<ConfigurationSystem>(this, message, value);
         return message;
@@ -936,6 +944,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
             switch (fieldNo) {
                 case /* bool can_update_configuration */ 1:
                     message.canUpdateConfiguration = reader.bool();
+                    break;
+                case /* string git_ref */ 2:
+                    message.gitRef = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -952,6 +963,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
         /* bool can_update_configuration = 1; */
         if (message.canUpdateConfiguration !== false)
             writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
+        /* string git_ref = 2; */
+        if (message.gitRef !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.gitRef);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

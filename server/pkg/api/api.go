@@ -19,14 +19,16 @@ type ApiService struct {
 	compilers              sync.Map // map[string]*Compiler - keyed by ID
 	configurationPath      string
 	canUpdateConfiguration bool
+	gitRef                 string
 }
 
-func NewApiService(configurationPath string, canUpdateConfiguration bool) *ApiService {
+func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string) *ApiService {
 	tempdir.StartCleanup()
 
 	return &ApiService{
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
+		gitRef:                 gitRef,
 	}
 }
 
@@ -144,6 +146,12 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 
 	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
+	system := response.Configuration.System
+	if system == nil {
+		system = &ConfigurationSystem{}
+	}
+	system.GitRef = s.gitRef
+
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Projects:   response.Configuration.Projects,
@@ -151,7 +159,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 			BaseUrl: response.Configuration.Ai.BaseUrl,
 			ApiKey:  "*****",
 		},
-		System: response.Configuration.System,
+		System: system,
 	}
 
 	return &GetConfigurationResponse{

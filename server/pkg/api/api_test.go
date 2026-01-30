@@ -30,7 +30,7 @@ func TestGetConfiguration_RedactsAIApiKey(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(configurationPath, false)
+	service := NewApiService(configurationPath, false, "")
 
 	resp, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 	if err != nil {
