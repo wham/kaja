@@ -1,10 +1,11 @@
 import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
-import { addImport, defaultMessage } from "./defaultInput";
+import { addImport, defaultMessage, MemoryContext } from "./defaultInput";
 import { Clients, createProjectRef, Method, Project, ProjectRef, Service, serviceId } from "./project";
 import { Source as ApiSource, ConfigurationProject } from "./server/api";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
+import { createMethodKey } from "./typeMemory";
 
 // Generate editor code for a method on-demand (when opening a task tab)
 export function generateMethodEditorCode(project: Project, service: Service, method: Method): string {
@@ -26,7 +27,12 @@ export function generateMethodEditorCode(project: Project, service: Service, met
     return `// Error: Could not find method info for ${method.name}`;
   }
 
-  return methodEditorCode(methodInfo, service.name, source, project.sources);
+  const memoryContext: MemoryContext = {
+    methodKey: createMethodKey(project.configuration.name, service.name, method.name),
+    pathPrefix: "",
+  };
+
+  return methodEditorCode(methodInfo, service.name, source, project.sources, memoryContext);
 }
 
 export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
@@ -148,9 +154,9 @@ function getOutputType(method: ts.MethodSignature, sourceFile: ts.SourceFile): t
   return undefined;
 }
 
-function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources): string {
+function methodEditorCode(methodInfo: MethodInfo, serviceName: string, source: Source, sources: Sources, memoryContext: MemoryContext): string {
   const imports = addImport({}, serviceName, source);
-  const input = defaultMessage(methodInfo.I, sources, imports);
+  const input = defaultMessage(methodInfo.I, sources, imports, memoryContext);
 
   let statements: ts.Statement[] = [];
 
