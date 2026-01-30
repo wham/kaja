@@ -402,7 +402,16 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
             </Stack>
           </div>
         ) : (
-          <div ref={editorContainerRef} style={{ height: "100%", minHeight: 300 }} />
+          <>
+            <style>{`
+              .project-form-editor .monaco-editor,
+              .project-form-editor .monaco-editor-background,
+              .project-form-editor .monaco-editor .margin {
+                background-color: var(--bgColor-muted) !important;
+              }
+            `}</style>
+            <div ref={editorContainerRef} className="project-form-editor" style={{ height: "100%", minHeight: 300, backgroundColor: "var(--bgColor-muted)" }} />
+          </>
         )}
       </div>
 
