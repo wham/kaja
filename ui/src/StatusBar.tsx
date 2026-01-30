@@ -16,7 +16,7 @@ export function StatusBar({ colorMode, onToggleColorMode }: StatusBarProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-end",
-        paddingRight: 12,
+        paddingRight: 4,
         background: "var(--bgColor-default)",
         borderTop: "1px solid var(--borderColor-default)",
         flexShrink: 0,
