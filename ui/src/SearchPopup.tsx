@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActionList, TextInput } from "@primer/react";
+import { TextInput } from "@primer/react";
 import { SearchIcon } from "@primer/octicons-react";
 import { Method, Project, Service } from "./project";
 
@@ -63,7 +63,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
   // Scroll selected item into view
   useEffect(() => {
     if (listRef.current && filteredResults.length > 0) {
-      const selectedElement = listRef.current.querySelector('[data-is-active="true"]') as HTMLElement | null;
+      const selectedElement = listRef.current.children[selectedIndex] as HTMLElement | undefined;
       if (selectedElement) {
         selectedElement.scrollIntoView({ block: "nearest" });
       }
@@ -163,25 +163,27 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
               No methods found
             </div>
           ) : (
-            <ActionList>
-              {filteredResults.map((result, index) => (
-                <ActionList.Item
-                  key={index}
-                  active={index === selectedIndex}
-                  onSelect={() => {
-                    onSelect(result.method, result.service, result.project);
-                    onClose();
-                  }}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  data-is-active={index === selectedIndex}
-                >
-                  {result.method.name}
-                  <ActionList.Description variant="block">
-                    {result.project.configuration.name} / {result.service.name}
-                  </ActionList.Description>
-                </ActionList.Item>
-              ))}
-            </ActionList>
+            filteredResults.map((result, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  backgroundColor: index === selectedIndex ? "var(--bgColor-neutral-muted)" : "transparent",
+                  borderLeft: index === selectedIndex ? "2px solid var(--fgColor-accent)" : "2px solid transparent",
+                }}
+                onMouseEnter={() => setSelectedIndex(index)}
+                onClick={() => {
+                  onSelect(result.method, result.service, result.project);
+                  onClose();
+                }}
+              >
+                <div style={{ fontSize: 14, color: "var(--fgColor-default)" }}>{result.method.name}</div>
+                <div style={{ fontSize: 12, color: "var(--fgColor-muted)", marginTop: 2 }}>
+                  {result.project.configuration.name} / {result.service.name}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
