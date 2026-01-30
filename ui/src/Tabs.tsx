@@ -121,6 +121,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           padding: 8px 10px 8px 16px;
           border-top: 1px solid transparent;
           border-right: 1px solid var(--borderColor-default);
+          border-bottom: 1px solid var(--borderColor-default);
           font-size: 14px;
           cursor: pointer;
           background-color: transparent;
@@ -130,7 +131,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
-          background-color: var(--bgColor-neutral-muted);
+          border-bottom-color: var(--bgColor-default);
+          background-color: var(--bgColor-default);
         }
         .tab-close-button:hover {
           opacity: 1 !important;
@@ -159,7 +161,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0, borderBottom: "1px solid var(--borderColor-default)" }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
+      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
         <div
           ref={tabsHeaderRef}
           className="tabs-header"
@@ -213,7 +215,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div style={{ flexGrow: 1 }} />
+          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
           <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)" }}>
