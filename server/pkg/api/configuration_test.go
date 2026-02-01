@@ -42,11 +42,7 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 				"protoDir": "test-protoDir"
 			}
 		],
-		"pathPrefix": "test-prefix",
-		"ai": {
-			"baseUrl": "http://ai-service:8080",
-			"apiKey": "test-key"
-		}
+		"pathPrefix": "test-prefix"
 	}`
 
 	tmpfile, err := os.CreateTemp("", "config-*.json")
@@ -89,81 +85,6 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 
 	if getConfigurationResponse.Configuration.PathPrefix != "/test-prefix" {
 		t.Errorf("expected path prefix '/test-prefix', got %q", getConfigurationResponse.Configuration.PathPrefix)
-	}
-
-	if getConfigurationResponse.Configuration.Ai.BaseUrl != "http://ai-service:8080" {
-		t.Errorf("expected AI base URL 'http://ai-service:8080', got %q", getConfigurationResponse.Configuration.Ai.BaseUrl)
-	}
-	if getConfigurationResponse.Configuration.Ai.ApiKey != "test-key" {
-		t.Errorf("expected AI API key 'test-key', got %q", getConfigurationResponse.Configuration.Ai.ApiKey)
-	}
-}
-
-func TestLoadGetConfigurationResponse_AIEnvOverride(t *testing.T) {
-	configContent := `{
-		"projects": [],
-		"ai": {
-			"baseUrl": "http://file-ai:8080",
-			"apiKey": "file-key"
-		}
-	}`
-
-	tmpfile, err := os.CreateTemp("", "config-*.json")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-
-	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
-
-	const envBaseUrl = "http://env-ai:8080"
-	const envApiKey = "env-key"
-	os.Setenv("AI_BASE_URL", envBaseUrl)
-	os.Setenv("AI_API_KEY", envApiKey)
-	defer func() {
-		os.Unsetenv("AI_BASE_URL")
-		os.Unsetenv("AI_API_KEY")
-	}()
-
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
-
-	if getConfigurationResponse == nil {
-		t.Fatal("expected non-nil response")
-	}
-
-	if getConfigurationResponse.Configuration == nil {
-		t.Fatal("expected non-nil configuration")
-	}
-
-	if getConfigurationResponse.Configuration.Ai.BaseUrl != envBaseUrl {
-		t.Errorf("expected AI base URL from environment %q, got %q", envBaseUrl, getConfigurationResponse.Configuration.Ai.BaseUrl)
-	}
-	if getConfigurationResponse.Configuration.Ai.ApiKey != envApiKey {
-		t.Errorf("expected AI API key from environment %q, got %q", envApiKey, getConfigurationResponse.Configuration.Ai.ApiKey)
-	}
-
-	foundInfo := false
-	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "AI_BASE_URL env variable applied" {
-			foundInfo = true
-			break
-		}
-	}
-	if !foundInfo {
-		t.Error("expected to find info log about AI_BASE_URL environment variable")
-	}
-
-	foundInfo = false
-	for _, log := range getConfigurationResponse.Logs {
-		if log.Level == LogLevel_LEVEL_INFO && log.Message == "AI_API_KEY env variable applied" {
-			foundInfo = true
-			break
-		}
-	}
-	if !foundInfo {
-		t.Error("expected to find info log about AI_API_KEY environment variable")
 	}
 }
 
