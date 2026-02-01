@@ -7,6 +7,11 @@ const MAX_METHODS = 1000;
 export interface TypeMemory {
   version: 1;
   methods: Record<string, MethodMemory>;
+  types: Record<string, TypeBasedMemory>;
+}
+
+export interface TypeBasedMemory {
+  fields: Record<string, FieldMemory>;
 }
 
 export interface MethodMemory {
@@ -24,7 +29,14 @@ export interface MemorizedValue {
 }
 
 export function getTypeMemory(): TypeMemory {
-  return getPersistedValue<TypeMemory>(TYPE_MEMORY_KEY) ?? { version: 1, methods: {} };
+  const memory = getPersistedValue<TypeMemory>(TYPE_MEMORY_KEY);
+  if (!memory) {
+    return { version: 1, methods: {}, types: {} };
+  }
+  if (!memory.types) {
+    memory.types = {};
+  }
+  return memory;
 }
 
 export function setTypeMemory(memory: TypeMemory): void {
@@ -174,5 +186,109 @@ export function getMemorizedValue(methodKey: string, fieldPath: string): any | u
 }
 
 export function clearTypeMemory(): void {
-  setTypeMemory({ version: 1, methods: {} });
+  setTypeMemory({ version: 1, methods: {}, types: {} });
+}
+
+export function captureResponseType(typeName: string, output: any): void {
+  if (!typeName || !output || typeof output !== "object") {
+    return;
+  }
+
+  const memory = getTypeMemory();
+
+  if (!memory.types[typeName]) {
+    memory.types[typeName] = { fields: {} };
+  }
+
+  walkObjectWithTypes(output, "", typeName, (path, value, nestedTypeName) => {
+    if (isMemorizable(value)) {
+      if (!memory.types[nestedTypeName]) {
+        memory.types[nestedTypeName] = { fields: {} };
+      }
+      addValueToFieldMemory(memory.types[nestedTypeName].fields, path, value);
+    }
+  });
+
+  setTypeMemory(memory);
+}
+
+function walkObjectWithTypes(
+  obj: any,
+  prefix: string,
+  typeName: string,
+  callback: (path: string, value: any, typeName: string) => void,
+): void {
+  if (obj === null || obj === undefined) {
+    return;
+  }
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item, index) => {
+      const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
+      if (isMemorizable(item)) {
+        callback(path, item, typeName);
+      } else if (typeof item === "object") {
+        walkObjectWithTypes(item, path, typeName, callback);
+      }
+    });
+    return;
+  }
+
+  if (typeof obj === "object") {
+    for (const key of Object.keys(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      const value = obj[key];
+
+      if (isMemorizable(value)) {
+        callback(path, value, typeName);
+      } else if (typeof value === "object") {
+        walkObjectWithTypes(value, path, typeName, callback);
+      }
+    }
+  }
+}
+
+function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string, value: any): void {
+  if (!fields[path]) {
+    fields[path] = { values: [] };
+  }
+
+  const fieldMemory = fields[path];
+  const existingIndex = fieldMemory.values.findIndex((mv) => valuesEqual(mv.value, value));
+
+  if (existingIndex >= 0) {
+    fieldMemory.values[existingIndex].count++;
+    fieldMemory.values[existingIndex].lastUsed = Date.now();
+  } else {
+    fieldMemory.values.push({
+      value,
+      count: 1,
+      lastUsed: Date.now(),
+    });
+  }
+
+  fieldMemory.values.sort((a, b) => scoreValue(b) - scoreValue(a));
+
+  if (fieldMemory.values.length > MAX_VALUES_PER_FIELD) {
+    fieldMemory.values = fieldMemory.values.slice(0, MAX_VALUES_PER_FIELD);
+  }
+}
+
+export function getTypeBasedMemory(typeName: string): TypeBasedMemory | undefined {
+  const memory = getTypeMemory();
+  return memory.types[typeName];
+}
+
+export function getTypeMemorizedValue(typeName: string, fieldPath: string): any | undefined {
+  const typeMemory = getTypeBasedMemory(typeName);
+  if (!typeMemory) {
+    return undefined;
+  }
+
+  const fieldMemory = typeMemory.fields[fieldPath];
+  if (!fieldMemory || fieldMemory.values.length === 0) {
+    return undefined;
+  }
+
+  return fieldMemory.values[0].value;
 }

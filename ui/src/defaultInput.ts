@@ -1,11 +1,12 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
-import { getMemorizedValue } from "./typeMemory";
+import { getMemorizedValue, getTypeMemorizedValue } from "./typeMemory";
 
 export interface MemoryContext {
   methodKey: string;
   pathPrefix: string;
+  typeName?: string;
 }
 
 export function defaultMessage<T extends object>(
@@ -16,15 +17,19 @@ export function defaultMessage<T extends object>(
 ): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
 
+  const currentTypeName = message.typeName;
+
   message.fields.forEach((field) => {
     const fieldPath = memoryContext ? (memoryContext.pathPrefix ? `${memoryContext.pathPrefix}.${field.localName}` : field.localName) : undefined;
-    const fieldContext = memoryContext && fieldPath ? { methodKey: memoryContext.methodKey, pathPrefix: fieldPath } : undefined;
+    const fieldContext: MemoryContext | undefined =
+      memoryContext && fieldPath ? { methodKey: memoryContext.methodKey, pathPrefix: fieldPath, typeName: currentTypeName } : undefined;
 
     let value = defaultMessageField(field, sources, imports, fieldContext);
 
     if (field.repeat) {
       const arrayPath = fieldPath ? `${fieldPath}[0]` : undefined;
-      const arrayContext = memoryContext && arrayPath ? { methodKey: memoryContext.methodKey, pathPrefix: arrayPath } : undefined;
+      const arrayContext: MemoryContext | undefined =
+        memoryContext && arrayPath ? { methodKey: memoryContext.methodKey, pathPrefix: arrayPath, typeName: currentTypeName } : undefined;
       const arrayValue = defaultMessageField(field, sources, imports, arrayContext);
       value = ts.factory.createArrayLiteralExpression([arrayValue]);
     }
@@ -56,6 +61,13 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     const memorized = getMemorizedValue(memoryContext.methodKey, memoryContext.pathPrefix);
     if (memorized !== undefined) {
       return valueToExpression(memorized);
+    }
+
+    if (memoryContext.typeName) {
+      const typeMemorized = getTypeMemorizedValue(memoryContext.typeName, field.localName);
+      if (typeMemorized !== undefined) {
+        return valueToExpression(typeMemorized);
+      }
     }
   }
 

@@ -6,6 +6,9 @@ import {
   getMemorizedValue,
   createMethodKey,
   clearTypeMemory,
+  captureResponseType,
+  getTypeMemorizedValue,
+  getTypeBasedMemory,
 } from "./typeMemory";
 
 describe("typeMemory", () => {
@@ -109,5 +112,95 @@ describe("typeMemory", () => {
     clearTypeMemory();
 
     expect(getMemorizedValue(methodKey, "id")).toBeUndefined();
+  });
+});
+
+describe("type-based memory", () => {
+  beforeEach(() => {
+    clearTypeMemory();
+  });
+
+  it("captures response type values", () => {
+    captureResponseType("example.Customer", {
+      id: "cust-123",
+      name: "Acme Corp",
+      email: "contact@acme.com",
+    });
+
+    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
+    expect(getTypeMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
+    expect(getTypeMemorizedValue("example.Customer", "email")).toBe("contact@acme.com");
+  });
+
+  it("captures nested response values", () => {
+    captureResponseType("example.Order", {
+      orderId: "order-456",
+      customer: {
+        id: "cust-789",
+        name: "Test Customer",
+      },
+      total: 99.99,
+    });
+
+    expect(getTypeMemorizedValue("example.Order", "orderId")).toBe("order-456");
+    expect(getTypeMemorizedValue("example.Order", "customer.id")).toBe("cust-789");
+    expect(getTypeMemorizedValue("example.Order", "customer.name")).toBe("Test Customer");
+    expect(getTypeMemorizedValue("example.Order", "total")).toBe(99.99);
+  });
+
+  it("captures array values in response", () => {
+    captureResponseType("example.UserList", {
+      users: [
+        { id: "user-1", name: "Alice" },
+        { id: "user-2", name: "Bob" },
+      ],
+    });
+
+    expect(getTypeMemorizedValue("example.UserList", "users[0].id")).toBe("user-1");
+    expect(getTypeMemorizedValue("example.UserList", "users[0].name")).toBe("Alice");
+    expect(getTypeMemorizedValue("example.UserList", "users[1].id")).toBe("user-2");
+  });
+
+  it("returns most frequently used response value", () => {
+    captureResponseType("example.Customer", { id: "cust-1" });
+    captureResponseType("example.Customer", { id: "cust-2" });
+    captureResponseType("example.Customer", { id: "cust-2" });
+    captureResponseType("example.Customer", { id: "cust-2" });
+
+    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-2");
+  });
+
+  it("returns undefined for non-existent type", () => {
+    expect(getTypeMemorizedValue("nonExistent.Type", "id")).toBeUndefined();
+  });
+
+  it("returns undefined for non-existent field in type", () => {
+    captureResponseType("example.Customer", { id: "cust-123" });
+
+    expect(getTypeMemorizedValue("example.Customer", "nonExistent")).toBeUndefined();
+  });
+
+  it("ignores null/undefined responses", () => {
+    captureResponseType("example.Customer", null);
+    captureResponseType("example.Customer", undefined);
+
+    expect(getTypeBasedMemory("example.Customer")).toBeUndefined();
+  });
+
+  it("ignores empty type names", () => {
+    captureResponseType("", { id: "test" });
+
+    const memory = getTypeMemory();
+    expect(Object.keys(memory.types)).toHaveLength(0);
+  });
+
+  it("clears type-based memory with clearTypeMemory", () => {
+    captureResponseType("example.Customer", { id: "cust-123" });
+
+    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
+
+    clearTypeMemory();
+
+    expect(getTypeMemorizedValue("example.Customer", "id")).toBeUndefined();
   });
 });
