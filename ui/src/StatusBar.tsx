@@ -1,5 +1,7 @@
 import { IconButton } from "@primer/react";
 import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
+import { isWailsEnvironment } from "./wails";
+import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 
 export type ColorMode = "day" | "night";
 
@@ -12,6 +14,13 @@ interface StatusBarProps {
 export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
+
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isWailsEnvironment() && githubUrl) {
+      e.preventDefault();
+      BrowserOpenURL(githubUrl);
+    }
+  };
 
   return (
     <div
@@ -32,6 +41,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
           href={githubUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={handleLinkClick}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -41,8 +51,8 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
             textDecoration: "none",
           }}
         >
-          <MarkGithubIcon size={16} />
-          {shortRef}
+          <MarkGithubIcon size={14} />
+          <span style={{ position: "relative", top: 1 }}>{shortRef}</span>
         </a>
       ) : (
         <div />
