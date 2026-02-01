@@ -724,8 +724,10 @@ type ConfigurationSystem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Whether the UI can update configuration (true in desktop app, false in web server)
 	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// Git commit hash or tag for the currently running version
+	GitRef        string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfigurationSystem) Reset() {
@@ -763,6 +765,13 @@ func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
 		return x.CanUpdateConfiguration
 	}
 	return false
+}
+
+func (x *ConfigurationSystem) GetGitRef() string {
+	if x != nil {
+		return x.GitRef
+	}
+	return ""
 }
 
 type ConfigurationProject struct {
@@ -1357,9 +1366,10 @@ const file_proto_api_proto_rawDesc = "" +
 	"pathPrefix\x121\n" +
 	"\bprojects\x18\x02 \x03(\v2\x15.ConfigurationProjectR\bprojects\x12 \n" +
 	"\x02ai\x18\x03 \x01(\v2\x10.ConfigurationAIR\x02ai\x12,\n" +
-	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"O\n" +
+	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"h\n" +
 	"\x13ConfigurationSystem\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\"\xa4\x02\n" +
+	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
+	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\"\xa4\x02\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +
