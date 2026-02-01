@@ -20,33 +20,33 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingLeft: 12,
+        paddingLeft: 20,
         paddingRight: 20,
         background: "var(--bgColor-default)",
         borderTop: "1px solid var(--borderColor-default)",
         flexShrink: 0,
       }}
     >
-      <div>
-        {githubUrl && shortRef && (
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: 12,
-              color: "var(--fgColor-muted)",
-              textDecoration: "none",
-            }}
-          >
-            <MarkGithubIcon size={16} />
-            {shortRef}
-          </a>
-        )}
-      </div>
+      {githubUrl && shortRef ? (
+        <a
+          href={githubUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 12,
+            color: "var(--fgColor-muted)",
+            textDecoration: "none",
+          }}
+        >
+          <MarkGithubIcon size={16} />
+          {shortRef}
+        </a>
+      ) : (
+        <div />
+      )}
       <IconButton
         icon={colorMode === "night" ? SunIcon : MoonIcon}
         size="small"
