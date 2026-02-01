@@ -1,36 +1,18 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
-import { getMemorizedValue, getTypeMemorizedValue } from "./typeMemory";
+import { getScalarMemorizedValue, getTypeMemorizedValue } from "./typeMemory";
 
-export interface MemoryContext {
-  methodKey: string;
-  pathPrefix: string;
-  typeName?: string;
-}
-
-export function defaultMessage<T extends object>(
-  message: IMessageType<T>,
-  sources: Sources,
-  imports: Imports,
-  memoryContext?: MemoryContext,
-): ts.ObjectLiteralExpression {
+export function defaultMessage<T extends object>(message: IMessageType<T>, sources: Sources, imports: Imports): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
 
-  const currentTypeName = message.typeName;
+  const typeName = message.typeName;
 
   message.fields.forEach((field) => {
-    const fieldPath = memoryContext ? (memoryContext.pathPrefix ? `${memoryContext.pathPrefix}.${field.localName}` : field.localName) : undefined;
-    const fieldContext: MemoryContext | undefined =
-      memoryContext && fieldPath ? { methodKey: memoryContext.methodKey, pathPrefix: fieldPath, typeName: currentTypeName } : undefined;
-
-    let value = defaultMessageField(field, sources, imports, fieldContext);
+    let value = defaultMessageField(field, sources, imports, typeName);
 
     if (field.repeat) {
-      const arrayPath = fieldPath ? `${fieldPath}[0]` : undefined;
-      const arrayContext: MemoryContext | undefined =
-        memoryContext && arrayPath ? { methodKey: memoryContext.methodKey, pathPrefix: arrayPath, typeName: currentTypeName } : undefined;
-      const arrayValue = defaultMessageField(field, sources, imports, arrayContext);
+      const arrayValue = defaultMessageField(field, sources, imports, typeName);
       value = ts.factory.createArrayLiteralExpression([arrayValue]);
     }
 
@@ -56,28 +38,29 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, memoryContext?: MemoryContext): ts.Expression {
-  if (memoryContext && (field.kind === "scalar" || (field.kind === "message" && field.T().typeName === "google.protobuf.Timestamp"))) {
-    const memorized = getMemorizedValue(memoryContext.methodKey, memoryContext.pathPrefix);
-    if (memorized !== undefined) {
-      return valueToExpression(memorized);
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, parentTypeName?: string): ts.Expression {
+  // For scalar fields, try to get memorized value by field name and scalar type
+  if (field.kind === "scalar") {
+    const scalarType = scalarTypeToJsType(field.T);
+    if (scalarType) {
+      const memorized = getScalarMemorizedValue(field.localName, scalarType);
+      if (memorized !== undefined) {
+        return valueToExpression(memorized);
+      }
     }
-
-    if (memoryContext.typeName) {
-      const typeMemorized = getTypeMemorizedValue(memoryContext.typeName, field.localName);
+    // Also check type memory for this specific type's field
+    if (parentTypeName) {
+      const typeMemorized = getTypeMemorizedValue(parentTypeName, field.localName);
       if (typeMemorized !== undefined) {
         return valueToExpression(typeMemorized);
       }
     }
-  }
-
-  if (field.kind === "scalar") {
     return defaultScalar(field.T);
   }
 
   if (field.kind === "map") {
     const properties: ts.PropertyAssignment[] = [];
-    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, memoryContext)));
+    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports)));
 
     return ts.factory.createObjectLiteralExpression(properties);
   }
@@ -88,7 +71,15 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
+    // Special case for Timestamp
     if (messageType.typeName === "google.protobuf.Timestamp") {
+      // Check scalar memory for timestamp fields
+      const scalarType = "string";
+      const memorized = getScalarMemorizedValue(field.localName, scalarType);
+      if (memorized !== undefined) {
+        return valueToExpression(memorized);
+      }
+      // Default to current time
       const now = new Date();
       const seconds = Math.floor(now.getTime() / 1000);
       const nanos = (now.getTime() % 1000) * 1_000_000;
@@ -97,10 +88,35 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
         ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
       ]);
     }
-    return defaultMessage(messageType, sources, imports, memoryContext);
+    // For nested message types, recurse with the nested type name
+    return defaultMessage(messageType, sources, imports);
   }
 
   return ts.factory.createNull();
+}
+
+function scalarTypeToJsType(scalarType: ScalarType): "string" | "number" | "boolean" | undefined {
+  switch (scalarType) {
+    case ScalarType.INT64:
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+    case ScalarType.STRING:
+      return "string";
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+    case ScalarType.INT32:
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+      return "number";
+    case ScalarType.BOOL:
+      return "boolean";
+    case ScalarType.BYTES:
+      return undefined; // Bytes are Uint8Array, not memorized
+  }
 }
 
 function valueToExpression(value: any): ts.Expression {
@@ -181,14 +197,14 @@ type mapValueType =
       T: () => IMessageType<any>;
     };
 
-function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, memoryContext?: MemoryContext): ts.Expression {
+function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports): ts.Expression {
   switch (value.kind) {
     case "scalar":
       return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
     case "message":
-      return defaultMessage(value.T(), sources, imports, memoryContext);
+      return defaultMessage(value.T(), sources, imports);
   }
 }
 

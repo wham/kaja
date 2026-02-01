@@ -1,14 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   getTypeMemory,
-  setTypeMemory,
-  captureMethodInput,
-  getMemorizedValue,
-  createMethodKey,
-  clearTypeMemory,
-  captureResponseType,
+  captureValues,
   getTypeMemorizedValue,
-  getTypeBasedMemory,
+  getScalarMemorizedValue,
+  getScalarMemorizedValues,
+  clearTypeMemory,
 } from "./typeMemory";
 
 describe("typeMemory", () => {
@@ -16,191 +13,161 @@ describe("typeMemory", () => {
     clearTypeMemory();
   });
 
-  it("creates method key correctly", () => {
-    expect(createMethodKey("myProject", "UserService", "GetUser")).toBe("myProject:UserService:GetUser");
-  });
+  describe("captureValues", () => {
+    it("captures scalar values by type and field name", () => {
+      captureValues("example.Customer", {
+        id: "cust-123",
+        name: "Acme Corp",
+        count: 42,
+        active: true,
+      });
 
-  it("captures and retrieves simple values", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "GetUser");
+      // Check scalar memory (field name + type)
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-123");
+      expect(getScalarMemorizedValue("name", "string")).toBe("Acme Corp");
+      expect(getScalarMemorizedValue("count", "number")).toBe(42);
+      expect(getScalarMemorizedValue("active", "boolean")).toBe(true);
 
-    captureMethodInput("myProject", "UserService", "GetUser", {
-      id: "user-123",
-      name: "John",
+      // Check type memory (message type + field path)
+      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
+      expect(getTypeMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
     });
 
-    expect(getMemorizedValue(methodKey, "id")).toBe("user-123");
-    expect(getMemorizedValue(methodKey, "name")).toBe("John");
-  });
+    it("captures nested object values", () => {
+      captureValues("example.Order", {
+        orderId: "order-456",
+        customer: {
+          id: "cust-789",
+          name: "Test Customer",
+        },
+        total: 99.99,
+      });
 
-  it("captures nested object values", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "CreateUser");
+      // Scalar memory for nested fields
+      expect(getScalarMemorizedValue("orderId", "string")).toBe("order-456");
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-789");
+      expect(getScalarMemorizedValue("name", "string")).toBe("Test Customer");
+      expect(getScalarMemorizedValue("total", "number")).toBe(99.99);
 
-    captureMethodInput("myProject", "UserService", "CreateUser", {
-      user: {
-        name: "Jane",
-        email: "jane@example.com",
-      },
+      // Type memory with paths
+      expect(getTypeMemorizedValue("example.Order", "orderId")).toBe("order-456");
+      expect(getTypeMemorizedValue("example.Order", "customer.id")).toBe("cust-789");
+      expect(getTypeMemorizedValue("example.Order", "customer.name")).toBe("Test Customer");
     });
 
-    expect(getMemorizedValue(methodKey, "user.name")).toBe("Jane");
-    expect(getMemorizedValue(methodKey, "user.email")).toBe("jane@example.com");
-  });
+    it("captures array values", () => {
+      captureValues("example.UserList", {
+        users: [
+          { id: "user-1", name: "Alice" },
+          { id: "user-2", name: "Bob" },
+        ],
+      });
 
-  it("captures array values", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "BatchCreate");
+      // Scalar memory captures all values
+      expect(getScalarMemorizedValue("id", "string")).toBe("user-1");
+      expect(getScalarMemorizedValue("name", "string")).toBe("Alice");
 
-    captureMethodInput("myProject", "UserService", "BatchCreate", {
-      ids: ["id-1", "id-2", "id-3"],
+      // Type memory with array paths
+      expect(getTypeMemorizedValue("example.UserList", "users[0].id")).toBe("user-1");
+      expect(getTypeMemorizedValue("example.UserList", "users[0].name")).toBe("Alice");
+      expect(getTypeMemorizedValue("example.UserList", "users[1].id")).toBe("user-2");
     });
 
-    expect(getMemorizedValue(methodKey, "ids[0]")).toBe("id-1");
-    expect(getMemorizedValue(methodKey, "ids[1]")).toBe("id-2");
-    expect(getMemorizedValue(methodKey, "ids[2]")).toBe("id-3");
-  });
+    it("returns most frequently used value", () => {
+      captureValues("example.Customer", { id: "cust-1" });
+      captureValues("example.Customer", { id: "cust-2" });
+      captureValues("example.Customer", { id: "cust-2" });
+      captureValues("example.Customer", { id: "cust-2" });
 
-  it("returns most frequently used value", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "GetUser");
-
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-1" });
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-2" });
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-2" });
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-2" });
-
-    expect(getMemorizedValue(methodKey, "id")).toBe("user-2");
-  });
-
-  it("handles boolean values", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "UpdateUser");
-
-    captureMethodInput("myProject", "UserService", "UpdateUser", {
-      active: true,
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-2");
+      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-2");
     });
 
-    expect(getMemorizedValue(methodKey, "active")).toBe(true);
-  });
+    it("ignores null/undefined values", () => {
+      captureValues("example.Customer", null);
+      captureValues("example.Customer", undefined);
 
-  it("handles numeric values", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "SetLimit");
-
-    captureMethodInput("myProject", "UserService", "SetLimit", {
-      limit: 100,
-      offset: 0,
+      const memory = getTypeMemory();
+      expect(Object.keys(memory.types)).toHaveLength(0);
     });
 
-    expect(getMemorizedValue(methodKey, "limit")).toBe(100);
-    expect(getMemorizedValue(methodKey, "offset")).toBe(0);
+    it("ignores empty type names", () => {
+      captureValues("", { id: "test" });
+
+      const memory = getTypeMemory();
+      expect(Object.keys(memory.types)).toHaveLength(0);
+    });
   });
 
-  it("returns undefined for non-existent paths", () => {
-    const methodKey = createMethodKey("myProject", "UserService", "GetUser");
+  describe("scalar memory cross-type matching", () => {
+    it("shares scalar values across different message types", () => {
+      // Capture from GetCustomerResponse
+      captureValues("example.GetCustomerResponse", {
+        customer: {
+          id: "cust-123",
+          name: "Acme Corp",
+        },
+      });
 
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-1" });
-
-    expect(getMemorizedValue(methodKey, "nonExistent")).toBeUndefined();
-  });
-
-  it("returns undefined for non-existent methods", () => {
-    expect(getMemorizedValue("nonExistent:Method:Key", "id")).toBeUndefined();
-  });
-
-  it("clears type memory", () => {
-    captureMethodInput("myProject", "UserService", "GetUser", { id: "user-1" });
-    const methodKey = createMethodKey("myProject", "UserService", "GetUser");
-
-    expect(getMemorizedValue(methodKey, "id")).toBe("user-1");
-
-    clearTypeMemory();
-
-    expect(getMemorizedValue(methodKey, "id")).toBeUndefined();
-  });
-});
-
-describe("type-based memory", () => {
-  beforeEach(() => {
-    clearTypeMemory();
-  });
-
-  it("captures response type values", () => {
-    captureResponseType("example.Customer", {
-      id: "cust-123",
-      name: "Acme Corp",
-      email: "contact@acme.com",
+      // The same "id" field name should be available for UpdateCustomerRequest
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-123");
+      expect(getScalarMemorizedValue("name", "string")).toBe("Acme Corp");
     });
 
-    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
-    expect(getTypeMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
-    expect(getTypeMemorizedValue("example.Customer", "email")).toBe("contact@acme.com");
+    it("handles same field name with different types separately", () => {
+      captureValues("example.TypeA", { count: 42 });
+      captureValues("example.TypeB", { count: "forty-two" });
+
+      // Different scalar types are stored separately
+      expect(getScalarMemorizedValue("count", "number")).toBe(42);
+      expect(getScalarMemorizedValue("count", "string")).toBe("forty-two");
+    });
   });
 
-  it("captures nested response values", () => {
-    captureResponseType("example.Order", {
-      orderId: "order-456",
-      customer: {
-        id: "cust-789",
-        name: "Test Customer",
-      },
-      total: 99.99,
+  describe("getScalarMemorizedValues", () => {
+    it("returns all memorized values for a field", () => {
+      captureValues("example.Customer", { id: "cust-1" });
+      captureValues("example.Customer", { id: "cust-2" });
+      captureValues("example.Customer", { id: "cust-3" });
+
+      const values = getScalarMemorizedValues("id", "string");
+      expect(values).toHaveLength(3);
+      expect(values.map((v) => v.value)).toContain("cust-1");
+      expect(values.map((v) => v.value)).toContain("cust-2");
+      expect(values.map((v) => v.value)).toContain("cust-3");
     });
 
-    expect(getTypeMemorizedValue("example.Order", "orderId")).toBe("order-456");
-    expect(getTypeMemorizedValue("example.Order", "customer.id")).toBe("cust-789");
-    expect(getTypeMemorizedValue("example.Order", "customer.name")).toBe("Test Customer");
-    expect(getTypeMemorizedValue("example.Order", "total")).toBe(99.99);
+    it("returns empty array for non-existent field", () => {
+      const values = getScalarMemorizedValues("nonExistent", "string");
+      expect(values).toEqual([]);
+    });
   });
 
-  it("captures array values in response", () => {
-    captureResponseType("example.UserList", {
-      users: [
-        { id: "user-1", name: "Alice" },
-        { id: "user-2", name: "Bob" },
-      ],
+  describe("clearTypeMemory", () => {
+    it("clears all memory", () => {
+      captureValues("example.Customer", { id: "cust-123" });
+
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-123");
+
+      clearTypeMemory();
+
+      expect(getScalarMemorizedValue("id", "string")).toBeUndefined();
+      expect(getTypeMemorizedValue("example.Customer", "id")).toBeUndefined();
+    });
+  });
+
+  describe("undefined lookups", () => {
+    it("returns undefined for non-existent type", () => {
+      expect(getTypeMemorizedValue("nonExistent.Type", "id")).toBeUndefined();
     });
 
-    expect(getTypeMemorizedValue("example.UserList", "users[0].id")).toBe("user-1");
-    expect(getTypeMemorizedValue("example.UserList", "users[0].name")).toBe("Alice");
-    expect(getTypeMemorizedValue("example.UserList", "users[1].id")).toBe("user-2");
-  });
+    it("returns undefined for non-existent field in type", () => {
+      captureValues("example.Customer", { id: "cust-123" });
+      expect(getTypeMemorizedValue("example.Customer", "nonExistent")).toBeUndefined();
+    });
 
-  it("returns most frequently used response value", () => {
-    captureResponseType("example.Customer", { id: "cust-1" });
-    captureResponseType("example.Customer", { id: "cust-2" });
-    captureResponseType("example.Customer", { id: "cust-2" });
-    captureResponseType("example.Customer", { id: "cust-2" });
-
-    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-2");
-  });
-
-  it("returns undefined for non-existent type", () => {
-    expect(getTypeMemorizedValue("nonExistent.Type", "id")).toBeUndefined();
-  });
-
-  it("returns undefined for non-existent field in type", () => {
-    captureResponseType("example.Customer", { id: "cust-123" });
-
-    expect(getTypeMemorizedValue("example.Customer", "nonExistent")).toBeUndefined();
-  });
-
-  it("ignores null/undefined responses", () => {
-    captureResponseType("example.Customer", null);
-    captureResponseType("example.Customer", undefined);
-
-    expect(getTypeBasedMemory("example.Customer")).toBeUndefined();
-  });
-
-  it("ignores empty type names", () => {
-    captureResponseType("", { id: "test" });
-
-    const memory = getTypeMemory();
-    expect(Object.keys(memory.types)).toHaveLength(0);
-  });
-
-  it("clears type-based memory with clearTypeMemory", () => {
-    captureResponseType("example.Customer", { id: "cust-123" });
-
-    expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
-
-    clearTypeMemory();
-
-    expect(getTypeMemorizedValue("example.Customer", "id")).toBeUndefined();
+    it("returns undefined for non-existent scalar field", () => {
+      expect(getScalarMemorizedValue("nonExistent", "string")).toBeUndefined();
+    });
   });
 });

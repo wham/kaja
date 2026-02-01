@@ -2,19 +2,17 @@ import { getPersistedValue, setPersistedValue } from "./storage";
 
 const TYPE_MEMORY_KEY = "typeMemory";
 const MAX_VALUES_PER_FIELD = 10;
-const MAX_METHODS = 1000;
+const MAX_TYPES = 500;
 
 export interface TypeMemory {
-  version: 1;
-  methods: Record<string, MethodMemory>;
-  types: Record<string, TypeBasedMemory>;
+  version: 2;
+  // Message types: "example.Customer" -> { fields: { id: [...], name: [...] } }
+  types: Record<string, FieldsMemory>;
+  // Scalar fields by type: "string:id" -> [...], "number:count" -> [...]
+  scalars: Record<string, FieldMemory>;
 }
 
-export interface TypeBasedMemory {
-  fields: Record<string, FieldMemory>;
-}
-
-export interface MethodMemory {
+export interface FieldsMemory {
   fields: Record<string, FieldMemory>;
 }
 
@@ -30,11 +28,8 @@ export interface MemorizedValue {
 
 export function getTypeMemory(): TypeMemory {
   const memory = getPersistedValue<TypeMemory>(TYPE_MEMORY_KEY);
-  if (!memory) {
-    return { version: 1, methods: {}, types: {} };
-  }
-  if (!memory.types) {
-    memory.types = {};
+  if (!memory || memory.version !== 2) {
+    return { version: 2, types: {}, scalars: {} };
   }
   return memory;
 }
@@ -43,45 +38,49 @@ export function setTypeMemory(memory: TypeMemory): void {
   setPersistedValue(TYPE_MEMORY_KEY, memory);
 }
 
-export function getMethodMemory(methodKey: string): MethodMemory | undefined {
-  const memory = getTypeMemory();
-  return memory.methods[methodKey];
+export function clearTypeMemory(): void {
+  setTypeMemory({ version: 2, types: {}, scalars: {} });
 }
 
-export function createMethodKey(projectName: string, serviceName: string, methodName: string): string {
-  return `${projectName}:${serviceName}:${methodName}`;
-}
-
-export function captureMethodInput(projectName: string, serviceName: string, methodName: string, input: any): void {
-  const memory = getTypeMemory();
-  const methodKey = createMethodKey(projectName, serviceName, methodName);
-
-  if (!memory.methods[methodKey]) {
-    memory.methods[methodKey] = { fields: {} };
+/**
+ * Capture values from an object (request input or response output).
+ * - Message type fields are stored under the message type name
+ * - Scalar fields are stored by scalar type + field name
+ */
+export function captureValues(typeName: string, obj: any): void {
+  if (!typeName || !obj || typeof obj !== "object") {
+    return;
   }
 
-  walkObject(input, "", (path, value) => {
-    if (isMemorizable(value)) {
-      addValueToMemory(memory.methods[methodKey], path, value);
-    }
-  });
+  const memory = getTypeMemory();
+
+  if (!memory.types[typeName]) {
+    memory.types[typeName] = { fields: {} };
+  }
+
+  walkAndCapture(obj, "", typeName, memory);
 
   pruneMemoryIfNeeded(memory);
   setTypeMemory(memory);
 }
 
-function walkObject(obj: any, prefix: string, callback: (path: string, value: any) => void): void {
+function walkAndCapture(obj: any, prefix: string, typeName: string, memory: TypeMemory): void {
   if (obj === null || obj === undefined) {
     return;
   }
 
   if (Array.isArray(obj)) {
     obj.forEach((item, index) => {
-      const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-      if (isMemorizable(item)) {
-        callback(path, item);
+      if (isScalar(item)) {
+        // For array items, use index-based path for type memory
+        const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
+        addToTypeMemory(memory, typeName, path, item);
+        // Also add to scalar memory with just the field name (without index)
+        const fieldName = prefix || "item";
+        addToScalarMemory(memory, fieldName, item);
       } else if (typeof item === "object") {
-        walkObject(item, path, callback);
+        const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
+        walkAndCapture(item, path, typeName, memory);
       }
     });
     return;
@@ -92,16 +91,19 @@ function walkObject(obj: any, prefix: string, callback: (path: string, value: an
       const path = prefix ? `${prefix}.${key}` : key;
       const value = obj[key];
 
-      if (isMemorizable(value)) {
-        callback(path, value);
+      if (isScalar(value)) {
+        // Store in type memory (for message type matching)
+        addToTypeMemory(memory, typeName, path, value);
+        // Store in scalar memory (for field name + type matching)
+        addToScalarMemory(memory, key, value);
       } else if (typeof value === "object") {
-        walkObject(value, path, callback);
+        walkAndCapture(value, path, typeName, memory);
       }
     }
   }
 }
 
-function isMemorizable(value: any): boolean {
+function isScalar(value: any): boolean {
   if (value === null || value === undefined) {
     return false;
   }
@@ -109,12 +111,32 @@ function isMemorizable(value: any): boolean {
   return type === "string" || type === "number" || type === "boolean";
 }
 
-function addValueToMemory(methodMemory: MethodMemory, path: string, value: any): void {
-  if (!methodMemory.fields[path]) {
-    methodMemory.fields[path] = { values: [] };
+function getScalarTypeKey(fieldName: string, value: any): string {
+  const type = typeof value;
+  return `${type}:${fieldName}`;
+}
+
+function addToTypeMemory(memory: TypeMemory, typeName: string, fieldPath: string, value: any): void {
+  if (!memory.types[typeName]) {
+    memory.types[typeName] = { fields: {} };
+  }
+  addValueToFieldMemory(memory.types[typeName].fields, fieldPath, value);
+}
+
+function addToScalarMemory(memory: TypeMemory, fieldName: string, value: any): void {
+  const key = getScalarTypeKey(fieldName, value);
+  if (!memory.scalars[key]) {
+    memory.scalars[key] = { values: [] };
+  }
+  addValueToFieldMemory({ [key]: memory.scalars[key] }, key, value);
+}
+
+function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string, value: any): void {
+  if (!fields[path]) {
+    fields[path] = { values: [] };
   }
 
-  const fieldMemory = methodMemory.fields[path];
+  const fieldMemory = fields[path];
   const existingIndex = fieldMemory.values.findIndex((mv) => valuesEqual(mv.value, value));
 
   if (existingIndex >= 0) {
@@ -145,15 +167,15 @@ function scoreValue(mv: MemorizedValue): number {
 }
 
 function pruneMemoryIfNeeded(memory: TypeMemory): void {
-  const methodKeys = Object.keys(memory.methods);
-  if (methodKeys.length <= MAX_METHODS) {
+  const typeKeys = Object.keys(memory.types);
+  if (typeKeys.length <= MAX_TYPES) {
     return;
   }
 
-  const methodScores = methodKeys.map((key) => {
-    const methodMemory = memory.methods[key];
+  const typeScores = typeKeys.map((key) => {
+    const typeMemory = memory.types[key];
     let maxLastUsed = 0;
-    for (const field of Object.values(methodMemory.fields)) {
+    for (const field of Object.values(typeMemory.fields)) {
       for (const value of field.values) {
         if (value.lastUsed > maxLastUsed) {
           maxLastUsed = value.lastUsed;
@@ -163,124 +185,21 @@ function pruneMemoryIfNeeded(memory: TypeMemory): void {
     return { key, lastUsed: maxLastUsed };
   });
 
-  methodScores.sort((a, b) => b.lastUsed - a.lastUsed);
+  typeScores.sort((a, b) => b.lastUsed - a.lastUsed);
 
-  const keysToRemove = methodScores.slice(MAX_METHODS).map((s) => s.key);
+  const keysToRemove = typeScores.slice(MAX_TYPES).map((s) => s.key);
   for (const key of keysToRemove) {
-    delete memory.methods[key];
+    delete memory.types[key];
   }
 }
 
-export function getMemorizedValue(methodKey: string, fieldPath: string): any | undefined {
-  const methodMemory = getMethodMemory(methodKey);
-  if (!methodMemory) {
-    return undefined;
-  }
-
-  const fieldMemory = methodMemory.fields[fieldPath];
-  if (!fieldMemory || fieldMemory.values.length === 0) {
-    return undefined;
-  }
-
-  return fieldMemory.values[0].value;
-}
-
-export function clearTypeMemory(): void {
-  setTypeMemory({ version: 1, methods: {}, types: {} });
-}
-
-export function captureResponseType(typeName: string, output: any): void {
-  if (!typeName || !output || typeof output !== "object") {
-    return;
-  }
-
-  const memory = getTypeMemory();
-
-  if (!memory.types[typeName]) {
-    memory.types[typeName] = { fields: {} };
-  }
-
-  walkObjectWithTypes(output, "", typeName, (path, value, nestedTypeName) => {
-    if (isMemorizable(value)) {
-      if (!memory.types[nestedTypeName]) {
-        memory.types[nestedTypeName] = { fields: {} };
-      }
-      addValueToFieldMemory(memory.types[nestedTypeName].fields, path, value);
-    }
-  });
-
-  setTypeMemory(memory);
-}
-
-function walkObjectWithTypes(
-  obj: any,
-  prefix: string,
-  typeName: string,
-  callback: (path: string, value: any, typeName: string) => void,
-): void {
-  if (obj === null || obj === undefined) {
-    return;
-  }
-
-  if (Array.isArray(obj)) {
-    obj.forEach((item, index) => {
-      const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-      if (isMemorizable(item)) {
-        callback(path, item, typeName);
-      } else if (typeof item === "object") {
-        walkObjectWithTypes(item, path, typeName, callback);
-      }
-    });
-    return;
-  }
-
-  if (typeof obj === "object") {
-    for (const key of Object.keys(obj)) {
-      const path = prefix ? `${prefix}.${key}` : key;
-      const value = obj[key];
-
-      if (isMemorizable(value)) {
-        callback(path, value, typeName);
-      } else if (typeof value === "object") {
-        walkObjectWithTypes(value, path, typeName, callback);
-      }
-    }
-  }
-}
-
-function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string, value: any): void {
-  if (!fields[path]) {
-    fields[path] = { values: [] };
-  }
-
-  const fieldMemory = fields[path];
-  const existingIndex = fieldMemory.values.findIndex((mv) => valuesEqual(mv.value, value));
-
-  if (existingIndex >= 0) {
-    fieldMemory.values[existingIndex].count++;
-    fieldMemory.values[existingIndex].lastUsed = Date.now();
-  } else {
-    fieldMemory.values.push({
-      value,
-      count: 1,
-      lastUsed: Date.now(),
-    });
-  }
-
-  fieldMemory.values.sort((a, b) => scoreValue(b) - scoreValue(a));
-
-  if (fieldMemory.values.length > MAX_VALUES_PER_FIELD) {
-    fieldMemory.values = fieldMemory.values.slice(0, MAX_VALUES_PER_FIELD);
-  }
-}
-
-export function getTypeBasedMemory(typeName: string): TypeBasedMemory | undefined {
-  const memory = getTypeMemory();
-  return memory.types[typeName];
-}
-
+/**
+ * Get memorized value for a message type field.
+ * Used when generating defaults for nested message fields.
+ */
 export function getTypeMemorizedValue(typeName: string, fieldPath: string): any | undefined {
-  const typeMemory = getTypeBasedMemory(typeName);
+  const memory = getTypeMemory();
+  const typeMemory = memory.types[typeName];
   if (!typeMemory) {
     return undefined;
   }
@@ -291,4 +210,35 @@ export function getTypeMemorizedValue(typeName: string, fieldPath: string): any 
   }
 
   return fieldMemory.values[0].value;
+}
+
+/**
+ * Get memorized value for a scalar field by field name and scalar type.
+ * Used when generating defaults for scalar fields.
+ */
+export function getScalarMemorizedValue(fieldName: string, scalarType: "string" | "number" | "boolean"): any | undefined {
+  const memory = getTypeMemory();
+  const key = `${scalarType}:${fieldName}`;
+  const fieldMemory = memory.scalars[key];
+
+  if (!fieldMemory || fieldMemory.values.length === 0) {
+    return undefined;
+  }
+
+  return fieldMemory.values[0].value;
+}
+
+/**
+ * Get all memorized values for a scalar field (for suggestions).
+ */
+export function getScalarMemorizedValues(fieldName: string, scalarType: "string" | "number" | "boolean"): MemorizedValue[] {
+  const memory = getTypeMemory();
+  const key = `${scalarType}:${fieldName}`;
+  const fieldMemory = memory.scalars[key];
+
+  if (!fieldMemory) {
+    return [];
+  }
+
+  return fieldMemory.values;
 }
