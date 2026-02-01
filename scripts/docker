@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 # Stop and remove the container if it already exists
 docker rm -f kaja-dev &> /dev/null || true
 
-docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true
+GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
+docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true --build-arg GIT_REF=$GIT_REF
 
 rm pipe &> /dev/null || true
 mkfifo pipe

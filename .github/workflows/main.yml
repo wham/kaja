@@ -21,3 +21,5 @@ jobs:
           push: true
           tags: |
             kajatools/kaja:latest
+          build-args: |
+            GIT_REF=${{ github.sha }}
