@@ -1,3 +1,4 @@
+import { IMessageType } from "@protobuf-ts/runtime";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
 const TYPE_MEMORY_KEY = "typeMemory";
@@ -46,8 +47,9 @@ export function clearTypeMemory(): void {
  * Capture values from an object (request input or response output).
  * - Message type fields are stored under the message type name
  * - Scalar fields are stored by scalar type + field name
+ * - If messageType is provided, nested message types are properly captured under their own type names
  */
-export function captureValues(typeName: string, obj: any): void {
+export function captureValues(typeName: string, obj: any, messageType?: IMessageType<any>): void {
   if (!typeName || !obj || typeof obj !== "object") {
     return;
   }
@@ -58,10 +60,66 @@ export function captureValues(typeName: string, obj: any): void {
     memory.types[typeName] = { fields: {} };
   }
 
-  walkAndCapture(obj, "", typeName, memory);
+  if (messageType) {
+    walkAndCaptureWithSchema(obj, typeName, messageType, memory);
+  } else {
+    walkAndCapture(obj, "", typeName, memory);
+  }
 
   pruneMemoryIfNeeded(memory);
   setTypeMemory(memory);
+}
+
+function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMessageType<any>, memory: TypeMemory): void {
+  if (obj === null || obj === undefined) {
+    return;
+  }
+
+  if (!memory.types[typeName]) {
+    memory.types[typeName] = { fields: {} };
+  }
+
+  for (const field of messageType.fields) {
+    const value = obj[field.localName];
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    if (field.kind === "scalar") {
+      if (isScalar(value)) {
+        addToTypeMemory(memory, typeName, field.localName, value);
+        addToScalarMemory(memory, field.localName, value);
+      }
+    } else if (field.kind === "message") {
+      const nestedType = field.T();
+      if (field.repeat) {
+        // Repeated message field (array)
+        if (Array.isArray(value)) {
+          value.forEach((item) => {
+            if (item && typeof item === "object") {
+              walkAndCaptureWithSchema(item, nestedType.typeName, nestedType, memory);
+            }
+          });
+        }
+      } else {
+        // Single message field
+        if (typeof value === "object") {
+          walkAndCaptureWithSchema(value, nestedType.typeName, nestedType, memory);
+        }
+      }
+    } else if (field.kind === "map") {
+      // Map fields - capture values if they're scalars
+      if (typeof value === "object") {
+        for (const mapKey of Object.keys(value)) {
+          const mapValue = value[mapKey];
+          if (isScalar(mapValue)) {
+            addToScalarMemory(memory, field.localName, mapValue);
+          }
+        }
+      }
+    }
+    // Enums are not captured as they're typically fixed values
+  }
 }
 
 function walkAndCapture(obj: any, prefix: string, typeName: string, memory: TypeMemory): void {

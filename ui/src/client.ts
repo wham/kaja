@@ -83,7 +83,9 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
         methodCall.output = response;
         methodCall.inputTypeName = call.method?.I?.typeName;
+        methodCall.inputType = call.method?.I;
         methodCall.outputTypeName = call.method?.O?.typeName;
+        methodCall.outputType = call.method?.O;
 
         // Capture response headers and trailers
         const responseHeaders: { [key: string]: string } = {};
