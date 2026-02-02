@@ -40,8 +40,6 @@ cd "$(dirname "$0")/.."
 # Kill any existing server on port 41520
 lsof -ti:41520 | xargs kill 2>/dev/null || true
 
-[ -f .ai_api_key ] && export AI_API_KEY=$(cat .ai_api_key)
-
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
@@ -60,4 +58,4 @@ protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --
 mkdir -p /tmp/kaja
 GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
 go build -tags development -ldflags "-X main.GitRef=$GIT_REF" -o /tmp/kaja/kaja ./cmd/server
-AI_API_KEY=$AI_API_KEY /tmp/kaja/kaja
+/tmp/kaja/kaja

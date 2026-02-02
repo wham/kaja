@@ -60,19 +60,7 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 }
 
 func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
-	if configuration.Ai == nil {
-		configuration.Ai = &ConfigurationAI{}
-	}
-
-	if aiBaseUrl := os.Getenv("AI_BASE_URL"); aiBaseUrl != "" {
-		logger.info("AI_BASE_URL env variable applied")
-		configuration.Ai.BaseUrl = aiBaseUrl
-	}
-
-	if aiApiKey := os.Getenv("AI_API_KEY"); aiApiKey != "" {
-		logger.info("AI_API_KEY env variable applied")
-		configuration.Ai.ApiKey = aiApiKey
-	}
+	// Reserved for future environment variable overrides
 }
 
 func normalize(configuration *Configuration, logger *Logger) {
@@ -101,7 +89,6 @@ func validateProjects(configuration *Configuration, logger *Logger) {
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
 	configurationToSave := &Configuration{
 		Projects: configuration.Projects,
-		Ai:       configuration.Ai,
 		System:   configuration.System,
 	}
 

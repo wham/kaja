@@ -40,10 +40,6 @@
       "protoDir": "users/proto"
     }
   ],
-  "ai": {
-    "baseUrl": "https://models.github.ai/inference",
-    "apiKey": "*****"
-  },
   "system": {
     "canUpdateConfiguration": true
   }
