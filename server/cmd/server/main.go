@@ -24,38 +24,6 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func handleAIProxy(config *api.Configuration) func(w http.ResponseWriter, r *http.Request) {
-	aiConfig := config.Ai
-
-	if aiConfig.BaseUrl == "" || aiConfig.ApiKey == "" {
-		return func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "AI is not configured", http.StatusBadRequest)
-		}
-	}
-
-	target, err := url.Parse(aiConfig.BaseUrl)
-	if err != nil {
-		return func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, fmt.Sprintf("Invalid ai.baseUrl: %s", err.Error()), http.StatusBadGateway)
-		}
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Director = func(req *http.Request) {
-		req.Header.Set("Authorization", "Bearer "+aiConfig.ApiKey)
-		req.Host = target.Host
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		// Strip /ai prefix from the path
-		// The configured baseUrl can contain a path too, concatenate all together
-		req.URL.Path = target.Path + "/" + strings.TrimPrefix(req.URL.Path, "/ai/")
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		proxy.ServeHTTP(w, r)
-	}
-}
-
 func main() {
 	configurationPath := "../workspace/kaja.json"
 	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, false)
@@ -220,8 +188,6 @@ func main() {
 			proxy.ServeHTTP(w, r)
 		}
 	})
-
-	mux.HandleFunc("/ai/{path...}", handleAIProxy(configuration))
 
 	root := http.NewServeMux()
 	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))

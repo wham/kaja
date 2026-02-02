@@ -3,7 +3,6 @@ import "@primer/primitives/dist/css/functional/themes/light.css";
 import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { registerAIProvider } from "./ai";
 import { Console, ConsoleItem } from "./Console";
 import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
@@ -264,7 +263,6 @@ export function App() {
             tab.model.setValue(value);
           }
         });
-        registerAIProvider(updatedProjects);
       }
 
       return updatedProjects;
@@ -340,8 +338,6 @@ export function App() {
     // Check if all projects have finished compiling successfully
     const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
     if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
-      registerAIProvider(updatedProjects);
-
       updatedProjects.forEach((project) => {
         if (project.sources) {
           project.sources.forEach((source) => {

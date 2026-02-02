@@ -7,7 +7,6 @@ service Api {
   rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
-  rpc ChatCompletions(ChatCompletionsRequest) returns (ChatCompletionsResponse);
 }
 
 message CompileRequest {
@@ -83,7 +82,6 @@ message Configuration {
 	// The JS code is using relative paths and should be not dependent on this.
   string path_prefix = 1;
   repeated ConfigurationProject projects = 2;
-  ConfigurationAI ai = 3;
   // System-level settings (read-only, ignored in UpdateConfiguration)
   ConfigurationSystem system = 4;
 }
@@ -104,52 +102,10 @@ message ConfigurationProject {
   map<string, string> headers = 6;
 }
 
-message ConfigurationAI {
-  string base_url = 1;
-  string api_key = 2;
-}
-
 message UpdateConfigurationRequest {
   Configuration configuration = 1;
 }
 
 message UpdateConfigurationResponse {
   Configuration configuration = 1;
-}
-
-// ChatCompletions mimics the OpenAI Chat Completions API
-// https://platform.openai.com/docs/api-reference/chat/create
-
-message ChatCompletionsRequest {
-  string model = 1;
-  repeated ChatMessage messages = 2;
-  double temperature = 3;
-  double top_p = 4;
-  int32 max_tokens = 5;
-  repeated string stop = 6;  // Stop sequences to halt generation
-}
-
-message ChatMessage {
-  string role = 1;    // "system", "user", "assistant"
-  string content = 2;
-}
-
-message ChatCompletionsResponse {
-  string id = 1;
-  string model = 2;
-  repeated ChatChoice choices = 3;
-  ChatUsage usage = 4;
-  string error = 5;  // Non-empty if there was an error
-}
-
-message ChatChoice {
-  int32 index = 1;
-  ChatMessage message = 2;
-  string finish_reason = 3;  // "stop", "length", etc.
-}
-
-message ChatUsage {
-  int32 prompt_tokens = 1;
-  int32 completion_tokens = 2;
-  int32 total_tokens = 3;
 }

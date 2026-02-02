@@ -1,13 +1,9 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	fmt "fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 
@@ -155,11 +151,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Projects:   response.Configuration.Projects,
-		Ai: &ConfigurationAI{
-			BaseUrl: response.Configuration.Ai.BaseUrl,
-			ApiKey:  "*****",
-		},
-		System: system,
+		System:     system,
 	}
 
 	return &GetConfigurationResponse{
@@ -186,136 +178,4 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	return &UpdateConfigurationResponse{
 		Configuration: req.Configuration,
 	}, nil
-}
-
-// ChatCompletions implements an OpenAI-compatible chat completions API
-func (s *ApiService) ChatCompletions(ctx context.Context, req *ChatCompletionsRequest) (*ChatCompletionsResponse, error) {
-	slog.Info("ChatCompletions called", "model", req.Model, "messages", len(req.Messages))
-
-	// Load configuration to get AI settings (with actual API key)
-	configResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
-	aiConfig := configResponse.Configuration.Ai
-
-	if aiConfig == nil || aiConfig.BaseUrl == "" || aiConfig.ApiKey == "" {
-		return &ChatCompletionsResponse{
-			Error: "AI is not configured. Set ai.baseUrl and ai.apiKey in kaja.json or via AI_BASE_URL and AI_API_KEY environment variables.",
-		}, nil
-	}
-
-	// Build OpenAI-compatible request
-	openAIReq := openAIChatRequest{
-		Model:       req.Model,
-		Messages:    make([]openAIMessage, len(req.Messages)),
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		MaxTokens:   int(req.MaxTokens),
-		Stop:        req.Stop,
-	}
-
-	for i, msg := range req.Messages {
-		openAIReq.Messages[i] = openAIMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		}
-	}
-
-	reqBody, err := json.Marshal(openAIReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	// Make HTTP request to OpenAI-compatible API
-	url := aiConfig.BaseUrl + "/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+aiConfig.ApiKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return &ChatCompletionsResponse{
-			Error: fmt.Sprintf("failed to make request: %v", err),
-		}, nil
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Error("AI API error", "status", resp.StatusCode, "body", string(respBody))
-		return &ChatCompletionsResponse{
-			Error: fmt.Sprintf("AI API error: %s", string(respBody)),
-		}, nil
-	}
-
-	// Parse OpenAI response
-	var openAIResp openAIChatResponse
-	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Convert to our response format
-	response := &ChatCompletionsResponse{
-		Id:      openAIResp.ID,
-		Model:   openAIResp.Model,
-		Choices: make([]*ChatChoice, len(openAIResp.Choices)),
-	}
-
-	for i, choice := range openAIResp.Choices {
-		response.Choices[i] = &ChatChoice{
-			Index: int32(choice.Index),
-			Message: &ChatMessage{
-				Role:    choice.Message.Role,
-				Content: choice.Message.Content,
-			},
-			FinishReason: choice.FinishReason,
-		}
-	}
-
-	if openAIResp.Usage != nil {
-		response.Usage = &ChatUsage{
-			PromptTokens:     int32(openAIResp.Usage.PromptTokens),
-			CompletionTokens: int32(openAIResp.Usage.CompletionTokens),
-			TotalTokens:      int32(openAIResp.Usage.TotalTokens),
-		}
-	}
-
-	return response, nil
-}
-
-// OpenAI API types for JSON serialization
-type openAIChatRequest struct {
-	Model               string          `json:"model"`
-	Messages            []openAIMessage `json:"messages"`
-	Temperature         float64         `json:"temperature,omitempty"`
-	TopP                float64         `json:"top_p,omitempty"`
-	MaxTokens           int             `json:"max_tokens,omitempty"`
-	Stop                []string        `json:"stop,omitempty"`
-}
-
-type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type openAIChatResponse struct {
-	ID      string `json:"id"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index        int           `json:"index"`
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
 }
