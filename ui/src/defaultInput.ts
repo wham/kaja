@@ -39,20 +39,21 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
 }
 
 function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, parentTypeName?: string): ts.Expression {
-  // For scalar fields, try to get memorized value by field name and scalar type
+  // For scalar fields, try to get memorized value
   if (field.kind === "scalar") {
+    // First check type memory (more specific - values seen in this exact type)
+    if (parentTypeName) {
+      const typeMemorized = getTypeMemorizedValue(parentTypeName, field.localName);
+      if (typeMemorized !== undefined) {
+        return valueToExpression(typeMemorized);
+      }
+    }
+    // Fall back to scalar memory (broader - any field with this name and type)
     const scalarType = scalarTypeToJsType(field.T);
     if (scalarType) {
       const memorized = getScalarMemorizedValue(field.localName, scalarType);
       if (memorized !== undefined) {
         return valueToExpression(memorized);
-      }
-    }
-    // Also check type memory for this specific type's field
-    if (parentTypeName) {
-      const typeMemorized = getTypeMemorizedValue(parentTypeName, field.localName);
-      if (typeMemorized !== undefined) {
-        return valueToExpression(typeMemorized);
       }
     }
     return defaultScalar(field.T);
