@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  getTypeMemory,
   captureValues,
   getTypeMemorizedValue,
   getScalarMemorizedValue,
   getScalarMemorizedValues,
   clearTypeMemory,
+  getAllStoredTypes,
+  getAllStoredScalars,
 } from "./typeMemory";
 
 describe("typeMemory", () => {
@@ -87,15 +88,15 @@ describe("typeMemory", () => {
       captureValues("example.Customer", null);
       captureValues("example.Customer", undefined);
 
-      const memory = getTypeMemory();
-      expect(Object.keys(memory.types)).toHaveLength(0);
+      expect(getAllStoredTypes()).toHaveLength(0);
+      expect(getAllStoredScalars()).toHaveLength(0);
     });
 
     it("ignores empty type names", () => {
       captureValues("", { id: "test" });
 
-      const memory = getTypeMemory();
-      expect(Object.keys(memory.types)).toHaveLength(0);
+      expect(getAllStoredTypes()).toHaveLength(0);
+      expect(getAllStoredScalars()).toHaveLength(0);
     });
   });
 
