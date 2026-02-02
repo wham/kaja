@@ -64,9 +64,9 @@ describe("typeMemory", () => {
         ],
       });
 
-      // Scalar memory captures all values
-      expect(getScalarMemorizedValue("id", "string")).toBe("user-1");
-      expect(getScalarMemorizedValue("name", "string")).toBe("Alice");
+      // Scalar memory returns most recent (last in array)
+      expect(getScalarMemorizedValue("id", "string")).toBe("user-2");
+      expect(getScalarMemorizedValue("name", "string")).toBe("Bob");
 
       // Type memory with array paths
       expect(getTypeMemorizedValue("example.UserList", "users[0].id")).toBe("user-1");
@@ -74,14 +74,18 @@ describe("typeMemory", () => {
       expect(getTypeMemorizedValue("example.UserList", "users[1].id")).toBe("user-2");
     });
 
-    it("returns most frequently used value", () => {
+    it("returns most recently used value", () => {
       captureValues("example.Customer", { id: "cust-1" });
       captureValues("example.Customer", { id: "cust-2" });
-      captureValues("example.Customer", { id: "cust-2" });
-      captureValues("example.Customer", { id: "cust-2" });
+      captureValues("example.Customer", { id: "cust-3" });
 
-      expect(getScalarMemorizedValue("id", "string")).toBe("cust-2");
-      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-2");
+      // Most recent value should be returned
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-3");
+      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-3");
+
+      // Using an old value again makes it most recent
+      captureValues("example.Customer", { id: "cust-1" });
+      expect(getScalarMemorizedValue("id", "string")).toBe("cust-1");
     });
 
     it("ignores null/undefined values", () => {

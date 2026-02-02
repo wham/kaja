@@ -17,7 +17,6 @@ export interface FieldMemory {
 
 export interface MemorizedValue {
   value: any;
-  count: number;
   lastUsed: number;
 }
 
@@ -167,33 +166,23 @@ function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string
 }
 
 function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
-  const existingIndex = fieldMemory.values.findIndex((mv) => valuesEqual(mv.value, value));
+  const existingIndex = fieldMemory.values.findIndex((mv) => mv.value === value);
 
   if (existingIndex >= 0) {
-    fieldMemory.values[existingIndex].count++;
-    fieldMemory.values[existingIndex].lastUsed = Date.now();
-  } else {
-    fieldMemory.values.push({
-      value,
-      count: 1,
-      lastUsed: Date.now(),
-    });
+    // Remove from current position
+    fieldMemory.values.splice(existingIndex, 1);
   }
 
-  fieldMemory.values.sort((a, b) => scoreValue(b) - scoreValue(a));
+  // Add to front (most recent)
+  fieldMemory.values.unshift({
+    value,
+    lastUsed: Date.now(),
+  });
 
+  // Keep only the last 10 values
   if (fieldMemory.values.length > MAX_VALUES_PER_FIELD) {
     fieldMemory.values = fieldMemory.values.slice(0, MAX_VALUES_PER_FIELD);
   }
-}
-
-function valuesEqual(a: any, b: any): boolean {
-  return a === b;
-}
-
-function scoreValue(mv: MemorizedValue): number {
-  const recencyBonus = Math.max(0, 1 - (Date.now() - mv.lastUsed) / (7 * 24 * 60 * 60 * 1000));
-  return mv.count + recencyBonus;
 }
 
 /**
