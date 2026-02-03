@@ -1,5 +1,5 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import { clearTypeMemoryStore, deleteTypeMemoryValue, getAllTypeMemoryKeys, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
+import { clearTypeMemoryStore, deleteTypeMemoryValue, getAllTypeMemoryKeys, getTypeMemoryKeyCount, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
 const MAX_VALUES_PER_FIELD = 1;
 const MAX_KEYS = 100;
@@ -193,12 +193,14 @@ function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any
 }
 
 function evictOldKeys(): void {
-  const keys = getAllTypeMemoryKeys();
-  if (keys.length <= MAX_KEYS) {
+  // O(1) check - only evict when at 2x the limit
+  const count = getTypeMemoryKeyCount();
+  if (count <= MAX_KEYS * 2) {
     return;
   }
 
   // Get all entries with their timestamps
+  const keys = getAllTypeMemoryKeys();
   const entries: { key: string; t: number }[] = [];
   for (const key of keys) {
     const entry = getTypeMemoryValue<StoredEntry>(key);

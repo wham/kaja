@@ -138,6 +138,10 @@ export function getAllTypeMemoryKeys(): string[] {
   return Array.from(typeMemoryCache.keys());
 }
 
+export function getTypeMemoryKeyCount(): number {
+  return typeMemoryCache.size;
+}
+
 export function clearTypeMemoryStore(): void {
   for (const key of typeMemoryCache.keys()) {
     pendingTypeMemoryDeletes.add(key);
