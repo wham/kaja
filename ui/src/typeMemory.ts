@@ -139,12 +139,34 @@ function getMessageKey(messageName: string): string {
   return `${MESSAGE_PREFIX}${messageName}`;
 }
 
+function normalizeEntry(raw: any): StoredEntry {
+  // Handle migration from old formats or corrupted data
+  if (!raw || typeof raw !== "object") {
+    return { t: 0, v: [] };
+  }
+  // Old format was plain array
+  if (Array.isArray(raw)) {
+    return { t: 0, v: raw };
+  }
+  // Current format
+  if (Array.isArray(raw.v)) {
+    return { t: raw.t ?? 0, v: raw.v };
+  }
+  return { t: 0, v: [] };
+}
+
+function stableStringify(obj: any): string {
+  // Sort keys for consistent comparison
+  return JSON.stringify(obj, Object.keys(obj).sort());
+}
+
 function addMessageSnapshot(messageName: string, snapshot: any): void {
   const key = getMessageKey(messageName);
-  const entry = getTypeMemoryValue<StoredEntry>(key) ?? { t: 0, v: [] };
+  const entry = normalizeEntry(getTypeMemoryValue(key));
 
-  // Check if this exact snapshot already exists (deep equality check)
-  const existingIndex = entry.v.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
+  // Check if this exact snapshot already exists (deep equality check with stable key order)
+  const snapshotStr = stableStringify(snapshot);
+  const existingIndex = entry.v.findIndex((v) => stableStringify(v) === snapshotStr);
 
   if (existingIndex >= 0) {
     // Remove from current position
@@ -168,7 +190,7 @@ function addMessageSnapshot(messageName: string, snapshot: any): void {
 
 function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any): void {
   const key = getScalarKey(fieldName, scalarType);
-  const entry = getTypeMemoryValue<StoredEntry>(key) ?? { t: 0, v: [] };
+  const entry = normalizeEntry(getTypeMemoryValue(key));
 
   const existingIndex = entry.v.indexOf(value);
 
@@ -203,8 +225,8 @@ function evictOldKeys(): void {
   const keys = getAllTypeMemoryKeys();
   const entries: { key: string; t: number }[] = [];
   for (const key of keys) {
-    const entry = getTypeMemoryValue<StoredEntry>(key);
-    entries.push({ key, t: entry?.t ?? 0 });
+    const entry = normalizeEntry(getTypeMemoryValue(key));
+    entries.push({ key, t: entry.t });
   }
 
   // Sort by timestamp (oldest first)
@@ -223,13 +245,17 @@ function evictOldKeys(): void {
  */
 export function getMessageMemorizedValue(messageName: string, fieldName: string): any | undefined {
   const key = getMessageKey(messageName);
-  const entry = getTypeMemoryValue<StoredEntry>(key);
-  if (!entry || entry.v.length === 0) {
+  const entry = normalizeEntry(getTypeMemoryValue(key));
+  if (entry.v.length === 0) {
     return undefined;
   }
 
   // Get from the most recent snapshot
-  return entry.v[0][fieldName];
+  const snapshot = entry.v[0];
+  if (!snapshot || typeof snapshot !== "object") {
+    return undefined;
+  }
+  return snapshot[fieldName];
 }
 
 /**
@@ -238,9 +264,9 @@ export function getMessageMemorizedValue(messageName: string, fieldName: string)
  */
 export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarType): any | undefined {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
-  const entry = getTypeMemoryValue<StoredEntry>(key);
+  const entry = normalizeEntry(getTypeMemoryValue(key));
 
-  if (!entry || entry.v.length === 0) {
+  if (entry.v.length === 0) {
     return undefined;
   }
 
@@ -251,8 +277,8 @@ export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarTyp
  * Get all memorized values for a scalar field (for suggestions).
  */
 export function getScalarMemorizedValues(fieldName: string, scalarType: ScalarType): any[] {
-  const entry = getTypeMemoryValue<StoredEntry>(`${SCALAR_PREFIX}${scalarType}:${fieldName}`);
-  return entry?.v ?? [];
+  const entry = normalizeEntry(getTypeMemoryValue(`${SCALAR_PREFIX}${scalarType}:${fieldName}`));
+  return entry.v;
 }
 
 /**
