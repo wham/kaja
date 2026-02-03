@@ -104,7 +104,7 @@ describe("typeMemory", () => {
       expect(getAllStoredScalars()).toHaveLength(0);
     });
 
-    it("captures nested object values to type memory", () => {
+    it("captures only top-level scalar fields (nested objects are different types)", () => {
       captureValues("example.Order", {
         orderId: "order-456",
         customer: {
@@ -114,24 +114,11 @@ describe("typeMemory", () => {
         total: 99.99,
       });
 
-      // Type memory with paths
+      // Only top-level scalars are captured
       expect(getTypeMemorizedValue("example.Order", "orderId")).toBe("order-456");
-      expect(getTypeMemorizedValue("example.Order", "customer.id")).toBe("cust-789");
-      expect(getTypeMemorizedValue("example.Order", "customer.name")).toBe("Test Customer");
-    });
-
-    it("captures array values to type memory", () => {
-      captureValues("example.UserList", {
-        users: [
-          { id: "user-1", name: "Alice" },
-          { id: "user-2", name: "Bob" },
-        ],
-      });
-
-      // Type memory with array paths
-      expect(getTypeMemorizedValue("example.UserList", "users[0].id")).toBe("user-1");
-      expect(getTypeMemorizedValue("example.UserList", "users[0].name")).toBe("Alice");
-      expect(getTypeMemorizedValue("example.UserList", "users[1].id")).toBe("user-2");
+      expect(getTypeMemorizedValue("example.Order", "total")).toBe(99.99);
+      // Nested objects are not captured without schema (we don't know their type)
+      expect(getTypeMemorizedValue("example.Order", "customer.id")).toBeUndefined();
     });
 
     it("ignores null/undefined values", () => {

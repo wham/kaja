@@ -7,12 +7,12 @@ const MAX_VALUES_PER_FIELD = 10;
 const TYPE_PREFIX = "type:";
 const SCALAR_PREFIX = "scalar:";
 
-export interface FieldsMemory {
-  fields: Record<string, FieldMemory>;
+export interface TypeMemory {
+  values: any[]; // Complete object snapshots (FILO, max 10)
 }
 
 export interface FieldMemory {
-  values: any[];
+  values: any[]; // Individual scalar values (FILO, max 10)
 }
 
 /**
@@ -29,7 +29,7 @@ export function captureValues(typeName: string, obj: any, messageType?: IMessage
   if (messageType) {
     walkAndCaptureWithSchema(obj, typeName, messageType);
   } else {
-    walkAndCapture(obj, "", typeName);
+    walkAndCapture(obj, typeName);
   }
 }
 
@@ -37,6 +37,9 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
   if (obj === null || obj === undefined) {
     return;
   }
+
+  // Collect scalar fields for this type's snapshot
+  const snapshot: Record<string, any> = {};
 
   for (const field of messageType.fields) {
     const value = obj[field.localName];
@@ -46,7 +49,7 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
 
     if (field.kind === "scalar") {
       if (isScalar(value)) {
-        addToTypeMemory(typeName, field.localName, value);
+        snapshot[field.localName] = value;
         addToScalarMemory(field.localName, field.T, value);
       }
     } else if (field.kind === "message") {
@@ -61,7 +64,7 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
           });
         }
       } else {
-        // Single message field
+        // Single message field - recurse to capture under nested type's name
         if (typeof value === "object") {
           walkAndCaptureWithSchema(value, nestedType.typeName, nestedType);
         }
@@ -79,42 +82,43 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
     }
     // Enums are not captured as they're typically fixed values
   }
+
+  // Store the snapshot if we captured any scalar fields
+  if (Object.keys(snapshot).length > 0) {
+    addTypeSnapshot(typeName, snapshot);
+  }
 }
 
-function walkAndCapture(obj: any, prefix: string, typeName: string): void {
+function walkAndCapture(obj: any, typeName: string): void {
   if (obj === null || obj === undefined) {
     return;
   }
 
-  if (Array.isArray(obj)) {
-    obj.forEach((item, index) => {
-      if (isScalar(item)) {
-        // For array items, use index-based path for type memory
-        const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-        addToTypeMemory(typeName, path, item);
-        // Note: scalar memory not captured here - no protobuf type info available
-      } else if (typeof item === "object") {
-        const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-        walkAndCapture(item, path, typeName);
-      }
-    });
-    return;
+  // For non-schema capture, store the entire object as a snapshot
+  // Extract only scalar values (flatten nested objects with dot notation would create frankenstein)
+  const snapshot = extractScalars(obj);
+
+  if (Object.keys(snapshot).length > 0) {
+    addTypeSnapshot(typeName, snapshot);
+  }
+}
+
+function extractScalars(obj: any): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  if (obj === null || obj === undefined || typeof obj !== "object") {
+    return result;
   }
 
-  if (typeof obj === "object") {
-    for (const key of Object.keys(obj)) {
-      const path = prefix ? `${prefix}.${key}` : key;
-      const value = obj[key];
-
-      if (isScalar(value)) {
-        // Store in type memory (for message type matching)
-        addToTypeMemory(typeName, path, value);
-        // Note: scalar memory not captured here - no protobuf type info available
-      } else if (typeof value === "object") {
-        walkAndCapture(value, path, typeName);
-      }
+  for (const key of Object.keys(obj)) {
+    const value = obj[key];
+    if (isScalar(value)) {
+      result[key] = value;
     }
+    // Don't recurse into nested objects - they would be different types
   }
+
+  return result;
 }
 
 function isScalar(value: any): boolean {
@@ -133,11 +137,26 @@ function getTypeKey(typeName: string): string {
   return `${TYPE_PREFIX}${typeName}`;
 }
 
-function addToTypeMemory(typeName: string, fieldPath: string, value: any): void {
+function addTypeSnapshot(typeName: string, snapshot: any): void {
   const key = getTypeKey(typeName);
-  const memory = getTypeMemoryValue<FieldsMemory>(key) ?? { fields: {} };
+  const memory = getTypeMemoryValue<TypeMemory>(key) ?? { values: [] };
 
-  addValueToFieldMemory(memory.fields, fieldPath, value);
+  // Check if this exact snapshot already exists (deep equality check)
+  const existingIndex = memory.values.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
+
+  if (existingIndex >= 0) {
+    // Remove from current position
+    memory.values.splice(existingIndex, 1);
+  }
+
+  // Add to front (most recent)
+  memory.values.unshift(snapshot);
+
+  // Keep only the last 10 snapshots
+  if (memory.values.length > MAX_VALUES_PER_FIELD) {
+    memory.values = memory.values.slice(0, MAX_VALUES_PER_FIELD);
+  }
+
   setTypeMemoryValue(key, memory);
 }
 
@@ -147,13 +166,6 @@ function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any
 
   addValueToMemory(memory, value);
   setTypeMemoryValue(key, memory);
-}
-
-function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string, value: any): void {
-  if (!fields[path]) {
-    fields[path] = { values: [] };
-  }
-  addValueToMemory(fields[path], value);
 }
 
 function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
@@ -175,21 +187,18 @@ function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
 
 /**
  * Get memorized value for a message type field.
- * Used when generating defaults for nested message fields.
+ * Extracts the field from the most recent snapshot of this type.
  */
-export function getTypeMemorizedValue(typeName: string, fieldPath: string): any | undefined {
+export function getTypeMemorizedValue(typeName: string, fieldName: string): any | undefined {
   const key = getTypeKey(typeName);
-  const memory = getTypeMemoryValue<FieldsMemory>(key);
-  if (!memory) {
+  const memory = getTypeMemoryValue<TypeMemory>(key);
+  if (!memory || memory.values.length === 0) {
     return undefined;
   }
 
-  const fieldMemory = memory.fields[fieldPath];
-  if (!fieldMemory || fieldMemory.values.length === 0) {
-    return undefined;
-  }
-
-  return fieldMemory.values[0];
+  // Get from the most recent snapshot
+  const snapshot = memory.values[0];
+  return snapshot[fieldName];
 }
 
 /**
