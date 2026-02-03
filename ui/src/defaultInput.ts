@@ -48,13 +48,10 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
         return valueToExpression(typeMemorized);
       }
     }
-    // Fall back to scalar memory (broader - any field with this name and type)
-    const scalarType = scalarTypeToJsType(field.T);
-    if (scalarType) {
-      const memorized = getScalarMemorizedValue(field.localName, scalarType);
-      if (memorized !== undefined) {
-        return valueToExpression(memorized);
-      }
+    // Fall back to scalar memory (broader - any field with this name and protobuf type)
+    const memorized = getScalarMemorizedValue(field.localName, field.T);
+    if (memorized !== undefined) {
+      return valueToExpression(memorized);
     }
     return defaultScalar(field.T);
   }
@@ -72,15 +69,8 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
-    // Special case for Timestamp
+    // Special case for Timestamp - default to current time
     if (messageType.typeName === "google.protobuf.Timestamp") {
-      // Check scalar memory for timestamp fields
-      const scalarType = "string";
-      const memorized = getScalarMemorizedValue(field.localName, scalarType);
-      if (memorized !== undefined) {
-        return valueToExpression(memorized);
-      }
-      // Default to current time
       const now = new Date();
       const seconds = Math.floor(now.getTime() / 1000);
       const nanos = (now.getTime() % 1000) * 1_000_000;
@@ -94,30 +84,6 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   return ts.factory.createNull();
-}
-
-function scalarTypeToJsType(scalarType: ScalarType): "string" | "number" | "boolean" | undefined {
-  switch (scalarType) {
-    case ScalarType.INT64:
-    case ScalarType.UINT64:
-    case ScalarType.FIXED64:
-    case ScalarType.SFIXED64:
-    case ScalarType.SINT64:
-    case ScalarType.STRING:
-      return "string";
-    case ScalarType.DOUBLE:
-    case ScalarType.FLOAT:
-    case ScalarType.INT32:
-    case ScalarType.FIXED32:
-    case ScalarType.UINT32:
-    case ScalarType.SFIXED32:
-    case ScalarType.SINT32:
-      return "number";
-    case ScalarType.BOOL:
-      return "boolean";
-    case ScalarType.BYTES:
-      return undefined; // Bytes are Uint8Array, not memorized
-  }
 }
 
 function valueToExpression(value: any): ts.Expression {

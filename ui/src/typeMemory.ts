@@ -1,4 +1,4 @@
-import { IMessageType } from "@protobuf-ts/runtime";
+import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { clearTypeMemoryStore, getAllTypeMemoryKeys, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
 const MAX_VALUES_PER_FIELD = 10;
@@ -47,7 +47,7 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
     if (field.kind === "scalar") {
       if (isScalar(value)) {
         addToTypeMemory(typeName, field.localName, value);
-        addToScalarMemory(field.localName, value);
+        addToScalarMemory(field.localName, field.T, value);
       }
     } else if (field.kind === "message") {
       const nestedType = field.T();
@@ -68,11 +68,11 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
       }
     } else if (field.kind === "map") {
       // Map fields - capture values if they're scalars
-      if (typeof value === "object") {
+      if (typeof value === "object" && field.V.kind === "scalar") {
         for (const mapKey of Object.keys(value)) {
           const mapValue = value[mapKey];
           if (isScalar(mapValue)) {
-            addToScalarMemory(field.localName, mapValue);
+            addToScalarMemory(field.localName, field.V.T, mapValue);
           }
         }
       }
@@ -92,9 +92,7 @@ function walkAndCapture(obj: any, prefix: string, typeName: string): void {
         // For array items, use index-based path for type memory
         const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
         addToTypeMemory(typeName, path, item);
-        // Also add to scalar memory with just the field name (without index)
-        const fieldName = prefix || "item";
-        addToScalarMemory(fieldName, item);
+        // Note: scalar memory not captured here - no protobuf type info available
       } else if (typeof item === "object") {
         const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
         walkAndCapture(item, path, typeName);
@@ -111,8 +109,7 @@ function walkAndCapture(obj: any, prefix: string, typeName: string): void {
       if (isScalar(value)) {
         // Store in type memory (for message type matching)
         addToTypeMemory(typeName, path, value);
-        // Store in scalar memory (for field name + type matching)
-        addToScalarMemory(key, value);
+        // Note: scalar memory not captured here - no protobuf type info available
       } else if (typeof value === "object") {
         walkAndCapture(value, path, typeName);
       }
@@ -128,9 +125,8 @@ function isScalar(value: any): boolean {
   return type === "string" || type === "number" || type === "boolean";
 }
 
-function getScalarKey(fieldName: string, value: any): string {
-  const type = typeof value;
-  return `${SCALAR_PREFIX}${type}:${fieldName}`;
+function getScalarKey(fieldName: string, scalarType: ScalarType): string {
+  return `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
 }
 
 function getTypeKey(typeName: string): string {
@@ -145,8 +141,8 @@ function addToTypeMemory(typeName: string, fieldPath: string, value: any): void 
   setTypeMemoryValue(key, memory);
 }
 
-function addToScalarMemory(fieldName: string, value: any): void {
-  const key = getScalarKey(fieldName, value);
+function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any): void {
+  const key = getScalarKey(fieldName, scalarType);
   const memory = getTypeMemoryValue<FieldMemory>(key) ?? { values: [] };
 
   addValueToMemory(memory, value);
@@ -197,10 +193,10 @@ export function getTypeMemorizedValue(typeName: string, fieldPath: string): any 
 }
 
 /**
- * Get memorized value for a scalar field by field name and scalar type.
+ * Get memorized value for a scalar field by field name and protobuf scalar type.
  * Used when generating defaults for scalar fields.
  */
-export function getScalarMemorizedValue(fieldName: string, scalarType: "string" | "number" | "boolean"): any | undefined {
+export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarType): any | undefined {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
   const memory = getTypeMemoryValue<FieldMemory>(key);
 
@@ -214,7 +210,7 @@ export function getScalarMemorizedValue(fieldName: string, scalarType: "string" 
 /**
  * Get all memorized values for a scalar field (for suggestions).
  */
-export function getScalarMemorizedValues(fieldName: string, scalarType: "string" | "number" | "boolean"): any[] {
+export function getScalarMemorizedValues(fieldName: string, scalarType: ScalarType): any[] {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
   const memory = getTypeMemoryValue<FieldMemory>(key);
 
