@@ -172,20 +172,16 @@ describe("typeMemory", () => {
   });
 
   describe("getScalarMemorizedValues", () => {
-    it("returns all memorized values for a field", () => {
+    it("returns memorized values for a field", () => {
       const messageType = mockMessageType("example.Customer", [
         { name: "id", scalarType: ScalarType.STRING },
       ]);
 
       captureValues("example.Customer", { id: "cust-1" }, messageType);
-      captureValues("example.Customer", { id: "cust-2" }, messageType);
-      captureValues("example.Customer", { id: "cust-3" }, messageType);
 
       const values = getScalarMemorizedValues("id", ScalarType.STRING);
-      expect(values).toHaveLength(3);
+      expect(values).toHaveLength(1);
       expect(values).toContain("cust-1");
-      expect(values).toContain("cust-2");
-      expect(values).toContain("cust-3");
     });
 
     it("returns empty array for non-existent field", () => {

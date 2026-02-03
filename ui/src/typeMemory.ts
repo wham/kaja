@@ -1,7 +1,7 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { clearTypeMemoryStore, getAllTypeMemoryKeys, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
-const MAX_VALUES_PER_FIELD = 10;
+const MAX_VALUES_PER_FIELD = 1;
 
 // Key prefixes for the memory store
 const MESSAGE_PREFIX = "message:";
