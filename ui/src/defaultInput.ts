@@ -1,7 +1,7 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
-import { getScalarMemorizedValue, getTypeMemorizedValue } from "./typeMemory";
+import { getScalarMemorizedValue, getMessageMemorizedValue } from "./typeMemory";
 
 export function defaultMessage<T extends object>(message: IMessageType<T>, sources: Sources, imports: Imports): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
@@ -43,7 +43,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   if (field.kind === "scalar") {
     // First check type memory (more specific - values seen in this exact type)
     if (parentTypeName) {
-      const typeMemorized = getTypeMemorizedValue(parentTypeName, field.localName);
+      const typeMemorized = getMessageMemorizedValue(parentTypeName, field.localName);
       if (typeMemorized !== undefined) {
         return valueToExpression(typeMemorized);
       }

@@ -3,37 +3,37 @@ import { clearTypeMemoryStore, getAllTypeMemoryKeys, getTypeMemoryValue, setType
 
 const MAX_VALUES_PER_FIELD = 10;
 
-// Key prefixes for the type-memory store
-const TYPE_PREFIX = "type:";
+// Key prefixes for the memory store
+const MESSAGE_PREFIX = "message:";
 const SCALAR_PREFIX = "scalar:";
 
-// Type memory: array of complete object snapshots (FILO, max 10)
+// Message memory: array of complete object snapshots (FILO, max 10)
 // Scalar memory: array of individual values (FILO, max 10)
 
 /**
  * Capture values from an object (request input or response output).
- * - Message type fields are stored under the message type name
+ * - Message fields are stored under the message name
  * - Scalar fields are stored by scalar type + field name
- * - If messageType is provided, nested message types are properly captured under their own type names
+ * - If messageType is provided, nested messages are properly captured under their own names
  */
-export function captureValues(typeName: string, obj: any, messageType?: IMessageType<any>): void {
-  if (!typeName || !obj || typeof obj !== "object") {
+export function captureValues(messageName: string, obj: any, messageType?: IMessageType<any>): void {
+  if (!messageName || !obj || typeof obj !== "object") {
     return;
   }
 
   if (messageType) {
-    walkAndCaptureWithSchema(obj, typeName, messageType);
+    walkAndCaptureWithSchema(obj, messageName, messageType);
   } else {
-    walkAndCapture(obj, typeName);
+    walkAndCapture(obj, messageName);
   }
 }
 
-function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMessageType<any>): void {
+function walkAndCaptureWithSchema(obj: any, messageName: string, messageType: IMessageType<any>): void {
   if (obj === null || obj === undefined) {
     return;
   }
 
-  // Collect scalar fields for this type's snapshot
+  // Collect scalar fields for this message's snapshot
   const snapshot: Record<string, any> = {};
 
   for (const field of messageType.fields) {
@@ -80,21 +80,21 @@ function walkAndCaptureWithSchema(obj: any, typeName: string, messageType: IMess
 
   // Store the snapshot if we captured any scalar fields
   if (Object.keys(snapshot).length > 0) {
-    addTypeSnapshot(typeName, snapshot);
+    addMessageSnapshot(messageName, snapshot);
   }
 }
 
-function walkAndCapture(obj: any, typeName: string): void {
+function walkAndCapture(obj: any, messageName: string): void {
   if (obj === null || obj === undefined) {
     return;
   }
 
   // For non-schema capture, store the entire object as a snapshot
-  // Extract only scalar values (flatten nested objects with dot notation would create frankenstein)
+  // Extract only scalar values (nested objects are different messages)
   const snapshot = extractScalars(obj);
 
   if (Object.keys(snapshot).length > 0) {
-    addTypeSnapshot(typeName, snapshot);
+    addMessageSnapshot(messageName, snapshot);
   }
 }
 
@@ -128,12 +128,12 @@ function getScalarKey(fieldName: string, scalarType: ScalarType): string {
   return `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
 }
 
-function getTypeKey(typeName: string): string {
-  return `${TYPE_PREFIX}${typeName}`;
+function getMessageKey(messageName: string): string {
+  return `${MESSAGE_PREFIX}${messageName}`;
 }
 
-function addTypeSnapshot(typeName: string, snapshot: any): void {
-  const key = getTypeKey(typeName);
+function addMessageSnapshot(messageName: string, snapshot: any): void {
+  const key = getMessageKey(messageName);
   const values = getTypeMemoryValue<any[]>(key) ?? [];
 
   // Check if this exact snapshot already exists (deep equality check)
@@ -178,11 +178,11 @@ function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any
 }
 
 /**
- * Get memorized value for a message type field.
- * Extracts the field from the most recent snapshot of this type.
+ * Get memorized value for a message field.
+ * Extracts the field from the most recent snapshot of this message type.
  */
-export function getTypeMemorizedValue(typeName: string, fieldName: string): any | undefined {
-  const key = getTypeKey(typeName);
+export function getMessageMemorizedValue(messageName: string, fieldName: string): any | undefined {
+  const key = getMessageKey(messageName);
   const values = getTypeMemoryValue<any[]>(key);
   if (!values || values.length === 0) {
     return undefined;
@@ -222,12 +222,12 @@ export function clearTypeMemory(): void {
 }
 
 /**
- * Get all stored type names (for debugging).
+ * Get all stored message names (for debugging).
  */
-export function getAllStoredTypes(): string[] {
+export function getAllStoredMessages(): string[] {
   return getAllTypeMemoryKeys()
-    .filter((key) => key.startsWith(TYPE_PREFIX))
-    .map((key) => key.slice(TYPE_PREFIX.length));
+    .filter((key) => key.startsWith(MESSAGE_PREFIX))
+    .map((key) => key.slice(MESSAGE_PREFIX.length));
 }
 
 /**

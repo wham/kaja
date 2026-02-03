@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import {
   captureValues,
-  getTypeMemorizedValue,
+  getMessageMemorizedValue,
   getScalarMemorizedValue,
   getScalarMemorizedValues,
   clearTypeMemory,
-  getAllStoredTypes,
+  getAllStoredMessages,
   getAllStoredScalars,
 } from "./typeMemory";
 
@@ -66,8 +66,8 @@ describe("typeMemory", () => {
       expect(getScalarMemorizedValue("active", ScalarType.BOOL)).toBe(true);
 
       // Check type memory (message type + field path)
-      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
-      expect(getTypeMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
+      expect(getMessageMemorizedValue("example.Customer", "id")).toBe("cust-123");
+      expect(getMessageMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
     });
 
     it("returns most recently used value", () => {
@@ -81,7 +81,7 @@ describe("typeMemory", () => {
 
       // Most recent value should be returned
       expect(getScalarMemorizedValue("id", ScalarType.STRING)).toBe("cust-3");
-      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-3");
+      expect(getMessageMemorizedValue("example.Customer", "id")).toBe("cust-3");
 
       // Using an old value again makes it most recent
       captureValues("example.Customer", { id: "cust-1" }, messageType);
@@ -97,8 +97,8 @@ describe("typeMemory", () => {
       });
 
       // Type memory should work
-      expect(getTypeMemorizedValue("example.Customer", "id")).toBe("cust-123");
-      expect(getTypeMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
+      expect(getMessageMemorizedValue("example.Customer", "id")).toBe("cust-123");
+      expect(getMessageMemorizedValue("example.Customer", "name")).toBe("Acme Corp");
 
       // Scalar memory should be empty (no schema = no protobuf type info)
       expect(getAllStoredScalars()).toHaveLength(0);
@@ -115,24 +115,24 @@ describe("typeMemory", () => {
       });
 
       // Only top-level scalars are captured
-      expect(getTypeMemorizedValue("example.Order", "orderId")).toBe("order-456");
-      expect(getTypeMemorizedValue("example.Order", "total")).toBe(99.99);
+      expect(getMessageMemorizedValue("example.Order", "orderId")).toBe("order-456");
+      expect(getMessageMemorizedValue("example.Order", "total")).toBe(99.99);
       // Nested objects are not captured without schema (we don't know their type)
-      expect(getTypeMemorizedValue("example.Order", "customer.id")).toBeUndefined();
+      expect(getMessageMemorizedValue("example.Order", "customer.id")).toBeUndefined();
     });
 
     it("ignores null/undefined values", () => {
       captureValues("example.Customer", null);
       captureValues("example.Customer", undefined);
 
-      expect(getAllStoredTypes()).toHaveLength(0);
+      expect(getAllStoredMessages()).toHaveLength(0);
       expect(getAllStoredScalars()).toHaveLength(0);
     });
 
     it("ignores empty type names", () => {
       captureValues("", { id: "test" });
 
-      expect(getAllStoredTypes()).toHaveLength(0);
+      expect(getAllStoredMessages()).toHaveLength(0);
       expect(getAllStoredScalars()).toHaveLength(0);
     });
   });
@@ -207,18 +207,18 @@ describe("typeMemory", () => {
       clearTypeMemory();
 
       expect(getScalarMemorizedValue("id", ScalarType.STRING)).toBeUndefined();
-      expect(getTypeMemorizedValue("example.Customer", "id")).toBeUndefined();
+      expect(getMessageMemorizedValue("example.Customer", "id")).toBeUndefined();
     });
   });
 
   describe("undefined lookups", () => {
     it("returns undefined for non-existent type", () => {
-      expect(getTypeMemorizedValue("nonExistent.Type", "id")).toBeUndefined();
+      expect(getMessageMemorizedValue("nonExistent.Type", "id")).toBeUndefined();
     });
 
     it("returns undefined for non-existent field in type", () => {
       captureValues("example.Customer", { id: "cust-123" });
-      expect(getTypeMemorizedValue("example.Customer", "nonExistent")).toBeUndefined();
+      expect(getMessageMemorizedValue("example.Customer", "nonExistent")).toBeUndefined();
     });
 
     it("returns undefined for non-existent scalar field", () => {
