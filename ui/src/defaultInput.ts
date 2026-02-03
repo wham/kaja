@@ -1,15 +1,19 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
+import { getScalarMemorizedValue, getMessageMemorizedValue } from "./typeMemory";
 
 export function defaultMessage<T extends object>(message: IMessageType<T>, sources: Sources, imports: Imports): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
 
+  const typeName = message.typeName;
+
   message.fields.forEach((field) => {
-    let value = defaultMessageField(field, sources, imports);
+    let value = defaultMessageField(field, sources, imports, typeName);
 
     if (field.repeat) {
-      value = ts.factory.createArrayLiteralExpression([value]);
+      const arrayValue = defaultMessageField(field, sources, imports, typeName);
+      value = ts.factory.createArrayLiteralExpression([arrayValue]);
     }
 
     properties.push(ts.factory.createPropertyAssignment(field.localName, value));
@@ -34,8 +38,21 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports): ts.Expression {
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, parentTypeName?: string): ts.Expression {
+  // For scalar fields, try to get memorized value
   if (field.kind === "scalar") {
+    // First check type memory (more specific - values seen in this exact type)
+    if (parentTypeName) {
+      const typeMemorized = getMessageMemorizedValue(parentTypeName, field.localName);
+      if (typeMemorized !== undefined) {
+        return valueToExpression(typeMemorized);
+      }
+    }
+    // Fall back to scalar memory (broader - any field with this name and protobuf type)
+    const memorized = getScalarMemorizedValue(field.localName, field.T);
+    if (memorized !== undefined) {
+      return valueToExpression(memorized);
+    }
     return defaultScalar(field.T);
   }
 
@@ -52,7 +69,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
-    // Special case for Timestamp: use current time instead of epoch
+    // Special case for Timestamp - default to current time
     if (messageType.typeName === "google.protobuf.Timestamp") {
       const now = new Date();
       const seconds = Math.floor(now.getTime() / 1000);
@@ -62,9 +79,26 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
         ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
       ]);
     }
+    // For nested message types, recurse with the nested type name
     return defaultMessage(messageType, sources, imports);
   }
 
+  return ts.factory.createNull();
+}
+
+function valueToExpression(value: any): ts.Expression {
+  if (typeof value === "string") {
+    return ts.factory.createStringLiteral(value);
+  }
+  if (typeof value === "number") {
+    if (value < 0) {
+      return ts.factory.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, ts.factory.createNumericLiteral(Math.abs(value)));
+    }
+    return ts.factory.createNumericLiteral(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? ts.factory.createTrue() : ts.factory.createFalse();
+  }
   return ts.factory.createNull();
 }
 
