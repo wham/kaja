@@ -12,12 +12,7 @@ export interface FieldsMemory {
 }
 
 export interface FieldMemory {
-  values: MemorizedValue[];
-}
-
-export interface MemorizedValue {
-  value: any;
-  lastUsed: number;
+  values: any[];
 }
 
 /**
@@ -166,7 +161,7 @@ function addValueToFieldMemory(fields: Record<string, FieldMemory>, path: string
 }
 
 function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
-  const existingIndex = fieldMemory.values.findIndex((mv) => mv.value === value);
+  const existingIndex = fieldMemory.values.indexOf(value);
 
   if (existingIndex >= 0) {
     // Remove from current position
@@ -174,10 +169,7 @@ function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
   }
 
   // Add to front (most recent)
-  fieldMemory.values.unshift({
-    value,
-    lastUsed: Date.now(),
-  });
+  fieldMemory.values.unshift(value);
 
   // Keep only the last 10 values
   if (fieldMemory.values.length > MAX_VALUES_PER_FIELD) {
@@ -201,7 +193,7 @@ export function getTypeMemorizedValue(typeName: string, fieldPath: string): any 
     return undefined;
   }
 
-  return fieldMemory.values[0].value;
+  return fieldMemory.values[0];
 }
 
 /**
@@ -216,13 +208,13 @@ export function getScalarMemorizedValue(fieldName: string, scalarType: "string" 
     return undefined;
   }
 
-  return memory.values[0].value;
+  return memory.values[0];
 }
 
 /**
  * Get all memorized values for a scalar field (for suggestions).
  */
-export function getScalarMemorizedValues(fieldName: string, scalarType: "string" | "number" | "boolean"): MemorizedValue[] {
+export function getScalarMemorizedValues(fieldName: string, scalarType: "string" | "number" | "boolean"): any[] {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
   const memory = getTypeMemoryValue<FieldMemory>(key);
 

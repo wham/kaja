@@ -137,9 +137,9 @@ describe("typeMemory", () => {
 
       const values = getScalarMemorizedValues("id", "string");
       expect(values).toHaveLength(3);
-      expect(values.map((v) => v.value)).toContain("cust-1");
-      expect(values.map((v) => v.value)).toContain("cust-2");
-      expect(values.map((v) => v.value)).toContain("cust-3");
+      expect(values).toContain("cust-1");
+      expect(values).toContain("cust-2");
+      expect(values).toContain("cust-3");
     });
 
     it("returns empty array for non-existent field", () => {
