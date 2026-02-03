@@ -207,6 +207,30 @@ describe("typeMemory", () => {
     });
   });
 
+  describe("key eviction", () => {
+    it("evicts oldest keys when exceeding max", () => {
+      const messageType = mockMessageType("example.Test", [
+        { name: "value", scalarType: ScalarType.STRING },
+      ]);
+
+      // Create more than 100 keys (each message creates 1 message key + 1 scalar key = 2 keys per unique field)
+      // We need > 100 unique keys, so 51 unique message types should create 102 keys
+      for (let i = 0; i < 51; i++) {
+        const msgType = mockMessageType(`example.Type${i}`, [
+          { name: `field${i}`, scalarType: ScalarType.STRING },
+        ]);
+        captureValues(`example.Type${i}`, { [`field${i}`]: `value${i}` }, msgType);
+      }
+
+      // Total keys should be capped at 100
+      const allKeys = [...getAllStoredMessages(), ...getAllStoredScalars()];
+      expect(allKeys.length).toBeLessThanOrEqual(100);
+
+      // Most recent keys should still exist
+      expect(getMessageMemorizedValue("example.Type50", "field50")).toBe("value50");
+    });
+  });
+
   describe("undefined lookups", () => {
     it("returns undefined for non-existent type", () => {
       expect(getMessageMemorizedValue("nonExistent.Type", "id")).toBeUndefined();

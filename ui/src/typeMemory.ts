@@ -1,14 +1,21 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
-import { clearTypeMemoryStore, getAllTypeMemoryKeys, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
+import { clearTypeMemoryStore, deleteTypeMemoryValue, getAllTypeMemoryKeys, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
 const MAX_VALUES_PER_FIELD = 1;
+const MAX_KEYS = 100;
 
 // Key prefixes for the memory store
 const MESSAGE_PREFIX = "message:";
 const SCALAR_PREFIX = "scalar:";
 
-// Message memory: array of complete object snapshots (FILO, max 10)
-// Scalar memory: array of individual values (FILO, max 10)
+// Storage format: { t: timestamp, v: values[] }
+// Message memory: v = complete object snapshots
+// Scalar memory: v = individual values
+
+interface StoredEntry {
+  t: number; // last updated timestamp
+  v: any[];  // values (FILO)
+}
 
 /**
  * Capture values from an object (request input or response output).
@@ -134,47 +141,78 @@ function getMessageKey(messageName: string): string {
 
 function addMessageSnapshot(messageName: string, snapshot: any): void {
   const key = getMessageKey(messageName);
-  const values = getTypeMemoryValue<any[]>(key) ?? [];
+  const entry = getTypeMemoryValue<StoredEntry>(key) ?? { t: 0, v: [] };
 
   // Check if this exact snapshot already exists (deep equality check)
-  const existingIndex = values.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
+  const existingIndex = entry.v.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
 
   if (existingIndex >= 0) {
     // Remove from current position
-    values.splice(existingIndex, 1);
+    entry.v.splice(existingIndex, 1);
   }
 
   // Add to front (most recent)
-  values.unshift(snapshot);
+  entry.v.unshift(snapshot);
 
-  // Keep only the last 10 snapshots
-  if (values.length > MAX_VALUES_PER_FIELD) {
-    values.length = MAX_VALUES_PER_FIELD;
+  // Keep only the max values
+  if (entry.v.length > MAX_VALUES_PER_FIELD) {
+    entry.v.length = MAX_VALUES_PER_FIELD;
   }
 
-  setTypeMemoryValue(key, values);
+  // Update timestamp
+  entry.t = Date.now();
+
+  setTypeMemoryValue(key, entry);
+  evictOldKeys();
 }
 
 function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any): void {
   const key = getScalarKey(fieldName, scalarType);
-  const values = getTypeMemoryValue<any[]>(key) ?? [];
+  const entry = getTypeMemoryValue<StoredEntry>(key) ?? { t: 0, v: [] };
 
-  const existingIndex = values.indexOf(value);
+  const existingIndex = entry.v.indexOf(value);
 
   if (existingIndex >= 0) {
     // Remove from current position
-    values.splice(existingIndex, 1);
+    entry.v.splice(existingIndex, 1);
   }
 
   // Add to front (most recent)
-  values.unshift(value);
+  entry.v.unshift(value);
 
-  // Keep only the last 10 values
-  if (values.length > MAX_VALUES_PER_FIELD) {
-    values.length = MAX_VALUES_PER_FIELD;
+  // Keep only the max values
+  if (entry.v.length > MAX_VALUES_PER_FIELD) {
+    entry.v.length = MAX_VALUES_PER_FIELD;
   }
 
-  setTypeMemoryValue(key, values);
+  // Update timestamp
+  entry.t = Date.now();
+
+  setTypeMemoryValue(key, entry);
+  evictOldKeys();
+}
+
+function evictOldKeys(): void {
+  const keys = getAllTypeMemoryKeys();
+  if (keys.length <= MAX_KEYS) {
+    return;
+  }
+
+  // Get all entries with their timestamps
+  const entries: { key: string; t: number }[] = [];
+  for (const key of keys) {
+    const entry = getTypeMemoryValue<StoredEntry>(key);
+    entries.push({ key, t: entry?.t ?? 0 });
+  }
+
+  // Sort by timestamp (oldest first)
+  entries.sort((a, b) => a.t - b.t);
+
+  // Delete oldest entries until we're at max
+  const toDelete = entries.slice(0, entries.length - MAX_KEYS);
+  for (const { key } of toDelete) {
+    deleteTypeMemoryValue(key);
+  }
 }
 
 /**
@@ -183,13 +221,13 @@ function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any
  */
 export function getMessageMemorizedValue(messageName: string, fieldName: string): any | undefined {
   const key = getMessageKey(messageName);
-  const values = getTypeMemoryValue<any[]>(key);
-  if (!values || values.length === 0) {
+  const entry = getTypeMemoryValue<StoredEntry>(key);
+  if (!entry || entry.v.length === 0) {
     return undefined;
   }
 
   // Get from the most recent snapshot
-  return values[0][fieldName];
+  return entry.v[0][fieldName];
 }
 
 /**
@@ -198,20 +236,21 @@ export function getMessageMemorizedValue(messageName: string, fieldName: string)
  */
 export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarType): any | undefined {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
-  const values = getTypeMemoryValue<any[]>(key);
+  const entry = getTypeMemoryValue<StoredEntry>(key);
 
-  if (!values || values.length === 0) {
+  if (!entry || entry.v.length === 0) {
     return undefined;
   }
 
-  return values[0];
+  return entry.v[0];
 }
 
 /**
  * Get all memorized values for a scalar field (for suggestions).
  */
 export function getScalarMemorizedValues(fieldName: string, scalarType: ScalarType): any[] {
-  return getTypeMemoryValue<any[]>(`${SCALAR_PREFIX}${scalarType}:${fieldName}`) ?? [];
+  const entry = getTypeMemoryValue<StoredEntry>(`${SCALAR_PREFIX}${scalarType}:${fieldName}`);
+  return entry?.v ?? [];
 }
 
 /**
