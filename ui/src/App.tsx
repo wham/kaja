@@ -582,7 +582,7 @@ export function App() {
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <>
-                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1, flexShrink: 0, flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
