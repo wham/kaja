@@ -7,13 +7,8 @@ const MAX_VALUES_PER_FIELD = 10;
 const TYPE_PREFIX = "type:";
 const SCALAR_PREFIX = "scalar:";
 
-export interface TypeMemory {
-  values: any[]; // Complete object snapshots (FILO, max 10)
-}
-
-export interface FieldMemory {
-  values: any[]; // Individual scalar values (FILO, max 10)
-}
+// Type memory: array of complete object snapshots (FILO, max 10)
+// Scalar memory: array of individual values (FILO, max 10)
 
 /**
  * Capture values from an object (request input or response output).
@@ -139,50 +134,47 @@ function getTypeKey(typeName: string): string {
 
 function addTypeSnapshot(typeName: string, snapshot: any): void {
   const key = getTypeKey(typeName);
-  const memory = getTypeMemoryValue<TypeMemory>(key) ?? { values: [] };
+  const values = getTypeMemoryValue<any[]>(key) ?? [];
 
   // Check if this exact snapshot already exists (deep equality check)
-  const existingIndex = memory.values.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
+  const existingIndex = values.findIndex((v) => JSON.stringify(v) === JSON.stringify(snapshot));
 
   if (existingIndex >= 0) {
     // Remove from current position
-    memory.values.splice(existingIndex, 1);
+    values.splice(existingIndex, 1);
   }
 
   // Add to front (most recent)
-  memory.values.unshift(snapshot);
+  values.unshift(snapshot);
 
   // Keep only the last 10 snapshots
-  if (memory.values.length > MAX_VALUES_PER_FIELD) {
-    memory.values = memory.values.slice(0, MAX_VALUES_PER_FIELD);
+  if (values.length > MAX_VALUES_PER_FIELD) {
+    values.length = MAX_VALUES_PER_FIELD;
   }
 
-  setTypeMemoryValue(key, memory);
+  setTypeMemoryValue(key, values);
 }
 
 function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any): void {
   const key = getScalarKey(fieldName, scalarType);
-  const memory = getTypeMemoryValue<FieldMemory>(key) ?? { values: [] };
+  const values = getTypeMemoryValue<any[]>(key) ?? [];
 
-  addValueToMemory(memory, value);
-  setTypeMemoryValue(key, memory);
-}
-
-function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
-  const existingIndex = fieldMemory.values.indexOf(value);
+  const existingIndex = values.indexOf(value);
 
   if (existingIndex >= 0) {
     // Remove from current position
-    fieldMemory.values.splice(existingIndex, 1);
+    values.splice(existingIndex, 1);
   }
 
   // Add to front (most recent)
-  fieldMemory.values.unshift(value);
+  values.unshift(value);
 
   // Keep only the last 10 values
-  if (fieldMemory.values.length > MAX_VALUES_PER_FIELD) {
-    fieldMemory.values = fieldMemory.values.slice(0, MAX_VALUES_PER_FIELD);
+  if (values.length > MAX_VALUES_PER_FIELD) {
+    values.length = MAX_VALUES_PER_FIELD;
   }
+
+  setTypeMemoryValue(key, values);
 }
 
 /**
@@ -191,14 +183,13 @@ function addValueToMemory(fieldMemory: FieldMemory, value: any): void {
  */
 export function getTypeMemorizedValue(typeName: string, fieldName: string): any | undefined {
   const key = getTypeKey(typeName);
-  const memory = getTypeMemoryValue<TypeMemory>(key);
-  if (!memory || memory.values.length === 0) {
+  const values = getTypeMemoryValue<any[]>(key);
+  if (!values || values.length === 0) {
     return undefined;
   }
 
   // Get from the most recent snapshot
-  const snapshot = memory.values[0];
-  return snapshot[fieldName];
+  return values[0][fieldName];
 }
 
 /**
@@ -207,27 +198,20 @@ export function getTypeMemorizedValue(typeName: string, fieldName: string): any 
  */
 export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarType): any | undefined {
   const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
-  const memory = getTypeMemoryValue<FieldMemory>(key);
+  const values = getTypeMemoryValue<any[]>(key);
 
-  if (!memory || memory.values.length === 0) {
+  if (!values || values.length === 0) {
     return undefined;
   }
 
-  return memory.values[0];
+  return values[0];
 }
 
 /**
  * Get all memorized values for a scalar field (for suggestions).
  */
 export function getScalarMemorizedValues(fieldName: string, scalarType: ScalarType): any[] {
-  const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
-  const memory = getTypeMemoryValue<FieldMemory>(key);
-
-  if (!memory) {
-    return [];
-  }
-
-  return memory.values;
+  return getTypeMemoryValue<any[]>(`${SCALAR_PREFIX}${scalarType}:${fieldName}`) ?? [];
 }
 
 /**
