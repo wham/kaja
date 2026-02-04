@@ -56,7 +56,7 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
     }
   }
 
-  const newTab = newTaskTab(originMethod, originService, originProject);
+  const newTab = newTaskTab(originMethod, originService, originProject, generatedCode);
   const lastTab = tabs[tabs.length - 1];
   // If the last task tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
@@ -74,9 +74,8 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
-function newTaskTab(originMethod: Method, originService: Service, originProject: Project): TaskTab {
+function newTaskTab(originMethod: Method, originService: Service, originProject: Project, editorCode: string): TaskTab {
   const id = generateId("task");
-  const editorCode = generateMethodEditorCode(originProject, originService, originMethod);
 
   return {
     type: "task",
