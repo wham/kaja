@@ -15,6 +15,7 @@ interface TaskTab {
   originProject: Project;
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
+  originalCode: string;
 }
 
 interface DefinitionTab {
@@ -47,23 +48,12 @@ export interface AddTaskTabResult {
 }
 
 export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): AddTaskTabResult {
-  // Check if there's an existing tab with exactly the same code - if so, reuse it
+  // Check if there's an existing tab with the same original code - if so, reuse it
   const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
-    if (tab.type === "task") {
-      const tabCode = tab.model.getValue();
-      console.log("=== Tab comparison ===");
-      console.log("Generated code length:", generatedCode.length);
-      console.log("Tab code length:", tabCode.length);
-      console.log("Are equal:", tabCode === generatedCode);
-      if (tabCode !== generatedCode) {
-        console.log("Generated:", JSON.stringify(generatedCode));
-        console.log("Tab:", JSON.stringify(tabCode));
-      }
-      if (tabCode === generatedCode) {
-        return { tabs, activeIndex: i };
-      }
+    if (tab.type === "task" && tab.originalCode === generatedCode) {
+      return { tabs, activeIndex: i };
     }
   }
 
@@ -96,6 +86,7 @@ function newTaskTab(originMethod: Method, originService: Service, originProject:
     originProject,
     hasInteraction: false,
     model: monaco.editor.createModel(editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
+    originalCode: editorCode,
   };
 }
 
