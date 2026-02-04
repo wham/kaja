@@ -15,6 +15,7 @@ interface TaskTab {
   originProject: Project;
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
+  originalCode: string;
 }
 
 interface DefinitionTab {
@@ -41,8 +42,22 @@ function generateId(type: string): string {
   return `${type}-${idGenerator++}`;
 }
 
-export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): TabModel[] {
-  const newTab = newTaskTab(originMethod, originService, originProject);
+export interface AddTaskTabResult {
+  tabs: TabModel[];
+  activeIndex: number;
+}
+
+export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): AddTaskTabResult {
+  // Check if there's an existing tab with the same original code - if so, reuse it
+  const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    if (tab.type === "task" && tab.originalCode === generatedCode) {
+      return { tabs, activeIndex: i };
+    }
+  }
+
+  const newTab = newTaskTab(originMethod, originService, originProject, generatedCode);
   const lastTab = tabs[tabs.length - 1];
   // If the last task tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
@@ -52,15 +67,16 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
     lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== originMethod) || lastTab.type === "definition");
 
   if (replaceLastTab) {
-    return [...tabs.slice(0, -1), newTab];
+    const newTabs = [...tabs.slice(0, -1), newTab];
+    return { tabs: newTabs, activeIndex: newTabs.length - 1 };
   }
 
-  return [...tabs, newTab];
+  const newTabs = [...tabs, newTab];
+  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
-function newTaskTab(originMethod: Method, originService: Service, originProject: Project): TaskTab {
+function newTaskTab(originMethod: Method, originService: Service, originProject: Project, editorCode: string): TaskTab {
   const id = generateId("task");
-  const editorCode = generateMethodEditorCode(originProject, originService, originMethod);
 
   return {
     type: "task",
@@ -70,6 +86,7 @@ function newTaskTab(originMethod: Method, originService: Service, originProject:
     originProject,
     hasInteraction: false,
     model: monaco.editor.createModel(editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
+    originalCode: editorCode,
   };
 }
 
