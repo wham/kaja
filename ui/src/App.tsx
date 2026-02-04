@@ -370,18 +370,19 @@ export function App() {
             tab.model.dispose();
           }
         });
-        return addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
+        const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
+        setActiveTabIndex(result.activeIndex);
+        return result.tabs;
       });
-      setActiveTabIndex(0);
     }
   };
 
   const onMethodSelect = (method: Method, service: Service, project: Project) => {
     setSelectedMethod(method);
     setTabs((tabs) => {
-      tabs = addTaskTab(tabs, method, service, project);
-      setActiveTabIndex(tabs.length - 1);
-      return tabs;
+      const result = addTaskTab(tabs, method, service, project);
+      setActiveTabIndex(result.activeIndex);
+      return result.tabs;
     });
   };
 

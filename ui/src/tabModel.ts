@@ -41,7 +41,21 @@ function generateId(type: string): string {
   return `${type}-${idGenerator++}`;
 }
 
-export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): TabModel[] {
+export interface AddTaskTabResult {
+  tabs: TabModel[];
+  activeIndex: number;
+}
+
+export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): AddTaskTabResult {
+  // Check if there's an existing tab for this method with the same code - if so, reuse it
+  const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    if (tab.type === "task" && tab.originMethod === originMethod && tab.model.getValue() === generatedCode) {
+      return { tabs, activeIndex: i };
+    }
+  }
+
   const newTab = newTaskTab(originMethod, originService, originProject);
   const lastTab = tabs[tabs.length - 1];
   // If the last task tab has no interaction, replace it with the new tab.
@@ -52,10 +66,12 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
     lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== originMethod) || lastTab.type === "definition");
 
   if (replaceLastTab) {
-    return [...tabs.slice(0, -1), newTab];
+    const newTabs = [...tabs.slice(0, -1), newTab];
+    return { tabs: newTabs, activeIndex: newTabs.length - 1 };
   }
 
-  return [...tabs, newTab];
+  const newTabs = [...tabs, newTab];
+  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
 function newTaskTab(originMethod: Method, originService: Service, originProject: Project): TaskTab {
