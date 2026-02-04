@@ -51,7 +51,7 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
   const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
-    if (tab.type === "task" && tab.originMethod === originMethod && tab.model.getValue() === generatedCode) {
+    if (tab.type === "task" && tab.model.getValue() === generatedCode) {
       return { tabs, activeIndex: i };
     }
   }
