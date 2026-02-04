@@ -47,11 +47,16 @@ export interface AddTaskTabResult {
 }
 
 export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): AddTaskTabResult {
-  // Check if there's an existing tab for this method with the same code - if so, reuse it
-  const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
+  // Check if there's an existing tab for this method with unmodified code - if so, reuse it
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
-    if (tab.type === "task" && tab.model.getValue() === generatedCode) {
+    if (
+      tab.type === "task" &&
+      !tab.hasInteraction &&
+      tab.originProject.configuration.name === originProject.configuration.name &&
+      tab.originService.name === originService.name &&
+      tab.originMethod.name === originMethod.name
+    ) {
       return { tabs, activeIndex: i };
     }
   }
