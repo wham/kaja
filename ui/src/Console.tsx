@@ -19,8 +19,14 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
+  const [now, setNow] = useState(Date.now());
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Reset selectedIndex when items are cleared or become invalid
   useEffect(() => {
@@ -177,6 +183,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
                   methodCall={item}
                   isSelected={selectedIndex === index}
                   onClick={() => handleRowClick(index)}
+                  now={now}
                 />
               );
             }
@@ -245,9 +252,10 @@ interface MethodCallRowProps {
   methodCall: MethodCall;
   isSelected: boolean;
   onClick: () => void;
+  now: number;
 }
 
-Console.MethodCallRow = function ({ methodCall, isSelected, onClick }: MethodCallRowProps) {
+Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: MethodCallRowProps) {
   const status = methodCall.error ? "error" : methodCall.output ? "success" : "pending";
 
   const statusColor = {
@@ -271,9 +279,20 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick }: MethodCal
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           color: "var(--fgColor-default)",
+          flex: 1,
         }}
       >
         {methodId(methodCall.service, methodCall.method)}
+      </span>
+      <span
+        style={{
+          color: "var(--fgColor-muted)",
+          fontSize: 11,
+          marginLeft: 8,
+          flexShrink: 0,
+        }}
+      >
+        {formatRelativeTime(methodCall.timestamp, now)}
       </span>
     </div>
   );
@@ -500,4 +519,19 @@ function colorForLogLevel(level: LogLevel): string {
     case LogLevel.LEVEL_ERROR:
       return "var(--fgColor-danger)";
   }
+}
+
+function formatRelativeTime(timestamp: number, now: number): string {
+  const seconds = Math.floor((now - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds} seconds ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
 }

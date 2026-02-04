@@ -75,6 +75,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
         input,
         requestHeaders,
         url: isTwirp ? `${projectRef.configuration.url.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
+        timestamp: Date.now(),
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
