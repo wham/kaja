@@ -28,6 +28,7 @@ export interface MethodCall {
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;
   url?: string;
+  timestamp: number;
 }
 
 export interface MethodCallUpdate {
