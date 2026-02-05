@@ -52,12 +52,16 @@ describe("typeMemory", () => {
         { name: "active", scalarType: ScalarType.BOOL },
       ]);
 
-      captureValues("example.Customer", {
-        id: "cust-123",
-        name: "Acme Corp",
-        count: 42,
-        active: true,
-      }, messageType);
+      captureValues(
+        "example.Customer",
+        {
+          id: "cust-123",
+          name: "Acme Corp",
+          count: 42,
+          active: true,
+        },
+        messageType,
+      );
 
       // Check scalar memory (field name + protobuf type)
       expect(getScalarMemorizedValue("id", ScalarType.STRING)).toBe("cust-123");
@@ -71,9 +75,7 @@ describe("typeMemory", () => {
     });
 
     it("returns most recently used value", () => {
-      const messageType = mockMessageType("example.Customer", [
-        { name: "id", scalarType: ScalarType.STRING },
-      ]);
+      const messageType = mockMessageType("example.Customer", [{ name: "id", scalarType: ScalarType.STRING }]);
 
       captureValues("example.Customer", { id: "cust-1" }, messageType);
       captureValues("example.Customer", { id: "cust-2" }, messageType);
@@ -144,10 +146,14 @@ describe("typeMemory", () => {
         { name: "name", scalarType: ScalarType.STRING },
       ]);
 
-      captureValues("example.GetCustomerResponse", {
-        id: "cust-123",
-        name: "Acme Corp",
-      }, responseType);
+      captureValues(
+        "example.GetCustomerResponse",
+        {
+          id: "cust-123",
+          name: "Acme Corp",
+        },
+        responseType,
+      );
 
       // The same "id" field name should be available for any STRING field named "id"
       expect(getScalarMemorizedValue("id", ScalarType.STRING)).toBe("cust-123");
@@ -155,12 +161,8 @@ describe("typeMemory", () => {
     });
 
     it("separates same field name with different protobuf types", () => {
-      const typeA = mockMessageType("example.TypeA", [
-        { name: "count", scalarType: ScalarType.INT32 },
-      ]);
-      const typeB = mockMessageType("example.TypeB", [
-        { name: "count", scalarType: ScalarType.INT64 },
-      ]);
+      const typeA = mockMessageType("example.TypeA", [{ name: "count", scalarType: ScalarType.INT32 }]);
+      const typeB = mockMessageType("example.TypeB", [{ name: "count", scalarType: ScalarType.INT64 }]);
 
       captureValues("example.TypeA", { count: 42 }, typeA);
       captureValues("example.TypeB", { count: "100" }, typeB);
@@ -173,9 +175,7 @@ describe("typeMemory", () => {
 
   describe("getScalarMemorizedValues", () => {
     it("returns memorized values for a field", () => {
-      const messageType = mockMessageType("example.Customer", [
-        { name: "id", scalarType: ScalarType.STRING },
-      ]);
+      const messageType = mockMessageType("example.Customer", [{ name: "id", scalarType: ScalarType.STRING }]);
 
       captureValues("example.Customer", { id: "cust-1" }, messageType);
 
@@ -192,9 +192,7 @@ describe("typeMemory", () => {
 
   describe("clearTypeMemory", () => {
     it("clears all memory", () => {
-      const messageType = mockMessageType("example.Customer", [
-        { name: "id", scalarType: ScalarType.STRING },
-      ]);
+      const messageType = mockMessageType("example.Customer", [{ name: "id", scalarType: ScalarType.STRING }]);
 
       captureValues("example.Customer", { id: "cust-123" }, messageType);
 
@@ -213,9 +211,7 @@ describe("typeMemory", () => {
       // Max is 100, eviction triggers at >200
       // Create 102 types = 204 keys without eviction
       for (let i = 0; i < 102; i++) {
-        const msgType = mockMessageType(`example.Type${i}`, [
-          { name: `field${i}`, scalarType: ScalarType.STRING },
-        ]);
+        const msgType = mockMessageType(`example.Type${i}`, [{ name: `field${i}`, scalarType: ScalarType.STRING }]);
         captureValues(`example.Type${i}`, { [`field${i}`]: `value${i}` }, msgType);
       }
 

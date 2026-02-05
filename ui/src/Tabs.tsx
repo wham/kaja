@@ -59,21 +59,24 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     };
   }, [children, updateScrollMetrics]);
 
-  const scrollToTab = useCallback((index: number) => {
-    const tabElement = tabRefs.current.get(index);
-    const container = tabsHeaderRef.current;
-    if (tabElement && container) {
-      const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
-      const visibleRight = container.scrollLeft + container.clientWidth;
-      const menuButtonWidth = onCloseAll ? 40 : 0;
-      if (tabRight > visibleRight - menuButtonWidth) {
-        container.scrollTo({
-          left: tabRight - container.clientWidth + menuButtonWidth + 8,
-          behavior: "smooth",
-        });
+  const scrollToTab = useCallback(
+    (index: number) => {
+      const tabElement = tabRefs.current.get(index);
+      const container = tabsHeaderRef.current;
+      if (tabElement && container) {
+        const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
+        const visibleRight = container.scrollLeft + container.clientWidth;
+        const menuButtonWidth = onCloseAll ? 40 : 0;
+        if (tabRight > visibleRight - menuButtonWidth) {
+          container.scrollTo({
+            left: tabRight - container.clientWidth + menuButtonWidth + 8,
+            behavior: "smooth",
+          });
+        }
       }
-    }
-  }, [onCloseAll]);
+    },
+    [onCloseAll],
+  );
 
   useEffect(() => {
     const currentTabCount = React.Children.count(children);
@@ -161,12 +164,13 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           background: var(--bgColor-neutral-muted);
         }
       `}</style>
-      <div className="tabs-wrapper" style={{ position: "relative", flexShrink: 0 }} onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
-        <div
-          ref={tabsHeaderRef}
-          className="tabs-header"
-          style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}
-        >
+      <div
+        className="tabs-wrapper"
+        style={{ position: "relative", flexShrink: 0 }}
+        onMouseEnter={() => setShowScrollbar(true)}
+        onMouseLeave={() => setShowScrollbar(false)}
+      >
+        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}>
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
             const isActive = index === activeTabIndex;
@@ -218,7 +222,20 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
-          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4, background: "var(--bgColor-default)", borderBottom: "1px solid var(--borderColor-default)" }}>
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              display: "flex",
+              alignItems: "center",
+              paddingLeft: 4,
+              paddingRight: 4,
+              background: "var(--bgColor-default)",
+              borderBottom: "1px solid var(--borderColor-default)",
+            }}
+          >
             <ActionMenu>
               <ActionMenu.Anchor>
                 <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />

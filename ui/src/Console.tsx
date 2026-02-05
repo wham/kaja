@@ -1,8 +1,8 @@
-import { PlayIcon, TrashIcon } from "@primer/octicons-react";
+import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "@primer/octicons-react";
 import { IconButton } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
-import { JsonViewer } from "./JsonViewer";
+import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
@@ -20,8 +20,10 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
   const [now, setNow] = useState(Date.now());
+  const [copied, setCopied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -42,15 +44,10 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   };
 
   // Filter items into method calls for easier access
-  const methodCalls = items
-    .map((item, index) => ({ item, index }))
-    .filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
+  const methodCalls = items.map((item, index) => ({ item, index })).filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
 
   // Get selected method call
-  const selectedMethodCall =
-    selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex]
-      ? (items[selectedIndex] as MethodCall)
-      : null;
+  const selectedMethodCall = selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -70,6 +67,26 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const handleRowClick = (index: number) => {
     autoScrollRef.current = false;
     setSelectedIndex(index);
+  };
+
+  const handleCopy = async () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.copyToClipboard();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleFoldAll = () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.foldAll();
+    }
+  };
+
+  const handleUnfoldAll = () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.unfoldAll();
+    }
   };
 
   return (
@@ -124,23 +141,26 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             width: callListWidth,
             flexShrink: 0,
             padding: "10px 12px",
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--fgColor-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          Calls
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--fgColor-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Calls
+          </span>
+          {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" size="small" variant="invisible" onClick={onClear} />}
         </div>
-        {selectedMethodCall && (
-          <Console.DetailTabs
-            methodCall={selectedMethodCall}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
-        )}
-        {onClear && items.length > 0 && (
+        {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
+        {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
           <div
             style={{
               position: "absolute",
@@ -149,15 +169,13 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
               background: "var(--bgColor-muted)",
               borderRadius: 6,
               padding: 2,
+              display: "flex",
+              gap: 2,
             }}
           >
-            <IconButton
-              icon={TrashIcon}
-              aria-label="Clear console"
-              size="small"
-              variant="invisible"
-              onClick={onClear}
-            />
+            <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold all" onClick={handleFoldAll} />
+            <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold all" onClick={handleUnfoldAll} />
+            <IconButton icon={copied ? CheckIcon : CopyIcon} size="small" variant="invisible" aria-label="Copy JSON" onClick={handleCopy} />
           </div>
         )}
       </div>
@@ -179,13 +197,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
               return <Console.LogRow key={index} logs={item} />;
             } else if ("method" in item) {
               return (
-                <Console.MethodCallRow
-                  key={index}
-                  methodCall={item}
-                  isSelected={selectedIndex === index}
-                  onClick={() => handleRowClick(index)}
-                  now={now}
-                />
+                <Console.MethodCallRow key={index} methodCall={item} isSelected={selectedIndex === index} onClick={() => handleRowClick(index)} now={now} />
               );
             }
             return null;
@@ -202,6 +214,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
               activeTab={activeTab}
               onTabChange={setActiveTab}
               colorMode={colorMode}
+              jsonViewerRef={jsonViewerRef}
             />
           ) : (
             <div
@@ -236,11 +249,7 @@ Console.LogRow = function ({ logs }: LogRowProps) {
   const color = colorForLogLevel(highestSeverity);
 
   return (
-    <div
-      className="console-row"
-      style={{ color, opacity: 0.8 }}
-      title={logs.map((l) => l.message).join("\n")}
-    >
+    <div className="console-row" style={{ color, opacity: 0.8 }} title={logs.map((l) => l.message).join("\n")}>
       <span style={{ marginRight: 8, fontSize: 10 }}>LOG</span>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}
@@ -310,29 +319,19 @@ interface DetailTabsProps {
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
   return (
     <div style={{ display: "flex" }}>
-      <div
-        className={`console-tab ${activeTab === "request" ? "active" : ""}`}
-        onClick={() => onTabChange("request")}
-      >
+      <div className={`console-tab ${activeTab === "request" ? "active" : ""}`} onClick={() => onTabChange("request")}>
         Request
       </div>
       <div
         className={`console-tab ${activeTab === "response" ? "active" : ""}`}
         onClick={() => onTabChange("response")}
         style={{
-          color: methodCall.error
-            ? "var(--fgColor-danger)"
-            : activeTab === "response"
-            ? "var(--fgColor-default)"
-            : "var(--fgColor-muted)",
+          color: methodCall.error ? "var(--fgColor-danger)" : activeTab === "response" ? "var(--fgColor-default)" : "var(--fgColor-muted)",
         }}
       >
         Response
       </div>
-      <div
-        className={`console-tab ${activeTab === "headers" ? "active" : ""}`}
-        onClick={() => onTabChange("headers")}
-      >
+      <div className={`console-tab ${activeTab === "headers" ? "active" : ""}`} onClick={() => onTabChange("headers")}>
         Headers
       </div>
     </div>
@@ -344,9 +343,10 @@ interface DetailContentProps {
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
   colorMode?: "day" | "night";
+  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night" }: DetailContentProps) {
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night", jsonViewerRef }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
   const hasError = methodCall.error !== undefined;
 
@@ -401,7 +401,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
               POST {methodCall.url}
             </div>
           )}
-          <JsonViewer value={content} colorMode={colorMode} />
+          <JsonViewer ref={jsonViewerRef} value={content} colorMode={colorMode} />
         </>
       )}
     </div>

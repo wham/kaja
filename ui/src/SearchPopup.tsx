@@ -90,7 +90,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
         }
       }
     },
-    [filteredResults, selectedIndex, onClose, onSelect]
+    [filteredResults, selectedIndex, onClose, onSelect],
   );
 
   const handleBackdropClick = useCallback(
@@ -99,7 +99,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
         onClose();
       }
     },
-    [onClose]
+    [onClose],
   );
 
   if (!isOpen) {

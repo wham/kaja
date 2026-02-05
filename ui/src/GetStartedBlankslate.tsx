@@ -9,9 +9,7 @@ export function GetStartedBlankslate() {
           <RocketIcon size="medium" />
         </Blankslate.Visual>
         <Blankslate.Heading>Welcome to Kaja</Blankslate.Heading>
-        <Blankslate.Description>
-          Select a method from the sidebar to get started.
-        </Blankslate.Description>
+        <Blankslate.Description>Select a method from the sidebar to get started.</Blankslate.Description>
       </Blankslate>
     </div>
   );
