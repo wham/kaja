@@ -565,7 +565,7 @@ export function App() {
       <BaseStyles>
         <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
+          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0, overflow: "hidden" }}>
             <Sidebar
               projects={projects}
               canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
