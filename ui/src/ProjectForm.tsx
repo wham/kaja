@@ -60,7 +60,8 @@ function createEmptyProject(): ConfigurationProject {
 function projectToJson(project: ConfigurationProject): object {
   return {
     name: project.name,
-    protocol: project.protocol === RpcProtocol.GRPC ? "RPC_PROTOCOL_GRPC" : project.protocol === RpcProtocol.TWIRP ? "RPC_PROTOCOL_TWIRP" : "RPC_PROTOCOL_UNSPECIFIED",
+    protocol:
+      project.protocol === RpcProtocol.GRPC ? "RPC_PROTOCOL_GRPC" : project.protocol === RpcProtocol.TWIRP ? "RPC_PROTOCOL_TWIRP" : "RPC_PROTOCOL_UNSPECIFIED",
     url: project.url,
     protoDir: project.protoDir,
     useReflection: project.useReflection,
@@ -279,14 +280,26 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px", borderBottom: "1px solid var(--borderColor-default)" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "8px 16px",
+          borderBottom: "1px solid var(--borderColor-default)",
+        }}
+      >
         <Select value={selectedProjectValue} onChange={handleProjectChange} style={{ minWidth: 200 }}>
           <Select.Option value={NEW_PROJECT_VALUE}>+ New Project</Select.Option>
-          {allProjects.length > 0 && <Select.OptGroup label="Edit existing">{allProjects.map((p) => (
-            <Select.Option key={p.name} value={p.name}>
-              {p.name}
-            </Select.Option>
-          ))}</Select.OptGroup>}
+          {allProjects.length > 0 && (
+            <Select.OptGroup label="Edit existing">
+              {allProjects.map((p) => (
+                <Select.Option key={p.name} value={p.name}>
+                  {p.name}
+                </Select.Option>
+              ))}
+            </Select.OptGroup>
+          )}
         </Select>
         <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
           <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
@@ -301,9 +314,7 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
       )}
 
       {jsonError && (
-        <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>
-          {jsonError}
-        </div>
+        <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>{jsonError}</div>
       )}
 
       <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
@@ -357,16 +368,10 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
               >
                 <RadioGroup.Label>Proto Source</RadioGroup.Label>
                 <FormControl disabled={readOnly || protocol === RpcProtocol.TWIRP}>
-                  <Radio
-                    value="reflection"
-                    checked={protoSourceType === "reflection"}
-                    disabled={readOnly || protocol === RpcProtocol.TWIRP}
-                  />
+                  <Radio value="reflection" checked={protoSourceType === "reflection"} disabled={readOnly || protocol === RpcProtocol.TWIRP} />
                   <FormControl.Label>Reflection</FormControl.Label>
                   <FormControl.Caption>
-                    {protocol === RpcProtocol.TWIRP
-                      ? "Twirp does not support reflection"
-                      : "Discover services automatically from the server"}
+                    {protocol === RpcProtocol.TWIRP ? "Twirp does not support reflection" : "Discover services automatically from the server"}
                   </FormControl.Caption>
                 </FormControl>
                 <FormControl disabled={readOnly}>

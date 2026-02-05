@@ -387,9 +387,7 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded, onNewProje
     }
 
     // Configuration loaded but no projects
-    return (
-      <FirstProjectBlankslate onNewProjectClick={onNewProjectClick} />
-    );
+    return <FirstProjectBlankslate onNewProjectClick={onNewProjectClick} />;
   }
 
   return (

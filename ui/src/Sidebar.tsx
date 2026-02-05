@@ -61,7 +61,17 @@ interface SidebarProps {
   onSearchClick: () => void;
 }
 
-export function Sidebar({ projects, currentMethod, canDeleteProjects = true, onSelect, onCompilerClick, onNewProjectClick, onEditProject, onDeleteProject, onSearchClick }: SidebarProps) {
+export function Sidebar({
+  projects,
+  currentMethod,
+  canDeleteProjects = true,
+  onSelect,
+  onCompilerClick,
+  onNewProjectClick,
+  onEditProject,
+  onDeleteProject,
+  onSearchClick,
+}: SidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const elementRefs = useRef<Map<string, HTMLElement>>(new Map());
   const pendingScrollRef = useRef<string | null>(null);
@@ -141,17 +151,23 @@ export function Sidebar({ projects, currentMethod, canDeleteProjects = true, onS
           userSelect: "none",
         }}
       >
-        Type <span style={{
-          display: "inline-block",
-          padding: "0 5px",
-          marginLeft: 2,
-          marginRight: 2,
-          fontSize: 11,
-          fontWeight: 500,
-          backgroundColor: "var(--bgColor-default)",
-          border: "1px solid var(--borderColor-default)",
-          borderRadius: 4,
-        }}>/</span> to search
+        Type{" "}
+        <span
+          style={{
+            display: "inline-block",
+            padding: "0 5px",
+            marginLeft: 2,
+            marginRight: 2,
+            fontSize: 11,
+            fontWeight: 500,
+            backgroundColor: "var(--bgColor-default)",
+            border: "1px solid var(--borderColor-default)",
+            borderRadius: 4,
+          }}
+        >
+          /
+        </span>{" "}
+        to search
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {

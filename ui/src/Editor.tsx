@@ -68,7 +68,7 @@ function registerTimestampCommand() {
       editor.addContentWidget(widget);
       activeTimestampWidget = widget;
       activeWidgetEditor = editor;
-    }
+    },
   );
 
   // Use a cached Code Lens provider that minimizes blink on updates

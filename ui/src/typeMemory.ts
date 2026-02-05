@@ -14,7 +14,7 @@ const SCALAR_PREFIX = "scalar:";
 
 interface StoredEntry {
   t: number; // last updated timestamp
-  v: any[];  // values (FILO)
+  v: any[]; // values (FILO)
 }
 
 /**
