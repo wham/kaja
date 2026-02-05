@@ -24,7 +24,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const autoScrollRef = useRef(true);
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 10000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
