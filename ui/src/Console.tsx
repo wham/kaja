@@ -42,15 +42,10 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   };
 
   // Filter items into method calls for easier access
-  const methodCalls = items
-    .map((item, index) => ({ item, index }))
-    .filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
+  const methodCalls = items.map((item, index) => ({ item, index })).filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
 
   // Get selected method call
-  const selectedMethodCall =
-    selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex]
-      ? (items[selectedIndex] as MethodCall)
-      : null;
+  const selectedMethodCall = selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -129,37 +124,15 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             color: "var(--fgColor-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          Calls
+          <span>Calls</span>
+          {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" size="small" variant="invisible" onClick={onClear} />}
         </div>
-        {selectedMethodCall && (
-          <Console.DetailTabs
-            methodCall={selectedMethodCall}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
-        )}
-        {onClear && items.length > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: 2,
-              right: 20,
-              background: "var(--bgColor-muted)",
-              borderRadius: 6,
-              padding: 2,
-            }}
-          >
-            <IconButton
-              icon={TrashIcon}
-              aria-label="Clear console"
-              size="small"
-              variant="invisible"
-              onClick={onClear}
-            />
-          </div>
-        )}
+        {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
       </div>
 
       {/* Content row */}
@@ -178,13 +151,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
               return <Console.LogRow key={index} logs={item} />;
             } else if ("method" in item) {
               return (
-                <Console.MethodCallRow
-                  key={index}
-                  methodCall={item}
-                  isSelected={selectedIndex === index}
-                  onClick={() => handleRowClick(index)}
-                  now={now}
-                />
+                <Console.MethodCallRow key={index} methodCall={item} isSelected={selectedIndex === index} onClick={() => handleRowClick(index)} now={now} />
               );
             }
             return null;
@@ -196,12 +163,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         {/* Right panel - Details */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           {selectedMethodCall ? (
-            <Console.DetailContent
-              methodCall={selectedMethodCall}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              colorMode={colorMode}
-            />
+            <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} colorMode={colorMode} />
           ) : (
             <div
               style={{
@@ -235,11 +197,7 @@ Console.LogRow = function ({ logs }: LogRowProps) {
   const color = colorForLogLevel(highestSeverity);
 
   return (
-    <div
-      className="console-row"
-      style={{ color, opacity: 0.8 }}
-      title={logs.map((l) => l.message).join("\n")}
-    >
+    <div className="console-row" style={{ color, opacity: 0.8 }} title={logs.map((l) => l.message).join("\n")}>
       <span style={{ marginRight: 8, fontSize: 10 }}>LOG</span>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}
@@ -309,29 +267,19 @@ interface DetailTabsProps {
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
   return (
     <div style={{ display: "flex" }}>
-      <div
-        className={`console-tab ${activeTab === "request" ? "active" : ""}`}
-        onClick={() => onTabChange("request")}
-      >
+      <div className={`console-tab ${activeTab === "request" ? "active" : ""}`} onClick={() => onTabChange("request")}>
         Request
       </div>
       <div
         className={`console-tab ${activeTab === "response" ? "active" : ""}`}
         onClick={() => onTabChange("response")}
         style={{
-          color: methodCall.error
-            ? "var(--fgColor-danger)"
-            : activeTab === "response"
-            ? "var(--fgColor-default)"
-            : "var(--fgColor-muted)",
+          color: methodCall.error ? "var(--fgColor-danger)" : activeTab === "response" ? "var(--fgColor-default)" : "var(--fgColor-muted)",
         }}
       >
         Response
       </div>
-      <div
-        className={`console-tab ${activeTab === "headers" ? "active" : ""}`}
-        onClick={() => onTabChange("headers")}
-      >
+      <div className={`console-tab ${activeTab === "headers" ? "active" : ""}`} onClick={() => onTabChange("headers")}>
         Headers
       </div>
     </div>
@@ -361,6 +309,8 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
   }
 
   const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
+  // Show controls only on request and response tabs, not on headers
+  const showControls = activeTab === "request" || activeTab === "response";
 
   return (
     <div
@@ -400,7 +350,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
               POST {methodCall.url}
             </div>
           )}
-          <JsonViewer value={content} colorMode={colorMode} />
+          <JsonViewer value={content} colorMode={colorMode} showControls={showControls} />
         </>
       )}
     </div>

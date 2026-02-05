@@ -79,18 +79,8 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
       <FormControl>
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
         <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="date"
-            value={dateValue}
-            onChange={(e) => setDateValue(e.target.value)}
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <input
-            type="time"
-            value={timeValue}
-            onChange={(e) => setTimeValue(e.target.value)}
-            style={{ ...inputStyle, width: "110px" }}
-          />
+          <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <input type="time" value={timeValue} onChange={(e) => setTimeValue(e.target.value)} style={{ ...inputStyle, width: "110px" }} />
         </div>
       </FormControl>
       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
@@ -121,7 +111,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
     fieldName: string,
     seconds: string,
     nanos: number,
-    private onCloseCallback: () => void
+    private onCloseCallback: () => void,
   ) {
     this.position = { lineNumber: displayRange.startLineNumber, column: displayRange.startColumn };
 
@@ -145,7 +135,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
           // Delay close to allow Code Lens to refresh first, reducing blink
           setTimeout(() => this.onCloseCallback(), 100);
         }}
-      />
+      />,
     );
   }
 
@@ -160,10 +150,7 @@ export class TimestampPickerContentWidget implements monaco.editor.IContentWidge
   getPosition(): monaco.editor.IContentWidgetPosition {
     return {
       position: this.position,
-      preference: [
-        monaco.editor.ContentWidgetPositionPreference.BELOW,
-        monaco.editor.ContentWidgetPositionPreference.ABOVE,
-      ],
+      preference: [monaco.editor.ContentWidgetPositionPreference.BELOW, monaco.editor.ContentWidgetPositionPreference.ABOVE],
     };
   }
 

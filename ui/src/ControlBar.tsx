@@ -36,12 +36,7 @@ export function ControlBar({ onRun }: ControlBarProps) {
       }}
     >
       <Tooltip text="Run (F5)" direction="s">
-        <Button
-          leadingVisual={PlayIcon}
-          onClick={onRun}
-          size="small"
-          variant="primary"
-        >
+        <Button leadingVisual={PlayIcon} onClick={onRun} size="small" variant="primary">
           Run
         </Button>
       </Tooltip>

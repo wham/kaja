@@ -17,7 +17,17 @@ import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
-import { addDefinitionTab, addProjectFormTab, addTaskTab, getProjectFormTabIndex, getProjectFormTabLabel, getTabLabel, markInteraction, TabModel, updateProjectFormTab } from "./tabModel";
+import {
+  addDefinitionTab,
+  addProjectFormTab,
+  addTaskTab,
+  getProjectFormTabIndex,
+  getProjectFormTabLabel,
+  getTabLabel,
+  markInteraction,
+  TabModel,
+  updateProjectFormTab,
+} from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 import { useConfigurationChanges } from "./useConfigurationChanges";
@@ -151,123 +161,126 @@ export function App() {
 
   // Core function: Sync projects state from a new configuration
   // This is the single source of truth for project state changes
-  const syncProjectsFromConfiguration = useCallback((
-    newConfiguration: Configuration,
-    prevProjects: Project[]
-  ): { updatedProjects: Project[]; removedNames: Set<string>; renames: Map<string, string> } => {
-    const updatedProjects: Project[] = [];
-    const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
-    const prevByName = new Map(prevProjects.map((p) => [p.configuration.name, p]));
+  const syncProjectsFromConfiguration = useCallback(
+    (newConfiguration: Configuration, prevProjects: Project[]): { updatedProjects: Project[]; removedNames: Set<string>; renames: Map<string, string> } => {
+      const updatedProjects: Project[] = [];
+      const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
+      const prevByName = new Map(prevProjects.map((p) => [p.configuration.name, p]));
 
-    // Find orphans (removed) and newcomers (added)
-    const orphans = prevProjects.filter((p) => !newConfigByName.has(p.configuration.name));
-    const newcomerConfigs = newConfiguration.projects.filter((p) => !prevByName.has(p.name));
+      // Find orphans (removed) and newcomers (added)
+      const orphans = prevProjects.filter((p) => !newConfigByName.has(p.configuration.name));
+      const newcomerConfigs = newConfiguration.projects.filter((p) => !prevByName.has(p.name));
 
-    // Detect renames: match orphans to newcomers by protoDir/url
-    const renameMap = new Map<string, Project>(); // newName -> oldProject
-    for (const newcomer of newcomerConfigs) {
-      const matchingOrphan = orphans.find((orphan) => {
-        if (newcomer.useReflection && orphan.configuration.useReflection) {
-          return newcomer.url === orphan.configuration.url;
+      // Detect renames: match orphans to newcomers by protoDir/url
+      const renameMap = new Map<string, Project>(); // newName -> oldProject
+      for (const newcomer of newcomerConfigs) {
+        const matchingOrphan = orphans.find((orphan) => {
+          if (newcomer.useReflection && orphan.configuration.useReflection) {
+            return newcomer.url === orphan.configuration.url;
+          }
+          return newcomer.protoDir === orphan.configuration.protoDir && newcomer.protoDir !== "";
+        });
+        if (matchingOrphan && !renameMap.has(newcomer.name)) {
+          renameMap.set(newcomer.name, matchingOrphan);
+          const idx = orphans.indexOf(matchingOrphan);
+          if (idx !== -1) orphans.splice(idx, 1);
         }
-        return newcomer.protoDir === orphan.configuration.protoDir && newcomer.protoDir !== "";
-      });
-      if (matchingOrphan && !renameMap.has(newcomer.name)) {
-        renameMap.set(newcomer.name, matchingOrphan);
-        const idx = orphans.indexOf(matchingOrphan);
-        if (idx !== -1) orphans.splice(idx, 1);
-      }
-    }
-
-    // Process each project in the new configuration
-    for (const newConfig of newConfiguration.projects) {
-      const existingProject = prevByName.get(newConfig.name);
-      const renamedFrom = renameMap.get(newConfig.name);
-
-      if (renamedFrom) {
-        // Rename: remap sources and services
-        disposeMonacoModelsForProject(renamedFrom.configuration.name);
-        const renamedProject = applyProjectRename(renamedFrom, newConfig);
-        createMonacoModelsForProject(renamedProject);
-        updatedProjects.push(renamedProject);
-        continue;
       }
 
-      if (!existingProject) {
-        // New project
-        updatedProjects.push(createPendingProject(newConfig));
-        continue;
+      // Process each project in the new configuration
+      for (const newConfig of newConfiguration.projects) {
+        const existingProject = prevByName.get(newConfig.name);
+        const renamedFrom = renameMap.get(newConfig.name);
+
+        if (renamedFrom) {
+          // Rename: remap sources and services
+          disposeMonacoModelsForProject(renamedFrom.configuration.name);
+          const renamedProject = applyProjectRename(renamedFrom, newConfig);
+          createMonacoModelsForProject(renamedProject);
+          updatedProjects.push(renamedProject);
+          continue;
+        }
+
+        if (!existingProject) {
+          // New project
+          updatedProjects.push(createPendingProject(newConfig));
+          continue;
+        }
+
+        const prev = existingProject.configuration;
+        const protoDirChanged = prev.protoDir !== newConfig.protoDir;
+        const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
+
+        if (protoDirChanged || useReflectionChanged) {
+          // Needs recompilation
+          disposeMonacoModelsForProject(existingProject.configuration.name);
+          updatedProjects.push(createPendingProject(newConfig));
+        } else {
+          // Update the projectRef in place - clients will pick up new URL/headers dynamically
+          updateProjectRef(existingProject.projectRef, newConfig);
+          updatedProjects.push({ ...existingProject, configuration: newConfig });
+        }
       }
 
-      const prev = existingProject.configuration;
-      const protoDirChanged = prev.protoDir !== newConfig.protoDir;
-      const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
-
-      if (protoDirChanged || useReflectionChanged) {
-        // Needs recompilation
-        disposeMonacoModelsForProject(existingProject.configuration.name);
-        updatedProjects.push(createPendingProject(newConfig));
-      } else {
-        // Update the projectRef in place - clients will pick up new URL/headers dynamically
-        updateProjectRef(existingProject.projectRef, newConfig);
-        updatedProjects.push({ ...existingProject, configuration: newConfig });
+      // Clean up removed projects
+      const removedNames = new Set(orphans.map((p) => p.configuration.name));
+      for (const orphan of orphans) {
+        disposeMonacoModelsForProject(orphan.configuration.name);
       }
-    }
 
-    // Clean up removed projects
-    const removedNames = new Set(orphans.map((p) => p.configuration.name));
-    for (const orphan of orphans) {
-      disposeMonacoModelsForProject(orphan.configuration.name);
-    }
+      // Build renames: oldName -> newName
+      const renames = new Map<string, string>();
+      for (const [newName, oldProject] of renameMap) {
+        renames.set(oldProject.configuration.name, newName);
+      }
 
-    // Build renames: oldName -> newName
-    const renames = new Map<string, string>();
-    for (const [newName, oldProject] of renameMap) {
-      renames.set(oldProject.configuration.name, newName);
-    }
-
-    return { updatedProjects, removedNames, renames };
-  }, [disposeMonacoModelsForProject, createMonacoModelsForProject]);
+      return { updatedProjects, removedNames, renames };
+    },
+    [disposeMonacoModelsForProject, createMonacoModelsForProject],
+  );
 
   // Apply configuration and sync all state
-  const applyConfiguration = useCallback((newConfiguration: Configuration) => {
-    setConfiguration(newConfiguration);
+  const applyConfiguration = useCallback(
+    (newConfiguration: Configuration) => {
+      setConfiguration(newConfiguration);
 
-    setProjects((prevProjects) => {
-      const { updatedProjects, removedNames, renames } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
+      setProjects((prevProjects) => {
+        const { updatedProjects, removedNames, renames } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
 
-      // Clean up task tabs for removed projects
-      if (removedNames.size > 0) {
-        setTabs((prevTabs) => {
-          const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
-          if (updatedProjects.length === 0 && !newTabs.some((t) => t.type === "compiler")) {
-            setSelectedMethod(undefined);
-            setActiveTabIndex(0);
-            return [{ type: "compiler" as const }];
-          }
-          if (newTabs.length !== prevTabs.length) {
-            setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
-          }
-          return newTabs;
-        });
-      }
-
-      // Remap import paths in open task editors and refresh
-      if (renames.size > 0) {
-        tabsRef.current.forEach((tab) => {
-          if (tab.type === "task") {
-            let value = tab.model.getValue();
-            for (const [oldName, newName] of renames) {
-              value = remapEditorCode(value, oldName, newName);
+        // Clean up task tabs for removed projects
+        if (removedNames.size > 0) {
+          setTabs((prevTabs) => {
+            const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
+            if (updatedProjects.length === 0 && !newTabs.some((t) => t.type === "compiler")) {
+              setSelectedMethod(undefined);
+              setActiveTabIndex(0);
+              return [{ type: "compiler" as const }];
             }
-            tab.model.setValue(value);
-          }
-        });
-      }
+            if (newTabs.length !== prevTabs.length) {
+              setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
+            }
+            return newTabs;
+          });
+        }
 
-      return updatedProjects;
-    });
-  }, [syncProjectsFromConfiguration, disposeTaskTabsForProjects]);
+        // Remap import paths in open task editors and refresh
+        if (renames.size > 0) {
+          tabsRef.current.forEach((tab) => {
+            if (tab.type === "task") {
+              let value = tab.model.getValue();
+              for (const [oldName, newName] of renames) {
+                value = remapEditorCode(value, oldName, newName);
+              }
+              tab.model.setValue(value);
+            }
+          });
+        }
+
+        return updatedProjects;
+      });
+    },
+    [syncProjectsFromConfiguration, disposeTaskTabsForProjects],
+  );
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {
@@ -493,20 +506,19 @@ export function App() {
     }
 
     const isEdit = originalName !== undefined;
-    const needsRecompilation = isEdit && (() => {
-      const originalProject = projects.find((p) => p.configuration.name === originalName);
-      if (!originalProject) return false;
-      return originalProject.configuration.protoDir !== project.protoDir ||
-             originalProject.configuration.useReflection !== project.useReflection;
-    })();
+    const needsRecompilation =
+      isEdit &&
+      (() => {
+        const originalProject = projects.find((p) => p.configuration.name === originalName);
+        if (!originalProject) return false;
+        return originalProject.configuration.protoDir !== project.protoDir || originalProject.configuration.useReflection !== project.useReflection;
+      })();
     const isNewProject = !isEdit;
 
     // Update configuration
     const updatedConfiguration: Configuration = {
       ...configuration,
-      projects: isEdit
-        ? configuration.projects.map((p) => (p.name === originalName ? project : p))
-        : [...configuration.projects, project],
+      projects: isEdit ? configuration.projects.map((p) => (p.name === originalName ? project : p)) : [...configuration.projects, project],
     };
 
     // Save configuration via API and apply changes through unified path
@@ -563,105 +575,132 @@ export function App() {
   return (
     <ThemeProvider colorMode={colorMode}>
       <BaseStyles>
-        <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", overflow, background: "var(--bgColor-default)", WebkitOverflowScrolling: isNarrow ? "touch" : undefined, overscrollBehavior: isNarrow ? "contain" : "none" }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow,
+            background: "var(--bgColor-default)",
+            WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
+            overscrollBehavior: isNarrow ? "contain" : "none",
+          }}
+        >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
-            <Sidebar
-              projects={projects}
-              canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
-              onSelect={onMethodSelect}
-              currentMethod={selectedMethod}
-              onCompilerClick={onCompilerClick}
-              onNewProjectClick={onNewProjectClick}
-              onEditProject={onEditProject}
-              onDeleteProject={onDeleteProject}
-              onSearchClick={() => setIsSearchOpen(true)}
-            />
-          </div>
-          <Gutter orientation="vertical" onResize={onSidebarResize} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
-            {tabs.length === 0 && <GetStartedBlankslate />}
-            {tabs.length > 0 && (
-              <>
-                <div style={{ height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined, flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1, flexShrink: 0, flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                  <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
-                    {tabs.map((tab, index) => {
-                      if (tab.type === "compiler") {
-                        return (
-                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                            <Compiler
-                              projects={projects}
-                              onUpdate={onCompilationUpdate}
-                              onConfigurationLoaded={setConfiguration}
-                              onNewProjectClick={onNewProjectClick}
-                            />
-                          </Tab>
-                        );
-                      }
+            <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
+              <Sidebar
+                projects={projects}
+                canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+                onSelect={onMethodSelect}
+                currentMethod={selectedMethod}
+                onCompilerClick={onCompilerClick}
+                onNewProjectClick={onNewProjectClick}
+                onEditProject={onEditProject}
+                onDeleteProject={onDeleteProject}
+                onSearchClick={() => setIsSearchOpen(true)}
+              />
+            </div>
+            <Gutter orientation="vertical" onResize={onSidebarResize} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+              {tabs.length === 0 && <GetStartedBlankslate />}
+              {tabs.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined,
+                      flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1,
+                      flexShrink: 0,
+                      flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      minHeight: 0,
+                    }}
+                  >
+                    <Tabs
+                      activeTabIndex={activeTabIndex}
+                      onSelectTab={onSelectTab}
+                      onCloseTab={onCloseTab}
+                      onCloseAll={onCloseAll}
+                      onCloseOthers={onCloseOthers}
+                    >
+                      {tabs.map((tab, index) => {
+                        if (tab.type === "compiler") {
+                          return (
+                            <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                              <Compiler
+                                projects={projects}
+                                onUpdate={onCompilationUpdate}
+                                onConfigurationLoaded={setConfiguration}
+                                onNewProjectClick={onNewProjectClick}
+                              />
+                            </Tab>
+                          );
+                        }
 
-                      if (tab.type === "task" && projects.length > 0) {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                            <Task
-                              model={tab.model}
-                              projects={projects}
-                              kaja={kajaRef.current!}
-                              onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
-                              onGoToDefinition={onGoToDefinition}
-                            />
-                          </Tab>
-                        );
-                      }
+                        if (tab.type === "task" && projects.length > 0) {
+                          return (
+                            <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
+                              <Task
+                                model={tab.model}
+                                projects={projects}
+                                kaja={kajaRef.current!}
+                                onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                                onGoToDefinition={onGoToDefinition}
+                              />
+                            </Tab>
+                          );
+                        }
 
-                      if (tab.type === "definition") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
-                            <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
-                          </Tab>
-                        );
-                      }
+                        if (tab.type === "definition") {
+                          return (
+                            <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
+                              <Definition
+                                model={tab.model}
+                                onGoToDefinition={onGoToDefinition}
+                                startLineNumber={tab.startLineNumber}
+                                startColumn={tab.startColumn}
+                              />
+                            </Tab>
+                          );
+                        }
 
-                      if (tab.type === "projectForm") {
-                        const label = getProjectFormTabLabel(tab);
-                        return (
-                          <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
-                            <ProjectForm
-                              mode={tab.mode}
-                              initialData={tab.initialData}
-                              allProjects={configuration?.projects ?? []}
-                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                              onSubmit={onProjectFormSubmit}
-                              onCancel={onProjectFormCancel}
-                              onProjectSelect={onProjectFormSelect}
-                            />
-                          </Tab>
-                        );
-                      }
+                        if (tab.type === "projectForm") {
+                          const label = getProjectFormTabLabel(tab);
+                          return (
+                            <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                              <ProjectForm
+                                mode={tab.mode}
+                                initialData={tab.initialData}
+                                allProjects={configuration?.projects ?? []}
+                                readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                                onSubmit={onProjectFormSubmit}
+                                onCancel={onProjectFormCancel}
+                                onProjectSelect={onProjectFormSelect}
+                              />
+                            </Tab>
+                          );
+                        }
 
-                      throw new Error("Unknown tab type");
-                    })}
-                  </Tabs>
-                </div>
-                {tabs[activeTabIndex]?.type === "task" && (
-                  <>
-                    <Gutter orientation="horizontal" onResize={onEditorResize} />
-                    <div style={{ flex: 1, minHeight: 100, display: "flex", flexDirection: "column" }}>
-                      <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
+                        throw new Error("Unknown tab type");
+                      })}
+                    </Tabs>
+                  </div>
+                  {tabs[activeTabIndex]?.type === "task" && (
+                    <>
+                      <Gutter orientation="horizontal" onResize={onEditorResize} />
+                      <div style={{ flex: 1, minHeight: 100, display: "flex", flexDirection: "column" }}>
+                        <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
         </div>
-        <SearchPopup
-          isOpen={isSearchOpen}
-          projects={projects}
-          onClose={() => setIsSearchOpen(false)}
-          onSelect={onMethodSelect}
-        />
+        <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onMethodSelect} />
       </BaseStyles>
     </ThemeProvider>
   );

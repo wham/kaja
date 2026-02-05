@@ -7,9 +7,10 @@ import { formatJson } from "./formatter";
 interface JsonViewerProps {
   value: any;
   colorMode?: "day" | "night";
+  showControls?: boolean;
 }
 
-export function JsonViewer({ value, colorMode = "night" }: JsonViewerProps) {
+export function JsonViewer({ value, colorMode = "night", showControls = true }: JsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [copied, setCopied] = useState(false);
@@ -40,7 +41,7 @@ export function JsonViewer({ value, colorMode = "night" }: JsonViewerProps) {
 
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
-      language: "javascript",  // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
+      language: "javascript", // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
       theme: colorMode === "night" ? "vs-dark" : "vs",
       automaticLayout: true,
       // Read-only configuration
@@ -121,40 +122,24 @@ export function JsonViewer({ value, colorMode = "night" }: JsonViewerProps) {
       {/* Editor */}
       <div ref={containerRef} className="json-viewer-container" style={{ height: "100%" }} />
       {/* Floating toolbar */}
-      <div
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 20,
-          display: "flex",
-          gap: 2,
-          background: "var(--bgColor-muted)",
-          borderRadius: 6,
-          padding: 2,
-        }}
-      >
-        <IconButton
-          icon={FoldIcon}
-          size="small"
-          variant="invisible"
-          aria-label="Fold all"
-          onClick={handleFoldAll}
-        />
-        <IconButton
-          icon={UnfoldIcon}
-          size="small"
-          variant="invisible"
-          aria-label="Unfold all"
-          onClick={handleUnfoldAll}
-        />
-        <IconButton
-          icon={copied ? CheckIcon : CopyIcon}
-          size="small"
-          variant="invisible"
-          aria-label="Copy JSON"
-          onClick={handleCopy}
-        />
-      </div>
+      {showControls && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 20,
+            display: "flex",
+            gap: 2,
+            background: "var(--bgColor-muted)",
+            borderRadius: 6,
+            padding: 2,
+          }}
+        >
+          <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold all" onClick={handleFoldAll} />
+          <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold all" onClick={handleUnfoldAll} />
+          <IconButton icon={copied ? CheckIcon : CopyIcon} size="small" variant="invisible" aria-label="Copy JSON" onClick={handleCopy} />
+        </div>
+      )}
     </div>
   );
 }

@@ -32,9 +32,7 @@ describe("generateJsonSchema", () => {
   });
 
   it("should use jsonName when available", () => {
-    const messageType = createMockMessageType([
-      { name: "proto_dir", jsonName: "protoDir", kind: "scalar", T: 9 },
-    ]);
+    const messageType = createMockMessageType([{ name: "proto_dir", jsonName: "protoDir", kind: "scalar", T: 9 }]);
 
     const schema = generateJsonSchema(messageType);
 
@@ -43,9 +41,7 @@ describe("generateJsonSchema", () => {
   });
 
   it("should generate schema for enum fields with provided values", () => {
-    const messageType = createMockMessageType([
-      { name: "protocol", kind: "enum" },
-    ]);
+    const messageType = createMockMessageType([{ name: "protocol", kind: "enum" }]);
 
     const schema = generateJsonSchema(messageType, {
       enumValues: { protocol: ["grpc", "twirp"] },
@@ -58,9 +54,7 @@ describe("generateJsonSchema", () => {
   });
 
   it("should generate schema for enum fields without provided values", () => {
-    const messageType = createMockMessageType([
-      { name: "status", kind: "enum" },
-    ]);
+    const messageType = createMockMessageType([{ name: "status", kind: "enum" }]);
 
     const schema = generateJsonSchema(messageType);
 
@@ -68,9 +62,7 @@ describe("generateJsonSchema", () => {
   });
 
   it("should generate schema for map fields", () => {
-    const messageType = createMockMessageType([
-      { name: "headers", kind: "map" },
-    ]);
+    const messageType = createMockMessageType([{ name: "headers", kind: "map" }]);
 
     const schema = generateJsonSchema(messageType);
 
