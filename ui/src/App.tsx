@@ -588,55 +588,55 @@ export function App() {
           }}
         >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-            <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0 }}>
-              <Sidebar
-                projects={projects}
-                canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
-                onSelect={onMethodSelect}
-                currentMethod={selectedMethod}
-                onCompilerClick={onCompilerClick}
-                onNewProjectClick={onNewProjectClick}
-                onEditProject={onEditProject}
-                onDeleteProject={onDeleteProject}
-                onSearchClick={() => setIsSearchOpen(true)}
-              />
-            </div>
-            <Gutter orientation="vertical" onResize={onSidebarResize} />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
-              {tabs.length === 0 && <GetStartedBlankslate />}
-              {tabs.length > 0 && (
-                <>
-                  <div
-                    style={{
-                      height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined,
-                      flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1,
-                      flexShrink: 0,
-                      flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      minHeight: 0,
-                    }}
+          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0, overflow: "hidden" }}>
+            <Sidebar
+              projects={projects}
+              canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+              onSelect={onMethodSelect}
+              currentMethod={selectedMethod}
+              onCompilerClick={onCompilerClick}
+              onNewProjectClick={onNewProjectClick}
+              onEditProject={onEditProject}
+              onDeleteProject={onDeleteProject}
+              onSearchClick={() => setIsSearchOpen(true)}
+            />
+          </div>
+          <Gutter orientation="vertical" onResize={onSidebarResize} />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+            {tabs.length === 0 && <GetStartedBlankslate />}
+            {tabs.length > 0 && (
+              <>
+                <div
+                  style={{
+                    height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined,
+                    flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1,
+                    flexShrink: 0,
+                    flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: 0,
+                  }}
+                >
+                  <Tabs
+                    activeTabIndex={activeTabIndex}
+                    onSelectTab={onSelectTab}
+                    onCloseTab={onCloseTab}
+                    onCloseAll={onCloseAll}
+                    onCloseOthers={onCloseOthers}
                   >
-                    <Tabs
-                      activeTabIndex={activeTabIndex}
-                      onSelectTab={onSelectTab}
-                      onCloseTab={onCloseTab}
-                      onCloseAll={onCloseAll}
-                      onCloseOthers={onCloseOthers}
-                    >
-                      {tabs.map((tab, index) => {
-                        if (tab.type === "compiler") {
-                          return (
-                            <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler
-                                projects={projects}
-                                onUpdate={onCompilationUpdate}
-                                onConfigurationLoaded={setConfiguration}
-                                onNewProjectClick={onNewProjectClick}
-                              />
-                            </Tab>
-                          );
-                        }
+                    {tabs.map((tab, index) => {
+                      if (tab.type === "compiler") {
+                        return (
+                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                            <Compiler
+                              projects={projects}
+                              onUpdate={onCompilationUpdate}
+                              onConfigurationLoaded={setConfiguration}
+                              onNewProjectClick={onNewProjectClick}
+                            />
+                          </Tab>
+                        );
+                      }
 
                         if (tab.type === "task" && projects.length > 0) {
                           return (

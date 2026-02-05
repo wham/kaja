@@ -90,7 +90,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-default)" }}>
       <style>{`
         .console-row {
           display: flex;
@@ -184,6 +184,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             width: callListWidth,
             overflowY: "auto",
             flexShrink: 0,
+            backgroundColor: "var(--bgColor-default)",
           }}
         >
           {items.map((item, index) => {
