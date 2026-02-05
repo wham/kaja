@@ -1,8 +1,8 @@
-import { PlayIcon, TrashIcon } from "@primer/octicons-react";
+import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "@primer/octicons-react";
 import { IconButton } from "@primer/react";
 import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
-import { JsonViewer } from "./JsonViewer";
+import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
 import { methodId } from "./project";
 import { Log, LogLevel } from "./server/api";
@@ -20,8 +20,10 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
   const [now, setNow] = useState(Date.now());
+  const [copied, setCopied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -65,6 +67,26 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const handleRowClick = (index: number) => {
     autoScrollRef.current = false;
     setSelectedIndex(index);
+  };
+
+  const handleCopy = async () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.copyToClipboard();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleFoldAll = () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.foldAll();
+    }
+  };
+
+  const handleUnfoldAll = () => {
+    if (jsonViewerRef.current) {
+      jsonViewerRef.current.unfoldAll();
+    }
   };
 
   return (
@@ -133,6 +155,24 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" size="small" variant="invisible" onClick={onClear} />}
         </div>
         {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
+        {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
+          <div
+            style={{
+              position: "absolute",
+              top: 2,
+              right: 20,
+              background: "var(--bgColor-muted)",
+              borderRadius: 6,
+              padding: 2,
+              display: "flex",
+              gap: 2,
+            }}
+          >
+            <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold all" onClick={handleFoldAll} />
+            <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold all" onClick={handleUnfoldAll} />
+            <IconButton icon={copied ? CheckIcon : CopyIcon} size="small" variant="invisible" aria-label="Copy JSON" onClick={handleCopy} />
+          </div>
+        )}
       </div>
 
       {/* Content row */}
@@ -163,7 +203,13 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         {/* Right panel - Details */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           {selectedMethodCall ? (
-            <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} colorMode={colorMode} />
+            <Console.DetailContent
+              methodCall={selectedMethodCall}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              colorMode={colorMode}
+              jsonViewerRef={jsonViewerRef}
+            />
           ) : (
             <div
               style={{
@@ -291,9 +337,10 @@ interface DetailContentProps {
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
   colorMode?: "day" | "night";
+  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night" }: DetailContentProps) {
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night", jsonViewerRef }: DetailContentProps) {
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
   const hasError = methodCall.error !== undefined;
 
@@ -309,8 +356,6 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
   }
 
   const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
-  // Show controls only on request and response tabs, not on headers
-  const showControls = activeTab === "request" || activeTab === "response";
 
   return (
     <div
@@ -350,7 +395,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
               POST {methodCall.url}
             </div>
           )}
-          <JsonViewer value={content} colorMode={colorMode} showControls={showControls} />
+          <JsonViewer ref={jsonViewerRef} value={content} colorMode={colorMode} />
         </>
       )}
     </div>
