@@ -141,17 +141,22 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             width: callListWidth,
             flexShrink: 0,
             padding: "10px 12px",
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--fgColor-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <span>Calls</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--fgColor-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Calls
+          </span>
           {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" size="small" variant="invisible" onClick={onClear} />}
         </div>
         {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
