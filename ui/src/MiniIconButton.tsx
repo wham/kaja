@@ -1,12 +1,12 @@
 import type { Icon } from "@primer/octicons-react";
 
-interface MiniButtonProps {
+interface MiniIconButtonProps {
   icon: Icon;
   "aria-label": string;
   onClick?: () => void;
 }
 
-export function MiniButton({ icon: Icon, "aria-label": ariaLabel, onClick }: MiniButtonProps) {
+export function MiniIconButton({ icon: Icon, "aria-label": ariaLabel, onClick }: MiniIconButtonProps) {
   return (
     <button
       type="button"
