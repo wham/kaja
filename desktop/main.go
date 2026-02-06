@@ -299,7 +299,7 @@ func main() {
 		},
 		LogLevel: logger.ERROR,
 		Mac: &mac.Options{
-			TitleBar: mac.TitleBarHiddenInset(),
+			TitleBar: mac.TitleBarHidden(),
 			About: &mac.AboutInfo{
 				Title:   config.Info.ProductName + " " + config.Info.ProductVersion,
 				Message: config.Info.Copyright,
