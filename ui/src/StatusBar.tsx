@@ -1,6 +1,5 @@
-import { Spinner } from "@primer/react";
-import { MarkGithubIcon, MoonIcon, SunIcon, SyncIcon } from "@primer/octicons-react";
-import { useEffect, useState, useCallback } from "react";
+import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
+import { useEffect, useState } from "react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { CheckForUpdate } from "./wailsjs/go/main/App";
@@ -9,11 +8,9 @@ import { IconButtonXSmall } from "./IconButtonXSmall";
 export type ColorMode = "day" | "night";
 
 interface UpdateInfo {
-  checking: boolean;
   available: boolean;
   latestVersion: string;
   downloadUrl: string;
-  error: string;
 }
 
 interface StatusBarProps {
@@ -27,48 +24,30 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
-    checking: false,
     available: false,
     latestVersion: "",
     downloadUrl: "",
-    error: "",
   });
-
-  const checkForUpdate = useCallback(async () => {
-    if (!isWailsEnvironment()) return;
-
-    setUpdateInfo((prev) => ({ ...prev, checking: true, error: "" }));
-
-    try {
-      const result = await CheckForUpdate();
-
-      setUpdateInfo({
-        checking: false,
-        available: result.updateAvailable,
-        latestVersion: result.latestVersion,
-        downloadUrl: result.downloadUrl,
-        error: result.error,
-      });
-    } catch (err) {
-      setUpdateInfo((prev) => ({
-        ...prev,
-        checking: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      }));
-    }
-  }, []);
 
   // Auto-check for updates on startup (only in desktop/Wails environment)
   useEffect(() => {
     if (!isWailsEnvironment() || !gitRef) return;
 
-    // Delay the check by 5 seconds so it's not too crowded on startup
-    const timeoutId = setTimeout(() => {
-      checkForUpdate();
+    const timeoutId = setTimeout(async () => {
+      try {
+        const result = await CheckForUpdate();
+        setUpdateInfo({
+          available: result.updateAvailable,
+          latestVersion: result.latestVersion,
+          downloadUrl: result.downloadUrl,
+        });
+      } catch {
+        // Silently ignore update check errors on startup
+      }
     }, 5000);
 
     return () => clearTimeout(timeoutId);
-  }, [gitRef, checkForUpdate]);
+  }, [gitRef]);
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isWailsEnvironment() && githubUrl) {
@@ -100,7 +79,27 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {githubUrl && shortRef ? (
-          <>
+          updateInfo.available && updateInfo.latestVersion ? (
+            <a
+              href={updateInfo.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleDownloadClick}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                color: "var(--fgColor-accent)",
+                textDecoration: "none",
+              }}
+            >
+              <MarkGithubIcon size={12} />
+              <span style={{ position: "relative", top: 1 }}>
+                {shortRef} → {updateInfo.latestVersion}
+              </span>
+            </a>
+          ) : (
             <a
               href={githubUrl}
               target="_blank"
@@ -118,35 +117,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
               <MarkGithubIcon size={12} />
               <span style={{ position: "relative", top: 1 }}>{shortRef}</span>
             </a>
-            {isWailsEnvironment() && (
-              <>
-                {updateInfo.checking ? (
-                  <Spinner size="small" />
-                ) : (
-                  <IconButtonXSmall
-                    icon={SyncIcon}
-                    aria-label="Check for updates"
-                    onClick={checkForUpdate}
-                  />
-                )}
-                {updateInfo.available && updateInfo.latestVersion && (
-                  <a
-                    href={updateInfo.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={handleDownloadClick}
-                    style={{
-                      fontSize: 11,
-                      color: "var(--fgColor-accent)",
-                      textDecoration: "none",
-                    }}
-                  >
-                    {shortRef} → {updateInfo.latestVersion}
-                  </a>
-                )}
-              </>
-            )}
-          </>
+          )
         ) : (
           <div />
         )}
