@@ -13,6 +13,7 @@ import { createProjectRef, getDefaultMethod, Method, Project, Service, updatePro
 import { Sidebar } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
+import { SearchIcon } from "@primer/octicons-react";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationProject } from "./server/api";
@@ -110,6 +111,7 @@ export function App() {
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
@@ -587,6 +589,53 @@ export function App() {
             overscrollBehavior: isNarrow ? "contain" : "none",
           }}
         >
+          <div
+            style={{
+              height: 38,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderBottom: "1px solid var(--borderColor-default)",
+              background: "var(--bgColor-default)",
+              flexShrink: 0,
+              paddingLeft: isDesktopMac ? 70 : 0,
+              "--wails-draggable": "drag",
+            } as React.CSSProperties}
+          >
+            <div
+              onClick={() => setIsSearchOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "3px 10px",
+                fontSize: 12,
+                color: "var(--fgColor-muted)",
+                backgroundColor: "var(--bgColor-muted)",
+                border: "1px solid var(--borderColor-default)",
+                borderRadius: 6,
+                cursor: "pointer",
+                userSelect: "none",
+                width: 240,
+                "--wails-draggable": "no-drag",
+              } as React.CSSProperties}
+            >
+              <SearchIcon size={14} />
+              <span style={{ flex: 1 }}>Search...</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  padding: "0 5px",
+                  backgroundColor: "var(--bgColor-default)",
+                  border: "1px solid var(--borderColor-default)",
+                  borderRadius: 4,
+                }}
+              >
+                /
+              </span>
+            </div>
+          </div>
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0, overflow: "hidden" }}>
             <Sidebar
@@ -598,7 +647,6 @@ export function App() {
               onNewProjectClick={onNewProjectClick}
               onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
-              onSearchClick={() => setIsSearchOpen(true)}
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
