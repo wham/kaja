@@ -1,6 +1,6 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, IconButton, ThemeProvider, useResponsiveValue } from "@primer/react";
+import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
 import { SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -426,7 +426,14 @@ export function App() {
   const sidebarCollapseThreshold = 60;
 
   const onSidebarResize = (delta: number) => {
-    if (sidebarCollapsedRef.current) return;
+    if (sidebarCollapsedRef.current) {
+      if (delta > 0) {
+        setSidebarCollapsed(false);
+        sidebarCollapsedRef.current = false;
+        setSidebarWidth(sidebarMinWidth);
+      }
+      return;
+    }
     setSidebarWidth((width) => {
       const newWidth = width + delta;
       if (newWidth < sidebarCollapseThreshold) {
@@ -616,24 +623,22 @@ export function App() {
         >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           {!sidebarCollapsed && (
-            <>
-              <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
-                {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
-                <Sidebar
-                  projects={projects}
-                  canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
-                  onSelect={onMethodSelect}
-                  currentMethod={selectedMethod}
-                  scrollToMethod={scrollToMethod}
-                  onCompilerClick={onCompilerClick}
-                  onNewProjectClick={onNewProjectClick}
-                  onEditProject={onEditProject}
-                  onDeleteProject={onDeleteProject}
-                />
-              </div>
-              <Gutter orientation="vertical" onResize={onSidebarResize} />
-            </>
+            <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+              {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
+              <Sidebar
+                projects={projects}
+                canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+                onSelect={onMethodSelect}
+                currentMethod={selectedMethod}
+                scrollToMethod={scrollToMethod}
+                onCompilerClick={onCompilerClick}
+                onNewProjectClick={onNewProjectClick}
+                onEditProject={onEditProject}
+                onDeleteProject={onDeleteProject}
+              />
+            </div>
           )}
+          <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
               style={{
@@ -684,13 +689,15 @@ export function App() {
                 to search
               </div>
               <div style={{ position: "absolute", right: 8, "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                <IconButton
-                  icon={sidebarCollapsed ? SidebarExpandIcon : SidebarCollapseIcon}
-                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  size="small"
-                  variant="invisible"
-                  onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                />
+                <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
+                  <IconButton
+                    icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
+                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                    size="small"
+                    variant="invisible"
+                    onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                  />
+                </Tooltip>
               </div>
             </div>
             {tabs.length === 0 && <GetStartedBlankslate />}
