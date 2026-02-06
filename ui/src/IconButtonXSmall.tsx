@@ -1,12 +1,13 @@
 import type { Icon } from "@primer/octicons-react";
 
-interface XSmallIconButtonProps {
+interface IconButtonXSmallProps {
   icon: Icon;
   "aria-label": string;
   onClick?: () => void;
+  rounded?: boolean;
 }
 
-export function XSmallIconButton({ icon: Icon, "aria-label": ariaLabel, onClick }: XSmallIconButtonProps) {
+export function IconButtonXSmall({ icon: Icon, "aria-label": ariaLabel, onClick, rounded }: IconButtonXSmallProps) {
   return (
     <button
       type="button"
@@ -20,7 +21,7 @@ export function XSmallIconButton({ icon: Icon, "aria-label": ariaLabel, onClick 
         height: 20,
         padding: 0,
         border: "none",
-        borderRadius: 0,
+        borderRadius: rounded ? 4 : 0,
         background: "transparent",
         color: "var(--fgColor-muted)",
         cursor: "pointer",

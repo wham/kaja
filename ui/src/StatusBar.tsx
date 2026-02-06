@@ -1,7 +1,7 @@
 import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
-import { XSmallIconButton } from "./XSmallIconButton";
+import { IconButtonXSmall } from "./IconButtonXSmall";
 
 export type ColorMode = "day" | "night";
 
@@ -57,7 +57,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
       ) : (
         <div />
       )}
-      <XSmallIconButton
+      <IconButtonXSmall
         icon={colorMode === "night" ? SunIcon : MoonIcon}
         aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
         onClick={onToggleColorMode}
