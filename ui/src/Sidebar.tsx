@@ -65,7 +65,6 @@ interface SidebarProps {
   onNewProjectClick: () => void;
   onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
-  onSearchClick: () => void;
 }
 
 export function Sidebar({
@@ -78,7 +77,6 @@ export function Sidebar({
   onNewProjectClick,
   onEditProject,
   onDeleteProject,
-  onSearchClick,
 }: SidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
@@ -199,38 +197,6 @@ export function Sidebar({
         </div>
         <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
-      </div>
-      <div
-        onClick={onSearchClick}
-        style={{
-          margin: "4px 12px 8px",
-          padding: "6px 10px",
-          fontSize: 13,
-          color: "var(--fgColor-muted)",
-          backgroundColor: "var(--bgColor-muted)",
-          border: "1px solid var(--borderColor-default)",
-          borderRadius: 6,
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        Type{" "}
-        <span
-          style={{
-            display: "inline-block",
-            padding: "0 5px",
-            marginLeft: 2,
-            marginRight: 2,
-            fontSize: 11,
-            fontWeight: 500,
-            backgroundColor: "var(--bgColor-default)",
-            border: "1px solid var(--borderColor-default)",
-            borderRadius: 4,
-          }}
-        >
-          /
-        </span>{" "}
-        to search
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
