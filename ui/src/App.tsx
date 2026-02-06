@@ -77,6 +77,7 @@ export function App() {
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; project: Project }>();
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
 
@@ -399,6 +400,11 @@ export function App() {
     });
   };
 
+  const onSearchMethodSelect = (method: Method, service: Service, project: Project) => {
+    onMethodSelect(method, service, project);
+    setScrollToMethod({ method, service, project });
+  };
+
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     setTabs((tabs) => {
       tabs = addDefinitionTab(tabs, model, startLineNumber, startColumn);
@@ -594,6 +600,7 @@ export function App() {
               canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
               onSelect={onMethodSelect}
               currentMethod={selectedMethod}
+              scrollToMethod={scrollToMethod}
               onCompilerClick={onCompilerClick}
               onNewProjectClick={onNewProjectClick}
               onEditProject={onEditProject}
@@ -700,7 +707,7 @@ export function App() {
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
         </div>
-        <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onMethodSelect} />
+        <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
       </BaseStyles>
     </ThemeProvider>
   );
