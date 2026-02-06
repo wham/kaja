@@ -17,7 +17,7 @@ export function MiniIconButton({ icon: Icon, "aria-label": ariaLabel, onClick }:
         alignItems: "center",
         justifyContent: "center",
         width: 22,
-        height: 22,
+        height: 20,
         padding: 0,
         border: "none",
         borderRadius: 0,
