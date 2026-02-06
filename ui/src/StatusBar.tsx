@@ -1,7 +1,7 @@
-import { IconButton } from "@primer/react";
 import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
+import { XSmallIconButton } from "./XSmallIconButton";
 
 export type ColorMode = "day" | "night";
 
@@ -25,12 +25,12 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
   return (
     <div
       style={{
-        height: 32,
+        height: 22,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingLeft: 20,
-        paddingRight: 20,
+        paddingLeft: 16,
+        paddingRight: 16,
         background: "var(--bgColor-default)",
         borderTop: "1px solid var(--borderColor-default)",
         flexShrink: 0,
@@ -46,21 +46,19 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
-            fontSize: 12,
+            fontSize: 11,
             color: "var(--fgColor-muted)",
             textDecoration: "none",
           }}
         >
-          <MarkGithubIcon size={14} />
+          <MarkGithubIcon size={12} />
           <span style={{ position: "relative", top: 1 }}>{shortRef}</span>
         </a>
       ) : (
         <div />
       )}
-      <IconButton
+      <XSmallIconButton
         icon={colorMode === "night" ? SunIcon : MoonIcon}
-        size="small"
-        variant="invisible"
         aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
         onClick={onToggleColorMode}
       />
