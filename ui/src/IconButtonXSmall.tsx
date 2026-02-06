@@ -1,4 +1,5 @@
 import type { Icon } from "@primer/octicons-react";
+import { IconButton } from "@primer/react";
 
 interface IconButtonXSmallProps {
   icon: Icon;
@@ -7,33 +8,22 @@ interface IconButtonXSmallProps {
   rounded?: boolean;
 }
 
-export function IconButtonXSmall({ icon: Icon, "aria-label": ariaLabel, onClick, rounded }: IconButtonXSmallProps) {
+export function IconButtonXSmall({ icon, "aria-label": ariaLabel, onClick, rounded }: IconButtonXSmallProps) {
   return (
-    <button
-      type="button"
+    <IconButton
+      icon={icon}
       aria-label={ariaLabel}
       onClick={onClick}
+      size="small"
+      variant="invisible"
+      className="IconButtonXSmall"
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
         width: 22,
         height: 20,
         padding: 0,
-        border: "none",
         borderRadius: rounded ? 4 : 0,
-        background: "transparent",
         color: "var(--fgColor-muted)",
-        cursor: "pointer",
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--bgColor-muted)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <Icon size={14} />
-    </button>
+    />
   );
 }

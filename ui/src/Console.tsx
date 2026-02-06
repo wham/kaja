@@ -164,7 +164,8 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           <div
             style={{
               position: "absolute",
-              top: 2,
+              top: "50%",
+              transform: "translateY(-50%)",
               right: 20,
               background: "var(--bgColor-muted)",
               borderRadius: 6,
