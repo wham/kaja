@@ -86,6 +86,73 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	})
 }
 
+// UpdateInfo contains information about available updates
+type UpdateInfo struct {
+	UpdateAvailable bool   `json:"updateAvailable"`
+	CurrentVersion  string `json:"currentVersion"`
+	LatestVersion   string `json:"latestVersion"`
+	DownloadUrl     string `json:"downloadUrl"`
+	Error           string `json:"error"`
+}
+
+// CheckForUpdate checks GitHub releases for a newer version
+func (a *App) CheckForUpdate() *UpdateInfo {
+	currentVersion := GitRef
+	result := &UpdateInfo{
+		CurrentVersion: currentVersion,
+	}
+
+	if currentVersion == "" {
+		result.Error = "Current version not available"
+		return result
+	}
+
+	// Fetch latest release from GitHub
+	req, err := http.NewRequestWithContext(a.ctx, "GET", "https://api.github.com/repos/wham/kaja/releases/latest", nil)
+	if err != nil {
+		result.Error = fmt.Sprintf("failed to create request: %v", err)
+		return result
+	}
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "kaja-update-checker")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		result.Error = fmt.Sprintf("failed to fetch releases: %v", err)
+		return result
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		result.Error = fmt.Sprintf("GitHub API returned status %d", resp.StatusCode)
+		return result
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+		HtmlUrl string `json:"html_url"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		result.Error = fmt.Sprintf("failed to parse response: %v", err)
+		return result
+	}
+
+	result.LatestVersion = release.TagName
+	result.DownloadUrl = release.HtmlUrl
+
+	// Check if update is available
+	if release.TagName != "" {
+		if currentVersion != release.TagName && currentVersion != strings.TrimPrefix(release.TagName, "v") {
+			result.UpdateAvailable = true
+		}
+	}
+
+	return result
+}
+
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	slog.Info("Twirp called", "method", method, "req_length", len(req))
 	
