@@ -111,6 +111,7 @@ export function App() {
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
@@ -594,7 +595,8 @@ export function App() {
           }}
         >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexShrink: 0, overflow: "hidden" }}>
+          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+            {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
             <Sidebar
               projects={projects}
               canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
@@ -605,11 +607,58 @@ export function App() {
               onNewProjectClick={onNewProjectClick}
               onEditProject={onEditProject}
               onDeleteProject={onDeleteProject}
-              onSearchClick={() => setIsSearchOpen(true)}
             />
           </div>
           <Gutter orientation="vertical" onResize={onSidebarResize} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+            <div
+              style={{
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderBottom: "1px solid var(--borderColor-default)",
+                background: "var(--bgColor-default)",
+                flexShrink: 0,
+                "--wails-draggable": "drag",
+              } as React.CSSProperties}
+            >
+              <div
+                onClick={() => setIsSearchOpen(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "3px 10px",
+                  fontSize: 12,
+                  color: "var(--fgColor-muted)",
+                  backgroundColor: "var(--bgColor-muted)",
+                  border: "1px solid var(--borderColor-default)",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  userSelect: "none",
+                  width: 240,
+                  "--wails-draggable": "no-drag",
+                } as React.CSSProperties}
+              >
+                Type{" "}
+                <span
+                  style={{
+                    display: "inline-block",
+                    padding: "0 5px",
+                    marginLeft: 2,
+                    marginRight: 2,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    backgroundColor: "var(--bgColor-default)",
+                    border: "1px solid var(--borderColor-default)",
+                    borderRadius: 4,
+                  }}
+                >
+                  /
+                </span>{" "}
+                to search
+              </div>
+            </div>
             {tabs.length === 0 && <GetStartedBlankslate />}
             {tabs.length > 0 && (
               <>
