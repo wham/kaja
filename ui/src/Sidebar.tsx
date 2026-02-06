@@ -49,9 +49,16 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   );
 }
 
+interface ScrollToMethod {
+  method: Method;
+  service: Service;
+  project: Project;
+}
+
 interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
+  scrollToMethod?: ScrollToMethod;
   canDeleteProjects?: boolean;
   onSelect: (method: Method, service: Service, project: Project) => void;
   onCompilerClick: () => void;
@@ -64,6 +71,7 @@ interface SidebarProps {
 export function Sidebar({
   projects,
   currentMethod,
+  scrollToMethod,
   canDeleteProjects = true,
   onSelect,
   onCompilerClick,
@@ -73,14 +81,33 @@ export function Sidebar({
   onSearchClick,
 }: SidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
   const elementRefs = useRef<Map<string, HTMLElement>>(new Map());
   const pendingScrollRef = useRef<string | null>(null);
 
-  // Expand first two projects when projects first load
+  // Helper to get service element id
+  const getServiceElementId = (projectName: string, service: Service) => {
+    const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
+    return `${projectName}-${serviceKey}`;
+  };
+
+  // Expand first two projects and their first services when projects first load
   useEffect(() => {
     setExpandedProjects((prev) => {
       if (prev.size === 0 && projects.length > 0) {
         return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
+      }
+      return prev;
+    });
+    setExpandedServices((prev) => {
+      if (prev.size === 0 && projects.length > 0) {
+        const initialServices = new Set<string>();
+        projects.slice(0, 2).forEach((project) => {
+          if (project.services.length > 0) {
+            initialServices.add(getServiceElementId(project.configuration.name, project.services[0]));
+          }
+        });
+        return initialServices;
       }
       return prev;
     });
@@ -96,14 +123,50 @@ export function Sidebar({
     });
   };
 
-  // Scroll expanded project into view after state updates
+  // Scroll expanded element into view after state updates
   useEffect(() => {
     if (pendingScrollRef.current) {
       const elementId = pendingScrollRef.current;
       pendingScrollRef.current = null;
       scrollIntoView(elementId);
     }
-  }, [expandedProjects]);
+  }, [expandedProjects, expandedServices]);
+
+  // Handle scrollToMethod: expand project/service and scroll to method
+  useEffect(() => {
+    if (!scrollToMethod) return;
+
+    const { method, service, project } = scrollToMethod;
+    const projectName = project.configuration.name;
+    const serviceElementId = getServiceElementId(projectName, service);
+    const methodElementId = methodId(service, method);
+
+    // Expand project if not already expanded
+    setExpandedProjects((prev) => {
+      if (!prev.has(projectName)) {
+        const next = new Set(prev);
+        next.add(projectName);
+        return next;
+      }
+      return prev;
+    });
+
+    // Expand service if not already expanded
+    setExpandedServices((prev) => {
+      if (!prev.has(serviceElementId)) {
+        const next = new Set(prev);
+        next.add(serviceElementId);
+        return next;
+      }
+      return prev;
+    });
+
+    // Schedule scroll after React renders any expansions
+    // Use setTimeout to ensure state updates have been processed
+    setTimeout(() => {
+      scrollIntoView(methodElementId);
+    }, 0);
+  }, [scrollToMethod]);
 
   const toggleProjectExpanded = (projectName: string) => {
     setExpandedProjects((prev) => {
@@ -258,6 +321,7 @@ export function Sidebar({
                         const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
                         const serviceId = `${projectName}-${serviceKey}`;
                         const showPackage = duplicateNames.has(service.name);
+                        const isServiceExpanded = expandedServices.has(serviceId);
                         return (
                           <TreeView.Item
                             id={serviceId}
@@ -266,8 +330,17 @@ export function Sidebar({
                               if (el) elementRefs.current.set(serviceId, el);
                               else elementRefs.current.delete(serviceId);
                             }}
-                            defaultExpanded={projectIndex < 2 && serviceIndex === 0}
+                            expanded={isServiceExpanded}
                             onExpandedChange={(expanded) => {
+                              setExpandedServices((prev) => {
+                                const next = new Set(prev);
+                                if (expanded) {
+                                  next.add(serviceId);
+                                } else {
+                                  next.delete(serviceId);
+                                }
+                                return next;
+                              });
                               if (expanded) scrollIntoView(serviceId);
                             }}
                           >
@@ -276,16 +349,23 @@ export function Sidebar({
                             </TreeView.LeadingVisual>
                             <ServiceName service={service} showPackage={showPackage} />
                             <TreeView.SubTree>
-                              {service.methods.map((method) => (
-                                <TreeView.Item
-                                  id={methodId(service, method)}
-                                  key={methodId(service, method)}
-                                  onSelect={() => onSelect(method, service, project)}
-                                  current={currentMethod === method}
-                                >
-                                  {method.name}
-                                </TreeView.Item>
-                              ))}
+                              {service.methods.map((method) => {
+                                const mId = methodId(service, method);
+                                return (
+                                  <TreeView.Item
+                                    id={mId}
+                                    key={mId}
+                                    ref={(el: HTMLElement | null) => {
+                                      if (el) elementRefs.current.set(mId, el);
+                                      else elementRefs.current.delete(mId);
+                                    }}
+                                    onSelect={() => onSelect(method, service, project)}
+                                    current={currentMethod === method}
+                                  >
+                                    {method.name}
+                                  </TreeView.Item>
+                                );
+                              })}
                             </TreeView.SubTree>
                           </TreeView.Item>
                         );
