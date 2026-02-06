@@ -1,6 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
+import { BaseStyles, IconButton, ThemeProvider, useResponsiveValue } from "@primer/react";
+import { SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -73,6 +74,9 @@ export function App() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
+  const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
+  const sidebarCollapsedRef = useRef(sidebarCollapsed);
+  sidebarCollapsedRef.current = sidebarCollapsed;
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
@@ -318,10 +322,15 @@ export function App() {
     }
   }, [tabs, activeTabIndex]);
 
-  // Global "/" keyboard shortcut to open search
+  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger when typing in an input, textarea, or contenteditable
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setSidebarCollapsed((collapsed) => !collapsed);
+        return;
+      }
+      // Don't trigger character shortcuts when typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
         return;
@@ -414,8 +423,19 @@ export function App() {
     });
   };
 
+  const sidebarCollapseThreshold = 60;
+
   const onSidebarResize = (delta: number) => {
-    setSidebarWidth((width) => width + delta);
+    if (sidebarCollapsedRef.current) return;
+    setSidebarWidth((width) => {
+      const newWidth = width + delta;
+      if (newWidth < sidebarCollapseThreshold) {
+        setSidebarCollapsed(true);
+        sidebarCollapsedRef.current = true;
+        return width;
+      }
+      return newWidth;
+    });
   };
 
   const onSelectTab = (index: number) => {
@@ -595,21 +615,25 @@ export function App() {
           }}
         >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
-            {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
-            <Sidebar
-              projects={projects}
-              canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
-              onSelect={onMethodSelect}
-              currentMethod={selectedMethod}
-              scrollToMethod={scrollToMethod}
-              onCompilerClick={onCompilerClick}
-              onNewProjectClick={onNewProjectClick}
-              onEditProject={onEditProject}
-              onDeleteProject={onDeleteProject}
-            />
-          </div>
-          <Gutter orientation="vertical" onResize={onSidebarResize} />
+          {!sidebarCollapsed && (
+            <>
+              <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+                {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
+                <Sidebar
+                  projects={projects}
+                  canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+                  onSelect={onMethodSelect}
+                  currentMethod={selectedMethod}
+                  scrollToMethod={scrollToMethod}
+                  onCompilerClick={onCompilerClick}
+                  onNewProjectClick={onNewProjectClick}
+                  onEditProject={onEditProject}
+                  onDeleteProject={onDeleteProject}
+                />
+              </div>
+              <Gutter orientation="vertical" onResize={onSidebarResize} />
+            </>
+          )}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
               style={{
@@ -620,6 +644,7 @@ export function App() {
                 borderBottom: "1px solid var(--borderColor-default)",
                 background: "var(--bgColor-default)",
                 flexShrink: 0,
+                position: "relative",
                 "--wails-draggable": "drag",
               } as React.CSSProperties}
             >
@@ -657,6 +682,15 @@ export function App() {
                   /
                 </span>{" "}
                 to search
+              </div>
+              <div style={{ position: "absolute", right: 8, "--wails-draggable": "no-drag" } as React.CSSProperties}>
+                <IconButton
+                  icon={sidebarCollapsed ? SidebarExpandIcon : SidebarCollapseIcon}
+                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  size="small"
+                  variant="invisible"
+                  onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                />
               </div>
             </div>
             {tabs.length === 0 && <GetStartedBlankslate />}
