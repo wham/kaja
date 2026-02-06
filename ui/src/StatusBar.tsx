@@ -52,7 +52,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
           }}
         >
           <MarkGithubIcon size={12} />
-          <span>{shortRef}</span>
+          <span style={{ position: "relative", top: 1 }}>{shortRef}</span>
         </a>
       ) : (
         <div />
