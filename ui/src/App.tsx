@@ -638,7 +638,7 @@ export function App() {
               />
             </div>
           )}
-          <Gutter orientation="vertical" onResize={onSidebarResize} />
+          <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
               style={{

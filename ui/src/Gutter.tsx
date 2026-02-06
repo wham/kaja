@@ -3,9 +3,10 @@ import { useState } from "react";
 interface GutterProps {
   orientation: "vertical" | "horizontal";
   onResize: (delta: number) => void;
+  hitAreaSize?: number;
 }
 
-export function Gutter({ orientation, onResize }: GutterProps) {
+export function Gutter({ orientation, onResize, hitAreaSize }: GutterProps) {
   const [isResizing, setIsResizing] = useState(false);
 
   const onMouseDown = (event: React.MouseEvent) => {
@@ -41,8 +42,8 @@ export function Gutter({ orientation, onResize }: GutterProps) {
     >
       <div
         style={{
-          width: orientation === "vertical" ? 3 : "100%",
-          height: orientation === "vertical" ? "100%" : 3,
+          width: orientation === "vertical" ? (hitAreaSize ?? 3) : "100%",
+          height: orientation === "vertical" ? "100%" : (hitAreaSize ?? 3),
           position: "absolute",
           left: orientation === "vertical" ? "-1px" : 0,
           top: orientation === "vertical" ? 0 : "-1px",
