@@ -132,18 +132,19 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         style={{
           display: "flex",
           borderBottom: "1px solid var(--borderColor-default)",
-          position: "relative",
           height: 35,
+          flexShrink: 0,
         }}
       >
         <div
           style={{
             width: callListWidth,
             flexShrink: 0,
-            padding: "10px 12px",
+            padding: "0 12px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            borderRight: "1px solid var(--borderColor-default)",
           }}
         >
           <span
@@ -159,26 +160,26 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           </span>
           {onClear && items.length > 0 && <IconButtonXSmall icon={TrashIcon} aria-label="Clear console" onClick={onClear} rounded />}
         </div>
-        {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
-        {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              transform: "translateY(-50%)",
-              right: 20,
-              background: "var(--bgColor-muted)",
-              borderRadius: 6,
-              padding: 2,
-              display: "flex",
-              gap: 2,
-            }}
-          >
-            <IconButtonXSmall icon={FoldIcon} aria-label="Fold all" onClick={handleFoldAll} rounded />
-            <IconButtonXSmall icon={UnfoldIcon} aria-label="Unfold all" onClick={handleUnfoldAll} rounded />
-            <IconButtonXSmall icon={copied ? CheckIcon : CopyIcon} aria-label="Copy JSON" onClick={handleCopy} rounded />
-          </div>
-        )}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+          {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
+          {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
+            <div
+              style={{
+                marginLeft: "auto",
+                marginRight: 12,
+                background: "var(--bgColor-muted)",
+                borderRadius: 6,
+                padding: 2,
+                display: "flex",
+                gap: 2,
+              }}
+            >
+              <IconButtonXSmall icon={FoldIcon} aria-label="Fold all" onClick={handleFoldAll} rounded />
+              <IconButtonXSmall icon={UnfoldIcon} aria-label="Unfold all" onClick={handleUnfoldAll} rounded />
+              <IconButtonXSmall icon={copied ? CheckIcon : CopyIcon} aria-label="Copy JSON" onClick={handleCopy} rounded />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content row */}
@@ -190,7 +191,6 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             width: callListWidth,
             overflowY: "auto",
             flexShrink: 0,
-            backgroundColor: "var(--bgColor-default)",
           }}
         >
           {items.map((item, index) => {
