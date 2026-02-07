@@ -1,27 +1,86 @@
-name: demo
+name: desktop
 on:
-  workflow_dispatch:
+  pull_request:
 
 jobs:
-  demo:
-    runs-on: ubuntu-latest
+  macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true --build-arg GIT_REF=${{ github.sha }}
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
 
-      - name: Start Docker container
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install npm dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install protoc and Node.js binary
         run: |
-          docker run --name kaja-dev -d -p 41520:41520 \
-            -v $PWD/workspace:/workspace \
-            kaja-dev:latest
+          source scripts/common
+          install_protoc $PWD/server/build
+          install_nodejs $PWD/server/build
 
-          # Wait for server to start
+      - name: Build UI
+        working-directory: server
+        run: go run cmd/build-ui/main.go
+
+      - name: Prepare desktop frontend
+        run: |
+          rm -rf desktop/frontend/dist
+          mkdir -p desktop/frontend/dist
+          cp server/build/main.css desktop/frontend/dist/
+          cp server/build/main.js desktop/frontend/dist/
+          cp server/build/monaco.*.worker.js desktop/frontend/dist/
+          cp -r server/static desktop/frontend/dist/
+          mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
+
+      - name: Build desktop app
+        working-directory: desktop
+        run: wails build -ldflags "-X main.GitRef=${{ github.sha }}"
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          # create-dmg returns exit code 1 when it can't sign (expected in CI)
+          create-dmg \
+            --volname "Kaja" \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Kaja.app" 150 200 \
+            --app-drop-link 450 200 \
+            desktop/build/bin/Kaja.dmg \
+            desktop/build/bin/Kaja.app \
+            || true
+          test -f desktop/build/bin/Kaja.dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kaja.dmg
+          path: desktop/build/bin/Kaja.dmg
+
+      - name: Build server
+        working-directory: server
+        run: go build -ldflags "-X main.GitRef=${{ github.sha }}" -o build/server ./cmd/server
+
+      - name: Start server
+        run: |
+          cd server && ./build/server &
           echo "Waiting for server to start..."
-          for i in {1..60}; do
-            if docker logs kaja-dev 2>&1 | grep -q "Server started"; then
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:41520/status > /dev/null 2>&1; then
               echo "Server started!"
               break
             fi
@@ -38,12 +97,11 @@ jobs:
 
       - name: Convert video to GIF
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
           ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
           rm .github/demo/demo.webm
 
       - name: Upload demo (artifact)
-        if: github.event_name == 'workflow_dispatch'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: demo
