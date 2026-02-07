@@ -1,5 +1,6 @@
 import { KebabHorizontalIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, ActionMenu, IconButton, useResponsiveValue } from "@primer/react";
+
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 
 interface TabProps {
@@ -121,13 +122,15 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item {
           display: flex;
           align-items: center;
-          padding: 8px 10px 8px 16px;
+          padding: 0 10px 0 16px;
           border-top: 1px solid transparent;
           border-right: 1px solid var(--borderColor-default);
           border-bottom: 1px solid var(--borderColor-default);
           font-size: 14px;
           cursor: pointer;
           background-color: transparent;
+          height: 35px;
+          box-sizing: border-box;
         }
         .tab-item:hover {
           background-color: var(--bgColor-neutral-muted);
