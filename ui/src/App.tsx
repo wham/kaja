@@ -1,6 +1,6 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { BaseStyles, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
 import { ColumnsIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
+import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
@@ -652,7 +653,7 @@ export function App() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
               style={{
-                height: 38,
+                height: 30,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -668,7 +669,7 @@ export function App() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "3px 10px",
+                  padding: "0 10px",
                   fontSize: 12,
                   color: "var(--fgColor-muted)",
                   backgroundColor: "var(--bgColor-muted)",
@@ -699,22 +700,20 @@ export function App() {
                 to search
               </div>
               <div style={{ position: "absolute", right: 8, display: "flex", alignItems: "center", gap: 2, "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
-                  <IconButton
-                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
-                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
-                    size="small"
-                    variant="invisible"
-                    onClick={onToggleEditorLayout}
-                  />
-                </Tooltip>
                 <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
-                  <IconButton
+                  <IconButtonXSmall
                     icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                     aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    size="small"
-                    variant="invisible"
                     onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                    rounded
+                  />
+                </Tooltip>
+                <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
+                  <IconButtonXSmall
+                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
+                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
+                    onClick={onToggleEditorLayout}
+                    rounded
                   />
                 </Tooltip>
               </div>
