@@ -1,7 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
-import { SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { BaseStyles, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { ColumnsIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -9,6 +9,7 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
+import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
@@ -78,6 +79,8 @@ export function App() {
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
+  const [editorWidth, setEditorWidth] = usePersistedState("editorWidth", 600);
+  const [editorLayout, setEditorLayout] = usePersistedState<"vertical" | "horizontal">("editorLayout", "vertical");
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -107,6 +110,14 @@ export function App() {
 
   const onEditorResize = useCallback((delta: number) => {
     setEditorHeight((height) => Math.max(100, height + delta));
+  }, []);
+
+  const onEditorWidthResize = useCallback((delta: number) => {
+    setEditorWidth((width) => Math.max(200, width + delta));
+  }, []);
+
+  const onToggleEditorLayout = useCallback(() => {
+    setEditorLayout((layout) => (layout === "vertical" ? "horizontal" : "vertical"));
   }, []);
 
   const onToggleColorMode = useCallback(() => {
@@ -642,7 +653,7 @@ export function App() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
               style={{
-                height: 38,
+                height: 30,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -658,7 +669,7 @@ export function App() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "3px 10px",
+                  padding: "0 10px",
                   fontSize: 12,
                   color: "var(--fgColor-muted)",
                   backgroundColor: "var(--bgColor-muted)",
@@ -688,52 +699,64 @@ export function App() {
                 </span>{" "}
                 to search
               </div>
-              <div style={{ position: "absolute", right: 8, "--wails-draggable": "no-drag" } as React.CSSProperties}>
+              <div style={{ position: "absolute", right: 8, display: "flex", alignItems: "center", gap: 2, "--wails-draggable": "no-drag" } as React.CSSProperties}>
                 <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
-                  <IconButton
+                  <IconButtonXSmall
                     icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                     aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    size="small"
-                    variant="invisible"
                     onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                    rounded
+                  />
+                </Tooltip>
+                <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
+                  <IconButtonXSmall
+                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
+                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
+                    onClick={onToggleEditorLayout}
+                    rounded
                   />
                 </Tooltip>
               </div>
             </div>
             {tabs.length === 0 && <GetStartedBlankslate />}
-            {tabs.length > 0 && (
-              <>
-                <div
-                  style={{
-                    height: tabs[activeTabIndex]?.type === "task" ? editorHeight : undefined,
-                    flexGrow: tabs[activeTabIndex]?.type === "task" ? 0 : 1,
-                    flexShrink: 0,
-                    flexBasis: tabs[activeTabIndex]?.type === "task" ? "auto" : 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    minHeight: 0,
-                  }}
-                >
-                  <Tabs
-                    activeTabIndex={activeTabIndex}
-                    onSelectTab={onSelectTab}
-                    onCloseTab={onCloseTab}
-                    onCloseAll={onCloseAll}
-                    onCloseOthers={onCloseOthers}
+            {tabs.length > 0 && (() => {
+              const isTaskTab = tabs[activeTabIndex]?.type === "task";
+              const isHorizontal = editorLayout === "horizontal" && isTaskTab;
+              return (
+                <div style={{ flex: 1, display: "flex", flexDirection: isHorizontal ? "row" : "column", minHeight: 0 }}>
+                  <div
+                    style={{
+                      height: isTaskTab && !isHorizontal ? editorHeight : undefined,
+                      width: isTaskTab && isHorizontal ? editorWidth : undefined,
+                      flexGrow: isTaskTab ? 0 : 1,
+                      flexShrink: 0,
+                      flexBasis: isTaskTab ? "auto" : 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      minHeight: 0,
+                      minWidth: 0,
+                    }}
                   >
-                    {tabs.map((tab, index) => {
-                      if (tab.type === "compiler") {
-                        return (
-                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                            <Compiler
-                              projects={projects}
-                              onUpdate={onCompilationUpdate}
-                              onConfigurationLoaded={setConfiguration}
-                              onNewProjectClick={onNewProjectClick}
-                            />
-                          </Tab>
-                        );
-                      }
+                    <Tabs
+                      activeTabIndex={activeTabIndex}
+                      onSelectTab={onSelectTab}
+                      onCloseTab={onCloseTab}
+                      onCloseAll={onCloseAll}
+                      onCloseOthers={onCloseOthers}
+                    >
+                      {tabs.map((tab, index) => {
+                        if (tab.type === "compiler") {
+                          return (
+                            <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                              <Compiler
+                                projects={projects}
+                                onUpdate={onCompilationUpdate}
+                                onConfigurationLoaded={setConfiguration}
+                                onNewProjectClick={onNewProjectClick}
+                              />
+                            </Tab>
+                          );
+                        }
 
                         if (tab.type === "task" && projects.length > 0) {
                           return (
@@ -783,16 +806,20 @@ export function App() {
                       })}
                     </Tabs>
                   </div>
-                  {tabs[activeTabIndex]?.type === "task" && (
+                  {isTaskTab && (
                     <>
-                      <Gutter orientation="horizontal" onResize={onEditorResize} />
-                      <div style={{ flex: 1, minHeight: 100, display: "flex", flexDirection: "column" }}>
+                      <Gutter
+                        orientation={isHorizontal ? "vertical" : "horizontal"}
+                        onResize={isHorizontal ? onEditorWidthResize : onEditorResize}
+                      />
+                      <div style={{ flex: 1, minHeight: isHorizontal ? 0 : 100, minWidth: isHorizontal ? 100 : 0, display: "flex", flexDirection: "column" }}>
                         <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
                       </div>
                     </>
                   )}
-                </>
-              )}
+                </div>
+              );
+            })()}
             </div>
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
