@@ -1,6 +1,6 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
 import { ColumnsIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,7 +9,6 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
-import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Kaja, MethodCall } from "./kaja";
 import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
@@ -729,19 +728,21 @@ export function App() {
                   }
                 >
                   <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
-                    <IconButtonXSmall
+                    <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                       aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                       onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                      rounded
+                      size="small"
+                      variant="invisible"
                     />
                   </Tooltip>
                   <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
-                    <IconButtonXSmall
+                    <IconButton
                       icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
                       aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
                       onClick={onToggleEditorLayout}
-                      rounded
+                      size="small"
+                      variant="invisible"
                     />
                   </Tooltip>
                 </div>

@@ -1,7 +1,7 @@
 import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "@primer/octicons-react";
 import { useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
-import { IconButtonXSmall } from "./IconButtonXSmall";
+import { IconButton } from "@primer/react";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
 import { methodId } from "./project";
@@ -158,7 +158,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           >
             Calls
           </span>
-          {onClear && items.length > 0 && <IconButtonXSmall icon={TrashIcon} aria-label="Clear console" onClick={onClear} rounded />}
+          {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" onClick={onClear} size="small" variant="invisible" />}
         </div>
         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
           {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
@@ -174,9 +174,9 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
                 gap: 2,
               }}
             >
-              <IconButtonXSmall icon={FoldIcon} aria-label="Fold all" onClick={handleFoldAll} rounded />
-              <IconButtonXSmall icon={UnfoldIcon} aria-label="Unfold all" onClick={handleUnfoldAll} rounded />
-              <IconButtonXSmall icon={copied ? CheckIcon : CopyIcon} aria-label="Copy JSON" onClick={handleCopy} rounded />
+              <IconButton icon={FoldIcon} aria-label="Fold all" onClick={handleFoldAll} size="small" variant="invisible" />
+              <IconButton icon={UnfoldIcon} aria-label="Unfold all" onClick={handleUnfoldAll} size="small" variant="invisible" />
+              <IconButton icon={copied ? CheckIcon : CopyIcon} aria-label="Copy JSON" onClick={handleCopy} size="small" variant="invisible" />
             </div>
           )}
         </div>
