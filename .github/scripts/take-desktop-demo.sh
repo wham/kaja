@@ -93,8 +93,36 @@ EOF
 
 # --- Launch app ---
 
+APP_PATH="$PWD/desktop/build/bin/Kaja.app"
+
+# Remove quarantine attribute — unsigned apps are blocked by Gatekeeper in CI
+echo "Removing quarantine attribute..."
+xattr -rd com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+
 echo "Launching Kaja.app..."
-open "$PWD/desktop/build/bin/Kaja.app"
+open "$APP_PATH"
+
+echo "Waiting for Kaja process..."
+for i in $(seq 1 15); do
+    if pgrep -x Kaja > /dev/null 2>&1; then
+        echo "  ✓ Kaja process running (pid: $(pgrep -x Kaja))"
+        break
+    fi
+    sleep 1
+done
+
+if ! pgrep -x Kaja > /dev/null 2>&1; then
+    echo "  ✗ Kaja process not found — app may have crashed"
+    echo "  Checking crash logs..."
+    log show --predicate 'process == "Kaja"' --last 30s 2>/dev/null | tail -20 || true
+    echo "  Trying direct launch for error output..."
+    "$APP_PATH/Contents/MacOS/Kaja" &
+    sleep 5
+    if ! pgrep -x Kaja > /dev/null 2>&1; then
+        echo "  ✗ Direct launch also failed"
+        exit 1
+    fi
+fi
 
 echo "Waiting for Kaja window..."
 WINDOW_ID=""
@@ -104,11 +132,37 @@ for i in $(seq 1 30); do
         echo "  ✓ Window found (id: $WINDOW_ID)"
         break
     fi
+    # Diagnostic: list all windows to see what's there
+    if [ "$i" = "10" ] || [ "$i" = "20" ]; then
+        echo "  (listing all windows for diagnostics)"
+        python3 -c "
+import Quartz
+windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+for w in windows:
+    owner = w.get('kCGWindowOwnerName', '?')
+    name = w.get('kCGWindowName', '')
+    layer = w.get('kCGWindowLayer', '')
+    wid = w.get('kCGWindowNumber', '')
+    if owner == 'Kaja' or (name and 'Kaja' in str(name)):
+        print(f'  → id={wid} owner={owner} name={name} layer={layer}')
+" 2>/dev/null || true
+    fi
     sleep 1
 done
 
 if [ -z "$WINDOW_ID" ]; then
     echo "  ✗ Kaja window not found after 30s"
+    echo "  All windows:"
+    python3 -c "
+import Quartz
+windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+for w in windows:
+    owner = w.get('kCGWindowOwnerName', '?')
+    wid = w.get('kCGWindowNumber', '')
+    layer = w.get('kCGWindowLayer', '')
+    b = w.get('kCGWindowBounds', {})
+    print(f'  id={wid} owner={owner} layer={layer} bounds={b}')
+" 2>/dev/null | head -30 || true
     exit 1
 fi
 
