@@ -617,6 +617,9 @@ export function App() {
     }
   };
 
+  const isActiveTaskTab = tabs[activeTabIndex]?.type === "task";
+  const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
+
   return (
     <ThemeProvider colorMode={colorMode}>
       <BaseStyles>
@@ -633,104 +636,126 @@ export function App() {
           }}
         >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          {!sidebarCollapsed && (
-            <div style={{ width: isNarrow ? 250 : sidebarWidth, minWidth: sidebarMinWidth, maxWidth: 600, display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
-              {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
-              <Sidebar
-                projects={projects}
-                canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
-                onSelect={onMethodSelect}
-                currentMethod={selectedMethod}
-                scrollToMethod={scrollToMethod}
-                onCompilerClick={onCompilerClick}
-                onNewProjectClick={onNewProjectClick}
-                onEditProject={onEditProject}
-                onDeleteProject={onDeleteProject}
-              />
-            </div>
-          )}
-          <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
-            <div
-              style={{
-                height: 30,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderBottom: "1px solid var(--borderColor-default)",
-                background: "var(--bgColor-default)",
-                flexShrink: 0,
-                position: "relative",
-                "--wails-draggable": "drag",
-              } as React.CSSProperties}
-            >
+            {!sidebarCollapsed && (
               <div
-                onClick={() => setIsSearchOpen(true)}
                 style={{
+                  width: isNarrow ? 250 : sidebarWidth,
+                  minWidth: sidebarMinWidth,
+                  maxWidth: 600,
                   display: "flex",
-                  alignItems: "center",
-                  padding: "0 10px",
-                  fontSize: 12,
-                  color: "var(--fgColor-muted)",
-                  backgroundColor: "var(--bgColor-muted)",
-                  border: "1px solid var(--borderColor-default)",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  userSelect: "none",
-                  width: 240,
-                  "--wails-draggable": "no-drag",
-                } as React.CSSProperties}
+                  flexDirection: "column",
+                  flexShrink: 0,
+                  overflow: "hidden",
+                }}
               >
-                Type{" "}
-                <span
-                  style={{
-                    display: "inline-block",
-                    padding: "0 5px",
-                    marginLeft: 2,
-                    marginRight: 2,
-                    fontSize: 11,
-                    fontWeight: 500,
-                    backgroundColor: "var(--bgColor-default)",
-                    border: "1px solid var(--borderColor-default)",
-                    borderRadius: 4,
-                  }}
+                {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
+                <Sidebar
+                  projects={projects}
+                  canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+                  onSelect={onMethodSelect}
+                  currentMethod={selectedMethod}
+                  scrollToMethod={scrollToMethod}
+                  onCompilerClick={onCompilerClick}
+                  onNewProjectClick={onNewProjectClick}
+                  onEditProject={onEditProject}
+                  onDeleteProject={onDeleteProject}
+                />
+              </div>
+            )}
+            <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+              <div
+                style={
+                  {
+                    height: 30,
+                    display: "flex",
+                    alignItems: "center",
+                    borderBottom: "1px solid var(--borderColor-default)",
+                    background: "var(--bgColor-default)",
+                    flexShrink: 0,
+                    "--wails-draggable": "drag",
+                  } as React.CSSProperties
+                }
+              >
+                <div style={{ flex: 1, minWidth: 0 }} />
+                <div
+                  onClick={() => setIsSearchOpen(true)}
+                  style={
+                    {
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0 10px",
+                      fontSize: 12,
+                      color: "var(--fgColor-muted)",
+                      backgroundColor: "var(--bgColor-muted)",
+                      border: "1px solid var(--borderColor-default)",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      userSelect: "none",
+                      flexShrink: 0,
+                      "--wails-draggable": "no-drag",
+                    } as React.CSSProperties
+                  }
                 >
-                  /
-                </span>{" "}
-                to search
+                  Type{" "}
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "0 5px",
+                      marginLeft: 2,
+                      marginRight: 2,
+                      fontSize: 11,
+                      fontWeight: 500,
+                      backgroundColor: "var(--bgColor-default)",
+                      border: "1px solid var(--borderColor-default)",
+                      borderRadius: 4,
+                    }}
+                  >
+                    /
+                  </span>{" "}
+                  to search
+                </div>
+                <div
+                  style={
+                    {
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      paddingRight: 8,
+                      gap: 2,
+                      "--wails-draggable": "no-drag",
+                    } as React.CSSProperties
+                  }
+                >
+                  <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
+                    <IconButtonXSmall
+                      icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
+                      aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                      rounded
+                    />
+                  </Tooltip>
+                  <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
+                    <IconButtonXSmall
+                      icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
+                      aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
+                      onClick={onToggleEditorLayout}
+                      rounded
+                    />
+                  </Tooltip>
+                </div>
               </div>
-              <div style={{ position: "absolute", right: 8, display: "flex", alignItems: "center", gap: 2, "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
-                  <IconButtonXSmall
-                    icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
-                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                    rounded
-                  />
-                </Tooltip>
-                <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
-                  <IconButtonXSmall
-                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
-                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
-                    onClick={onToggleEditorLayout}
-                    rounded
-                  />
-                </Tooltip>
-              </div>
-            </div>
-            {tabs.length === 0 && <GetStartedBlankslate />}
-            {tabs.length > 0 && (() => {
-              const isTaskTab = tabs[activeTabIndex]?.type === "task";
-              const isHorizontal = editorLayout === "horizontal" && isTaskTab;
-              return (
-                <div style={{ flex: 1, display: "flex", flexDirection: isHorizontal ? "row" : "column", minHeight: 0 }}>
+              {tabs.length === 0 && <GetStartedBlankslate />}
+              {tabs.length > 0 && (
+                <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                   <div
                     style={{
-                      height: isTaskTab && !isHorizontal ? editorHeight : undefined,
-                      width: isTaskTab && isHorizontal ? editorWidth : undefined,
-                      flexGrow: isTaskTab ? 0 : 1,
+                      height: isActiveTaskTab && !isHorizontalLayout ? editorHeight : undefined,
+                      width: isActiveTaskTab && isHorizontalLayout ? editorWidth : undefined,
+                      flexGrow: isActiveTaskTab ? 0 : 1,
                       flexShrink: 0,
-                      flexBasis: isTaskTab ? "auto" : 0,
+                      flexBasis: isActiveTaskTab ? "auto" : 0,
                       display: "flex",
                       flexDirection: "column",
                       minHeight: 0,
@@ -806,20 +831,27 @@ export function App() {
                       })}
                     </Tabs>
                   </div>
-                  {isTaskTab && (
+                  {isActiveTaskTab && (
                     <>
                       <Gutter
-                        orientation={isHorizontal ? "vertical" : "horizontal"}
-                        onResize={isHorizontal ? onEditorWidthResize : onEditorResize}
+                        orientation={isHorizontalLayout ? "vertical" : "horizontal"}
+                        onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize}
                       />
-                      <div style={{ flex: 1, minHeight: isHorizontal ? 0 : 100, minWidth: isHorizontal ? 100 : 0, display: "flex", flexDirection: "column" }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          minHeight: isHorizontalLayout ? 0 : 100,
+                          minWidth: isHorizontalLayout ? 100 : 0,
+                          display: "flex",
+                          flexDirection: "column",
+                        }}
+                      >
                         <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
                       </div>
                     </>
                   )}
                 </div>
-              );
-            })()}
+              )}
             </div>
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
