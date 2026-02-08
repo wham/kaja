@@ -676,14 +676,14 @@ export function App() {
                   } as React.CSSProperties
                 }
               >
-                <div style={{ flex: 1, minWidth: 0 }} />
+                <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
                 <div
                   onClick={() => setIsSearchOpen(true)}
                   style={
                     {
                       display: "flex",
                       alignItems: "center",
-                      padding: "0 10px",
+                      padding: "2px 12px",
                       fontSize: 12,
                       color: "var(--fgColor-muted)",
                       backgroundColor: "var(--bgColor-muted)",
