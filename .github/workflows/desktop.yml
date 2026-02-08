@@ -97,6 +97,7 @@ jobs:
 
       - name: Convert video to GIF
         run: |
+          brew install ffmpeg
           ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
           rm .github/demo/demo.webm
 
