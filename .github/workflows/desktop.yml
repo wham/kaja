@@ -105,7 +105,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: demo
+          name: desktop-demo
           path: .github/demo/
 
       - name: Remove demo from PR on failure
@@ -124,21 +124,21 @@ jobs:
           git fetch origin demo-assets 2>/dev/null || true
           if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
             git checkout demo-assets
-            if [ -d "pr-${PR_NUMBER}" ]; then
-              git rm -rf "pr-${PR_NUMBER}"
-              git commit -m "Remove demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
+            if [ -d "pr-${PR_NUMBER}/desktop" ]; then
+              git rm -rf "pr-${PR_NUMBER}/desktop"
+              git commit -m "Remove Desktop demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
               git push origin demo-assets
             fi
           fi
 
-          # Remove Demo section from PR description
+          # Remove Desktop Demo section from PR description
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Desktop Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Only update if there was a demo section to remove
           if ! diff -q /tmp/current_body.txt /tmp/body_clean.txt > /dev/null 2>&1; then
             gh pr edit ${PR_NUMBER} --body-file /tmp/body_clean.txt
-            echo "Removed demo section from PR description"
+            echo "Removed Desktop Demo section from PR description"
           fi
 
       - name: Upload demo assets and update PR description
@@ -169,16 +169,16 @@ jobs:
           fi
 
           # Copy demo files to PR-specific folder
-          mkdir -p "pr-${PR_NUMBER}"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
+          mkdir -p "pr-${PR_NUMBER}/desktop"
+          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/desktop/" 2>/dev/null || true
 
           # Commit and push
           git add "pr-${PR_NUMBER}/"
-          git commit -m "Demo assets for PR #${PR_NUMBER}" || echo "No changes"
+          git commit -m "Desktop demo assets for PR #${PR_NUMBER}" || echo "No changes"
           git push origin demo-assets
 
           # Build URLs
-          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
+          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}/desktop"
           GIF_URL="${BASE_URL}/demo.gif"
           HOME_URL="${BASE_URL}/home.png"
           CALL_URL="${BASE_URL}/call.png"
@@ -186,7 +186,7 @@ jobs:
 
           # Build demo section
           echo "<details>" > /tmp/demo.md
-          echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
+          echo "<summary>🎬 Desktop Demo</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Video" >> /tmp/demo.md
           echo "![Demo](${GIF_URL})" >> /tmp/demo.md
@@ -209,9 +209,9 @@ jobs:
           echo "" >> /tmp/demo.md
           echo "</details>" >> /tmp/demo.md
 
-          # Get current PR body and remove existing Demo section
+          # Get current PR body and remove existing Desktop Demo section
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Desktop Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Combine body with demo section
           cat /tmp/body_clean.txt > /tmp/new_body.txt
