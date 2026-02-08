@@ -19,10 +19,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install npm dependencies
-        working-directory: ui
-        run: npm ci
-
       - name: Build desktop app and create DMG
         run: scripts/desktop --build=development
 
