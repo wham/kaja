@@ -15,10 +15,6 @@ for arg in "$@"; do
             BUILD_MODE="distribution"
             shift
             ;;
-        --build=ci)
-            BUILD_MODE="ci"
-            shift
-            ;;
     esac
 done
 
@@ -27,36 +23,36 @@ DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
 DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
 NOTARY_PROFILE="kaja-notary"
 
-# Check if Wails is installed, if not ask for user confirmation to install it using Homebrew
+# Check if Wails is installed
 if ! command -v wails &> /dev/null
 then
-    echo "Wails is not installed."
-    read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing Wails using Homebrew..."
-        brew install wails
-    else
-        echo "Wails installation skipped. Exiting script."
-        exit 1
+    if [ -t 0 ]; then
+        echo "Wails is not installed."
+        read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Wails installation skipped. Exiting script."
+            exit 1
+        fi
     fi
+    echo "Installing Wails using Homebrew..."
+    brew install wails
 fi
 
-# Check if create-dmg is installed, if not ask for user confirmation to install it using Homebrew
+# Check if create-dmg is installed
 if ! command -v create-dmg &> /dev/null
 then
-    echo "create-dmg is not installed."
-    read -p "Would you like to install create-dmg using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing create-dmg using Homebrew..."
-        brew install create-dmg
-    else
-        echo "create-dmg installation skipped. Exiting script."
-        exit 1
+    if [ -t 0 ]; then
+        echo "create-dmg is not installed."
+        read -p "Would you like to install create-dmg using Homebrew? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "create-dmg installation skipped. Exiting script."
+            exit 1
+        fi
     fi
+    echo "Installing create-dmg using Homebrew..."
+    brew install create-dmg
 fi
 
 cd "$(dirname "$0")/.."
@@ -127,13 +123,15 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
 
         ENTITLEMENTS="./build/darwin/entitlements.plist"
         echo "Signing app with: $CODESIGN_IDENTITY"
-        codesign --force --options runtime --deep \
+        if codesign --force --options runtime --deep \
             --sign "$CODESIGN_IDENTITY" \
             --entitlements "$ENTITLEMENTS" \
-            "$APP_BUNDLE"
-        echo "App signed successfully"
+            "$APP_BUNDLE" 2>/dev/null; then
+            echo "App signed successfully"
+        else
+            echo "Signing skipped (certificate not available)"
+        fi
 
-        # Notarize and create DMG for distribution builds
         if [ "$BUILD_MODE" = "distribution" ]; then
             echo ""
             echo "Notarizing app..."
@@ -155,13 +153,15 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
             rm "$APP_ZIP"
 
             echo "App notarization complete"
+        fi
 
-            # Create DMG
-            echo ""
-            echo "Creating DMG..."
-            DMG_PATH="./build/bin/Kaja.dmg"
-            rm -f "$DMG_PATH"
+        # Create DMG
+        echo ""
+        echo "Creating DMG..."
+        DMG_PATH="./build/bin/Kaja.dmg"
+        rm -f "$DMG_PATH"
 
+        if [ "$BUILD_MODE" = "distribution" ]; then
             create-dmg \
                 --volname "Kaja" \
                 --volicon "./build/appicon.png" \
@@ -185,39 +185,31 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
 
             echo ""
             echo "Distribution complete: $DMG_PATH"
+        else
+            # create-dmg returns exit code 1 when it can't sign (expected without certificates)
+            create-dmg \
+                --volname "Kaja" \
+                --window-size 600 400 \
+                --icon-size 100 \
+                --icon "Kaja.app" 150 200 \
+                --app-drop-link 450 200 \
+                "$DMG_PATH" \
+                "$APP_BUNDLE" \
+                || true
+
+            if [ -f "$DMG_PATH" ]; then
+                echo "DMG created: $DMG_PATH"
+            else
+                echo "Failed to create DMG"
+                exit 1
+            fi
         fi
 
         echo ""
         echo "Build complete: $APP_BUNDLE"
-        open "$APP_BUNDLE"
-    fi
-
-elif [ "$BUILD_MODE" = "ci" ]; then
-    GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-    echo "Building desktop app (ci)..."
-    wails build -ldflags "-X main.GitRef=$GIT_REF"
-
-    APP_BUNDLE="./build/bin/Kaja.app"
-    DMG_PATH="./build/bin/Kaja.dmg"
-    rm -f "$DMG_PATH"
-
-    echo "Creating DMG..."
-    # create-dmg returns exit code 1 when it can't sign (expected in CI)
-    create-dmg \
-        --volname "Kaja" \
-        --window-size 600 400 \
-        --icon-size 100 \
-        --icon "Kaja.app" 150 200 \
-        --app-drop-link 450 200 \
-        "$DMG_PATH" \
-        "$APP_BUNDLE" \
-        || true
-
-    if [ -f "$DMG_PATH" ]; then
-        echo "DMG created: $DMG_PATH"
-    else
-        echo "Failed to create DMG"
-        exit 1
+        if [ -t 0 ]; then
+            open "$APP_BUNDLE"
+        fi
     fi
 
 else

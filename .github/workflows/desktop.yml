@@ -23,13 +23,8 @@ jobs:
         working-directory: ui
         run: npm ci
 
-      - name: Install Wails and create-dmg
-        run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
-          brew install create-dmg
-
       - name: Build desktop app and create DMG
-        run: scripts/desktop --build=ci
+        run: scripts/desktop --build=development
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
