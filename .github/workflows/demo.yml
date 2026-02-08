@@ -1,10 +1,10 @@
-name: docker
+name: demo
 on:
   workflow_dispatch:
   pull_request:
 
 jobs:
-  docker:
+  demo:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -47,7 +47,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: docker-demo
+          name: demo
           path: .github/demo/
 
       - name: Remove demo from PR on failure
@@ -66,21 +66,21 @@ jobs:
           git fetch origin demo-assets 2>/dev/null || true
           if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
             git checkout demo-assets
-            if [ -d "pr-${PR_NUMBER}/docker" ]; then
-              git rm -rf "pr-${PR_NUMBER}/docker"
-              git commit -m "Remove Docker demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
+            if [ -d "pr-${PR_NUMBER}" ]; then
+              git rm -rf "pr-${PR_NUMBER}"
+              git commit -m "Remove demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
               git push origin demo-assets
             fi
           fi
 
-          # Remove Docker Demo section from PR description
+          # Remove Demo section from PR description
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Docker Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Only update if there was a demo section to remove
           if ! diff -q /tmp/current_body.txt /tmp/body_clean.txt > /dev/null 2>&1; then
             gh pr edit ${PR_NUMBER} --body-file /tmp/body_clean.txt
-            echo "Removed Docker Demo section from PR description"
+            echo "Removed demo section from PR description"
           fi
 
       - name: Upload demo assets and update PR description
@@ -111,16 +111,16 @@ jobs:
           fi
 
           # Copy demo files to PR-specific folder
-          mkdir -p "pr-${PR_NUMBER}/docker"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/docker/" 2>/dev/null || true
+          mkdir -p "pr-${PR_NUMBER}"
+          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
 
           # Commit and push
           git add "pr-${PR_NUMBER}/"
-          git commit -m "Docker demo assets for PR #${PR_NUMBER}" || echo "No changes"
+          git commit -m "Demo assets for PR #${PR_NUMBER}" || echo "No changes"
           git push origin demo-assets
 
           # Build URLs
-          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}/docker"
+          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
           GIF_URL="${BASE_URL}/demo.gif"
           HOME_URL="${BASE_URL}/home.png"
           CALL_URL="${BASE_URL}/call.png"
@@ -128,7 +128,7 @@ jobs:
 
           # Build demo section
           echo "<details>" > /tmp/demo.md
-          echo "<summary>🎬 Docker Demo</summary>" >> /tmp/demo.md
+          echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Video" >> /tmp/demo.md
           echo "![Demo](${GIF_URL})" >> /tmp/demo.md
@@ -151,9 +151,9 @@ jobs:
           echo "" >> /tmp/demo.md
           echo "</details>" >> /tmp/demo.md
 
-          # Get current PR body and remove existing Docker Demo section
+          # Get current PR body and remove existing Demo section
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Docker Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
 
           # Combine body with demo section
           cat /tmp/body_clean.txt > /tmp/new_body.txt

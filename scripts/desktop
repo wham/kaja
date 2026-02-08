@@ -15,6 +15,10 @@ for arg in "$@"; do
             BUILD_MODE="distribution"
             shift
             ;;
+        --build=ci)
+            BUILD_MODE="ci"
+            shift
+            ;;
     esac
 done
 
@@ -84,7 +88,7 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd "./desktop"
 
-if [ -n "$BUILD_MODE" ]; then
+if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
     # For distribution builds, update wails.json with git tag version
     if [ "$BUILD_MODE" = "distribution" ]; then
         GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
@@ -186,6 +190,34 @@ if [ -n "$BUILD_MODE" ]; then
         echo ""
         echo "Build complete: $APP_BUNDLE"
         open "$APP_BUNDLE"
+    fi
+
+elif [ "$BUILD_MODE" = "ci" ]; then
+    GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
+    echo "Building desktop app (ci)..."
+    wails build -ldflags "-X main.GitRef=$GIT_REF"
+
+    APP_BUNDLE="./build/bin/Kaja.app"
+    DMG_PATH="./build/bin/Kaja.dmg"
+    rm -f "$DMG_PATH"
+
+    echo "Creating DMG..."
+    # create-dmg returns exit code 1 when it can't sign (expected in CI)
+    create-dmg \
+        --volname "Kaja" \
+        --window-size 600 400 \
+        --icon-size 100 \
+        --icon "Kaja.app" 150 200 \
+        --app-drop-link 450 200 \
+        "$DMG_PATH" \
+        "$APP_BUNDLE" \
+        || true
+
+    if [ -f "$DMG_PATH" ]; then
+        echo "DMG created: $DMG_PATH"
+    else
+        echo "Failed to create DMG"
+        exit 1
     fi
 
 else
