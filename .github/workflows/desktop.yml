@@ -71,35 +71,10 @@ jobs:
           name: Kaja.dmg
           path: desktop/build/bin/Kaja.dmg
 
-      - name: Build server
-        working-directory: server
-        run: go build -ldflags "-X main.GitRef=${{ github.sha }}" -o build/server ./cmd/server
-
-      - name: Start server
+      - name: Take desktop demo screenshots
         run: |
-          cd server && ./build/server &
-          echo "Waiting for server to start..."
-          for i in $(seq 1 60); do
-            if curl -s http://localhost:41520/status > /dev/null 2>&1; then
-              echo "Server started!"
-              break
-            fi
-            sleep 1
-          done
-
-      - name: Take demo video and screenshots
-        id: demo
-        run: |
-          npm install playwright
-          npx playwright install chromium --with-deps
-          mkdir -p .github/demo
-          node .github/scripts/take-demo.js
-
-      - name: Convert video to GIF
-        run: |
-          brew install ffmpeg
-          ffmpeg -i .github/demo/demo.webm -vf "fps=10,scale=960:-1:flags=lanczos" -c:v gif .github/demo/demo.gif
-          rm .github/demo/demo.webm
+          brew install cliclick
+          bash .github/scripts/take-desktop-demo.sh
 
       - name: Upload demo (artifact)
         if: always()
@@ -170,7 +145,7 @@ jobs:
 
           # Copy demo files to PR-specific folder
           mkdir -p "pr-${PR_NUMBER}/desktop"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/desktop/" 2>/dev/null || true
+          cp /tmp/demo-files/*.png "pr-${PR_NUMBER}/desktop/" 2>/dev/null || true
 
           # Commit and push
           git add "pr-${PR_NUMBER}/"
@@ -179,7 +154,6 @@ jobs:
 
           # Build URLs
           BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}/desktop"
-          GIF_URL="${BASE_URL}/demo.gif"
           HOME_URL="${BASE_URL}/home.png"
           CALL_URL="${BASE_URL}/call.png"
           COMPILER_URL="${BASE_URL}/compiler.png"
@@ -187,9 +161,6 @@ jobs:
           # Build demo section
           echo "<details>" > /tmp/demo.md
           echo "<summary>🎬 Desktop Demo</summary>" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "### Video" >> /tmp/demo.md
-          echo "![Demo](${GIF_URL})" >> /tmp/demo.md
           echo "" >> /tmp/demo.md
           echo "### Home" >> /tmp/demo.md
           echo "![Home](${HOME_URL})" >> /tmp/demo.md
@@ -199,13 +170,6 @@ jobs:
           echo "" >> /tmp/demo.md
           echo "### Compiler" >> /tmp/demo.md
           echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
-
-          if [ -f /tmp/demo-files/newproject.png ]; then
-            echo "" >> /tmp/demo.md
-            echo "### New Project" >> /tmp/demo.md
-            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/demo.md
-          fi
-
           echo "" >> /tmp/demo.md
           echo "</details>" >> /tmp/demo.md
 
