@@ -19,13 +19,6 @@ interface TabsProps {
   onCloseOthers?: (index: number) => void;
 }
 
-interface ContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  tabIndex: number;
-}
-
 export function Tab({ children }: TabProps) {
   return <>{children}</>;
 }
@@ -36,7 +29,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   const tabsHeaderRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const prevTabCount = useRef(React.Children.count(children));
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, tabIndex: -1 });
+  const [contextMenu, setContextMenu] = useState<{ open: boolean; tabIndex: number; anchorPoint: { x: number; y: number } }>({
+    open: false,
+    tabIndex: -1,
+    anchorPoint: { x: 0, y: 0 },
+  });
   const [showScrollbar, setShowScrollbar] = useState(false);
   const [scrollMetrics, setScrollMetrics] = useState({ left: 0, width: 0, clientWidth: 0 });
 
@@ -89,27 +86,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
 
   const handleContextMenu = useCallback((event: React.MouseEvent, index: number) => {
     event.preventDefault();
-    setContextMenu({ visible: true, x: event.clientX, y: event.clientY, tabIndex: index });
+    setContextMenu({ open: true, tabIndex: index, anchorPoint: { x: event.clientX, y: event.clientY } });
   }, []);
-
-  const closeContextMenu = useCallback(() => {
-    setContextMenu((prev) => ({ ...prev, visible: false }));
-  }, []);
-
-  useEffect(() => {
-    if (contextMenu.visible) {
-      const handleClick = () => closeContextMenu();
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === "Escape") closeContextMenu();
-      };
-      document.addEventListener("click", handleClick);
-      document.addEventListener("keydown", handleEscape);
-      return () => {
-        document.removeEventListener("click", handleClick);
-        document.removeEventListener("keydown", handleEscape);
-      };
-    }
-  }, [contextMenu.visible, closeContextMenu]);
 
   const tabCount = React.Children.count(children);
 
@@ -146,25 +124,6 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item:hover .tab-close-button {
           opacity: 1 !important;
-        }
-        .tab-context-menu {
-          position: fixed;
-          background: var(--bgColor-default);
-          border: 1px solid var(--borderColor-default);
-          border-radius: 6px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-          z-index: 1000;
-          min-width: 140px;
-          padding: 4px 0;
-        }
-        .tab-context-menu-item {
-          padding: 8px 12px;
-          cursor: pointer;
-          font-size: 14px;
-          color: var(--fgColor-default);
-        }
-        .tab-context-menu-item:hover {
-          background: var(--bgColor-neutral-muted);
         }
       `}</style>
       <div
@@ -282,31 +241,41 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           </div>
         ))}
       </div>
-      {contextMenu.visible && (
-        <div className="tab-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          {onCloseTab && (
-            <div
-              className="tab-context-menu-item"
-              onClick={() => {
-                onCloseTab(contextMenu.tabIndex);
-                closeContextMenu();
-              }}
-            >
-              Close
-            </div>
-          )}
-          {onCloseOthers && tabCount > 1 && (
-            <div
-              className="tab-context-menu-item"
-              onClick={() => {
-                onCloseOthers(contextMenu.tabIndex);
-                closeContextMenu();
-              }}
-            >
-              Close Others
-            </div>
-          )}
-        </div>
+      {contextMenu.open && (
+        <ActionMenu
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setContextMenu((prev) => ({ ...prev, open: false }));
+          }}
+        >
+          <ActionMenu.Anchor>
+            <div style={{ position: "fixed", left: contextMenu.anchorPoint.x, top: contextMenu.anchorPoint.y, width: 1, height: 1 }} />
+          </ActionMenu.Anchor>
+          <ActionMenu.Overlay>
+            <ActionList>
+              {onCloseTab && (
+                <ActionList.Item
+                  onSelect={() => {
+                    onCloseTab(contextMenu.tabIndex);
+                    setContextMenu((prev) => ({ ...prev, open: false }));
+                  }}
+                >
+                  Close
+                </ActionList.Item>
+              )}
+              {onCloseOthers && tabCount > 1 && (
+                <ActionList.Item
+                  onSelect={() => {
+                    onCloseOthers(contextMenu.tabIndex);
+                    setContextMenu((prev) => ({ ...prev, open: false }));
+                  }}
+                >
+                  Close Others
+                </ActionList.Item>
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
       )}
     </div>
   );
