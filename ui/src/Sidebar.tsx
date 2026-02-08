@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, PencilIcon, PlusIcon, TrashIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
+import { CpuIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
 import { Method, Project, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 
@@ -179,24 +179,31 @@ export function Sidebar({
     });
   };
 
+  const foldAll = () => {
+    setExpandedProjects(new Set());
+    setExpandedServices(new Set());
+  };
+
+  const unfoldAll = () => {
+    const allProjects = new Set(projects.map((p) => p.configuration.name));
+    const allServices = new Set<string>();
+    for (const project of projects) {
+      for (const service of project.services) {
+        allServices.add(getServiceElementId(project.configuration.name, service));
+      }
+    }
+    setExpandedProjects(allProjects);
+    setExpandedServices(allServices);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }}>
-        <div
-          style={{
-            flex: 1,
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--fgColor-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            userSelect: "none",
-          }}
-        >
-          Explorer
-        </div>
         <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
+        <div style={{ flex: 1 }} />
+        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
+        <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
