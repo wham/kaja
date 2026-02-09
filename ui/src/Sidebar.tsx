@@ -3,6 +3,7 @@ import { TreeView, IconButton } from "@primer/react";
 import { CpuIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
 import { Method, Project, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
+import { getPersistedValue, setPersistedValue } from "./storage";
 
 function getDuplicateServiceNames(services: Service[]): Set<string> {
   const nameCount = new Map<string, number>();
@@ -78,8 +79,24 @@ export function Sidebar({
   onEditProject,
   onDeleteProject,
 }: SidebarProps) {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
-  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
+  const hadPersistedState = useRef(getPersistedValue<string[]>("expandedProjects") !== undefined);
+
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
+    const stored = getPersistedValue<string[]>("expandedProjects");
+    if (Array.isArray(stored)) {
+      return new Set(stored.filter((v): v is string => typeof v === "string"));
+    }
+    return new Set<string>();
+  });
+
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(() => {
+    const stored = getPersistedValue<string[]>("expandedServices");
+    if (Array.isArray(stored)) {
+      return new Set(stored.filter((v): v is string => typeof v === "string"));
+    }
+    return new Set<string>();
+  });
+
   const elementRefs = useRef<Map<string, HTMLElement>>(new Map());
   const pendingScrollRef = useRef<string | null>(null);
 
@@ -89,24 +106,66 @@ export function Sidebar({
     return `${projectName}-${serviceKey}`;
   };
 
-  // Expand first two projects and their first services when projects first load
+  // Persist expanded state
   useEffect(() => {
-    setExpandedProjects((prev) => {
-      if (prev.size === 0 && projects.length > 0) {
-        return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
+    setPersistedValue("expandedProjects", [...expandedProjects]);
+  }, [expandedProjects]);
+
+  useEffect(() => {
+    setPersistedValue("expandedServices", [...expandedServices]);
+  }, [expandedServices]);
+
+  // On first visit, expand first two projects. On subsequent loads, prune stale keys.
+  useEffect(() => {
+    if (projects.length === 0) return;
+
+    if (!hadPersistedState.current) {
+      hadPersistedState.current = true;
+      setExpandedProjects((prev) => {
+        if (prev.size === 0) {
+          return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
+        }
+        return prev;
+      });
+      setExpandedServices((prev) => {
+        if (prev.size === 0) {
+          const initialServices = new Set<string>();
+          projects.slice(0, 2).forEach((project) => {
+            if (project.services.length > 0) {
+              initialServices.add(getServiceElementId(project.configuration.name, project.services[0]));
+            }
+          });
+          return initialServices;
+        }
+        return prev;
+      });
+      return;
+    }
+
+    // Prune stale entries that no longer match current projects/services
+    const validProjects = new Set(projects.map((p) => p.configuration.name));
+    const validServices = new Set<string>();
+    const compilingPrefixes: string[] = [];
+    for (const project of projects) {
+      if (project.compilation.status === "running" || project.compilation.status === "pending") {
+        compilingPrefixes.push(project.configuration.name + "-");
       }
+      for (const service of project.services) {
+        validServices.add(getServiceElementId(project.configuration.name, service));
+      }
+    }
+
+    setExpandedProjects((prev) => {
+      const pruned = new Set([...prev].filter((p) => validProjects.has(p)));
+      if (pruned.size !== prev.size) return pruned;
       return prev;
     });
+
     setExpandedServices((prev) => {
-      if (prev.size === 0 && projects.length > 0) {
-        const initialServices = new Set<string>();
-        projects.slice(0, 2).forEach((project) => {
-          if (project.services.length > 0) {
-            initialServices.add(getServiceElementId(project.configuration.name, project.services[0]));
-          }
-        });
-        return initialServices;
-      }
+      const pruned = new Set(
+        [...prev].filter((s) => validServices.has(s) || compilingPrefixes.some((prefix) => s.startsWith(prefix))),
+      );
+      if (pruned.size !== prev.size) return pruned;
       return prev;
     });
   }, [projects]);
