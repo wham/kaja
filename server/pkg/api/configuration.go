@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	protojson "google.golang.org/protobuf/encoding/protojson"
@@ -16,6 +17,7 @@ func LoadGetConfigurationResponse(configurationPath string, canUpdateConfigurati
 
 	applyEnvironmentVariables(configuration, logger)
 	normalize(configuration, logger)
+	validateInstanceId(configuration, logger)
 	validateProjects(configuration, logger)
 
 	// Set system-level settings (file override takes precedence)
@@ -74,6 +76,18 @@ func normalize(configuration *Configuration, logger *Logger) {
 	}
 }
 
+var validInstanceId = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func validateInstanceId(configuration *Configuration, logger *Logger) {
+	if configuration.Id == "" {
+		return
+	}
+	if !validInstanceId.MatchString(configuration.Id) {
+		logger.error(fmt.Sprintf("Instance id %q contains invalid characters. Only alphanumeric characters, hyphens, and underscores are allowed.", configuration.Id), nil)
+		configuration.Id = ""
+	}
+}
+
 func validateProjects(configuration *Configuration, logger *Logger) {
 	validProjects := []*ConfigurationProject{}
 	for _, project := range configuration.Projects {
@@ -88,6 +102,7 @@ func validateProjects(configuration *Configuration, logger *Logger) {
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
 	configurationToSave := &Configuration{
+		Id:       configuration.Id,
 		Projects: configuration.Projects,
 		System:   configuration.System,
 	}

@@ -1,4 +1,4 @@
-const DB_NAME = "kaja";
+const DB_NAME_PREFIX = "kaja";
 const UI_STATE_STORE = "ui-state";
 const TYPE_MEMORY_STORE = "type-memory";
 const DB_VERSION = 2;
@@ -13,9 +13,9 @@ const pendingWrites = new Map<string, any>();
 const pendingTypeMemoryWrites = new Map<string, any>();
 const pendingTypeMemoryDeletes = new Set<string>();
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(dbName, DB_VERSION);
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(UI_STATE_STORE)) {
@@ -86,9 +86,10 @@ function flushTypeMemoryWrites(): void {
   }
 }
 
-export async function initializeStorage(): Promise<void> {
+export async function initializeStorage(instanceId?: string): Promise<void> {
   try {
-    db = await openDatabase();
+    const dbName = instanceId ? `${DB_NAME_PREFIX}-${instanceId}` : DB_NAME_PREFIX;
+    db = await openDatabase(dbName);
     cache = await readAllFromStore(db, UI_STATE_STORE);
     typeMemoryCache = await readAllFromStore(db, TYPE_MEMORY_STORE);
   } catch (error) {

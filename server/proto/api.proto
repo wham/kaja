@@ -84,6 +84,9 @@ message Configuration {
   repeated ConfigurationProject projects = 2;
   // System-level settings (read-only, ignored in UpdateConfiguration)
   ConfigurationSystem system = 4;
+  // Instance identifier used to namespace the IndexedDB database.
+  // Only alphanumeric characters, hyphens, and underscores are allowed.
+  string id = 5;
 }
 
 message ConfigurationSystem {

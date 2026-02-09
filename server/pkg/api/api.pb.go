@@ -656,7 +656,10 @@ type Configuration struct {
 	PathPrefix string                  `protobuf:"bytes,1,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
 	Projects   []*ConfigurationProject `protobuf:"bytes,2,rep,name=projects,proto3" json:"projects,omitempty"`
 	// System-level settings (read-only, ignored in UpdateConfiguration)
-	System        *ConfigurationSystem `protobuf:"bytes,4,opt,name=system,proto3" json:"system,omitempty"`
+	System *ConfigurationSystem `protobuf:"bytes,4,opt,name=system,proto3" json:"system,omitempty"`
+	// Instance identifier used to namespace the IndexedDB database.
+	// Only alphanumeric characters, hyphens, and underscores are allowed.
+	Id            string `protobuf:"bytes,5,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -710,6 +713,13 @@ func (x *Configuration) GetSystem() *ConfigurationSystem {
 		return x.System
 	}
 	return nil
+}
+
+func (x *Configuration) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
 }
 
 type ConfigurationSystem struct {
@@ -968,12 +978,13 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x17GetConfigurationRequest\"j\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\"\x91\x01\n" +
+	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\"\xa1\x01\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x121\n" +
 	"\bprojects\x18\x02 \x03(\v2\x15.ConfigurationProjectR\bprojects\x12,\n" +
-	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"h\n" +
+	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\x12\x0e\n" +
+	"\x02id\x18\x05 \x01(\tR\x02id\"h\n" +
 	"\x13ConfigurationSystem\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\"\xa4\x02\n" +

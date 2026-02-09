@@ -129,3 +129,94 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 		t.Error("expected to find debug log about path prefix normalization")
 	}
 }
+
+func TestLoadGetConfigurationResponse_ValidInstanceId(t *testing.T) {
+	configContent := `{
+		"projects": [],
+		"id": "app1"
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	response := LoadGetConfigurationResponse(tmpfile.Name(), false)
+
+	if response.Configuration.Id != "app1" {
+		t.Errorf("expected id 'app1', got %q", response.Configuration.Id)
+	}
+
+	for _, log := range response.Logs {
+		if log.Level == LogLevel_LEVEL_ERROR {
+			t.Errorf("unexpected error log: %s", log.Message)
+		}
+	}
+}
+
+func TestLoadGetConfigurationResponse_InvalidInstanceId(t *testing.T) {
+	configContent := `{
+		"projects": [],
+		"id": "app 1!@#"
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	response := LoadGetConfigurationResponse(tmpfile.Name(), false)
+
+	if response.Configuration.Id != "" {
+		t.Errorf("expected empty id after validation, got %q", response.Configuration.Id)
+	}
+
+	foundError := false
+	for _, log := range response.Logs {
+		if log.Level == LogLevel_LEVEL_ERROR && log.Message == `Instance id "app 1!@#" contains invalid characters. Only alphanumeric characters, hyphens, and underscores are allowed.` {
+			foundError = true
+			break
+		}
+	}
+	if !foundError {
+		t.Error("expected error log about invalid instance id")
+	}
+}
+
+func TestLoadGetConfigurationResponse_EmptyInstanceId(t *testing.T) {
+	configContent := `{
+		"projects": []
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	response := LoadGetConfigurationResponse(tmpfile.Name(), false)
+
+	if response.Configuration.Id != "" {
+		t.Errorf("expected empty id, got %q", response.Configuration.Id)
+	}
+
+	for _, log := range response.Logs {
+		if log.Level == LogLevel_LEVEL_ERROR {
+			t.Errorf("unexpected error log: %s", log.Message)
+		}
+	}
+}

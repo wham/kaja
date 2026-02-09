@@ -142,6 +142,13 @@ export interface Configuration {
      * @generated from protobuf field: ConfigurationSystem system = 4
      */
     system?: ConfigurationSystem;
+    /**
+     * Instance identifier used to namespace the IndexedDB database.
+     * Only alphanumeric characters, hyphens, and underscores are allowed.
+     *
+     * @generated from protobuf field: string id = 5
+     */
+    id: string;
 }
 /**
  * @generated from protobuf message ConfigurationSystem
@@ -737,13 +744,15 @@ class Configuration$Type extends MessageType<Configuration> {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "projects", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationProject },
-            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem }
+            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
+            { no: 5, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Configuration>): Configuration {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pathPrefix = "";
         message.projects = [];
+        message.id = "";
         if (value !== undefined)
             reflectionMergePartial<Configuration>(this, message, value);
         return message;
@@ -761,6 +770,9 @@ class Configuration$Type extends MessageType<Configuration> {
                     break;
                 case /* ConfigurationSystem system */ 4:
                     message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
+                    break;
+                case /* string id */ 5:
+                    message.id = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -783,6 +795,9 @@ class Configuration$Type extends MessageType<Configuration> {
         /* ConfigurationSystem system = 4; */
         if (message.system)
             ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string id = 5; */
+        if (message.id !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.id);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
