@@ -279,7 +279,14 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
+    <div className="project-form" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
+      <style>{`
+        .project-form select,
+        .project-form span:has(> input:not([type="radio"])),
+        .project-form span:has(> select) {
+          background-color: var(--bgColor-muted) !important;
+        }
+      `}</style>
       <div
         style={{
           display: "flex",
