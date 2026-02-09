@@ -120,14 +120,14 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
         fi
 
         ENTITLEMENTS="./build/darwin/entitlements.plist"
-        echo "Signing app with: $CODESIGN_IDENTITY"
         if codesign --force --options runtime --deep \
             --sign "$CODESIGN_IDENTITY" \
             --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE" 2>/dev/null; then
-            echo "App signed successfully"
+            echo "App signed with: $CODESIGN_IDENTITY"
         else
-            echo "Signing skipped (certificate not available)"
+            codesign --force --deep --sign - "$APP_BUNDLE"
+            echo "App signed with ad-hoc identity"
         fi
 
         if [ "$BUILD_MODE" = "distribution" ]; then
