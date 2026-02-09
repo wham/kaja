@@ -67,10 +67,11 @@ echo "Installing Node.js..."
 install_nodejs
 
 # Install npm dependencies
-if [ ! -d "ui/node_modules" ]; then
-    echo "Installing npm dependencies..."
-    (cd ui && npm ci)
-fi
+echo "Installing npm dependencies..."
+cd "./ui"
+npm i
+
+cd ".."
 
 # Build UI assets
 echo "Building UI..."
