@@ -316,30 +316,28 @@ export function Sidebar({
                     <ProtocolPill protocol={project.configuration.protocol} />
                   </span>
                   {isExpanded && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4 }}>
-                      <span
-                        role="button"
+                    <span style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 4 }}>
+                      <IconButton
                         aria-label={`Edit ${projectName}`}
-                        style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
-                        onClick={(e) => {
+                        icon={PencilIcon}
+                        size="small"
+                        variant="invisible"
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           onEditProject(projectName);
                         }}
-                      >
-                        <PencilIcon size={14} />
-                      </span>
+                      />
                       {canDeleteProjects && (
-                        <span
-                          role="button"
+                        <IconButton
                           aria-label={`Delete ${projectName}`}
-                          style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
-                          onClick={(e) => {
+                          icon={TrashIcon}
+                          size="small"
+                          variant="invisible"
+                          onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             onDeleteProject(projectName);
                           }}
-                        >
-                          <TrashIcon size={14} />
-                        </span>
+                        />
                       )}
                     </span>
                   )}
