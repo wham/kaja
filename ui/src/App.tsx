@@ -345,15 +345,6 @@ export function App() {
         setIsSearchOpen(true);
         return;
       }
-      // Don't trigger character shortcuts when typing in an input, textarea, or contenteditable
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
-      if (e.key === "/") {
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
