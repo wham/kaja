@@ -264,8 +264,8 @@ export function Sidebar({
         <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
         <div style={{ flex: 1 }} />
-        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
         <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
+        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
@@ -288,7 +288,6 @@ export function Sidebar({
                   style={{
                     fontSize: 12,
                     fontWeight: "bold",
-                    padding: "2px 0",
                     marginLeft: -12,
                     paddingLeft: 4,
                     color: "var(--fgColor-muted)",
@@ -297,7 +296,7 @@ export function Sidebar({
                     justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
-                    minHeight: 24,
+                    height: 28,
                   }}
                   onClick={() => toggleProjectExpanded(projectName)}
                 >
@@ -316,30 +315,28 @@ export function Sidebar({
                     <ProtocolPill protocol={project.configuration.protocol} />
                   </span>
                   {isExpanded && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4 }}>
-                      <span
-                        role="button"
+                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <IconButton
                         aria-label={`Edit ${projectName}`}
-                        style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
-                        onClick={(e) => {
+                        icon={PencilIcon}
+                        size="small"
+                        variant="invisible"
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           onEditProject(projectName);
                         }}
-                      >
-                        <PencilIcon size={14} />
-                      </span>
+                      />
                       {canDeleteProjects && (
-                        <span
-                          role="button"
+                        <IconButton
                           aria-label={`Delete ${projectName}`}
-                          style={{ cursor: "pointer", display: "inline-flex", padding: 2 }}
-                          onClick={(e) => {
+                          icon={TrashIcon}
+                          size="small"
+                          variant="invisible"
+                          onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             onDeleteProject(projectName);
                           }}
-                        >
-                          <TrashIcon size={14} />
-                        </span>
+                        />
                       )}
                     </span>
                   )}
