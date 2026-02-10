@@ -120,7 +120,6 @@ export function Sidebar({
     if (projects.length === 0) return;
 
     if (!hadPersistedState.current) {
-      hadPersistedState.current = true;
       setExpandedProjects((prev) => {
         if (prev.size === 0) {
           return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
@@ -139,6 +138,10 @@ export function Sidebar({
         }
         return prev;
       });
+      // Only mark initialized once services exist, so defaults retry after compilation finishes
+      if (projects.some((p) => p.services.length > 0)) {
+        hadPersistedState.current = true;
+      }
       return;
     }
 
