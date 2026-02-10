@@ -288,7 +288,6 @@ export function Sidebar({
                   style={{
                     fontSize: 12,
                     fontWeight: "bold",
-                    padding: "2px 0",
                     marginLeft: -12,
                     paddingLeft: 4,
                     color: "var(--fgColor-muted)",
@@ -297,7 +296,7 @@ export function Sidebar({
                     justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
-                    minHeight: 28,
+                    height: 28,
                   }}
                   onClick={() => toggleProjectExpanded(projectName)}
                 >
