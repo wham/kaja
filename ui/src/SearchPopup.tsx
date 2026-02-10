@@ -135,7 +135,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
           <TextInput
             ref={inputRef}
             leadingVisual={SearchIcon}
-            placeholder="Search for a method..."
+            placeholder={`Search methods (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}K)`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
