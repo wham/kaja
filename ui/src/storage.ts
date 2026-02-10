@@ -1,4 +1,4 @@
-const DB_NAME_PREFIX = "kaja";
+const DB_NAME = "kaja";
 const UI_STATE_STORE = "ui-state";
 const TYPE_MEMORY_STORE = "type-memory";
 const DB_VERSION = 2;
@@ -86,14 +86,27 @@ function flushTypeMemoryWrites(): void {
   }
 }
 
-export async function initializeStorage(instanceId?: string): Promise<void> {
+export async function initializeStorage(): Promise<void> {
   try {
-    const dbName = instanceId ? `${DB_NAME_PREFIX}-${instanceId}` : DB_NAME_PREFIX;
-    db = await openDatabase(dbName);
+    db = await openDatabase(DB_NAME);
     cache = await readAllFromStore(db, UI_STATE_STORE);
     typeMemoryCache = await readAllFromStore(db, TYPE_MEMORY_STORE);
   } catch (error) {
     console.warn("Failed to initialize storage:", error);
+  }
+}
+
+export async function reinitializeStorage(instanceId: string): Promise<void> {
+  try {
+    const dbName = `${DB_NAME}-${instanceId}`;
+    const newDb = await openDatabase(dbName);
+    const newCache = await readAllFromStore(newDb, UI_STATE_STORE);
+    const newTypeMemoryCache = await readAllFromStore(newDb, TYPE_MEMORY_STORE);
+    db = newDb;
+    cache = newCache;
+    typeMemoryCache = newTypeMemoryCache;
+  } catch (error) {
+    console.warn("Failed to reinitialize storage:", error);
   }
 }
 

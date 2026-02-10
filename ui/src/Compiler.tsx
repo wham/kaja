@@ -6,6 +6,7 @@ import { CompilationStatus, createProjectRef, Project } from "./project";
 import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus, RpcProtocol } from "./server/api";
 import { getApiClient } from "./server/connection";
+import { reinitializeStorage } from "./storage";
 
 interface CompilerProps {
   projects: Project[];
@@ -251,8 +252,11 @@ export function Compiler({ projects, onUpdate, onConfigurationLoaded, onNewProje
         const { response } = await client.getConfiguration({});
         const configProjects = response.configuration?.projects || [];
 
-        if (response.configuration && onConfigurationLoaded) {
-          onConfigurationLoaded(response.configuration);
+        if (response.configuration) {
+          if (response.configuration.id) {
+            await reinitializeStorage(response.configuration.id);
+          }
+          onConfigurationLoaded?.(response.configuration);
         }
 
         setConfigurationLoaded(true);
