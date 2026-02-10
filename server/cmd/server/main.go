@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -37,6 +38,17 @@ func main() {
 		defer configurationWatcher.Close()
 	}
 
+	// Prepare index.html with instance ID meta tag injected
+	indexHtml, err := fs.ReadFile(assets.StaticFS, "static/index.html")
+	if err != nil {
+		slog.Error("Failed to read index.html", "error", err)
+		os.Exit(1)
+	}
+	if configuration.Id != "" {
+		metaTag := fmt.Sprintf(`<meta name="kaja-instance-id" content="%s" />`, configuration.Id)
+		indexHtml = []byte(strings.Replace(string(indexHtml), "<head>", "<head>\n    "+metaTag, 1))
+	}
+
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
@@ -49,7 +61,8 @@ func main() {
 			return
 		}
 
-		http.ServeFileFS(w, r, assets.StaticFS, "static/index.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexHtml)
 	})
 
 	mux.HandleFunc("GET /static/{name...}", func(w http.ResponseWriter, r *http.Request) {

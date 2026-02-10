@@ -3,24 +3,21 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
-import { getApiClient } from "./server/connection";
 import { getPersistedValue, initializeStorage } from "./storage";
 
 export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";
 
-const client = getApiClient();
-client
-  .getConfiguration({})
-  .then(({ response }) => initializeStorage(response.configuration?.id))
-  .then(() => {
-    const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
-    monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
-    document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+const instanceId = document.querySelector<HTMLMetaElement>('meta[name="kaja-instance-id"]')?.content;
 
-    ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>,
-    );
-  });
+initializeStorage(instanceId).then(() => {
+  const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
+  monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
+  document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});
