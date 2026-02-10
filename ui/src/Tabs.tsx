@@ -1,4 +1,4 @@
-import { KebabHorizontalIcon, XIcon } from "@primer/octicons-react";
+import { EllipsisIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, ActionMenu, IconButton, useResponsiveValue } from "@primer/react";
 
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
@@ -132,7 +132,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         onMouseEnter={() => setShowScrollbar(true)}
         onMouseLeave={() => setShowScrollbar(false)}
       >
-        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 32 : 0 }}>
+        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 36 : 0 }}>
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
             const isActive = index === activeTabIndex;
@@ -193,14 +193,14 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               display: "flex",
               alignItems: "center",
               paddingLeft: 4,
-              paddingRight: 4,
+              paddingRight: 8,
               background: "var(--bgColor-default)",
               borderBottom: "1px solid var(--borderColor-default)",
             }}
           >
             <ActionMenu>
               <ActionMenu.Anchor>
-                <IconButton icon={KebabHorizontalIcon} aria-label="Tab options" variant="invisible" size="small" />
+                <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" />
               </ActionMenu.Anchor>
               <ActionMenu.Overlay>
                 <ActionList>
