@@ -131,7 +131,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
       <div
         style={{
           display: "flex",
-          borderBottom: "1px solid var(--borderColor-default)",
+          borderBottom: "1px solid var(--borderColor-muted)",
           height: 35,
           flexShrink: 0,
         }}
@@ -144,7 +144,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderRight: "1px solid var(--borderColor-default)",
+            borderRight: "1px solid var(--borderColor-muted)",
           }}
         >
           <span
