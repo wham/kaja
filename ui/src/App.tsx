@@ -732,7 +732,7 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
+                  <Tooltip text={sidebarCollapsed ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)` : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`} direction="s">
                     <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                       aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
