@@ -340,14 +340,10 @@ export function App() {
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
-      // Don't trigger character shortcuts when typing in an input, textarea, or contenteditable
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
-      if (e.key === "/") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setIsSearchOpen(true);
+        return;
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -696,23 +692,7 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  Type{" "}
-                  <span
-                    style={{
-                      display: "inline-block",
-                      padding: "0 5px",
-                      marginLeft: 2,
-                      marginRight: 2,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      backgroundColor: "var(--bgColor-default)",
-                      border: "1px solid var(--borderColor-default)",
-                      borderRadius: 4,
-                    }}
-                  >
-                    /
-                  </span>{" "}
-                  to search
+                  {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>
                 <div
                   style={
@@ -727,7 +707,7 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  <Tooltip text={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"} direction="s">
+                  <Tooltip text={sidebarCollapsed ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)` : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`} direction="s">
                     <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                       aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
