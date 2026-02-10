@@ -692,23 +692,7 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  Type{" "}
-                  <span
-                    style={{
-                      display: "inline-block",
-                      padding: "0 5px",
-                      marginLeft: 2,
-                      marginRight: 2,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      backgroundColor: "var(--bgColor-default)",
-                      border: "1px solid var(--borderColor-default)",
-                      borderRadius: 4,
-                    }}
-                  >
-                    /
-                  </span>{" "}
-                  to search
+                  {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>
                 <div
                   style={
