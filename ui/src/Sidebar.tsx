@@ -264,8 +264,8 @@ export function Sidebar({
         <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
         <div style={{ flex: 1 }} />
-        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
         <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
+        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {projects.map((project, projectIndex) => {
@@ -297,7 +297,7 @@ export function Sidebar({
                     justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
-                    minHeight: 24,
+                    minHeight: 28,
                   }}
                   onClick={() => toggleProjectExpanded(projectName)}
                 >
@@ -316,7 +316,7 @@ export function Sidebar({
                     <ProtocolPill protocol={project.configuration.protocol} />
                   </span>
                   {isExpanded && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 2, marginRight: 4 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <IconButton
                         aria-label={`Edit ${projectName}`}
                         icon={PencilIcon}
