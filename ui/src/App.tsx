@@ -340,6 +340,11 @@ export function App() {
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        return;
+      }
       // Don't trigger character shortcuts when typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
