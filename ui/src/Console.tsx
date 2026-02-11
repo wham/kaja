@@ -131,7 +131,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
       <div
         style={{
           display: "flex",
-          borderBottom: "1px solid var(--borderColor-default)",
+          borderBottom: "1px solid var(--borderColor-muted)",
           height: 35,
           flexShrink: 0,
         }}
@@ -144,7 +144,6 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderRight: "1px solid var(--borderColor-default)",
           }}
         >
           <span
@@ -160,6 +159,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           </span>
           {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" onClick={onClear} size="small" variant="invisible" />}
         </div>
+        <div style={{ width: 1, flexShrink: 0, backgroundColor: "var(--borderColor-muted)" }} />
         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
           {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
           {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
