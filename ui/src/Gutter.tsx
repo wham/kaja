@@ -37,7 +37,7 @@ export function Gutter({ orientation, onResize, hitAreaSize }: GutterProps) {
         height: orientation === "vertical" ? "100%" : 1,
         flexShrink: 0,
         position: "relative",
-        backgroundColor: "var(--borderColor-default)",
+        backgroundColor: "var(--borderColor-muted)",
       }}
     >
       <div

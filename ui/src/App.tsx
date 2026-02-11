@@ -665,7 +665,7 @@ export function App() {
                     height: 30,
                     display: "flex",
                     alignItems: "center",
-                    borderBottom: "1px solid var(--borderColor-default)",
+                    borderBottom: "1px solid var(--borderColor-muted)",
                     background: "var(--bgColor-default)",
                     flexShrink: 0,
                     "--wails-draggable": "drag",

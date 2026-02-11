@@ -73,7 +73,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
         paddingLeft: 16,
         paddingRight: 16,
         background: "var(--bgColor-default)",
-        borderTop: "1px solid var(--borderColor-default)",
+        borderTop: "1px solid var(--borderColor-muted)",
         flexShrink: 0,
       }}
     >

@@ -102,8 +102,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           align-items: center;
           padding: 0 10px 0 16px;
           border-top: 1px solid transparent;
-          border-right: 1px solid var(--borderColor-default);
-          border-bottom: 1px solid var(--borderColor-default);
+          border-right: 1px solid var(--borderColor-muted);
+          border-bottom: 1px solid var(--borderColor-muted);
           font-size: 14px;
           cursor: pointer;
           background-color: transparent;
@@ -115,7 +115,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         }
         .tab-item.active {
           border-top-color: var(--fgColor-accent);
-          border-bottom-color: var(--bgColor-muted);
+          border-bottom-color: transparent;
           background-color: var(--bgColor-muted);
         }
         .tab-close-button:hover {
@@ -181,7 +181,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-default)" }} />
+          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-muted)" }} />
         </div>
         {onCloseAll && tabCount > 0 && (
           <div
@@ -195,7 +195,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               paddingLeft: 4,
               paddingRight: 8,
               background: "var(--bgColor-default)",
-              borderBottom: "1px solid var(--borderColor-default)",
+              borderBottom: "1px solid var(--borderColor-muted)",
             }}
           >
             <ActionMenu>
