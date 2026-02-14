@@ -16,9 +16,8 @@ describe("getTabLabel", () => {
 });
 
 describe("serializeTabs", () => {
-  it("should serialize task and compiler tabs, skipping definition and projectForm tabs", () => {
+  it("should serialize task tabs, skipping definition and projectForm tabs", () => {
     const tabs: TabModel[] = [
-      { type: "compiler" },
       {
         type: "task",
         id: "task-1",
@@ -39,13 +38,12 @@ describe("serializeTabs", () => {
       },
     ];
 
-    const result = serializeTabs(tabs, 1, () => undefined);
+    const result = serializeTabs(tabs, 0, () => undefined);
 
     expect(result.version).toBe(1);
-    expect(result.tabs).toHaveLength(2);
-    expect(result.activeIndex).toBe(1);
-    expect(result.tabs[0]).toEqual({ type: "compiler" });
-    expect(result.tabs[1]).toEqual({
+    expect(result.tabs).toHaveLength(1);
+    expect(result.activeIndex).toBe(0);
+    expect(result.tabs[0]).toEqual({
       type: "task",
       projectName: "users",
       serviceName: "UserService",
@@ -60,7 +58,16 @@ describe("serializeTabs", () => {
   it("should adjust active index when non-serialized tabs are before the active tab", () => {
     const tabs: TabModel[] = [
       { type: "definition", id: "def-1", model: {} as any, startLineNumber: 1, startColumn: 1 },
-      { type: "compiler" },
+      {
+        type: "task",
+        id: "task-1",
+        originMethod: { name: "M" },
+        originService: { name: "S", packageName: "", sourcePath: "", clientStubModuleId: "", methods: [] },
+        originProject: { configuration: { name: "p" } } as any,
+        hasInteraction: false,
+        model: { getValue: () => "" } as any,
+        originalCode: "",
+      },
     ];
 
     const result = serializeTabs(tabs, 1, () => undefined);

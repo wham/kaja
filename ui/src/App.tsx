@@ -88,6 +88,7 @@ export function App() {
   const [editorLayout, setEditorLayout] = usePersistedState<"vertical" | "horizontal">("editorLayout", "vertical");
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
+  const [compilerOpen, setCompilerOpen] = usePersistedState("compilerOpen", false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; project: Project }>();
   const tabsRef = useRef(tabs);
@@ -96,7 +97,7 @@ export function App() {
   activeTabIndexRef.current = activeTabIndex;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
-  const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
+  const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.length > 0);
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
@@ -300,10 +301,8 @@ export function App() {
         if (removedNames.size > 0) {
           setTabs((prevTabs) => {
             const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
-            if (updatedProjects.length === 0 && !newTabs.some((t) => t.type === "compiler")) {
+            if (updatedProjects.length === 0) {
               setSelectedMethod(undefined);
-              setActiveTabIndex(0);
-              return [{ type: "compiler" as const }];
             }
             if (newTabs.length !== prevTabs.length) {
               setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
@@ -341,17 +340,6 @@ export function App() {
   }, [applyConfiguration]);
 
   useConfigurationChanges(handleConfigurationFileChange);
-
-  useEffect(() => {
-    if (tabs.length === 0 && projects.length === 0) {
-      setTabs([{ type: "compiler" }]);
-    } else if (projects.length === 0 && !tabs.some((t) => t.type === "compiler")) {
-      setTabs((prevTabs) => {
-        if (prevTabs.some((t) => t.type === "compiler")) return prevTabs;
-        return [...prevTabs, { type: "compiler" }];
-      });
-    }
-  }, [tabs.length, projects.length]);
 
   useEffect(() => {
     monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
@@ -442,8 +430,8 @@ export function App() {
           return [...prevTabs];
         });
         // Force TypeScript to revalidate restored models now that source models exist
-        const opts = monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
-        monaco.languages.typescript.typescriptDefaults.setCompilerOptions(opts);
+        const opts = monaco.typescript.typescriptDefaults.getCompilerOptions();
+        monaco.typescript.typescriptDefaults.setCompilerOptions(opts);
         return;
       }
 
@@ -567,17 +555,7 @@ export function App() {
   };
 
   const onCompilerClick = () => {
-    setTabs((tabs) => {
-      const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
-      if (compilerIndex === -1) {
-        const newTabs: TabModel[] = [...tabs, { type: "compiler" as const }];
-        setActiveTabIndex(newTabs.length - 1);
-        return newTabs;
-      } else {
-        setActiveTabIndex(compilerIndex);
-        return tabs;
-      }
-    });
+    setCompilerOpen((open) => !open);
   };
 
   const onNewProjectClick = () => {
@@ -642,9 +620,9 @@ export function App() {
       applyConfiguration(response.configuration);
     }
 
-    // Show compiler tab for new projects or when recompilation is needed
+    // Show compiler for new projects or when recompilation is needed
     if (isNewProject || needsRecompilation) {
-      onCompilerClick();
+      setCompilerOpen(true);
     }
   };
 
@@ -801,6 +779,15 @@ export function App() {
                   </Tooltip>
                 </div>
               </div>
+              <div style={{ display: compilerOpen ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                <Compiler
+                  projects={projects}
+                  onUpdate={onCompilationUpdate}
+                  onConfigurationLoaded={setConfiguration}
+                  onNewProjectClick={onNewProjectClick}
+                />
+              </div>
+              <div style={{ display: !compilerOpen ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
               {tabs.length === 0 && <GetStartedBlankslate />}
               {tabs.length > 0 && (
                 <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
@@ -825,19 +812,6 @@ export function App() {
                       onCloseOthers={onCloseOthers}
                     >
                       {tabs.map((tab, index) => {
-                        if (tab.type === "compiler") {
-                          return (
-                            <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler
-                                projects={projects}
-                                onUpdate={onCompilationUpdate}
-                                onConfigurationLoaded={setConfiguration}
-                                onNewProjectClick={onNewProjectClick}
-                              />
-                            </Tab>
-                          );
-                        }
-
                         if (tab.type === "task") {
                           return (
                             <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
@@ -912,6 +886,7 @@ export function App() {
                   )}
                 </div>
               )}
+              </div>
             </div>
           </div>
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
