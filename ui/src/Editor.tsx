@@ -113,6 +113,7 @@ interface EditorProps {
   onGoToDefinition: onGoToDefinition;
   startLineNumber?: number;
   startColumn?: number;
+  viewState?: monaco.editor.ICodeEditorViewState;
 }
 
 export interface onGoToDefinition {
@@ -121,7 +122,7 @@ export interface onGoToDefinition {
 
 const UNIFIED_BG = "var(--bgColor-muted)";
 
-export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0 }: EditorProps) {
+export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -192,16 +193,16 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
     formatTypeScript(model.getValue()).then((formattedCode) => {
       if (!isDisposing && editorRef.current) {
         editorRef.current.setValue(formattedCode);
+        if (viewState) {
+          editorRef.current.restoreViewState(viewState);
+        } else if (startLineNumber > 0) {
+          editorRef.current.revealLineInCenter(startLineNumber);
+          editorRef.current.setPosition({ lineNumber: startLineNumber, column: startColumn });
+        }
       }
     });
 
     editorRef.current?.setModel(model);
-
-    editorRef.current?.revealLineInCenter(startLineNumber);
-    editorRef.current?.setPosition({
-      lineNumber: startLineNumber,
-      column: startColumn,
-    });
 
     return () => {
       isDisposing = true;
