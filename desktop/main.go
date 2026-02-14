@@ -356,6 +356,7 @@ func main() {
 	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
 		runtime.WindowReloadApp(app.ctx)
 	})
+	appMenu.Append(menu.WindowMenu())
 
 	err = wails.Run(&options.App{
 		Title:  "Kaja",
