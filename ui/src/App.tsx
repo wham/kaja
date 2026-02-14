@@ -25,6 +25,7 @@ import {
   getProjectFormTabIndex,
   getProjectFormTabLabel,
   getTabLabel,
+  linkTabsToProjects,
   markInteraction,
   PersistedTabState,
   restoreTabs,
@@ -74,8 +75,9 @@ function applyProjectRename(project: Project, newConfig: ConfigurationProject): 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [tabs, setTabs] = useState<TabModel[]>([]);
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
+  const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
+  const [activeTabIndex, setActiveTabIndex] = useState(restoredState?.activeIndex ?? 0);
   const [selectedMethod, setSelectedMethod] = useState<Method>();
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
@@ -93,7 +95,7 @@ export function App() {
   const activeTabIndexRef = useRef(activeTabIndex);
   activeTabIndexRef.current = activeTabIndex;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
-  const pendingRestorationRef = useRef<PersistedTabState | null>(getPersistedValue<PersistedTabState>("tabs") ?? null);
+  const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
@@ -342,6 +344,8 @@ export function App() {
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) {
       setTabs([{ type: "compiler" }]);
+    } else if (projects.length === 0 && !tabs.some((t) => t.type === "compiler")) {
+      setTabs((prevTabs) => [...prevTabs, { type: "compiler" }]);
     }
   }, [tabs.length, projects.length]);
 
@@ -422,28 +426,18 @@ export function App() {
         return;
       }
 
-      // Try to restore tabs from persisted state (one-time on initial load)
-      const persistedState = pendingRestorationRef.current;
-      if (persistedState) {
-        pendingRestorationRef.current = null;
-        const restored = restoreTabs(persistedState, updatedProjects);
-        if (restored && restored.tabs.some((t) => t.type === "task")) {
-          setTabs((prevTabs) => {
-            prevTabs.forEach((tab) => {
-              if (tab.type === "task") {
-                editorRegistryRef.current.delete(tab.id);
-                tab.model.dispose();
-              }
-            });
-            const activeTab = restored.tabs[restored.activeIndex];
-            if (activeTab?.type === "task") {
-              setSelectedMethod(activeTab.originMethod);
-            }
-            setActiveTabIndex(restored.activeIndex);
-            return restored.tabs;
-          });
-          return;
-        }
+      // If tabs were restored from persisted state, link them to compiled projects
+      if (tabsRestoredRef.current) {
+        tabsRestoredRef.current = false;
+        setTabs((prevTabs) => {
+          linkTabsToProjects(prevTabs, updatedProjects);
+          const activeTab = prevTabs[activeTabIndexRef.current];
+          if (activeTab?.type === "task") {
+            setSelectedMethod(activeTab.originMethod);
+          }
+          return [...prevTabs];
+        });
+        return;
       }
 
       const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);

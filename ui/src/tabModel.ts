@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
-import { Method, Project, Service } from "./project";
+import { createProjectRef, Method, Project, Service } from "./project";
 import { generateMethodEditorCode } from "./projectLoader";
-import { ConfigurationProject } from "./server/api";
+import { ConfigurationProject, RpcProtocol } from "./server/api";
 
 interface CompilerTab {
   type: "compiler";
@@ -241,10 +241,8 @@ export function serializeTabs(
   return { version: 1, activeIndex: adjustedIndex, tabs: serializedTabs };
 }
 
-export function restoreTabs(
-  state: PersistedTabState,
-  projects: Project[],
-): { tabs: TabModel[]; activeIndex: number } | null {
+export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabModel[]; activeIndex: number } | null {
+  if (!state) return null;
   const tabs: TabModel[] = [];
 
   for (const persisted of state.tabs) {
@@ -253,22 +251,39 @@ export function restoreTabs(
       continue;
     }
 
-    const project = projects.find((p) => p.configuration.name === persisted.projectName);
-    if (!project) continue;
-    const service = project.services.find((s) => s.name === persisted.serviceName);
-    if (!service) continue;
-    const method = service.methods.find((m) => m.name === persisted.methodName);
-    if (!method) continue;
-
     const id = generateId("task");
     const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+    const method: Method = { name: persisted.methodName };
+    const service: Service = {
+      name: persisted.serviceName,
+      packageName: "",
+      sourcePath: "",
+      clientStubModuleId: "",
+      methods: [method],
+    };
+    const configuration: ConfigurationProject = {
+      name: persisted.projectName,
+      protocol: RpcProtocol.UNSPECIFIED,
+      url: "",
+      protoDir: "",
+      useReflection: false,
+      headers: {},
+    };
 
     tabs.push({
       type: "task",
       id,
       originMethod: method,
       originService: service,
-      originProject: project,
+      originProject: {
+        configuration,
+        projectRef: createProjectRef(configuration),
+        compilation: { status: "pending", logs: [] },
+        services: [service],
+        clients: {},
+        sources: [],
+        stub: { serviceInfos: {} },
+      },
       hasInteraction: persisted.hasInteraction,
       model,
       originalCode: persisted.originalCode,
@@ -280,4 +295,21 @@ export function restoreTabs(
 
   const activeIndex = Math.min(state.activeIndex, tabs.length - 1);
   return { tabs, activeIndex };
+}
+
+export function linkTabsToProjects(tabs: TabModel[], projects: Project[]): void {
+  for (const tab of tabs) {
+    if (tab.type !== "task") continue;
+
+    const project = projects.find((p) => p.configuration.name === tab.originProject.configuration.name);
+    if (!project) continue;
+    const service = project.services.find((s) => s.name === tab.originService.name);
+    if (!service) continue;
+    const method = service.methods.find((m) => m.name === tab.originMethod.name);
+    if (!method) continue;
+
+    tab.originProject = project;
+    tab.originService = service;
+    tab.originMethod = method;
+  }
 }
