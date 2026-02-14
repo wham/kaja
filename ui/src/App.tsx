@@ -95,6 +95,7 @@ export function App() {
   const activeTabIndexRef = useRef(activeTabIndex);
   activeTabIndexRef.current = activeTabIndex;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
+  const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
   const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
@@ -443,24 +444,27 @@ export function App() {
         return;
       }
 
-      const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);
-      setSelectedMethod(defaultMethodAndService?.method);
+      // Only auto-open the first method on first-time use (no previous tab memory)
+      if (!hasTabMemory.current) {
+        const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);
+        setSelectedMethod(defaultMethodAndService?.method);
 
-      if (!defaultMethodAndService) {
-        return;
-      }
+        if (!defaultMethodAndService) {
+          return;
+        }
 
-      setTabs((prevTabs) => {
-        prevTabs.forEach((tab) => {
-          if (tab.type === "task") {
-            editorRegistryRef.current.delete(tab.id);
-            tab.model.dispose();
-          }
+        setTabs((prevTabs) => {
+          prevTabs.forEach((tab) => {
+            if (tab.type === "task") {
+              editorRegistryRef.current.delete(tab.id);
+              tab.model.dispose();
+            }
+          });
+          const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
+          setActiveTabIndex(result.activeIndex);
+          return result.tabs;
         });
-        const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
-        setActiveTabIndex(result.activeIndex);
-        return result.tabs;
-      });
+      }
     }
   };
 
