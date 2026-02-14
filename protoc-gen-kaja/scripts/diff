@@ -1,0 +1,93 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TESTDATA_DIR="$PROJECT_DIR/testdata"
+
+# Usage: scripts/diff [test_name]
+# Without arguments: shows diff for all failing tests
+# With argument: shows detailed diff for a specific test
+
+TARGET="$1"
+
+show_diff() {
+  local test_dir="$1"
+  local test_name="$(basename "$test_dir")"
+  local expected_dir="$test_dir/expected"
+  local actual_dir="$test_dir/actual"
+
+  if [ ! -d "$expected_dir" ]; then
+    echo "No expected/ directory for $test_name. Run scripts/test first."
+    return
+  fi
+
+  # List expected files
+  expected_files=$(cd "$expected_dir" && find . -type f -name "*.ts" | sort)
+  actual_files=""
+  if [ -d "$actual_dir" ]; then
+    actual_files=$(cd "$actual_dir" && find . -type f -name "*.ts" | sort)
+  fi
+
+  # Show file-level summary
+  echo "=== $test_name ==="
+  echo ""
+
+  # Files only in expected (missing from actual)
+  for f in $expected_files; do
+    if [ ! -f "$actual_dir/$f" ]; then
+      lines=$(wc -l < "$expected_dir/$f")
+      echo "MISSING  $f ($lines lines)"
+    fi
+  done
+
+  # Files only in actual (extra)
+  for f in $actual_files; do
+    if [ ! -f "$expected_dir/$f" ]; then
+      echo "EXTRA    $f"
+    fi
+  done
+
+  # Files in both - show diff
+  for f in $expected_files; do
+    if [ -f "$actual_dir/$f" ]; then
+      file_diff=$(diff -u "$expected_dir/$f" "$actual_dir/$f" 2>&1) || true
+      if [ -z "$file_diff" ]; then
+        echo "MATCH    $f"
+      else
+        total_expected=$(wc -l < "$expected_dir/$f")
+        total_actual=$(wc -l < "$actual_dir/$f")
+        diff_lines=$(echo "$file_diff" | grep -c "^[-+]" || true)
+        echo "DIFF     $f (expected: $total_expected lines, actual: $total_actual lines, $diff_lines changed lines)"
+        echo "$file_diff"
+      fi
+    fi
+  done
+  echo ""
+}
+
+if [ -n "$TARGET" ]; then
+  test_dir="$TESTDATA_DIR/$TARGET"
+  if [ ! -d "$test_dir" ]; then
+    # Try matching by prefix
+    test_dir=$(find "$TESTDATA_DIR" -maxdepth 1 -type d -name "*$TARGET*" | head -1)
+  fi
+  if [ -z "$test_dir" ] || [ ! -d "$test_dir" ]; then
+    echo "Test not found: $TARGET"
+    echo "Available tests:"
+    ls -1 "$TESTDATA_DIR"
+    exit 1
+  fi
+  show_diff "$test_dir"
+else
+  for test_dir in "$TESTDATA_DIR"/*/; do
+    expected_dir="$test_dir/expected"
+    actual_dir="$test_dir/actual"
+    if [ -d "$expected_dir" ]; then
+      diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
+      if [ -n "$diff_output" ]; then
+        show_diff "$test_dir"
+      fi
+    fi
+  done
+fi

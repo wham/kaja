@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message Value {
+  string data = 1;
+}
+
+message MapContainer {
+  map<string, string> string_map = 1;
+  map<string, int32> counts = 2;
+  map<int32, string> index = 3;
+  map<string, Value> objects = 4;
+  map<string, bool> flags = 5;
+}

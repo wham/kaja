@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package shared;
+
+enum Status {
+  STATUS_UNKNOWN = 0;
+  STATUS_OK = 1;
+  STATUS_ERROR = 2;
+}
+
+message Metadata {
+  string key = 1;
+  string value = 2;
+}
