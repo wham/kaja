@@ -53,7 +53,9 @@ Download the latest [Kaja.dmg](https://github.com/wham/kaja/releases/latest/down
 
 ## Configuration
 
-Create a `kaja.json` file in your workspace directory:
+On **macOS**, projects are configured through the UI. The configuration is stored at `~/.kaja/kaja.json`.
+
+With **Docker**, create a `kaja.json` file and mount it into the container:
 
 ```json
 {
