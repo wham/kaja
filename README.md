@@ -24,7 +24,7 @@
 
 <p align="center">
   <a href="https://kaja.tools/demo/">
-    <img src="https://kaja.tools/assets/screenshot-1.png" alt="Kaja — calling a gRPC service with TypeScript" width="720" />
+    <img src="docs/screenshot.png" alt="Kaja — calling a gRPC service with TypeScript" width="720" />
   </a>
 </p>
 
