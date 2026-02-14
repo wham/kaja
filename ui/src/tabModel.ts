@@ -3,6 +3,10 @@ import { createProjectRef, Method, Project, Service } from "./project";
 import { generateMethodEditorCode } from "./projectLoader";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 
+interface CompilerTab {
+  type: "compiler";
+}
+
 interface TaskTab {
   type: "task";
   id: string;
@@ -31,7 +35,7 @@ interface ProjectFormTab {
   initialData?: ConfigurationProject;
 }
 
-export type TabModel = TaskTab | DefinitionTab | ProjectFormTab;
+export type TabModel = CompilerTab | TaskTab | DefinitionTab | ProjectFormTab;
 
 let idGenerator = 0;
 
@@ -192,7 +196,11 @@ interface PersistedTaskTab {
   viewState?: object;
 }
 
-type PersistedTab = PersistedTaskTab;
+interface PersistedCompilerTab {
+  type: "compiler";
+}
+
+type PersistedTab = PersistedTaskTab | PersistedCompilerTab;
 
 export interface PersistedTabState {
   version: 1;
@@ -210,7 +218,10 @@ export function serializeTabs(
 
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
-    if (tab.type === "task") {
+    if (tab.type === "compiler") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({ type: "compiler" });
+    } else if (tab.type === "task") {
       indexMap.push(serializedTabs.length);
       serializedTabs.push({
         type: "task",
@@ -235,7 +246,11 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
   const tabs: TabModel[] = [];
 
   for (const persisted of state.tabs) {
-    if (persisted.type !== "task") continue;
+    if (persisted.type === "compiler") {
+      tabs.push({ type: "compiler" });
+      continue;
+    }
+
     const id = generateId("task");
     const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
     const method: Method = { name: persisted.methodName };
