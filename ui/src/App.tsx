@@ -441,6 +441,9 @@ export function App() {
           }
           return [...prevTabs];
         });
+        // Force TypeScript to revalidate restored models now that source models exist
+        const opts = monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
+        monaco.languages.typescript.typescriptDefaults.setCompilerOptions(opts);
         return;
       }
 
