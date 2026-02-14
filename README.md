@@ -5,7 +5,7 @@
 <h3 align="center">Explore and call your APIs with code</h3>
 
 <p align="center">
-  A code-based UI for <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs with full IntelliSense.
+  A code-based UI for <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs with full autocomplete.
   <br/>
   Write TypeScript to construct requests, call services, and inspect responses — no forms, no clicking through fields.
 </p>
@@ -30,7 +30,7 @@
 
 ## Features
 
-- **Code-based** — Write TypeScript to call your APIs. Full IntelliSense with autocomplete for services, methods, and message fields.
+- **Code-based** — Write TypeScript to call your APIs. Full autocomplete with autocomplete for services, methods, and message fields.
 - **gRPC & Twirp** — Native support for both protocols. Reads your `.proto` files or uses [gRPC server reflection](https://grpc.io/docs/guides/reflection/).
 - **macOS & Docker** — Available as a [macOS desktop app](https://github.com/wham/kaja/releases/latest/download/Kaja.dmg) or a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
 
