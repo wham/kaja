@@ -1,0 +1,123 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$PROJECT_DIR/.." && pwd)"
+BUILD_DIR="$PROJECT_DIR/build"
+TESTDATA_DIR="$PROJECT_DIR/testdata"
+
+PROTOC_GEN_TS="$ROOT_DIR/ui/node_modules/.bin/protoc-gen-ts"
+PROTOC_GEN_KAJA="$BUILD_DIR/protoc-gen-kaja"
+
+# Parse flags
+SUMMARY_ONLY=false
+for arg in "$@"; do
+  case "$arg" in
+    --summary) SUMMARY_ONLY=true ;;
+  esac
+done
+
+# -- setup ---------------------------------------------------------------
+
+source "$ROOT_DIR/scripts/common"
+install_protoc "$BUILD_DIR"
+
+PROTOC="$BUILD_DIR/protoc"
+INCLUDE_DIR="$BUILD_DIR/include"
+
+# Ensure protoc-gen-ts is available
+if [ ! -x "$PROTOC_GEN_TS" ]; then
+  echo "protoc-gen-ts not found, running npm install in ui/..."
+  (cd "$ROOT_DIR/ui" && npm install --silent)
+fi
+
+# Build protoc-gen-kaja
+echo "Building protoc-gen-kaja..."
+(cd "$PROJECT_DIR" && go build -o "$PROTOC_GEN_KAJA" .)
+
+# -- test loop ------------------------------------------------------------
+
+PASS=0
+FAIL=0
+ERRORS=""
+
+for test_dir in "$TESTDATA_DIR"/*/; do
+  test_name="$(basename "$test_dir")"
+  expected_dir="$test_dir/expected"
+  actual_dir="$test_dir/actual"
+
+  rm -rf "$expected_dir" "$actual_dir"
+  mkdir -p "$expected_dir" "$actual_dir"
+
+  # Collect proto files
+  proto_files=$(find "$test_dir" -maxdepth 1 -name "*.proto" | sort)
+  if [ -z "$proto_files" ]; then
+    continue
+  fi
+
+  # Strip to basenames for protoc
+  proto_basenames=""
+  for f in $proto_files; do
+    proto_basenames="$proto_basenames $(basename "$f")"
+  done
+
+  # Run protoc-gen-ts (expected output)
+  ts_ok=true
+  "$PROTOC" \
+    --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
+    --ts_out="$expected_dir" \
+    --ts_opt=long_type_string \
+    -I"$INCLUDE_DIR" \
+    -I"$test_dir" \
+    $proto_basenames 2>/dev/null || ts_ok=false
+
+  if [ "$ts_ok" = false ]; then
+    echo "SKIP $test_name (protoc-gen-ts failed)"
+    continue
+  fi
+
+  # Run protoc-gen-kaja (actual output)
+  kaja_ok=true
+  "$PROTOC" \
+    --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
+    --kaja_out="$actual_dir" \
+    --kaja_opt=long_type_string \
+    -I"$INCLUDE_DIR" \
+    -I"$test_dir" \
+    $proto_basenames 2>/dev/null || kaja_ok=true  # empty response is OK
+
+  # Compare outputs
+  diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
+
+  if [ -z "$diff_output" ]; then
+    PASS=$((PASS + 1))
+    if [ "$SUMMARY_ONLY" = false ]; then
+      echo "PASS $test_name"
+    fi
+  else
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n--- $test_name ---\n$diff_output"
+    if [ "$SUMMARY_ONLY" = false ]; then
+      echo "FAIL $test_name"
+      echo "$diff_output" | head -40
+      echo ""
+    fi
+  fi
+done
+
+# -- summary --------------------------------------------------------------
+
+TOTAL=$((PASS + FAIL))
+echo ""
+echo "Results: $PASS/$TOTAL passed, $FAIL/$TOTAL failed"
+
+if [ "$FAIL" -gt 0 ]; then
+  if [ "$SUMMARY_ONLY" = true ]; then
+    # In summary mode, show just the names of failing tests
+    echo ""
+    echo "Failing tests:"
+    echo -e "$ERRORS" | grep "^--- " | sed 's/^--- /  /' | sed 's/ ---$//'
+  fi
+  exit 1
+fi

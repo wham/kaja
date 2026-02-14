@@ -1,0 +1,3 @@
+build/
+testdata/*/expected/
+testdata/*/actual/
