@@ -345,7 +345,10 @@ export function App() {
     if (tabs.length === 0 && projects.length === 0) {
       setTabs([{ type: "compiler" }]);
     } else if (projects.length === 0 && !tabs.some((t) => t.type === "compiler")) {
-      setTabs((prevTabs) => [...prevTabs, { type: "compiler" }]);
+      setTabs((prevTabs) => {
+        if (prevTabs.some((t) => t.type === "compiler")) return prevTabs;
+        return [...prevTabs, { type: "compiler" }];
+      });
     }
   }, [tabs.length, projects.length]);
 
@@ -828,7 +831,7 @@ export function App() {
                           );
                         }
 
-                        if (tab.type === "task" && projects.length > 0) {
+                        if (tab.type === "task") {
                           return (
                             <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
                               <Task
