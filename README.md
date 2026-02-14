@@ -1,12 +1,42 @@
-![](docs/logo.svg)
+<p align="center">
+  <a href="https://kaja.tools"><img src="docs/logo.svg" alt="Kaja" /></a>
+</p>
 
-# Introduction
+<h3 align="center">Explore and call your APIs with code</h3>
 
-Kaja is an experimental, code-based UI for exploring and calling [Twirp](https://github.com/twitchtv/twirp) and [gRPC](https://grpc.io) APIs. Try the [live demo](https://kaja.tools/demo).
+<p align="center">
+  A code-based UI for <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs with full IntelliSense.
+  <br/>
+  Write TypeScript to construct requests, call services, and inspect responses — no forms, no clicking through fields.
+</p>
 
-![](docs/screenshot.png)
+<p align="center">
+  <a href="https://kaja.tools/demo/"><strong>Live Demo</strong></a> ·
+  <a href="https://kaja.tools"><strong>Website</strong></a> ·
+  <a href="https://hub.docker.com/r/kajatools/kaja"><strong>Docker Hub</strong></a>
+</p>
 
-You can embed Kaja into your development workflow as a Docker container. A desktop version is coming later.
+<p align="center">
+  <a href="https://github.com/wham/kaja/releases/latest"><img src="https://img.shields.io/github/v/release/wham/kaja" alt="Latest Release" /></a>
+  <a href="https://hub.docker.com/r/kajatools/kaja"><img src="https://img.shields.io/docker/pulls/kajatools/kaja" alt="Docker Pulls" /></a>
+  <a href="https://github.com/wham/kaja/blob/main/LICENSE"><img src="https://img.shields.io/github/license/wham/kaja" alt="License" /></a>
+</p>
+
+<p align="center">
+  <a href="https://kaja.tools/demo/">
+    <img src="https://kaja.tools/assets/screenshot-1.png" alt="Kaja — calling a gRPC service with TypeScript" width="720" />
+  </a>
+</p>
+
+## Features
+
+- **Code-based** — Write TypeScript to call your APIs. Full IntelliSense with autocomplete for services, methods, and message fields.
+- **gRPC & Twirp** — Native support for both protocols. Reads your `.proto` files or uses [gRPC server reflection](https://grpc.io/docs/guides/reflection/).
+- **macOS & Docker** — Available as a [macOS desktop app](https://github.com/wham/kaja/releases/latest/download/Kaja.dmg) or a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
+
+## Quick Start
+
+### Docker
 
 ```
 docker run --pull always --name kaja -d -p 41520:41520 \
@@ -15,20 +45,17 @@ docker run --pull always --name kaja -d -p 41520:41520 \
     --add-host=host.docker.internal:host-gateway kajatools/kaja:latest
 ```
 
-`docker run` arguments explained:
+Then open [http://localhost:41520](http://localhost:41520).
 
-- `--pull always` - Always pull the latest image from Docker Hub. Kaja is updated frequently.
-- `--name kaja` - Name the container. Useful for managing multiple containers.
-- `-d` - Run the container in [detached mode](https://docs.docker.com/engine/reference/run/#detached--d).
-- `-p 41520:41520` - Expose the container's port 41520 on the host's port 41520. Kaja listens on port 41520 by default.
-- `-v /my_app/proto:/workspace/proto` - Mount the `/my_app/proto` directory from the host file system into the container's `/workspace/proto` directory. Kaja will recursively search for `.proto` files in the `/workspace` directory. `/my_app/proto` should be your application's [--proto_path](https://protobuf.dev/reference/cpp/api-docs/google.protobuf.compiler.command_line_interface/), the directory where your `.proto` files are located.
-- `-v /my_app/kaja.json:/workspace/kaja.json` - Mount the Kaja [configuration file](#configuration) from the host file system into a predefined location where Kaja expects it.
-- `--add-host=host.docker.internal:host-gateway` - Make the host's localhost accessible from the container. This is required for Kaja to call Twirp and gRPC APIs running on the host.
-- `kajatools/kaja:latest` - Kaja is available on [Docker Hub](https://hub.docker.com/r/kajatools/kaja).
+### macOS
 
-A minimal `kaja.json` [configuration file](#configuration) looks like this:
+Download the latest [Kaja.dmg](https://github.com/wham/kaja/releases/latest/download/Kaja.dmg) from GitHub Releases.
 
-```
+## Configuration
+
+Create a `kaja.json` file in your workspace directory:
+
+```json
 {
   "projects": [
     {
@@ -40,22 +67,30 @@ A minimal `kaja.json` [configuration file](#configuration) looks like this:
 }
 ```
 
-# Configuration
+### Project options
 
-Kaja is configured with a `kaja.json` file in the `/workspace` directory.
+| Option | Description |
+|---|---|
+| `name` | Display name. |
+| `protocol` | `RPC_PROTOCOL_TWIRP` or `RPC_PROTOCOL_GRPC`. |
+| `url` | URL where the service is running. |
+| `protoDir` | Path to `.proto` files. Required unless `useReflection` is enabled. |
+| `useReflection` | Use [gRPC server reflection](https://grpc.io/docs/guides/reflection/) instead of local proto files. Only works with gRPC. |
+| `headers` | Headers sent with each request (e.g. `{"Authorization": "Bearer xxx"}`). For gRPC, sent as metadata. |
 
-Supported configuration options:
+### Docker arguments
 
-- `projects`: List of projects to compile and make available for exploring. Each project has the following options:
+| Argument | Description |
+|---|---|
+| `--pull always` | Always pull the latest image. Kaja is updated frequently. |
+| `--name kaja` | Name the container for easy management. |
+| `-d` | Run in [detached mode](https://docs.docker.com/engine/reference/run/#detached--d). |
+| `-p 41520:41520` | Map the container port. Kaja listens on 41520 by default. |
+| `-v .../proto:/workspace/proto` | Mount your [proto_path](https://protobuf.dev/reference/cpp/api-docs/google.protobuf.compiler.command_line_interface/) into the container. |
+| `-v .../kaja.json:/workspace/kaja.json` | Mount your [configuration file](#configuration). |
+| `--add-host=host.docker.internal:host-gateway` | Access host services from the container. |
 
-  - `name`: Display name.
-  - `protocol`: Use `RPC_PROTOCOL_TWIRP` for Twirp and `RPC_PROTOCOL_GRPC` for gRPC.
-  - `url`: The URL where the application is serving Twirp or gRPC requests.
-  - `protoDir`: (Optional) Path to the directory containing `.proto` files. Required unless `useReflection` is enabled.
-  - `useReflection`: (Optional) Set to `true` to use [gRPC server reflection](https://grpc.io/docs/guides/reflection/) instead of local proto files. Only works with gRPC.
-  - `headers`: (Optional) Headers to send with each request. Useful for authentication. Example: `{"Authorization": "Bearer xxx"}`. For gRPC, headers are sent as metadata.
-
-# Development
+## Development
 
 Run: `scripts/server`
 Test UI: `(cd ui && npm test)`
