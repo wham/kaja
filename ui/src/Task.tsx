@@ -12,13 +12,16 @@ interface TaskProps {
   kaja: Kaja;
   onInteraction: () => void;
   onGoToDefinition: onGoToDefinition;
+  onEditorReady?: (editorInstance: editor.IStandaloneCodeEditor) => void;
+  viewState?: editor.ICodeEditorViewState;
 }
 
-export function Task({ model, projects, kaja, onInteraction, onGoToDefinition }: TaskProps) {
+export function Task({ model, projects, kaja, onInteraction, onGoToDefinition, onEditorReady, viewState }: TaskProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
 
-  function onEditorMount(editor: editor.IStandaloneCodeEditor) {
-    editorRef.current = editor;
+  function onEditorMount(editorInstance: editor.IStandaloneCodeEditor) {
+    editorRef.current = editorInstance;
+    onEditorReady?.(editorInstance);
   }
 
   async function onRun() {
@@ -33,7 +36,7 @@ export function Task({ model, projects, kaja, onInteraction, onGoToDefinition }:
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" }}>
       <ControlBar onRun={onRun} />
-      <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} />
+      <Editor model={model} onMount={onEditorMount} onGoToDefinition={onGoToDefinition} viewState={viewState} />
     </div>
   );
 }

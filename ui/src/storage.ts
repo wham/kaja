@@ -100,6 +100,10 @@ export function getPersistedValue<T>(key: string): T | undefined {
   return cache.get(key) as T | undefined;
 }
 
+export function flushPersistedWrites(): void {
+  flushWrites();
+}
+
 export function setPersistedValue(key: string, value: any): void {
   cache.set(key, value);
   pendingWrites.set(key, value);

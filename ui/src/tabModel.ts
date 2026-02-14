@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
-import { Method, Project, Service } from "./project";
+import { createProjectRef, Method, Project, Service } from "./project";
 import { generateMethodEditorCode } from "./projectLoader";
-import { ConfigurationProject } from "./server/api";
+import { ConfigurationProject, RpcProtocol } from "./server/api";
 
 interface CompilerTab {
   type: "compiler";
@@ -16,6 +16,7 @@ interface TaskTab {
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
   originalCode: string;
+  viewState?: monaco.editor.ICodeEditorViewState;
 }
 
 interface DefinitionTab {
@@ -180,4 +181,134 @@ export function getProjectFormTabLabel(tab: ProjectFormTab): string {
 
 export function getProjectFormTabIndex(tabs: TabModel[]): number {
   return tabs.findIndex((tab) => tab.type === "projectForm");
+}
+
+// --- Tab state persistence ---
+
+interface PersistedTaskTab {
+  type: "task";
+  projectName: string;
+  serviceName: string;
+  methodName: string;
+  code: string;
+  originalCode: string;
+  hasInteraction: boolean;
+  viewState?: object;
+}
+
+interface PersistedCompilerTab {
+  type: "compiler";
+}
+
+type PersistedTab = PersistedTaskTab | PersistedCompilerTab;
+
+export interface PersistedTabState {
+  activeIndex: number;
+  tabs: PersistedTab[];
+}
+
+export function serializeTabs(
+  tabs: TabModel[],
+  activeIndex: number,
+  getViewState: (tabId: string) => monaco.editor.ICodeEditorViewState | null | undefined,
+): PersistedTabState {
+  const serializedTabs: PersistedTab[] = [];
+  const indexMap: number[] = [];
+
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    if (tab.type === "compiler") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({ type: "compiler" });
+    } else if (tab.type === "task") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({
+        type: "task",
+        projectName: tab.originProject.configuration.name,
+        serviceName: tab.originService.name,
+        methodName: tab.originMethod.name,
+        code: tab.model.getValue(),
+        originalCode: tab.originalCode,
+        hasInteraction: tab.hasInteraction,
+        viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
+      });
+    }
+  }
+
+  const adjustedIndex = activeIndex < indexMap.length ? indexMap[activeIndex] ?? 0 : 0;
+
+  return { activeIndex: adjustedIndex, tabs: serializedTabs };
+}
+
+export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabModel[]; activeIndex: number } | null {
+  if (!state) return null;
+  const tabs: TabModel[] = [];
+
+  for (const persisted of state.tabs) {
+    if (persisted.type === "compiler") {
+      tabs.push({ type: "compiler" });
+      continue;
+    }
+
+    const id = generateId("task");
+    const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+    const method: Method = { name: persisted.methodName };
+    const service: Service = {
+      name: persisted.serviceName,
+      packageName: "",
+      sourcePath: "",
+      clientStubModuleId: "",
+      methods: [method],
+    };
+    const configuration: ConfigurationProject = {
+      name: persisted.projectName,
+      protocol: RpcProtocol.UNSPECIFIED,
+      url: "",
+      protoDir: "",
+      useReflection: false,
+      headers: {},
+    };
+
+    tabs.push({
+      type: "task",
+      id,
+      originMethod: method,
+      originService: service,
+      originProject: {
+        configuration,
+        projectRef: createProjectRef(configuration),
+        compilation: { status: "pending", logs: [] },
+        services: [service],
+        clients: {},
+        sources: [],
+        stub: { serviceInfos: {} },
+      },
+      hasInteraction: persisted.hasInteraction,
+      model,
+      originalCode: persisted.originalCode,
+      viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
+    });
+  }
+
+  if (tabs.length === 0) return null;
+
+  const activeIndex = Math.min(state.activeIndex, tabs.length - 1);
+  return { tabs, activeIndex };
+}
+
+export function linkTabsToProjects(tabs: TabModel[], projects: Project[]): void {
+  for (const tab of tabs) {
+    if (tab.type !== "task") continue;
+
+    const project = projects.find((p) => p.configuration.name === tab.originProject.configuration.name);
+    if (!project) continue;
+    const service = project.services.find((s) => s.name === tab.originService.name);
+    if (!service) continue;
+    const method = service.methods.find((m) => m.name === tab.originMethod.name);
+    if (!method) continue;
+
+    tab.originProject = project;
+    tab.originService = service;
+    tab.originMethod = method;
+  }
 }
