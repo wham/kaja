@@ -41,7 +41,6 @@ describe("serializeTabs", () => {
 
     const result = serializeTabs(tabs, 1, () => undefined);
 
-    expect(result.version).toBe(1);
     expect(result.tabs).toHaveLength(2);
     expect(result.activeIndex).toBe(1);
     expect(result.tabs[0]).toEqual({ type: "compiler" });

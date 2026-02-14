@@ -35,9 +35,11 @@ import {
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
+import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
-import { getPersistedValue, setPersistedValue } from "./storage";
+import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
+import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { WindowSetTitle } from "./wailsjs/runtime";
 
@@ -300,10 +302,8 @@ export function App() {
         if (removedNames.size > 0) {
           setTabs((prevTabs) => {
             const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
-            if (updatedProjects.length === 0 && !newTabs.some((t) => t.type === "compiler")) {
+            if (updatedProjects.length === 0) {
               setSelectedMethod(undefined);
-              setActiveTabIndex(0);
-              return [{ type: "compiler" as const }];
             }
             if (newTabs.length !== prevTabs.length) {
               setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
@@ -343,17 +343,6 @@ export function App() {
   useConfigurationChanges(handleConfigurationFileChange);
 
   useEffect(() => {
-    if (tabs.length === 0 && projects.length === 0) {
-      setTabs([{ type: "compiler" }]);
-    } else if (projects.length === 0 && !tabs.some((t) => t.type === "compiler")) {
-      setTabs((prevTabs) => {
-        if (prevTabs.some((t) => t.type === "compiler")) return prevTabs;
-        return [...prevTabs, { type: "compiler" }];
-      });
-    }
-  }, [tabs.length, projects.length]);
-
-  useEffect(() => {
     monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
     document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
   }, [colorMode]);
@@ -389,7 +378,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const handler = () => persistTabs();
+    const handler = () => {
+      persistTabs();
+      flushPersistedWrites();
+    };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [persistTabs]);
@@ -442,8 +434,8 @@ export function App() {
           return [...prevTabs];
         });
         // Force TypeScript to revalidate restored models now that source models exist
-        const opts = monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
-        monaco.languages.typescript.typescriptDefaults.setCompilerOptions(opts);
+        const opts = monaco.typescript.typescriptDefaults.getCompilerOptions();
+        monaco.typescript.typescriptDefaults.setCompilerOptions(opts);
         return;
       }
 
@@ -470,6 +462,8 @@ export function App() {
       }
     }
   };
+
+  const { configurationLoaded } = useCompilation(projects, onCompilationUpdate, setConfiguration);
 
   const onMethodSelect = (method: Method, service: Service, project: Project) => {
     captureActiveViewState();
@@ -578,6 +572,7 @@ export function App() {
         return tabs;
       }
     });
+    persistTabs();
   };
 
   const onNewProjectClick = () => {
@@ -801,7 +796,8 @@ export function App() {
                   </Tooltip>
                 </div>
               </div>
-              {tabs.length === 0 && <GetStartedBlankslate />}
+              {tabs.length === 0 && configurationLoaded && projects.length === 0 && <FirstProjectBlankslate onNewProjectClick={onNewProjectClick} />}
+              {tabs.length === 0 && (projects.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
               {tabs.length > 0 && (
                 <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                   <div
@@ -830,8 +826,7 @@ export function App() {
                             <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
                               <Compiler
                                 projects={projects}
-                                onUpdate={onCompilationUpdate}
-                                onConfigurationLoaded={setConfiguration}
+                                configurationLoaded={configurationLoaded}
                                 onNewProjectClick={onNewProjectClick}
                               />
                             </Tab>

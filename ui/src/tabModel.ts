@@ -203,7 +203,6 @@ interface PersistedCompilerTab {
 type PersistedTab = PersistedTaskTab | PersistedCompilerTab;
 
 export interface PersistedTabState {
-  version: 1;
   activeIndex: number;
   tabs: PersistedTab[];
 }
@@ -238,7 +237,7 @@ export function serializeTabs(
 
   const adjustedIndex = activeIndex < indexMap.length ? indexMap[activeIndex] ?? 0 : 0;
 
-  return { version: 1, activeIndex: adjustedIndex, tabs: serializedTabs };
+  return { activeIndex: adjustedIndex, tabs: serializedTabs };
 }
 
 export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabModel[]; activeIndex: number } | null {
