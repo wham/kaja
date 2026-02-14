@@ -16,6 +16,7 @@ interface TaskTab {
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
   originalCode: string;
+  viewState?: monaco.editor.ICodeEditorViewState;
 }
 
 interface DefinitionTab {
@@ -180,4 +181,103 @@ export function getProjectFormTabLabel(tab: ProjectFormTab): string {
 
 export function getProjectFormTabIndex(tabs: TabModel[]): number {
   return tabs.findIndex((tab) => tab.type === "projectForm");
+}
+
+// --- Tab state persistence ---
+
+interface PersistedTaskTab {
+  type: "task";
+  projectName: string;
+  serviceName: string;
+  methodName: string;
+  code: string;
+  originalCode: string;
+  hasInteraction: boolean;
+  viewState?: object;
+}
+
+interface PersistedCompilerTab {
+  type: "compiler";
+}
+
+type PersistedTab = PersistedTaskTab | PersistedCompilerTab;
+
+export interface PersistedTabState {
+  version: 1;
+  activeIndex: number;
+  tabs: PersistedTab[];
+}
+
+export function serializeTabs(
+  tabs: TabModel[],
+  activeIndex: number,
+  getViewState: (tabId: string) => monaco.editor.ICodeEditorViewState | null | undefined,
+): PersistedTabState {
+  const serializedTabs: PersistedTab[] = [];
+  const indexMap: number[] = [];
+
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    if (tab.type === "compiler") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({ type: "compiler" });
+    } else if (tab.type === "task") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({
+        type: "task",
+        projectName: tab.originProject.configuration.name,
+        serviceName: tab.originService.name,
+        methodName: tab.originMethod.name,
+        code: tab.model.getValue(),
+        originalCode: tab.originalCode,
+        hasInteraction: tab.hasInteraction,
+        viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
+      });
+    }
+  }
+
+  const adjustedIndex = activeIndex < indexMap.length ? indexMap[activeIndex] ?? 0 : 0;
+
+  return { version: 1, activeIndex: adjustedIndex, tabs: serializedTabs };
+}
+
+export function restoreTabs(
+  state: PersistedTabState,
+  projects: Project[],
+): { tabs: TabModel[]; activeIndex: number } | null {
+  const tabs: TabModel[] = [];
+
+  for (const persisted of state.tabs) {
+    if (persisted.type === "compiler") {
+      tabs.push({ type: "compiler" });
+      continue;
+    }
+
+    const project = projects.find((p) => p.configuration.name === persisted.projectName);
+    if (!project) continue;
+    const service = project.services.find((s) => s.name === persisted.serviceName);
+    if (!service) continue;
+    const method = service.methods.find((m) => m.name === persisted.methodName);
+    if (!method) continue;
+
+    const id = generateId("task");
+    const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+
+    tabs.push({
+      type: "task",
+      id,
+      originMethod: method,
+      originService: service,
+      originProject: project,
+      hasInteraction: persisted.hasInteraction,
+      model,
+      originalCode: persisted.originalCode,
+      viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
+    });
+  }
+
+  if (tabs.length === 0) return null;
+
+  const activeIndex = Math.min(state.activeIndex, tabs.length - 1);
+  return { tabs, activeIndex };
 }

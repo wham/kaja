@@ -26,6 +26,9 @@ import {
   getProjectFormTabLabel,
   getTabLabel,
   markInteraction,
+  PersistedTabState,
+  restoreTabs,
+  serializeTabs,
   TabModel,
   updateProjectFormTab,
 } from "./tabModel";
@@ -33,6 +36,7 @@ import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
+import { getPersistedValue, setPersistedValue } from "./storage";
 import { isWailsEnvironment } from "./wails";
 import { WindowSetTitle } from "./wailsjs/runtime";
 
@@ -86,6 +90,10 @@ export function App() {
   const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; project: Project }>();
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const activeTabIndexRef = useRef(activeTabIndex);
+  activeTabIndexRef.current = activeTabIndex;
+  const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
+  const pendingRestorationRef = useRef<PersistedTabState | null>(getPersistedValue<PersistedTabState>("tabs") ?? null);
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
@@ -157,6 +165,7 @@ export function App() {
     const newTabs: TabModel[] = [];
     for (const tab of prevTabs) {
       if (tab.type === "task" && projectNames.has(tab.originProject.configuration.name)) {
+        editorRegistryRef.current.delete(tab.id);
         tab.model.dispose();
       } else {
         newTabs.push(tab);
@@ -174,6 +183,27 @@ export function App() {
       }
     });
   }, []);
+
+  const captureActiveViewState = useCallback(() => {
+    const currentTabs = tabsRef.current;
+    const currentIndex = activeTabIndexRef.current;
+    const activeTab = currentTabs[currentIndex];
+    if (activeTab?.type === "task") {
+      const editor = editorRegistryRef.current.get(activeTab.id);
+      if (editor) {
+        activeTab.viewState = editor.saveViewState() ?? undefined;
+      }
+    }
+  }, []);
+
+  const persistTabs = useCallback(() => {
+    captureActiveViewState();
+    const state = serializeTabs(tabsRef.current, activeTabIndexRef.current, (tabId) => {
+      const editor = editorRegistryRef.current.get(tabId);
+      return editor?.saveViewState();
+    });
+    setPersistedValue("tabs", state);
+  }, [captureActiveViewState]);
 
   // Core function: Sync projects state from a new configuration
   // This is the single source of truth for project state changes
@@ -350,6 +380,12 @@ export function App() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    const handler = () => persistTabs();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [persistTabs]);
+
   const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
     // Handle both direct array and functional updates
     if (typeof updatedProjects === "function") {
@@ -386,6 +422,30 @@ export function App() {
         return;
       }
 
+      // Try to restore tabs from persisted state (one-time on initial load)
+      const persistedState = pendingRestorationRef.current;
+      if (persistedState) {
+        pendingRestorationRef.current = null;
+        const restored = restoreTabs(persistedState, updatedProjects);
+        if (restored && restored.tabs.some((t) => t.type === "task")) {
+          setTabs((prevTabs) => {
+            prevTabs.forEach((tab) => {
+              if (tab.type === "task") {
+                editorRegistryRef.current.delete(tab.id);
+                tab.model.dispose();
+              }
+            });
+            const activeTab = restored.tabs[restored.activeIndex];
+            if (activeTab?.type === "task") {
+              setSelectedMethod(activeTab.originMethod);
+            }
+            setActiveTabIndex(restored.activeIndex);
+            return restored.tabs;
+          });
+          return;
+        }
+      }
+
       const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);
       setSelectedMethod(defaultMethodAndService?.method);
 
@@ -394,9 +454,9 @@ export function App() {
       }
 
       setTabs((prevTabs) => {
-        // Dispose old task models before replacing
         prevTabs.forEach((tab) => {
           if (tab.type === "task") {
+            editorRegistryRef.current.delete(tab.id);
             tab.model.dispose();
           }
         });
@@ -408,12 +468,14 @@ export function App() {
   };
 
   const onMethodSelect = (method: Method, service: Service, project: Project) => {
+    captureActiveViewState();
     setSelectedMethod(method);
     setTabs((tabs) => {
       const result = addTaskTab(tabs, method, service, project);
       setActiveTabIndex(result.activeIndex);
       return result.tabs;
     });
+    persistTabs();
   };
 
   const onSearchMethodSelect = (method: Method, service: Service, project: Project) => {
@@ -452,13 +514,16 @@ export function App() {
   };
 
   const onSelectTab = (index: number) => {
+    captureActiveViewState();
     setActiveTabIndex(index);
+    persistTabs();
   };
 
   const onCloseTab = (index: number) => {
     setTabs((prevTabs) => {
       const tab = prevTabs[index];
       if (tab?.type === "task") {
+        editorRegistryRef.current.delete(tab.id);
         tab.model.dispose();
       }
       const newTabs = prevTabs.filter((_, i) => i !== index);
@@ -466,30 +531,35 @@ export function App() {
       setActiveTabIndex(newActiveIndex);
       return newTabs;
     });
+    persistTabs();
   };
 
   const onCloseAll = () => {
     setTabs((prevTabs) => {
       prevTabs.forEach((tab) => {
         if (tab.type === "task") {
+          editorRegistryRef.current.delete(tab.id);
           tab.model.dispose();
         }
       });
       setActiveTabIndex(0);
       return [];
     });
+    persistTabs();
   };
 
   const onCloseOthers = (keepIndex: number) => {
     setTabs((prevTabs) => {
       prevTabs.forEach((tab, i) => {
         if (i !== keepIndex && tab.type === "task") {
+          editorRegistryRef.current.delete(tab.id);
           tab.model.dispose();
         }
       });
       setActiveTabIndex(0);
       return prevTabs.filter((_, i) => i === keepIndex);
     });
+    persistTabs();
   };
 
   const onCompilerClick = () => {
@@ -771,8 +841,13 @@ export function App() {
                                 model={tab.model}
                                 projects={projects}
                                 kaja={kajaRef.current!}
-                                onInteraction={() => setTabs((tabs) => markInteraction(tabs, index))}
+                                onInteraction={() => {
+                                  setTabs((tabs) => markInteraction(tabs, index));
+                                  persistTabs();
+                                }}
                                 onGoToDefinition={onGoToDefinition}
+                                onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                                viewState={tab.viewState}
                               />
                             </Tab>
                           );
