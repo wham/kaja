@@ -16,6 +16,8 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -347,10 +349,19 @@ func main() {
 	// Create application with options
 	app := NewApp(twirpHandler, configurationWatcher)
 
+	appMenu := menu.NewMenu()
+	appMenu.Append(menu.AppMenu())
+	appMenu.Append(menu.EditMenu())
+	viewMenu := appMenu.AddSubmenu("View")
+	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
+		runtime.WindowReloadApp(app.ctx)
+	})
+
 	err = wails.Run(&options.App{
 		Title:  "Kaja",
 		Width:  1024,
 		Height: 768,
+		Menu:   appMenu,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
