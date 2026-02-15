@@ -94,7 +94,12 @@ With **Docker**, create a `kaja.json` file and mount it into the container:
 
 ## Development
 
-Run: `scripts/server`
-Test UI: `(cd ui && npm test)`
-TSC: `(cd ui && npm run tsc)`
-Test server: `(cd server && go test ./... -v)`
+The development scripts require [Go](https://go.dev/doc/install) and [Node.js](https://nodejs.org/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh).
+
+- Run in local server: `scripts/server`
+- Run in Docker: `scripts/docker`
+- Run the desktop app: `scripts/desktop`
+- Test UI: `(cd ui && npm test)`
+- TSC UI: `(cd ui && npm run tsc)`
+- Test server: `(cd server && go test ./... -v)`
+- Update demo protos: `scripts/demo-protos` (The demo services are deployed via [kaja/tools/website](github.com/kaja-tools/website))

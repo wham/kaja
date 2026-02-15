@@ -1,6 +1,6 @@
 syntax = "proto3";
 package quirks.v1;
-import "proto/v1/lib/message.proto";
+import "v1/lib/message.proto";
 
 option go_package = "internal/api/v1";
 
@@ -13,11 +13,37 @@ message SumStringsResponse {
     string result = 1;
 }
 
+message GenerateRequest {
+    int32 count = 1;
+}
+
+message GenerateResponse {
+    int32 number = 1;
+}
+
+message AccumulateRequest {
+    int32 number = 1;
+}
+
+message AccumulateResponse {
+    int32 total = 1;
+}
+
+message EchoMessage {
+    string content = 1;
+}
+
 // Test unusual things
 service Quirks {
     rpc MethodWithAReallyLongNameGmthggupcbmnphflnnvu(lib.Void) returns(lib.Message);
     // Concatenates two strings
     rpc Sum(SumStringsRequest) returns(SumStringsResponse);
+    // Server streaming: generates a sequence of numbers from 1 to count
+    rpc GenerateNumbers(GenerateRequest) returns(stream GenerateResponse);
+    // Client streaming: accumulates streamed numbers and returns the total
+    rpc AccumulateSum(stream AccumulateRequest) returns(AccumulateResponse);
+    // Bidirectional streaming: echoes messages back with a prefix
+    rpc Echo(stream EchoMessage) returns(stream EchoMessage);
 }
 
 // Second service in the same file
