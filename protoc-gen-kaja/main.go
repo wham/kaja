@@ -167,6 +167,43 @@ func (g *generator) pNoIndent(format string, args ...interface{}) {
 	g.b.WriteString("\n")
 }
 
+// getLeadingComments retrieves leading comments for a given path in SourceCodeInfo
+func (g *generator) getLeadingComments(path []int32) string {
+	if g.file.SourceCodeInfo == nil {
+		return ""
+	}
+	for _, loc := range g.file.SourceCodeInfo.Location {
+		if len(loc.Path) != len(path) {
+			continue
+		}
+		match := true
+		for i := range path {
+			if loc.Path[i] != path[i] {
+				match = false
+				break
+			}
+		}
+		if match && loc.LeadingComments != nil {
+			comment := strings.TrimSpace(*loc.LeadingComments)
+			// Strip one leading space from each line (protobuf convention)
+			lines := strings.Split(comment, "\n")
+			for i, line := range lines {
+				line = strings.TrimRight(line, " \t")
+				if line == "" {
+					lines[i] = "" // Keep empty for blank comment lines
+				} else if strings.HasPrefix(line, " ") {
+					lines[i] = line[1:]
+				} else {
+					lines[i] = line
+				}
+			}
+			return strings.Join(lines, "\n")
+		}
+	}
+	return ""
+}
+
+
 func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
 	g := &generator{
 		params: params,
@@ -184,6 +221,37 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	}
 	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
 	g.pNoIndent("// tslint:disable")
+	
+	// Add file-level leading detached comments (license headers, etc.)
+	// These are typically attached to the syntax declaration (field 12)
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			// Check for syntax field with detached comments
+			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
+				// Blank line before the license header
+				g.pNoIndent("//")
+				for _, detached := range loc.LeadingDetachedComments {
+					comments := strings.TrimSpace(detached)
+					if comments != "" {
+						for _, line := range strings.Split(comments, "\n") {
+							line = strings.TrimRight(line, " \t")
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								// Strip one leading space if present (protobuf convention)
+								if strings.HasPrefix(line, " ") {
+									line = line[1:]
+								}
+								g.pNoIndent("// %s", line)
+							}
+						}
+						// Add blank line after detached comment block
+						g.pNoIndent("//")
+					}
+				}
+			}
+		}
+	}
 
 	// Collect imports needed
 	imports := g.collectImports(file)
@@ -239,6 +307,17 @@ func (g *generator) writeImports(imports map[string]bool) {
 	// Check if we need ServiceType import
 	needsServiceType := len(g.file.Service) > 0
 	
+	// Check if this is google.protobuf.Timestamp for special imports
+	isTimestamp := false
+	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
+		for _, msg := range g.file.MessageType {
+			if msg.GetName() == "Timestamp" {
+				isTimestamp = true
+				break
+			}
+		}
+	}
+	
 	// Standard runtime imports if we have messages or services
 	if len(g.file.MessageType) > 0 || needsServiceType {
 		if needsServiceType {
@@ -252,6 +331,16 @@ func (g *generator) writeImports(imports map[string]bool) {
 		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
+		
+		// Add JSON imports for Timestamp
+		if isTimestamp {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
 		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
 	}
 	
@@ -297,8 +386,37 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	
 	fullName := parentPrefix + msg.GetName()
 	
+	// Get message index for SourceCodeInfo lookup
+	msgIndex := -1
+	if parentPrefix == "" {
+		for i, m := range g.file.MessageType {
+			if m.GetName() == msg.GetName() {
+				msgIndex = i
+				break
+			}
+		}
+	}
+	
 	// Message interface first
 	g.pNoIndent("/**")
+	
+	// Add leading comments if available
+	if msgIndex >= 0 {
+		leadingComments := g.getLeadingComments([]int32{4, int32(msgIndex)})
+		if leadingComments != "" {
+			for _, line := range strings.Split(leadingComments, "\n") {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", line)
+				}
+			}
+			// Add TWO blank lines after comment before @generated
+			g.pNoIndent(" *")
+			g.pNoIndent(" *")
+		}
+	}
+	
 	pkgPrefix := ""
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
@@ -321,14 +439,28 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	
 	// Generate regular fields
 	for _, field := range regularFields {
-		g.generateField(field, fullName)
+		var fieldPath []int32
+		if msgIndex >= 0 {
+			// Find actual field index in msg.Field (not just regularFields)
+			fieldIdx := -1
+			for j, f := range msg.Field {
+				if f == field {
+					fieldIdx = j
+					break
+				}
+			}
+			if fieldIdx >= 0 {
+				fieldPath = []int32{4, int32(msgIndex), 2, int32(fieldIdx)}
+			}
+		}
+		g.generateField(field, fullName, fieldPath)
 	}
 	
 	// Generate oneof groups
 	for oneofIdx, fields := range oneofGroups {
 		if oneofIdx < int32(len(msg.OneofDecl)) {
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			g.generateOneofField(oneofName, fields)
+			g.generateOneofField(oneofName, fields, msgIndex)
 		}
 	}
 	
@@ -362,9 +494,25 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 	}
 }
 
-func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string) {
+func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32) {
 	g.indent = "    "
 	g.p("/**")
+	
+	// Add leading comments if fieldPath is provided
+	if len(fieldPath) > 0 {
+		leadingComments := g.getLeadingComments(fieldPath)
+		if leadingComments != "" {
+			for _, line := range strings.Split(leadingComments, "\n") {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", line)
+				}
+			}
+			g.p(" *")
+		}
+	}
+	
 	g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
 	g.p(" */")
 	
@@ -406,7 +554,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	g.indent = ""
 }
 
-func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.FieldDescriptorProto) {
+func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.FieldDescriptorProto, msgIndex int) {
 	g.indent = "    "
 	g.p("/**")
 	g.p(" * @generated from protobuf oneof: %s", oneofName)
@@ -875,6 +1023,14 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("]);")
 	g.indent = "    "
 	g.p("}")
+	
+	// Check if this is a well-known type that needs special handling
+	isTimestamp := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Timestamp"
+	
+	// Add special methods for well-known types BEFORE standard methods
+	if isTimestamp {
+		g.generateTimestampMethods()
+	}
 	
 	// create method
 	g.p("create(value?: PartialMessage<%s>): %s {", fullName, fullName)
@@ -1865,4 +2021,122 @@ method.GetName(), inputType, outputType, comma)
 }
 g.indent = ""
 g.pNoIndent("]);")
+}
+
+func (g *generator) generateTimestampMethods() {
+g.indent = "    "
+
+// now() method
+g.p("/**")
+g.p(" * Creates a new `Timestamp` for the current time.")
+g.p(" */")
+g.p("now(): Timestamp {")
+g.indent = "        "
+g.p("const msg = this.create();")
+g.p("const ms = Date.now();")
+g.p("msg.seconds = PbLong.from(Math.floor(ms / 1000)).toString();")
+g.p("msg.nanos = (ms %% 1000) * 1000000;")
+g.p("return msg;")
+g.indent = "    "
+g.p("}")
+
+// toDate() method
+g.p("/**")
+g.p(" * Converts a `Timestamp` to a JavaScript Date.")
+g.p(" */")
+g.p("toDate(message: Timestamp): Date {")
+g.indent = "        "
+g.p("return new Date(PbLong.from(message.seconds).toNumber() * 1000 + Math.ceil(message.nanos / 1000000));")
+g.indent = "    "
+g.p("}")
+
+// fromDate() method
+g.p("/**")
+g.p(" * Converts a JavaScript Date to a `Timestamp`.")
+g.p(" */")
+g.p("fromDate(date: Date): Timestamp {")
+g.indent = "        "
+g.p("const msg = this.create();")
+g.p("const ms = date.getTime();")
+g.p("msg.seconds = PbLong.from(Math.floor(ms / 1000)).toString();")
+g.p("msg.nanos = ((ms %% 1000) + (ms < 0 && ms %% 1000 !== 0 ? 1000 : 0)) * 1000000;")
+g.p("return msg;")
+g.indent = "    "
+g.p("}")
+
+// internalJsonWrite() method
+g.p("/**")
+g.p(" * In JSON format, the `Timestamp` type is encoded as a string")
+g.p(" * in the RFC 3339 format.")
+g.p(" */")
+g.p("internalJsonWrite(message: Timestamp, options: JsonWriteOptions): JsonValue {")
+g.indent = "        "
+g.p("let ms = PbLong.from(message.seconds).toNumber() * 1000;")
+g.p("if (ms < Date.parse(\"0001-01-01T00:00:00Z\") || ms > Date.parse(\"9999-12-31T23:59:59Z\"))")
+g.indent = "            "
+g.p("throw new Error(\"Unable to encode Timestamp to JSON. Must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive.\");")
+g.indent = "        "
+g.p("if (message.nanos < 0)")
+g.indent = "            "
+g.p("throw new Error(\"Unable to encode invalid Timestamp to JSON. Nanos must not be negative.\");")
+g.indent = "        "
+g.p("let z = \"Z\";")
+g.p("if (message.nanos > 0) {")
+g.indent = "            "
+g.p("let nanosStr = (message.nanos + 1000000000).toString().substring(1);")
+g.p("if (nanosStr.substring(3) === \"000000\")")
+g.indent = "                "
+g.p("z = \".\" + nanosStr.substring(0, 3) + \"Z\";")
+g.indent = "            "
+g.p("else if (nanosStr.substring(6) === \"000\")")
+g.indent = "                "
+g.p("z = \".\" + nanosStr.substring(0, 6) + \"Z\";")
+g.indent = "            "
+g.p("else")
+g.indent = "                "
+g.p("z = \".\" + nanosStr + \"Z\";")
+g.indent = "        "
+g.p("}")
+g.p("return new Date(ms).toISOString().replace(\".000Z\", z);")
+g.indent = "    "
+g.p("}")
+
+// internalJsonRead() method
+g.p("/**")
+g.p(" * In JSON format, the `Timestamp` type is encoded as a string")
+g.p(" * in the RFC 3339 format.")
+g.p(" */")
+g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Timestamp): Timestamp {")
+g.indent = "        "
+g.p("if (typeof json !== \"string\")")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Timestamp from JSON \" + typeofJsonValue(json) + \".\");")
+g.indent = "        "
+g.p("let matches = json.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:Z|\\.([0-9]{3,9})Z|([+-][0-9][0-9]:[0-9][0-9]))$/);")
+g.p("if (!matches)")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Timestamp from JSON. Invalid format.\");")
+g.indent = "        "
+g.p("let ms = Date.parse(matches[1] + \"-\" + matches[2] + \"-\" + matches[3] + \"T\" + matches[4] + \":\" + matches[5] + \":\" + matches[6] + (matches[8] ? matches[8] : \"Z\"));")
+g.p("if (Number.isNaN(ms))")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Timestamp from JSON. Invalid value.\");")
+g.indent = "        "
+g.p("if (ms < Date.parse(\"0001-01-01T00:00:00Z\") || ms > Date.parse(\"9999-12-31T23:59:59Z\"))")
+g.indent = "            "
+g.p("throw new globalThis.Error(\"Unable to parse Timestamp from JSON. Must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive.\");")
+g.indent = "        "
+g.p("if (!target)")
+g.indent = "            "
+g.p("target = this.create();")
+g.indent = "        "
+g.p("target.seconds = PbLong.from(ms / 1000).toString();")
+g.p("target.nanos = 0;")
+g.p("if (matches[7])")
+g.indent = "            "
+g.p("target.nanos = (parseInt(\"1\" + matches[7] + \"0\".repeat(9 - matches[7].length)) - 1000000000);")
+g.indent = "        "
+g.p("return target;")
+g.indent = "    "
+g.p("}")
 }
