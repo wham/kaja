@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package common;
+
+// Common types shared across packages
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip = 4;
+  string country = 5;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_INACTIVE = 2;
+  STATUS_DELETED = 3;
+}

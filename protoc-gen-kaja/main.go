@@ -184,7 +184,11 @@ func (g *generator) getLeadingComments(path []int32) string {
 			}
 		}
 		if match && loc.LeadingComments != nil {
-			comment := strings.TrimSpace(*loc.LeadingComments)
+			comment := *loc.LeadingComments
+			// Check if original comment ends with blank line before trimming
+			hasTrailingBlank := strings.HasSuffix(comment, "\n\n") || strings.HasSuffix(comment, "\n \n")
+			
+			comment = strings.TrimSpace(comment)
 			// Strip one leading space from each line (protobuf convention)
 			lines := strings.Split(comment, "\n")
 			for i, line := range lines {
@@ -197,7 +201,12 @@ func (g *generator) getLeadingComments(path []int32) string {
 					lines[i] = line
 				}
 			}
-			return strings.Join(lines, "\n")
+			result := strings.Join(lines, "\n")
+			// Add marker if original had trailing blank
+			if hasTrailingBlank {
+				result += "\n__HAS_TRAILING_BLANK__"
+			}
+			return result
 		}
 	}
 	return ""
@@ -260,8 +269,8 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	g.writeImports(imports)
 
 	// Generate message interfaces (with nested types/enums)
-	for _, msg := range file.MessageType {
-		g.generateMessageInterface(msg, "")
+	for msgIdx, msg := range file.MessageType {
+		g.generateMessageInterface(msg, "", []int32{4, int32(msgIdx)})
 	}
 
 	// Generate top-level enums
@@ -280,6 +289,38 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	}
 
 	return g.b.String()
+}
+
+func (g *generator) collectUsedTypes() (map[string]bool, []string) {
+	used := make(map[string]bool)
+	var orderedTypes []string
+	
+	// Scan all messages for field types in reverse field order
+	var scanMessage func(*descriptorpb.DescriptorProto)
+	scanMessage = func(msg *descriptorpb.DescriptorProto) {
+		// Process fields in reverse order
+		for i := len(msg.Field) - 1; i >= 0; i-- {
+			field := msg.Field[i]
+			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
+				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+				typeName := field.GetTypeName()
+				// Store the full type name (e.g., .api.v1.HealthCheckResponse.Status)
+				if !used[typeName] {
+					used[typeName] = true
+					orderedTypes = append(orderedTypes, typeName)
+				}
+			}
+		}
+		for _, nested := range msg.NestedType {
+			scanMessage(nested)
+		}
+	}
+	
+	for _, msg := range g.file.MessageType {
+		scanMessage(msg)
+	}
+	
+	return used, orderedTypes
 }
 
 func (g *generator) collectImports(file *descriptorpb.FileDescriptorProto) map[string]bool {
@@ -344,27 +385,96 @@ func (g *generator) writeImports(imports map[string]bool) {
 		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
 	}
 	
-	// Import dependencies
+	// Import dependencies - only types that are actually used, in reverse field order
+	usedTypes, orderedTypes := g.collectUsedTypes()
+	
+	// Build a map from dependency path to file for quick lookup
+	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
-		if depFile == nil {
+		if depFile != nil {
+			importPath := "./" + strings.TrimSuffix(dep, ".proto")
+			depFiles[importPath] = depFile
+		}
+	}
+	
+	// Process types in reverse field order, deduplicating imports
+	seenImports := make(map[string]bool)
+	for _, typeName := range orderedTypes {
+		if !usedTypes[typeName] {
 			continue
 		}
 		
-		// Calculate relative import path
-		// Remove .proto extension and add ./
-		importPath := "./" + strings.TrimSuffix(dep, ".proto")
+		// Find which dependency this type belongs to
+		typeNameStripped := strings.TrimPrefix(typeName, ".")
+		var matchedDepFile *descriptorpb.FileDescriptorProto
+		var matchedImportPath string
 		
-		// Import messages from dependency
-		for _, msg := range depFile.MessageType {
-			msgName := msg.GetName()
-			g.pNoIndent("import { %s } from \"%s\";", msgName, importPath)
+		for importPath, depFile := range depFiles {
+			depPkg := ""
+			if depFile.Package != nil {
+				depPkg = *depFile.Package
+			}
+			if strings.HasPrefix(typeNameStripped, depPkg+".") {
+				matchedDepFile = depFile
+				matchedImportPath = importPath
+				break
+			}
 		}
 		
-		// Import enums from dependency
-		for _, enum := range depFile.EnumType {
-			enumName := enum.GetName()
-			g.pNoIndent("import { %s } from \"%s\";", enumName, importPath)
+		if matchedDepFile == nil {
+			continue
+		}
+		
+		// Extract the type from this dependency
+		depPkg := ""
+		if matchedDepFile.Package != nil {
+			depPkg = *matchedDepFile.Package
+		}
+		parts := strings.Split(strings.TrimPrefix(typeNameStripped, depPkg+"."), ".")
+		
+		var importStmt string
+		
+		// Check if it's a top-level enum
+		found := false
+		for _, enum := range matchedDepFile.EnumType {
+			if enum.GetName() == parts[0] && len(parts) == 1 {
+				importStmt = fmt.Sprintf("import { %s } from \"%s\";", enum.GetName(), matchedImportPath)
+				found = true
+				break
+			}
+		}
+		if !found && len(parts) == 2 {
+			// Check if it's a nested enum (Message.Enum)
+			for _, msg := range matchedDepFile.MessageType {
+				if msg.GetName() == parts[0] {
+					for _, enum := range msg.EnumType {
+						if enum.GetName() == parts[1] {
+							importStmt = fmt.Sprintf("import { %s_%s } from \"%s\";", parts[0], parts[1], matchedImportPath)
+							found = true
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+			}
+		}
+		if !found {
+			// Must be a message
+			for _, msg := range matchedDepFile.MessageType {
+				if msg.GetName() == parts[0] {
+					importStmt = fmt.Sprintf("import { %s } from \"%s\";", msg.GetName(), matchedImportPath)
+					break
+				}
+			}
+		}
+		
+		// Output if not seen before
+		if importStmt != "" && !seenImports[importStmt] {
+			g.pNoIndent(importStmt)
+			seenImports[importStmt] = true
 		}
 	}
 }
@@ -378,7 +488,7 @@ func (g *generator) findFileByName(name string) *descriptorpb.FileDescriptorProt
 	return nil
 }
 
-func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, parentPrefix string) {
+func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, parentPrefix string, msgPath []int32) {
 	// Skip map entry messages
 	if msg.Options != nil && msg.GetOptions().GetMapEntry() {
 		return
@@ -386,34 +496,35 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	
 	fullName := parentPrefix + msg.GetName()
 	
-	// Get message index for SourceCodeInfo lookup
-	msgIndex := -1
-	if parentPrefix == "" {
-		for i, m := range g.file.MessageType {
-			if m.GetName() == msg.GetName() {
-				msgIndex = i
-				break
-			}
-		}
-	}
-	
 	// Message interface first
 	g.pNoIndent("/**")
 	
-	// Add leading comments if available
-	if msgIndex >= 0 {
-		leadingComments := g.getLeadingComments([]int32{4, int32(msgIndex)})
+	// Add leading comments if available (msgPath should point to this message)
+	if len(msgPath) > 0 {
+		leadingComments := g.getLeadingComments(msgPath)
 		if leadingComments != "" {
-			for _, line := range strings.Split(leadingComments, "\n") {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
 				if line == "" {
 					g.pNoIndent(" *")
 				} else {
 					g.pNoIndent(" * %s", line)
 				}
 			}
-			// Add TWO blank lines after comment before @generated
-			g.pNoIndent(" *")
-			g.pNoIndent(" *")
+			// Add separator blank line(s) before @generated
+			if hasTrailingBlank {
+				// Comment had trailing blank, add two separators
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				// Comment didn't have trailing blank, add one separator
+				g.pNoIndent(" *")
+			}
 		}
 	}
 	
@@ -440,7 +551,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Generate regular fields
 	for _, field := range regularFields {
 		var fieldPath []int32
-		if msgIndex >= 0 {
+		if len(msgPath) > 0 {
 			// Find actual field index in msg.Field (not just regularFields)
 			fieldIdx := -1
 			for j, f := range msg.Field {
@@ -450,25 +561,104 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 				}
 			}
 			if fieldIdx >= 0 {
-				fieldPath = []int32{4, int32(msgIndex), 2, int32(fieldIdx)}
+				fieldPath = append(msgPath, 2, int32(fieldIdx))
 			}
 		}
 		g.generateField(field, fullName, fieldPath)
 	}
 	
-	// Generate oneof groups
+	// Generate oneof fields
 	for oneofIdx, fields := range oneofGroups {
 		if oneofIdx < int32(len(msg.OneofDecl)) {
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			g.generateOneofField(oneofName, fields, msgIndex)
+			g.indent = "    "
+			g.p("/**")
+			g.p(" * @generated from protobuf oneof: %s", oneofName)
+			g.p(" */")
+			g.p("%s: {", oneofName)
+			g.indent = "        "
+			
+			for i, field := range fields {
+				// Find field index for source comments
+				fieldIdx := -1
+				for j, f := range msg.Field {
+					if f == field {
+						fieldIdx = j
+						break
+					}
+				}
+				
+				g.p("oneofKind: \"%s\";", g.jsonName(field))
+				
+				// Add leading comments if available
+				if len(msgPath) > 0 && fieldIdx >= 0 {
+					fieldPath := append(msgPath, 2, int32(fieldIdx))
+					leadingComments := g.getLeadingComments(fieldPath)
+					if leadingComments != "" {
+						hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+						if hasTrailingBlank {
+							leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+						}
+						
+						g.p("/**")
+						lines := strings.Split(leadingComments, "\n")
+						for _, line := range lines {
+							if line == "" {
+								g.p(" *")
+							} else {
+								g.p(" * %s", line)
+							}
+						}
+						// Add separator blank line(s) before @generated
+						if hasTrailingBlank {
+							// Comment had trailing blank, add two separators
+							g.p(" *")
+							g.p(" *")
+						} else {
+							// Comment didn't have trailing blank, add one separator
+							g.p(" *")
+						}
+						g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
+						g.p(" */")
+					} else {
+						// No source comments, just add @generated comment
+						g.p("/**")
+						g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
+						g.p(" */")
+					}
+				} else {
+					// No msgPath, just add @generated comment
+					g.p("/**")
+					g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
+					g.p(" */")
+				}
+				
+				g.p("%s: %s;", g.jsonName(field), g.getTypescriptType(field))
+				
+				if i < len(fields)-1 {
+					g.indent = "    "
+					g.p("} | {")
+					g.indent = "        "
+				}
+			}
+			
+			// Add undefined case
+			g.indent = "    "
+			g.p("} | {")
+			g.indent = "        "
+			g.p("oneofKind: undefined;")
+			
+			g.indent = "    "
+			g.p("};")
 		}
 	}
 	
 	g.pNoIndent("}")
 	
 	// Generate nested message interfaces first
-	for _, nested := range msg.NestedType {
-		g.generateMessageInterface(nested, fullName + "_")
+	for nestedIdx, nested := range msg.NestedType {
+		nestedPath := append(msgPath, 3, int32(nestedIdx))
+		g.generateMessageInterface(nested, fullName + "_", nestedPath)
 	}
 	
 	// Generate nested enums after nested messages
@@ -564,12 +754,13 @@ func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.
 	// Generate each alternative
 	for i, field := range fields {
 		g.indent = "        "
-		g.p("oneofKind: \"%s\";", field.GetName())
+		fieldJsonName := g.jsonName(field)
+		g.p("oneofKind: \"%s\";", fieldJsonName)
 		g.p("/**")
 		g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
-		g.p("%s: %s;", field.GetName(), fieldType)
+		g.p("%s: %s;", fieldJsonName, fieldType)
 		g.indent = "    "
 		if i < len(fields)-1 {
 			g.p("} | {")
@@ -664,8 +855,21 @@ func (g *generator) stripPackage(typeName string) string {
 		}
 	}
 	
-	// Different package - just take the last part
+	// Different package - need to strip package but keep message.nested structure
+	// e.g., api.v1.HealthCheckResponse.Status -> HealthCheckResponse_Status
 	parts := strings.Split(typeName, ".")
+	
+	// Find where the package ends and the type begins
+	// We need to identify the first capital letter as start of type name
+	for i, part := range parts {
+		if len(part) > 0 && part[0] >= 'A' && part[0] <= 'Z' {
+			// Found the start of the type name
+			typeParts := parts[i:]
+			return strings.Join(typeParts, "_")
+		}
+	}
+	
+	// Fallback: just take the last part (shouldn't happen)
 	return parts[len(parts)-1]
 }
 
@@ -785,8 +989,12 @@ func (g *generator) findEnumType(typeName string) *descriptorpb.EnumDescriptorPr
 	}
 	
 	// Search in current file nested enums
+	currentPkg := ""
+	if g.file.Package != nil && *g.file.Package != "" {
+		currentPkg = *g.file.Package
+	}
 	for _, msg := range g.file.MessageType {
-		if found := g.findEnumTypeInMessage(msg, typeName, ""); found != nil {
+		if found := g.findEnumTypeInMessage(msg, typeName, currentPkg); found != nil {
 			return found
 		}
 	}
@@ -795,10 +1003,15 @@ func (g *generator) findEnumType(typeName string) *descriptorpb.EnumDescriptorPr
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
 		if depFile != nil {
+			depPkg := ""
+			if depFile.Package != nil && *depFile.Package != "" {
+				depPkg = *depFile.Package
+			}
+			
 			for _, enum := range depFile.EnumType {
 				fullName := ""
-				if depFile.Package != nil && *depFile.Package != "" {
-					fullName = *depFile.Package + "."
+				if depPkg != "" {
+					fullName = depPkg + "."
 				}
 				fullName += enum.GetName()
 				if typeName == fullName {
@@ -806,7 +1019,8 @@ func (g *generator) findEnumType(typeName string) *descriptorpb.EnumDescriptorPr
 				}
 			}
 			for _, msg := range depFile.MessageType {
-				if found := g.findEnumTypeInMessage(msg, typeName, ""); found != nil {
+				prefix := depPkg
+				if found := g.findEnumTypeInMessage(msg, typeName, prefix); found != nil {
 					return found
 				}
 			}
@@ -820,9 +1034,6 @@ func (g *generator) findEnumTypeInMessage(msg *descriptorpb.DescriptorProto, typ
 	msgFullName := prefix
 	if msgFullName != "" {
 		msgFullName += "."
-	}
-	if g.file.Package != nil && *g.file.Package != "" && prefix == "" {
-		msgFullName = *g.file.Package + "."
 	}
 	msgFullName += msg.GetName()
 	
@@ -927,6 +1138,15 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				keyTypeName := g.getScalarTypeName(keyField)
 				if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"message\", T: () => %s }", keyT, keyTypeName, g.stripPackage(valueField.GetTypeName()))
+				} else if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+					valueTypeName := g.stripPackage(valueField.GetTypeName())
+					valueFullTypeName := g.getProtoTypeName(valueField.GetTypeName())
+					enumType := g.findEnumType(valueField.GetTypeName())
+					enumPrefix := ""
+					if enumType != nil {
+						enumPrefix = g.detectEnumPrefix(enumType)
+					}
+					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s, \"%s\"] }", keyT, keyTypeName, valueFullTypeName, valueTypeName, enumPrefix)
 				} else {
 					valueT := g.getScalarTypeEnum(valueField)
 					valueTypeName := g.getScalarTypeName(valueField)
@@ -1091,19 +1311,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
+			fieldJsonName := g.jsonName(field)
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 				// For message types, support merging
 				g.p("message.%s = {", oneofName)
 				g.indent = "                        "
-				g.p("oneofKind: \"%s\",", field.GetName())
-				g.p("%s: %s", field.GetName(), g.getReaderMethodWithMerge(field, fmt.Sprintf("(message.%s as any).%s", oneofName, field.GetName())))
+				g.p("oneofKind: \"%s\",", fieldJsonName)
+				g.p("%s: %s", fieldJsonName, g.getReaderMethodWithMerge(field, fmt.Sprintf("(message.%s as any).%s", oneofName, fieldJsonName)))
 				g.indent = "                    "
 				g.p("};")
 			} else {
 				g.p("message.%s = {", oneofName)
 				g.indent = "                        "
-				g.p("oneofKind: \"%s\",", field.GetName())
-				g.p("%s: %s", field.GetName(), g.getReaderMethod(field))
+				g.p("oneofKind: \"%s\",", fieldJsonName)
+				g.p("%s: %s", fieldJsonName, g.getReaderMethod(field))
 				g.indent = "                    "
 				g.p("};")
 			}
@@ -1163,6 +1384,12 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("}")
 	
 	// Add map read helpers if needed
+	pkgPrefix = ""
+	if g.file.Package != nil && *g.file.Package != "" {
+		pkgPrefix = *g.file.Package + "."
+	}
+	protoTypeName := pkgPrefix + strings.ReplaceAll(fullName, "_", ".")
+	
 	for _, field := range msg.Field {
 		if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 			msgType := g.findMessageType(field.GetTypeName())
@@ -1195,7 +1422,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				g.indent = "                    "
 				g.p("break;")
 				g.indent = "                "
-				g.p("default: throw new globalThis.Error(\"unknown map entry field for %s.%s\");", fullName, field.GetName())
+				g.p("default: throw new globalThis.Error(\"unknown map entry field for %s.%s\");", protoTypeName, field.GetName())
 				g.indent = "            "
 				g.p("}")
 				g.indent = "        "
@@ -1223,9 +1450,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			g.p("if (message.%s.oneofKind === \"%s\")", oneofName, field.GetName())
+			fieldJsonName := g.jsonName(field)
+			g.p("if (message.%s.oneofKind === \"%s\")", oneofName, fieldJsonName)
 			g.indent = "            "
-			g.p("%s", g.getWriterMethod(field, "message."+oneofName+"."+field.GetName()))
+			g.p("%s", g.getWriterMethod(field, "message."+oneofName+"."+fieldJsonName))
 			g.indent = "        "
 		} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 			msgType := g.findMessageType(field.GetTypeName())
@@ -1560,6 +1788,8 @@ func (g *generator) getMapValueWriter(field *descriptorpb.FieldDescriptorProto, 
 		return fmt.Sprintf(".tag(2, WireType.LengthDelimited).string(%s)", varName)
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 		return fmt.Sprintf(".tag(2, WireType.Varint).bool(%s)", varName)
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		return fmt.Sprintf(".tag(2, WireType.Varint).int32(%s)", varName)
 	default:
 		return fmt.Sprintf(".tag(2, WireType.LengthDelimited).string(%s)", varName)
 	}
@@ -1752,55 +1982,72 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
 	g.pNoIndent("// tslint:disable")
 	
-	// RPC imports
-	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
-	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
-	
-	// Import service from main file
 	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
-	for _, service := range file.Service {
-		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
-	}
 	
-	// Collect request/response types (in reverse method order - last method first)
-	var beforeStackIntercept []string
-	var afterStackIntercept []string
+	// Collect imports
 	seen := make(map[string]bool)
-	for _, service := range file.Service {
-		methods := service.Method
-		for i := len(methods) - 1; i >= 0; i-- {
-			method := methods[i]
+	
+	// For services 2..N (in reverse order), output Service + all method types
+	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
+		service := file.Service[svcIdx]
+		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
+		
+		// Add method types in reverse order
+		for i := len(service.Method) - 1; i >= 0; i-- {
+			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			if !seen[resType] {
-				if i == 0 {
-					afterStackIntercept = append(afterStackIntercept, resType)
-				} else {
-					beforeStackIntercept = append(beforeStackIntercept, resType)
-				}
+				g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
 				seen[resType] = true
 			}
 			if !seen[reqType] {
-				if i == 0 {
-					afterStackIntercept = append(afterStackIntercept, reqType)
-				} else {
-					beforeStackIntercept = append(beforeStackIntercept, reqType)
-				}
+				g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
 				seen[reqType] = true
 			}
 		}
 	}
 	
-	// Output types before stackIntercept
-	for _, imp := range beforeStackIntercept {
-		g.pNoIndent("import type { %s } from \"./%s\";", imp, baseFileName)
+	// RPC imports
+	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
+	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
+	
+	// First service + methods 2..N types
+	if len(file.Service) > 0 {
+		service := file.Service[0]
+		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
+		
+		// Add method types in reverse order (skip first method)
+		for i := len(service.Method) - 1; i >= 1; i-- {
+			method := service.Method[i]
+			resType := g.stripPackage(method.GetOutputType())
+			reqType := g.stripPackage(method.GetInputType())
+			if !seen[resType] {
+				g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
+				seen[resType] = true
+			}
+			if !seen[reqType] {
+				g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
+				seen[reqType] = true
+			}
+		}
 	}
 	
 	g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// Output types after stackIntercept
-	for _, imp := range afterStackIntercept {
-		g.pNoIndent("import type { %s } from \"./%s\";", imp, baseFileName)
+	// First service, first method types
+	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
+		method := file.Service[0].Method[0]
+		resType := g.stripPackage(method.GetOutputType())
+		reqType := g.stripPackage(method.GetInputType())
+		if !seen[resType] {
+			g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
+			seen[resType] = true
+		}
+		if !seen[reqType] {
+			g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
+			seen[reqType] = true
+		}
 	}
 	
 	// Import call types based on method types
@@ -1836,8 +2083,39 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		pkgPrefix = *g.file.Package + "."
 	}
 	
+	// Get service index for comments
+	svcIndex := -1
+	for i, s := range g.file.Service {
+		if s.GetName() == serviceName {
+			svcIndex = i
+			break
+		}
+	}
+	
 	// Interface
 	g.pNoIndent("/**")
+	
+	// Add service-level leading comments if available
+	if svcIndex >= 0 {
+		leadingComments := g.getLeadingComments([]int32{6, int32(svcIndex)})
+		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", line)
+				}
+			}
+			g.pNoIndent(" *")
+		}
+	}
+	
 	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, serviceName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", clientName)
@@ -1859,6 +2137,28 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	
 	// Implementation
 	g.pNoIndent("/**")
+	
+	// Add service-level leading comments if available
+	if svcIndex >= 0 {
+		leadingComments := g.getLeadingComments([]int32{6, int32(svcIndex)})
+		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", line)
+				}
+			}
+			g.pNoIndent(" *")
+		}
+	}
+	
 	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, serviceName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export class %sClient implements %s, ServiceInfo {", serviceName, clientName)

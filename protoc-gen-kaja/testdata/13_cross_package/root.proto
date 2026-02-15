@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package test;
+
+import "user/service.proto";
+import "common/types.proto";
+
+// Test message that uses cross-package types
+message CrossPackageTest {
+  user.UserProfile profile = 1;
+  common.Address address = 2;
+  common.Status status = 3;
+}

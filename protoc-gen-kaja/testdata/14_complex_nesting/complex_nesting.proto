@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package complex;
+
+// Complex nested structures with multiple levels
+message Organization {
+  string id = 1;
+  string name = 2;
+  repeated Department departments = 3;
+  
+  message Department {
+    string id = 1;
+    string name = 2;
+    repeated Team teams = 3;
+    
+    message Team {
+      string id = 1;
+      string name = 2;
+      repeated Member members = 3;
+      
+      message Member {
+        string id = 1;
+        string name = 2;
+        Role role = 3;
+        Permissions permissions = 4;
+        
+        enum Role {
+          ROLE_UNSPECIFIED = 0;
+          ROLE_ADMIN = 1;
+          ROLE_DEVELOPER = 2;
+          ROLE_VIEWER = 3;
+        }
+        
+        message Permissions {
+          bool can_read = 1;
+          bool can_write = 2;
+          bool can_delete = 3;
+          map<string, AccessLevel> resource_access = 4;
+          
+          enum AccessLevel {
+            ACCESS_LEVEL_UNSPECIFIED = 0;
+            ACCESS_LEVEL_NONE = 1;
+            ACCESS_LEVEL_READ = 2;
+            ACCESS_LEVEL_WRITE = 3;
+            ACCESS_LEVEL_ADMIN = 4;
+          }
+        }
+      }
+      
+      // Team-level settings
+      message Settings {
+        bool notifications_enabled = 1;
+        map<string, string> preferences = 2;
+      }
+      
+      Settings settings = 4;
+    }
+  }
+  
+  // Organization-level metadata
+  message Metadata {
+    map<string, string> labels = 1;
+    repeated string tags = 2;
+    oneof owner {
+      string user_id = 3;
+      string team_id = 4;
+    }
+  }
+  
+  Metadata metadata = 4;
+}
+
+message GetOrganizationRequest {
+  string id = 1;
+  bool include_departments = 2;
+  bool include_teams = 3;
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+message UpdateMemberRequest {
+  string org_id = 1;
+  string dept_id = 2;
+  string team_id = 3;
+  string member_id = 4;
+  Organization.Department.Team.Member member = 5;
+}
+
+message UpdateMemberResponse {
+  Organization.Department.Team.Member member = 1;
+}
+
+service OrganizationService {
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+  rpc UpdateMember(UpdateMemberRequest) returns (UpdateMemberResponse);
+}
