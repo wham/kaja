@@ -56,22 +56,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
-
-          # Setup git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Remove demo assets from demo-assets branch if it exists
-          git fetch origin demo-assets 2>/dev/null || true
-          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
-            git checkout demo-assets
-            if [ -d "pr-${PR_NUMBER}" ]; then
-              git rm -rf "pr-${PR_NUMBER}"
-              git commit -m "Remove demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
-              git push origin demo-assets
-            fi
-          fi
 
           # Remove Demo section from PR description
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
@@ -87,44 +71,21 @@ jobs:
         if: success() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
 
-          # Save demo files before switching branches
-          cp -r .github/demo /tmp/demo-files
+          # Upload each demo file to GitHub's user-attachments storage
+          upload() {
+            local url
+            url=$(scripts/upload-github-asset "$1")
+            echo "$url"
+          }
 
-          # Setup git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Create or update demo-assets branch
-          git fetch origin demo-assets 2>/dev/null || true
-
-          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
-            git checkout demo-assets
-            git pull origin demo-assets --rebase || true
-          else
-            git checkout --orphan demo-assets
-            git rm -rf . 2>/dev/null || true
-            git commit --allow-empty -m "Initialize demo-assets branch"
-          fi
-
-          # Copy demo files to PR-specific folder
-          mkdir -p "pr-${PR_NUMBER}"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
-
-          # Commit and push
-          git add "pr-${PR_NUMBER}/"
-          git commit -m "Demo assets for PR #${PR_NUMBER}" || echo "No changes"
-          git push origin demo-assets
-
-          # Build URLs
-          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
-          GIF_URL="${BASE_URL}/demo.gif"
-          HOME_URL="${BASE_URL}/home.png"
-          CALL_URL="${BASE_URL}/call.png"
-          COMPILER_URL="${BASE_URL}/compiler.png"
+          GIF_URL=$(upload .github/demo/demo.gif)
+          HOME_URL=$(upload .github/demo/home.png)
+          CALL_URL=$(upload .github/demo/call.png)
+          COMPILER_URL=$(upload .github/demo/compiler.png)
 
           # Build demo section
           echo "<details>" > /tmp/demo.md
@@ -142,10 +103,11 @@ jobs:
           echo "### Compiler" >> /tmp/demo.md
           echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
 
-          if [ -f /tmp/demo-files/newproject.png ]; then
+          if [ -f .github/demo/newproject.png ]; then
+            NEWPROJECT_URL=$(upload .github/demo/newproject.png)
             echo "" >> /tmp/demo.md
             echo "### New Project" >> /tmp/demo.md
-            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/demo.md
+            echo "![New Project](${NEWPROJECT_URL})" >> /tmp/demo.md
           fi
 
           echo "" >> /tmp/demo.md

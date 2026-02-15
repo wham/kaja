@@ -10,12 +10,18 @@ set -e
 # Requires GITHUB_TOKEN (or GH_TOKEN) environment variable.
 # The token needs no special scopes — basic repo access is sufficient.
 #
+# Environment variables:
+#   GITHUB_TOKEN or GH_TOKEN  — required
+#   GITHUB_REPOSITORY          — optional, defaults to wham/kaja
+#                                (set automatically in GitHub Actions)
+#
 # Example:
 #   scripts/upload-github-asset docs/screenshot.png
 #   # => https://github.com/user-attachments/assets/abc123-...
 
-REPO_OWNER="wham"
-REPO_NAME="kaja"
+REPO="${GITHUB_REPOSITORY:-wham/kaja}"
+REPO_OWNER="${REPO%/*}"
+REPO_NAME="${REPO#*/}"
 
 TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}"
 if [ -z "$TOKEN" ]; then
