@@ -56,6 +56,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
+          TAG="demo-assets"
+
+          # Delete this PR's assets from the release
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | \
+            grep "^pr-${PR_NUMBER}-" | \
+            while read -r name; do
+              gh release delete-asset "$TAG" "$name" --yes 2>/dev/null || true
+            done
 
           # Remove Demo section from PR description
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
@@ -71,21 +79,38 @@ jobs:
         if: success() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
+          REPO="${{ github.repository }}"
+          TAG="demo-assets"
 
-          # Upload each demo file to GitHub's user-attachments storage
-          upload() {
-            local url
-            url=$(scripts/upload-github-asset "$1")
-            echo "$url"
-          }
+          # Create the release if it doesn't exist yet
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Demo Assets" --notes "Auto-generated demo screenshots for PRs."
 
-          GIF_URL=$(upload .github/demo/demo.gif)
-          HOME_URL=$(upload .github/demo/home.png)
-          CALL_URL=$(upload .github/demo/call.png)
-          COMPILER_URL=$(upload .github/demo/compiler.png)
+          # Delete stale assets for this PR before uploading fresh ones
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | \
+            grep "^pr-${PR_NUMBER}-" | \
+            while read -r name; do
+              gh release delete-asset "$TAG" "$name" --yes 2>/dev/null || true
+            done
+
+          # Rename files with PR prefix and upload
+          UPLOAD_FILES=()
+          for f in .github/demo/*.gif .github/demo/*.png; do
+            [ -f "$f" ] || continue
+            name="pr-${PR_NUMBER}-$(basename "$f")"
+            cp "$f" ".github/demo/$name"
+            UPLOAD_FILES+=(".github/demo/$name")
+          done
+          gh release upload "$TAG" "${UPLOAD_FILES[@]}" --clobber
+
+          # Build URLs (release asset download URL pattern)
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          GIF_URL="${BASE_URL}/pr-${PR_NUMBER}-demo.gif"
+          HOME_URL="${BASE_URL}/pr-${PR_NUMBER}-home.png"
+          CALL_URL="${BASE_URL}/pr-${PR_NUMBER}-call.png"
+          COMPILER_URL="${BASE_URL}/pr-${PR_NUMBER}-compiler.png"
 
           # Build demo section
           echo "<details>" > /tmp/demo.md
@@ -103,11 +128,10 @@ jobs:
           echo "### Compiler" >> /tmp/demo.md
           echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
 
-          if [ -f .github/demo/newproject.png ]; then
-            NEWPROJECT_URL=$(upload .github/demo/newproject.png)
+          if [ -f ".github/demo/pr-${PR_NUMBER}-newproject.png" ]; then
             echo "" >> /tmp/demo.md
             echo "### New Project" >> /tmp/demo.md
-            echo "![New Project](${NEWPROJECT_URL})" >> /tmp/demo.md
+            echo "![New Project](${BASE_URL}/pr-${PR_NUMBER}-newproject.png)" >> /tmp/demo.md
           fi
 
           echo "" >> /tmp/demo.md
