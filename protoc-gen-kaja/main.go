@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -1601,13 +1600,52 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// Import service and types from main file
+	// Import service from main file
 	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
 	for _, service := range file.Service {
 		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
 	}
 	
+	// Collect request/response types (in reverse method order - last method first)
+	var beforeStackIntercept []string
+	var afterStackIntercept []string
+	seen := make(map[string]bool)
+	for _, service := range file.Service {
+		methods := service.Method
+		for i := len(methods) - 1; i >= 0; i-- {
+			method := methods[i]
+			resType := g.stripPackage(method.GetOutputType())
+			reqType := g.stripPackage(method.GetInputType())
+			if !seen[resType] {
+				if i == 0 {
+					afterStackIntercept = append(afterStackIntercept, resType)
+				} else {
+					beforeStackIntercept = append(beforeStackIntercept, resType)
+				}
+				seen[resType] = true
+			}
+			if !seen[reqType] {
+				if i == 0 {
+					afterStackIntercept = append(afterStackIntercept, reqType)
+				} else {
+					beforeStackIntercept = append(beforeStackIntercept, reqType)
+				}
+				seen[reqType] = true
+			}
+		}
+	}
+	
+	// Output types before stackIntercept
+	for _, imp := range beforeStackIntercept {
+		g.pNoIndent("import type { %s } from \"./%s\";", imp, baseFileName)
+	}
+	
 	g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
+	
+	// Output types after stackIntercept
+	for _, imp := range afterStackIntercept {
+		g.pNoIndent("import type { %s } from \"./%s\";", imp, baseFileName)
+	}
 	
 	// Import call types based on method types
 	for _, service := range file.Service {
@@ -1623,29 +1661,6 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			break
 		}
 		break
-	}
-	
-	// Collect request/response types (response first, then request for each method)
-	var imports []string
-	seen := make(map[string]bool)
-	for _, service := range file.Service {
-		for _, method := range service.Method {
-			resType := g.stripPackage(method.GetOutputType())
-			reqType := g.stripPackage(method.GetInputType())
-			if !seen[resType] {
-				imports = append(imports, resType)
-				seen[resType] = true
-			}
-			if !seen[reqType] {
-				imports = append(imports, reqType)
-				seen[reqType] = true
-			}
-		}
-	}
-	
-	// Output imports
-	for _, imp := range imports {
-		g.pNoIndent("import type { %s } from \"./%s\";", imp, baseFileName)
 	}
 	
 	// Generate service clients
