@@ -4,7 +4,7 @@
       "name": "grpc-quirks",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "dns:kaja.tools:443",
-      "protoDir": "quirks",
+      "protoDir": "quirks/proto",
       "headers": {
         "X-Yolo": "kaja123",
         "Authorization": "Bear brown"
@@ -14,7 +14,7 @@
       "name": "twirp-quirks",
       "protocol": "RPC_PROTOCOL_TWIRP",
       "url": "https://kaja.tools/twirp-quirks",
-      "protoDir": "quirks",
+      "protoDir": "quirks/proto",
       "headers": {
         "X-Yolo": "kaja123",
         "Authorization": "Bear brown"

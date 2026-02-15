@@ -3,7 +3,7 @@
 - See [Development](README.md#development) for instructions how to run and test.
 - Only add code comments for really tricky parts; otherwise keep it clean.
 - If API is called "getConfiguration", use "configuration" not "config" in code.
-- Don't run `go build` directly; use `scripts/server` and/or `scripts/desktop`. Kill `scripts/server` when done. Make sure the server port is not in use.
+- Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done. Make sure the server port is not in use.
 - Don't run `scripts/build-ui` separately; when `scripts/server` is running, the UI is recompiled automatically on page load.
 - The is using https://primer.style/product/getting-started/react/. Use out-of-the-box Primer components as much as possible. Avoid custom styling unless absolutely necessary.
 - Don't update generated files directly; they will be overwritten.
@@ -129,3 +129,107 @@ Both share the same backend code but differ in how they're packaged:
               Server (embedded)           Desktop (copied to             Docker (embedded)
                                          /desktop/frontend/dist)
 ```
+
+## Primer Components
+
+Available components from `@primer/react` (v38). Prefer these over custom components.
+
+### Main (`@primer/react`)
+
+- **ActionBar** - A collection of horizontally aligned IconButtons with overflow menu
+- **ActionList** - Vertical list of interactive actions or options
+- **ActionMenu** - Combines ActionList and Overlay for quick actions and selections
+- **AnchoredOverlay** - Opens an Overlay positioned relative to an anchor element
+- **Autocomplete** - Filter through a list and pick one or more values
+- **Avatar** - Image representing a user or organization
+- **AvatarStack** - Displays two or more Avatars in an inline stack
+- **Banner** - Highlights important information
+- **Blankslate** - Placeholder explaining why content is missing
+- **BranchName** - Label component for displaying branch names
+- **Breadcrumb** - Legacy breadcrumb component
+- **Breadcrumbs** - Displays current page hierarchy for navigation
+- **Button** - Initiates actions on a page or form
+- **ButtonGroup** - Renders a series of buttons together
+- **Checkbox** - Form control for single and multiple selections
+- **CheckboxGroup** - Renders a set of checkboxes
+- **CircleBadge** - Connects logos of third-party services visually
+- **ConfirmationDialog** - Dialog for confirming destructive actions
+- **CounterLabel** - Adds a count to navigational elements and buttons
+- **Details** - Styled wrapper for native `<details>` element
+- **Dialog** - Floating surface for transient content
+- **Flash** - Inline message banner for feedback
+- **FormControl** - Labelled input with optional validation and hint text
+- **Header** - Page-level header bar
+- **Heading** - Defines hierarchical content structure
+- **IconButton** - Button displaying an icon instead of text
+- **Label** - Adds contextual metadata to a design
+- **LabelGroup** - Layout constraints for groups of Labels
+- **Link** - Styles for hyperlink text
+- **LinkButton** - Button styled as a link
+- **NavList** - Vertical list of navigation links
+- **Overlay** - Floating surface design patterns
+- **PageHeader** - Top-level page heading
+- **PageLayout** - Defines header, main, pane, and footer areas
+- **Pagination** - Horizontal links for navigating paginated content
+- **Popover** - Brings attention to specific UI elements
+- **Portal** - Renders children into a different DOM subtree
+- **ProgressBar** - Shows completion progress or part-to-whole ratios
+- **Radio** - Form control for single selection from options
+- **RadioGroup** - Renders mutually exclusive options
+- **RelativeTime** - Displays time clearly and accessibly
+- **SegmentedControl** - Pick one choice from a linear set of options
+- **Select** - Dropdown for single predefined choice
+- **SelectPanel** - Anchored dialog for selecting one or multiple items
+- **SideNav** - Vertical navigation sidebar
+- **Spinner** - Indeterminate loading indicator
+- **SplitPageLayout** - Two-column layout with main content and sidebar
+- **Stack** - Responsive horizontal and vertical layout flows
+- **StateLabel** - Renders issue or pull request status
+- **SubNav** - Secondary horizontal navigation
+- **Text** - Applies Primer typographic styles
+- **TextInput** - Single-line text input
+- **TextInputWithTokens** - Input for list-based values
+- **Textarea** - Multi-line text input
+- **Timeline** - Displays items on a vertical timeline
+- **ToggleSwitch** - Immediately toggles a setting on or off
+- **Token** - Compact representation of an object or metadata
+- **Tooltip** - Additional context on hover or keyboard focus
+- **TreeView** - Hierarchical list with expandable parents
+- **Truncate** - Shortens overflowing text with ellipsis
+- **UnderlineNav** - Horizontal tabbed navigation
+- **VisuallyHidden** - Hides content visually while keeping it accessible
+
+### Experimental (`@primer/react/experimental`)
+
+- **Announce** - Live region announcements for screen readers
+- **AriaAlert** - Assertive live region alert
+- **AriaStatus** - Polite live region status update
+- **ButtonBase** - Base component for building custom buttons
+- **DataTable** - 2D data structure with rows and columns
+- **FeatureFlags** - Provider for toggling feature flags
+- **FilteredActionList** - ActionList with built-in text filtering
+- **Hidden** - Conditionally hides content at breakpoints
+- **InlineMessage** - Informs users about action results within content
+- **IssueLabel** - Renders GitHub issue labels
+- **KeybindingHint** - Displays keyboard shortcut hints
+- **ScrollableRegion** - Accessible scrollable container
+- **SelectPanel2** - Next-generation SelectPanel
+- **SkeletonAvatar** - Loading placeholder for Avatar
+- **SkeletonBox** - Loading placeholder for non-text elements
+- **SkeletonText** - Loading placeholder for text
+- **Table** - Low-level table component (used by DataTable)
+- **Tabs** - Tabbed interface for switching views
+- **TopicTag** - Renders topic/tag labels
+- **UnderlinePanels** - Tabbed panels for related content
+
+### Deprecated (`@primer/react/deprecated`)
+
+- **ActionList** - Legacy ActionList (use main ActionList instead)
+- **ActionMenu** - Legacy ActionMenu (use main ActionMenu instead)
+- **Dialog** - Legacy Dialog v1 (use main Dialog instead)
+- **FilteredSearch** - Legacy filtered search input
+- **Octicon** - Renders Octicon icons directly
+- **Pagehead** - Legacy page heading
+- **TabNav** - Legacy tab navigation (use UnderlineNav instead)
+- **Tooltip** - Legacy Tooltip (use main Tooltip instead)
+- **UnderlineNav** - Legacy UnderlineNav
