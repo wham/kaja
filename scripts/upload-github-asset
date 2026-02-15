@@ -1,0 +1,131 @@
+#!/bin/bash
+set -e
+
+# Upload a file to GitHub's user-attachments storage and print the resulting URL.
+# This uses the same mechanism as dragging a file into a GitHub issue comment,
+# but done programmatically.
+#
+# Usage: scripts/upload-github-asset <file>
+#
+# Requires GITHUB_TOKEN (or GH_TOKEN) environment variable.
+# The token needs no special scopes — basic repo access is sufficient.
+#
+# Environment variables:
+#   GITHUB_TOKEN or GH_TOKEN  — required
+#   GITHUB_REPOSITORY          — optional, defaults to wham/kaja
+#                                (set automatically in GitHub Actions)
+#
+# Example:
+#   scripts/upload-github-asset docs/screenshot.png
+#   # => https://github.com/user-attachments/assets/abc123-...
+
+REPO="${GITHUB_REPOSITORY:-wham/kaja}"
+REPO_OWNER="${REPO%/*}"
+REPO_NAME="${REPO#*/}"
+
+TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}"
+if [ -z "$TOKEN" ]; then
+    echo "Error: GITHUB_TOKEN or GH_TOKEN environment variable is required." >&2
+    echo "" >&2
+    echo "Create a token at https://github.com/settings/tokens (no special scopes needed)." >&2
+    exit 1
+fi
+
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <file>" >&2
+    exit 1
+fi
+
+FILE="$1"
+if [ ! -f "$FILE" ]; then
+    echo "Error: File not found: $FILE" >&2
+    exit 1
+fi
+
+FILENAME=$(basename "$FILE")
+FILESIZE=$(wc -c < "$FILE" | tr -d ' ')
+
+# Detect content type from extension
+case "${FILENAME##*.}" in
+    png)  CONTENT_TYPE="image/png" ;;
+    jpg|jpeg) CONTENT_TYPE="image/jpeg" ;;
+    gif)  CONTENT_TYPE="image/gif" ;;
+    webp) CONTENT_TYPE="image/webp" ;;
+    svg)  CONTENT_TYPE="image/svg+xml" ;;
+    mp4)  CONTENT_TYPE="video/mp4" ;;
+    webm) CONTENT_TYPE="video/webm" ;;
+    mov)  CONTENT_TYPE="video/quicktime" ;;
+    *)    CONTENT_TYPE="application/octet-stream" ;;
+esac
+
+# Step 1: Get repository ID
+REPO_ID=$(curl -sf \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME" | jq '.id')
+
+if [ -z "$REPO_ID" ] || [ "$REPO_ID" = "null" ]; then
+    echo "Error: Could not get repository ID for $REPO_OWNER/$REPO_NAME" >&2
+    exit 1
+fi
+
+# Step 2: Request an upload policy from GitHub
+POLICY_RESPONSE=$(curl -sf \
+    -X POST \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    "https://github.com/upload/policies/assets" \
+    -d "{
+        \"repository_id\": $REPO_ID,
+        \"name\": \"$FILENAME\",
+        \"size\": $FILESIZE,
+        \"content_type\": \"$CONTENT_TYPE\"
+    }")
+
+if [ -z "$POLICY_RESPONSE" ]; then
+    echo "Error: Failed to get upload policy from GitHub." >&2
+    echo "Make sure your token is valid and has access to $REPO_OWNER/$REPO_NAME." >&2
+    exit 1
+fi
+
+# Parse the upload URL and form fields from the policy response
+UPLOAD_URL=$(echo "$POLICY_RESPONSE" | jq -r '.upload_url')
+ASSET_URL=$(echo "$POLICY_RESPONSE" | jq -r '.asset.href // .asset_upload_url // empty')
+
+if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
+    echo "Error: Unexpected policy response:" >&2
+    echo "$POLICY_RESPONSE" | jq . >&2
+    exit 1
+fi
+
+# Build the multipart form data from the policy's form fields
+FORM_ARGS=()
+for key in $(echo "$POLICY_RESPONSE" | jq -r '.form | keys[]'); do
+    value=$(echo "$POLICY_RESPONSE" | jq -r ".form[\"$key\"]")
+    FORM_ARGS+=(-F "$key=$value")
+done
+
+# Step 3: Upload the file to the presigned URL
+UPLOAD_RESULT=$(curl -sf \
+    "${FORM_ARGS[@]}" \
+    -F "file=@$FILE" \
+    "$UPLOAD_URL")
+
+# Step 4: Output the asset URL
+if [ -n "$ASSET_URL" ] && [ "$ASSET_URL" != "null" ]; then
+    echo "$ASSET_URL"
+else
+    # Try to extract from upload result (some responses include it here)
+    RESULT_URL=$(echo "$UPLOAD_RESULT" | jq -r '.href // empty' 2>/dev/null || true)
+    if [ -n "$RESULT_URL" ]; then
+        echo "$RESULT_URL"
+    else
+        echo "Error: Upload succeeded but could not determine the asset URL." >&2
+        echo "Policy response:" >&2
+        echo "$POLICY_RESPONSE" | jq . >&2
+        echo "Upload result:" >&2
+        echo "$UPLOAD_RESULT" >&2
+        exit 1
+    fi
+fi
