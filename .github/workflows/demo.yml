@@ -56,22 +56,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
+          TAG="demo-assets"
 
-          # Setup git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Remove demo assets from demo-assets branch if it exists
-          git fetch origin demo-assets 2>/dev/null || true
-          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
-            git checkout demo-assets
-            if [ -d "pr-${PR_NUMBER}" ]; then
-              git rm -rf "pr-${PR_NUMBER}"
-              git commit -m "Remove demo assets for PR #${PR_NUMBER} (demo failed)" || echo "No changes"
-              git push origin demo-assets
-            fi
-          fi
+          # Delete this PR's assets from the release
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | \
+            grep "^pr-${PR_NUMBER}-" | \
+            while read -r name; do
+              gh release delete-asset "$TAG" "$name" --yes 2>/dev/null || true
+            done
 
           # Remove Demo section from PR description
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
@@ -90,41 +82,35 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
+          TAG="demo-assets"
 
-          # Save demo files before switching branches
-          cp -r .github/demo /tmp/demo-files
+          # Create the release if it doesn't exist yet
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Demo Assets" --notes "Auto-generated demo screenshots for PRs."
 
-          # Setup git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Delete stale assets for this PR before uploading fresh ones
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | \
+            grep "^pr-${PR_NUMBER}-" | \
+            while read -r name; do
+              gh release delete-asset "$TAG" "$name" --yes 2>/dev/null || true
+            done
 
-          # Create or update demo-assets branch
-          git fetch origin demo-assets 2>/dev/null || true
+          # Rename files with PR prefix and upload
+          UPLOAD_FILES=()
+          for f in .github/demo/*.gif .github/demo/*.png; do
+            [ -f "$f" ] || continue
+            name="pr-${PR_NUMBER}-$(basename "$f")"
+            cp "$f" ".github/demo/$name"
+            UPLOAD_FILES+=(".github/demo/$name")
+          done
+          gh release upload "$TAG" "${UPLOAD_FILES[@]}" --clobber
 
-          if git rev-parse --verify origin/demo-assets >/dev/null 2>&1; then
-            git checkout demo-assets
-            git pull origin demo-assets --rebase || true
-          else
-            git checkout --orphan demo-assets
-            git rm -rf . 2>/dev/null || true
-            git commit --allow-empty -m "Initialize demo-assets branch"
-          fi
-
-          # Copy demo files to PR-specific folder
-          mkdir -p "pr-${PR_NUMBER}"
-          cp /tmp/demo-files/*.gif /tmp/demo-files/*.png "pr-${PR_NUMBER}/" 2>/dev/null || true
-
-          # Commit and push
-          git add "pr-${PR_NUMBER}/"
-          git commit -m "Demo assets for PR #${PR_NUMBER}" || echo "No changes"
-          git push origin demo-assets
-
-          # Build URLs
-          BASE_URL="https://raw.githubusercontent.com/${REPO}/demo-assets/pr-${PR_NUMBER}"
-          GIF_URL="${BASE_URL}/demo.gif"
-          HOME_URL="${BASE_URL}/home.png"
-          CALL_URL="${BASE_URL}/call.png"
-          COMPILER_URL="${BASE_URL}/compiler.png"
+          # Build URLs (release asset download URL pattern)
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          GIF_URL="${BASE_URL}/pr-${PR_NUMBER}-demo.gif"
+          HOME_URL="${BASE_URL}/pr-${PR_NUMBER}-home.png"
+          CALL_URL="${BASE_URL}/pr-${PR_NUMBER}-call.png"
+          COMPILER_URL="${BASE_URL}/pr-${PR_NUMBER}-compiler.png"
 
           # Build demo section
           echo "<details>" > /tmp/demo.md
@@ -142,10 +128,10 @@ jobs:
           echo "### Compiler" >> /tmp/demo.md
           echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
 
-          if [ -f /tmp/demo-files/newproject.png ]; then
+          if [ -f ".github/demo/pr-${PR_NUMBER}-newproject.png" ]; then
             echo "" >> /tmp/demo.md
             echo "### New Project" >> /tmp/demo.md
-            echo "![New Project](${BASE_URL}/newproject.png)" >> /tmp/demo.md
+            echo "![New Project](${BASE_URL}/pr-${PR_NUMBER}-newproject.png)" >> /tmp/demo.md
           fi
 
           echo "" >> /tmp/demo.md
