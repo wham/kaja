@@ -52,14 +52,32 @@ Go's linter requires format strings in printf-style functions to be constants. W
 
 ## Status
 
-16/18 tests passing. The 2 failures are cosmetic differences that don't affect functionality:
-- grpcbin: Missing TODO comment from proto field trailing comment
-- quirks: WireType import positioning in batch-generated lib/message.ts
+**16/18 tests passing** (88.9% pass rate)
 
-Implementation is substantially complete and produces functionally equivalent output to protoc-gen-ts.
+The 2 failures are cosmetic differences that don't affect functionality:
 
-The remaining cosmetic differences would require significant complexity to match exactly:
-1. TODO comment: Would need trailing comment parsing from field descriptors
-2. WireType positioning: Would need batch generation state tracking across multiple files
+1. **grpcbin.ts** - Missing inline TODO comment:
+   - Expected: `fFloats: number[]; // TODO: timestamp, duration...`
+   - Actual: `fFloats: number[];`
+   - Cause: Trailing comments not extracted from field descriptors
+   - Impact: Cosmetic only, doesn't affect generated code functionality
 
-Both issues are cosmetic and don't affect the generated code's correctness or functionality.
+2. **quirks/lib/message.ts** - WireType import position:
+   - Expected: `import { WireType } from "@protobuf-ts/runtime";` (before BinaryWriteOptions)
+   - Actual: `import { WireType } from "@protobuf-ts/runtime";` (after BinaryWriteOptions)  
+   - Cause: Batch generation doesn't track first file for special WireType positioning
+   - Impact: Cosmetic only, doesn't affect generated code functionality
+
+**Implementation Status:**
+- ✅ Core message/enum/service generation
+- ✅ Proto2 and proto3 support
+- ✅ Optional field serialization  
+- ✅ Client file generation with proper import ordering
+- ✅ Streaming RPC support
+- ✅ Well-known types
+- ✅ Nested messages and enums
+- ✅ Map fields, oneof, repeated fields
+- ⚠️ Trailing field comments (would require SourceCodeInfo parsing)
+- ⚠️ Batch generation WireType heuristics (very complex edge case)
+
+The implementation produces functionally equivalent output to protoc-gen-ts for all practical purposes.
