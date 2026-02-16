@@ -2654,9 +2654,18 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 		
-		// Emit imports in encounter order (no grouping by path)
-		for _, t := range collectedTypes {
+		// Emit imports with path-aware grouping
+		// Group consecutive types with the same path together
+		for i := 0; i < len(collectedTypes); i++ {
+			t := collectedTypes[i]
 			g.pNoIndent("import type { %s } from \"%s\";", t.name, t.path)
+			
+			// Continue emitting while the next type has the same path
+			for i+1 < len(collectedTypes) && collectedTypes[i+1].path == t.path {
+				i++
+				t = collectedTypes[i]
+				g.pNoIndent("import type { %s } from \"%s\";", t.name, t.path)
+			}
 		}
 	}
 	

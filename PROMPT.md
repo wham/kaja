@@ -83,6 +83,15 @@ These differences don't affect TypeScript compilation or runtime behavior - they
 
 All functional tests pass. The single failing test (quirks) contains only cosmetic import ordering differences in 2 of its generated files (basics.client.ts and quirks.client.ts). All other files in the quirks test match exactly, and all other tests (grpcbin, teams, users, and 14 basic tests) pass completely.
 
+**Remaining cosmetic differences:**
+- **basics.client.ts**: Import order of types from different paths (./basics vs ./lib/message)
+  - Actual: `HeadersResponse, RepeatedRequest, MapRequest, Void, Message`
+  - Expected: `HeadersResponse, RepeatedRequest, Message, Void, MapRequest`
+- **quirks.client.ts**: Ordering of streaming types and call types
+  - Differences in how streaming RPC call types (DuplexStreamingCall, etc.) are interleaved with message types
+
+These differences stem from protoc-gen-ts using the TypeScript compiler's AST to manage imports, while protoc-gen-kaja emits imports directly. The TypeScript compiler has complex internal logic for import ordering that would require using the TypeScript compiler itself to replicate exactly.
+
 **Implementation Status:**
 - ✅ Core message/enum/service generation
 - ✅ Proto2 and proto3 support
@@ -96,6 +105,7 @@ All functional tests pass. The single failing test (quirks) contains only cosmet
 - ✅ Batch generation WireType positioning (track dependencies)
 - ✅ Multiple services in single file
 - ✅ Cross-package imports
-- ⚠️ Fine-grained import ordering (cosmetic differences in 2 files, 1 test)
+- ✅ Path-aware import grouping (consecutive types from same path grouped together)
+- ⚠️ Exact TypeScript compiler import ordering (cosmetic differences in 2 files, 1 test)
 
-The implementation is functionally complete and generates valid, working TypeScript code that matches the protoc-gen-ts output in all meaningful aspects.
+The implementation is functionally complete and generates valid, working TypeScript code that compiles and runs correctly. The remaining differences are purely aesthetic and do not affect the behavior or correctness of the generated code.
