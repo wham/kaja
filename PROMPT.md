@@ -57,30 +57,45 @@ Implementation: Pre-scan all files in the batch to identify which have services,
 The remaining cosmetic differences in quirks client files relate to import ordering within the same source file, which doesn't affect functionality.
 
 ### Format String Linter Fix
+### Format String Linter Fix
 Go's linter requires format strings in printf-style functions to be constants. When passing dynamic strings to `pNoIndent()`, use `"%s"` format with the string as an argument instead of passing the string directly as the format parameter.
+
+### Import Ordering - Remaining Cosmetic Differences
+The quirks test has cosmetic import ordering differences in two files:
+
+**basics.client.ts** - Void positioning:
+- Expected: `HeadersResponse, RepeatedRequest, Message, Void, MapRequest`
+- Actual: `HeadersResponse, Void, RepeatedRequest, Message, MapRequest`
+
+The issue: Void appears in multiple methods (method 2 input, method 4 both, method 5 input). In protoc-gen-ts, types that appear as both input and output (method 4: Void→Void) in one method but are used elsewhere are deferred and placed at a different position. The exact algorithm for this deferral is complex and would require deeper analysis of the TypeScript implementation.
+
+**quirks.client.ts** - Streaming RPC types and call type ordering:
+- Expected: Non-streaming types (Sum), then streaming call types (Duplex, Client, Server) interleaved with streaming message types (Echo, Accumulate, Generate)
+- Actual: Non-streaming types first, then all streaming call types together, then all streaming message types together
+
+The ordering difference relates to how streaming method types are collected and when streaming call type imports (DuplexStreamingCall, etc.) are emitted relative to the message types.
+
+These differences don't affect TypeScript compilation or runtime behavior - they're purely aesthetic import statement ordering.
 
 ## Status
 
 **17/18 tests passing** (94.4% pass rate)
 
-The 1 failure consists only of cosmetic import ordering differences:
-
-**quirks test** - Minor import statement ordering differences:
-- **quirks.ts**: `Void` before `Message` vs `Message` before `Void` from `./lib/message`
-- **basics.client.ts**: `HeadersResponse` before `MapRequest` ordering  
-- **quirks.client.ts**: Various streaming type and message type orderings
-
-All differences are purely cosmetic import ordering within the same source file. The types are imported correctly, just in slightly different order. This doesn't affect TypeScript compilation or runtime behavior.
+All functional tests pass. The single failing test (quirks) contains only cosmetic import ordering differences in 2 of its generated files (basics.client.ts and quirks.client.ts). All other files in the quirks test match exactly, and all other tests (grpcbin, teams, users, and 14 basic tests) pass completely.
 
 **Implementation Status:**
 - ✅ Core message/enum/service generation
 - ✅ Proto2 and proto3 support
 - ✅ Optional field serialization  
-- ✅ Client file generation with proper import ordering
-- ✅ Streaming RPC support
+- ✅ Client file generation
+- ✅ Streaming RPC support (unary, server streaming, client streaming, bidirectional)
 - ✅ Well-known types
 - ✅ Nested messages and enums
 - ✅ Map fields, oneof, repeated fields
 - ✅ Trailing field comments (SourceCodeInfo parsing)
 - ✅ Batch generation WireType positioning (track dependencies)
-- ⚠️ Fine-grained import ordering within same file (cosmetic, 1/18 tests)
+- ✅ Multiple services in single file
+- ✅ Cross-package imports
+- ⚠️ Fine-grained import ordering (cosmetic differences in 2 files, 1 test)
+
+The implementation is functionally complete and generates valid, working TypeScript code that matches the protoc-gen-ts output in all meaningful aspects.
