@@ -90,8 +90,27 @@ Build: Automatically done by test script via `go build`
 ### Oneof Field Naming and Ordering
 Oneof fields in TypeScript interfaces use camelCase for the oneof name (e.g., `dataFormat` not `data_format`), but the `@generated` comment uses the original proto name. Fields and oneofs appear in field number order in the interface, not grouped separately.
 
+Implementation:
+- Interface generation loops through fields in field number order
+- When encountering first field of a oneof, generates entire oneof group
+- Uses `toCamelCase()` helper to convert oneof names
+- Tracks generated oneofs to avoid duplication
+
 TODO: Fix field descriptor ordering in MessageType constructor - currently groups regular fields first, then oneof fields. Should be in field number order.
 
 ## Status
+
+**Current Test Results: 21/29 passing (72%)**
+
+Recent improvements:
+- TypeScript keyword escaping (test 15 now passing)
+- Enum prefix detection matching protobuf-ts logic (test 20 now passing)
+- Oneof field camelCase naming and interface ordering
+
+Remaining work focuses on:
+- Field descriptor ordering in reflection metadata
+- Proto2 features (default values, groups)
+- Comment formatting edge cases
+- Proto3 optional field handling
 
 
