@@ -20,7 +20,8 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix proto2 optional field serialization (check !== undefined)
 - [x] Fix client file import ordering (types from same file maintain order)
 - [x] Fix grpcbin trailing comment handling (SOLVED via SourceCodeInfo.TrailingComments)
-- [ ] Fix WireType import positioning in batch generation for lib files (cosmetic)
+- [x] Fix WireType import positioning in batch generation for lib files (SOLVED)
+- [ ] Fix client file import ordering cosmetic differences in quirks (cosmetic)
 
 ## Notes
 
@@ -46,17 +47,14 @@ Proto2 `optional` fields and proto3 explicit optional fields (`optional` keyword
 - When single import path: keep encounter order (reverse N→1)
 - This ensures types from the same import path appear together
 
-**WireType Import Position:**
+**WireType Import Position (SOLVED):**
 - Files with services: WireType comes AFTER IBinaryWriter
 - Files without services in single file mode: WireType comes AFTER IBinaryWriter
-- Files without services in batch mode that are imported by service files: WireType comes BEFORE BinaryWriteOptions (e.g., lib/message.proto imported by basics.proto)
+- Files without services in batch mode that are imported by service files: WireType comes BEFORE BinaryWriteOptions
 
-The batch mode logic for this specific case would require tracking:
-1. Which files in the batch have services
-2. Which files are imported by service files
-3. Applying special ordering only to imported lib files
+Implementation: Pre-scan all files in the batch to identify which have services, then track which files are imported by service files via the `Dependency` field. Pass `isImportedByService` flag to `generateFile()` and use it to determine WireType position.
 
-This is an extremely complex heuristic for a cosmetic import ordering difference. The current implementation uses consistent ordering (WireType after IBinaryWriter) which is functionally equivalent.
+The remaining cosmetic differences in quirks client files relate to import ordering within the same source file, which doesn't affect functionality.
 
 ### Format String Linter Fix
 Go's linter requires format strings in printf-style functions to be constants. When passing dynamic strings to `pNoIndent()`, use `"%s"` format with the string as an argument instead of passing the string directly as the format parameter.
@@ -65,12 +63,12 @@ Go's linter requires format strings in printf-style functions to be constants. W
 
 **17/18 tests passing** (94.4% pass rate)
 
-The 1 failure is a cosmetic difference that doesn't affect functionality:
+The 1 failure consists only of cosmetic import ordering differences in client files:
 
-1. **quirks/lib/message.ts** - WireType import position:
-   - Expected: `import { WireType } from "@protobuf-ts/runtime";` (before BinaryWriteOptions)
-   - Actual: `import { WireType } from "@protobuf-ts/runtime";` (after BinaryWriteOptions)  
-   - Cause: Batch generation doesn't track first file for special WireType positioning
+1. **quirks client files** - Import statement ordering:
+   - Various types from the same import path appear in slightly different order
+   - Examples: `HeadersResponse` vs `MapRequest`, `Message` vs `Void`
+   - Cause: Complex heuristics for import ordering within same-file imports in client files
    - Impact: Cosmetic only, doesn't affect generated code functionality
 
 **Implementation Status:**
@@ -83,6 +81,7 @@ The 1 failure is a cosmetic difference that doesn't affect functionality:
 - ✅ Nested messages and enums
 - ✅ Map fields, oneof, repeated fields
 - ✅ Trailing field comments (SourceCodeInfo parsing)
-- ⚠️ Batch generation WireType heuristics for lib files (very complex edge case)
+- ✅ Batch generation WireType positioning (track dependencies)
+- ⚠️ Fine-grained client import ordering within same file (cosmetic)
 
 The implementation produces functionally equivalent output to protoc-gen-ts for all practical purposes.
