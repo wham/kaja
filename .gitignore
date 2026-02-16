@@ -1,4 +1,5 @@
 /desktop/build/bin
 /desktop/frontend/dist
+/protoc-gen-kaja/results
 /server/build
 /ui/node_modules
