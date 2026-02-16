@@ -348,6 +348,37 @@ func (g *generator) writeImports(imports map[string]bool) {
 	// Check if we need ServiceType import
 	needsServiceType := len(g.file.Service) > 0
 	
+	// Check if service comes before messages in the file
+	// The WireType import position depends on source order in certain cases
+	serviceBeforeMessages := false
+	if needsServiceType && len(g.file.MessageType) > 0 {
+		// Service is field 6, MessageType is field 4 in FileDescriptorProto
+		// Check source code info to see which appears first
+		if g.file.SourceCodeInfo != nil {
+			firstServiceLine := int32(999999)
+			firstMessageLine := int32(999999)
+			
+			for _, loc := range g.file.SourceCodeInfo.Location {
+				// Service definition: path [6, index]
+				if len(loc.Path) >= 2 && loc.Path[0] == 6 && loc.Span != nil && len(loc.Span) > 0 {
+					if loc.Span[0] < firstServiceLine {
+						firstServiceLine = loc.Span[0]
+					}
+				}
+				// Message definition: path [4, index]
+				if len(loc.Path) >= 2 && loc.Path[0] == 4 && loc.Span != nil && len(loc.Span) > 0 {
+					if loc.Span[0] < firstMessageLine {
+						firstMessageLine = loc.Span[0]
+					}
+				}
+			}
+			
+			// Use special ordering only for files with many messages where service comes first
+			// This matches the pattern in teams.proto and users.proto
+			serviceBeforeMessages = firstServiceLine < firstMessageLine && len(g.file.MessageType) > 10
+		}
+	}
+	
 	// Check if this is google.protobuf.Timestamp for special imports
 	isTimestamp := false
 	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
@@ -363,10 +394,15 @@ func (g *generator) writeImports(imports map[string]bool) {
 	if len(g.file.MessageType) > 0 || needsServiceType {
 		if needsServiceType {
 			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
+			if serviceBeforeMessages {
+				g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+			}
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+		if !serviceBeforeMessages {
+			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+		}
 		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
@@ -1093,10 +1129,6 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	g.p("constructor() {")
 	g.indent = "        "
-	g.p("super(\"%s\", [", typeName)
-	
-	// Field descriptors
-	g.indent = "            "
 	
 	// Group oneof fields
 	oneofFieldGroups := make(map[int32][]*descriptorpb.FieldDescriptorProto)
@@ -1114,10 +1146,19 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	for _, fields := range oneofFieldGroups {
 		totalFields += len(fields)
 	}
-	currentField := 0
 	
-	// Generate regular field descriptors
-	for _, field := range regularFields {
+	// If no fields, use compact format
+	if totalFields == 0 {
+		g.p("super(\"%s\", []);", typeName)
+	} else {
+		g.p("super(\"%s\", [", typeName)
+		
+		// Field descriptors
+		g.indent = "            "
+		currentField := 0
+	
+		// Generate regular field descriptors
+		for _, field := range regularFields {
 		comma := ","
 		if currentField == totalFields-1 {
 			comma = ""
@@ -1239,8 +1280,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 		}
 	}
-	g.indent = "        "
-	g.p("]);")
+		
+		g.indent = "        "
+		g.p("]);")
+	}
 	g.indent = "    "
 	g.p("}")
 	
@@ -2121,12 +2164,33 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	g.pNoIndent("export interface %s {", clientName)
 	g.indent = "    "
 	
-	for _, method := range service.Method {
+	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := g.lowerFirst(method.GetName())
 		
 		g.p("/**")
+		
+		// Add method-level leading comments if available
+		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
+		leadingComments := g.getLeadingComments(methodPath)
+		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", line)
+				}
+			}
+			g.p(" *")
+		}
+		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
 		g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s>;", methodName, reqType, reqType, resType)
@@ -2169,12 +2233,33 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	g.p("constructor(private readonly _transport: RpcTransport) {")
 	g.p("}")
 	
-	for _, method := range service.Method {
+	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := g.lowerFirst(method.GetName())
 		
 		g.p("/**")
+		
+		// Add method-level leading comments if available
+		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
+		leadingComments := g.getLeadingComments(methodPath)
+		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", line)
+				}
+			}
+			g.p(" *")
+		}
+		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
 		g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s> {",
