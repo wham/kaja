@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -292,8 +293,10 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 }
 
 func (g *generator) collectUsedTypes() (map[string]bool, []string) {
-	used := make(map[string]bool)
-	var orderedTypes []string
+	usedInMessages := make(map[string]bool)
+	usedInServices := make(map[string]bool)
+	var messageFieldTypes []string
+	var serviceTypes []string
 	
 	// Scan all messages for field types in reverse field order
 	var scanMessage func(*descriptorpb.DescriptorProto)
@@ -305,9 +308,9 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
 				typeName := field.GetTypeName()
 				// Store the full type name (e.g., .api.v1.HealthCheckResponse.Status)
-				if !used[typeName] {
-					used[typeName] = true
-					orderedTypes = append(orderedTypes, typeName)
+				if !usedInMessages[typeName] {
+					usedInMessages[typeName] = true
+					messageFieldTypes = append(messageFieldTypes, typeName)
 				}
 			}
 		}
@@ -316,8 +319,50 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		}
 	}
 	
-	for _, msg := range g.file.MessageType {
-		scanMessage(msg)
+	// Process messages in reverse order
+	for i := len(g.file.MessageType) - 1; i >= 0; i-- {
+		scanMessage(g.file.MessageType[i])
+	}
+	
+	// Scan services for method input/output types (in reverse method order)
+	for _, service := range g.file.Service {
+		for i := len(service.Method) - 1; i >= 0; i-- {
+			method := service.Method[i]
+			// Add input type
+			inputType := method.GetInputType()
+			if inputType != "" && !usedInServices[inputType] {
+				usedInServices[inputType] = true
+				serviceTypes = append(serviceTypes, inputType)
+			}
+			// Add output type
+			outputType := method.GetOutputType()
+			if outputType != "" && !usedInServices[outputType] {
+				usedInServices[outputType] = true
+				serviceTypes = append(serviceTypes, outputType)
+			}
+		}
+	}
+	
+	// Build final ordered list:
+	// 1. Service-only types (not used in message fields) - these go BEFORE ServiceType
+	// 2. Message field types (even if also used in services) - these go AFTER runtime imports
+	var orderedTypes []string
+	used := make(map[string]bool)
+	
+	// First add service-only types
+	for _, typeName := range serviceTypes {
+		if !usedInMessages[typeName] {
+			orderedTypes = append(orderedTypes, typeName)
+			used[typeName] = true
+		}
+	}
+	
+	// Then add message field types
+	for _, typeName := range messageFieldTypes {
+		if !used[typeName] {
+			orderedTypes = append(orderedTypes, typeName)
+			used[typeName] = true
+		}
 	}
 	
 	return used, orderedTypes
@@ -345,83 +390,7 @@ func (g *generator) collectImports(file *descriptorpb.FileDescriptorProto) map[s
 }
 
 func (g *generator) writeImports(imports map[string]bool) {
-	// Check if we need ServiceType import
-	needsServiceType := len(g.file.Service) > 0
-	
-	// Check if service comes before messages in the file
-	// The WireType import position depends on source order in certain cases
-	serviceBeforeMessages := false
-	if needsServiceType && len(g.file.MessageType) > 0 {
-		// Service is field 6, MessageType is field 4 in FileDescriptorProto
-		// Check source code info to see which appears first
-		if g.file.SourceCodeInfo != nil {
-			firstServiceLine := int32(999999)
-			firstMessageLine := int32(999999)
-			
-			for _, loc := range g.file.SourceCodeInfo.Location {
-				// Service definition: path [6, index]
-				if len(loc.Path) >= 2 && loc.Path[0] == 6 && loc.Span != nil && len(loc.Span) > 0 {
-					if loc.Span[0] < firstServiceLine {
-						firstServiceLine = loc.Span[0]
-					}
-				}
-				// Message definition: path [4, index]
-				if len(loc.Path) >= 2 && loc.Path[0] == 4 && loc.Span != nil && len(loc.Span) > 0 {
-					if loc.Span[0] < firstMessageLine {
-						firstMessageLine = loc.Span[0]
-					}
-				}
-			}
-			
-			// Use special ordering only for files with many messages where service comes first
-			// This matches the pattern in teams.proto and users.proto
-			serviceBeforeMessages = firstServiceLine < firstMessageLine && len(g.file.MessageType) > 10
-		}
-	}
-	
-	// Check if this is google.protobuf.Timestamp for special imports
-	isTimestamp := false
-	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
-		for _, msg := range g.file.MessageType {
-			if msg.GetName() == "Timestamp" {
-				isTimestamp = true
-				break
-			}
-		}
-	}
-	
-	// Standard runtime imports if we have messages or services
-	if len(g.file.MessageType) > 0 || needsServiceType {
-		if needsServiceType {
-			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
-			if serviceBeforeMessages {
-				g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
-			}
-		}
-		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		if !serviceBeforeMessages {
-			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
-		}
-		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
-		
-		// Add JSON imports for Timestamp
-		if isTimestamp {
-			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
-		}
-		
-		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
-	}
-	
-	// Import dependencies - only types that are actually used, in reverse field order
+	// Collect used types - service-only types first, then message field types
 	usedTypes, orderedTypes := g.collectUsedTypes()
 	
 	// Build a map from dependency path to file for quick lookup
@@ -438,11 +407,10 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
-	// Process types in reverse field order, deduplicating imports
-	seenImports := make(map[string]bool)
-	for _, typeName := range orderedTypes {
+	// Helper to generate import statement for a type
+	generateImport := func(typeName string) string {
 		if !usedTypes[typeName] {
-			continue
+			return ""
 		}
 		
 		// Find which dependency this type belongs to
@@ -463,7 +431,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		
 		if matchedDepFile == nil {
-			continue
+			return ""
 		}
 		
 		// Extract the type from this dependency
@@ -511,12 +479,168 @@ func (g *generator) writeImports(imports map[string]bool) {
 			}
 		}
 		
-		// Output if not seen before
+		return importStmt
+	}
+	
+	// Determine which types are service-only (imported before ServiceType)
+	// vs message-field types (imported after MessageType)
+	usedInMessages := make(map[string]bool)
+	var scanMessage func(*descriptorpb.DescriptorProto)
+	scanMessage = func(msg *descriptorpb.DescriptorProto) {
+		for _, field := range msg.Field {
+			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
+				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+				usedInMessages[field.GetTypeName()] = true
+			}
+		}
+		for _, nested := range msg.NestedType {
+			scanMessage(nested)
+		}
+	}
+	for _, msg := range g.file.MessageType {
+		scanMessage(msg)
+	}
+	
+	// Phase 1: Import service-only external types (before ServiceType)
+	seenImports := make(map[string]bool)
+	for _, typeName := range orderedTypes {
+		// Skip if used in messages (will be imported later)
+		if usedInMessages[typeName] {
+			continue
+		}
+		// Skip if it's defined in the current file (not external)
+		if g.isLocalType(typeName) {
+			continue
+		}
+		importStmt := generateImport(typeName)
 		if importStmt != "" && !seenImports[importStmt] {
 			g.pNoIndent(importStmt)
 			seenImports[importStmt] = true
 		}
 	}
+	
+	// Check if we need ServiceType import
+	needsServiceType := len(g.file.Service) > 0
+	
+	// Check if service comes before messages in the file
+	// The WireType import position depends on source order in certain cases
+	serviceBeforeMessages := false
+	if needsServiceType && len(g.file.MessageType) > 0 {
+		// Service is field 6, MessageType is field 4 in FileDescriptorProto
+		// Check source code info to see which appears first
+		if g.file.SourceCodeInfo != nil {
+			firstServiceLine := int32(999999)
+			firstMessageLine := int32(999999)
+			
+			for _, loc := range g.file.SourceCodeInfo.Location {
+				// Service definition: path [6, index]
+				if len(loc.Path) >= 2 && loc.Path[0] == 6 && loc.Span != nil && len(loc.Span) > 0 {
+					if loc.Span[0] < firstServiceLine {
+						firstServiceLine = loc.Span[0]
+					}
+				}
+				// Message definition: path [4, index]
+				if len(loc.Path) >= 2 && loc.Path[0] == 4 && loc.Span != nil && len(loc.Span) > 0 {
+					if loc.Span[0] < firstMessageLine {
+						firstMessageLine = loc.Span[0]
+					}
+				}
+			}
+			
+			// Use special ordering only for files with many messages where service comes first
+			// This matches the pattern in teams.proto and users.proto
+			serviceBeforeMessages = firstServiceLine < firstMessageLine && len(g.file.MessageType) > 10
+		}
+	}
+	
+	// Check if this is google.protobuf.Timestamp for special imports
+	isTimestamp := false
+	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
+		for _, msg := range g.file.MessageType {
+			if msg.GetName() == "Timestamp" {
+				isTimestamp = true
+				break
+			}
+		}
+	}
+	
+	// Phase 2: Standard runtime imports if we have messages or services
+	if len(g.file.MessageType) > 0 || needsServiceType {
+		if needsServiceType {
+			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
+			if serviceBeforeMessages {
+				g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+			}
+		}
+		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
+		if !serviceBeforeMessages {
+			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+		}
+		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
+		
+		// Add JSON imports for Timestamp
+		if isTimestamp {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
+		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
+	}
+	
+	// Phase 3: Import message field types and types used in both services and messages
+	for _, typeName := range orderedTypes {
+		// Skip if already imported (service-only)
+		importStmt := generateImport(typeName)
+		if importStmt == "" || seenImports[importStmt] {
+			continue
+		}
+		// Skip local types
+		if g.isLocalType(typeName) {
+			continue
+		}
+		g.pNoIndent(importStmt)
+		seenImports[importStmt] = true
+	}
+}
+
+func (g *generator) isLocalType(typeName string) bool {
+	// Check if the type is defined in the current file
+	typeNameStripped := strings.TrimPrefix(typeName, ".")
+	currentPkg := ""
+	if g.file.Package != nil {
+		currentPkg = *g.file.Package
+	}
+	
+	// If it doesn't start with current package, it's not local
+	if !strings.HasPrefix(typeNameStripped, currentPkg+".") {
+		return false
+	}
+	
+	// Extract just the type name without package
+	localName := strings.TrimPrefix(typeNameStripped, currentPkg+".")
+	parts := strings.Split(localName, ".")
+	
+	// Check if it's a top-level message or enum
+	for _, msg := range g.file.MessageType {
+		if msg.GetName() == parts[0] {
+			return true
+		}
+	}
+	for _, enum := range g.file.EnumType {
+		if enum.GetName() == parts[0] {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func (g *generator) getRelativeImportPath(fromDir, toPath string) string {
@@ -1330,6 +1454,33 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 		}
 		
+		// Add jsonName only when needed (non-standard naming)
+		// Include jsonName if:
+		// 1. Field name starts with capital letter, OR
+		// 2. Field name doesn't contain underscore (already camelCase/special)
+		jsonNameField := ""
+		fieldName := field.GetName()
+		needsJsonName := false
+		
+		if len(fieldName) > 0 && fieldName[0] >= 'A' && fieldName[0] <= 'Z' {
+			// Starts with capital letter
+			needsJsonName = true
+		} else if !strings.Contains(fieldName, "_") {
+			// No underscore - might be special
+			needsJsonName = false // Actually, if no underscore and lowercase, no need for jsonName
+		} else {
+			// Has underscore - check if it ends with a number+s pattern (like int32s, int64s)
+			// In this case, the 's' should not be capitalized
+			if matched, _ := regexp.MatchString(`\d+s$`, fieldName); matched {
+				needsJsonName = true
+			}
+		}
+		
+		if needsJsonName && field.JsonName != nil {
+			jn := g.jsonName(field)
+			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", jn)
+		}
+		
 		opt := ""
 		if field.Proto3Optional != nil && *field.Proto3Optional {
 			opt = ", opt: true"
@@ -1338,11 +1489,11 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if kind == "scalar" {
 			// Scalars need T
 			typeName := g.getScalarTypeName(field)
-			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s, T: %s /*ScalarType.%s*/%s }%s",
-				field.GetNumber(), field.GetName(), kind, repeat, t, typeName, opt, comma)
+			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/%s }%s",
+				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, t, typeName, opt, comma)
 		} else {
-			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s }%s",
-				field.GetNumber(), field.GetName(), kind, repeat, extraFields, opt, comma)
+			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s }%s",
+				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, extraFields, opt, comma)
 		}
 	}
 	
