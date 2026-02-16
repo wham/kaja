@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -236,7 +235,8 @@ func (g *generator) getLeadingComments(path []int32) string {
 			// Check if original comment ends with blank line before trimming
 			hasTrailingBlank := strings.HasSuffix(comment, "\n\n") || strings.HasSuffix(comment, "\n \n")
 			
-			comment = strings.TrimSpace(comment)
+			// Don't trim the start - we need to preserve leading empty lines
+			comment = strings.TrimRight(comment, " \t\n")
 			// Strip one leading space from each line (protobuf convention)
 			lines := strings.Split(comment, "\n")
 			for i, line := range lines {
@@ -1050,10 +1050,29 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 
 func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32) {
 	g.indent = "    "
+	
+	// Check if leading comment ends with blank line (special case: output as // comment)
+	hasTrailingBlankComment := false
+	var trailingBlankCommentText string
+	if len(fieldPath) > 0 {
+		leadingComments := g.getLeadingComments(fieldPath)
+		if strings.Contains(leadingComments, "__HAS_TRAILING_BLANK__") {
+			hasTrailingBlankComment = true
+			// Extract the comment text without the marker
+			trailingBlankCommentText = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+		}
+	}
+	
+	// If leading comment ends with blank line, output it as // comment first
+	if hasTrailingBlankComment && trailingBlankCommentText != "" {
+		g.p("// %s", trailingBlankCommentText)
+		g.pNoIndent("")
+	}
+	
 	g.p("/**")
 	
-	// Add leading comments if fieldPath is provided
-	if len(fieldPath) > 0 {
+	// Add leading comments if fieldPath is provided (skip if we already handled trailing blank case)
+	if len(fieldPath) > 0 && !hasTrailingBlankComment {
 		leadingComments := g.getLeadingComments(fieldPath)
 		if leadingComments != "" {
 			for _, line := range strings.Split(leadingComments, "\n") {
@@ -1083,7 +1102,16 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		}
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d%s", protoType, fieldName, fieldNumber, jsonNameAnnotation)
+	// Check if there's a default value annotation
+	defaultAnnotation := ""
+	if field.DefaultValue != nil {
+		defaultVal := field.GetDefaultValue()
+		// Format default value based on field type
+		formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
+		defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
+	}
+	
+	g.p(" * @generated from protobuf field: %s %s = %d%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation)
 	g.p(" */")
 	
 	fieldName = g.propertyName(field)
@@ -1741,10 +1769,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		allFields = append(allFields, info)
 	}
 	
-	// Sort by field number
-	sort.Slice(allFields, func(i, j int) bool {
-		return allFields[i].field.GetNumber() < allFields[j].field.GetNumber()
-	})
+	// Keep fields in proto file order (don't sort)
+	// The order in msg.Field is the order they appear in the .proto file
 	
 	// If no fields, use compact format
 	if len(allFields) == 0 {
@@ -1836,12 +1862,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
-	// Sort by field number
-	sort.Slice(initItems, func(i, j int) bool {
-		return initItems[i].fieldNumber < initItems[j].fieldNumber
-	})
+	// Keep initialization items in proto file order (don't sort)
+	// The initItems are already in the order fields appear in msg.Field
 	
-	// Generate initializations in field number order
+	// Generate initializations in proto file order
 	for _, item := range initItems {
 		if item.isOneof {
 			// Initialize oneof
@@ -2036,7 +2060,19 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("internalBinaryWrite(message: %s, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {", fullName)
 	g.indent = "        "
 	
-	for _, field := range msg.Field {
+	// Sort fields by field number for write method (for efficiency)
+	sortedFields := make([]*descriptorpb.FieldDescriptorProto, len(msg.Field))
+	copy(sortedFields, msg.Field)
+	// Using a simple bubble sort to avoid importing sort package
+	for i := 0; i < len(sortedFields); i++ {
+		for j := i + 1; j < len(sortedFields); j++ {
+			if sortedFields[i].GetNumber() > sortedFields[j].GetNumber() {
+				sortedFields[i], sortedFields[j] = sortedFields[j], sortedFields[i]
+			}
+		}
+	}
+	
+	for _, field := range sortedFields {
 		fieldName := g.propertyName(field)
 		
 		// Add json_name annotation to comment if custom (explicitly set)
@@ -2261,6 +2297,38 @@ func (g *generator) getScalarTypeName(field *descriptorpb.FieldDescriptorProto) 
 		return "SINT64"
 	default:
 		return "STRING"
+	}
+}
+
+// formatDefaultValueAnnotation formats a default value for the @generated comment annotation
+func (g *generator) formatDefaultValueAnnotation(field *descriptorpb.FieldDescriptorProto, defaultVal string) string {
+	switch field.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+		// String defaults are shown as quoted strings
+		return fmt.Sprintf("\"%s\"", defaultVal)
+	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+		// Bytes defaults use C-escaped format (already in defaultVal)
+		return fmt.Sprintf("\"%s\"", defaultVal)
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		// Enum defaults show the enum value name (not the number)
+		return defaultVal
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL,
+		descriptorpb.FieldDescriptorProto_TYPE_DOUBLE,
+		descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
+		descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		// Numeric and boolean defaults are shown as-is
+		return defaultVal
+	default:
+		return defaultVal
 	}
 }
 
@@ -2660,10 +2728,11 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 		return ""
 	}
 	
-	// Check if stripped names are valid (start with uppercase letter, at least 1 char)
+	// Check if stripped names are valid (start with uppercase letter, at least 2 chars)
 	for _, v := range enum.Value {
 		stripped := strings.TrimPrefix(v.GetName(), enumPrefix)
-		if len(stripped) == 0 || !(stripped[0] >= 'A' && stripped[0] <= 'Z') {
+		// Must have at least 2 characters and start with uppercase letter
+		if len(stripped) < 2 || !(stripped[0] >= 'A' && stripped[0] <= 'Z') {
 			return ""
 		}
 	}
