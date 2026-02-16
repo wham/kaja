@@ -2531,8 +2531,13 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method0Types[g.stripPackage(method0.GetInputType())] = true
 		}
 		
-		// Separate unary and streaming types from methods 9 down to 1
-		var unaryTypes []struct{ name, path string }
+		// Collect types from methods 1-N in reverse order
+		type typeInfo struct {
+			name       string
+			path       string
+			methodIdx  int  // method index where first seen
+		}
+		var collectedTypes []typeInfo
 		
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
@@ -2543,32 +2548,69 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
-			// Process output type
+			// Process output type first
 			if !seen[resType] && !method0Types[resType] {
-				typeInfo := struct{ name, path string }{resType, resTypePath}
 				if isStreaming {
-					streamingTypes = append(streamingTypes, typeInfo)
+					streamingTypes = append(streamingTypes, struct{ name, path string }{resType, resTypePath})
 				} else {
-					unaryTypes = append(unaryTypes, typeInfo)
+					collectedTypes = append(collectedTypes, typeInfo{resType, resTypePath, i})
 				}
 				seen[resType] = true
 			}
 			
-			// Process input type
+			// Process input type second
 			if !seen[reqType] && !method0Types[reqType] {
-				typeInfo := struct{ name, path string }{reqType, reqTypePath}
 				if isStreaming {
-					streamingTypes = append(streamingTypes, typeInfo)
+					streamingTypes = append(streamingTypes, struct{ name, path string }{reqType, reqTypePath})
 				} else {
-					unaryTypes = append(unaryTypes, typeInfo)
+					collectedTypes = append(collectedTypes, typeInfo{reqType, reqTypePath, i})
 				}
 				seen[reqType] = true
 			}
 		}
 		
-		// Import unary types (before streaming call types)
-		for _, typeInfo := range unaryTypes {
-			g.pNoIndent("import type { %s } from \"%s\";", typeInfo.name, typeInfo.path)
+		// Emit imports: group all types by path in order of first appearance of each path
+		if len(collectedTypes) > 0 {
+			// Track paths in order of first appearance
+			var pathOrder []string
+			pathsSeen := make(map[string]bool)
+			for _, t := range collectedTypes {
+				if !pathsSeen[t.path] {
+					pathOrder = append(pathOrder, t.path)
+					pathsSeen[t.path] = true
+				}
+			}
+			
+			// Determine if we have multiple paths
+			multiplePaths := len(pathOrder) > 1
+			
+			// Emit imports grouped by path
+			for _, path := range pathOrder {
+				// Collect types for this path
+				var pathTypes []typeInfo
+				for _, t := range collectedTypes {
+					if t.path == path {
+						pathTypes = append(pathTypes, t)
+					}
+				}
+				
+				// If multiple paths: sort each path group in forward order (smaller methodIdx first)
+				// If single path: keep encounter order (which is already reverse)
+				if multiplePaths {
+					for i := 0; i < len(pathTypes); i++ {
+						for j := i + 1; j < len(pathTypes); j++ {
+							if pathTypes[i].methodIdx > pathTypes[j].methodIdx {
+								pathTypes[i], pathTypes[j] = pathTypes[j], pathTypes[i]
+							}
+						}
+					}
+				}
+				
+				// Emit types for this path
+				for _, t := range pathTypes {
+					g.pNoIndent("import type { %s } from \"%s\";", t.name, path)
+				}
+			}
 		}
 	}
 	
