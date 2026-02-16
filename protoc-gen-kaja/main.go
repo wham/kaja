@@ -2599,22 +2599,6 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// Declare type info struct for later use
-	type methodTypeInfo struct {
-		methodIdx     int
-		isStreaming   bool
-		callType      string // "duplex", "client", "server"
-		outputType    string
-		outputPath    string
-		inputType     string
-		inputPath     string
-		sameType      bool   // true if input == output for this method
-	}
-	
-	// Collect streaming call types for deferred emission
-	var deferredStreamingCallTypes []string
-	emittedStreamingCallTypes := make(map[string]bool)
-	
 	// First service + methods types with special ordering
 	if len(file.Service) > 0 {
 		service := file.Service[0]
@@ -2628,51 +2612,47 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method0Types[g.stripPackage(method0.GetInputType())] = true
 		}
 		
-		// Collect method info from methods 1-N in reverse order
-		var methods []methodTypeInfo
-		
-		// Prescan: identify types that should be deferred
-		// A type should be deferred if it appears in a same-type method
-		// AND also appears in a different-type method or another same-type method
-		typeAppearances := make(map[string][]int) // type -> list of method indices where it appears
-		typeSameTypeMethod := make(map[string]bool) // type appears in a same-type method
-		
-		for i := len(service.Method) - 1; i >= 1; i-- {
+		// Determine import ordering strategy:
+		// - If first non-method-0 method encountered (in N→1 order) is streaming: Interleave
+		// - If first non-method-0 method encountered is non-streaming: Group (non-streaming, then call types, then streaming messages)
+		shouldInterleave := false
+		foundFirstMethod := false
+		for i := len(service.Method) - 1; i >= 1 && !foundFirstMethod; i-- {
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			
-			// Skip if both types in method 0
+			// Skip methods where both types are method 0 types
 			if method0Types[resType] && method0Types[reqType] {
 				continue
 			}
 			
-			// Track appearances
-			if !method0Types[resType] {
-				typeAppearances[resType] = append(typeAppearances[resType], i)
-			}
-			if !method0Types[reqType] && reqType != resType {
-				typeAppearances[reqType] = append(typeAppearances[reqType], i)
-			}
-			
-			// Track if this is a same-type method
-			if resType == reqType {
-				typeSameTypeMethod[resType] = true
+			foundFirstMethod = true
+			isStreaming := method.GetClientStreaming() || method.GetServerStreaming()
+			shouldInterleave = isStreaming
+		}
+		
+		type streamingMethodInfo struct {
+			methodIdx int
+			callType  string // "duplex", "client", "server"
+			types     []struct {
+				typeName string
+				typePath string
 			}
 		}
 		
-		// Determine which types should be deferred
-		// Defer a type if:
-		// - It appears in a same-type method, AND
-		// - It appears in more than one method OR in a different-type method
-		shouldDefer := make(map[string]bool)
-		for typ, indices := range typeAppearances {
-			if typeSameTypeMethod[typ] && len(indices) > 1 {
-				shouldDefer[typ] = true
-			}
+		var streamingMethods []streamingMethodInfo
+		var nonStreamingTypes []struct {
+			typeName string
+			typePath string
 		}
 		
-		// Now collect method info
+		// Collect streaming and non-streaming methods from N→1
+		var deferredInputs []struct {
+			typeName string
+			typePath string
+		}
+		
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
 			
@@ -2681,157 +2661,172 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
-			// Determine call type for streaming methods
-			var callType string
-			if method.GetClientStreaming() && method.GetServerStreaming() {
-				callType = "duplex"
-			} else if method.GetServerStreaming() {
-				callType = "server"
-			} else if method.GetClientStreaming() {
-				callType = "client"
-			}
+			isStreaming := method.GetClientStreaming() || method.GetServerStreaming()
 			
-			// Skip non-streaming methods if both types already in method 0
-			// But always include streaming methods (we need to emit call types)
-			if method0Types[resType] && method0Types[reqType] && callType == "" {
+			// Skip non-streaming methods if both types are in method 0
+			if !isStreaming && method0Types[resType] && method0Types[reqType] {
 				continue
 			}
 			
-			methods = append(methods, methodTypeInfo{
-				methodIdx:   i,
-				isStreaming: callType != "",
-				callType:    callType,
-				outputType:  resType,
-				outputPath:  resTypePath,
-				inputType:   reqType,
-				inputPath:   reqTypePath,
-				sameType:    resType == reqType,
-			})
-		}
-		
-		// Track types seen as "both input and output" to defer them
-		deferredTypes := make(map[string]bool)
-		
-		// Emit imports: streaming methods first, then non-streaming
-		// For each streaming method: emit message types and track if any were emitted
-		streamingEmittedTypes := false
-		
-		for _, m := range methods {
-			if !m.isStreaming {
-				continue
-			}
-			
-			// Emit output type if not seen
-			if !seen[m.outputType] {
-				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-				seen[m.outputType] = true
-				streamingEmittedTypes = true
-			}
-			
-			// Emit input type if not seen (even if same as output for streaming)
-			if !seen[m.inputType] {
-				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
-				seen[m.inputType] = true
-				streamingEmittedTypes = true
-			}
-			
-			callTypeImport := ""
-			switch m.callType {
-			case "duplex":
-				callTypeImport = "DuplexStreamingCall"
-			case "client":
-				callTypeImport = "ClientStreamingCall"
-			case "server":
-				callTypeImport = "ServerStreamingCall"
-			}
-			
-			// If we emitted types for this method, also emit its call type immediately
-			if streamingEmittedTypes && callTypeImport != "" && !emittedStreamingCallTypes[callTypeImport] {
-				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
-				emittedStreamingCallTypes[callTypeImport] = true
-				streamingEmittedTypes = false // Reset for next method
-			} else if !streamingEmittedTypes && callTypeImport != "" && !emittedStreamingCallTypes[callTypeImport] {
-				// No types emitted, defer call type for later
-				found := false
-				for _, ct := range deferredStreamingCallTypes {
-					if ct == callTypeImport {
-						found = true
-						break
+			if isStreaming {
+				// Determine call type
+				var callType string
+				if method.GetClientStreaming() && method.GetServerStreaming() {
+					callType = "duplex"
+				} else if method.GetServerStreaming() {
+					callType = "server"
+				} else if method.GetClientStreaming() {
+					callType = "client"
+				}
+				
+				// Collect types for this streaming method
+				var types []struct {
+					typeName string
+					typePath string
+				}
+				
+				// Output type first (if not method 0)
+				if !method0Types[resType] && !seen[resType] {
+					types = append(types, struct {
+						typeName string
+						typePath string
+					}{resType, resTypePath})
+					seen[resType] = true
+				}
+				// Input type second (if not method 0 and not already seen)
+				if !method0Types[reqType] && !seen[reqType] {
+					types = append(types, struct {
+						typeName string
+						typePath string
+					}{reqType, reqTypePath})
+					seen[reqType] = true
+				}
+				
+				streamingMethods = append(streamingMethods, streamingMethodInfo{
+					methodIdx: i,
+					callType:  callType,
+					types:     types,
+				})
+			} else {
+				// Collect non-streaming types
+				// Emit output first
+				if !method0Types[resType] && !seen[resType] {
+					nonStreamingTypes = append(nonStreamingTypes, struct {
+						typeName string
+						typePath string
+					}{resType, resTypePath})
+					seen[resType] = true
+					
+					// Check if any deferred inputs match this output's path and emit them now
+					var remainingDeferred []struct {
+						typeName string
+						typePath string
+					}
+					for _, deferred := range deferredInputs {
+						if deferred.typePath == resTypePath {
+							// Emit deferred input that matches current output's path
+							nonStreamingTypes = append(nonStreamingTypes, deferred)
+						} else {
+							// Keep deferring
+							remainingDeferred = append(remainingDeferred, deferred)
+						}
+					}
+					deferredInputs = remainingDeferred
+				}
+				
+				// For input: only emit immediately if same path as output OR if same as output type
+				// Otherwise defer
+				if !method0Types[reqType] && !seen[reqType] {
+					if reqType == resType || reqTypePath == resTypePath {
+						// Same type or same path: emit immediately
+						nonStreamingTypes = append(nonStreamingTypes, struct {
+							typeName string
+							typePath string
+						}{reqType, reqTypePath})
+						seen[reqType] = true
+					} else {
+						// Different path: defer
+						deferredInputs = append(deferredInputs, struct {
+							typeName string
+							typePath string
+						}{reqType, reqTypePath})
+						seen[reqType] = true
 					}
 				}
-				if !found {
-					deferredStreamingCallTypes = append(deferredStreamingCallTypes, callTypeImport)
-				}
 			}
 		}
 		
-		// Emit non-streaming method types
-		// Use shouldDefer to determine which same-type methods to defer
-		for _, m := range methods {
-			if m.isStreaming {
-				continue
-			}
-			
-			// For same-type methods where the type should be deferred
-			if m.sameType && shouldDefer[m.outputType] {
-				if !seen[m.outputType] {
-					deferredTypes[m.outputType] = true
-					seen[m.outputType] = true
-				}
-				continue
-			}
-			
-			// For same-type methods where type should NOT be deferred, emit now
-			if m.sameType && !shouldDefer[m.outputType] {
-				if !seen[m.outputType] {
-					g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-					seen[m.outputType] = true
-				}
-				continue
-			}
-			
-			// For methods with different input/output
-			// Emit output first (unless deferred)
-			if !seen[m.outputType] {
-				if shouldDefer[m.outputType] || deferredTypes[m.outputType] {
-					// Don't emit yet, it's deferred
-				} else {
-					g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-					seen[m.outputType] = true
-				}
-			} else if deferredTypes[m.outputType] {
-				// Was deferred, emit now
-				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-				delete(deferredTypes, m.outputType)
-			}
-			
-			// Emit input (unless deferred)
-			if !seen[m.inputType] {
-				if shouldDefer[m.inputType] || deferredTypes[m.inputType] {
-					// Don't emit yet, mark as deferred
-					deferredTypes[m.inputType] = true
-					seen[m.inputType] = true
-				} else {
-					g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
-					seen[m.inputType] = true
-				}
-			} else if deferredTypes[m.inputType] {
-				// Was deferred, emit now
-				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
-				delete(deferredTypes, m.inputType)
-			}
-		}
+		// Append any remaining deferred inputs
+		nonStreamingTypes = append(nonStreamingTypes, deferredInputs...)
 		
-		// Second pass: emit remaining deferred types
-		for _, m := range methods {
-			if m.sameType && deferredTypes[m.outputType] {
-				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-				delete(deferredTypes, m.outputType)
+		if shouldInterleave {
+			// Interleave: emit streaming methods with their call types interleaved
+			for _, sm := range streamingMethods {
+				// Emit message types for this method
+				for _, t := range sm.types {
+					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
+				}
+				
+				// Emit call type for this method
+				var callTypeImport string
+				switch sm.callType {
+				case "duplex":
+					callTypeImport = "DuplexStreamingCall"
+				case "client":
+					callTypeImport = "ClientStreamingCall"
+				case "server":
+					callTypeImport = "ServerStreamingCall"
+				}
+				if callTypeImport != "" {
+					g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+				}
+			}
+			
+			// Then emit non-streaming types
+			for _, t := range nonStreamingTypes {
+				g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
+			}
+		} else {
+			// Group: emit non-streaming first, then all call types, then streaming message types
+			// Emit non-streaming types
+			for _, t := range nonStreamingTypes {
+				g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
+			}
+			
+			// Emit all streaming call types together
+			needDuplex := false
+			needClient := false
+			needServer := false
+			for _, sm := range streamingMethods {
+				switch sm.callType {
+				case "duplex":
+					needDuplex = true
+				case "client":
+					needClient = true
+				case "server":
+					needServer = true
+				}
+			}
+			if needDuplex {
+				g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+			}
+			if needClient {
+				g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+			}
+			if needServer {
+				g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+			}
+			
+			// Emit streaming message types
+			for _, sm := range streamingMethods {
+				for _, t := range sm.types {
+					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
+				}
 			}
 		}
 	}
 	
-	// Check if we need stackIntercept (for unary methods)
+	// 4. Check if we need stackIntercept (for unary or streaming methods)
 	hasUnary := false
 	for _, service := range file.Service {
 		for _, method := range service.Method {
@@ -2849,7 +2844,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	
-	// First service, first method types (output first, then input)
+	// 5. Emit method 0 types (output first, then input)
 	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
 		method := file.Service[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
@@ -2867,33 +2862,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
 		}
-		
-		// Emit deferred streaming call types (those that didn't emit message types)
-		for _, callType := range deferredStreamingCallTypes {
-			if !emittedStreamingCallTypes[callType] {
-				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callType)
-			}
-		}
 	}
 	
-	// Import final call type imports
-	hasServerStreaming := false
-	hasClientStreaming := false
-	hasDuplex := false
-	
-	for _, service := range file.Service {
-		for _, method := range service.Method {
-			if method.GetClientStreaming() && method.GetServerStreaming() {
-				hasDuplex = true
-			} else if method.GetServerStreaming() {
-				hasServerStreaming = true
-			} else if method.GetClientStreaming() {
-				hasClientStreaming = true
-			}
-		}
-	}
-	
-	if hasUnary || hasServerStreaming || hasClientStreaming || hasDuplex {
+	// Always emit UnaryCall and RpcOptions at the end
+	if len(file.Service) > 0 {
 		g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
 		g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
 	}
