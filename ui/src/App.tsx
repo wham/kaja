@@ -1,7 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
 import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
-import { ColumnsIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -41,7 +41,7 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, WindowSetTitle } from "./wailsjs/runtime";
 
 // Helper: Create a new project in pending compilation state
 function createPendingProject(config: ConfigurationProject): Project {
@@ -776,6 +776,22 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
+                  <Tooltip text="Send feedback" direction="s">
+                    <IconButton
+                      icon={CommentDiscussionIcon}
+                      aria-label="Send feedback"
+                      onClick={() => {
+                        const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+                        if (isWailsEnvironment()) {
+                          BrowserOpenURL(url);
+                        } else {
+                          window.open(url, "_blank");
+                        }
+                      }}
+                      size="small"
+                      variant="invisible"
+                    />
+                  </Tooltip>
                   <Tooltip text={sidebarCollapsed ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)` : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`} direction="s">
                     <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
