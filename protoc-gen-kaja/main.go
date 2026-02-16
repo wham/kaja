@@ -845,7 +845,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					}
 				}
 				
-				g.p("oneofKind: \"%s\";", g.jsonName(field))
+				g.p("oneofKind: \"%s\";", g.propertyName(field))
 				
 				// Add leading comments if available
 				if len(msgPath) > 0 && fieldIdx >= 0 {
@@ -890,7 +890,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					g.p(" */")
 				}
 				
-				g.p("%s: %s;", g.jsonName(field), g.getTypescriptType(field))
+				g.p("%s: %s;", g.propertyName(field), g.getTypescriptType(field))
 				
 				if i < len(fields)-1 {
 					g.indent = "    "
@@ -963,7 +963,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
 	g.p(" */")
 	
-	fieldName := g.jsonName(field)
+	fieldName := g.propertyName(field)
 	
 	// Check if it's a repeated field
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
@@ -1011,7 +1011,7 @@ func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.
 	// Generate each alternative
 	for i, field := range fields {
 		g.indent = "        "
-		fieldJsonName := g.jsonName(field)
+		fieldJsonName := g.propertyName(field)
 		g.p("oneofKind: \"%s\";", fieldJsonName)
 		g.p("/**")
 		g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
@@ -1033,6 +1033,38 @@ func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.
 	g.indent = ""
 }
 
+// propertyName returns the TypeScript property name for a field
+// This does camelCase conversion where all letters after underscores are capitalized
+func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) string {
+	name := field.GetName()
+	// Convert snake_case to camelCase: capitalize all letters after underscores
+	parts := strings.Split(name, "_")
+	for i := 1; i < len(parts); i++ {
+		if len(parts[i]) > 0 {
+			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		}
+	}
+	result := strings.Join(parts, "")
+	
+	// Special handling: if a lowercase letter follows a digit, capitalize it
+	// Example: "int32s" becomes "int32S" in "fInt32S"
+	runes := []rune(result)
+	for i := 1; i < len(runes); i++ {
+		if runes[i] >= 'a' && runes[i] <= 'z' && runes[i-1] >= '0' && runes[i-1] <= '9' {
+			runes[i] = runes[i] - 'a' + 'A'
+		}
+	}
+	result = string(runes)
+	
+	// Lowercase the first letter
+	if len(result) > 0 {
+		result = strings.ToLower(result[:1]) + result[1:]
+	}
+	return result
+}
+
+// jsonName returns the jsonName for use in reflection metadata
+// This uses protoc's JsonName which follows JSON naming conventions
 func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
 	if field.JsonName != nil {
 		// Use the proto-provided JsonName, but lowercase the first letter
@@ -1042,19 +1074,8 @@ func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
 		}
 		return jsonName
 	}
-	// Convert snake_case to camelCase
-	parts := strings.Split(field.GetName(), "_")
-	for i := 1; i < len(parts); i++ {
-		if len(parts[i]) > 0 {
-			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
-		}
-	}
-	result := strings.Join(parts, "")
-	// Lowercase the first letter
-	if len(result) > 0 {
-		result = strings.ToLower(result[:1]) + result[1:]
-	}
-	return result
+	// Fallback: convert snake_case to camelCase (should not happen with protoc)
+	return g.propertyName(field)
 }
 
 func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) string {
@@ -1170,13 +1191,15 @@ func (g *generator) getTypescriptTypeForMapKey(field *descriptorpb.FieldDescript
 		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
 		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
-		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32,
-		descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+		return "number"
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
 		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-		return "number"
+		// 64-bit integers as map keys use the same type as regular fields
+		return g.params.longType
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 		return "boolean"
 	default:
@@ -1440,7 +1463,12 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				enumPrefix = g.detectEnumPrefix(enumType)
 			}
 			
-			extraFields = fmt.Sprintf(", T: () => [\"%s\", %s, \"%s\"]", fullTypeName, typeName, enumPrefix)
+			// Only include enumPrefix if it's non-empty
+			if enumPrefix != "" {
+				extraFields = fmt.Sprintf(", T: () => [\"%s\", %s, \"%s\"]", fullTypeName, typeName, enumPrefix)
+			} else {
+				extraFields = fmt.Sprintf(", T: () => [\"%s\", %s]", fullTypeName, typeName)
+			}
 		}
 		
 		repeat := ""
@@ -1564,7 +1592,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			continue
 		}
 		
-		fieldName := g.jsonName(field)
+		fieldName := g.propertyName(field)
 		defaultVal := g.getDefaultValue(field)
 		if defaultVal != "" {
 			g.p("message.%s = %s;", fieldName, defaultVal)
@@ -1604,7 +1632,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	// Read each field
 	for _, field := range msg.Field {
 		g.indent = "                "
-		fieldName := g.jsonName(field)
+		fieldName := g.propertyName(field)
 		g.p("case /* %s %s */ %d:", g.getProtoType(field), field.GetName(), field.GetNumber())
 		g.indent = "                    "
 		
@@ -1612,7 +1640,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			fieldJsonName := g.jsonName(field)
+			fieldJsonName := g.propertyName(field)
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 				// For message types, support merging
 				g.p("message.%s = {", oneofName)
@@ -1653,7 +1681,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		} else {
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 				// For message fields, pass existing message for merging
-				fieldName := g.jsonName(field)
+				fieldName := g.propertyName(field)
 				g.p("message.%s = %s;", fieldName, g.getReaderMethodWithMerge(field, "message."+fieldName))
 			} else {
 				g.p("message.%s = %s;", fieldName, g.getReaderMethod(field))
@@ -1698,7 +1726,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				keyField := msgType.Field[0]
 				valueField := msgType.Field[1]
 				
-				fieldName := g.jsonName(field)
+				fieldName := g.propertyName(field)
 				g.p("private binaryReadMap%d(map: %s[\"%s\"], reader: IBinaryReader, options: BinaryReadOptions): void {",
 					field.GetNumber(),
 					fullName,
@@ -1744,14 +1772,14 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.indent = "        "
 	
 	for _, field := range msg.Field {
-		fieldName := g.jsonName(field)
+		fieldName := g.propertyName(field)
 		g.p("/* %s %s = %d; */", g.getProtoType(field), field.GetName(), field.GetNumber())
 		
 		if field.OneofIndex != nil {
 			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			fieldJsonName := g.jsonName(field)
+			fieldJsonName := g.propertyName(field)
 			g.p("if (message.%s.oneofKind === \"%s\")", oneofName, fieldJsonName)
 			g.indent = "            "
 			g.p("%s", g.getWriterMethod(field, "message."+oneofName+"."+fieldJsonName))
@@ -2250,13 +2278,21 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 			candidate := first[:i]
 			// Check if all values have this prefix
 			allHave := true
+			validAfterStrip := true
 			for _, v := range enum.Value {
 				if !strings.HasPrefix(v.GetName(), candidate) {
 					allHave = false
 					break
 				}
+				// Also check if stripping this prefix leaves valid identifiers
+				// (not starting with a digit)
+				remainder := strings.TrimPrefix(v.GetName(), candidate)
+				if len(remainder) == 0 || (remainder[0] >= '0' && remainder[0] <= '9') {
+					validAfterStrip = false
+					break
+				}
 			}
-			if allHave {
+			if allHave && validAfterStrip {
 				return candidate
 			}
 		}
