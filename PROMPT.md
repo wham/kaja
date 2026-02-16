@@ -5,7 +5,7 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 ## Steps
 
 1. Analyze what's already in place
-2. Do additional web research how to achieve the task
+2. Do additional web research how to achieve the task. Inspect the TS plugin source code and make notes.
 3. Update [Plan](./PROMPT.md#plan) if needed.
 3. Implement a piece of it. Spend substantial effort here.
 4. Run the tests
