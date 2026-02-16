@@ -81,6 +81,22 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	// Parse plugin parameters
 	params := parseParameters(req.Parameter)
 
+	// Pre-scan: identify files with services in this batch
+	filesWithServices := make(map[string]bool)
+	importedByServiceFiles := make(map[string]bool)
+	
+	for _, fileName := range req.FileToGenerate {
+		file := findFile(req.ProtoFile, fileName)
+		if file != nil && len(file.Service) > 0 {
+			filesWithServices[fileName] = true
+			
+			// Mark all dependencies of this service file
+			for _, dep := range file.Dependency {
+				importedByServiceFiles[dep] = true
+			}
+		}
+	}
+
 	// Generate files for each proto file to generate
 	for _, fileName := range req.FileToGenerate {
 		file := findFile(req.ProtoFile, fileName)
@@ -88,7 +104,10 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			continue
 		}
 
-		content := generateFile(file, req.ProtoFile, params)
+		// Check if this file is imported by a service file in the batch
+		isImportedByService := importedByServiceFiles[fileName]
+		
+		content := generateFile(file, req.ProtoFile, params, isImportedByService)
 		if content == "" {
 			continue
 		}
@@ -134,7 +153,7 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			}
 			
 			if needsGeneration {
-				content := generateFile(file, req.ProtoFile, params)
+				content := generateFile(file, req.ProtoFile, params, false) // Well-known types are never imported by service files
 				if content != "" {
 					outputName := getOutputFileName(fileName)
 					resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
@@ -150,11 +169,12 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 }
 
 type generator struct {
-	b      strings.Builder
-	params params
-	file   *descriptorpb.FileDescriptorProto
-	allFiles []*descriptorpb.FileDescriptorProto
-	indent string
+	b                   strings.Builder
+	params              params
+	file                *descriptorpb.FileDescriptorProto
+	allFiles            []*descriptorpb.FileDescriptorProto
+	indent              string
+	isImportedByService bool
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -251,11 +271,12 @@ func (g *generator) getTrailingComments(path []int32) string {
 }
 
 
-func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params, isImportedByService bool) string {
 	g := &generator{
-		params: params,
-		file:   file,
-		allFiles: allFiles,
+		params:              params,
+		file:                file,
+		allFiles:            allFiles,
+		isImportedByService: isImportedByService,
 	}
 
 	// Header
@@ -676,15 +697,21 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Phase 2: Standard runtime imports if we have messages or services
 	if len(g.file.MessageType) > 0 || needsServiceType {
+		// Special case: file without services imported by service files
+		wireTypeFirst := !needsServiceType && g.isImportedByService
+		
 		if needsServiceType {
 			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
 			if serviceBeforeMessages {
 				g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 			}
+		} else if wireTypeFirst {
+			// No services but imported by service file - WireType first
+			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		if !serviceBeforeMessages {
+		if !serviceBeforeMessages && !wireTypeFirst {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
