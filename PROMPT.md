@@ -6,7 +6,7 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 
 1. Analyze what's already in place
 2. Do additional web research how to achieve the task. Clone the TS plugin source code and inspect.
-3. Update [Plan](./PROMPT.md#plan) if needed. Be comfortable trying bigger architecture changes. Document. PROMPT.md is your memory.
+3. Update [Plan](./PROMPT.md#plan) if needed. Be comfortable trying bigger architecture changes. Document. PROMPT.md is your memory. Keep it up to date.
 3. Implement a piece of it. Spend substantial effort here.
 4. Run the tests
 5. Capture important learnings in [Notes](./PROMPT.md/#notes). Stuff that will make the task easier for you in the future. For example how to run the tests. How the code is structured. Don't add things that would soften the requirements - i.e. "we are close, this is cosmetic". If you see them, remove them.
@@ -66,22 +66,4 @@ Go's linter requires format strings in printf-style functions to be constants. W
 
 ## Status
 
-**18/18 tests passing** (100% pass rate)
 
-All tests passing. Output matches `protoc-gen-ts` exactly byte-for-byte.
-
-**Implementation Status:**
-- ✅ Core message/enum/service generation
-- ✅ Proto2 and proto3 support
-- ✅ Optional field serialization  
-- ✅ Client file generation with correct import ordering
-- ✅ Streaming RPC call type imports (interleave vs group strategies)
-- ✅ Cross-import-path type ordering (deferred input emission)
-- ✅ Well-known types, nested messages/enums, map fields, oneof, repeated fields
-- ✅ Trailing field comments
-- ✅ Batch generation WireType positioning
-- ✅ Multiple services, cross-package imports
-
-The implementation generates TypeScript code that matches `protoc-gen-ts` output exactly.
-
-DONE

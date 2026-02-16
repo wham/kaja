@@ -37,6 +37,33 @@ func main() {
 	os.Stdout.Write(output)
 }
 
+// TypeScript reserved keywords and type names that need to be escaped
+var tsReservedKeywords = map[string]bool{
+	"break": true, "case": true, "catch": true, "class": true, "const": true, "continue": true,
+	"debugger": true, "default": true, "delete": true, "do": true, "else": true, "enum": true,
+	"export": true, "extends": true, "false": true, "finally": true, "for": true, "function": true,
+	"if": true, "import": true, "in": true, "instanceof": true, "new": true, "null": true,
+	"return": true, "super": true, "switch": true, "this": true, "throw": true, "true": true,
+	"try": true, "typeof": true, "var": true, "void": true, "while": true, "with": true,
+	"as": true, "implements": true, "interface": true, "let": true, "package": true, "private": true,
+	"protected": true, "public": true, "static": true, "yield": true, "any": true, "boolean": true,
+	"constructor": true, "declare": true, "get": true, "module": true, "require": true, "number": true,
+	"set": true, "string": true, "symbol": true, "type": true, "from": true, "of": true,
+}
+
+var tsReservedTypeNames = map[string]bool{
+	"object": true, "Uint8Array": true, "array": true, "Array": true, "string": true, "String": true,
+	"number": true, "Number": true, "boolean": true, "Boolean": true, "bigint": true, "BigInt": true,
+}
+
+// Escape TypeScript reserved keywords and type names by adding '$' suffix
+func escapeTypescriptKeyword(name string) string {
+	if tsReservedKeywords[name] || tsReservedTypeNames[name] {
+		return name + "$"
+	}
+	return name
+}
+
 type params struct {
 	longType string
 }
@@ -337,13 +364,13 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	}
 
 	// Generate top-level enums
-	for _, enum := range file.EnumType {
-		g.generateEnum(enum, "")
+	for enumIdx, enum := range file.EnumType {
+		g.generateEnum(enum, "", []int32{5, int32(enumIdx)})
 	}
 
 	// Generate message implementation classes
 	for _, msg := range file.MessageType {
-		g.generateMessageClass(msg, "")
+		g.generateMessageClass(msg, "", "")
 	}
 
 	// Generate services
@@ -888,7 +915,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		return
 	}
 	
-	fullName := parentPrefix + msg.GetName()
+	baseName := msg.GetName()
+	escapedName := escapeTypescriptKeyword(baseName)
+	fullName := parentPrefix + escapedName
+	// For @generated comment, use original name not escaped
+	protoName := parentPrefix + baseName
 	
 	// Message interface first
 	g.pNoIndent("/**")
@@ -926,7 +957,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, strings.ReplaceAll(fullName, "_", "."))
+	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, strings.ReplaceAll(protoName, "_", "."))
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", fullName)
 	
@@ -1056,25 +1087,34 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	// Generate nested enums after nested messages
-	for _, nested := range msg.EnumType {
-		g.generateEnum(nested, fullName + "_")
+	for enumIdx, nested := range msg.EnumType {
+		// Build path for nested enum: msgPath + field 4 (enum_type) + index
+		var enumPath []int32
+		if len(msgPath) > 0 {
+			enumPath = append([]int32{}, msgPath...)
+			enumPath = append(enumPath, 4, int32(enumIdx))
+		}
+		g.generateEnum(nested, fullName + "_", enumPath)
 	}
 }
 
-func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, parentPrefix string) {
+func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, parentPrefix string, protoParentPrefix string) {
 	// Skip map entry messages
 	if msg.Options != nil && msg.GetOptions().GetMapEntry() {
 		return
 	}
 	
-	fullName := parentPrefix + msg.GetName()
+	baseName := msg.GetName()
+	escapedName := escapeTypescriptKeyword(baseName)
+	fullName := parentPrefix + escapedName
+	protoName := protoParentPrefix + baseName
 	
 	// Message type class
-	g.generateMessageTypeClass(msg, fullName)
+	g.generateMessageTypeClass(msg, fullName, protoName)
 	
 	// Generate nested message classes
 	for _, nested := range msg.NestedType {
-		g.generateMessageClass(nested, fullName + "_")
+		g.generateMessageClass(nested, fullName + "_", protoName + "_")
 	}
 }
 
@@ -1531,7 +1571,7 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 	return nil
 }
 
-func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, fullName string) {
+func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, fullName string, protoName string) {
 	className := fullName + "$Type"
 	
 	g.pNoIndent("// @generated message type with reflection information, may provide speed optimized methods")
@@ -1543,7 +1583,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	typeName := pkgPrefix + strings.ReplaceAll(fullName, "_", ".")
+	// Use protoName (without escaping) for the MessageType constructor
+	typeName := pkgPrefix + strings.ReplaceAll(protoName, "_", ".")
 	
 	g.p("constructor() {")
 	g.indent = "        "
@@ -2429,15 +2470,49 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 	return fmt.Sprintf("message.%s !== %s", fieldName, defaultVal)
 }
 
-func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentPrefix string) {
-	enumName := parentPrefix + enum.GetName()
+func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentPrefix string, enumPath []int32) {
+	baseName := enum.GetName()
+	escapedName := escapeTypescriptKeyword(baseName)
+	enumName := parentPrefix + escapedName
 	
 	g.pNoIndent("/**")
+	
+	// Add leading comments if available
+	if len(enumPath) > 0 {
+		leadingComments := g.getLeadingComments(enumPath)
+		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", line)
+				}
+			}
+			// Add separator blank line(s) before @generated
+			if hasTrailingBlank {
+				// Comment had trailing blank, add two separators
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				// Comment didn't have trailing blank, add one separator
+				g.pNoIndent(" *")
+			}
+		}
+	}
+	
 	pkgPrefix := ""
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, strings.ReplaceAll(enumName, "_", "."))
+	// For enums, only replace underscores in parent prefix (nested messages), not in enum name itself
+	protoNameFormatted := strings.ReplaceAll(parentPrefix, "_", ".") + baseName
+	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, protoNameFormatted)
 	g.pNoIndent(" */")
 	g.pNoIndent("export enum %s {", enumName)
 	
@@ -2473,36 +2548,48 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 		return ""
 	}
 	
-	// Get first value name as candidate prefix
-	first := enum.Value[0].GetName()
+	// Create possible prefix from enum name
+	// Convert enum name to UPPER_SNAKE_CASE
+	// For example, "MyEnum" => "MY_ENUM_", "const_enum" => "CONST_ENUM_"
+	enumName := enum.GetName()
 	
-	// Try to find common prefix ending with _
-	for i := len(first); i > 0; i-- {
-		if first[i-1] == '_' {
-			candidate := first[:i]
-			// Check if all values have this prefix
-			allHave := true
-			validAfterStrip := true
-			for _, v := range enum.Value {
-				if !strings.HasPrefix(v.GetName(), candidate) {
-					allHave = false
-					break
-				}
-				// Also check if stripping this prefix leaves valid identifiers
-				// (not starting with a digit)
-				remainder := strings.TrimPrefix(v.GetName(), candidate)
-				if len(remainder) == 0 || (remainder[0] >= '0' && remainder[0] <= '9') {
-					validAfterStrip = false
-					break
-				}
-			}
-			if allHave && validAfterStrip {
-				return candidate
-			}
+	// Insert underscores before uppercase letters (for camelCase names)
+	var prefixBuilder strings.Builder
+	for i, r := range enumName {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			prefixBuilder.WriteRune('_')
+		}
+		prefixBuilder.WriteRune(r)
+	}
+	
+	// Convert to uppercase and add trailing underscore
+	enumPrefix := strings.ToUpper(prefixBuilder.String())
+	if !strings.HasSuffix(enumPrefix, "_") {
+		enumPrefix += "_"
+	}
+	
+	// Check if all enum values start with this prefix
+	allHavePrefix := true
+	for _, v := range enum.Value {
+		if !strings.HasPrefix(v.GetName(), enumPrefix) {
+			allHavePrefix = false
+			break
 		}
 	}
 	
-	return ""
+	if !allHavePrefix {
+		return ""
+	}
+	
+	// Check if stripped names are valid (start with uppercase letter, at least 1 char)
+	for _, v := range enum.Value {
+		stripped := strings.TrimPrefix(v.GetName(), enumPrefix)
+		if len(stripped) == 0 || !(stripped[0] >= 'A' && stripped[0] <= 'Z') {
+			return ""
+		}
+	}
+	
+	return enumPrefix
 }
 
 func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
@@ -2574,7 +2661,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// For services 2..N (in reverse order), output Service + all method types
 	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
 		service := file.Service[svcIdx]
-		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
+		escapedServiceName := escapeTypescriptKeyword(service.GetName())
+		g.pNoIndent("import { %s } from \"./%s\";", escapedServiceName, baseFileName)
 		
 		// Add method types in reverse order, but skip types used in service 1
 		for i := len(service.Method) - 1; i >= 0; i-- {
@@ -2602,7 +2690,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// First service + methods types with special ordering
 	if len(file.Service) > 0 {
 		service := file.Service[0]
-		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
+		escapedServiceName := escapeTypescriptKeyword(service.GetName())
+		g.pNoIndent("import { %s } from \"./%s\";", escapedServiceName, baseFileName)
 		
 		// Collect method 0 types for filtering
 		method0Types := make(map[string]bool)
@@ -2879,7 +2968,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 }
 
 func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescriptorProto) {
-	serviceName := service.GetName()
+	baseName := service.GetName()
+	serviceName := escapeTypescriptKeyword(baseName)
 	clientName := "I" + serviceName + "Client"
 	
 	pkgPrefix := ""
@@ -2890,7 +2980,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	// Get service index for comments
 	svcIndex := -1
 	for i, s := range g.file.Service {
-		if s.GetName() == serviceName {
+		if s.GetName() == baseName {
 			svcIndex = i
 			break
 		}
