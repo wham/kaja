@@ -386,21 +386,21 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		scanMessage(g.file.MessageType[i])
 	}
 	
-	// Scan services for method input/output types (in reverse method order)
+	// Scan services for method input/output types (in forward method order for imports)
 	for _, service := range g.file.Service {
-		for i := len(service.Method) - 1; i >= 0; i-- {
+		for i := 0; i < len(service.Method); i++ {
 			method := service.Method[i]
-			// Add input type
-			inputType := method.GetInputType()
-			if inputType != "" && !usedInServices[inputType] {
-				usedInServices[inputType] = true
-				serviceTypes = append(serviceTypes, inputType)
-			}
-			// Add output type
+			// Add output type first
 			outputType := method.GetOutputType()
 			if outputType != "" && !usedInServices[outputType] {
 				usedInServices[outputType] = true
 				serviceTypes = append(serviceTypes, outputType)
+			}
+			// Add input type second
+			inputType := method.GetInputType()
+			if inputType != "" && !usedInServices[inputType] {
+				usedInServices[inputType] = true
+				serviceTypes = append(serviceTypes, inputType)
 			}
 		}
 	}
@@ -2611,6 +2611,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		sameType      bool   // true if input == output for this method
 	}
 	
+	// Collect streaming call types for deferred emission
+	var deferredStreamingCallTypes []string
+	emittedStreamingCallTypes := make(map[string]bool)
+	
 	// First service + methods types with special ordering
 	if len(file.Service) > 0 {
 		service := file.Service[0]
@@ -2627,6 +2631,48 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		// Collect method info from methods 1-N in reverse order
 		var methods []methodTypeInfo
 		
+		// Prescan: identify types that should be deferred
+		// A type should be deferred if it appears in a same-type method
+		// AND also appears in a different-type method or another same-type method
+		typeAppearances := make(map[string][]int) // type -> list of method indices where it appears
+		typeSameTypeMethod := make(map[string]bool) // type appears in a same-type method
+		
+		for i := len(service.Method) - 1; i >= 1; i-- {
+			method := service.Method[i]
+			resType := g.stripPackage(method.GetOutputType())
+			reqType := g.stripPackage(method.GetInputType())
+			
+			// Skip if both types in method 0
+			if method0Types[resType] && method0Types[reqType] {
+				continue
+			}
+			
+			// Track appearances
+			if !method0Types[resType] {
+				typeAppearances[resType] = append(typeAppearances[resType], i)
+			}
+			if !method0Types[reqType] && reqType != resType {
+				typeAppearances[reqType] = append(typeAppearances[reqType], i)
+			}
+			
+			// Track if this is a same-type method
+			if resType == reqType {
+				typeSameTypeMethod[resType] = true
+			}
+		}
+		
+		// Determine which types should be deferred
+		// Defer a type if:
+		// - It appears in a same-type method, AND
+		// - It appears in more than one method OR in a different-type method
+		shouldDefer := make(map[string]bool)
+		for typ, indices := range typeAppearances {
+			if typeSameTypeMethod[typ] && len(indices) > 1 {
+				shouldDefer[typ] = true
+			}
+		}
+		
+		// Now collect method info
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
 			
@@ -2634,11 +2680,6 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			reqType := g.stripPackage(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
-			
-			// Skip if both types already seen (in method 0)
-			if method0Types[resType] && method0Types[reqType] {
-				continue
-			}
 			
 			// Determine call type for streaming methods
 			var callType string
@@ -2648,6 +2689,12 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				callType = "server"
 			} else if method.GetClientStreaming() {
 				callType = "client"
+			}
+			
+			// Skip non-streaming methods if both types already in method 0
+			// But always include streaming methods (we need to emit call types)
+			if method0Types[resType] && method0Types[reqType] && callType == "" {
+				continue
 			}
 			
 			methods = append(methods, methodTypeInfo{
@@ -2666,7 +2713,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		deferredTypes := make(map[string]bool)
 		
 		// Emit imports: streaming methods first, then non-streaming
-		// For each method: emit message types, then call type (for streaming)
+		// For each streaming method: emit message types and track if any were emitted
+		streamingEmittedTypes := false
+		
 		for _, m := range methods {
 			if !m.isStreaming {
 				continue
@@ -2676,34 +2725,55 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			if !seen[m.outputType] {
 				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
 				seen[m.outputType] = true
+				streamingEmittedTypes = true
 			}
 			
 			// Emit input type if not seen (even if same as output for streaming)
 			if !seen[m.inputType] {
 				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
 				seen[m.inputType] = true
+				streamingEmittedTypes = true
 			}
 			
-			// Emit call type
+			callTypeImport := ""
 			switch m.callType {
 			case "duplex":
-				g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+				callTypeImport = "DuplexStreamingCall"
 			case "client":
-				g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+				callTypeImport = "ClientStreamingCall"
 			case "server":
-				g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+				callTypeImport = "ServerStreamingCall"
+			}
+			
+			// If we emitted types for this method, also emit its call type immediately
+			if streamingEmittedTypes && callTypeImport != "" && !emittedStreamingCallTypes[callTypeImport] {
+				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+				emittedStreamingCallTypes[callTypeImport] = true
+				streamingEmittedTypes = false // Reset for next method
+			} else if !streamingEmittedTypes && callTypeImport != "" && !emittedStreamingCallTypes[callTypeImport] {
+				// No types emitted, defer call type for later
+				found := false
+				for _, ct := range deferredStreamingCallTypes {
+					if ct == callTypeImport {
+						found = true
+						break
+					}
+				}
+				if !found {
+					deferredStreamingCallTypes = append(deferredStreamingCallTypes, callTypeImport)
+				}
 			}
 		}
 		
 		// Emit non-streaming method types
-		// For same-type unary methods, defer the type until seen in different contexts
+		// Use shouldDefer to determine which same-type methods to defer
 		for _, m := range methods {
 			if m.isStreaming {
 				continue
 			}
 			
-			// For same-type unary methods, defer the type
-			if m.sameType {
+			// For same-type methods where the type should be deferred
+			if m.sameType && shouldDefer[m.outputType] {
 				if !seen[m.outputType] {
 					deferredTypes[m.outputType] = true
 					seen[m.outputType] = true
@@ -2711,22 +2781,42 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				continue
 			}
 			
-			// For methods with different input/output, emit output first, then input
-			// But if output was deferred, emit both in order
+			// For same-type methods where type should NOT be deferred, emit now
+			if m.sameType && !shouldDefer[m.outputType] {
+				if !seen[m.outputType] {
+					g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+					seen[m.outputType] = true
+				}
+				continue
+			}
+			
+			// For methods with different input/output
+			// Emit output first (unless deferred)
 			if !seen[m.outputType] {
-				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
-				seen[m.outputType] = true
-				delete(deferredTypes, m.outputType)
+				if shouldDefer[m.outputType] || deferredTypes[m.outputType] {
+					// Don't emit yet, it's deferred
+				} else {
+					g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+					seen[m.outputType] = true
+				}
 			} else if deferredTypes[m.outputType] {
+				// Was deferred, emit now
 				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
 				delete(deferredTypes, m.outputType)
 			}
 			
+			// Emit input (unless deferred)
 			if !seen[m.inputType] {
-				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
-				seen[m.inputType] = true
-				delete(deferredTypes, m.inputType)
+				if shouldDefer[m.inputType] || deferredTypes[m.inputType] {
+					// Don't emit yet, mark as deferred
+					deferredTypes[m.inputType] = true
+					seen[m.inputType] = true
+				} else {
+					g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
+					seen[m.inputType] = true
+				}
 			} else if deferredTypes[m.inputType] {
+				// Was deferred, emit now
 				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
 				delete(deferredTypes, m.inputType)
 			}
@@ -2776,6 +2866,13 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		if !seen[reqType] {
 			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
+		}
+		
+		// Emit deferred streaming call types (those that didn't emit message types)
+		for _, callType := range deferredStreamingCallTypes {
+			if !emittedStreamingCallTypes[callType] {
+				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callType)
+			}
 		}
 	}
 	
