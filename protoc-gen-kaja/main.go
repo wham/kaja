@@ -213,6 +213,43 @@ func (g *generator) getLeadingComments(path []int32) string {
 	return ""
 }
 
+// getTrailingComments retrieves trailing comments for a given path in SourceCodeInfo
+func (g *generator) getTrailingComments(path []int32) string {
+	if g.file.SourceCodeInfo == nil {
+		return ""
+	}
+	for _, loc := range g.file.SourceCodeInfo.Location {
+		if len(loc.Path) != len(path) {
+			continue
+		}
+		match := true
+		for i := range path {
+			if loc.Path[i] != path[i] {
+				match = false
+				break
+			}
+		}
+		if match && loc.TrailingComments != nil {
+			comment := *loc.TrailingComments
+			comment = strings.TrimSpace(comment)
+			// Strip one leading space from each line (protobuf convention)
+			lines := strings.Split(comment, "\n")
+			for i, line := range lines {
+				line = strings.TrimRight(line, " \t")
+				if line == "" {
+					lines[i] = ""
+				} else if strings.HasPrefix(line, " ") {
+					lines[i] = line[1:]
+				} else {
+					lines[i] = line
+				}
+			}
+			return strings.Join(lines, "\n")
+		}
+	}
+	return ""
+}
+
 
 func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
 	g := &generator{
@@ -1038,6 +1075,17 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	
 	fieldName := g.propertyName(field)
 	
+	// Get trailing comments if fieldPath is provided
+	trailingComment := ""
+	if len(fieldPath) > 0 {
+		tc := g.getTrailingComments(fieldPath)
+		if tc != "" {
+			// Convert multiline comments to single line with proper formatting
+			lines := strings.Split(tc, "\n")
+			trailingComment = " // " + strings.Join(lines, " ")
+		}
+	}
+	
 	// Check if it's a repeated field
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 		// Check if it's a map field
@@ -1052,11 +1100,11 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 			g.indent = "        "
 			g.p("[key: %s]: %s;", keyType, valueType)
 			g.indent = "    "
-			g.p("};")
+			g.p("};%s", trailingComment)
 		} else {
 			// Regular repeated field
 			baseType := g.getBaseTypescriptType(field)
-			g.p("%s: %s[];", fieldName, baseType)
+			g.p("%s: %s[];%s", fieldName, baseType, trailingComment)
 		}
 	} else {
 		// Singular field
@@ -1080,7 +1128,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 				optional = "?"
 			}
 		}
-		g.p("%s%s: %s;", fieldName, optional, fieldType)
+		g.p("%s%s: %s;%s", fieldName, optional, fieldType, trailingComment)
 	}
 	
 	g.indent = ""
