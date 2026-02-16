@@ -426,11 +426,15 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Build a map from dependency path to file for quick lookup
 	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	currentFileDir := filepath.Dir(g.file.GetName())
+	
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
 		if depFile != nil {
-			importPath := "./" + strings.TrimSuffix(dep, ".proto")
-			depFiles[importPath] = depFile
+			// Compute relative path from current file to dependency
+			depPath := strings.TrimSuffix(dep, ".proto")
+			relPath := g.getRelativeImportPath(currentFileDir, depPath)
+			depFiles[relPath] = depFile
 		}
 	}
 	
@@ -513,6 +517,99 @@ func (g *generator) writeImports(imports map[string]bool) {
 			seenImports[importStmt] = true
 		}
 	}
+}
+
+func (g *generator) getRelativeImportPath(fromDir, toPath string) string {
+	// If fromDir is empty (file at root), use simple ./ path
+	if fromDir == "" || fromDir == "." {
+		return "./" + toPath
+	}
+	
+	// Handle same directory
+	if fromDir == filepath.Dir(toPath) {
+		return "./" + filepath.Base(toPath)
+	}
+	
+	// Handle parent directory navigation
+	fromParts := []string{}
+	if fromDir != "" {
+		fromParts = strings.Split(fromDir, "/")
+	}
+	toParts := strings.Split(toPath, "/")
+	
+	// Find common prefix length
+	commonLen := 0
+	minLen := len(fromParts)
+	if len(toParts) < minLen {
+		minLen = len(toParts)
+	}
+	for i := 0; i < minLen; i++ {
+		if fromParts[i] == toParts[i] {
+			commonLen++
+		} else {
+			break
+		}
+	}
+	
+	// Build relative path
+	upCount := len(fromParts) - commonLen
+	var result []string
+	for i := 0; i < upCount; i++ {
+		result = append(result, "..")
+	}
+	for i := commonLen; i < len(toParts); i++ {
+		result = append(result, toParts[i])
+	}
+	
+	if len(result) == 0 {
+		return "./" + filepath.Base(toPath)
+	}
+	
+	// Don't use ./ prefix when going up directories
+	if upCount > 0 {
+		return strings.Join(result, "/")
+	}
+	
+	return "./" + strings.Join(result, "/")
+}
+
+func (g *generator) getImportPathForType(fullTypeName string) string {
+	// fullTypeName starts with . (e.g., .lib.Void, .quirks.v1.TypesRequest)
+	typeNameStripped := strings.TrimPrefix(fullTypeName, ".")
+	
+	// Check if it's in the current file
+	currentPkg := ""
+	if g.file.Package != nil {
+		currentPkg = *g.file.Package
+	}
+	
+	// If it starts with current package, it's in the current file
+	if currentPkg != "" && strings.HasPrefix(typeNameStripped, currentPkg+".") {
+		return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
+	}
+	
+	// Check dependencies
+	currentFileDir := filepath.Dir(g.file.GetName())
+	for _, dep := range g.file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile == nil {
+			continue
+		}
+		
+		depPkg := ""
+		if depFile.Package != nil {
+			depPkg = *depFile.Package
+		}
+		
+		if depPkg != "" && strings.HasPrefix(typeNameStripped, depPkg+".") {
+			// Found it - compute relative import path
+			depPath := strings.TrimSuffix(dep, ".proto")
+			return g.getRelativeImportPath(currentFileDir, depPath)
+		}
+	}
+	
+	// Default to current file
+	return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
 }
 
 func (g *generator) findFileByName(name string) *descriptorpb.FileDescriptorProto {
@@ -814,7 +911,12 @@ func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.
 
 func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
 	if field.JsonName != nil {
-		return *field.JsonName
+		// Use the proto-provided JsonName, but lowercase the first letter
+		jsonName := *field.JsonName
+		if len(jsonName) > 0 {
+			return strings.ToLower(jsonName[:1]) + jsonName[1:]
+		}
+		return jsonName
 	}
 	// Convert snake_case to camelCase
 	parts := strings.Split(field.GetName(), "_")
@@ -823,7 +925,12 @@ func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
 			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 		}
 	}
-	return strings.Join(parts, "")
+	result := strings.Join(parts, "")
+	// Lowercase the first letter
+	if len(result) > 0 {
+		result = strings.ToLower(result[:1]) + result[1:]
+	}
+	return result
 }
 
 func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) string {
@@ -2040,12 +2147,15 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
+			reqTypePath := g.getImportPathForType(method.GetInputType())
+			
 			if !seen[resType] {
-				g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
+				g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
 				seen[resType] = true
 			}
 			if !seen[reqType] {
-				g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
+				g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 				seen[reqType] = true
 			}
 		}
@@ -2065,48 +2175,75 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
+			reqTypePath := g.getImportPathForType(method.GetInputType())
+			
 			if !seen[resType] {
-				g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
+				g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
 				seen[resType] = true
 			}
 			if !seen[reqType] {
-				g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
+				g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 				seen[reqType] = true
 			}
 		}
 	}
 	
-	g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
+	// Import call types based on method types
+	hasUnary := false
+	hasServerStreaming := false
+	hasClientStreaming := false
+	hasDuplex := false
+	
+	for _, service := range file.Service {
+		for _, method := range service.Method {
+			if method.GetClientStreaming() && method.GetServerStreaming() {
+				hasDuplex = true
+			} else if method.GetServerStreaming() {
+				hasServerStreaming = true
+			} else if method.GetClientStreaming() {
+				hasClientStreaming = true
+			} else {
+				hasUnary = true
+			}
+		}
+	}
+	
+	// Import streaming call types in reverse order
+	if hasDuplex {
+		g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+	}
+	if hasClientStreaming {
+		g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+	}
+	if hasServerStreaming {
+		g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+	}
+	if hasUnary {
+		g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
+	}
 	
 	// First service, first method types
 	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
 		method := file.Service[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
 		reqType := g.stripPackage(method.GetInputType())
+		resTypePath := g.getImportPathForType(method.GetOutputType())
+		reqTypePath := g.getImportPathForType(method.GetInputType())
+		
 		if !seen[resType] {
-			g.pNoIndent("import type { %s } from \"./%s\";", resType, baseFileName)
+			g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
 			seen[resType] = true
 		}
 		if !seen[reqType] {
-			g.pNoIndent("import type { %s } from \"./%s\";", reqType, baseFileName)
+			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
 		}
 	}
 	
-	// Import call types based on method types
-	for _, service := range file.Service {
-		for _, method := range service.Method {
-			_ = g.stripPackage(method.GetInputType())  // reqType
-			_ = g.stripPackage(method.GetOutputType()) // resType
-			if method.GetClientStreaming() || method.GetServerStreaming() {
-				// For now, just handle unary
-				continue
-			}
-			g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
-			g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
-			break
-		}
-		break
+	if hasUnary || hasServerStreaming || hasClientStreaming || hasDuplex {
+		g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+		g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	
 	// Generate service clients
@@ -2193,7 +2330,21 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
-		g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s>;", methodName, reqType, reqType, resType)
+		
+		// Determine call type and signature based on streaming
+		if method.GetClientStreaming() && method.GetServerStreaming() {
+			// Bidirectional streaming
+			g.p("%s(options?: RpcOptions): DuplexStreamingCall<%s, %s>;", methodName, reqType, resType)
+		} else if method.GetServerStreaming() {
+			// Server streaming
+			g.p("%s(input: %s, options?: RpcOptions): ServerStreamingCall<%s, %s>;", methodName, reqType, reqType, resType)
+		} else if method.GetClientStreaming() {
+			// Client streaming
+			g.p("%s(options?: RpcOptions): ClientStreamingCall<%s, %s>;", methodName, reqType, resType)
+		} else {
+			// Unary
+			g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s>;", methodName, reqType, reqType, resType)
+		}
 	}
 	
 	g.indent = ""
@@ -2262,13 +2413,41 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
-		g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s> {",
-			methodName, reqType, reqType, resType)
-		g.indent = "        "
-		g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
-		g.p("return stackIntercept<%s, %s>(\"unary\", this._transport, method, opt, input);", reqType, resType)
-		g.indent = "    "
-		g.p("}")
+		
+		// Determine call type and implementation based on streaming
+		if method.GetClientStreaming() && method.GetServerStreaming() {
+			// Bidirectional streaming
+			g.p("%s(options?: RpcOptions): DuplexStreamingCall<%s, %s> {", methodName, reqType, resType)
+			g.indent = "        "
+			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
+			g.p("return stackIntercept<%s, %s>(\"duplex\", this._transport, method, opt);", reqType, resType)
+			g.indent = "    "
+			g.p("}")
+		} else if method.GetServerStreaming() {
+			// Server streaming
+			g.p("%s(input: %s, options?: RpcOptions): ServerStreamingCall<%s, %s> {", methodName, reqType, reqType, resType)
+			g.indent = "        "
+			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
+			g.p("return stackIntercept<%s, %s>(\"serverStreaming\", this._transport, method, opt, input);", reqType, resType)
+			g.indent = "    "
+			g.p("}")
+		} else if method.GetClientStreaming() {
+			// Client streaming
+			g.p("%s(options?: RpcOptions): ClientStreamingCall<%s, %s> {", methodName, reqType, resType)
+			g.indent = "        "
+			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
+			g.p("return stackIntercept<%s, %s>(\"clientStreaming\", this._transport, method, opt);", reqType, resType)
+			g.indent = "    "
+			g.p("}")
+		} else {
+			// Unary
+			g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s> {", methodName, reqType, reqType, resType)
+			g.indent = "        "
+			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
+			g.p("return stackIntercept<%s, %s>(\"unary\", this._transport, method, opt, input);", reqType, resType)
+			g.indent = "    "
+			g.p("}")
+		}
 	}
 	
 	g.indent = ""
