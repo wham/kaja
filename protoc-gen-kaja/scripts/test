@@ -45,49 +45,60 @@ ERRORS=""
 rm -rf "$RESULTS_DIR"
 mkdir -p "$RESULTS_DIR"
 
-for test_dir in "$TESTS_DIR"/*/; do
-  test_name="$(basename "$test_dir")"
-  expected_dir="$RESULTS_DIR/$test_name/expected"
-  actual_dir="$RESULTS_DIR/$test_name/actual"
+WORKSPACE_DIR="$ROOT_DIR/workspace"
+
+# Function to run a single test
+run_test() {
+  local test_name="$1"
+  local test_dir="${2%/}"  # Remove trailing slash if present
+  local recursive="$3"
+  local expected_dir="$RESULTS_DIR/$test_name/expected"
+  local actual_dir="$RESULTS_DIR/$test_name/actual"
 
   mkdir -p "$expected_dir" "$actual_dir"
 
   # Collect proto files
-  proto_files=$(find "$test_dir" -maxdepth 1 -name "*.proto" | sort)
+  if [ "$recursive" = "true" ]; then
+    proto_files=$(find "$test_dir" -name "*.proto" | sort)
+  else
+    proto_files=$(find "$test_dir" -maxdepth 1 -name "*.proto" | sort)
+  fi
+  
   if [ -z "$proto_files" ]; then
-    continue
+    return
   fi
 
-  # Strip to basenames for protoc
+  # Convert to relative paths from test_dir
   proto_basenames=""
   for f in $proto_files; do
-    proto_basenames="$proto_basenames $(basename "$f")"
+    rel_path="${f#$test_dir/}"
+    proto_basenames="$proto_basenames $rel_path"
   done
 
   # Run protoc-gen-ts (expected output)
   ts_ok=true
-  "$PROTOC" \
+  (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
     --ts_out="$expected_dir" \
     --ts_opt=long_type_string \
     -I"$INCLUDE_DIR" \
-    -I"$test_dir" \
-    $proto_basenames 2>/dev/null || ts_ok=false
+    -I. \
+    $proto_basenames) 2>/dev/null || ts_ok=false
 
   if [ "$ts_ok" = false ]; then
     echo "SKIP $test_name (protoc-gen-ts failed)"
-    continue
+    return
   fi
 
   # Run protoc-gen-kaja (actual output)
   kaja_ok=true
-  "$PROTOC" \
+  (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
     --kaja_out="$actual_dir" \
     --kaja_opt=long_type_string \
     -I"$INCLUDE_DIR" \
-    -I"$test_dir" \
-    $proto_basenames 2>/dev/null || kaja_ok=true  # empty response is OK
+    -I. \
+    $proto_basenames) 2>/dev/null || kaja_ok=true  # empty response is OK
 
   # Compare outputs
   diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
@@ -105,6 +116,22 @@ for test_dir in "$TESTS_DIR"/*/; do
       echo "$diff_output" | head -40
       echo ""
     fi
+  fi
+}
+
+# Run numbered tests
+for test_dir in "$TESTS_DIR"/*/; do
+  if [ -d "$test_dir" ]; then
+    test_name="$(basename "$test_dir")"
+    run_test "$test_name" "$test_dir" "false"
+  fi
+done
+
+# Run workspace project tests
+for project in grpcbin quirks teams users; do
+  proto_dir="$WORKSPACE_DIR/$project/proto"
+  if [ -d "$proto_dir" ]; then
+    run_test "$project" "$proto_dir" "true"
   fi
 done
 
