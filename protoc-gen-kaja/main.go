@@ -2326,6 +2326,17 @@ func (g *generator) getWriterMethodName(field *descriptorpb.FieldDescriptorProto
 }
 
 func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, fieldName string) string {
+	isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
+	isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
+	
+	// Proto2 optional fields or proto3 explicit optional fields need undefined check
+	if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+		return fmt.Sprintf("message.%s !== undefined", fieldName)
+	}
+	if isProto3Optional {
+		return fmt.Sprintf("message.%s !== undefined", fieldName)
+	}
+	
 	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_BYTES {
 		return fmt.Sprintf("message.%s.length", fieldName)
 	}
