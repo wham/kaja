@@ -2714,7 +2714,40 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	
 	for i, value := range enum.Value {
 		g.indent = "    "
+		
+		// Build path to this enum value: [5 or 4, enumIndex, 2, valueIndex]
+		valuePath := append(enumPath, 2, int32(i))
+		
+		// Get leading and trailing comments
+		leadingComments := g.getLeadingComments(valuePath)
+		trailingComments := g.getTrailingComments(valuePath)
+		
 		g.p("/**")
+		
+		// Add leading comments if present
+		if leadingComments != "" {
+			for _, line := range strings.Split(leadingComments, "\n") {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", line)
+				}
+			}
+			g.p(" *")
+		}
+		
+		// Add trailing comments if present (before @generated line)
+		if trailingComments != "" {
+			for _, line := range strings.Split(trailingComments, "\n") {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", line)
+				}
+			}
+			g.p(" *")
+		}
+		
 		g.p(" * @generated from protobuf enum value: %s = %d;", value.GetName(), value.GetNumber())
 		g.p(" */")
 		
