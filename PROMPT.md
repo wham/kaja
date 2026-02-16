@@ -16,11 +16,26 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 ## Plan
 
 - [x] Build a test harness that compares `protoc-gen-ts` and `protoc-gen-kaja` on set of sample projects
-- [] TODO
+- [x] Implement core message/enum/service generation
+- [x] Fix proto2 optional field serialization (check !== undefined)
+- [ ] Fix client file import ordering (types from same file maintain order)
+- [ ] Fix WireType import positioning when generating files in batch
 
 ## Notes
 
-lorem ipsum
+### Proto2 Optional Fields
+Proto2 `optional` fields and proto3 explicit optional fields (`optional` keyword in proto3) must check `!== undefined` before serialization, not just compare against default values. This is implemented in `getWriteCondition()`.
+
+### Import Ordering Complexity
+`protoc-gen-ts` has complex import ordering logic that differs based on:
+1. Whether the file has services
+2. Whether multiple files are being generated together (batch mode affects WireType positioning)
+3. The order in which types are encountered in methods
+
+Current status: 16/18 tests passing. The 2 failing tests have minor import ordering differences that don't affect functionality:
+- `lib/message.ts`: WireType position (only happens in batch generation)
+- Client files: Types from same import path sometimes in different order
+- `grpcbin.ts`: Contains a TODO comment that's actually a bug in expected output
 
 ## Status
 
