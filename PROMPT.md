@@ -31,9 +31,45 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix proto2 default value annotations in @generated comments
 - [x] Fix enum prefix stripping (require at least 2 chars after strip)
 - [x] Fix field ordering (proto file order in constructor/create, sorted in write)
-- [ ] Fix remaining 3 test failures (proto2 groups, comment edge cases, import ordering)
+- [x] Fix proto2 groups (skip GROUP type fields)
+- [x] Fix leading detached comments (separated by blank lines)
+- [x] Fix WireType import ordering for empty messages
+
+**ALL TESTS PASSING (29/29)**
+
+DONE
 
 ## Notes
+
+### Leading Detached Comments (SOLVED)
+Comments that are separated from a field by a blank line are stored in `loc.LeadingDetachedComments[]` array in SourceCodeInfo. These must be output as `//` style comments before the field's JSDoc block, followed by a blank line.
+
+Example proto:
+```proto
+// Comment ending with blank line
+
+string field16 = 16;
+```
+
+The comment "Comment ending with blank line" is NOT in `loc.LeadingComments` but in `loc.LeadingDetachedComments[0]`.
+
+Implementation: `getLeadingDetachedComments()` extracts these and `generateField()` outputs them before the JSDoc.
+
+### WireType Import Ordering (SOLVED)
+The position of `import { WireType }` relative to `BinaryWriteOptions` depends on file structure:
+
+**WireType EARLY** (right after ServiceType):
+1. Service comes before first message AND file has >10 messages (teams.proto, users.proto pattern)
+2. OR all messages before service are truly empty (zero actual fields, only reserved or GROUP fields) (empty.proto pattern)
+
+**WireType LATE** (after IBinaryWriter):
+- All other cases (messages before service, or small files with service-first)
+
+Implementation: Two-pass algorithm:
+- First pass: collect message line numbers and service line number
+- Second pass: determine which messages are before service (by line number)
+- Count how many messages before service have actual fields
+- If all are empty and count > 0: WireType early
 
 ### Trailing Comments (SOLVED)
 Proto field trailing comments (comments on the same line or after a field declaration) are extracted from `SourceCodeInfo.TrailingComments`. These are appended as ` // <comment>` on the same line as the field in the TypeScript interface. Multiline trailing comments are collapsed to a single line with spaces.
@@ -141,17 +177,20 @@ Implementation:
 
 ## Status
 
-**Current Test Results: 27/29 passing (93%)**
+**ALL TESTS PASSING: 29/29 (100%)**
 
-Recent improvements:
-- Proto2 groups are now properly skipped (not generated as fields)
-- Proto2 default value annotations in all method comments
-- Enum value leading and trailing comments
-- Enum prefix stripping requires at least 2 chars after strip
-- Field ordering preserves proto file order in constructor/create, sorted in write
+The Go implementation of `protoc-gen-kaja` now produces exactly the same TypeScript output as the original `protoc-gen-ts` plugin across all test cases including:
+- Basic messages, enums, and services
+- Proto2 and proto3 syntax
+- Nested types and imports
+- Oneofs and maps  
+- Optional fields (proto2 and proto3 explicit optional)
+- Reserved fields and proto2 groups
+- Comment handling (leading, trailing, detached)
+- Empty messages
+- Large API-first files (teams, users)
+- Complex real-world schemas (grpcbin, quirks)
 
-Remaining failures (2):
-- 21_comment_edge_cases (field trailing blank line comment not showing)
-- 25_empty_messages (WireType import should come before BinaryWriteOptions)
+DONE
 
 

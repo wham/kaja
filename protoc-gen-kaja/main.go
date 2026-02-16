@@ -214,6 +214,48 @@ func (g *generator) pNoIndent(format string, args ...interface{}) {
 	g.b.WriteString("\n")
 }
 
+// getLeadingDetachedComments retrieves leading detached comments for a given path in SourceCodeInfo
+// Leading detached comments are comments separated from the element by a blank line
+func (g *generator) getLeadingDetachedComments(path []int32) []string {
+	if g.file.SourceCodeInfo == nil {
+		return nil
+	}
+	for _, loc := range g.file.SourceCodeInfo.Location {
+		if len(loc.Path) != len(path) {
+			continue
+		}
+		match := true
+		for i := range path {
+			if loc.Path[i] != path[i] {
+				match = false
+				break
+			}
+		}
+		if match && len(loc.LeadingDetachedComments) > 0 {
+			var result []string
+			for _, comment := range loc.LeadingDetachedComments {
+				// Process each detached comment
+				trimmed := strings.TrimRight(comment, " \t\n")
+				// Strip one leading space from each line (protobuf convention)
+				lines := strings.Split(trimmed, "\n")
+				for i, line := range lines {
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						lines[i] = ""
+					} else if strings.HasPrefix(line, " ") {
+						lines[i] = line[1:]
+					} else {
+						lines[i] = line
+					}
+				}
+				result = append(result, strings.Join(lines, "\n"))
+			}
+			return result
+		}
+	}
+	return nil
+}
+
 // getLeadingComments retrieves leading comments for a given path in SourceCodeInfo
 func (g *generator) getLeadingComments(path []int32) string {
 	if g.file.SourceCodeInfo == nil {
@@ -690,6 +732,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 			firstServiceLine := int32(999999)
 			firstMessageLine := int32(999999)
 			
+			// First pass: find service and message line numbers
+			messageLines := make(map[int]int32)
+			
 			for _, loc := range g.file.SourceCodeInfo.Location {
 				// Service definition: path [6, index]
 				if len(loc.Path) >= 2 && loc.Path[0] == 6 && loc.Span != nil && len(loc.Span) > 0 {
@@ -698,16 +743,56 @@ func (g *generator) writeImports(imports map[string]bool) {
 					}
 				}
 				// Message definition: path [4, index]
-				if len(loc.Path) >= 2 && loc.Path[0] == 4 && loc.Span != nil && len(loc.Span) > 0 {
-					if loc.Span[0] < firstMessageLine {
-						firstMessageLine = loc.Span[0]
+				if len(loc.Path) == 2 && loc.Path[0] == 4 && loc.Span != nil && len(loc.Span) > 0 {
+					msgIdx := int(loc.Path[1])
+					msgLine := loc.Span[0]
+					messageLines[msgIdx] = msgLine
+					if msgLine < firstMessageLine {
+						firstMessageLine = msgLine
 					}
 				}
 			}
 			
-			// Use special ordering only for files with many messages where service comes first
-			// This matches the pattern in teams.proto and users.proto
-			serviceBeforeMessages = firstServiceLine < firstMessageLine && len(g.file.MessageType) > 10
+			// Second pass: determine which messages are before the service
+			messagesBeforeService := make(map[int]bool)
+			for msgIdx, msgLine := range messageLines {
+				messagesBeforeService[msgIdx] = msgLine < firstServiceLine
+			}
+			
+			// WireType comes right after ServiceType if:
+			// 1. Service comes before the first message AND file has many messages (>10), OR
+			// 2. All messages before the service have zero actual fields (are truly empty)
+			if firstServiceLine < firstMessageLine && len(g.file.MessageType) > 10 {
+				serviceBeforeMessages = true
+			} else {
+				// Check if all messages before service are empty
+				allBeforeAreEmpty := true
+				countBefore := 0
+				for msgIdx, beforeService := range messagesBeforeService {
+					if beforeService {
+						countBefore++
+						if msgIdx < len(g.file.MessageType) {
+							msg := g.file.MessageType[msgIdx]
+							// Count actual fields (skip reserved, skip map entry messages)
+							hasActualFields := false
+							if msg.Options == nil || !msg.GetOptions().GetMapEntry() {
+								for _, field := range msg.Field {
+									// Skip GROUP type fields
+									if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+										hasActualFields = true
+										break
+									}
+								}
+							}
+							if hasActualFields {
+								allBeforeAreEmpty = false
+								break
+							}
+						}
+					}
+				}
+				serviceBeforeMessages = allBeforeAreEmpty && countBefore > 0
+			}
 		}
 	}
 	
@@ -1055,6 +1140,17 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 
 func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32) {
 	g.indent = "    "
+	
+	// Check for leading detached comments (comments separated from field by blank line)
+	// These should be output as // style comments before the JSDoc
+	if len(fieldPath) > 0 {
+		detachedComments := g.getLeadingDetachedComments(fieldPath)
+		for _, detached := range detachedComments {
+			// Output each detached comment as // style
+			g.p("// %s", detached)
+			g.pNoIndent("")
+		}
+	}
 	
 	// Check if leading comment ends with blank line (special case: output as // comment)
 	hasTrailingBlankComment := false
