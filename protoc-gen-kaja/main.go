@@ -1072,12 +1072,13 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	fieldName := field.GetName()
 	fieldNumber := field.GetNumber()
 	
-	// Check if we need to show json_name
+	// Check if we need to show json_name (only for explicitly set, not auto-generated)
 	jsonNameAnnotation := ""
 	if field.JsonName != nil {
-		defaultJsonName := g.propertyName(field)
+		protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
 		actualJsonName := *field.JsonName
-		if defaultJsonName != actualJsonName {
+		// Only show if different from what protoc would auto-generate
+		if protocDefaultJsonName != actualJsonName {
 			jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
 		}
 	}
@@ -1229,6 +1230,35 @@ func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
 	}
 	// Fallback: convert snake_case to camelCase (should not happen with protoc)
 	return g.propertyName(field)
+}
+
+// protocGeneratedJsonName returns what protoc would auto-generate as the jsonName
+// This follows protoc's rules: remove underscores, capitalize letter after underscore
+func (g *generator) protocGeneratedJsonName(fieldName string) string {
+	var result strings.Builder
+	capitalizeNext := false
+	
+	for _, ch := range fieldName {
+		if ch == '_' {
+			capitalizeNext = true
+			continue
+		}
+		
+		// Capitalize the next letter (but not digit) after underscore
+		if capitalizeNext && ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+			if ch >= 'a' && ch <= 'z' {
+				result.WriteRune(ch - 'a' + 'A')
+			} else {
+				result.WriteRune(ch)
+			}
+			capitalizeNext = false
+		} else {
+			result.WriteRune(ch)
+			capitalizeNext = false
+		}
+	}
+	
+	return result.String()
 }
 
 func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) string {
@@ -1622,12 +1652,13 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		}
 	}
 	
-	// Add jsonName when it's custom (different from default camelCase conversion)
+	// Add jsonName when it differs from the TypeScript property name
 	jsonNameField := ""
 	if field.JsonName != nil {
-		defaultJsonName := g.propertyName(field)
+		propertyName := g.propertyName(field)
 		actualJsonName := *field.JsonName
-		if defaultJsonName != actualJsonName {
+		// Include jsonName if it differs from the TypeScript property name
+		if propertyName != actualJsonName {
 			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", actualJsonName)
 		}
 	}
@@ -1844,17 +1875,19 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		g.indent = "                "
 		fieldName := g.propertyName(field)
 		
-		// Add json_name annotation to comment if custom
+		// Add json_name annotation to comment if custom (explicitly set)
+		fieldNumberInComment := ""
 		jsonNameAnnotation := ""
 		if field.JsonName != nil {
-			defaultJsonName := g.propertyName(field)
+			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
 			actualJsonName := *field.JsonName
-			if defaultJsonName != actualJsonName {
+			if protocDefaultJsonName != actualJsonName {
+				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
 				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
 			}
 		}
 		
-		g.p("case /* %s %s%s */ %d:", g.getProtoType(field), field.GetName(), jsonNameAnnotation, field.GetNumber())
+		g.p("case /* %s %s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, jsonNameAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -2006,12 +2039,12 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	for _, field := range msg.Field {
 		fieldName := g.propertyName(field)
 		
-		// Add json_name annotation to comment if custom
+		// Add json_name annotation to comment if custom (explicitly set)
 		jsonNameAnnotation := ""
 		if field.JsonName != nil {
-			defaultJsonName := g.propertyName(field)
+			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
 			actualJsonName := *field.JsonName
-			if defaultJsonName != actualJsonName {
+			if protocDefaultJsonName != actualJsonName {
 				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
 			}
 		}
