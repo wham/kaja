@@ -106,17 +106,21 @@ TODO: Fix field descriptor ordering in MessageType constructor - currently group
 
 ## Status
 
-**Current Test Results: 21/29 passing (72%)**
+**Current Test Results: 24/29 passing (83%)**
 
 Recent improvements:
-- TypeScript keyword escaping (test 15 now passing)
-- Enum prefix detection matching protobuf-ts logic (test 20 now passing)
-- Oneof field camelCase naming and interface ordering
+- Field descriptor ordering in field number order
+- Proto3 optional field handling (scalar/enum get opt flag, messages don't)
+- Oneof names use proto snake_case in metadata, camelCase in TypeScript
+- JsonName handling (show in comments when explicitly set, include in metadata when differs from property name)
+- Leading underscore camelCase conversion (_private → Private)
+- Field initialization ordering in create() method
 
-Remaining work focuses on:
-- Field descriptor ordering in reflection metadata
-- Proto2 features (default values, groups)
-- Comment formatting edge cases
-- Proto3 optional field handling
+Remaining failures (5):
+- 18_proto2_required
+- 21_comment_edge_cases
+- 22_field_numbers_gaps
+- 23_nested_enums
+- 25_empty_messages
 
 
