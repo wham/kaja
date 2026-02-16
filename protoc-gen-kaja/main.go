@@ -1062,11 +1062,23 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		// Singular field
 		fieldType := g.getBaseTypescriptType(field)
 		optional := ""
-		// Only scalar message fields (not repeated) should be optional
+		// Mark as optional if:
+		// 1. Proto2 optional (syntax is proto2 AND label is OPTIONAL)
+		// 2. Proto3 message (messages are always optional)
+		// 3. Proto3 explicit optional scalar (proto3_optional = true)
+		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
 		if field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED &&
-		   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REQUIRED && 
-		   (field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE || field.Proto3Optional != nil && *field.Proto3Optional) {
-			optional = "?"
+		   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
+			if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+				// Proto2 optional scalar or message
+				optional = "?"
+			} else if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				// Proto3 message (implicitly optional)
+				optional = "?"
+			} else if field.Proto3Optional != nil && *field.Proto3Optional {
+				// Proto3 explicit optional scalar
+				optional = "?"
+			}
 		}
 		g.p("%s%s: %s;", fieldName, optional, fieldType)
 	}
@@ -1165,6 +1177,14 @@ func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) strin
 	label := ""
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 		label = "repeated "
+	} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+		// Only show "optional" for proto2 optional fields
+		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
+		if isProto2 {
+			label = "optional "
+		}
+	} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
+		label = "required "
 	}
 	
 	typeName := ""
@@ -1579,15 +1599,19 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		}
 		
 		opt := ""
-		if field.Proto3Optional != nil && *field.Proto3Optional {
+		// Mark as optional if proto3 optional OR proto2 optional
+		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
+		if (field.Proto3Optional != nil && *field.Proto3Optional) ||
+		   (isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL && 
+		    field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE) {
 			opt = ", opt: true"
 		}
 		
 		if kind == "scalar" {
 			// Scalars need T
 			typeName := g.getScalarTypeName(field)
-			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/%s }%s",
-				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, t, typeName, opt, comma)
+			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/ }%s",
+				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, t, typeName, comma)
 		} else {
 			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s }%s",
 				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, extraFields, opt, comma)
@@ -2059,6 +2083,17 @@ func (g *generator) getDefaultValue(field *descriptorpb.FieldDescriptorProto) st
 		return "" // optional messages don't get defaults
 	}
 	
+	// Proto2 optional scalars don't get defaults
+	isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
+	if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+		return ""
+	}
+	
+	// Proto3 explicit optional scalars don't get defaults
+	if field.Proto3Optional != nil && *field.Proto3Optional {
+		return ""
+	}
+	
 	switch field.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE,
 		descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
@@ -2406,6 +2441,36 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
 	g.pNoIndent("// tslint:disable")
 	
+	// Add file-level leading detached comments (license headers, etc.)
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			// Check for syntax field with detached comments
+			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
+				// Blank line before the license header
+				g.pNoIndent("//")
+				for _, detached := range loc.LeadingDetachedComments {
+					comments := strings.TrimSpace(detached)
+					if comments != "" {
+						for _, line := range strings.Split(comments, "\n") {
+							line = strings.TrimRight(line, " \t")
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								// Strip one leading space if present (protobuf convention)
+								if strings.HasPrefix(line, " ") {
+									line = line[1:]
+								}
+								g.pNoIndent("// %s", line)
+							}
+						}
+						// Add blank line after detached comment block
+						g.pNoIndent("//")
+					}
+				}
+			}
+		}
+	}
+	
 	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
 	
 	// Collect imports
@@ -2439,27 +2504,60 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// First service + methods 2..N types
+	// Declare streaming types list for later use
+	var streamingTypes []struct{ name, path string }
+	
+	// First service + methods types with special ordering
 	if len(file.Service) > 0 {
 		service := file.Service[0]
 		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
 		
-		// Add method types in reverse order (skip first method)
+		// Collect method 0 types for filtering
+		method0Types := make(map[string]bool)
+		if len(service.Method) > 0 {
+			method0 := service.Method[0]
+			method0Types[g.stripPackage(method0.GetOutputType())] = true
+			method0Types[g.stripPackage(method0.GetInputType())] = true
+		}
+		
+		// Separate unary and streaming types from methods 9 down to 1
+		var unaryTypes []struct{ name, path string }
+		
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
+			isStreaming := method.GetServerStreaming() || method.GetClientStreaming()
+			
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
-			if !seen[resType] {
-				g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
+			// Process output type
+			if !seen[resType] && !method0Types[resType] {
+				typeInfo := struct{ name, path string }{resType, resTypePath}
+				if isStreaming {
+					streamingTypes = append(streamingTypes, typeInfo)
+				} else {
+					unaryTypes = append(unaryTypes, typeInfo)
+				}
 				seen[resType] = true
 			}
-			if !seen[reqType] {
-				g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
+			
+			// Process input type
+			if !seen[reqType] && !method0Types[reqType] {
+				typeInfo := struct{ name, path string }{reqType, reqTypePath}
+				if isStreaming {
+					streamingTypes = append(streamingTypes, typeInfo)
+				} else {
+					unaryTypes = append(unaryTypes, typeInfo)
+				}
 				seen[reqType] = true
 			}
+		}
+		
+		// Import unary types (before streaming call types)
+		for _, typeInfo := range unaryTypes {
+			g.pNoIndent("import type { %s } from \"%s\";", typeInfo.name, typeInfo.path)
 		}
 	}
 	
@@ -2493,11 +2591,17 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	if hasServerStreaming {
 		g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
 	}
+	
+	// Import streaming method types (before stackIntercept)
+	for _, typeInfo := range streamingTypes {
+		g.pNoIndent("import type { %s } from \"%s\";", typeInfo.name, typeInfo.path)
+	}
+	
 	if hasUnary {
 		g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	
-	// First service, first method types
+	// First service, first method types (output first, then input)
 	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
 		method := file.Service[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
@@ -2505,10 +2609,12 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		resTypePath := g.getImportPathForType(method.GetOutputType())
 		reqTypePath := g.getImportPathForType(method.GetInputType())
 		
+		// Import output type first
 		if !seen[resType] {
 			g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
 			seen[resType] = true
 		}
+		// Import input type second
 		if !seen[reqType] {
 			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
