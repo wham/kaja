@@ -110,33 +110,28 @@ These differences don't affect TypeScript compilation or runtime behavior - they
 
 ## Status
 
-**16/18 tests passing** (88.9% pass rate)
+**17/18 tests passing** (94.4% pass rate)
 
-Two tests have cosmetic import ordering differences in client files. All message/type generation matches exactly.
+One test (grpcbin) has cosmetic import ordering differences in 2 client files. All message/type generation matches exactly.
 
-**Remaining cosmetic differences:**
-- **grpcbin**: Client file import ordering (3 types + call type positioning)
-- **quirks/basics.client.ts**: Import order of types from different paths
-  - Actual: `HeadersResponse, Void, Message, RepeatedRequest, MapRequest`
-  - Expected: `HeadersResponse, RepeatedRequest, Message, Void, MapRequest`
+**Remaining cosmetic differences in grpcbin:**
+- **grpcbin.client.ts**: Import order of non-streaming message types (HeadersMessage, SpecificErrorRequest, EmptyMessage) and positioning of call types
+- **hello.client.ts**: Streaming call types should come before stackIntercept and method 0 types (when all streaming methods use method 0 types)
 
-These differences stem from protoc-gen-ts using the TypeScript compiler's AST to manage imports with complex internal ordering logic that depends on how types are encountered during AST traversal. Replicating this exactly would require using the TypeScript compiler itself.
+The core logic challenge: When ALL streaming methods use types from method 0, the streaming call type imports should be emitted immediately after the service import, not deferred. Current implementation defers them until after method 0 types.
 
 **Implementation Status:**
 - ✅ Core message/enum/service generation
 - ✅ Proto2 and proto3 support
 - ✅ Optional field serialization  
 - ✅ Client file generation
-- ✅ Streaming RPC support with call type imports
-- ✅ Same-type method deferral logic (unary methods only)
-- ✅ Streaming method message/call type interleaving
-- ✅ Well-known types
-- ✅ Nested messages and enums
-- ✅ Map fields, oneof, repeated fields
+- ✅ Streaming RPC call type imports with interleaving
+- ✅ Same-type method deferral logic (unary methods)
+- ✅ Forward method processing for message file imports
+- ✅ Well-known types, nested messages/enums, map fields, oneof, repeated fields
 - ✅ Trailing field comments
 - ✅ Batch generation WireType positioning
-- ✅ Multiple services in single file
-- ✅ Cross-package imports
-- ⚠️ Exact TypeScript compiler import ordering (cosmetic only)
+- ✅ Multiple services, cross-package imports
+- ⚠️ Streaming call type positioning edge case (1 test, 2 files, cosmetic)
 
-The implementation generates valid, compilable TypeScript code. The remaining differences are purely aesthetic and do not affect compilation or runtime behavior.
+The implementation generates valid, compilable TypeScript code that works correctly.
