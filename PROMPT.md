@@ -21,7 +21,19 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix client file import ordering (types from same file maintain order)
 - [x] Fix grpcbin trailing comment handling (SOLVED via SourceCodeInfo.TrailingComments)
 - [x] Fix WireType import positioning in batch generation for lib files (SOLVED)
-- [ ] Fix client file import ordering cosmetic differences in quirks (cosmetic)
+- [ ] Fix remaining client file import ordering differences (2 tests, cosmetic only)
+
+## Next Steps Required
+
+To achieve 100% test pass rate, the following cosmetic import ordering issues need resolution:
+
+1. **basics.client.ts** - Type ordering from mixed import paths
+2. **grpcbin.client.ts** - Streaming call type and message type ordering
+
+These require replicating TypeScript compiler's AST-based import ordering logic. Options:
+- Deep analysis of TypeScript compiler source code for import statement ordering
+- Use TypeScript compiler API from Go (via Node.js bridge)
+- Accept functional equivalence over byte-for-byte equivalence
 
 ## Notes
 
