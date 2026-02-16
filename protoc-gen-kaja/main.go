@@ -967,6 +967,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Generate fields in field number order
 	// When we encounter a field that's part of a oneof, generate the entire oneof at that point
 	for fieldIdx, field := range msg.Field {
+		// Skip GROUP type fields - they're deprecated and handled as nested messages
+		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+			continue
+		}
+		
 		var fieldPath []int32
 		if len(msgPath) > 0 {
 			fieldPath = append(msgPath, 2, int32(fieldIdx))
@@ -1750,6 +1755,11 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	var allFields []fieldInfo
 	for _, field := range msg.Field {
+		// Skip GROUP type fields - they're deprecated and handled as nested messages
+		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+			continue
+		}
+		
 		info := fieldInfo{field: field}
 		
 		// Check if this field is part of a oneof
@@ -1825,6 +1835,11 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	oneofSeen := make(map[int32]bool)
 	
 	for _, field := range msg.Field {
+		// Skip GROUP type fields - they're deprecated and handled as nested messages
+		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+			continue
+		}
+		
 		fieldNum := field.GetNumber()
 		
 		if field.OneofIndex != nil {
@@ -1896,10 +1911,24 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Read each field
 	for _, field := range msg.Field {
+		// Skip GROUP type fields - they're deprecated and handled as nested messages
+		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+			continue
+		}
+		
 		g.indent = "                "
 		fieldName := g.propertyName(field)
 		
+		// Add default value annotation if present
+		defaultAnnotation := ""
+		if field.DefaultValue != nil {
+			defaultVal := field.GetDefaultValue()
+			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
+			defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
+		}
+		
 		// Add json_name annotation to comment if custom (explicitly set)
+		// Field number is shown explicitly when there's a default or custom json_name
 		fieldNumberInComment := ""
 		jsonNameAnnotation := ""
 		if field.JsonName != nil {
@@ -1910,8 +1939,12 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
 			}
 		}
+		// Show field number if there's a default value
+		if defaultAnnotation != "" && fieldNumberInComment == "" {
+			fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
+		}
 		
-		g.p("case /* %s %s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, jsonNameAnnotation, field.GetNumber())
+		g.p("case /* %s %s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -2073,6 +2106,11 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	for _, field := range sortedFields {
+		// Skip GROUP type fields - they're deprecated and handled as nested messages
+		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+			continue
+		}
+		
 		fieldName := g.propertyName(field)
 		
 		// Add json_name annotation to comment if custom (explicitly set)
@@ -2085,7 +2123,15 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 		}
 		
-		g.p("/* %s %s = %d%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), jsonNameAnnotation)
+		// Add default value annotation if present
+		defaultAnnotation := ""
+		if field.DefaultValue != nil {
+			defaultVal := field.GetDefaultValue()
+			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
+			defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
+		}
+		
+		g.p("/* %s %s = %d%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation)
 		
 		// Check if this is a real oneof (not proto3 optional)
 		isRealOneof := false

@@ -28,7 +28,10 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix oneof names in metadata (use proto snake_case, not camelCase)
 - [x] Fix jsonName handling (show in comments and metadata when custom)
 - [x] Fix leading underscore camelCase conversion (_private → Private)
-- [ ] Fix remaining 8 test failures
+- [x] Fix proto2 default value annotations in @generated comments
+- [x] Fix enum prefix stripping (require at least 2 chars after strip)
+- [x] Fix field ordering (proto file order in constructor/create, sorted in write)
+- [ ] Fix remaining 3 test failures (proto2 groups, comment edge cases, import ordering)
 
 ## Notes
 
@@ -83,11 +86,53 @@ Important:
 Enum values have their common prefix stripped based on the enum name:
 1. Convert enum name to UPPER_SNAKE_CASE (e.g., "MyEnum" → "MY_ENUM_", "const_enum" → "CONST_ENUM_")
 2. Check if all values start with this prefix
-3. Check if stripped names are valid (start with uppercase letter)
-4. If both conditions pass, strip the prefix from enum value names
+3. Check if stripped names are valid (start with uppercase letter AND at least 2 chars)
+4. If all conditions pass, strip the prefix from enum value names
 
 Example: enum `MyEnum` with values `MY_ENUM_VALUE1`, `MY_ENUM_VALUE2` → becomes `VALUE1`, `VALUE2`
-Counter-example: enum `const_enum` with values `CONST_UNKNOWN`, `CONST_VALUE` → keeps original names (prefix is "CONST_", not "CONST_ENUM_")
+Counter-example: enum `Type` with values `TYPE_UNKNOWN`, `TYPE_A`, `TYPE_B` → keeps original names (stripping would leave "", "A", "B" which includes single letters)
+
+### Field Ordering (SOLVED)
+Fields must be output in different orders depending on context:
+- **MessageType constructor**: Proto file order (order fields appear in .proto)
+- **create() method**: Proto file order (same as constructor)
+- **internalBinaryWrite() method**: Sorted by field number (ascending) for efficiency
+- **Interface definition**: Proto file order
+
+Implementation: Keep fields in msg.Field order (proto file order), then create sorted copy only for write method.
+
+### Proto2 Default Values (SOLVED)
+Proto2 fields with default values show the default in the @generated comment:
+- Field definition comment: `@generated from protobuf field: optional string name = 1 [default = "unknown"]`
+- String/bytes defaults are quoted: `[default = "value"]`
+- Numeric/bool defaults are unquoted: `[default = 42]`, `[default = true]`
+- Enum defaults show the enum value name: `[default = COLOR_RED]`
+
+Implementation: Check `field.DefaultValue` and format using `formatDefaultValueAnnotation()`.
+
+### Comment Handling (PARTIAL)
+Leading comments that end with a blank line are output as single-line `//` comments outside the JSDoc block, followed by a blank line.
+
+Example in proto:
+```
+// Comment ending with blank line
+
+string field16 = 16;
+```
+
+Expected output:
+```typescript
+// Comment ending with blank line
+
+/**
+ * @generated from protobuf field: string field16 = 16
+ */
+field16: string;
+```
+
+Implementation: `getLeadingComments()` adds `__HAS_TRAILING_BLANK__` marker, `generateField()` detects and outputs as `//` comment.
+
+TODO: Enum value comments are not yet implemented.
 
 ### Test Execution
 Run tests: `cd protoc-gen-kaja && ./scripts/test`
@@ -102,25 +147,19 @@ Implementation:
 - Uses `toCamelCase()` helper to convert oneof names
 - Tracks generated oneofs to avoid duplication
 
-TODO: Fix field descriptor ordering in MessageType constructor - currently groups regular fields first, then oneof fields. Should be in field number order.
-
 ## Status
 
-**Current Test Results: 24/29 passing (83%)**
+**Current Test Results: 26/29 passing (90%)**
 
 Recent improvements:
-- Field descriptor ordering in field number order
-- Proto3 optional field handling (scalar/enum get opt flag, messages don't)
-- Oneof names use proto snake_case in metadata, camelCase in TypeScript
-- JsonName handling (show in comments when explicitly set, include in metadata when differs from property name)
-- Leading underscore camelCase conversion (_private → Private)
-- Field initialization ordering in create() method
+- Proto2 default value annotations in @generated comments
+- Enum prefix stripping requires at least 2 chars after stripping
+- Field ordering preserves proto file order in constructor/create, sorted in write
+- Leading comment handling preserves leading empty lines
 
-Remaining failures (5):
-- 18_proto2_required
-- 21_comment_edge_cases
-- 22_field_numbers_gaps
-- 23_nested_enums
-- 25_empty_messages
+Remaining failures (3):
+- 18_proto2_required (proto2 groups, default values in read method comments)
+- 21_comment_edge_cases (enum value comments, trailing blank line comments)
+- 25_empty_messages (WireType import ordering)
 
 
