@@ -3,7 +3,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TESTDATA_DIR="$PROJECT_DIR/testdata"
+TESTS_DIR="$PROJECT_DIR/tests"
+RESULTS_DIR="$PROJECT_DIR/results"
 
 # Usage: scripts/diff [test_name]
 # Without arguments: shows diff for all failing tests
@@ -14,8 +15,8 @@ TARGET="$1"
 show_diff() {
   local test_dir="$1"
   local test_name="$(basename "$test_dir")"
-  local expected_dir="$test_dir/expected"
-  local actual_dir="$test_dir/actual"
+  local expected_dir="$RESULTS_DIR/$test_name/expected"
+  local actual_dir="$RESULTS_DIR/$test_name/actual"
 
   if [ ! -d "$expected_dir" ]; then
     echo "No expected/ directory for $test_name. Run scripts/test first."
@@ -67,22 +68,23 @@ show_diff() {
 }
 
 if [ -n "$TARGET" ]; then
-  test_dir="$TESTDATA_DIR/$TARGET"
+  test_dir="$TESTS_DIR/$TARGET"
   if [ ! -d "$test_dir" ]; then
     # Try matching by prefix
-    test_dir=$(find "$TESTDATA_DIR" -maxdepth 1 -type d -name "*$TARGET*" | head -1)
+    test_dir=$(find "$TESTS_DIR" -maxdepth 1 -type d -name "*$TARGET*" | head -1)
   fi
   if [ -z "$test_dir" ] || [ ! -d "$test_dir" ]; then
     echo "Test not found: $TARGET"
     echo "Available tests:"
-    ls -1 "$TESTDATA_DIR"
+    ls -1 "$TESTS_DIR"
     exit 1
   fi
   show_diff "$test_dir"
 else
-  for test_dir in "$TESTDATA_DIR"/*/; do
-    expected_dir="$test_dir/expected"
-    actual_dir="$test_dir/actual"
+  for test_dir in "$TESTS_DIR"/*/; do
+    test_name="$(basename "$test_dir")"
+    expected_dir="$RESULTS_DIR/$test_name/expected"
+    actual_dir="$RESULTS_DIR/$test_name/actual"
     if [ -d "$expected_dir" ]; then
       diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
       if [ -n "$diff_output" ]; then

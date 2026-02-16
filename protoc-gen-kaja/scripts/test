@@ -4,7 +4,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROOT_DIR="$(cd "$PROJECT_DIR/.." && pwd)"
-TESTDATA_DIR="$PROJECT_DIR/testdata"
+TESTS_DIR="$PROJECT_DIR/tests"
+RESULTS_DIR="$PROJECT_DIR/results"
 
 SERVER_BUILD_DIR="$ROOT_DIR/server/build"
 PROTOC_GEN_TS="$SERVER_BUILD_DIR/protoc-gen-ts"
@@ -40,12 +41,15 @@ PASS=0
 FAIL=0
 ERRORS=""
 
-for test_dir in "$TESTDATA_DIR"/*/; do
-  test_name="$(basename "$test_dir")"
-  expected_dir="$test_dir/expected"
-  actual_dir="$test_dir/actual"
+# Clean and create results directory
+rm -rf "$RESULTS_DIR"
+mkdir -p "$RESULTS_DIR"
 
-  rm -rf "$expected_dir" "$actual_dir"
+for test_dir in "$TESTS_DIR"/*/; do
+  test_name="$(basename "$test_dir")"
+  expected_dir="$RESULTS_DIR/$test_name/expected"
+  actual_dir="$RESULTS_DIR/$test_name/actual"
+
   mkdir -p "$expected_dir" "$actual_dir"
 
   # Collect proto files
