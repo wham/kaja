@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"sort"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -975,24 +975,32 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		if field.OneofIndex != nil {
 			// This field is part of a oneof
 			oneofIdx := field.GetOneofIndex()
+			oneofProtoName := msg.OneofDecl[oneofIdx].GetName()
 			
-			// Only generate the oneof once (when we encounter its first field)
-			if !generatedOneofs[oneofIdx] {
-				generatedOneofs[oneofIdx] = true
-				
-				// Collect all fields for this oneof
-				var oneofFields []*descriptorpb.FieldDescriptorProto
-				for _, f := range msg.Field {
-					if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
-						oneofFields = append(oneofFields, f)
+			// Check if this is a proto3 optional (synthetic oneof starting with "_")
+			isProto3Optional := len(oneofProtoName) > 0 && oneofProtoName[0] == '_'
+			
+			if isProto3Optional {
+				// Proto3 optional field - treat as regular optional field
+				g.generateField(field, fullName, fieldPath)
+			} else {
+				// Real oneof - only generate once (when we encounter its first field)
+				if !generatedOneofs[oneofIdx] {
+					generatedOneofs[oneofIdx] = true
+					
+					// Collect all fields for this oneof
+					var oneofFields []*descriptorpb.FieldDescriptorProto
+					for _, f := range msg.Field {
+						if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
+							oneofFields = append(oneofFields, f)
+						}
 					}
+					
+					// Convert oneof name to camelCase
+					oneofCamelName := g.toCamelCase(oneofProtoName)
+					
+					g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, fieldIdx)
 				}
-				
-				// Get oneof name and convert to camelCase
-				oneofProtoName := msg.OneofDecl[oneofIdx].GetName()
-				oneofCamelName := g.toCamelCase(oneofProtoName)
-				
-				g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, fieldIdx)
 			}
 		} else {
 			// Regular field
@@ -1059,10 +1067,25 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		}
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
+	// Build the @generated comment line
+	protoType := g.getProtoType(field)
+	fieldName := field.GetName()
+	fieldNumber := field.GetNumber()
+	
+	// Check if we need to show json_name
+	jsonNameAnnotation := ""
+	if field.JsonName != nil {
+		defaultJsonName := g.propertyName(field)
+		actualJsonName := *field.JsonName
+		if defaultJsonName != actualJsonName {
+			jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
+		}
+	}
+	
+	g.p(" * @generated from protobuf field: %s %s = %d%s", protoType, fieldName, fieldNumber, jsonNameAnnotation)
 	g.p(" */")
 	
-	fieldName := g.propertyName(field)
+	fieldName = g.propertyName(field)
 	
 	// Get trailing comments if fieldPath is provided
 	trailingComment := ""
@@ -1166,6 +1189,8 @@ func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) strin
 func (g *generator) toCamelCase(name string) string {
 	// Convert snake_case to camelCase: capitalize all letters after underscores
 	parts := strings.Split(name, "_")
+	startsWithUnderscore := len(name) > 0 && name[0] == '_'
+	
 	for i := 1; i < len(parts); i++ {
 		if len(parts[i]) > 0 {
 			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
@@ -1183,9 +1208,14 @@ func (g *generator) toCamelCase(name string) string {
 	}
 	result = string(runes)
 	
-	// Lowercase the first letter
+	// If name started with underscore, capitalize the first letter
+	// Otherwise, lowercase the first letter
 	if len(result) > 0 {
-		result = strings.ToLower(result[:1]) + result[1:]
+		if startsWithUnderscore {
+			result = strings.ToUpper(result[:1]) + result[1:]
+		} else {
+			result = strings.ToLower(result[:1]) + result[1:]
+		}
 	}
 	return result
 }
@@ -1219,6 +1249,9 @@ func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) strin
 	label := ""
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 		label = "repeated "
+	} else if field.Proto3Optional != nil && *field.Proto3Optional {
+		// Proto3 explicit optional
+		label = "optional "
 	} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
 		// Only show "optional" for proto2 optional fields
 		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
@@ -1498,6 +1531,133 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 	return nil
 }
 
+// generateFieldDescriptor generates a single field descriptor in the MessageType constructor
+// oneofName should be the proto snake_case name (e.g., "data_format" not "dataFormat")
+func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string) {
+	kind := "scalar"
+	t := g.getScalarTypeEnum(field)
+	extraFields := ""
+	
+	// Determine field kind and extra fields
+	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+		msgType := g.findMessageType(field.GetTypeName())
+		if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
+			// Map field
+			kind = "map"
+			keyField := msgType.Field[0]
+			valueField := msgType.Field[1]
+			keyT := g.getScalarTypeEnum(keyField)
+			keyTypeName := g.getScalarTypeName(keyField)
+			if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"message\", T: () => %s }", keyT, keyTypeName, g.stripPackage(valueField.GetTypeName()))
+			} else if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+				valueTypeName := g.stripPackage(valueField.GetTypeName())
+				valueFullTypeName := g.getProtoTypeName(valueField.GetTypeName())
+				enumType := g.findEnumType(valueField.GetTypeName())
+				enumPrefix := ""
+				if enumType != nil {
+					enumPrefix = g.detectEnumPrefix(enumType)
+				}
+				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s, \"%s\"] }", keyT, keyTypeName, valueFullTypeName, valueTypeName, enumPrefix)
+			} else {
+				valueT := g.getScalarTypeEnum(valueField)
+				valueTypeName := g.getScalarTypeName(valueField)
+				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/ }", keyT, keyTypeName, valueT, valueTypeName)
+			}
+		} else {
+			// Message field
+			kind = "message"
+			if oneofName != "" {
+				extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofName, g.stripPackage(field.GetTypeName()))
+			} else {
+				extraFields = fmt.Sprintf(", T: () => %s", g.stripPackage(field.GetTypeName()))
+			}
+		}
+	} else if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+		// Enum field
+		kind = "enum"
+		typeName := g.stripPackage(field.GetTypeName())
+		fullTypeName := g.getProtoTypeName(field.GetTypeName())
+		
+		// Get enum to detect prefix
+		enumType := g.findEnumType(field.GetTypeName())
+		enumPrefix := ""
+		if enumType != nil {
+			enumPrefix = g.detectEnumPrefix(enumType)
+		}
+		
+		// Build T parameter
+		var tParam string
+		if enumPrefix != "" {
+			tParam = fmt.Sprintf("[\"%s\", %s, \"%s\"]", fullTypeName, typeName, enumPrefix)
+		} else {
+			tParam = fmt.Sprintf("[\"%s\", %s]", fullTypeName, typeName)
+		}
+		
+		if oneofName != "" {
+			extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofName, tParam)
+		} else {
+			extraFields = fmt.Sprintf(", T: () => %s", tParam)
+		}
+	} else {
+		// Scalar field
+		if oneofName != "" {
+			extraFields = fmt.Sprintf(", oneof: \"%s\"", oneofName)
+		}
+	}
+	
+	// Add repeat field for repeated fields (not maps)
+	repeat := ""
+	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && kind != "map" {
+		if g.isPackedType(field) {
+			repeat = ", repeat: 1 /*RepeatType.PACKED*/"
+		} else {
+			repeat = ", repeat: 2 /*RepeatType.UNPACKED*/"
+		}
+	}
+	
+	// Add jsonName when it's custom (different from default camelCase conversion)
+	jsonNameField := ""
+	if field.JsonName != nil {
+		defaultJsonName := g.propertyName(field)
+		actualJsonName := *field.JsonName
+		if defaultJsonName != actualJsonName {
+			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", actualJsonName)
+		}
+	}
+	
+	// Mark as optional for proto3 optional scalars/enums or proto2 optional scalars
+	opt := ""
+	isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
+	if field.Proto3Optional != nil && *field.Proto3Optional {
+		// Proto3 explicit optional - scalars and enums get opt flag, messages don't (they're already optional)
+		if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+			opt = ", opt: true"
+		}
+	} else if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL && 
+	    field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+		// Proto2 optional scalars get opt flag (not messages, they're implicitly optional)
+		opt = ", opt: true"
+	}
+	
+	// Generate the field descriptor
+	if kind == "scalar" && oneofName == "" {
+		// Regular scalar field needs T parameter
+		typeName := g.getScalarTypeName(field)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/ }%s",
+			field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, t, typeName, comma)
+	} else if kind == "scalar" && oneofName != "" {
+		// Scalar oneof field
+		typeName := g.getScalarTypeName(field)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s, T: %s /*ScalarType.%s*/ }%s",
+			field.GetNumber(), field.GetName(), kind, extraFields, t, typeName, comma)
+	} else {
+		// Message, enum, or map field
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s }%s",
+			field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, extraFields, comma)
+	}
+}
+
 func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, fullName string, protoName string) {
 	className := fullName + "$Type"
 	
@@ -1516,192 +1676,57 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("constructor() {")
 	g.indent = "        "
 	
-	// Group oneof fields
-	oneofFieldGroups := make(map[int32][]*descriptorpb.FieldDescriptorProto)
-	var regularFields []*descriptorpb.FieldDescriptorProto
-	for _, field := range msg.Field {
-		if field.OneofIndex != nil {
-			oneofFieldGroups[field.GetOneofIndex()] = append(oneofFieldGroups[field.GetOneofIndex()], field)
-		} else {
-			regularFields = append(regularFields, field)
-		}
+	// Classify fields by type and sort by field number
+	type fieldInfo struct {
+		field      *descriptorpb.FieldDescriptorProto
+		isProto3Optional bool
+		oneofName  string // Proto snake_case oneof name (for real oneofs only)
 	}
 	
-	// Count total field descriptors
-	totalFields := len(regularFields)
-	for _, fields := range oneofFieldGroups {
-		totalFields += len(fields)
+	var allFields []fieldInfo
+	for _, field := range msg.Field {
+		info := fieldInfo{field: field}
+		
+		// Check if this field is part of a oneof
+		if field.OneofIndex != nil {
+			oneofIdx := field.GetOneofIndex()
+			if oneofIdx < int32(len(msg.OneofDecl)) {
+				oneofName := msg.OneofDecl[oneofIdx].GetName()
+				// Proto3 optional fields are in synthetic oneofs (starting with "_")
+				if len(oneofName) > 0 && oneofName[0] == '_' {
+					info.isProto3Optional = true
+				} else {
+					info.oneofName = oneofName
+				}
+			}
+		}
+		
+		allFields = append(allFields, info)
 	}
+	
+	// Sort by field number
+	sort.Slice(allFields, func(i, j int) bool {
+		return allFields[i].field.GetNumber() < allFields[j].field.GetNumber()
+	})
 	
 	// If no fields, use compact format
-	if totalFields == 0 {
+	if len(allFields) == 0 {
 		g.p("super(\"%s\", []);", typeName)
 	} else {
 		g.p("super(\"%s\", [", typeName)
 		
-		// Field descriptors
+		// Generate field descriptors in field number order
 		g.indent = "            "
-		currentField := 0
-	
-		// Generate regular field descriptors
-		for _, field := range regularFields {
-		comma := ","
-		if currentField == totalFields-1 {
-			comma = ""
-		}
-		currentField++
-		
-		kind := "scalar"
-		t := g.getScalarTypeEnum(field)
-		extraFields := ""
-		
-		if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-			msgType := g.findMessageType(field.GetTypeName())
-			if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
-				kind = "map"
-				keyField := msgType.Field[0]
-				valueField := msgType.Field[1]
-				keyT := g.getScalarTypeEnum(keyField)
-				keyTypeName := g.getScalarTypeName(keyField)
-				if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"message\", T: () => %s }", keyT, keyTypeName, g.stripPackage(valueField.GetTypeName()))
-				} else if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
-					valueTypeName := g.stripPackage(valueField.GetTypeName())
-					valueFullTypeName := g.getProtoTypeName(valueField.GetTypeName())
-					enumType := g.findEnumType(valueField.GetTypeName())
-					enumPrefix := ""
-					if enumType != nil {
-						enumPrefix = g.detectEnumPrefix(enumType)
-					}
-					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s, \"%s\"] }", keyT, keyTypeName, valueFullTypeName, valueTypeName, enumPrefix)
-				} else {
-					valueT := g.getScalarTypeEnum(valueField)
-					valueTypeName := g.getScalarTypeName(valueField)
-					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/ }", keyT, keyTypeName, valueT, valueTypeName)
-				}
-			} else {
-				kind = "message"
-				extraFields = fmt.Sprintf(", T: () => %s", g.stripPackage(field.GetTypeName()))
-			}
-		} else if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
-			kind = "enum"
-			typeName := g.stripPackage(field.GetTypeName())
-			fullTypeName := g.getProtoTypeName(field.GetTypeName())
-			
-			// Get enum to detect prefix
-			enumType := g.findEnumType(field.GetTypeName())
-			enumPrefix := ""
-			if enumType != nil {
-				enumPrefix = g.detectEnumPrefix(enumType)
+		for i, info := range allFields {
+			field := info.field
+			comma := ","
+			if i == len(allFields)-1 {
+				comma = ""
 			}
 			
-			// Only include enumPrefix if it's non-empty
-			if enumPrefix != "" {
-				extraFields = fmt.Sprintf(", T: () => [\"%s\", %s, \"%s\"]", fullTypeName, typeName, enumPrefix)
-			} else {
-				extraFields = fmt.Sprintf(", T: () => [\"%s\", %s]", fullTypeName, typeName)
-			}
+			// Generate field descriptor
+			g.generateFieldDescriptor(field, info.oneofName, comma)
 		}
-		
-		repeat := ""
-		if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
-			if kind == "map" {
-				// Map fields don't use repeat
-			} else if g.isPackedType(field) {
-				repeat = ", repeat: 1 /*RepeatType.PACKED*/"
-			} else {
-				repeat = ", repeat: 2 /*RepeatType.UNPACKED*/"
-			}
-		}
-		
-		// Add jsonName only when needed (non-standard naming)
-		// Include jsonName if:
-		// 1. Field name starts with capital letter, OR
-		// 2. Field name doesn't contain underscore (already camelCase/special)
-		jsonNameField := ""
-		fieldName := field.GetName()
-		needsJsonName := false
-		
-		if len(fieldName) > 0 && fieldName[0] >= 'A' && fieldName[0] <= 'Z' {
-			// Starts with capital letter
-			needsJsonName = true
-		} else if !strings.Contains(fieldName, "_") {
-			// No underscore - might be special
-			needsJsonName = false // Actually, if no underscore and lowercase, no need for jsonName
-		} else {
-			// Has underscore - check if it ends with a number+s pattern (like int32s, int64s)
-			// In this case, the 's' should not be capitalized
-			if matched, _ := regexp.MatchString(`\d+s$`, fieldName); matched {
-				needsJsonName = true
-			}
-		}
-		
-		if needsJsonName && field.JsonName != nil {
-			jn := g.jsonName(field)
-			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", jn)
-		}
-		
-		opt := ""
-		// Mark as optional if proto3 optional OR proto2 optional
-		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
-		if (field.Proto3Optional != nil && *field.Proto3Optional) ||
-		   (isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL && 
-		    field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE) {
-			opt = ", opt: true"
-		}
-		
-		if kind == "scalar" {
-			// Scalars need T
-			typeName := g.getScalarTypeName(field)
-			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/ }%s",
-				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, t, typeName, comma)
-		} else {
-			g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s }%s",
-				field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, extraFields, opt, comma)
-		}
-	}
-	
-	// Generate oneof field descriptors - all alternatives for each oneof
-	for oneofIdx, fields := range oneofFieldGroups {
-		if oneofIdx < int32(len(msg.OneofDecl)) {
-			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			for _, field := range fields {
-				comma := ","
-				if currentField == totalFields-1 {
-					comma = ""
-				}
-				currentField++
-				
-				kind := "scalar"
-				t := g.getScalarTypeEnum(field)
-				extraFields := ""
-				
-				if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-					kind = "message"
-					extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofName, g.stripPackage(field.GetTypeName()))
-					g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s }%s",
-						field.GetNumber(), field.GetName(), kind, extraFields, comma)
-				} else if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
-					kind = "enum"
-					typeName := g.stripPackage(field.GetTypeName())
-					fullTypeName := g.getProtoTypeName(field.GetTypeName())
-					enumType := g.findEnumType(field.GetTypeName())
-					enumPrefix := ""
-					if enumType != nil {
-						enumPrefix = g.detectEnumPrefix(enumType)
-					}
-					extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => [\"%s\", %s, \"%s\"]", oneofName, fullTypeName, typeName, enumPrefix)
-					g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s }%s",
-						field.GetNumber(), field.GetName(), kind, extraFields, comma)
-				} else {
-					// Scalar oneof field
-					typeName := g.getScalarTypeName(field)
-					g.p("{ no: %d, name: \"%s\", kind: \"%s\", oneof: \"%s\", T: %s /*ScalarType.%s*/ }%s",
-						field.GetNumber(), field.GetName(), kind, oneofName, t, typeName, comma)
-				}
-			}
-		}
-	}
 		
 		g.indent = "        "
 		g.p("]);")
@@ -1724,8 +1749,18 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Initialize regular fields with defaults
 	for _, field := range msg.Field {
+		// Skip proto3 optional fields (synthetic oneofs starting with "_")
 		if field.OneofIndex != nil {
-			continue
+			oneofIdx := field.GetOneofIndex()
+			if oneofIdx < int32(len(msg.OneofDecl)) {
+				oneofName := msg.OneofDecl[oneofIdx].GetName()
+				// Proto3 optional fields are in synthetic oneofs
+				if len(oneofName) > 0 && oneofName[0] != '_' {
+					// Real oneof, skip for now
+					continue
+				}
+				// Proto3 optional - treat as regular field, fall through
+			}
 		}
 		
 		fieldName := g.propertyName(field)
@@ -1735,14 +1770,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
-	// Initialize oneof fields
+	// Initialize real oneof fields (not proto3 optional)
 	oneofInit := make(map[int32]bool)
 	for _, field := range msg.Field {
 		if field.OneofIndex != nil && !oneofInit[field.GetOneofIndex()] {
 			oneofIdx := field.GetOneofIndex()
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
-				g.p("message.%s = { oneofKind: undefined };", oneofName)
+				// Skip proto3 optional (synthetic oneofs)
+				if len(oneofName) > 0 && oneofName[0] == '_' {
+					continue
+				}
+				// Use camelCase for oneof property names
+				oneofCamelName := g.toCamelCase(oneofName)
+				g.p("message.%s = { oneofKind: undefined };", oneofCamelName)
 				oneofInit[oneofIdx] = true
 			}
 		}
@@ -1769,24 +1810,46 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	for _, field := range msg.Field {
 		g.indent = "                "
 		fieldName := g.propertyName(field)
-		g.p("case /* %s %s */ %d:", g.getProtoType(field), field.GetName(), field.GetNumber())
+		
+		// Add json_name annotation to comment if custom
+		jsonNameAnnotation := ""
+		if field.JsonName != nil {
+			defaultJsonName := g.propertyName(field)
+			actualJsonName := *field.JsonName
+			if defaultJsonName != actualJsonName {
+				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
+			}
+		}
+		
+		g.p("case /* %s %s%s */ %d:", g.getProtoType(field), field.GetName(), jsonNameAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
+		// Check if this is a real oneof (not proto3 optional)
+		isRealOneof := false
+		var oneofCamelName string
 		if field.OneofIndex != nil {
-			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
+			// Proto3 optional fields are in synthetic oneofs (starting with "_")
+			if len(oneofName) > 0 && oneofName[0] != '_' {
+				isRealOneof = true
+				oneofCamelName = g.toCamelCase(oneofName)
+			}
+		}
+		
+		if isRealOneof {
+			// Real oneof field
 			fieldJsonName := g.propertyName(field)
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 				// For message types, support merging
-				g.p("message.%s = {", oneofName)
+				g.p("message.%s = {", oneofCamelName)
 				g.indent = "                        "
 				g.p("oneofKind: \"%s\",", fieldJsonName)
-				g.p("%s: %s", fieldJsonName, g.getReaderMethodWithMerge(field, fmt.Sprintf("(message.%s as any).%s", oneofName, fieldJsonName)))
+				g.p("%s: %s", fieldJsonName, g.getReaderMethodWithMerge(field, fmt.Sprintf("(message.%s as any).%s", oneofCamelName, fieldJsonName)))
 				g.indent = "                    "
 				g.p("};")
 			} else {
-				g.p("message.%s = {", oneofName)
+				g.p("message.%s = {", oneofCamelName)
 				g.indent = "                        "
 				g.p("oneofKind: \"%s\",", fieldJsonName)
 				g.p("%s: %s", fieldJsonName, g.getReaderMethod(field))
@@ -1909,16 +1972,38 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	for _, field := range msg.Field {
 		fieldName := g.propertyName(field)
-		g.p("/* %s %s = %d; */", g.getProtoType(field), field.GetName(), field.GetNumber())
 		
+		// Add json_name annotation to comment if custom
+		jsonNameAnnotation := ""
+		if field.JsonName != nil {
+			defaultJsonName := g.propertyName(field)
+			actualJsonName := *field.JsonName
+			if defaultJsonName != actualJsonName {
+				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
+			}
+		}
+		
+		g.p("/* %s %s = %d%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), jsonNameAnnotation)
+		
+		// Check if this is a real oneof (not proto3 optional)
+		isRealOneof := false
+		var oneofCamelName string
 		if field.OneofIndex != nil {
-			// Get oneof name
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
+			// Proto3 optional fields are in synthetic oneofs (starting with "_")
+			if len(oneofName) > 0 && oneofName[0] != '_' {
+				isRealOneof = true
+				oneofCamelName = g.toCamelCase(oneofName)
+			}
+		}
+		
+		if isRealOneof {
+			// Real oneof field
 			fieldJsonName := g.propertyName(field)
-			g.p("if (message.%s.oneofKind === \"%s\")", oneofName, fieldJsonName)
+			g.p("if (message.%s.oneofKind === \"%s\")", oneofCamelName, fieldJsonName)
 			g.indent = "            "
-			g.p("%s", g.getWriterMethod(field, "message."+oneofName+"."+fieldJsonName))
+			g.p("%s", g.getWriterMethod(field, "message."+oneofCamelName+"."+fieldJsonName))
 			g.indent = "        "
 		} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 			msgType := g.findMessageType(field.GetTypeName())
@@ -2372,11 +2457,12 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 	isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
 	isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 	
-	// Proto2 optional fields or proto3 explicit optional fields need undefined check
+	// Proto2 optional fields need undefined check
 	if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
 		return fmt.Sprintf("message.%s !== undefined", fieldName)
 	}
-	if isProto3Optional {
+	// Proto3 optional SCALARS and ENUMS need undefined check (messages use truthy)
+	if isProto3Optional && field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 		return fmt.Sprintf("message.%s !== undefined", fieldName)
 	}
 	
@@ -2384,7 +2470,7 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 		return fmt.Sprintf("message.%s.length", fieldName)
 	}
 	
-	// Optional message fields need existence check
+	// Optional message fields (proto3 implicit or explicit optional) need existence check with truthy
 	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE && 
 	   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
 		return fmt.Sprintf("message.%s", fieldName)

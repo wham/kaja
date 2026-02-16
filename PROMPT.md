@@ -23,6 +23,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix WireType import positioning in batch generation for lib files (SOLVED)
 - [x] Fix client file import ordering for streaming methods (interleave vs group strategy)
 - [x] Fix cross-import-path type ordering (deferred input emission)
+- [ ] Fix field descriptor ordering (must be in field number order, not grouped)
+- [ ] Fix proto3 optional field handling (should be simple optional, not oneofs)
+- [ ] Fix oneof names in metadata (use proto snake_case, not camelCase)
+- [ ] Fix jsonName handling (show in comments and metadata when custom)
+- [ ] Fix leading underscore camelCase conversion (_private → Private)
 
 ## Notes
 
