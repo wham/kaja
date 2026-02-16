@@ -587,7 +587,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		importStmt := generateImport(typeName)
 		if importStmt != "" && !seenImports[importStmt] {
-			g.pNoIndent(importStmt)
+			g.pNoIndent("%s", importStmt)
 			seenImports[importStmt] = true
 		}
 	}
@@ -679,7 +679,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if g.isLocalType(typeName) {
 			continue
 		}
-		g.pNoIndent(importStmt)
+		g.pNoIndent("%s", importStmt)
 		seenImports[importStmt] = true
 	}
 }
