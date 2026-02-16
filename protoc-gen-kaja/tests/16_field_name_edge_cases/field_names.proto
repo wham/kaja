@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package field_names;
+
+// Test field names with numbers at various positions
+message FieldNamesWithNumbers {
+  // Numbers at the end
+  string value1 = 1;
+  string value2 = 2;
+  string int32s = 3;    // Should be "int32s" not "int32S"
+  string int64s = 4;    // Should be "int64s" not "int64S"
+  string uint32s = 5;
+  
+  // Numbers in the middle
+  string field1name = 6;
+  string field2_name = 7;
+  string my2ndField = 8;
+  
+  // Starting with capital (should preserve in jsonName)
+  string CapitalField = 9;
+  string CamelCaseField = 10;
+  string ALLCAPS = 11;
+  
+  // Already camelCase (no underscore)
+  string alreadyCamel = 12;
+  string firstName = 13;
+  string lastName = 14;
+  
+  // Mixed underscore and capital
+  string Field_With_Underscores = 15;
+  string CONST_FIELD_NAME = 16;
+  
+  // Single letter fields
+  string a = 17;
+  string B = 18;
+  string x = 19;
+  string Y = 20;
+  
+  // Consecutive underscores
+  string field__double = 21;
+  string __leading = 22;
+  string trailing__ = 23;
+  
+  // Only underscores
+  string _ = 24;
+  string __ = 25;
+  
+  // Numbers only after underscore
+  string field_1 = 26;
+  string field_2_value = 27;
+}

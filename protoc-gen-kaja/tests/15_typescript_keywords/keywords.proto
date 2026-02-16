@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package keywords;
+
+// Test TypeScript reserved keywords as field names
+message TypeScriptKeywords {
+  string const = 1;
+  string let = 2;
+  string var = 3;
+  string function = 4;
+  string class = 5;
+  string interface = 6;
+  string type = 7;
+  string enum = 8;
+  string namespace = 9;
+  string module = 10;
+  string extends = 11;
+  string implements = 12;
+  string static = 13;
+  string private = 14;
+  string public = 15;
+  string protected = 16;
+  string readonly = 17;
+  string async = 18;
+  string await = 19;
+  string yield = 20;
+  string return = 21;
+  string break = 22;
+  string continue = 23;
+  string throw = 24;
+  string try = 25;
+  string catch = 26;
+  string finally = 27;
+  string if = 28;
+  string else = 29;
+  string switch = 30;
+  string case = 31;
+  string default = 32;
+  string for = 33;
+  string while = 34;
+  string do = 35;
+  string new = 36;
+  string this = 37;
+  string super = 38;
+  string import = 39;
+  string export = 40;
+  string from = 41;
+  string as = 42;
+  string in = 43;
+  string of = 44;
+  string typeof = 45;
+  string instanceof = 46;
+  string void = 47;
+  string null = 48;
+  string undefined = 49;
+  string true = 50;
+  string false = 51;
+  string delete = 52;
+  string with = 53;
+  string debugger = 54;
+}
+
+// Test keywords as message names
+message const {
+  string value = 1;
+}
+
+message let {
+  string value = 1;
+}
+
+message class {
+  string value = 1;
+}
+
+// Test keywords as enum names
+enum const_enum {
+  CONST_UNKNOWN = 0;
+  CONST_VALUE = 1;
+}
+
+enum interface_type {
+  INTERFACE_UNKNOWN = 0;
+  INTERFACE_VALUE = 1;
+}

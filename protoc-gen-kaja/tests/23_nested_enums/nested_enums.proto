@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package nested_enums;
+
+// Test enum nested in message
+message Container {
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_INACTIVE = 2;
+  }
+  
+  Status status = 1;
+  string name = 2;
+}
+
+// Test multiple nested enums
+message MultipleNestedEnums {
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    TYPE_A = 1;
+    TYPE_B = 2;
+  }
+  
+  enum Priority {
+    PRIORITY_LOW = 0;
+    PRIORITY_MEDIUM = 1;
+    PRIORITY_HIGH = 2;
+  }
+  
+  Type type = 1;
+  Priority priority = 2;
+}
+
+// Test deeply nested enums
+message Level1 {
+  message Level2 {
+    message Level3 {
+      enum DeepEnum {
+        DEEP_UNKNOWN = 0;
+        DEEP_VALUE = 1;
+      }
+      
+      DeepEnum value = 1;
+    }
+    
+    Level3 level3 = 1;
+  }
+  
+  Level2 level2 = 1;
+}
+
+// Test enum in nested message used in parent
+message Parent {
+  message Child {
+    enum ChildEnum {
+      CHILD_UNKNOWN = 0;
+      CHILD_VALUE = 1;
+    }
+  }
+  
+  Child.ChildEnum status = 1;
+  string name = 2;
+}
+
+// Test referencing nested enum from another message
+message UseNestedEnum {
+  Container.Status container_status = 1;
+  MultipleNestedEnums.Type type = 2;
+  MultipleNestedEnums.Priority priority = 3;
+  Parent.Child.ChildEnum child_status = 4;
+}
+
+// Test nested enum with no prefix
+message NoPrefix {
+  enum Simple {
+    A = 0;
+    B = 1;
+    C = 2;
+  }
+  
+  Simple value = 1;
+}
+
+// Test sibling messages with same enum name
+message Sibling1 {
+  enum Status {
+    STATUS_OK = 0;
+    STATUS_ERROR = 1;
+  }
+  
+  Status status = 1;
+}
+
+message Sibling2 {
+  enum Status {
+    STATUS_PENDING = 0;
+    STATUS_DONE = 1;
+  }
+  
+  Status status = 1;
+}
+
+message UseBothSiblings {
+  Sibling1.Status status1 = 1;
+  Sibling2.Status status2 = 2;
+}

@@ -1,0 +1,59 @@
+syntax = "proto2";
+
+package proto2_test;
+
+// Test proto2 with required fields
+message RequiredFields {
+  required string name = 1;
+  required int32 id = 2;
+  optional string email = 3;
+  optional int32 age = 4;
+  repeated string tags = 5;
+}
+
+// Test proto2 with default values
+message DefaultValues {
+  optional string name = 1 [default = "unknown"];
+  optional int32 count = 2 [default = 0];
+  optional bool enabled = 3 [default = true];
+  optional double rate = 4 [default = 1.5];
+  optional Color color = 5 [default = COLOR_RED];
+}
+
+enum Color {
+  COLOR_RED = 0;
+  COLOR_GREEN = 1;
+  COLOR_BLUE = 2;
+}
+
+// Test proto2 groups (deprecated but valid)
+message WithGroup {
+  optional int32 id = 1;
+  repeated group Result = 2 {
+    required string url = 3;
+    optional string title = 4;
+  }
+}
+
+// Test proto2 extensions
+message Extendable {
+  optional string name = 1;
+  extensions 100 to 199;
+}
+
+extend Extendable {
+  optional int32 custom_field = 100;
+  optional string custom_string = 101;
+}
+
+// Test nested enums in proto2
+message Container {
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_INACTIVE = 2;
+  }
+  
+  optional Status status = 1;
+  optional int32 value = 2;
+}

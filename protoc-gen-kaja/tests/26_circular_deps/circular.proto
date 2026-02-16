@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package circular;
+
+// Direct self-reference
+message SelfReference {
+  string id = 1;
+  SelfReference child = 2;
+}
+
+// Mutual reference (A -> B -> A)
+message PersonNode {
+  string name = 1;
+  AddressNode address = 2;
+}
+
+message AddressNode {
+  string street = 1;
+  PersonNode resident = 2;
+}
+
+// Circular through repeated field
+message TreeNode {
+  string value = 1;
+  repeated TreeNode children = 2;
+  TreeNode parent = 3;
+}
+
+// Circular through map
+message GraphNode {
+  string id = 1;
+  map<string, GraphNode> neighbors = 2;
+}
+
+// Three-way circular (A -> B -> C -> A)
+message NodeA {
+  string id = 1;
+  NodeB next = 2;
+}
+
+message NodeB {
+  string id = 1;
+  NodeC next = 2;
+}
+
+message NodeC {
+  string id = 1;
+  NodeA next = 2;
+}
+
+// Nested circular
+message Outer {
+  message Inner {
+    string value = 1;
+    Outer outer = 2;
+  }
+  
+  Inner inner = 1;
+}
+
+// Circular with oneof
+message OneofCircular {
+  string id = 1;
+  
+  oneof value {
+    string text = 2;
+    OneofCircular nested = 3;
+  }
+}

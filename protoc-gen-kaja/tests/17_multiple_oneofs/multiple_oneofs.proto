@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package multiple_oneofs;
+
+// Test message with multiple oneof groups
+message MultipleOneofs {
+  string id = 1;
+  
+  oneof authentication {
+    string password = 2;
+    string token = 3;
+    string api_key = 4;
+  }
+  
+  oneof data_format {
+    string json = 5;
+    string xml = 6;
+    bytes binary = 7;
+  }
+  
+  oneof status {
+    bool active = 8;
+    bool inactive = 9;
+    bool pending = 10;
+  }
+  
+  string name = 11;
+  
+  oneof metadata {
+    string description = 12;
+    int32 version = 13;
+  }
+}
+
+// Test nested message with oneof
+message Container {
+  string id = 1;
+  
+  message Nested {
+    oneof value {
+      string text = 1;
+      int32 number = 2;
+    }
+  }
+  
+  Nested nested = 2;
+  
+  oneof container_type {
+    string label = 3;
+    int32 count = 4;
+  }
+}
+
+// Test oneof with all scalar types
+message OneofAllTypes {
+  oneof value {
+    double double_val = 1;
+    float float_val = 2;
+    int32 int32_val = 3;
+    int64 int64_val = 4;
+    uint32 uint32_val = 5;
+    uint64 uint64_val = 6;
+    sint32 sint32_val = 7;
+    sint64 sint64_val = 8;
+    fixed32 fixed32_val = 9;
+    fixed64 fixed64_val = 10;
+    sfixed32 sfixed32_val = 11;
+    sfixed64 sfixed64_val = 12;
+    bool bool_val = 13;
+    string string_val = 14;
+    bytes bytes_val = 15;
+  }
+}

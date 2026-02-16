@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package no_prefix;
+
+// Enum without common prefix - each value has different prefix
+enum Status {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+  PENDING = 3;
+  DONE = 4;
+}
+
+// Enum with no prefix at all
+enum SimpleEnum {
+  A = 0;
+  B = 1;
+  C = 2;
+  D = 3;
+}
+
+// Enum with mixed prefixes
+enum MixedPrefix {
+  STATUS_UNKNOWN = 0;
+  ACTIVE_STATE = 1;
+  MODE_INACTIVE = 2;
+  PENDING = 3;
+}
+
+// Enum with partial common prefix
+enum PartialPrefix {
+  COLOR_RED = 0;
+  COLOR_GREEN = 1;
+  BLUE = 2;  // No prefix
+  COLOR_YELLOW = 3;
+}
+
+// Enum with single value
+enum SingleValue {
+  ONLY_VALUE = 0;
+}
+
+// Enum with empty prefix (values are just numbers)
+enum NumberEnum {
+  V0 = 0;
+  V1 = 1;
+  V2 = 2;
+}
+
+message UseEnums {
+  Status status = 1;
+  SimpleEnum simple = 2;
+  MixedPrefix mixed = 3;
+  PartialPrefix partial = 4;
+  SingleValue single = 5;
+  NumberEnum numbers = 6;
+}

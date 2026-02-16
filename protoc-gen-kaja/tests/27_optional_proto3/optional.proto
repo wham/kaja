@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package optional;
+
+// Test proto3 optional fields (proto3.15+ feature)
+message OptionalFields {
+  // Regular required fields (proto3 default)
+  string required_string = 1;
+  int32 required_int = 2;
+  
+  // Optional scalar fields
+  optional string optional_string = 3;
+  optional int32 optional_int = 4;
+  optional bool optional_bool = 5;
+  optional double optional_double = 6;
+  
+  // Optional message field
+  optional Nested optional_message = 7;
+  
+  // Optional enum field
+  optional Status optional_enum = 8;
+  
+  // Mix of optional and required
+  string required2 = 9;
+  optional string optional2 = 10;
+  int32 required3 = 11;
+  optional int32 optional3 = 12;
+}
+
+message Nested {
+  string value = 1;
+}
+
+enum Status {
+  STATUS_UNKNOWN = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_INACTIVE = 2;
+}
+
+// All optional fields
+message AllOptional {
+  optional string field1 = 1;
+  optional int32 field2 = 2;
+  optional bool field3 = 3;
+  optional bytes field4 = 4;
+  optional Nested field5 = 5;
+}
+
+// Optional in nested message
+message Container {
+  message Inner {
+    optional string optional_value = 1;
+    string required_value = 2;
+  }
+  
+  Inner inner = 1;
+  optional string optional_name = 2;
+}
+
+// Optional with oneof (edge case)
+message OptionalWithOneof {
+  optional string optional_field = 1;
+  
+  oneof choice {
+    string text = 2;
+    int32 number = 3;
+  }
+  
+  optional int32 another_optional = 4;
+}
+
+// Service using optional fields
+service OptionalService {
+  rpc GetData(OptionalRequest) returns (OptionalResponse);
+}
+
+message OptionalRequest {
+  optional string query = 1;
+  optional int32 limit = 2;
+}
+
+message OptionalResponse {
+  optional string result = 1;
+  optional int32 count = 2;
+}

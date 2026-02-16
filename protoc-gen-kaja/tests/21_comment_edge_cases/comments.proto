@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package comments;
+
+/**
+ * Multi-line comment with stars
+ * Second line
+ * Third line
+ */
+message MultiLineComment {
+  string value = 1;
+}
+
+// Single line comment
+message SingleLineComment {
+  string value = 1;
+}
+
+message FieldComments {
+  // Leading comment for field1
+  string field1 = 1;
+  
+  string field2 = 2; // Trailing comment for field2
+  
+  /**
+   * JSDoc style comment
+   * @param {string} value - The value
+   * @returns {boolean} Success
+   */
+  string field3 = 3;
+  
+  // Comment with special characters: @#$%^&*()
+  string field4 = 4;
+  
+  // Comment with "quotes" and 'apostrophes'
+  string field5 = 5;
+  
+  // Comment with backslashes \ and forward slashes /
+  string field6 = 6;
+  
+  /* C-style comment */
+  string field7 = 7;
+  
+  /*
+   * Multi-line C-style
+   * with asterisks
+   */
+  string field8 = 8;
+  
+  // TODO: implement this field
+  string field9 = 9;
+  
+  // FIXME: this needs review
+  string field10 = 10;
+  
+  // Comment with code: `someCode()`
+  string field11 = 11;
+  
+  // Comment with markdown **bold** and *italic*
+  string field12 = 12;
+  
+  // Comment with emoji 🚀 ✨ 🎉
+  string field13 = 13;
+  
+  // Comment with URL: https://example.com
+  string field14 = 14;
+  
+  // Comment with XML: <tag>content</tag>
+  string field15 = 15;
+  
+  // Comment ending with blank line
+
+  string field16 = 16;
+}
+
+// Enum with comments
+enum CommentedEnum {
+  // Unknown value
+  UNKNOWN = 0;
+  
+  // First value
+  VALUE1 = 1; // Trailing
+  
+  /**
+   * Second value
+   * with multi-line comment
+   */
+  VALUE2 = 2;
+}
+
+message NestedComments {
+  // Outer comment
+  message Inner {
+    // Inner field comment
+    string value = 1;
+  }
+  
+  // Field using nested type
+  Inner inner = 1;
+}
