@@ -1532,11 +1532,17 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 }
 
 // generateFieldDescriptor generates a single field descriptor in the MessageType constructor
-// oneofName should be the proto snake_case name (e.g., "data_format" not "dataFormat")
+// oneofName is the proto snake_case name - it will be converted to camelCase for the descriptor
 func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string) {
 	kind := "scalar"
 	t := g.getScalarTypeEnum(field)
 	extraFields := ""
+	
+	// Convert oneof name to camelCase for use in field descriptor
+	oneofCamelName := ""
+	if oneofName != "" {
+		oneofCamelName = g.toCamelCase(oneofName)
+	}
 	
 	// Determine field kind and extra fields
 	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
@@ -1567,8 +1573,8 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		} else {
 			// Message field
 			kind = "message"
-			if oneofName != "" {
-				extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofName, g.stripPackage(field.GetTypeName()))
+			if oneofCamelName != "" {
+				extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofCamelName, g.stripPackage(field.GetTypeName()))
 			} else {
 				extraFields = fmt.Sprintf(", T: () => %s", g.stripPackage(field.GetTypeName()))
 			}
@@ -1594,15 +1600,15 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 			tParam = fmt.Sprintf("[\"%s\", %s]", fullTypeName, typeName)
 		}
 		
-		if oneofName != "" {
-			extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofName, tParam)
+		if oneofCamelName != "" {
+			extraFields = fmt.Sprintf(", oneof: \"%s\", T: () => %s", oneofCamelName, tParam)
 		} else {
 			extraFields = fmt.Sprintf(", T: () => %s", tParam)
 		}
 	} else {
 		// Scalar field
-		if oneofName != "" {
-			extraFields = fmt.Sprintf(", oneof: \"%s\"", oneofName)
+		if oneofCamelName != "" {
+			extraFields = fmt.Sprintf(", oneof: \"%s\"", oneofCamelName)
 		}
 	}
 	
@@ -1747,45 +1753,72 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.indent = "        "
 	g.p("const message = globalThis.Object.create((this.messagePrototype!));")
 	
-	// Initialize regular fields with defaults
+	// Initialize fields and oneofs in field number order
+	// Build a list of all initialization items (fields and oneofs) with their field numbers
+	type initItem struct {
+		fieldNumber int32
+		isOneof     bool
+		oneofIdx    int32
+		oneofName   string
+		fieldName   string
+		defaultVal  string
+	}
+	
+	var initItems []initItem
+	oneofSeen := make(map[int32]bool)
+	
 	for _, field := range msg.Field {
-		// Skip proto3 optional fields (synthetic oneofs starting with "_")
+		fieldNum := field.GetNumber()
+		
 		if field.OneofIndex != nil {
 			oneofIdx := field.GetOneofIndex()
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
 				// Proto3 optional fields are in synthetic oneofs
 				if len(oneofName) > 0 && oneofName[0] != '_' {
-					// Real oneof, skip for now
+					// Real oneof - add initialization for it (only once)
+					if !oneofSeen[oneofIdx] {
+						oneofSeen[oneofIdx] = true
+						initItems = append(initItems, initItem{
+							fieldNumber: fieldNum,
+							isOneof:     true,
+							oneofIdx:    oneofIdx,
+							oneofName:   oneofName,
+						})
+					}
 					continue
 				}
 				// Proto3 optional - treat as regular field, fall through
 			}
 		}
 		
+		// Regular field or proto3 optional
 		fieldName := g.propertyName(field)
 		defaultVal := g.getDefaultValue(field)
 		if defaultVal != "" {
-			g.p("message.%s = %s;", fieldName, defaultVal)
+			initItems = append(initItems, initItem{
+				fieldNumber: fieldNum,
+				isOneof:     false,
+				fieldName:   fieldName,
+				defaultVal:  defaultVal,
+			})
 		}
 	}
 	
-	// Initialize real oneof fields (not proto3 optional)
-	oneofInit := make(map[int32]bool)
-	for _, field := range msg.Field {
-		if field.OneofIndex != nil && !oneofInit[field.GetOneofIndex()] {
-			oneofIdx := field.GetOneofIndex()
-			if oneofIdx < int32(len(msg.OneofDecl)) {
-				oneofName := msg.OneofDecl[oneofIdx].GetName()
-				// Skip proto3 optional (synthetic oneofs)
-				if len(oneofName) > 0 && oneofName[0] == '_' {
-					continue
-				}
-				// Use camelCase for oneof property names
-				oneofCamelName := g.toCamelCase(oneofName)
-				g.p("message.%s = { oneofKind: undefined };", oneofCamelName)
-				oneofInit[oneofIdx] = true
-			}
+	// Sort by field number
+	sort.Slice(initItems, func(i, j int) bool {
+		return initItems[i].fieldNumber < initItems[j].fieldNumber
+	})
+	
+	// Generate initializations in field number order
+	for _, item := range initItems {
+		if item.isOneof {
+			// Initialize oneof
+			oneofCamelName := g.toCamelCase(item.oneofName)
+			g.p("message.%s = { oneofKind: undefined };", oneofCamelName)
+		} else {
+			// Initialize regular field
+			g.p("message.%s = %s;", item.fieldName, item.defaultVal)
 		}
 	}
 	
