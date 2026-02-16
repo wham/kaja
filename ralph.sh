@@ -25,10 +25,9 @@ for ((i=1; i<=MAX_LOOPS; i++)); do
     # Read prompt from PROMPT.md
     prompt=$(cat "$PROMPT_FILE")
     
-    # Run GitHub Copilot CLI in non-interactive mode
-    # Using gh copilot suggest with --target shell for command suggestions
+    # Run GitHub Copilot CLI in non-interactive mode with all permissions enabled
     echo "Running GitHub Copilot CLI with prompt from $PROMPT_FILE"
-    gh copilot suggest --target shell --yolo "$prompt" || {
+    copilot --yolo -p "$prompt" || {
         echo "Error: GitHub Copilot CLI command failed"
         exit 1
     }
