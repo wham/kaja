@@ -98,33 +98,33 @@ These differences don't affect TypeScript compilation or runtime behavior - they
 
 ## Status
 
-**17/18 tests passing** (94.4% pass rate)
+**16/18 tests passing** (88.9% pass rate)
 
-All functional tests pass. The single failing test (quirks) contains only cosmetic import ordering differences in 2 of its generated files (basics.client.ts and quirks.client.ts). All other files in the quirks test match exactly, and all other tests (grpcbin, teams, users, and 14 basic tests) pass completely.
+Two tests have cosmetic import ordering differences in client files. All message/type generation matches exactly.
 
 **Remaining cosmetic differences:**
-- **basics.client.ts**: Import order of types from different paths (./basics vs ./lib/message)
-  - Actual: `HeadersResponse, RepeatedRequest, MapRequest, Void, Message`
+- **grpcbin**: Client file import ordering (3 types + call type positioning)
+- **quirks/basics.client.ts**: Import order of types from different paths
+  - Actual: `HeadersResponse, Void, Message, RepeatedRequest, MapRequest`
   - Expected: `HeadersResponse, RepeatedRequest, Message, Void, MapRequest`
-- **quirks.client.ts**: Ordering of streaming types and call types
-  - Differences in how streaming RPC call types (DuplexStreamingCall, etc.) are interleaved with message types
 
-These differences stem from protoc-gen-ts using the TypeScript compiler's AST to manage imports, while protoc-gen-kaja emits imports directly. The TypeScript compiler has complex internal logic for import ordering that would require using the TypeScript compiler itself to replicate exactly.
+These differences stem from protoc-gen-ts using the TypeScript compiler's AST to manage imports with complex internal ordering logic that depends on how types are encountered during AST traversal. Replicating this exactly would require using the TypeScript compiler itself.
 
 **Implementation Status:**
 - ✅ Core message/enum/service generation
 - ✅ Proto2 and proto3 support
 - ✅ Optional field serialization  
 - ✅ Client file generation
-- ✅ Streaming RPC support (unary, server streaming, client streaming, bidirectional)
+- ✅ Streaming RPC support with call type imports
+- ✅ Same-type method deferral logic (unary methods only)
+- ✅ Streaming method message/call type interleaving
 - ✅ Well-known types
 - ✅ Nested messages and enums
 - ✅ Map fields, oneof, repeated fields
-- ✅ Trailing field comments (SourceCodeInfo parsing)
-- ✅ Batch generation WireType positioning (track dependencies)
+- ✅ Trailing field comments
+- ✅ Batch generation WireType positioning
 - ✅ Multiple services in single file
 - ✅ Cross-package imports
-- ✅ Path-aware import grouping (consecutive types from same path grouped together)
-- ⚠️ Exact TypeScript compiler import ordering (cosmetic differences in 2 files, 1 test)
+- ⚠️ Exact TypeScript compiler import ordering (cosmetic only)
 
-The implementation is functionally complete and generates valid, working TypeScript code that compiles and runs correctly. The remaining differences are purely aesthetic and do not affect the behavior or correctness of the generated code.
+The implementation generates valid, compilable TypeScript code. The remaining differences are purely aesthetic and do not affect compilation or runtime behavior.

@@ -2599,13 +2599,16 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// Declare streaming types list and type info struct for later use
-	var streamingTypes []struct{ name, path string }
-	
-	type typeInfo struct {
-		name       string
-		path       string
-		methodIdx  int  // method index where first seen
+	// Declare type info struct for later use
+	type methodTypeInfo struct {
+		methodIdx     int
+		isStreaming   bool
+		callType      string // "duplex", "client", "server"
+		outputType    string
+		outputPath    string
+		inputType     string
+		inputPath     string
+		sameType      bool   // true if input == output for this method
 	}
 	
 	// First service + methods types with special ordering
@@ -2621,88 +2624,135 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method0Types[g.stripPackage(method0.GetInputType())] = true
 		}
 		
-		// Collect types from methods 1-N in reverse order
-		var collectedTypes []typeInfo
+		// Collect method info from methods 1-N in reverse order
+		var methods []methodTypeInfo
 		
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
-			isStreaming := method.GetServerStreaming() || method.GetClientStreaming()
 			
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
-			// Process output type first
-			if !seen[resType] && !method0Types[resType] {
-				if isStreaming {
-					streamingTypes = append(streamingTypes, struct{ name, path string }{resType, resTypePath})
-				} else {
-					collectedTypes = append(collectedTypes, typeInfo{resType, resTypePath, i})
-				}
-				seen[resType] = true
+			// Skip if both types already seen (in method 0)
+			if method0Types[resType] && method0Types[reqType] {
+				continue
 			}
 			
-			// Process input type second
-			if !seen[reqType] && !method0Types[reqType] {
-				if isStreaming {
-					streamingTypes = append(streamingTypes, struct{ name, path string }{reqType, reqTypePath})
-				} else {
-					collectedTypes = append(collectedTypes, typeInfo{reqType, reqTypePath, i})
-				}
-				seen[reqType] = true
+			// Determine call type for streaming methods
+			var callType string
+			if method.GetClientStreaming() && method.GetServerStreaming() {
+				callType = "duplex"
+			} else if method.GetServerStreaming() {
+				callType = "server"
+			} else if method.GetClientStreaming() {
+				callType = "client"
+			}
+			
+			methods = append(methods, methodTypeInfo{
+				methodIdx:   i,
+				isStreaming: callType != "",
+				callType:    callType,
+				outputType:  resType,
+				outputPath:  resTypePath,
+				inputType:   reqType,
+				inputPath:   reqTypePath,
+				sameType:    resType == reqType,
+			})
+		}
+		
+		// Track types seen as "both input and output" to defer them
+		deferredTypes := make(map[string]bool)
+		
+		// Emit imports: streaming methods first, then non-streaming
+		// For each method: emit message types, then call type (for streaming)
+		for _, m := range methods {
+			if !m.isStreaming {
+				continue
+			}
+			
+			// Emit output type if not seen
+			if !seen[m.outputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+				seen[m.outputType] = true
+			}
+			
+			// Emit input type if not seen (even if same as output for streaming)
+			if !seen[m.inputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
+				seen[m.inputType] = true
+			}
+			
+			// Emit call type
+			switch m.callType {
+			case "duplex":
+				g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+			case "client":
+				g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
+			case "server":
+				g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
 			}
 		}
 		
-		// Emit imports with path-aware grouping
-		// Group consecutive types with the same path together
-		for i := 0; i < len(collectedTypes); i++ {
-			t := collectedTypes[i]
-			g.pNoIndent("import type { %s } from \"%s\";", t.name, t.path)
+		// Emit non-streaming method types
+		// For same-type unary methods, defer the type until seen in different contexts
+		for _, m := range methods {
+			if m.isStreaming {
+				continue
+			}
 			
-			// Continue emitting while the next type has the same path
-			for i+1 < len(collectedTypes) && collectedTypes[i+1].path == t.path {
-				i++
-				t = collectedTypes[i]
-				g.pNoIndent("import type { %s } from \"%s\";", t.name, t.path)
+			// For same-type unary methods, defer the type
+			if m.sameType {
+				if !seen[m.outputType] {
+					deferredTypes[m.outputType] = true
+					seen[m.outputType] = true
+				}
+				continue
+			}
+			
+			// For methods with different input/output, emit output first, then input
+			// But if output was deferred, emit both in order
+			if !seen[m.outputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+				seen[m.outputType] = true
+				delete(deferredTypes, m.outputType)
+			} else if deferredTypes[m.outputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+				delete(deferredTypes, m.outputType)
+			}
+			
+			if !seen[m.inputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
+				seen[m.inputType] = true
+				delete(deferredTypes, m.inputType)
+			} else if deferredTypes[m.inputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.inputType, m.inputPath)
+				delete(deferredTypes, m.inputType)
+			}
+		}
+		
+		// Second pass: emit remaining deferred types
+		for _, m := range methods {
+			if m.sameType && deferredTypes[m.outputType] {
+				g.pNoIndent("import type { %s } from \"%s\";", m.outputType, m.outputPath)
+				delete(deferredTypes, m.outputType)
 			}
 		}
 	}
 	
-	// Import call types based on method types
+	// Check if we need stackIntercept (for unary methods)
 	hasUnary := false
-	hasServerStreaming := false
-	hasClientStreaming := false
-	hasDuplex := false
-	
 	for _, service := range file.Service {
 		for _, method := range service.Method {
-			if method.GetClientStreaming() && method.GetServerStreaming() {
-				hasDuplex = true
-			} else if method.GetServerStreaming() {
-				hasServerStreaming = true
-			} else if method.GetClientStreaming() {
-				hasClientStreaming = true
-			} else {
+			if !method.GetClientStreaming() && !method.GetServerStreaming() {
 				hasUnary = true
+				break
 			}
 		}
-	}
-	
-	// Import streaming call types in reverse order
-	if hasDuplex {
-		g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-	}
-	if hasClientStreaming {
-		g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-	}
-	if hasServerStreaming {
-		g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-	}
-	
-	// Import streaming method types (before stackIntercept)
-	for _, typeInfo := range streamingTypes {
-		g.pNoIndent("import type { %s } from \"%s\";", typeInfo.name, typeInfo.path)
+		if hasUnary {
+			break
+		}
 	}
 	
 	if hasUnary {
@@ -2726,6 +2776,23 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		if !seen[reqType] {
 			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
+		}
+	}
+	
+	// Import final call type imports
+	hasServerStreaming := false
+	hasClientStreaming := false
+	hasDuplex := false
+	
+	for _, service := range file.Service {
+		for _, method := range service.Method {
+			if method.GetClientStreaming() && method.GetServerStreaming() {
+				hasDuplex = true
+			} else if method.GetServerStreaming() {
+				hasServerStreaming = true
+			} else if method.GetClientStreaming() {
+				hasClientStreaming = true
+			}
 		}
 	}
 	
