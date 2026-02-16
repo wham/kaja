@@ -2562,12 +2562,21 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Collect imports
 	seen := make(map[string]bool)
 	
+	// Collect all types used in first service to avoid importing them early
+	service1Types := make(map[string]bool)
+	if len(file.Service) > 0 {
+		for _, method := range file.Service[0].Method {
+			service1Types[g.stripPackage(method.GetOutputType())] = true
+			service1Types[g.stripPackage(method.GetInputType())] = true
+		}
+	}
+	
 	// For services 2..N (in reverse order), output Service + all method types
 	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
 		service := file.Service[svcIdx]
 		g.pNoIndent("import { %s } from \"./%s\";", service.GetName(), baseFileName)
 		
-		// Add method types in reverse order
+		// Add method types in reverse order, but skip types used in service 1
 		for i := len(service.Method) - 1; i >= 0; i-- {
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
@@ -2575,11 +2584,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
-			if !seen[resType] {
+			if !seen[resType] && !service1Types[resType] {
 				g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
 				seen[resType] = true
 			}
-			if !seen[reqType] {
+			if !seen[reqType] && !service1Types[reqType] {
 				g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 				seen[reqType] = true
 			}
@@ -2590,8 +2599,14 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
-	// Declare streaming types list for later use
+	// Declare streaming types list and type info struct for later use
 	var streamingTypes []struct{ name, path string }
+	
+	type typeInfo struct {
+		name       string
+		path       string
+		methodIdx  int  // method index where first seen
+	}
 	
 	// First service + methods types with special ordering
 	if len(file.Service) > 0 {
@@ -2607,11 +2622,6 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 		
 		// Collect types from methods 1-N in reverse order
-		type typeInfo struct {
-			name       string
-			path       string
-			methodIdx  int  // method index where first seen
-		}
 		var collectedTypes []typeInfo
 		
 		for i := len(service.Method) - 1; i >= 1; i-- {
@@ -2644,48 +2654,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 		
-		// Emit imports: group all types by path in order of first appearance of each path
-		if len(collectedTypes) > 0 {
-			// Track paths in order of first appearance
-			var pathOrder []string
-			pathsSeen := make(map[string]bool)
-			for _, t := range collectedTypes {
-				if !pathsSeen[t.path] {
-					pathOrder = append(pathOrder, t.path)
-					pathsSeen[t.path] = true
-				}
-			}
-			
-			// Determine if we have multiple paths
-			multiplePaths := len(pathOrder) > 1
-			
-			// Emit imports grouped by path
-			for _, path := range pathOrder {
-				// Collect types for this path
-				var pathTypes []typeInfo
-				for _, t := range collectedTypes {
-					if t.path == path {
-						pathTypes = append(pathTypes, t)
-					}
-				}
-				
-				// If multiple paths: sort each path group in forward order (smaller methodIdx first)
-				// If single path: keep encounter order (which is already reverse)
-				if multiplePaths {
-					for i := 0; i < len(pathTypes); i++ {
-						for j := i + 1; j < len(pathTypes); j++ {
-							if pathTypes[i].methodIdx > pathTypes[j].methodIdx {
-								pathTypes[i], pathTypes[j] = pathTypes[j], pathTypes[i]
-							}
-						}
-					}
-				}
-				
-				// Emit types for this path
-				for _, t := range pathTypes {
-					g.pNoIndent("import type { %s } from \"%s\";", t.name, path)
-				}
-			}
+		// Emit imports in encounter order (no grouping by path)
+		for _, t := range collectedTypes {
+			g.pNoIndent("import type { %s } from \"%s\";", t.name, t.path)
 		}
 	}
 	
