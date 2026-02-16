@@ -87,6 +87,11 @@ Counter-example: enum `const_enum` with values `CONST_UNKNOWN`, `CONST_VALUE` â†
 Run tests: `cd protoc-gen-kaja && ./scripts/test`
 Build: Automatically done by test script via `go build`
 
+### Oneof Field Naming and Ordering
+Oneof fields in TypeScript interfaces use camelCase for the oneof name (e.g., `dataFormat` not `data_format`), but the `@generated` comment uses the original proto name. Fields and oneofs appear in field number order in the interface, not grouped separately.
+
+TODO: Fix field descriptor ordering in MessageType constructor - currently groups regular fields first, then oneof fields. Should be in field number order.
+
 ## Status
 
 
