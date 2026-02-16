@@ -61,8 +61,31 @@ When collecting non-streaming types from methods N→1:
 This ensures types from different import paths are grouped together while maintaining method ordering within each path group.
 
 ### Format String Linter Fix
-### Format String Linter Fix
 Go's linter requires format strings in printf-style functions to be constants. When passing dynamic strings to `pNoIndent()`, use `"%s"` format with the string as an argument instead of passing the string directly as the format parameter.
+
+### TypeScript Keyword Escaping (SOLVED)
+Message, enum, and service names that collide with TypeScript reserved keywords or type names get a `$` suffix in the generated TypeScript code. The escaping applies to:
+- Reserved keywords: `break`, `case`, `const`, `let`, `class`, `interface`, etc.
+- Reserved type names: `object`, `Uint8Array`, `Array`, `String`, `Number`, etc.
+
+Important: 
+- Only the TypeScript interface/enum/class names get the `$` suffix
+- The proto name in `@generated` comments and `MessageType` constructor remains unchanged
+- Both escaped and proto names must be tracked separately through nested types
+
+### Enum Prefix Stripping (SOLVED)
+Enum values have their common prefix stripped based on the enum name:
+1. Convert enum name to UPPER_SNAKE_CASE (e.g., "MyEnum" → "MY_ENUM_", "const_enum" → "CONST_ENUM_")
+2. Check if all values start with this prefix
+3. Check if stripped names are valid (start with uppercase letter)
+4. If both conditions pass, strip the prefix from enum value names
+
+Example: enum `MyEnum` with values `MY_ENUM_VALUE1`, `MY_ENUM_VALUE2` → becomes `VALUE1`, `VALUE2`
+Counter-example: enum `const_enum` with values `CONST_UNKNOWN`, `CONST_VALUE` → keeps original names (prefix is "CONST_", not "CONST_ENUM_")
+
+### Test Execution
+Run tests: `cd protoc-gen-kaja && ./scripts/test`
+Build: Automatically done by test script via `go build`
 
 ## Status
 

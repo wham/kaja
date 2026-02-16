@@ -961,120 +961,42 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", fullName)
 	
-	// Group fields by oneof
-	oneofGroups := make(map[int32][]*descriptorpb.FieldDescriptorProto)
-	var regularFields []*descriptorpb.FieldDescriptorProto
+	// Track which oneofs have been generated
+	generatedOneofs := make(map[int32]bool)
 	
-	for _, field := range msg.Field {
-		if field.OneofIndex != nil {
-			oneofGroups[field.GetOneofIndex()] = append(oneofGroups[field.GetOneofIndex()], field)
-		} else {
-			regularFields = append(regularFields, field)
-		}
-	}
-	
-	// Generate regular fields
-	for _, field := range regularFields {
+	// Generate fields in field number order
+	// When we encounter a field that's part of a oneof, generate the entire oneof at that point
+	for fieldIdx, field := range msg.Field {
 		var fieldPath []int32
 		if len(msgPath) > 0 {
-			// Find actual field index in msg.Field (not just regularFields)
-			fieldIdx := -1
-			for j, f := range msg.Field {
-				if f == field {
-					fieldIdx = j
-					break
-				}
-			}
-			if fieldIdx >= 0 {
-				fieldPath = append(msgPath, 2, int32(fieldIdx))
-			}
+			fieldPath = append(msgPath, 2, int32(fieldIdx))
 		}
-		g.generateField(field, fullName, fieldPath)
-	}
-	
-	// Generate oneof fields
-	for oneofIdx, fields := range oneofGroups {
-		if oneofIdx < int32(len(msg.OneofDecl)) {
-			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			g.indent = "    "
-			g.p("/**")
-			g.p(" * @generated from protobuf oneof: %s", oneofName)
-			g.p(" */")
-			g.p("%s: {", oneofName)
-			g.indent = "        "
+		
+		if field.OneofIndex != nil {
+			// This field is part of a oneof
+			oneofIdx := field.GetOneofIndex()
 			
-			for i, field := range fields {
-				// Find field index for source comments
-				fieldIdx := -1
-				for j, f := range msg.Field {
-					if f == field {
-						fieldIdx = j
-						break
+			// Only generate the oneof once (when we encounter its first field)
+			if !generatedOneofs[oneofIdx] {
+				generatedOneofs[oneofIdx] = true
+				
+				// Collect all fields for this oneof
+				var oneofFields []*descriptorpb.FieldDescriptorProto
+				for _, f := range msg.Field {
+					if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
+						oneofFields = append(oneofFields, f)
 					}
 				}
 				
-				g.p("oneofKind: \"%s\";", g.propertyName(field))
+				// Get oneof name and convert to camelCase
+				oneofProtoName := msg.OneofDecl[oneofIdx].GetName()
+				oneofCamelName := g.toCamelCase(oneofProtoName)
 				
-				// Add leading comments if available
-				if len(msgPath) > 0 && fieldIdx >= 0 {
-					fieldPath := append(msgPath, 2, int32(fieldIdx))
-					leadingComments := g.getLeadingComments(fieldPath)
-					if leadingComments != "" {
-						hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
-						if hasTrailingBlank {
-							leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
-						}
-						
-						g.p("/**")
-						lines := strings.Split(leadingComments, "\n")
-						for _, line := range lines {
-							if line == "" {
-								g.p(" *")
-							} else {
-								g.p(" * %s", line)
-							}
-						}
-						// Add separator blank line(s) before @generated
-						if hasTrailingBlank {
-							// Comment had trailing blank, add two separators
-							g.p(" *")
-							g.p(" *")
-						} else {
-							// Comment didn't have trailing blank, add one separator
-							g.p(" *")
-						}
-						g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
-						g.p(" */")
-					} else {
-						// No source comments, just add @generated comment
-						g.p("/**")
-						g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
-						g.p(" */")
-					}
-				} else {
-					// No msgPath, just add @generated comment
-					g.p("/**")
-					g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
-					g.p(" */")
-				}
-				
-				g.p("%s: %s;", g.propertyName(field), g.getTypescriptType(field))
-				
-				if i < len(fields)-1 {
-					g.indent = "    "
-					g.p("} | {")
-					g.indent = "        "
-				}
+				g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, fieldIdx)
 			}
-			
-			// Add undefined case
-			g.indent = "    "
-			g.p("} | {")
-			g.indent = "        "
-			g.p("oneofKind: undefined;")
-			
-			g.indent = "    "
-			g.p("};")
+		} else {
+			// Regular field
+			g.generateField(field, fullName, fieldPath)
 		}
 	}
 	
@@ -1201,12 +1123,12 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	g.indent = ""
 }
 
-func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.FieldDescriptorProto, msgIndex int) {
+func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName string, fields []*descriptorpb.FieldDescriptorProto, msgIndex int) {
 	g.indent = "    "
 	g.p("/**")
-	g.p(" * @generated from protobuf oneof: %s", oneofName)
+	g.p(" * @generated from protobuf oneof: %s", oneofProtoName)
 	g.p(" */")
-	g.p("%s: {", oneofName)
+	g.p("%s: {", oneofCamelName)
 	
 	// Generate each alternative
 	for i, field := range fields {
@@ -1237,6 +1159,11 @@ func (g *generator) generateOneofField(oneofName string, fields []*descriptorpb.
 // This does camelCase conversion where all letters after underscores are capitalized
 func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) string {
 	name := field.GetName()
+	return g.toCamelCase(name)
+}
+
+// toCamelCase converts a snake_case name to camelCase
+func (g *generator) toCamelCase(name string) string {
 	// Convert snake_case to camelCase: capitalize all letters after underscores
 	parts := strings.Split(name, "_")
 	for i := 1; i < len(parts); i++ {
