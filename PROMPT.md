@@ -110,29 +110,21 @@ Proto2 fields with default values show the default in the @generated comment:
 
 Implementation: Check `field.DefaultValue` and format using `formatDefaultValueAnnotation()`.
 
-### Comment Handling (PARTIAL)
-Leading comments that end with a blank line are output as single-line `//` comments outside the JSDoc block, followed by a blank line.
+### Comment Handling
 
-Example in proto:
-```
-// Comment ending with blank line
+**Enum value comments (SOLVED)**:
+Leading and trailing comments for enum values are extracted from SourceCodeInfo and added to the JSDoc block.
+- Leading comments appear first
+- Trailing comments appear after leading comments but before @generated line
+- Implementation: Add valuePath to getLeadingComments/getTrailingComments calls in enum generation
 
-string field16 = 16;
-```
+**Field trailing blank comment (TODO)**:
+Leading comments that end with a blank line should be output as single-line `//` comments outside the JSDoc block, followed by a blank line. The marker `__HAS_TRAILING_BLANK__` is added by `getLeadingComments()` and should be detected by `generateField()`, but it's not working yet.
 
-Expected output:
-```typescript
-// Comment ending with blank line
+### Proto2 Groups (SOLVED)
+Proto2 groups are deprecated syntax but still valid. They should NOT be generated as fields in the parent message. The group itself becomes a nested message, but no field reference is added to the parent.
 
-/**
- * @generated from protobuf field: string field16 = 16
- */
-field16: string;
-```
-
-Implementation: `getLeadingComments()` adds `__HAS_TRAILING_BLANK__` marker, `generateField()` detects and outputs as `//` comment.
-
-TODO: Enum value comments are not yet implemented.
+Implementation: Skip fields with `TYPE_GROUP` in interface, constructor, create(), read(), and write() methods.
 
 ### Test Execution
 Run tests: `cd protoc-gen-kaja && ./scripts/test`
@@ -149,17 +141,17 @@ Implementation:
 
 ## Status
 
-**Current Test Results: 26/29 passing (90%)**
+**Current Test Results: 27/29 passing (93%)**
 
 Recent improvements:
-- Proto2 default value annotations in @generated comments
-- Enum prefix stripping requires at least 2 chars after stripping
+- Proto2 groups are now properly skipped (not generated as fields)
+- Proto2 default value annotations in all method comments
+- Enum value leading and trailing comments
+- Enum prefix stripping requires at least 2 chars after strip
 - Field ordering preserves proto file order in constructor/create, sorted in write
-- Leading comment handling preserves leading empty lines
 
-Remaining failures (3):
-- 18_proto2_required (proto2 groups, default values in read method comments)
-- 21_comment_edge_cases (enum value comments, trailing blank line comments)
-- 25_empty_messages (WireType import ordering)
+Remaining failures (2):
+- 21_comment_edge_cases (field trailing blank line comment not showing)
+- 25_empty_messages (WireType import should come before BinaryWriteOptions)
 
 
