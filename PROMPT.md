@@ -9,7 +9,7 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 3. Update [Plan](./PROMPT.md#plan) if needed. Be comfortable trying bigger architecture changes. Document. PROMPT.md is your memory.
 3. Implement a piece of it. Spend substantial effort here.
 4. Run the tests
-5. Capture important learnings in [Notes](./PROMPT.md/#notes). Stuff that will make the task easier for you in the future. For example how to run the tests. How the code is structured.
+5. Capture important learnings in [Notes](./PROMPT.md/#notes). Stuff that will make the task easier for you in the future. For example how to run the tests. How the code is structured. Don't add things that would soften the requirements - i.e. "we are close, this is cosmetic". If you see them, remove them.
 6. Commit the changes. One line message with summary what was done.
 7. If all tests passing, put line "DONE" at the end of PROMPT.md. No exceptions. ALL TESTS MUST PASS.
 
