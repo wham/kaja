@@ -1,0 +1,11 @@
+name: Feedback
+description: Share feedback about Kaja
+labels: ["feedback"]
+body:
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback
+      description: Tell us what you think — suggestions, ideas, or anything else.
+    validations:
+      required: true

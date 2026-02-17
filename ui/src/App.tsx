@@ -1,7 +1,7 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
-import { ColumnsIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { BaseStyles, Button, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -41,7 +41,7 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, WindowSetTitle } from "./wailsjs/runtime";
 
 // Helper: Create a new project in pending compilation state
 function createPendingProject(config: ConfigurationProject): Project {
@@ -742,10 +742,10 @@ export function App() {
                 }
               >
                 <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
-                <div
-                  onClick={() => setIsSearchOpen(true)}
-                  style={
-                    {
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
+                  <div
+                    onClick={() => setIsSearchOpen(true)}
+                    style={{
                       display: "flex",
                       alignItems: "center",
                       padding: "2px 12px",
@@ -757,11 +757,26 @@ export function App() {
                       cursor: "pointer",
                       userSelect: "none",
                       flexShrink: 0,
-                      "--wails-draggable": "no-drag",
-                    } as React.CSSProperties
-                  }
-                >
-                  {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
+                    }}
+                  >
+                    {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
+                  </div>
+                  <Button
+                    leadingVisual={CommentDiscussionIcon}
+                    variant="invisible"
+                    size="small"
+                    onClick={() => {
+                      const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+                      if (isWailsEnvironment()) {
+                        BrowserOpenURL(url);
+                      } else {
+                        window.open(url, "_blank");
+                      }
+                    }}
+                    style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
+                  >
+                    Feedback
+                  </Button>
                 </div>
                 <div
                   style={
