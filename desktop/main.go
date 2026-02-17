@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2"
@@ -58,6 +60,7 @@ type App struct {
 	ctx                  context.Context
 	twirpHandler         api.TwirpServer
 	configurationWatcher *api.ConfigurationWatcher
+	activeStreams        sync.Map // streamID -> context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -306,6 +309,63 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 		StatusCode: resp.StatusCode,
 		Status:     http.StatusText(resp.StatusCode),
 	}, nil
+}
+
+// TargetServerStream starts a server-streaming gRPC call.
+// Each response message is emitted as a Wails event "stream:<streamID>" with base64-encoded body.
+// When the stream ends, "stream:<streamID>:end" is emitted.
+// On error, "stream:<streamID>:error" is emitted with the error message.
+func (a *App) TargetServerStream(target string, method string, req []byte, headersJson string, streamID string) error {
+	slog.Info("TargetServerStream called", "target", target, "method", method, "streamID", streamID)
+
+	if req == nil {
+		return fmt.Errorf("nil request")
+	}
+
+	headers := make(map[string]string)
+	if headersJson != "" && headersJson != "{}" {
+		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
+			return fmt.Errorf("failed to parse headers: %w", err)
+		}
+	}
+
+	client, err := grpc.NewClientFromString(target)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	a.activeStreams.Store(streamID, cancel)
+
+	messages, errc := client.ServerStream(ctx, method, req, headers)
+
+	go func() {
+		defer cancel()
+		defer a.activeStreams.Delete(streamID)
+
+		for msg := range messages {
+			encoded := base64.StdEncoding.EncodeToString(msg)
+			runtime.EventsEmit(a.ctx, "stream:"+streamID, encoded)
+		}
+
+		if err := <-errc; err != nil {
+			slog.Error("Server stream error", "streamID", streamID, "error", err)
+			runtime.EventsEmit(a.ctx, "stream:"+streamID+":error", err.Error())
+		} else {
+			runtime.EventsEmit(a.ctx, "stream:"+streamID+":end")
+		}
+	}()
+
+	return nil
+}
+
+// CancelStream cancels an active streaming call.
+func (a *App) CancelStream(streamID string) error {
+	if cancel, ok := a.activeStreams.LoadAndDelete(streamID); ok {
+		cancel.(context.CancelFunc)()
+		return nil
+	}
+	return fmt.Errorf("stream not found: %s", streamID)
 }
 
 func main() {

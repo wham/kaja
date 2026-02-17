@@ -425,6 +425,11 @@ export function Sidebar({
                                     current={currentMethod === method}
                                   >
                                     {method.name}
+                                    {method.serverStreaming && (
+                                      <TreeView.TrailingVisual>
+                                        <span style={{ fontSize: 10, color: "var(--fgColor-muted)" }}>stream</span>
+                                      </TreeView.TrailingVisual>
+                                    )}
                                   </TreeView.Item>
                                 );
                               })}
