@@ -277,21 +277,53 @@ func escapeJSDocComment(s string) string {
 }
 
 // getCustomMethodOptions extracts custom extension values from method options
-func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) map[string]interface{} {
+// customOption represents a key-value pair for custom options
+type customOption struct {
+	key   string
+	value interface{}
+}
+
+func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
 	if opts == nil {
 		return nil
 	}
 	
-	// Build a map of extension field number -> extension descriptor
-	extensionMap := make(map[int32]*descriptorpb.FieldDescriptorProto)
+	// Build a map of extension field number -> (extension descriptor, package)
+	type extInfo struct {
+		ext *descriptorpb.FieldDescriptorProto
+		pkg string
+	}
+	extensionMap := make(map[int32]extInfo)
+	
+	// Check extensions in current file
 	for _, ext := range g.file.Extension {
 		if ext.GetExtendee() == ".google.protobuf.MethodOptions" {
-			extensionMap[ext.GetNumber()] = ext
+			pkg := ""
+			if g.file.Package != nil {
+				pkg = *g.file.Package
+			}
+			extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
 		}
 	}
 	
-	// Parse unknown fields from options
-	result := make(map[string]interface{})
+	// Check extensions in all imported files
+	for _, depFile := range g.allFiles {
+		if depFile == g.file {
+			continue // Skip current file (already processed)
+		}
+		for _, ext := range depFile.Extension {
+			if ext.GetExtendee() == ".google.protobuf.MethodOptions" {
+				pkg := ""
+				if depFile.Package != nil {
+					pkg = *depFile.Package
+				}
+				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
+			}
+		}
+	}
+	
+	// Parse unknown fields from options - preserve order by using slice
+	var result []customOption
 	msg := opts.ProtoReflect()
 	unknown := msg.GetUnknown()
 	
@@ -303,7 +335,7 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) map
 		unknown = unknown[n:]
 		
 		// Check if this field number matches an extension
-		ext, found := extensionMap[int32(num)]
+		extInf, found := extensionMap[int32(num)]
 		if !found {
 			// Skip unknown field
 			switch typ {
@@ -322,27 +354,28 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) map
 		}
 		
 		// Found an extension! Extract the value based on type
-		pkg := ""
-		if g.file.Package != nil {
-			pkg = *g.file.Package + "."
+		ext := extInf.ext
+		pkg := extInf.pkg
+		if pkg != "" {
+			pkg += "."
 		}
 		extName := pkg + ext.GetName()
 		
 		switch ext.GetType() {
 		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 			v, n := protowire.ConsumeBytes(unknown)
-			result[extName] = string(v)
+			result = append(result, customOption{key: extName, value: string(v)})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 			v, n := protowire.ConsumeVarint(unknown)
-			result[extName] = v != 0
+			result = append(result, customOption{key: extName, value: v != 0})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32, 
 		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT32,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT64:
 			v, n := protowire.ConsumeVarint(unknown)
-			result[extName] = int(v)
+			result = append(result, customOption{key: extName, value: int(v)})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			_, n := protowire.ConsumeFixed32(unknown)
@@ -376,30 +409,16 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) map
 }
 
 // formatCustomOptions formats custom options as a TypeScript object literal
-func formatCustomOptions(opts map[string]interface{}) string {
+func formatCustomOptions(opts []customOption) string {
 	if len(opts) == 0 {
 		return "{}"
 	}
 	
 	var parts []string
-	// Sort keys for deterministic output
-	keys := make([]string, 0, len(opts))
-	for k := range opts {
-		keys = append(keys, k)
-	}
-	// Simple alphabetical sort
-	for i := 0; i < len(keys); i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[i] > keys[j] {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
-	
-	for _, k := range keys {
-		v := opts[k]
+	// Options are already in wire order (field number order)
+	for _, opt := range opts {
 		var valueStr string
-		switch val := v.(type) {
+		switch val := opt.value.(type) {
 		case string:
 			valueStr = fmt.Sprintf("\"%s\"", val)
 		case bool:
@@ -409,7 +428,7 @@ func formatCustomOptions(opts map[string]interface{}) string {
 		default:
 			valueStr = fmt.Sprintf("%v", val)
 		}
-		parts = append(parts, fmt.Sprintf("\"%s\": %s", k, valueStr))
+		parts = append(parts, fmt.Sprintf("\"%s\": %s", opt.key, valueStr))
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
@@ -633,6 +652,11 @@ func (g *generator) collectEnumTypeNames(enum *descriptorpb.EnumDescriptorProto,
 
 
 func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params, isImportedByService bool) string {
+	// Skip files that have no messages, enums, or services (e.g., files with only extension definitions)
+	if len(file.MessageType) == 0 && len(file.EnumType) == 0 && len(file.Service) == 0 {
+		return ""
+	}
+	
 	g := &generator{
 		params:              params,
 		file:                file,
