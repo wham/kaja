@@ -51,13 +51,14 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement google.protobuf.Any custom methods (pack, unpack, internalJsonRead, internalJsonWrite)
 - [x] Implement google.protobuf.Duration custom methods (internalJsonRead, internalJsonWrite)
 - [x] Fix google.protobuf.Any first field JSDoc blank line count (needs 2 blank lines before @generated)
-- [ ] Implement google.protobuf.FieldMask custom methods
-- [ ] Implement google.protobuf.Struct/Value/ListValue custom methods  
-- [ ] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
+- [x] Implement google.protobuf.FieldMask custom methods
+- [x] Add oneof field leading comments support
+- [ ] Fix google.protobuf.Struct/Value/ListValue JSON methods (need exact switch order and error messages)
+- [x] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
 
-**STATUS: 40/41 tests passing (92_all_wkt - needs FieldMask, Struct, and Wrapper JSON methods)**
+**STATUS: 40/41 tests passing (92_all_wkt - needs exact Struct/Value method implementation matching)**
 
-**NOTE**: The test infrastructure and core message/service generation are complete and working. The remaining work is implementing custom JSON serialization methods for Google's well-known types (WKTs). These are special-case implementations for Duration (✓), FieldMask, Struct family, and wrapper types that override the default JSON handling.
+**PROGRESS**: The core protoc-gen-ts → Go port is essentially complete. All message generation, service generation, field types, comments, import ordering, and most WKT custom methods are working correctly. The remaining issue is that Struct/Value JSON methods need the exact implementation details (switch case order, error message format, dynamic field lookups) to match protoc-gen-ts output.
 
 ## Notes
 
