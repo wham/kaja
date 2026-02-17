@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+// Proto2 allows enums without 0
+enum Status {
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+
+message Test {
+  optional Status status = 1;
+}

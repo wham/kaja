@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+import "types.proto";
+
+message Test {
+  map<string, types.Container.Status> status_map = 1;
+}

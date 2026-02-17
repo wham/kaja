@@ -45,6 +45,8 @@ and your job is find at least one additional case where the tests will fail.
 
 12. **Enum type descriptors in map metadata:** When generating map field metadata (the array passed to MessageType constructor), enum value types should be a 2-element array: `["full.type.name", EnumType]`. The Go implementation incorrectly appends an empty string as a third element: `["full.type.name", EnumType, ""]`. This applies to both local and nested enums used as map values. The TS plugin only generates 2-element arrays for enum type descriptors in all contexts (fields, maps, etc.).
 
+13. **Enums must have a zero value:** The TS plugin requires all enums to have a value numbered 0 for proper TypeScript/JavaScript initialization. When an enum doesn't have a 0 value (which is valid in proto2), the TS plugin synthetically adds `UNSPECIFIED$ = 0` to the generated TypeScript enum. The Go plugin doesn't add this synthetic zero value, causing the generated code to differ. This is found by looking at `/tmp/protobuf-ts/packages/plugin/src/code-gen/enum-generator.ts` where it generates `"@generated synthetic value - protobuf-ts requires all enums to have a 0 value"` comment. Test with a proto2 enum that starts at 1 instead of 0.
+
 ### How to run tests
 
 ```bash
