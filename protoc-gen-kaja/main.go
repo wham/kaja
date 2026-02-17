@@ -879,15 +879,28 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
-	// Check if this is google.protobuf.Timestamp or Any for special imports
+	// Check if this is google.protobuf.Timestamp, Duration, FieldMask, Struct, or Any for special imports
 	isTimestamp := false
+	isDuration := false
+	isFieldMask := false
+	isStruct := false
 	isAny := false
+	isWrapper := false // For Int32Value, StringValue, etc.
 	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
 		for _, msg := range g.file.MessageType {
-			if msg.GetName() == "Timestamp" {
+			name := msg.GetName()
+			if name == "Timestamp" {
 				isTimestamp = true
-			} else if msg.GetName() == "Any" {
+			} else if name == "Duration" {
+				isDuration = true
+			} else if name == "FieldMask" {
+				isFieldMask = true
+			} else if name == "Struct" || name == "Value" || name == "ListValue" {
+				isStruct = true
+			} else if name == "Any" {
 				isAny = true
+			} else if strings.HasSuffix(name, "Value") { // Int32Value, StringValue, etc.
+				isWrapper = true
 			}
 		}
 	}
@@ -958,6 +971,43 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add JSON imports for Duration
+		if isDuration {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add JSON imports for FieldMask
+		if isFieldMask {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { lowerCamelCase } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add JSON imports for Struct
+		if isStruct {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { isJsonObject } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add JSON imports for wrapper types
+		if isWrapper {
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbULong } from \"@protobuf-ts/runtime\";")
 		}
 		
 		// Add JSON imports for Any
@@ -1327,10 +1377,14 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	
 	// Add leading comments if fieldPath is provided
 	hasLeadingComments := false
+	hasTrailingBlankInComment := false
 	if len(fieldPath) > 0 {
 		leadingComments := g.getLeadingComments(fieldPath)
-		// Strip __HAS_TRAILING_BLANK__ marker if present (it was used internally, not for output)
-		leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+		// Check if comment had trailing blank line
+		if strings.HasSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__") {
+			hasTrailingBlankInComment = true
+			leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+		}
 		if leadingComments != "" {
 			hasLeadingComments = true
 			for _, line := range strings.Split(leadingComments, "\n") {
@@ -1343,7 +1397,12 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		}
 	}
 	
-	// Add a blank line before @generated (if we had any comments)
+	// Add blank lines before @generated
+	// If comment had trailing blank, add that blank line
+	if hasTrailingBlankInComment {
+		g.p(" *")
+	}
+	// Add standard blank line before @generated (if we had any comments)
 	if hasDetachedComments || hasLeadingComments {
 		g.p(" *")
 	}
@@ -2115,11 +2174,23 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Check if this is a well-known type that needs special handling
 	isTimestamp := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Timestamp"
+	isDuration := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Duration"
+	isFieldMask := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "FieldMask"
+	isStruct := g.file.Package != nil && *g.file.Package == "google.protobuf" && (fullName == "Struct" || fullName == "Value" || fullName == "ListValue")
 	isAny := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Any"
+	isWrapper := g.file.Package != nil && *g.file.Package == "google.protobuf" && strings.HasSuffix(fullName, "Value") && fullName != "Value" && fullName != "ListValue"
 	
 	// Add special methods for well-known types BEFORE standard methods
 	if isTimestamp {
 		g.generateTimestampMethods()
+	} else if isDuration {
+		g.generateDurationMethods()
+	} else if isFieldMask {
+		g.generateFieldMaskMethods()
+	} else if isStruct {
+		g.generateStructMethods(fullName)
+	} else if isWrapper {
+		g.generateWrapperMethods(fullName)
 	} else if isAny {
 		g.generateAnyMethods()
 	}
@@ -3972,6 +4043,81 @@ g.p("if (matches[7])")
 g.indent = "            "
 g.p("target.nanos = (parseInt(\"1\" + matches[7] + \"0\".repeat(9 - matches[7].length)) - 1000000000);")
 g.indent = "        "
+g.p("return target;")
+g.indent = "    "
+g.p("}")
+}
+
+func (g *generator) generateDurationMethods() {
+g.indent = "    "
+
+// internalJsonWrite() method
+g.p("/**")
+g.p(" * Encode `Duration` to JSON string like \"3.000001s\".")
+g.p(" */")
+g.p("internalJsonWrite(message: Duration, options: JsonWriteOptions): JsonValue {")
+g.indent = "        "
+g.p("let s = PbLong.from(message.seconds).toNumber();")
+g.p("if (s > 315576000000 || s < -315576000000)")
+g.indent = "            "
+g.p("throw new Error(\"Duration value out of range.\");")
+g.indent = "        "
+g.p("let text = message.seconds.toString();")
+g.p("if (s === 0 && message.nanos < 0)")
+g.indent = "            "
+g.p("text = \"-\" + text;")
+g.indent = "        "
+g.p("if (message.nanos !== 0) {")
+g.indent = "            "
+g.p("let nanosStr = Math.abs(message.nanos).toString();")
+g.p("nanosStr = \"0\".repeat(9 - nanosStr.length) + nanosStr;")
+g.p("if (nanosStr.substring(3) === \"000000\")")
+g.indent = "                "
+g.p("nanosStr = nanosStr.substring(0, 3);")
+g.indent = "            "
+g.p("else if (nanosStr.substring(6) === \"000\")")
+g.indent = "                "
+g.p("nanosStr = nanosStr.substring(0, 6);")
+g.indent = "            "
+g.p("text += \".\" + nanosStr;")
+g.indent = "        "
+g.p("}")
+g.p("return text + \"s\";")
+g.indent = "    "
+g.p("}")
+
+// internalJsonRead() method
+g.p("/**")
+g.p(" * Decode `Duration` from JSON string like \"3.000001s\"")
+g.p(" */")
+g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Duration): Duration {")
+g.indent = "        "
+g.p("if (typeof json !== \"string\")")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Duration from JSON \" + typeofJsonValue(json) + \". Expected string.\");")
+g.indent = "        "
+g.p("let match = json.match(/^(-?)([0-9]+)(?:\\.([0-9]+))?s/);")
+g.p("if (match === null)")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Duration from JSON string. Invalid format.\");")
+g.indent = "        "
+g.p("if (!target)")
+g.indent = "            "
+g.p("target = this.create();")
+g.indent = "        "
+g.p("let [, sign, secs, nanos] = match;")
+g.p("let longSeconds = PbLong.from(sign + secs);")
+g.p("if (longSeconds.toNumber() > 315576000000 || longSeconds.toNumber() < -315576000000)")
+g.indent = "            "
+g.p("throw new Error(\"Unable to parse Duration from JSON string. Value out of range.\");")
+g.indent = "        "
+g.p("target.seconds = longSeconds.toString();")
+g.p("if (typeof nanos == \"string\") {")
+g.indent = "            "
+g.p("let nanosStr = sign + nanos + \"0\".repeat(9 - nanos.length);")
+g.p("target.nanos = parseInt(nanosStr);")
+g.indent = "        "
+g.p("}")
 g.p("return target;")
 g.indent = "    "
 g.p("}")

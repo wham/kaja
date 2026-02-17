@@ -49,9 +49,15 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix gRPC reserved method names (makeUnaryRequest, methods, typeName, etc.)
 - [x] Fix service method name camelCase conversion (__proto__ → Proto, _transport → Transport)
 - [x] Implement google.protobuf.Any custom methods (pack, unpack, internalJsonRead, internalJsonWrite)
-- [ ] Fix google.protobuf.Any first field JSDoc blank line count (needs 2 blank lines before @generated, currently has 1)
+- [x] Implement google.protobuf.Duration custom methods (internalJsonRead, internalJsonWrite)
+- [x] Fix google.protobuf.Any first field JSDoc blank line count (needs 2 blank lines before @generated)
+- [ ] Implement google.protobuf.FieldMask custom methods
+- [ ] Implement google.protobuf.Struct/Value/ListValue custom methods  
+- [ ] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
 
-**STATUS: 40/41 tests passing (92_all_wkt has minor JSDoc formatting issue - one missing blank line)**
+**STATUS: 40/41 tests passing (92_all_wkt - needs FieldMask, Struct, and Wrapper JSON methods)**
+
+**NOTE**: The test infrastructure and core message/service generation are complete and working. The remaining work is implementing custom JSON serialization methods for Google's well-known types (WKTs). These are special-case implementations for Duration (✓), FieldMask, Struct family, and wrapper types that override the default JSON handling.
 
 ## Notes
 
