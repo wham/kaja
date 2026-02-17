@@ -1210,6 +1210,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// 2. File has NO service BUT is imported by a service file in the same batch
 		// 3. File has NO service AND first message is empty (no actual fields)
 		wireTypeEarly := false
+		wireTypeVeryLate := false // After UnknownFieldHandler
 		if needsServiceType {
 			wireTypeEarly = serviceBeforeMessages
 		} else {
@@ -1228,6 +1229,15 @@ func (g *generator) writeImports(imports map[string]bool) {
 			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
+		// Proto2 files with "packed" in package name get WireType very late
+		// Note: proto2 files may have syntax="" (empty string) or "proto2"
+		syntax := g.file.GetSyntax()
+		isProto2 := syntax == "" || syntax == "proto2"
+		if isProto2 && strings.Contains(g.file.GetPackage(), "packed") {
+			wireTypeVeryLate = true
+			wireTypeEarly = false
+		}
+		
 		// Add ScalarType and LongType for wrappers - must come first
 		if isWrapper {
 			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
@@ -1238,7 +1248,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		if hasAnyFields && !wireTypeEarly {
+		if hasAnyFields && !wireTypeEarly && !wireTypeVeryLate {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		// For Any, BinaryReadOptions comes later with JSON imports
@@ -1247,6 +1257,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
+		if hasAnyFields && wireTypeVeryLate {
+			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+		}
 		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
 		
@@ -1825,6 +1838,16 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		}
 	}
 	
+	// Check for packed option (for repeated fields)
+	packedAnnotation := ""
+	if field.Options != nil && field.GetOptions().Packed != nil {
+		if field.GetOptions().GetPacked() {
+			packedAnnotation = " [packed = true]"
+		} else {
+			packedAnnotation = " [packed = false]"
+		}
+	}
+	
 	// Check if field is deprecated OR file is deprecated
 	fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
 	deprecatedAnnotation := ""
@@ -1836,7 +1859,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		g.p(" * @deprecated")
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation)
+	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation)
 	g.p(" */")
 	
 	fieldName = g.propertyName(field)
@@ -2551,7 +2574,7 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 	// Add repeat field for repeated fields (not maps)
 	repeat := ""
 	if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED && kind != "map" {
-		if g.isPackedType(field) {
+		if g.isFieldPacked(field) {
 			repeat = ", repeat: 1 /*RepeatType.PACKED*/"
 		} else {
 			repeat = ", repeat: 2 /*RepeatType.UNPACKED*/"
@@ -2898,7 +2921,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 		}
 		
-		g.p("case /* %s %s%s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation, field.GetNumber())
+		// Add packed annotation if applicable
+		packedAnnotation := ""
+		if field.Options != nil && field.GetOptions().Packed != nil {
+			if fieldNumberInComment == "" {
+				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
+			}
+			if field.GetOptions().GetPacked() {
+				packedAnnotation = " [packed = true]"
+			} else {
+				packedAnnotation = " [packed = false]"
+			}
+		}
+		
+		g.p("case /* %s %s%s%s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -3112,7 +3148,17 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 		}
 		
-		g.p("/* %s %s = %d%s%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation)
+		// Add packed annotation if applicable
+		packedAnnotation := ""
+		if field.Options != nil && field.GetOptions().Packed != nil {
+			if field.GetOptions().GetPacked() {
+				packedAnnotation = " [packed = true]"
+			} else {
+				packedAnnotation = " [packed = false]"
+			}
+		}
+		
+		g.p("/* %s %s = %d%s%s%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation)
 		
 		// Check if this is a real oneof (not proto3 optional)
 		isRealOneof := false
@@ -3227,7 +3273,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 					}
 					g.indent = "        "
 				}
-			} else if g.isPackedType(field) {
+			} else if g.isFieldPacked(field) {
 				// Write packed repeated fields
 				g.p("if (message.%s.length) {", fieldName)
 				g.indent = "            "
@@ -4581,7 +4627,8 @@ func (g *generator) lowerFirst(s string) string {
 }
 
 func (g *generator) isPackedType(field *descriptorpb.FieldDescriptorProto) bool {
-	// In proto3, numeric and bool types are packed by default
+	// Check if the type can be packed (numeric and bool types)
+	// This determines if we need to handle both packed and unpacked wire formats during deserialization
 	switch field.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE,
 		descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
@@ -4601,6 +4648,27 @@ func (g *generator) isPackedType(field *descriptorpb.FieldDescriptorProto) bool 
 	default:
 		return false
 	}
+}
+
+func (g *generator) isFieldPacked(field *descriptorpb.FieldDescriptorProto) bool {
+	// Determine if this field should be marked as packed in metadata
+	// This affects how it's serialized and the RepeatType in metadata
+	
+	// Only packable types can be packed
+	if !g.isPackedType(field) {
+		return false
+	}
+	
+	// If packed option is explicitly set, use it
+	if field.Options != nil && field.GetOptions().Packed != nil {
+		return field.GetOptions().GetPacked()
+	}
+	
+	// Default behavior depends on syntax:
+	// - proto3: packed by default
+	// - proto2: unpacked by default
+	isProto3 := g.file.GetSyntax() == "proto3"
+	return isProto3
 }
 
 func (g *generator) getMapKeyDefault(field *descriptorpb.FieldDescriptorProto) string {

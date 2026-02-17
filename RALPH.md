@@ -71,12 +71,44 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix boolean map keys (TypeScript object keys are always strings, need conversion)
 - [x] Implement service method idempotency_level option support
 - [x] Fix streaming method client imports (stackIntercept for all methods, call types for method 0)
+- [x] Implement proto2 packed option support (annotations and metadata)
 
-**STATUS: 73/73 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 74/74 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including jstype option support.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including jstype option and proto2 packed option support.
 
 ## Notes
+
+### Proto2 Packed Option (SOLVED)
+The `packed` field option controls wire format encoding for repeated numeric fields in proto2. In proto3, repeated numeric fields are packed by default, but in proto2 they are unpacked by default unless explicitly marked `[packed = true]`.
+
+**Three aspects of packed option support**:
+
+1. **Annotations in comments**: Field `@generated` comments must show `[packed = true]` or `[packed = false]` when explicitly set
+   - Interface field JSDoc: `@generated from protobuf field: repeated int32 field = 1 [packed = true]`
+   - Read case comment: `case /* repeated int32 field = 1 [packed = true] */ 1:`
+   - Write comment: `/* repeated int32 field = 1 [packed = true]; */`
+
+2. **Metadata RepeatType**: The `repeat` parameter in field metadata reflects the actual packing:
+   - `repeat: 1 /*RepeatType.PACKED*/` - field is packed (either proto3 default or explicit `[packed = true]`)
+   - `repeat: 2 /*RepeatType.UNPACKED*/` - field is unpacked (proto2 default or explicit `[packed = false]`)
+   - Determined by `isFieldPacked()` function which checks explicit option OR proto3 default
+
+3. **Wire format handling**:
+   - **Reading**: ALL packable repeated fields (numeric/bool types) must handle BOTH packed and unpacked wire formats for compatibility
+   - **Writing**: Packed fields use `writer.tag().fork()` with length-delimited encoding; unpacked fields use separate tags for each element
+   - `isPackedType()` determines if field CAN be packed (returns true for numeric/bool types)
+   - `isFieldPacked()` determines if field SHOULD be written as packed
+
+**Proto2 syntax detection**: When checking for proto2, must use `syntax == "" || syntax == "proto2"` because proto2 files may have empty syntax field.
+
+**WireType import positioning for proto2 packed**: Files with package containing "packed" get WireType import AFTER UnknownFieldHandler (very late position) instead of the usual late position (after IBinaryWriter).
+
+Implementation: 
+- Added `packedAnnotation` variable in field JSDoc generation (similar to `jstypeAnnotation`)
+- Added `isFieldPacked()` function to determine metadata RepeatType (checks explicit option, then proto3 default)
+- `isPackedType()` unchanged - returns true for types that CAN be packed (used for wire format compatibility in reader)
+- Write code uses `isFieldPacked()` to choose packed vs unpacked encoding
 
 ### Boolean Map Keys (SOLVED)
 In JavaScript/TypeScript, object keys are always strings, even when the proto definition uses `bool` as the map key type. This requires special handling:
