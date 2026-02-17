@@ -78,14 +78,61 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix proto2 optional message fields write condition (use truthy check)
 - [x] Implement custom method options support (extension parsing)
 - [x] Fix file-level detached comment block separators (add `//` separator between blocks)
+- [x] Implement imported method options support (check extensions in all files)
 
-**STATUS: 76/76 tests passing ✅**
+**STATUS: 77/77 tests passing ✅**
 
 ## Notes
 
-### Current Status (76/76 tests passing) ✅
+### Current Status (77/77 tests passing) ✅
 
 The protoc-gen-kaja implementation is complete! All features have been implemented and all tests are passing.
+
+### Imported Method Options (SOLVED)
+
+Custom method options defined in imported proto files (via `extend google.protobuf.MethodOptions`) are now properly parsed and included in service metadata.
+
+**Problem**: When a proto file imports another file that defines custom method options via extensions, those options need to be parsed from the method's options and included in the generated ServiceType metadata.
+
+**Solution**:
+1. Search for extension definitions in ALL files (current + all dependencies), not just current file
+2. Build a map from extension field number → (descriptor, package) for all MethodOptions extensions
+3. Parse the unknown fields from method.Options using protowire package
+4. Match field numbers to extension definitions
+5. Store options as ordered slice (not map) to preserve wire format order (= field number order)
+6. Skip file generation entirely for files with no messages/enums/services (extension-only files)
+
+**Example**: `options.proto` defines custom extensions, `service.proto` uses them:
+```proto
+// options.proto
+extend google.protobuf.MethodOptions {
+  string auth_level = 52001;
+  int32 timeout_ms = 52002;
+  bool cache_enabled = 52003;
+}
+
+// service.proto
+service UserService {
+  rpc GetUser(Request) returns (Response) {
+    option (custom.auth_level) = "admin";
+    option (custom.timeout_ms) = 5000;
+    option (custom.cache_enabled) = true;
+  }
+}
+```
+
+Generated output:
+```typescript
+export const UserService = new ServiceType("api.UserService", [
+    { name: "GetUser", options: { "custom.auth_level": "admin", "custom.timeout_ms": 5000, "custom.cache_enabled": true }, I: Request, O: Response }
+]);
+```
+
+**Key implementation details**:
+- Use `[]customOption` (ordered slice) instead of `map[string]interface{}` to preserve field number ordering
+- Check `depFile.Extension` for each file in `g.allFiles` to find imported extensions
+- Store package from the file where extension is defined, not current file's package
+- Files with only extensions (no messages/enums/services) generate no output
 
 ### File-Level Detached Comment Block Separators (SOLVED)
 
