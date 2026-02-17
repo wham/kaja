@@ -92,6 +92,27 @@ The protoc-gen-kaja implementation has all features implemented. One remaining t
 **Issue**: google.protobuf.descriptor.proto file-level detached comments need TWO `//` separator lines between BSD license and Author blocks, but only ONE is output.
 **Note**: The test's own generated files (test.ts, test.client.ts) match perfectly. Only the imported google.protobuf.descriptor.ts file differs by this one line.
 
+### Detached Comment Formatting Rules (PARTIALLY SOLVED)
+
+Detached comments (comments separated from declarations by blank lines) have different formatting rules depending on context:
+
+**File-level detached comments** (output after imports):
+- Blank lines WITHIN blocks: `//` (no trailing space) - NOT YET WORKING CORRECTLY
+- Separators BETWEEN blocks: Need TWO `//` lines for descriptor.proto, but unclear why
+- After all blocks: Blank line before first declaration
+
+**Message-level detached comments** (output before message JSDoc):
+- Blank lines WITHIN blocks: `// ` (WITH trailing space) ✓ WORKING
+- Separators BETWEEN blocks: True blank line (just `\n`) ✓ WORKING
+- After all blocks: Blank line before JSDoc
+
+**Service method detached comments** (output before method JSDoc for non-first methods):
+- Blank lines within blocks: `// ` (with trailing space from `g.p("// %s", line)` where line is empty)
+- No separators between blocks (output all blocks consecutively)
+- After all blocks: Blank line before JSDoc
+
+**Current limitation**: File-level detached comment block separators for google.protobuf.descriptor.proto require TWO `//` lines instead of one. The cause is unclear - may be related to how protobuf stores trailing blank lines in comment blocks in SourceCodeInfo.
+
 ### Bytes Default Value Escaping (SOLVED)
 Proto default values for bytes/string fields are stored as C-style escaped strings in the descriptor. When displaying these in TypeScript @generated comments, certain escape sequences need special handling because the comments show what the TypeScript SOURCE CODE would look like.
 
