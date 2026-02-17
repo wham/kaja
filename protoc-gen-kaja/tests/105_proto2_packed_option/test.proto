@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package proto2.packed;
+
+// Test that proto2 packed option is respected
+message PackedTest {
+  // In proto2, repeated numeric fields are unpacked by default
+  repeated int32 default_unpacked = 1;
+  
+  // Explicitly packed in proto2
+  repeated int32 explicitly_packed = 2 [packed = true];
+  
+  // Explicitly unpacked (even though it's the default)
+  repeated int32 explicitly_unpacked = 3 [packed = false];
+  
+  // Various types with explicit packing
+  repeated int64 packed_int64 = 4 [packed = true];
+  repeated bool packed_bool = 5 [packed = true];
+  repeated fixed32 packed_fixed = 6 [packed = true];
+  
+  // Unpacked versions  
+  repeated int64 unpacked_int64 = 7 [packed = false];
+  repeated bool unpacked_bool = 8 [packed = false];
+  repeated fixed32 unpacked_fixed = 9 [packed = false];
+}
