@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+message Request {}
+message Response {}
+
+// Test service with methods that are reserved class properties
+service TestService {
+  // These method names are reserved class properties and should be escaped
+  rpc Name(Request) returns (Response);
+  rpc Constructor(Request) returns (Response);
+  rpc Close(Request) returns (Response);
+  rpc ToString(Request) returns (Response);
+  
+  // Normal method for comparison
+  rpc GetData(Request) returns (Response);
+}
