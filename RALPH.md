@@ -69,10 +69,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement deprecated option support (messages, fields, enums, enum values, services, methods)
 - [x] Implement file-level deprecation (option deprecated = true propagates to all elements)
 - [x] Fix boolean map keys (TypeScript object keys are always strings, need conversion)
+- [x] Implement service method idempotency_level option support
 
-**STATUS: 69/69 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 70/70 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including boolean map key handling.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including idempotency_level support.
 
 ## Notes
 
@@ -593,3 +594,35 @@ Both would normally generate TypeScript name `Outer_Inner`, causing a collision.
 - The collision detection happens in `detectTypeNameCollisions()` called before any generation
 
 Implementation: Added `typeNameSuffixes` map to generator struct, `detectTypeNameCollisions()` function to scan and assign suffixes, and updated `generateMessageInterface()`, `generateMessageClass()`, `generateEnum()`, and `stripPackage()` to apply suffixes when generating and referencing types.
+
+### Service Method Idempotency Level (SOLVED)
+Proto3 service methods can specify an idempotency level using the `idempotency_level` option. This option indicates whether a method is side-effect-free or idempotent, which can help RPC implementations choose appropriate HTTP verbs.
+
+**Idempotency levels**:
+- `IDEMPOTENCY_UNKNOWN` (default, 0) - No guarantees, omit from metadata
+- `NO_SIDE_EFFECTS` (1) - Safe, read-only operation (HTTP GET)
+- `IDEMPOTENT` (2) - Can be safely repeated (HTTP PUT)
+
+**Example proto**:
+```proto
+service IdempotentService {
+  rpc Get(GetRequest) returns (GetResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  rpc Delete(Request) returns (Response);  // IDEMPOTENCY_UNKNOWN, omitted
+}
+```
+
+**Generated ServiceType metadata**:
+```typescript
+export const IdempotentService = new ServiceType("IdempotentService", [
+    { name: "Get", idempotency: "NO_SIDE_EFFECTS", options: {}, I: GetRequest, O: GetResponse },
+    { name: "Update", idempotency: "IDEMPOTENT", options: {}, I: UpdateRequest, O: UpdateResponse },
+    { name: "Delete", options: {}, I: Request, O: Response }
+]);
+```
+
+**Implementation**: Read `method.GetOptions().GetIdempotencyLevel()` and add `idempotency` field to metadata only when level is `NO_SIDE_EFFECTS` or `IDEMPOTENT`. The field is omitted for `IDEMPOTENCY_UNKNOWN` (default value).

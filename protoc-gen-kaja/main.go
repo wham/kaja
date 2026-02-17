@@ -4580,6 +4580,26 @@ if i == len(svc.Method)-1 {
 comma = ""
 }
 
+	// Check if method name needs escaping and add localName
+	methodName := g.toCamelCase(method.GetName())
+	escapedName := escapeMethodName(methodName)
+	localNameField := ""
+	if escapedName != methodName {
+		localNameField = fmt.Sprintf("localName: \"%s\", ", escapedName)
+	}
+
+	// Add idempotency field if specified
+	idempotencyField := ""
+	if method.Options != nil {
+		idempotencyLevel := method.GetOptions().GetIdempotencyLevel()
+		switch idempotencyLevel {
+		case descriptorpb.MethodOptions_NO_SIDE_EFFECTS:
+			idempotencyField = "idempotency: \"NO_SIDE_EFFECTS\", "
+		case descriptorpb.MethodOptions_IDEMPOTENT:
+			idempotencyField = "idempotency: \"IDEMPOTENT\", "
+		}
+	}
+
 	// Build streaming flags
 	streamingFlags := ""
 	if method.GetServerStreaming() {
@@ -4589,16 +4609,8 @@ comma = ""
 		streamingFlags += "clientStreaming: true, "
 	}
 
-	// Check if method name needs escaping and add localName
-	methodName := g.toCamelCase(method.GetName())
-	escapedName := escapeMethodName(methodName)
-	localNameField := ""
-	if escapedName != methodName {
-		localNameField = fmt.Sprintf("localName: \"%s\", ", escapedName)
-	}
-
-	g.p("{ name: \"%s\", %s%soptions: {}, I: %s, O: %s }%s",
-		method.GetName(), localNameField, streamingFlags, inputType, outputType, comma)
+	g.p("{ name: \"%s\", %s%s%soptions: {}, I: %s, O: %s }%s",
+		method.GetName(), localNameField, idempotencyField, streamingFlags, inputType, outputType, comma)
 }
 g.indent = ""
 g.pNoIndent("]);")
