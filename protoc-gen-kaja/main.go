@@ -907,16 +907,32 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Phase 2: Standard runtime imports if we have messages or services
 	if len(g.file.MessageType) > 0 || needsServiceType {
-		// Check if any message has actual fields (not just GROUP fields)
+		// Check if any message (including nested) has actual fields (not just GROUP fields)
 		hasAnyFields := false
-		for _, msg := range g.file.MessageType {
+		var checkMessageForFields func(*descriptorpb.DescriptorProto) bool
+		checkMessageForFields = func(msg *descriptorpb.DescriptorProto) bool {
+			// Skip map entry messages
+			if msg.Options != nil && msg.GetOptions().GetMapEntry() {
+				return false
+			}
+			// Check direct fields
 			for _, field := range msg.Field {
 				if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
-					hasAnyFields = true
-					break
+					return true
 				}
 			}
-			if hasAnyFields {
+			// Check nested messages
+			for _, nested := range msg.NestedType {
+				if checkMessageForFields(nested) {
+					return true
+				}
+			}
+			return false
+		}
+		
+		for _, msg := range g.file.MessageType {
+			if checkMessageForFields(msg) {
+				hasAnyFields = true
 				break
 			}
 		}
@@ -1230,7 +1246,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, strings.ReplaceAll(protoName, "_", "."))
+	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, protoName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", fullName)
 	
@@ -1303,7 +1319,9 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Generate nested message interfaces first
 	for nestedIdx, nested := range msg.NestedType {
 		nestedPath := append(msgPath, 3, int32(nestedIdx))
-		g.generateMessageInterface(nested, protoName + "_", protoName + "_", nestedPath)
+		// Build TypeScript prefix by appending baseName with underscore
+		// Build proto prefix by appending baseName with dot
+		g.generateMessageInterface(nested, parentPrefix + baseName + "_", protoName + ".", nestedPath)
 	}
 	
 	// Generate nested enums after nested messages
@@ -1314,7 +1332,9 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 			enumPath = append([]int32{}, msgPath...)
 			enumPath = append(enumPath, 4, int32(enumIdx))
 		}
-		g.generateEnum(nested, protoName + "_", protoName + "_", enumPath)
+		// Build TypeScript prefix by appending baseName with underscore
+		// Build proto prefix by appending baseName with dot
+		g.generateEnum(nested, parentPrefix + baseName + "_", protoName + ".", enumPath)
 	}
 }
 
@@ -1338,7 +1358,9 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 	
 	// Generate nested message classes
 	for _, nested := range msg.NestedType {
-		g.generateMessageClass(nested, protoName + "_", protoName + "_")
+		// Build TypeScript prefix by appending baseName with underscore
+		// Build proto prefix by appending baseName with dot
+		g.generateMessageClass(nested, parentPrefix + baseName + "_", protoName + ".")
 	}
 }
 
@@ -1780,7 +1802,12 @@ func (g *generator) stripPackage(typeName string) string {
 				if isInThisFile {
 					// It's a type defined in this file (possibly nested)
 					// Replace dots with underscores for nested types
-					return strings.ReplaceAll(remainder, ".", "_")
+					result := strings.ReplaceAll(remainder, ".", "_")
+					// For top-level types, apply keyword escaping
+					if !strings.Contains(remainder, ".") {
+						result = escapeTypescriptKeyword(result)
+					}
+					return result
 				}
 			}
 			// Otherwise it's a sub-package, fall through to handle as external type
@@ -2181,8 +2208,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	// Use protoName (without escaping) for the MessageType constructor
-	typeName := pkgPrefix + strings.ReplaceAll(protoName, "_", ".")
+	// protoName already uses dots as separators
+	typeName := pkgPrefix + protoName
 	
 	g.p("constructor() {")
 	g.indent = "        "
@@ -3163,8 +3190,8 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	// For enums, only replace underscores in parent prefix (nested messages), not in enum name itself
-	protoNameFormatted := strings.ReplaceAll(protoParentPrefix, "_", ".") + baseName
+	// protoParentPrefix already has dots as separators
+	protoNameFormatted := protoParentPrefix + baseName
 	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, protoNameFormatted)
 	g.pNoIndent(" */")
 	g.pNoIndent("export enum %s {", enumName)
