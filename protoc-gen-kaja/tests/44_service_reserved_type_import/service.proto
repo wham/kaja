@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package api;
+
+import "types.proto";
+
+// Service that uses the reserved-name types from types.proto
+service TypeService {
+  // Uses String from types.proto
+  rpc GetString(types.String) returns (types.String);
+  
+  // Uses Array from types.proto
+  rpc GetArray(types.Array) returns (types.Array);
+  
+  // Uses Number from types.proto
+  rpc GetNumber(types.Number) returns (types.Number);
+}

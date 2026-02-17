@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package types;
+
+// This message has a reserved TypeScript type name
+message String {
+  string value = 1;
+}
+
+// Another reserved type name
+message Array {
+  repeated string items = 1;
+}
+
+// And another
+message Number {
+  int32 value = 1;
+}
