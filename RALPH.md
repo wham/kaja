@@ -11,7 +11,7 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 4. Run the tests
 5. Capture important learnings in [Notes](./RALPH.md/#notes). Stuff that will make the task easier for you in the future. For example how to run the tests. How the code is structured. Don't add things that would soften the requirements - i.e. "we are close, this is cosmetic". If you see them, remove them.
 6. Commit the changes. One line message with summary what was done.
-7. If all tests passing, put line "DONE" at the end of RALPH.md. No exceptions. ALL TESTS MUST PASS.
+7. If all tests passing, set the content of file status.txt to "DONE" and end. No exceptions. ALL TESTS MUST PASS.
 
 ## Plan
 
@@ -205,8 +205,3 @@ Implementation:
 - When encountering first field of a oneof, generates entire oneof group
 - Uses `toCamelCase()` helper to convert oneof names
 - Tracks generated oneofs to avoid duplication
-
-## Status
-
-DONE
-

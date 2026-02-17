@@ -5,6 +5,8 @@
 set -euo pipefail
 
 PROMPT_FILE="RALPH.md"
+NELSON_FILE="NELSON.md"
+STATUS_FILE="status.txt"
 MAX_LOOPS=1000
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
@@ -12,14 +14,40 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$NELSON_FILE" ]]; then
+    echo "Error: $NELSON_FILE not found"
+    exit 1
+fi
+
 for ((i=1; i<=MAX_LOOPS; i++)); do
     echo "=== Loop $i/$MAX_LOOPS ==="
     
-    # Check if last non-empty line of RALPH.md is "DONE"
-    last_line=$(grep -v '^[[:space:]]*$' "$PROMPT_FILE" | tail -n 1 | tr -d '\r\n')
-    if [[ "$last_line" == "DONE" ]]; then
-        echo "Last line is 'DONE'. Stopping loop."
-        exit 0
+    # Check if status.txt contains "DONE"
+    if [[ -f "$STATUS_FILE" ]]; then
+        status=$(cat "$STATUS_FILE" | tr -d '\r\n' | tr -d '[:space:]')
+        if [[ "$status" == "DONE" ]]; then
+            echo "Status is 'DONE'. Running NELSON.md task..."
+            
+            # Run NELSON.md task
+            nelson_prompt=$(cat "$NELSON_FILE")
+            copilot --yolo -p "$nelson_prompt" || {
+                echo "Error: GitHub Copilot CLI command failed for NELSON.md"
+                exit 1
+            }
+            
+            # Check status again after NELSON task
+            if [[ -f "$STATUS_FILE" ]]; then
+                status=$(cat "$STATUS_FILE" | tr -d '\r\n' | tr -d '[:space:]')
+                if [[ "$status" == "DONE" ]]; then
+                    echo "Status is still 'DONE' after NELSON task. Exiting."
+                    exit 0
+                else
+                    echo "Status changed after NELSON task. Continuing with RALPH.md..."
+                fi
+            else
+                echo "Status file removed after NELSON task. Continuing with RALPH.md..."
+            fi
+        fi
     fi
     
     # Read prompt from RALPH.md
