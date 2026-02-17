@@ -63,10 +63,12 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix WireType positioning for library files (different directory = early, same directory = late)
 - [x] Fix nested type imports (import Container_String not Container for nested types)
 - [x] Fix type name collisions (nested type with same name as top-level gets numeric suffix)
+- [x] Fix doubly-nested type imports (Outer.Middle.Inner → import Outer_Middle_Inner)
+- [x] Fix client file import path resolution (check dependencies first, not just package match)
 
-**STATUS: 61/61 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 62/62 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, WireType positioning for library files vs same-directory files, nested type imports, and type name collision handling.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including doubly-nested type imports and proper import path resolution for types in dependencies with the same package.
 
 ## Notes
 
@@ -453,16 +455,43 @@ When importing nested types from another package (e.g., `types.Container.String`
 - Wrong: `import { Container } from "./types"`
 - Correct: `import { Container_String } from "./types"`
 
+**Doubly-Nested Types**: For types like `Outer.Middle.Inner` (3 levels of nesting):
+- Import as `Outer_Middle_Inner`
+- Check nested message hierarchy: `Outer` → `Middle` (nested in Outer) → `Inner` (nested in Middle)
+
 **Algorithm**:
-1. Split the type name after package prefix into parts (e.g., `["Container", "String"]`)
-2. If `len(parts) == 2`, check if it's a nested enum first
-3. If not nested enum but `len(parts) == 2`, check if it's a nested message
-4. If nested message found, import as `Parent_Nested`
-5. Only if `len(parts) == 1`, import as simple top-level type
+1. Split the type name after package prefix into parts (e.g., `["Container", "String"]` or `["Outer", "Middle", "Inner"]`)
+2. For `len(parts) == 3`, check doubly-nested messages and enums
+3. For `len(parts) == 2`, check singly-nested enums and messages
+4. For `len(parts) == 1`, import as simple top-level type
+5. Import statement uses underscores to join all parts: `Parent_Nested` or `Parent_Nested_Inner`
 
 **Important**: This applies to both the import generation logic (where we create import statements) and the candidate file checking logic (where we determine which file contains a type).
 
-Implementation: Added nested message checking in `generateImport()` function, mirroring the existing nested enum logic. Also added nested message checking in the candidate file loop to correctly identify which file contains a nested type.
+Implementation: Added doubly-nested message and enum checking in `generateImport()` function and candidate file matching loop. Extended the nested type checking to handle arbitrary nesting levels.
+
+### Import Path Resolution for Client Files (SOLVED)
+When generating client files (`.client.ts`), the import paths for types used in service methods must be resolved correctly even when multiple files share the same package.
+
+**Problem**: Previously, `getImportPathForType()` would check if a type's package matched the current file's package and assume the type was in the current file. This failed when:
+- `service.proto` (package `test`) imports types from `types.proto` (also package `test`)
+- Type `test.Outer.Middle.Inner` exists in `types.proto`
+- Client file would incorrectly import from `./service` instead of `./types`
+
+**Solution**: Check dependencies FIRST to see if they actually contain the type definition, not just if packages match.
+
+**Algorithm**:
+1. For a given type (e.g., `.test.Outer.Middle.Inner`), strip the leading dot
+2. Check each dependency file to see if it actually defines this type:
+   - Parse the type into parts after removing the package prefix
+   - Recursively check if the message hierarchy exists in that file
+3. If found in a dependency, return the dependency's import path
+4. Only if NOT found in any dependency, check if it's in the current file
+5. Use `typeInMessage()` helper to recursively verify nested type existence
+
+**Important**: Package matching alone is insufficient - must verify the type is actually defined in the file by checking the message/enum hierarchy.
+
+Implementation: Refactored `getImportPathForType()` to check dependencies first using a `typeInFile()` closure that verifies type existence. Added `typeInMessage()` helper to recursively check nested type definitions.
 
 ### Type Name Collisions (SOLVED)
 When a nested type would generate the same TypeScript name as a top-level type, the nested type gets a numeric suffix to avoid collision.

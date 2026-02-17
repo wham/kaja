@@ -790,6 +790,54 @@ func (g *generator) writeImports(imports map[string]bool) {
 					}
 				}
 				
+				// Check doubly-nested messages (Outer.Middle.Inner)
+				if !found && len(parts) == 3 {
+					for _, msg := range candidate.file.MessageType {
+						if msg.GetName() == parts[0] {
+							for _, nested := range msg.NestedType {
+								if nested.GetName() == parts[1] {
+									for _, innerNested := range nested.NestedType {
+										if innerNested.GetName() == parts[2] {
+											found = true
+											break
+										}
+									}
+									if found {
+										break
+									}
+								}
+							}
+							if found {
+								break
+							}
+						}
+					}
+				}
+				
+				// Check doubly-nested enums (Outer.Middle.EnumValue)
+				if !found && len(parts) == 3 {
+					for _, msg := range candidate.file.MessageType {
+						if msg.GetName() == parts[0] {
+							for _, nested := range msg.NestedType {
+								if nested.GetName() == parts[1] {
+									for _, enum := range nested.EnumType {
+										if enum.GetName() == parts[2] {
+											found = true
+											break
+										}
+									}
+									if found {
+										break
+									}
+								}
+							}
+							if found {
+								break
+							}
+						}
+					}
+				}
+				
 				// Check nested enums
 				if !found && len(parts) == 2 {
 					for _, msg := range candidate.file.MessageType {
@@ -864,6 +912,56 @@ func (g *generator) writeImports(imports map[string]bool) {
 				importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 				found = true
 				break
+			}
+		}
+		if !found && len(parts) == 3 {
+			// Check if it's a doubly-nested message (Outer.Middle.Inner)
+			for _, msg := range matchedDepFile.MessageType {
+				if msg.GetName() == parts[0] {
+					for _, nested := range msg.NestedType {
+						if nested.GetName() == parts[1] {
+							for _, innerNested := range nested.NestedType {
+								if innerNested.GetName() == parts[2] {
+									importedName = fmt.Sprintf("%s_%s_%s", parts[0], parts[1], parts[2])
+									importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
+									found = true
+									break
+								}
+							}
+							if found {
+								break
+							}
+						}
+					}
+					if found {
+						break
+					}
+				}
+			}
+		}
+		if !found && len(parts) == 3 {
+			// Check if it's a doubly-nested enum (Outer.Middle.Enum)
+			for _, msg := range matchedDepFile.MessageType {
+				if msg.GetName() == parts[0] {
+					for _, nested := range msg.NestedType {
+						if nested.GetName() == parts[1] {
+							for _, enum := range nested.EnumType {
+								if enum.GetName() == parts[2] {
+									importedName = fmt.Sprintf("%s_%s_%s", parts[0], parts[1], parts[2])
+									importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
+									found = true
+									break
+								}
+							}
+							if found {
+								break
+							}
+						}
+					}
+					if found {
+						break
+					}
+				}
 			}
 		}
 		if !found && len(parts) == 2 {
@@ -1308,39 +1406,85 @@ func (g *generator) getImportPathForType(fullTypeName string) string {
 	// fullTypeName starts with . (e.g., .lib.Void, .quirks.v1.TypesRequest)
 	typeNameStripped := strings.TrimPrefix(fullTypeName, ".")
 	
-	// Check if it's in the current file
-	currentPkg := ""
-	if g.file.Package != nil {
-		currentPkg = *g.file.Package
+	// Helper to check if a type is defined in a file
+	typeInFile := func(file *descriptorpb.FileDescriptorProto, typeName string) bool {
+		pkg := ""
+		if file.Package != nil {
+			pkg = *file.Package
+		}
+		
+		// Type must be in this file's package
+		if !strings.HasPrefix(typeName, pkg+".") {
+			return false
+		}
+		
+		// Strip package to get the type parts
+		parts := strings.Split(strings.TrimPrefix(typeName, pkg+"."), ".")
+		
+		// Check top-level messages
+		for _, msg := range file.MessageType {
+			if msg.GetName() == parts[0] {
+				if len(parts) == 1 {
+					return true
+				}
+				// Check nested types
+				return g.typeInMessage(msg, parts[1:])
+			}
+		}
+		
+		// Check top-level enums
+		for _, enum := range file.EnumType {
+			if enum.GetName() == parts[0] && len(parts) == 1 {
+				return true
+			}
+		}
+		
+		return false
 	}
 	
-	// If it starts with current package, it's in the current file
-	if currentPkg != "" && strings.HasPrefix(typeNameStripped, currentPkg+".") {
-		return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
-	}
-	
-	// Check dependencies
+	// Check dependencies first
 	currentFileDir := filepath.Dir(g.file.GetName())
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
-		if depFile == nil {
-			continue
-		}
-		
-		depPkg := ""
-		if depFile.Package != nil {
-			depPkg = *depFile.Package
-		}
-		
-		if depPkg != "" && strings.HasPrefix(typeNameStripped, depPkg+".") {
-			// Found it - compute relative import path
+		if depFile != nil && typeInFile(depFile, typeNameStripped) {
 			depPath := strings.TrimSuffix(dep, ".proto")
 			return g.getRelativeImportPath(currentFileDir, depPath)
 		}
 	}
 	
-	// Default to current file
+	// Check current file
+	if typeInFile(g.file, typeNameStripped) {
+		return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
+	}
+	
+	// Default to current file (should not happen)
 	return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
+}
+
+// typeInMessage checks if a nested type path exists in a message
+func (g *generator) typeInMessage(msg *descriptorpb.DescriptorProto, parts []string) bool {
+	if len(parts) == 0 {
+		return false
+	}
+	
+	// Check nested messages
+	for _, nested := range msg.NestedType {
+		if nested.GetName() == parts[0] {
+			if len(parts) == 1 {
+				return true
+			}
+			return g.typeInMessage(nested, parts[1:])
+		}
+	}
+	
+	// Check nested enums
+	for _, enum := range msg.EnumType {
+		if enum.GetName() == parts[0] && len(parts) == 1 {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func (g *generator) findFileByName(name string) *descriptorpb.FileDescriptorProto {
