@@ -269,6 +269,12 @@ func (g *generator) isFileDeprecated() bool {
 	return g.file.Options != nil && g.file.GetOptions().GetDeprecated()
 }
 
+// escapeJSDocComment escapes sequences that would break JSDoc comments
+func escapeJSDocComment(s string) string {
+	// Escape */ sequences which would close the JSDoc comment prematurely
+	return strings.ReplaceAll(s, "*/", "*\\/")
+}
+
 // getLeadingDetachedComments retrieves leading detached comments for a given path in SourceCodeInfo
 // Leading detached comments are comments separated from the element by a blank line
 func (g *generator) getLeadingDetachedComments(path []int32) []string {
@@ -1593,7 +1599,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 				if line == "" {
 					g.pNoIndent(" *")
 				} else {
-					g.pNoIndent(" * %s", line)
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
 			// Add separator blank line(s) before @generated
@@ -1808,7 +1814,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 		}
@@ -1961,7 +1967,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 			if line == "" {
 				g.p(" *")
 			} else {
-				g.p(" * %s", line)
+				g.p(" * %s", escapeJSDocComment(line))
 			}
 		}
 		g.p(" *")
@@ -1997,7 +2003,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.p(" *")
@@ -3854,7 +3860,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 				if line == "" {
 					g.pNoIndent(" *")
 				} else {
-					g.pNoIndent(" * %s", line)
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
 			// Add separator blank line(s) before @generated
@@ -3919,7 +3925,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.p(" *")
@@ -3931,7 +3937,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.p(" *")
@@ -4455,7 +4461,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				if line == "" {
 					g.pNoIndent(" *")
 				} else {
-					g.pNoIndent(" * %s", line)
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.pNoIndent(" *")
@@ -4509,7 +4515,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.p(" *")
@@ -4559,7 +4565,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				if line == "" {
 					g.pNoIndent(" *")
 				} else {
-					g.pNoIndent(" * %s", line)
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.pNoIndent(" *")
@@ -4618,7 +4624,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				if line == "" {
 					g.p(" *")
 				} else {
-					g.p(" * %s", line)
+					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
 			g.p(" *")
