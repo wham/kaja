@@ -17,22 +17,21 @@ and your job is find at least one additional case where the tests will fail.
 
 ### Tricks to Find Bugs
 
-1. **Check reserved word lists:** TypeScript has multiple lists:
+1. **Test well-known types comprehensively:** The Go implementation handles standard well-known types (`google.protobuf.*`) but may have differences in:
+   - Import ordering and organization
+   - Comment handling in generated interfaces
+   - Special method generation for types like `Any`, `Struct`, `Duration`
+   - Create a test that imports ALL well-known types at once to expose these differences
+
+2. **Check reserved word lists:** TypeScript has multiple lists:
    - `reservedKeywords` - for type and identifier names
    - `reservedTypeNames` - for type names like `Array`, `String`
    - `reservedObjectProperties` - for field names like `__proto__`, `toString`
-   - `reservedClassProperties` - for METHOD names - this is the BIG one with many entries
+   - `reservedClassProperties` - for METHOD names
 
-2. **Method name escaping is different from field name escaping:** Methods can collide with built-in class properties AND gRPC client methods.
-
-3. **The reservedClassProperties list is extensive:** In `/tmp/protobuf-ts/packages/plugin/src/interpreter.ts`, the full list includes:
-   - JavaScript built-in: `__proto__`, `toString`, `name`, `constructor`
-   - Generic gRPC client properties: `methods`, `typeName`, `options`, `_transport`
-   - @grpc/grpc-js specific methods: `close`, `getChannel`, `waitForReady`, `makeUnaryRequest`, `makeClientStreamRequest`, `makeServerStreamRequest`, `makeBidiStreamRequest`
+3. **Method name escaping is different from field name escaping:** Methods can collide with built-in class properties AND gRPC client methods.
 
 4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic. The `createTypescriptNameForMethod` function in `interpreter.ts` is the source of truth for method name escaping.
-
-5. **CRITICAL: lowerCamelCase vs lowerFirst:** The TS plugin uses `rt.lowerCamelCase()` which strips ALL underscores and capitalizes following letters (e.g., `__proto__` → `Proto`, `_transport` → `Transport`). The Go implementation incorrectly uses `lowerFirst()` which only lowercases the first character (e.g., `__proto__` → `__proto__`). This means method names with leading underscores are transformed differently, breaking reserved name detection. See `/tmp/protobuf-ts/packages/runtime/src/lower-camel-case.ts` for the correct implementation.
 
 ### How to run tests
 
@@ -47,4 +46,5 @@ cd /Users/tom-newotny/kaja/protoc-gen-kaja
 - `main.go`: Main plugin implementation
 - `tests/`: Test cases with .proto files
 - `scripts/test`: Test runner that compares protoc-gen-kaja output vs protoc-gen-ts
-- Method name generation: Search for `methodName := g.lowerFirst` in main.go
+- Method name generation: Uses `g.toCamelCase()` which strips underscores like TS
+- Well-known types: Located in `google/protobuf/*.proto` imports
