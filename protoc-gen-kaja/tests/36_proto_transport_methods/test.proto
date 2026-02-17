@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package test;
+
+// Test that __proto__ and _transport are properly escaped
+// These need to match the reserved names AFTER lowerCamelCase transformation
+service TestService {
+  // After lowerCamelCase, this becomes "__proto__" which is reserved
+  // Wait, that won't work because underscores are stripped...
+  // Let me try a different approach: names that are ALREADY in lowercase
+  rpc __proto__(EmptyRequest) returns (EmptyResponse);
+  
+  // After lowerCamelCase, becomes "_transport" which is reserved
+  rpc _transport(EmptyRequest) returns (EmptyResponse);
+  
+  // Normal method for comparison
+  rpc GetData(EmptyRequest) returns (EmptyResponse);
+}
+
+message EmptyRequest {}
+message EmptyResponse {}

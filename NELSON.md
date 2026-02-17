@@ -32,6 +32,8 @@ and your job is find at least one additional case where the tests will fail.
 
 4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic. The `createTypescriptNameForMethod` function in `interpreter.ts` is the source of truth for method name escaping.
 
+5. **CRITICAL: lowerCamelCase vs lowerFirst:** The TS plugin uses `rt.lowerCamelCase()` which strips ALL underscores and capitalizes following letters (e.g., `__proto__` → `Proto`, `_transport` → `Transport`). The Go implementation incorrectly uses `lowerFirst()` which only lowercases the first character (e.g., `__proto__` → `__proto__`). This means method names with leading underscores are transformed differently, breaking reserved name detection. See `/tmp/protobuf-ts/packages/runtime/src/lower-camel-case.ts` for the correct implementation.
+
 ### How to run tests
 
 ```bash
