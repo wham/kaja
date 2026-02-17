@@ -3402,15 +3402,55 @@ func (g *generator) getScalarTypeName(field *descriptorpb.FieldDescriptorProto) 
 	}
 }
 
+// escapeForTypeScriptStringLiteral escapes a C-style escaped string for use in TypeScript
+// This keeps standard escape sequences (\n, \t, \r, \NNN) but escapes backslashes before
+// quotes so they display correctly in TypeScript comments
+func escapeForTypeScriptStringLiteral(s string) string {
+	var result strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			next := s[i+1]
+			// Check for common escape sequences that are valid in both C and TypeScript
+			if next == 'n' || next == 't' || next == 'r' {
+				// Keep \n, \t, \r as-is
+				result.WriteByte(s[i])
+				result.WriteByte(next)
+				i++
+			} else if next >= '0' && next <= '7' {
+				// Octal escape \NNN - keep as-is
+				result.WriteByte(s[i])
+				result.WriteByte(next)
+				i++
+			} else if next == '"' {
+				// Escape the backslash before quote: \" -> \\"
+				result.WriteString(`\\"`)
+				i++
+			} else if next == '\\' {
+				// Backslash pair: keep as-is \\
+				result.WriteString(`\\`)
+				i++
+			} else {
+				// Unknown escape sequence, keep as-is
+				result.WriteByte(s[i])
+			}
+		} else {
+			result.WriteByte(s[i])
+		}
+	}
+	return result.String()
+}
+
 // formatDefaultValueAnnotation formats a default value for the @generated comment annotation
 func (g *generator) formatDefaultValueAnnotation(field *descriptorpb.FieldDescriptorProto, defaultVal string) string {
 	switch field.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 		// String defaults are shown as quoted strings
-		return fmt.Sprintf("\"%s\"", defaultVal)
+		escaped := escapeForTypeScriptStringLiteral(defaultVal)
+		return fmt.Sprintf("\"%s\"", escaped)
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		// Bytes defaults use C-escaped format (already in defaultVal)
-		return fmt.Sprintf("\"%s\"", defaultVal)
+		escaped := escapeForTypeScriptStringLiteral(defaultVal)
+		return fmt.Sprintf("\"%s\"", escaped)
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 		// Enum defaults show the enum value name (not the number)
 		return defaultVal

@@ -72,12 +72,33 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement service method idempotency_level option support
 - [x] Fix streaming method client imports (stackIntercept for all methods, call types for method 0)
 - [x] Implement proto2 packed option support (annotations and metadata)
+- [x] Fix bytes default value escaping in comments (escape backslashes before quotes)
 
-**STATUS: 74/74 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 75/75 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including jstype option and proto2 packed option support.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including bytes default value escaping.
 
 ## Notes
+
+### Bytes Default Value Escaping (SOLVED)
+Proto default values for bytes/string fields are stored as C-style escaped strings in the descriptor. When displaying these in TypeScript @generated comments, certain escape sequences need special handling because the comments show what the TypeScript SOURCE CODE would look like.
+
+**The key insight**: Comments show TypeScript source syntax, so we need TypeScript-escaped strings, not raw C-escaped strings.
+
+**Escaping rules**:
+1. **Keep common escapes as-is**: `\n`, `\t`, `\r`, octal `\NNN` are valid in both C and TypeScript → no change
+2. **Escape backslash before quote**: `\"` → `\\"` (three chars) so TypeScript sees backslash-quote, not just quote
+3. **Keep backslash-backslash as-is**: `\\` → `\\` (two chars) represents one backslash in TypeScript
+
+**Example transformations**:
+- Proto `default = "\""` → descriptor `\"` → comment `[default = "\\""]` → TS string with one quote char
+- Proto `default = "\\"` → descriptor `\\` → comment `[default = "\\"]` → TS string with one backslash
+- Proto `default = "\n"` → descriptor `\n` → comment `[default = "\n"]` → TS string with newline
+- Proto `default = "\"test\\end"` → descriptor `\"test\\end` → comment `[default = "\\"test\\end"]`
+
+**Why this matters**: In TypeScript source, you can't have `"` inside `"..."` without escaping. The sequence `"\""]` would be parsed as: string `"`, then escaped quote `\"` (ending the string), then another `"` (syntax error). By outputting `"\\""]`, TypeScript sees: string `"`, escaped backslash `\\`, quote `"` (ending string) → result is a string containing backslash-quote.
+
+Implementation: `escapeForTypeScriptStringLiteral()` function handles the selective escaping - only escapes backslashes before quotes, not before other escape sequences.
 
 ### Proto2 Packed Option (SOLVED)
 The `packed` field option controls wire format encoding for repeated numeric fields in proto2. In proto3, repeated numeric fields are packed by default, but in proto2 they are unpacked by default unless explicitly marked `[packed = true]`.
