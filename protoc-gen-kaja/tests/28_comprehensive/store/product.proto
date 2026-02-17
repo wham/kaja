@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package ecommerce.store;
+
+import "common/types.proto";
+
+// Product category enum
+enum Category {
+  CATEGORY_UNSPECIFIED = 0;
+  CATEGORY_ELECTRONICS = 1;
+  CATEGORY_CLOTHING = 2;
+  CATEGORY_BOOKS = 3;
+  CATEGORY_HOME = 4;
+  CATEGORY_SPORTS = 5;
+}
+
+// Product with nested variants
+message Product {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  Category category = 4;
+  common.Money price = 5;
+  repeated string tags = 6;
+  repeated string image_urls = 7;
+  common.Status status = 8;
+  
+  // Nested variant message
+  message Variant {
+    string id = 1;
+    string name = 2;
+    map<string, string> attributes = 3;
+    common.Money price = 4;
+    int32 stock_quantity = 5;
+    string sku = 6;
+  }
+  
+  repeated Variant variants = 9;
+  common.Metadata metadata = 10;
+  common.AuditInfo audit = 11;
+}
+
+// Review with nested rating breakdown
+message Review {
+  string id = 1;
+  string product_id = 2;
+  string user_id = 3;
+  int32 rating = 4;
+  string title = 5;
+  string comment = 6;
+  repeated string image_urls = 7;
+  bool verified_purchase = 8;
+  int32 helpful_count = 9;
+  
+  message RatingBreakdown {
+    int32 quality = 1;
+    int32 value = 2;
+    int32 accuracy = 3;
+  }
+  
+  RatingBreakdown breakdown = 10;
+  common.AuditInfo audit = 11;
+}
+
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  Category category = 3;
+  common.Money price = 4;
+  repeated string tags = 5;
+}
+
+message CreateProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  Category category = 1;
+  repeated string tags = 2;
+  common.PageInfo page = 3;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  common.PageInfo page = 2;
+}
+
+message GetProductRequest {
+  string id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+  repeated Review reviews = 2;
+}
+
+// Product service
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+}

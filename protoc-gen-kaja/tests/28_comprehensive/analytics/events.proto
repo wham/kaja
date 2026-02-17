@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package ecommerce.analytics;
+
+import "google/protobuf/timestamp.proto";
+import "common/types.proto";
+
+// Event type enum
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_PAGE_VIEW = 1;
+  EVENT_TYPE_CLICK = 2;
+  EVENT_TYPE_SEARCH = 3;
+  EVENT_TYPE_PURCHASE = 4;
+  EVENT_TYPE_ADD_TO_CART = 5;
+}
+
+// Event with oneof payload
+message Event {
+  string id = 1;
+  string user_id = 2;
+  string session_id = 3;
+  EventType type = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  
+  oneof payload {
+    PageViewEvent page_view = 6;
+    ClickEvent click = 7;
+    SearchEvent search = 8;
+    PurchaseEvent purchase = 9;
+  }
+  
+  map<string, string> properties = 10;
+  common.Metadata metadata = 11;
+}
+
+message PageViewEvent {
+  string url = 1;
+  string referrer = 2;
+  int32 duration_ms = 3;
+}
+
+message ClickEvent {
+  string element_id = 1;
+  string element_type = 2;
+  string page_url = 3;
+}
+
+message SearchEvent {
+  string query = 1;
+  int32 results_count = 2;
+  repeated string filters = 3;
+}
+
+message PurchaseEvent {
+  string order_id = 1;
+  common.Money total = 2;
+  repeated string product_ids = 3;
+}
+
+message TrackEventRequest {
+  Event event = 1;
+}
+
+message TrackEventResponse {
+  bool success = 1;
+}
+
+message GetEventsRequest {
+  string user_id = 1;
+  EventType type = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  common.PageInfo page = 5;
+}
+
+message GetEventsResponse {
+  repeated Event events = 1;
+  common.PageInfo page = 2;
+}
+
+// Analytics service
+service AnalyticsService {
+  rpc TrackEvent(TrackEventRequest) returns (TrackEventResponse);
+  rpc GetEvents(GetEventsRequest) returns (GetEventsResponse);
+}

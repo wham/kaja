@@ -17,9 +17,74 @@ show_diff() {
   local test_name="$(basename "$test_dir")"
   local expected_dir="$RESULTS_DIR/$test_name/expected"
   local actual_dir="$RESULTS_DIR/$test_name/actual"
+  local ts_error_file="$RESULTS_DIR/$test_name/ts_error.txt"
+  local kaja_error_file="$RESULTS_DIR/$test_name/kaja_error.txt"
 
+  if [ ! -d "$expected_dir" ] && [ ! -f "$ts_error_file" ]; then
+    echo "No results for $test_name. Run scripts/test first."
+    return
+  fi
+
+  echo "=== $test_name ==="
+  echo ""
+
+  # Check if both generators failed
+  if [ -f "$ts_error_file" ] && [ -f "$kaja_error_file" ]; then
+    ts_err=$(cat "$ts_error_file" 2>/dev/null)
+    kaja_err=$(cat "$kaja_error_file" 2>/dev/null)
+    
+    if [ -n "$ts_err" ] || [ -n "$kaja_err" ]; then
+      echo "Both generators failed:"
+      echo ""
+      
+      # Normalize and compare
+      ts_err_normalized=$(echo "$ts_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+      kaja_err_normalized=$(echo "$kaja_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+      
+      if [ "$ts_err_normalized" = "$kaja_err_normalized" ]; then
+        echo "STATUS: PASS (both failed with identical error)"
+        echo ""
+        echo "Error message:"
+        echo "$ts_err"
+      else
+        echo "STATUS: FAIL (error messages differ)"
+        echo ""
+        diff_output=$(diff -u \
+          <(echo "$ts_err" | sed 's/[[:space:]]*$//') \
+          <(echo "$kaja_err" | sed 's/[[:space:]]*$//') \
+          2>&1) || true
+        echo "--- protoc-gen-ts error"
+        echo "+++ protoc-gen-kaja error"
+        echo "$diff_output"
+      fi
+      echo ""
+      return
+    fi
+  fi
+
+  # Check if only one failed
+  if [ -f "$ts_error_file" ] && [ -s "$ts_error_file" ]; then
+    echo "STATUS: FAIL (protoc-gen-ts failed but protoc-gen-kaja succeeded)"
+    echo ""
+    echo "TS error:"
+    cat "$ts_error_file"
+    echo ""
+    return
+  fi
+
+  if [ -f "$kaja_error_file" ] && [ -s "$kaja_error_file" ]; then
+    echo "STATUS: FAIL (protoc-gen-kaja failed but protoc-gen-ts succeeded)"
+    echo ""
+    echo "Kaja error:"
+    cat "$kaja_error_file"
+    echo ""
+    return
+  fi
+
+  # Both succeeded - compare generated files
   if [ ! -d "$expected_dir" ]; then
-    echo "No expected/ directory for $test_name. Run scripts/test first."
+    echo "No generated files to compare."
+    echo ""
     return
   fi
 
@@ -30,11 +95,6 @@ show_diff() {
     actual_files=$(cd "$actual_dir" && find . -type f -name "*.ts" | sort)
   fi
 
-  # Show file-level summary
-  echo "=== $test_name ==="
-  echo ""
-
-  # Files only in expected (missing from actual)
   for f in $expected_files; do
     if [ ! -f "$actual_dir/$f" ]; then
       lines=$(wc -l < "$expected_dir/$f")

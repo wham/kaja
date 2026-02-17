@@ -76,6 +76,7 @@ run_test() {
   done
 
   # Run protoc-gen-ts (expected output)
+  ts_error_file="$RESULTS_DIR/$test_name/ts_error.txt"
   ts_ok=true
   (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
@@ -83,14 +84,10 @@ run_test() {
     --ts_opt=long_type_string \
     -I"$INCLUDE_DIR" \
     -I. \
-    $proto_basenames) 2>/dev/null || ts_ok=false
-
-  if [ "$ts_ok" = false ]; then
-    echo "SKIP $test_name (protoc-gen-ts failed)"
-    return
-  fi
+    $proto_basenames) 2>"$ts_error_file" || ts_ok=false
 
   # Run protoc-gen-kaja (actual output)
+  kaja_error_file="$RESULTS_DIR/$test_name/kaja_error.txt"
   kaja_ok=true
   (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
@@ -98,7 +95,69 @@ run_test() {
     --kaja_opt=long_type_string \
     -I"$INCLUDE_DIR" \
     -I. \
-    $proto_basenames) 2>/dev/null || kaja_ok=true  # empty response is OK
+    $proto_basenames) 2>"$kaja_error_file" || kaja_ok=false
+
+  # If both failed, compare error messages
+  if [ "$ts_ok" = false ] && [ "$kaja_ok" = false ]; then
+    ts_err=$(cat "$ts_error_file" 2>/dev/null || echo "")
+    kaja_err=$(cat "$kaja_error_file" 2>/dev/null || echo "")
+    
+    # Normalize whitespace and compare
+    ts_err_normalized=$(echo "$ts_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+    kaja_err_normalized=$(echo "$kaja_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+    
+    if [ "$ts_err_normalized" = "$kaja_err_normalized" ]; then
+      PASS=$((PASS + 1))
+      if [ "$SUMMARY_ONLY" = false ]; then
+        echo "PASS $test_name (both failed with same error)"
+      fi
+    else
+      FAIL=$((FAIL + 1))
+      diff_output=$(diff -u \
+        <(echo "$ts_err" | sed 's/[[:space:]]*$//') \
+        <(echo "$kaja_err" | sed 's/[[:space:]]*$//') \
+        2>&1) || true
+      diff_header="--- protoc-gen-ts error\n+++ protoc-gen-kaja error"
+      ERRORS="$ERRORS\n--- $test_name (error mismatch) ---\n$diff_header\n$diff_output"
+      if [ "$SUMMARY_ONLY" = false ]; then
+        echo "FAIL $test_name (error mismatch)"
+        echo -e "$diff_header"
+        echo "$diff_output" | head -40
+        echo ""
+      fi
+    fi
+    return
+  fi
+
+  # If one succeeded and the other failed, it's a failure
+  if [ "$ts_ok" != "$kaja_ok" ]; then
+    FAIL=$((FAIL + 1))
+    if [ "$ts_ok" = true ]; then
+      error_msg="protoc-gen-kaja failed but protoc-gen-ts succeeded"
+      kaja_err=$(cat "$kaja_error_file" 2>/dev/null || echo "(no error output)")
+      ERRORS="$ERRORS\n--- $test_name ---\n$error_msg\n\nKaja error:\n$kaja_err"
+    else
+      error_msg="protoc-gen-ts failed but protoc-gen-kaja succeeded"
+      ts_err=$(cat "$ts_error_file" 2>/dev/null || echo "(no error output)")
+      ERRORS="$ERRORS\n--- $test_name ---\n$error_msg\n\nTS error:\n$ts_err"
+    fi
+    if [ "$SUMMARY_ONLY" = false ]; then
+      echo "FAIL $test_name"
+      if [ "$ts_ok" = true ]; then
+        echo "  protoc-gen-kaja failed but protoc-gen-ts succeeded"
+        echo ""
+        echo "Kaja error:"
+        echo "$kaja_err" | head -20
+      else
+        echo "  protoc-gen-ts failed but protoc-gen-kaja succeeded"
+        echo ""
+        echo "TS error:"
+        echo "$ts_err" | head -20
+      fi
+      echo ""
+    fi
+    return
+  fi
 
   # Compare outputs
   diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
@@ -123,7 +182,12 @@ run_test() {
 for test_dir in "$TESTS_DIR"/*/; do
   if [ -d "$test_dir" ]; then
     test_name="$(basename "$test_dir")"
-    run_test "$test_name" "$test_dir" "false"
+    # Test 28_comprehensive needs recursive scanning due to subdirectories
+    if [ "$test_name" = "28_comprehensive" ]; then
+      run_test "$test_name" "$test_dir" "true"
+    else
+      run_test "$test_name" "$test_dir" "false"
+    fi
   fi
 done
 

@@ -177,20 +177,6 @@ Implementation:
 
 ## Status
 
-**ALL TESTS PASSING: 29/29 (100%)**
 
-The Go implementation of `protoc-gen-kaja` now produces exactly the same TypeScript output as the original `protoc-gen-ts` plugin across all test cases including:
-- Basic messages, enums, and services
-- Proto2 and proto3 syntax
-- Nested types and imports
-- Oneofs and maps  
-- Optional fields (proto2 and proto3 explicit optional)
-- Reserved fields and proto2 groups
-- Comment handling (leading, trailing, detached)
-- Empty messages
-- Large API-first files (teams, users)
-- Complex real-world schemas (grpcbin, quirks)
-
-DONE
 
 

@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package ecommerce.auth;
+
+import "common/types.proto";
+
+// User role enum
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_CUSTOMER = 1;
+  ROLE_ADMIN = 2;
+  ROLE_SUPPORT = 3;
+}
+
+// Nested permission message
+message Permission {
+  string resource = 1;
+  repeated string actions = 2;
+  
+  message Scope {
+    string type = 1;
+    repeated string ids = 2;
+  }
+  
+  Scope scope = 3;
+}
+
+// User profile with nested messages
+message UserProfile {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  Role role = 4;
+  common.Address address = 5;
+  repeated Permission permissions = 6;
+  common.Metadata metadata = 7;
+  common.AuditInfo audit = 8;
+  
+  // Nested preferences
+  message Preferences {
+    string language = 1;
+    string timezone = 2;
+    bool email_notifications = 3;
+    bool sms_notifications = 4;
+  }
+  
+  Preferences preferences = 9;
+}
+
+// Authentication request with oneof
+message AuthRequest {
+  oneof credentials {
+    string password = 1;
+    string oauth_token = 2;
+    string api_key = 3;
+  }
+  string username = 4;
+  string device_id = 5;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  UserProfile profile = 3;
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  Role role = 4;
+  common.Address address = 5;
+}
+
+message CreateUserResponse {
+  UserProfile profile = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  UserProfile profile = 1;
+}
+
+// Auth service
+service AuthService {
+  rpc Authenticate(AuthRequest) returns (AuthResponse);
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
