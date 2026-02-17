@@ -947,6 +947,11 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if needsServiceType {
 			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
 		}
+		// Add ScalarType and LongType for wrappers - must come first
+		if isWrapper {
+			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { LongType } from \"@protobuf-ts/runtime\";")
+		}
 		if hasAnyFields && wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
@@ -1003,12 +1008,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 		
 		// Add JSON imports for wrapper types
 		if isWrapper {
-			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { PbULong } from \"@protobuf-ts/runtime\";")
 		}
 		
 		// Add JSON imports for Any
@@ -4281,33 +4283,40 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.indent = "        "
 		g.p("if (message.kind.oneofKind === undefined)")
 		g.indent = "            "
-		g.p("throw new Error(\"Unable to encode Value to JSON. Must have a value.\");")
+		g.p("%s", "throw new globalThis.Error();")
 		g.indent = "        "
 		g.p("switch (message.kind.oneofKind) {")
 		g.indent = "            "
-		g.p("case \"nullValue\":")
-		g.indent = "                "
-		g.p("return null;")
-		g.indent = "            "
+		g.p("case undefined: throw new globalThis.Error();")
+		g.p("case \"boolValue\": return message.kind.boolValue;")
+		g.p("case \"nullValue\": return null;")
 		g.p("case \"numberValue\":")
 		g.indent = "                "
-		g.p("return message.kind.numberValue;")
-		g.indent = "            "
-		g.p("case \"stringValue\":")
+		g.p("let numberValue = message.kind.numberValue;")
+		g.p("if (typeof numberValue == \"number\" && !Number.isFinite(numberValue))")
+		g.indent = "                    "
+		g.p("%s", "throw new globalThis.Error();")
 		g.indent = "                "
-		g.p("return message.kind.stringValue;")
+		g.p("return numberValue;")
 		g.indent = "            "
-		g.p("case \"boolValue\":")
+		g.p("case \"stringValue\": return message.kind.stringValue;")
+		g.p("case \"listValue\":")
 		g.indent = "                "
-		g.p("return message.kind.boolValue;")
+		g.p("let listValueField = this.fields.find(f => f.no === 6);")
+		g.p("if (listValueField?.kind !== \"message\")")
+		g.indent = "                    "
+		g.p("%s", "throw new globalThis.Error();")
+		g.indent = "                "
+		g.p("return listValueField.T().toJson(message.kind.listValue);")
 		g.indent = "            "
 		g.p("case \"structValue\":")
 		g.indent = "                "
-		g.p("return Struct.internalJsonWrite(message.kind.structValue, options);")
-		g.indent = "            "
-		g.p("case \"listValue\":")
+		g.p("let structValueField = this.fields.find(f => f.no === 5);")
+		g.p("if (structValueField?.kind !== \"message\")")
+		g.indent = "                    "
+		g.p("%s", "throw new globalThis.Error();")
 		g.indent = "                "
-		g.p("return ListValue.internalJsonWrite(message.kind.listValue, options);")
+		g.p("return structValueField.T().toJson(message.kind.structValue);")
 		g.indent = "        "
 		g.p("}")
 		g.indent = "    "
@@ -4346,20 +4355,20 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.indent = "                    "
 		g.p("target.kind = { oneofKind: \"nullValue\", nullValue: NullValue.NULL_VALUE };")
 		g.indent = "                "
-		g.p("} else if (Array.isArray(json)) {")
+		g.p("}")
+		g.p("else if (globalThis.Array.isArray(json)) {")
 		g.indent = "                    "
-		g.p("target.kind = { oneofKind: \"listValue\", listValue: ListValue.internalJsonRead(json, options) };")
+		g.p("target.kind = { oneofKind: \"listValue\", listValue: ListValue.fromJson(json) };")
 		g.indent = "                "
-		g.p("} else {")
+		g.p("}")
+		g.p("else {")
 		g.indent = "                    "
-		g.p("target.kind = { oneofKind: \"structValue\", structValue: Struct.internalJsonRead(json, options) };")
+		g.p("target.kind = { oneofKind: \"structValue\", structValue: Struct.fromJson(json) };")
 		g.indent = "                "
 		g.p("}")
 		g.p("break;")
 		g.indent = "            "
-		g.p("default:")
-		g.indent = "                "
-		g.p("throw new Error(\"Unable to parse Value from JSON \" + typeofJsonValue(json) + \".\");")
+		g.p("default: throw new globalThis.Error(\"Unable to parse \" + this.typeName + \" from JSON \" + typeofJsonValue(json));")
 		g.indent = "        "
 		g.p("}")
 		g.p("return target;")
@@ -4372,7 +4381,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p(" */")
 		g.p("internalJsonWrite(message: ListValue, options: JsonWriteOptions): JsonValue {")
 		g.indent = "        "
-		g.p("return message.values.map(v => Value.internalJsonWrite(v, options));")
+		g.p("return message.values.map(v => Value.toJson(v));")
 		g.indent = "    "
 		g.p("}")
 		
@@ -4382,15 +4391,16 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p(" */")
 		g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: ListValue): ListValue {")
 		g.indent = "        "
-		g.p("if (!Array.isArray(json))")
+		g.p("if (!globalThis.Array.isArray(json))")
 		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse ListValue from JSON \" + typeofJsonValue(json) + \".\");")
+		g.p("%s", "throw new globalThis.Error(\"Unable to parse \" + this.typeName + \" from JSON \" + typeofJsonValue(json));")
 		g.indent = "        "
 		g.p("if (!target)")
 		g.indent = "            "
 		g.p("target = this.create();")
 		g.indent = "        "
-		g.p("target.values = json.map(v => Value.internalJsonRead(v, options));")
+		g.p("let values = json.map(v => Value.fromJson(v));")
+		g.p("target.values.push(...values);")
 		g.p("return target;")
 		g.indent = "    "
 		g.p("}")
@@ -4400,106 +4410,107 @@ func (g *generator) generateStructMethods(typeName string) {
 func (g *generator) generateWrapperMethods(typeName string) {
 	g.indent = "    "
 	
-	// internalJsonWrite() method - all wrappers write the value directly
+	// internalJsonWrite() method
 	g.p("/**")
-	g.p(" * Encode `%s` to JSON value.", typeName)
+	switch typeName {
+	case "DoubleValue":
+		g.p(" * Encode `%s` to JSON number.", typeName)
+	case "FloatValue":
+		g.p(" * Encode `%s` to JSON number.", typeName)
+	case "Int64Value":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	case "UInt64Value":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	case "Int32Value":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	case "UInt32Value":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	case "BoolValue":
+		g.p(" * Encode `%s` to JSON bool.", typeName)
+	case "StringValue":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	case "BytesValue":
+		g.p(" * Encode `%s` to JSON string.", typeName)
+	}
 	g.p(" */")
 	g.p("internalJsonWrite(message: %s, options: JsonWriteOptions): JsonValue {", typeName)
 	g.indent = "        "
-	g.p("return message.value;")
+	
+	// Handle write based on type
+	switch typeName {
+	case "DoubleValue":
+		g.p("return this.refJsonWriter.scalar(2, message.value, \"value\", false, true);")
+	case "FloatValue":
+		g.p("return this.refJsonWriter.scalar(1, message.value, \"value\", false, true);")
+	case "Int64Value":
+		g.p("return this.refJsonWriter.scalar(ScalarType.INT64, message.value, \"value\", false, true);")
+	case "UInt64Value":
+		g.p("return this.refJsonWriter.scalar(ScalarType.UINT64, message.value, \"value\", false, true);")
+	case "Int32Value":
+		g.p("return this.refJsonWriter.scalar(5, message.value, \"value\", false, true);")
+	case "UInt32Value":
+		g.p("return this.refJsonWriter.scalar(13, message.value, \"value\", false, true);")
+	case "BoolValue":
+		g.p("return message.value;")
+	case "StringValue":
+		g.p("return message.value;")
+	case "BytesValue":
+		g.p("return this.refJsonWriter.scalar(12, message.value, \"value\", false, true);")
+	}
+	
 	g.indent = "    "
 	g.p("}")
 	
-	// internalJsonRead() method - type-specific handling
+	// internalJsonRead() method
 	g.p("/**")
-	g.p(" * Decode `%s` from JSON value.", typeName)
+	switch typeName {
+	case "DoubleValue":
+		g.p(" * Decode `%s` from JSON number.", typeName)
+	case "FloatValue":
+		g.p(" * Decode `%s` from JSON number.", typeName)
+	case "Int64Value":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	case "UInt64Value":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	case "Int32Value":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	case "UInt32Value":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	case "BoolValue":
+		g.p(" * Decode `%s` from JSON bool.", typeName)
+	case "StringValue":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	case "BytesValue":
+		g.p(" * Decode `%s` from JSON string.", typeName)
+	}
 	g.p(" */")
 	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: %s): %s {", typeName, typeName)
 	g.indent = "        "
+	g.p("if (!target)")
+	g.indent = "            "
+	g.p("target = this.create();")
+	g.indent = "        "
 	
-	// Type checking based on wrapper type
+	// Handle read based on type
 	switch typeName {
-	case "DoubleValue", "FloatValue":
-		g.p("if (typeof json !== \"number\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse %s from JSON \" + typeofJsonValue(json) + \".\");", typeName)
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = json;")
-	case "Int32Value", "UInt32Value":
-		g.p("if (typeof json !== \"number\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse %s from JSON \" + typeofJsonValue(json) + \".\");", typeName)
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = json;")
+	case "DoubleValue":
+		g.p("target.value = this.refJsonReader.scalar(json, 1, undefined, \"value\") as number;")
+	case "FloatValue":
+		g.p("target.value = this.refJsonReader.scalar(json, 1, undefined, \"value\") as number;")
 	case "Int64Value":
-		g.p("if (typeof json !== \"number\" && typeof json !== \"string\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse Int64Value from JSON \" + typeofJsonValue(json) + \".\");")
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = typeof json === \"number\" ? PbLong.from(json).toString() : json;")
+		g.p("target.value = this.refJsonReader.scalar(json, ScalarType.INT64, LongType.STRING, \"value\") as any;")
 	case "UInt64Value":
-		g.p("if (typeof json !== \"number\" && typeof json !== \"string\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse UInt64Value from JSON \" + typeofJsonValue(json) + \".\");")
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = typeof json === \"number\" ? PbULong.from(json).toString() : json;")
+		g.p("target.value = this.refJsonReader.scalar(json, ScalarType.UINT64, LongType.STRING, \"value\") as any;")
+	case "Int32Value":
+		g.p("target.value = this.refJsonReader.scalar(json, 5, undefined, \"value\") as number;")
+	case "UInt32Value":
+		g.p("target.value = this.refJsonReader.scalar(json, 13, undefined, \"value\") as number;")
 	case "BoolValue":
-		g.p("if (typeof json !== \"boolean\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse BoolValue from JSON \" + typeofJsonValue(json) + \".\");")
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = json;")
+		g.p("target.value = this.refJsonReader.scalar(json, 8, undefined, \"value\") as boolean;")
 	case "StringValue":
-		g.p("if (typeof json !== \"string\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse StringValue from JSON \" + typeofJsonValue(json) + \".\");")
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("target.value = json;")
+		g.p("target.value = this.refJsonReader.scalar(json, 9, undefined, \"value\") as string;")
 	case "BytesValue":
-		g.p("if (typeof json !== \"string\")")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse BytesValue from JSON \" + typeofJsonValue(json) + \".\");")
-		g.indent = "        "
-		g.p("if (!target)")
-		g.indent = "            "
-		g.p("target = this.create();")
-		g.indent = "        "
-		g.p("// Base64 decode")
-		g.p("let bytes;")
-		g.p("try {")
-		g.indent = "            "
-		g.p("bytes = Uint8Array.from(atob(json), c => c.charCodeAt(0));")
-		g.indent = "        "
-		g.p("} catch (e) {")
-		g.indent = "            "
-		g.p("throw new Error(\"Unable to parse BytesValue from JSON. Invalid base64.\");")
-		g.indent = "        "
-		g.p("}")
-		g.p("target.value = bytes;")
+		g.p("target.value = this.refJsonReader.scalar(json, 12, undefined, \"value\") as Uint8Array;")
 	}
 	
 	g.p("return target;")

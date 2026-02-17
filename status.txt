@@ -1,1 +1,1 @@
-IN_PROGRESS: 40/41 tests passing. Need to implement WKT custom JSON methods for FieldMask, Struct family, and wrapper types.
+IN_PROGRESS: 40/41 tests passing. Core generation complete. Remaining: Exact Struct/Value JSON method implementation (switch order, error messages, dynamic field lookups).
