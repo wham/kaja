@@ -526,10 +526,11 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
 				// Blank line before the license header
 				g.pNoIndent("//")
-				for _, detached := range loc.LeadingDetachedComments {
-					comments := strings.TrimSpace(detached)
-					if comments != "" {
-						for _, line := range strings.Split(comments, "\n") {
+				for idx, detached := range loc.LeadingDetachedComments {
+					// Don't use TrimSpace - it removes trailing newlines which represent blank // lines
+					// Just check if the comment has any non-whitespace content
+					if strings.TrimSpace(detached) != "" {
+						for _, line := range strings.Split(detached, "\n") {
 							line = strings.TrimRight(line, " \t")
 							if line == "" {
 								g.pNoIndent("//")
@@ -541,8 +542,10 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 								g.pNoIndent("// %s", line)
 							}
 						}
-						// Add blank line after detached comment block
-						g.pNoIndent("//")
+						// Add blank line separator after detached comment block (except for last block)
+						if idx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
 					}
 				}
 			}
@@ -1544,6 +1547,35 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		fullName = fullName + fmt.Sprintf("$%d", suffix)
 	}
 	
+	// Output message-level detached comments (comments between messages)
+	// Skip for first message - those are output as file-level comments after imports
+	isFirstMessage := len(msgPath) == 2 && msgPath[0] == 4 && msgPath[1] == 0
+	if len(msgPath) > 0 && !isFirstMessage {
+		detachedComments := g.getLeadingDetachedComments(msgPath)
+		if len(detachedComments) > 0 {
+			// Output detached comments as // style BEFORE message JSDoc
+			for idx, detached := range detachedComments {
+				// Trim trailing newline (it will be represented by blank line or separator)
+				detached = strings.TrimRight(detached, "\n")
+				// Split by newline and output each line
+				for _, line := range strings.Split(detached, "\n") {
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.pNoIndent("//")
+					} else {
+						g.pNoIndent("// %s", line)
+					}
+				}
+				// Add blank line separator after detached comment block (except for last block)
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("//")
+				}
+			}
+			// Add blank line after all detached comments, before JSDoc
+			g.pNoIndent("")
+		}
+	}
+	
 	// Message interface first
 	g.pNoIndent("/**")
 	
@@ -1731,44 +1763,34 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32, isNotFirstField bool) {
 	g.indent = "    "
 	
-	// Add leading detached comments
-	// If this is the first field, detached comments are part of the field JSDoc
-	// If this is not the first field, detached comments should be output as // style before JSDoc
+	// Add leading detached comments (always as // style before JSDoc)
 	if len(fieldPath) > 0 {
 		detachedComments := g.getLeadingDetachedComments(fieldPath)
-		if len(detachedComments) > 0 && isNotFirstField {
-			// Not first field - output detached comments as // style BEFORE JSDoc
-			for _, detached := range detachedComments {
-				// For // style output, trim trailing empty lines
+		if len(detachedComments) > 0 {
+			// Output detached comments as // style BEFORE JSDoc
+			for idx, detached := range detachedComments {
+				// Trim trailing newline (it will be represented by blank line or separator)
 				detached = strings.TrimRight(detached, "\n")
+				// Split by newline and output each line
 				for _, line := range strings.Split(detached, "\n") {
-					g.p("// %s", line)
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.p("//")
+					} else {
+						g.p("// %s", line)
+					}
+				}
+				// Add blank line separator after detached comment block (except for last block)
+				if idx < len(detachedComments)-1 {
+					g.p("//")
 				}
 			}
+			// Add blank line after all detached comments, before JSDoc
 			g.pNoIndent("")
 		}
 	}
 	
 	g.p("/**")
-	
-	// Add detached comments inside JSDoc if this is the first field
-	hasDetachedComments := false
-	if len(fieldPath) > 0 && !isNotFirstField {
-		detachedComments := g.getLeadingDetachedComments(fieldPath)
-		if len(detachedComments) > 0 {
-			hasDetachedComments = true
-			// First field - output detached comments INSIDE JSDoc
-			for _, detached := range detachedComments {
-				for _, line := range strings.Split(detached, "\n") {
-					if line == "" {
-						g.p(" *")
-					} else {
-						g.p(" * %s", line)
-					}
-				}
-			}
-		}
-	}
 	
 	// Add leading comments if fieldPath is provided
 	hasLeadingComments := false
@@ -1798,7 +1820,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		g.p(" *")
 	}
 	// Add standard blank line before @generated (if we had any comments)
-	if hasDetachedComments || hasLeadingComments {
+	if hasLeadingComments {
 		g.p(" *")
 	}
 	
