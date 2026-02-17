@@ -37,6 +37,8 @@ and your job is find at least one additional case where the tests will fail.
 
 8. **Reserved object properties are checked AFTER lowerCamelCase:** In TS plugin's `createTypescriptNameForField()`, the reserved check happens AFTER converting to lowerCamelCase. So `__proto__` becomes `Proto` first, then checked against `['__proto__', 'toString']` - which doesn't match. But `toString` stays `toString` and matches, so it becomes `toString$`. The Go plugin needs to apply the same logic.
 
+9. **Nested imported types must be individually imported:** When a service method uses nested types from another package (e.g., `types.Container.String`), each nested type must be imported separately as `Container_String`, `Container_Array`, etc. The TS plugin uses a symbol table to track which exact types are used and imports only those. The Go implementation incorrectly imports the parent type `Container` when it sees any nested type reference like `types.Container.String`, but then references `Container_String` which was never imported. This affects service method I/O type declarations.
+
 ### How to run tests
 
 ```bash

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package types;
+
+// Outer message with nested reserved type names
+message Container {
+  // Nested message with a reserved TypeScript type name
+  message String {
+    string value = 1;
+  }
+  
+  // Another nested reserved name
+  message Array {
+    repeated string items = 1;
+  }
+  
+  // Nested Number
+  message Number {
+    int32 value = 1;
+  }
+  
+  // A field using one of the nested types
+  String str = 1;
+  Array arr = 2;
+}
+
+// Top-level reserved type
+message Boolean {
+  bool value = 1;
+}
