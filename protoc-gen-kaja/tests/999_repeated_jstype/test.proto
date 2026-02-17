@@ -1,0 +1,13 @@
+syntax = "proto2";
+package test;
+
+message Values {
+  // Repeated int64 with JS_NUMBER jstype
+  repeated int64 numbers = 1 [jstype = JS_NUMBER];
+  
+  // Repeated int64 with JS_STRING jstype  
+  repeated int64 ids = 2 [jstype = JS_STRING];
+  
+  // Repeated int64 without jstype (should use global long_type)
+  repeated int64 default_longs = 3;
+}
