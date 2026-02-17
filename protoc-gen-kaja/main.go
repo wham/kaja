@@ -1554,6 +1554,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
+	// Add @deprecated if message has deprecated option
+	if msg.Options != nil && msg.GetOptions().GetDeprecated() {
+		g.pNoIndent(" * @deprecated")
+	}
+	
 	g.pNoIndent(" * @generated from protobuf message %s%s", pkgPrefix, protoName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", fullName)
@@ -1800,7 +1805,15 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation)
+	// Check if field is deprecated
+	deprecatedAnnotation := ""
+	if field.Options != nil && field.GetOptions().GetDeprecated() {
+		deprecatedAnnotation = " [deprecated = true]"
+		// Add @deprecated tag before @generated
+		g.p(" * @deprecated")
+	}
+	
+	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation)
 	g.p(" */")
 	
 	fieldName = g.propertyName(field)
@@ -2801,7 +2814,17 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
 		}
 		
-		g.p("case /* %s %s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, field.GetNumber())
+		// Add deprecated annotation if applicable
+		deprecatedAnnotation := ""
+		if field.Options != nil && field.GetOptions().GetDeprecated() {
+			// For inline comment, show field number and deprecated annotation
+			if fieldNumberInComment == "" {
+				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
+			}
+			deprecatedAnnotation = " [deprecated = true]"
+		}
+		
+		g.p("case /* %s %s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -2998,7 +3021,13 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
 		}
 		
-		g.p("/* %s %s = %d%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation)
+		// Add deprecated annotation if applicable
+		deprecatedAnnotation := ""
+		if field.Options != nil && field.GetOptions().GetDeprecated() {
+			deprecatedAnnotation = " [deprecated = true]"
+		}
+		
+		g.p("/* %s %s = %d%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation)
 		
 		// Check if this is a real oneof (not proto3 optional)
 		isRealOneof := false
@@ -3144,6 +3173,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Export constant
 	g.pNoIndent("/**")
+	// Add @deprecated if message has deprecated option
+	if msg.Options != nil && msg.GetOptions().GetDeprecated() {
+		g.pNoIndent(" * @deprecated")
+	}
 	g.pNoIndent(" * @generated MessageType for protobuf message %s", typeName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export const %s = new %s();", fullName, className)
@@ -3591,6 +3624,11 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		}
 	}
 	
+	// Add @deprecated if enum has deprecated option
+	if enum.Options != nil && enum.GetOptions().GetDeprecated() {
+		g.pNoIndent(" * @deprecated")
+	}
+	
 	// protoParentPrefix already has dots as separators
 	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, protoName)
 	g.pNoIndent(" */")
@@ -3654,7 +3692,18 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 			g.p(" *")
 		}
 		
-		g.p(" * @generated from protobuf enum value: %s = %d;", value.GetName(), value.GetNumber())
+		// Add @deprecated if value has deprecated option
+		if value.Options != nil && value.GetOptions().GetDeprecated() {
+			g.p(" * @deprecated")
+		}
+		
+		// Build the @generated line with deprecated annotation if applicable
+		deprecatedAnnotation := ""
+		if value.Options != nil && value.GetOptions().GetDeprecated() {
+			deprecatedAnnotation = " [deprecated = true]"
+		}
+		
+		g.p(" * @generated from protobuf enum value: %s = %d%s;", value.GetName(), value.GetNumber(), deprecatedAnnotation)
 		g.p(" */")
 		
 		// Strip common prefix
@@ -4144,6 +4193,11 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
+	// Add @deprecated if service has deprecated option
+	if service.Options != nil && service.GetOptions().GetDeprecated() {
+		g.pNoIndent(" * @deprecated")
+	}
+	
 	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, baseName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", clientName)
@@ -4192,6 +4246,11 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p(" *")
 		}
 		
+		// Add @deprecated if method has deprecated option
+		if method.Options != nil && method.GetOptions().GetDeprecated() {
+			g.p(" * @deprecated")
+		}
+		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
 		g.p(" */")
 		
@@ -4236,6 +4295,11 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			}
 			g.pNoIndent(" *")
 		}
+	}
+	
+	// Add @deprecated if service has deprecated option
+	if service.Options != nil && service.GetOptions().GetDeprecated() {
+		g.pNoIndent(" * @deprecated")
 	}
 	
 	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, baseName)
@@ -4289,6 +4353,11 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				}
 			}
 			g.p(" *")
+		}
+		
+		// Add @deprecated if method has deprecated option
+		if method.Options != nil && method.GetOptions().GetDeprecated() {
+			g.p(" * @deprecated")
 		}
 		
 		g.p(" * @generated from protobuf rpc: %s", method.GetName())
@@ -4448,6 +4517,10 @@ escapedSvcName := escapeTypescriptKeyword(svcName)
 fullName := pkgPrefix + svcName
 
 g.pNoIndent("/**")
+// Add @deprecated if service has deprecated option
+if svc.Options != nil && svc.GetOptions().GetDeprecated() {
+	g.pNoIndent(" * @deprecated")
+}
 g.pNoIndent(" * @generated ServiceType for protobuf service %s", fullName)
 g.pNoIndent(" */")
 g.pNoIndent("export const %s = new ServiceType(\"%s\", [", escapedSvcName, fullName)

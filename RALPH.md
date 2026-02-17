@@ -66,10 +66,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix doubly-nested type imports (Outer.Middle.Inner → import Outer_Middle_Inner)
 - [x] Fix client file import path resolution (check dependencies first, not just package match)
 - [x] Add synthetic zero value for enums without zero (UNSPECIFIED$ = 0)
+- [x] Implement deprecated option support (messages, fields, enums, enum values, services, methods)
 
-**STATUS: 66/66 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 67/67 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including enum synthetic zero values for proto2 enums that don't define a zero value.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including the deprecated option support for all descriptor types.
 
 ## Notes
 
