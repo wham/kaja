@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package test;
+
+// This entire file is deprecated
+option deprecated = true;
+
+// Top-level message in a deprecated file
+message DeprecatedMessage {
+  string name = 1;
+  int32 age = 2;
+}
+
+// Top-level enum in a deprecated file
+enum DeprecatedStatus {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+
+// Top-level service in a deprecated file
+service DeprecatedService {
+  rpc GetStatus(DeprecatedMessage) returns (DeprecatedMessage);
+}
