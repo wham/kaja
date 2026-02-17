@@ -53,12 +53,13 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix google.protobuf.Any first field JSDoc blank line count (needs 2 blank lines before @generated)
 - [x] Implement google.protobuf.FieldMask custom methods
 - [x] Add oneof field leading comments support
-- [ ] Fix google.protobuf.Struct/Value/ListValue JSON methods (need exact switch order and error messages)
+- [x] Fix google.protobuf.Struct/Value/ListValue JSON methods (need exact switch order and error messages)
 - [x] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
+- [x] Fix service method leading detached comments (output as // style between methods)
 
-**STATUS: 40/41 tests passing (92_all_wkt - needs exact Struct/Value method implementation matching)**
+**STATUS: 42/42 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The core protoc-gen-ts → Go port is essentially complete. All message generation, service generation, field types, comments, import ordering, and most WKT custom methods are working correctly. The remaining issue is that Struct/Value JSON methods need the exact implementation details (switch case order, error message format, dynamic field lookups) to match protoc-gen-ts output.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, and method-level detached comments.
 
 ## Notes
 
@@ -113,6 +114,36 @@ Implementation:
 - `getLeadingDetachedComments()` extracts these 
 - Field detached comments are output before the field's JSDoc in `generateField()`
 - File-level detached comments (from first message) are output after `writeImports()` and before message generation
+
+**Service method detached comments**: Comments between service methods (not attached to any method) are stored as `LeadingDetachedComments` for the following method. These should be output as `//` style comments BEFORE the method's JSDoc block (similar to field detached comments).
+
+Example proto:
+```proto
+service TestService {
+  rpc Name(Request) returns (Response);
+  
+  // Comment between methods
+  // Multiple lines
+  
+  rpc Constructor(Request) returns (Response);
+}
+```
+
+Expected output:
+```typescript
+export interface ITestServiceClient {
+    /** ... */
+    name$(...): ...;
+    // Comment between methods
+    // Multiple lines
+
+    /** ... */
+    constructor$(...): ...;
+}
+```
+
+Implementation: Check `methodIdx > 0` and output detached comments as `//` style before JSDoc in both interface and implementation class.
+
 
 ### WireType Import Ordering (SOLVED)
 The position of `import { WireType }` relative to `BinaryWriteOptions` depends on file structure:

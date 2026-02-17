@@ -3684,10 +3684,26 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
+		// Add method-level leading detached comments if this is not the first method
+		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
+		if methodIdx > 0 {
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				// Not first method - output detached comments as // style BEFORE JSDoc
+				for _, detached := range detachedComments {
+					// For // style output, trim trailing empty lines
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						g.p("// %s", line)
+					}
+				}
+				g.pNoIndent("")
+			}
+		}
+		
 		g.p("/**")
 		
 		// Add method-level leading comments if available
-		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
 		leadingComments := g.getLeadingComments(methodPath)
 		if leadingComments != "" {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
@@ -3767,10 +3783,26 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
+		// Add method-level leading detached comments if this is not the first method
+		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
+		if methodIdx > 0 {
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				// Not first method - output detached comments as // style BEFORE JSDoc
+				for _, detached := range detachedComments {
+					// For // style output, trim trailing empty lines
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						g.p("// %s", line)
+					}
+				}
+				g.pNoIndent("")
+			}
+		}
+		
 		g.p("/**")
 		
 		// Add method-level leading comments if available
-		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
 		leadingComments := g.getLeadingComments(methodPath)
 		if leadingComments != "" {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
