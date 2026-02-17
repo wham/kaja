@@ -17,23 +17,19 @@ and your job is find at least one additional case where the tests will fail.
 
 ### Tricks to Find Bugs
 
-1. **Test well-known types comprehensively:** The Go implementation handles standard well-known types (`google.protobuf.*`) but may have differences in:
-   - Import ordering and organization
-   - Comment handling in generated interfaces
-   - Special method generation for types like `Any`, `Struct`, `Duration`
-   - Create a test that imports ALL well-known types at once to expose these differences
+1. **Reserved type names apply to SERVICE names too:** The `tsReservedTypeNames` list (Array, String, Number, etc.) is checked not only for message/enum types but also for service names. A service named `Array` should be exported as `Array$`, not `Array`. This is checked in `createLocalTypeName()` which is used for messages, enums, AND services.
 
-2. **Check reserved word lists:** TypeScript has multiple lists:
-   - `reservedKeywords` - for type and identifier names
-   - `reservedTypeNames` - for type names like `Array`, `String`
-   - `reservedObjectProperties` - for field names like `__proto__`, `toString`
-   - `reservedClassProperties` - for METHOD names
+2. **Check ALL contexts where reserved names are used:**
+   - Message/enum/service type names: Check against `reservedKeywords` + `reservedTypeNames`
+   - Field names: Check against `reservedObjectProperties` (__proto__, toString) after lowerCamelCase
+   - Method names: Check against `reservedClassProperties` after lowerCamelCase
+   - Each context has different reserved lists!
 
-3. **Method name escaping is different from field name escaping:** Methods can collide with built-in class properties AND gRPC client methods.
+3. **lowerCamelCase strips leading underscores:** Any proto name like `__proto__` or `_transport` becomes `Proto` or `Transport` after lowerCamelCase. The reserved lists contain `__proto__` and `_transport`, but these can only trigger with the `use_proto_field_name` option (which preserves original field names).
 
-4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic. The `createTypescriptNameForMethod` function in `interpreter.ts` is the source of truth for method name escaping.
+4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` for type name escaping and `interpreter.ts` for field/method name escaping. These are separate code paths with different reserved word lists.
 
-5. **Nested type naming collision:** When a nested type name alone is a reserved word (like `String`, `Array`), the full path with underscore separator (e.g., `Outer_String`) is used to avoid collision. The Go implementation may incorrectly use just the short name, causing TypeScript compilation errors.
+5. **Test each type of declaration:** Messages, enums, services, fields, methods, and oneof each have their own naming rules. A reserved name that's OK in one context (e.g., `case` as a field name in an object literal) might not work in another (e.g., as a standalone identifier).
 
 ### How to run tests
 
