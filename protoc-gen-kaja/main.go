@@ -1704,14 +1704,16 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 				for _, line := range strings.Split(detached, "\n") {
 					line = strings.TrimRight(line, " \t")
 					if line == "" {
-						g.pNoIndent("//")
+						// For message-level: blank lines within blocks are "// " (with space)
+						g.pNoIndent("// ")
 					} else {
 						g.pNoIndent("// %s", line)
 					}
 				}
-				// Add blank line separator after detached comment block (except for last block)
+				// Add separator after detached comment block (except for last block)
+				// For message-level: separator is a blank line (not "//")
 				if idx < len(detachedComments)-1 {
-					g.pNoIndent("//")
+					g.pNoIndent("")
 				}
 			}
 			// Add blank line after all detached comments, before JSDoc
