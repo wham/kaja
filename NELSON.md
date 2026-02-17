@@ -16,11 +16,67 @@ and your job is find at least one additional case where the tests will fail.
 
 ## Plan
 
-- [ ] Analyze the source code 
-- [ ] TODO
+- [x] Analyze the source code 
+- [x] Clone TS plugin source and compare
+- [x] Identify bug in nested type name escaping
+- [x] Create failing test (31_nested_with_keyword)
+- [x] Run tests to confirm failure
+- [ ] Commit and update status.txt
 
 ## Notes
 
+### Bug Found: Incorrect Keyword Escaping for Nested Types
+
+**The Bug:**
+The Go implementation escapes individual component names BEFORE merging them with underscores, while the TypeScript implementation merges first, THEN checks if the final merged name is a reserved keyword.
+
+**Example:**
+- Proto: `message Outer { message class { string value = 1; } }`
+- Full type name: `.test.Outer.class`
+- After removing package: `Outer.class`
+
+**TypeScript (Correct):**
+1. Replace dots with underscores: `Outer.class` → `Outer_class`
+2. Check if `Outer_class` is a reserved keyword → NO
+3. Final name: `Outer_class`
+
+**Go (Incorrect):**
+1. Escape each component: `Outer` (OK), `class` → `class$`
+2. Merge with underscores: `Outer_class$`
+3. Final name: `Outer_class$` (WRONG!)
+
+**Test results:**
+- Expected: `export interface Outer_class`
+- Actual: `export interface Outer_class$`
+
+**More complex example:**
+- Proto: `message Level1 { message interface { message type { } } }`
+- Expected: `Level1_interface_type`
+- Actual: `Level1_interface$_type$` (escapes BOTH components!)
+
+**The Fix:**
+The Go code needs to:
+1. Build the full merged name first (with underscores)
+2. Then check if the FINAL name is a reserved keyword
+3. Only escape if the final merged name matches a reserved word
+
+### How to run tests
+
+```bash
+cd /Users/tom-newotny/kaja/protoc-gen-kaja
+./scripts/test
+./scripts/test --summary  # Just show pass/fail summary
+```
+
+### Code structure
+
+- `main.go`: Main plugin implementation
+- `tests/`: Test cases with .proto files
+- `scripts/test`: Test runner that compares protoc-gen-kaja output vs protoc-gen-ts
+- The bug is in `generateMessageInterface` and `generateMessageClass` functions
+- They call `escapeTypescriptKeyword(baseName)` for each nesting level
+- Should instead escape only the final merged name
+
 ## Status
 
-All tests passing - bad.
+Test 31_nested_with_keyword is failing - mission accomplished!
