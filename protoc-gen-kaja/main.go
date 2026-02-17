@@ -265,9 +265,11 @@ func (g *generator) getLeadingDetachedComments(path []int32) []string {
 			var result []string
 			for _, comment := range loc.LeadingDetachedComments {
 				// Process each detached comment
-				trimmed := strings.TrimRight(comment, " \t\n")
+				// Don't trim trailing newlines - they represent // blank lines in the proto
+				// Just trim trailing spaces/tabs from the last line
+				comment = strings.TrimRight(comment, " \t")
 				// Strip one leading space from each line (protobuf convention)
-				lines := strings.Split(trimmed, "\n")
+				lines := strings.Split(comment, "\n")
 				for i, line := range lines {
 					line = strings.TrimRight(line, " \t")
 					if line == "" {
@@ -877,13 +879,15 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
-	// Check if this is google.protobuf.Timestamp for special imports
+	// Check if this is google.protobuf.Timestamp or Any for special imports
 	isTimestamp := false
+	isAny := false
 	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
 		for _, msg := range g.file.MessageType {
 			if msg.GetName() == "Timestamp" {
 				isTimestamp = true
-				break
+			} else if msg.GetName() == "Any" {
+				isAny = true
 			}
 		}
 	}
@@ -938,7 +942,10 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if hasAnyFields && !wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
-		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+		// For Any, BinaryReadOptions comes later with JSON imports
+		if !isAny {
+			g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+		}
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
@@ -951,6 +958,18 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add JSON imports for Any
+		if isAny {
+			g.pNoIndent("import { isJsonObject } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { typeofJsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { jsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { IMessageType } from \"@protobuf-ts/runtime\";")
 		}
 		
 		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
@@ -1165,6 +1184,9 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Track which oneofs have been generated
 	generatedOneofs := make(map[int32]bool)
 	
+	// Track if we've generated the first field (for detached comment handling)
+	firstFieldGenerated := false
+	
 	// Generate fields in field number order
 	// When we encounter a field that's part of a oneof, generate the entire oneof at that point
 	for fieldIdx, field := range msg.Field {
@@ -1188,7 +1210,8 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 			
 			if isProto3Optional {
 				// Proto3 optional field - treat as regular optional field
-				g.generateField(field, fullName, fieldPath)
+				g.generateField(field, fullName, fieldPath, firstFieldGenerated)
+				firstFieldGenerated = true
 			} else {
 				// Real oneof - only generate once (when we encounter its first field)
 				if !generatedOneofs[oneofIdx] {
@@ -1206,11 +1229,13 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					oneofCamelName := g.toCamelCase(oneofProtoName)
 					
 					g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, fieldIdx)
+					firstFieldGenerated = true
 				}
 			}
 		} else {
 			// Regular field
-			g.generateField(field, fullName, fieldPath)
+			g.generateField(field, fullName, fieldPath, firstFieldGenerated)
+			firstFieldGenerated = true
 		}
 	}
 	
@@ -1258,44 +1283,56 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 	}
 }
 
-func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32) {
+func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgName string, fieldPath []int32, isNotFirstField bool) {
 	g.indent = "    "
 	
-	// Check for leading detached comments (comments separated from field by blank line)
-	// These should be output as // style comments before the JSDoc
+	// Add leading detached comments
+	// If this is the first field, detached comments are part of the field JSDoc
+	// If this is not the first field, detached comments should be output as // style before JSDoc
 	if len(fieldPath) > 0 {
 		detachedComments := g.getLeadingDetachedComments(fieldPath)
-		for _, detached := range detachedComments {
-			// Output each detached comment as // style
-			g.p("// %s", detached)
+		if len(detachedComments) > 0 && isNotFirstField {
+			// Not first field - output detached comments as // style BEFORE JSDoc
+			for _, detached := range detachedComments {
+				// For // style output, trim trailing empty lines
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					g.p("// %s", line)
+				}
+			}
 			g.pNoIndent("")
 		}
 	}
 	
-	// Check if leading comment ends with blank line (special case: output as // comment)
-	hasTrailingBlankComment := false
-	var trailingBlankCommentText string
-	if len(fieldPath) > 0 {
-		leadingComments := g.getLeadingComments(fieldPath)
-		if strings.Contains(leadingComments, "__HAS_TRAILING_BLANK__") {
-			hasTrailingBlankComment = true
-			// Extract the comment text without the marker
-			trailingBlankCommentText = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+	g.p("/**")
+	
+	// Add detached comments inside JSDoc if this is the first field
+	hasDetachedComments := false
+	if len(fieldPath) > 0 && !isNotFirstField {
+		detachedComments := g.getLeadingDetachedComments(fieldPath)
+		if len(detachedComments) > 0 {
+			hasDetachedComments = true
+			// First field - output detached comments INSIDE JSDoc
+			for _, detached := range detachedComments {
+				for _, line := range strings.Split(detached, "\n") {
+					if line == "" {
+						g.p(" *")
+					} else {
+						g.p(" * %s", line)
+					}
+				}
+			}
 		}
 	}
 	
-	// If leading comment ends with blank line, output it as // comment first
-	if hasTrailingBlankComment && trailingBlankCommentText != "" {
-		g.p("// %s", trailingBlankCommentText)
-		g.pNoIndent("")
-	}
-	
-	g.p("/**")
-	
-	// Add leading comments if fieldPath is provided (skip if we already handled trailing blank case)
-	if len(fieldPath) > 0 && !hasTrailingBlankComment {
+	// Add leading comments if fieldPath is provided
+	hasLeadingComments := false
+	if len(fieldPath) > 0 {
 		leadingComments := g.getLeadingComments(fieldPath)
+		// Strip __HAS_TRAILING_BLANK__ marker if present (it was used internally, not for output)
+		leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
 		if leadingComments != "" {
+			hasLeadingComments = true
 			for _, line := range strings.Split(leadingComments, "\n") {
 				if line == "" {
 					g.p(" *")
@@ -1303,8 +1340,12 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 					g.p(" * %s", line)
 				}
 			}
-			g.p(" *")
 		}
+	}
+	
+	// Add a blank line before @generated (if we had any comments)
+	if hasDetachedComments || hasLeadingComments {
+		g.p(" *")
 	}
 	
 	// Build the @generated comment line
@@ -2074,10 +2115,13 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Check if this is a well-known type that needs special handling
 	isTimestamp := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Timestamp"
+	isAny := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Any"
 	
 	// Add special methods for well-known types BEFORE standard methods
 	if isTimestamp {
 		g.generateTimestampMethods()
+	} else if isAny {
+		g.generateAnyMethods()
 	}
 	
 	// create method
@@ -3931,4 +3975,155 @@ g.indent = "        "
 g.p("return target;")
 g.indent = "    "
 g.p("}")
+}
+
+func (g *generator) generateAnyMethods() {
+	g.indent = "    "
+	
+	// pack() method
+	g.p("/**")
+	g.p(" * Pack the message into a new `Any`.")
+	g.p(" *")
+	g.p(" * Uses 'type.googleapis.com/full.type.name' as the type URL.")
+	g.p(" */")
+	g.p("pack<T extends object>(message: T, type: IMessageType<T>): Any {")
+	g.indent = "        "
+	g.p("return {")
+	g.indent = "            "
+	g.p("typeUrl: this.typeNameToUrl(type.typeName), value: type.toBinary(message),")
+	g.indent = "        "
+	g.p("};")
+	g.indent = "    "
+	g.p("}")
+	
+	// unpack() method
+	g.p("/**")
+	g.p(" * Unpack the message from the `Any`.")
+	g.p(" */")
+	g.p("unpack<T extends object>(any: Any, type: IMessageType<T>, options?: Partial<BinaryReadOptions>): T {")
+	g.indent = "        "
+	g.p("if (!this.contains(any, type))")
+	g.indent = "            "
+	g.p("throw new Error(\"Cannot unpack google.protobuf.Any with typeUrl '\" + any.typeUrl + \"' as \" + type.typeName + \".\");")
+	g.indent = "        "
+	g.p("return type.fromBinary(any.value, options);")
+	g.indent = "    "
+	g.p("}")
+	
+	// contains() method
+	g.p("/**")
+	g.p(" * Does the given `Any` contain a packed message of the given type?")
+	g.p(" */")
+	g.p("contains(any: Any, type: IMessageType<any> | string): boolean {")
+	g.indent = "        "
+	g.p("if (!any.typeUrl.length)")
+	g.indent = "            "
+	g.p("return false;")
+	g.indent = "        "
+	g.p("let wants = typeof type == \"string\" ? type : type.typeName;")
+	g.p("let has = this.typeUrlToName(any.typeUrl);")
+	g.p("return wants === has;")
+	g.indent = "    "
+	g.p("}")
+	
+	// internalJsonWrite() method
+	g.p("/**")
+	g.p(" * Convert the message to canonical JSON value.")
+	g.p(" *")
+	g.p(" * You have to provide the `typeRegistry` option so that the")
+	g.p(" * packed message can be converted to JSON.")
+	g.p(" *")
+	g.p(" * The `typeRegistry` option is also required to read")
+	g.p(" * `google.protobuf.Any` from JSON format.")
+	g.p(" */")
+	g.p("internalJsonWrite(any: Any, options: JsonWriteOptions): JsonValue {")
+	g.indent = "        "
+	g.p("if (any.typeUrl === \"\")")
+	g.indent = "            "
+	g.p("return {};")
+	g.indent = "        "
+	g.p("let typeName = this.typeUrlToName(any.typeUrl);")
+	g.p("let opt = jsonWriteOptions(options);")
+	g.p("let type = opt.typeRegistry?.find(t => t.typeName === typeName);")
+	g.p("if (!type)")
+	g.indent = "            "
+	g.p("throw new globalThis.Error(\"Unable to convert google.protobuf.Any with typeUrl '\" + any.typeUrl + \"' to JSON. The specified type \" + typeName + \" is not available in the type registry.\");")
+	g.indent = "        "
+	g.p("let value = type.fromBinary(any.value, { readUnknownField: false });")
+	g.p("let json = type.internalJsonWrite(value, opt);")
+	g.p("if (typeName.startsWith(\"google.protobuf.\") || !isJsonObject(json))")
+	g.indent = "            "
+	g.p("json = { value: json };")
+	g.indent = "        "
+	g.p("json[\"@type\"] = any.typeUrl;")
+	g.p("return json;")
+	g.indent = "    "
+	g.p("}")
+	
+	// internalJsonRead() method
+	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Any): Any {")
+	g.indent = "        "
+	g.p("if (!isJsonObject(json))")
+	g.indent = "            "
+	g.p("throw new globalThis.Error(\"Unable to parse google.protobuf.Any from JSON \" + typeofJsonValue(json) + \".\");")
+	g.indent = "        "
+	g.p("if (typeof json[\"@type\"] != \"string\" || json[\"@type\"] == \"\")")
+	g.indent = "            "
+	g.p("return this.create();")
+	g.indent = "        "
+	g.p("let typeName = this.typeUrlToName(json[\"@type\"]);")
+	g.p("let type = options?.typeRegistry?.find(t => t.typeName == typeName);")
+	g.p("if (!type)")
+	g.indent = "            "
+	g.p("throw new globalThis.Error(\"Unable to parse google.protobuf.Any from JSON. The specified type \" + typeName + \" is not available in the type registry.\");")
+	g.indent = "        "
+	g.p("let value;")
+	g.p("if (typeName.startsWith(\"google.protobuf.\") && json.hasOwnProperty(\"value\"))")
+	g.indent = "            "
+	g.p("value = type.fromJson(json[\"value\"], options);")
+	g.indent = "        "
+	g.p("else {")
+	g.indent = "            "
+	g.p("let copy = Object.assign({}, json);")
+	g.p("delete copy[\"@type\"];")
+	g.p("value = type.fromJson(copy, options);")
+	g.indent = "        "
+	g.p("}")
+	g.p("if (target === undefined)")
+	g.indent = "            "
+	g.p("target = this.create();")
+	g.indent = "        "
+	g.p("target.typeUrl = json[\"@type\"];")
+	g.p("target.value = type.toBinary(value);")
+	g.p("return target;")
+	g.indent = "    "
+	g.p("}")
+	
+	// typeNameToUrl() method
+	g.p("typeNameToUrl(name: string): string {")
+	g.indent = "        "
+	g.p("if (!name.length)")
+	g.indent = "            "
+	g.p("throw new Error(\"invalid type name: \" + name);")
+	g.indent = "        "
+	g.p("return \"type.googleapis.com/\" + name;")
+	g.indent = "    "
+	g.p("}")
+	
+	// typeUrlToName() method
+	g.p("typeUrlToName(url: string): string {")
+	g.indent = "        "
+	g.p("if (!url.length)")
+	g.indent = "            "
+	g.p("throw new Error(\"invalid type url: \" + url);")
+	g.indent = "        "
+	g.p("let slash = url.lastIndexOf(\"/\");")
+	g.p("let name = slash > 0 ? url.substring(slash + 1) : url;")
+	g.p("if (!name.length)")
+	g.indent = "            "
+	g.p("throw new Error(\"invalid type url: \" + url);")
+	g.indent = "        "
+	g.p("return name;")
+	g.indent = "    "
+	g.p("}")
 }

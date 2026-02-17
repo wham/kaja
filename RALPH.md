@@ -48,8 +48,10 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix WireType import when no fields exist (skip import entirely)
 - [x] Fix gRPC reserved method names (makeUnaryRequest, methods, typeName, etc.)
 - [x] Fix service method name camelCase conversion (__proto__ → Proto, _transport → Transport)
+- [x] Implement google.protobuf.Any custom methods (pack, unpack, internalJsonRead, internalJsonWrite)
+- [ ] Fix google.protobuf.Any first field JSDoc blank line count (needs 2 blank lines before @generated, currently has 1)
 
-**STATUS: ALL 40/40 tests passing!**
+**STATUS: 40/41 tests passing (92_all_wkt has minor JSDoc formatting issue - one missing blank line)**
 
 ## Notes
 
