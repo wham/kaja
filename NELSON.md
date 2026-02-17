@@ -49,6 +49,8 @@ and your job is find at least one additional case where the tests will fail.
 
 14. **File-level deprecation cascades to all elements:** When a proto file has `option deprecated = true`, the TS plugin adds `@deprecated` to EVERYTHING in that file - not just top-level types. The logic in `comment-generator.ts` line 154-173 shows: (1) top-level types (message, enum, service, extension) get `@deprecated` if file.deprecated is true, (2) nested elements (field, rpc, enum_value, oneof) get `@deprecated` if parent.file.deprecated is true. This means every single interface, field, enum value, method, and export in a deprecated file should have the `@deprecated` tag. The Go plugin only checks if individual elements are deprecated, not if the file is deprecated. Additionally, the TS plugin adds a file-level `// @deprecated` comment at the top of generated files (after tslint:disable).
 
+15. **Boolean map keys must be strings in TypeScript:** JavaScript/TypeScript objects can only have string or symbol keys - boolean values are automatically coerced to strings when used as object keys. Therefore, maps with boolean keys must use `{ [key: string]: ValueType }` in the interface, not `{ [key: boolean]: ValueType }`. The TS plugin correctly generates `string` for boolean map keys (see `message-interface-generator.ts` line 111-112 where `rt.ScalarType.BOOL` becomes `StringKeyword`). The Go plugin incorrectly returns `"boolean"` from `getTypescriptTypeForMapKey()` for boolean keys. This also affects the read/write code - boolean keys need to be converted to/from strings with `.toString()` and proper handling of the string representation.
+
 ### How to run tests
 
 ```bash
