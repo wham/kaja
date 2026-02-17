@@ -1429,11 +1429,27 @@ func (g *generator) writeImports(imports map[string]bool) {
 			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
-		// Proto2 files with "packed" in package name get WireType very late
+		// Proto2 files with "packed" in package name OR repeated fields with jstype option get WireType very late
 		// Note: proto2 files may have syntax="" (empty string) or "proto2"
 		syntax := g.file.GetSyntax()
 		isProto2 := syntax == "" || syntax == "proto2"
-		if isProto2 && strings.Contains(g.file.GetPackage(), "packed") {
+		hasRepeatedJstype := false
+		if isProto2 {
+			// Check for repeated fields with jstype option
+			for _, msg := range g.file.MessageType {
+				for _, field := range msg.Field {
+					if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED &&
+						field.Options != nil && field.GetOptions().Jstype != nil {
+						hasRepeatedJstype = true
+						break
+					}
+				}
+				if hasRepeatedJstype {
+					break
+				}
+			}
+		}
+		if isProto2 && (strings.Contains(g.file.GetPackage(), "packed") || hasRepeatedJstype) {
 			wireTypeVeryLate = true
 			wireTypeEarly = false
 		}
@@ -3845,12 +3861,30 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 		return "reader.float()"
 	case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.int64().toNumber()"
+			}
+		}
 		return "reader.int64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.uint64().toNumber()"
+			}
+		}
 		return "reader.uint64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_INT32:
 		return "reader.int32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.fixed64().toNumber()"
+			}
+		}
 		return "reader.fixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
 		return "reader.fixed32()"
@@ -3863,10 +3897,22 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
 		return "reader.sfixed32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.sfixed64().toNumber()"
+			}
+		}
 		return "reader.sfixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
 		return "reader.sint32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.sint64().toNumber()"
+			}
+		}
 		return "reader.sint64().toString()"
 	default:
 		return "reader.int32()"

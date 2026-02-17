@@ -80,14 +80,32 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix file-level detached comment block separators (add `//` separator between blocks)
 - [x] Implement imported method options support (check extensions in all files)
 - [x] Implement enum alias support (use first value name in @generated, skip alias trailing comments)
+- [x] Fix repeated jstype fields (jstype option applies to packed repeated fields too)
 
-**STATUS: 78/78 tests passing ✅ - COMPLETE**
+**STATUS: 80/80 tests passing ✅ - COMPLETE**
 
 ## Notes
 
-### Current Status (78/78 tests passing) ✅
+### Current Status (80/80 tests passing) ✅
 
 The protoc-gen-kaja implementation is complete! All features have been implemented and all tests are passing.
+
+### Repeated jstype Fields (SOLVED)
+
+The `jstype` field option controls JavaScript/TypeScript representation of 64-bit integer types. For repeated fields, this option must be respected in BOTH the unpacked and packed reader cases.
+
+**Problem**: When a proto2 repeated int64 field has `[jstype = JS_NUMBER]`, the packed reading loop (for length-delimited wire format) was using `.toString()` instead of `.toNumber()`.
+
+**Solution**:
+- Extended `getReaderMethodSimple()` (used for packed repeated field reading) to check the jstype option
+- For INT64, UINT64, FIXED64, SFIXED64, SINT64 types with `jstype = JS_NUMBER`, use `.toNumber()` instead of `.toString()`
+- This matches the behavior of `getReaderMethod()` which already had jstype support
+
+**WireType Import Positioning**: Proto2 files with repeated fields that have explicit jstype options get WireType import AFTER UnknownFieldHandler (wireTypeVeryLate = true). This is detected by checking for repeated fields with non-nil jstype option.
+
+**Implementation**: 
+- Modified `getReaderMethodSimple()` to check `field.GetOptions().Jstype` for all 64-bit integer types
+- Added logic to detect repeated jstype fields and set `wireTypeVeryLate = true` for proto2 files
 
 ### Enum Aliases (SOLVED)
 
