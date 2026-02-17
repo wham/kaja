@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package test;
+
+// Test that gRPC client reserved method names are properly escaped
+service TestService {
+  // These method names collide with gRPC client methods and should be escaped
+  rpc MakeUnaryRequest(EmptyRequest) returns (EmptyResponse);
+  rpc MakeClientStreamRequest(EmptyRequest) returns (EmptyResponse);
+  rpc MakeServerStreamRequest(EmptyRequest) returns (EmptyResponse);
+  rpc MakeBidiStreamRequest(EmptyRequest) returns (EmptyResponse);
+  rpc GetChannel(EmptyRequest) returns (EmptyResponse);
+  rpc WaitForReady(EmptyRequest) returns (EmptyResponse);
+  
+  // These collide with generic client properties
+  rpc Methods(EmptyRequest) returns (EmptyResponse);
+  rpc TypeName(EmptyRequest) returns (EmptyResponse);
+  rpc Options(EmptyRequest) returns (EmptyResponse);
+}
+
+message EmptyRequest {}
+message EmptyResponse {}

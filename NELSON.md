@@ -21,11 +21,16 @@ and your job is find at least one additional case where the tests will fail.
    - `reservedKeywords` - for type and identifier names
    - `reservedTypeNames` - for type names like `Array`, `String`
    - `reservedObjectProperties` - for field names like `__proto__`, `toString`
-   - `reservedClassProperties` - for METHOD names like `name`, `constructor`, `close`, `toString`
+   - `reservedClassProperties` - for METHOD names - this is the BIG one with many entries
 
 2. **Method name escaping is different from field name escaping:** Methods can collide with built-in class properties AND gRPC client methods.
 
-3. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic
+3. **The reservedClassProperties list is extensive:** In `/tmp/protobuf-ts/packages/plugin/src/interpreter.ts`, the full list includes:
+   - JavaScript built-in: `__proto__`, `toString`, `name`, `constructor`
+   - Generic gRPC client properties: `methods`, `typeName`, `options`, `_transport`
+   - @grpc/grpc-js specific methods: `close`, `getChannel`, `waitForReady`, `makeUnaryRequest`, `makeClientStreamRequest`, `makeServerStreamRequest`, `makeBidiStreamRequest`
+
+4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic. The `createTypescriptNameForMethod` function in `interpreter.ts` is the source of truth for method name escaping.
 
 ### How to run tests
 
