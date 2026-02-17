@@ -51,6 +51,8 @@ and your job is find at least one additional case where the tests will fail.
 
 15. **Boolean map keys must be strings in TypeScript:** JavaScript/TypeScript objects can only have string or symbol keys - boolean values are automatically coerced to strings when used as object keys. Therefore, maps with boolean keys must use `{ [key: string]: ValueType }` in the interface, not `{ [key: boolean]: ValueType }`. The TS plugin correctly generates `string` for boolean map keys (see `message-interface-generator.ts` line 111-112 where `rt.ScalarType.BOOL` becomes `StringKeyword`). The Go plugin incorrectly returns `"boolean"` from `getTypescriptTypeForMapKey()` for boolean keys. This also affects the read/write code - boolean keys need to be converted to/from strings with `.toString()` and proper handling of the string representation.
 
+16. **Method idempotency level metadata:** Proto methods can specify `option idempotency_level = NO_SIDE_EFFECTS;` or `option idempotency_level = IDEMPOTENT;` in their definition. The TS plugin reads this from `MethodOptions.idempotency_level` (field 34 in descriptor.proto) and includes it in the ServiceType method metadata as `idempotency: "NO_SIDE_EFFECTS"` or `idempotency: "IDEMPOTENT"`. When the idempotency level is `IDEMPOTENCY_UNKNOWN` (the default), the field is omitted. The Go plugin doesn't read or generate this field at all. Check `interpreter.ts` in the TS plugin where it switches on `methodDescriptor.idempotency` and sets `info.idempotency` accordingly. This metadata is part of the runtime method reflection info used by RPC clients.
+
 ### How to run tests
 
 ```bash
