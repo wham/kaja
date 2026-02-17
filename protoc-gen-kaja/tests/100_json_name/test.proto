@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Field with json_name option that's a reserved word
+  string value = 1 [json_name = "constructor"];
+  
+  // Another reserved property
+  int32 number = 2 [json_name = "__proto__"];
+  
+  // Reserved keyword
+  bool flag = 3 [json_name = "typeof"];
+}

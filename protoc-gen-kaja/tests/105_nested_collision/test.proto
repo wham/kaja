@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+// Top-level message
+message Outer_Inner {
+  string value = 1;
+}
+
+// Outer message with nested Inner (will collide with Outer_Inner)
+message Outer {
+  message Inner {
+    int32 number = 1;
+  }
+  
+  Inner inner = 1;
+  Outer_Inner outer_inner = 2;
+}

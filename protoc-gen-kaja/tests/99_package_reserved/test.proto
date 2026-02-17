@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+// Package with a reserved TypeScript keyword
+package const;
+
+message TestMessage {
+  string value = 1;
+}
+
+service TestService {
+  rpc GetTest(TestMessage) returns (TestMessage);
+}

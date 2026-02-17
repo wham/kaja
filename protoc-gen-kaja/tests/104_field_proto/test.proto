@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Field named __proto__ (double underscore)
+  string __proto__ = 1;
+  
+  // Field named _proto (single underscore)  
+  string _proto = 2;
+}

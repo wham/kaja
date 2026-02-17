@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Field with double underscore prefix
+  string __value = 1;
+  
+  // Triple underscore
+  int32 ___number = 2;
+  
+  // Mix
+  bool __proto__ = 3;
+}

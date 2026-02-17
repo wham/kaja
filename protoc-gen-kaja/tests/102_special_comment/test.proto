@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Comment with */ that could break JSDoc
+  string value = 1;
+  
+  /* Multi-line comment with */ in the middle
+     that spans lines */
+  int32 number = 2;
+  
+  // Comment with <script> tag
+  bool flag = 3;
+}

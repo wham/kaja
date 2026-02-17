@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Oneof with reserved name toString
+  oneof toString {
+    string to_string_value = 1;
+    int32 to_string_number = 2;
+  }
+  
+  // Oneof with reserved name constructor
+  oneof constructor {
+    string constructor_value = 3;
+  }
+}

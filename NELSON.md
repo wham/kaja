@@ -39,6 +39,8 @@ and your job is find at least one additional case where the tests will fail.
 
 9. **Nested imported types must be individually imported:** When a service method uses nested types from another package (e.g., `types.Container.String`), each nested type must be imported separately as `Container_String`, `Container_Array`, etc. The TS plugin uses a symbol table to track which exact types are used and imports only those. The Go implementation incorrectly imports the parent type `Container` when it sees any nested type reference like `types.Container.String`, but then references `Container_String` which was never imported. This affects service method I/O type declarations.
 
+10. **Nested type name collisions:** When a nested type like `Outer.Inner` gets flattened to `Outer_Inner`, it can collide with a top-level type named `Outer_Inner`. The TS plugin detects these collisions and appends `$1`, `$2`, etc. to avoid conflicts (e.g., `Outer_Inner$1` for the nested type). The Go plugin doesn't detect these collisions, causing both types to have the same name which breaks TypeScript compilation. This affects any combination of nested and non-nested types where the flattened name would be identical.
+
 ### How to run tests
 
 ```bash
