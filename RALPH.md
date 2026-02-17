@@ -65,10 +65,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix type name collisions (nested type with same name as top-level gets numeric suffix)
 - [x] Fix doubly-nested type imports (Outer.Middle.Inner → import Outer_Middle_Inner)
 - [x] Fix client file import path resolution (check dependencies first, not just package match)
+- [x] Add synthetic zero value for enums without zero (UNSPECIFIED$ = 0)
 
-**STATUS: 62/62 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 66/66 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including doubly-nested type imports and proper import path resolution for types in dependencies with the same package.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including enum synthetic zero values for proto2 enums that don't define a zero value.
 
 ## Notes
 
@@ -417,6 +418,43 @@ Example: Proto method `rpc Name(Request) returns (Response);` becomes:
 - ServiceType metadata: `{ name: "Name", localName: "name$", options: {}, I: Request, O: Response }`
 
 Implementation: `escapeMethodName()` checks for reserved names and escapes them, applied in `generateServiceClient()` for both interface and implementation.
+
+### Enum Synthetic Zero Value (SOLVED)
+TypeScript enums require a default zero value, but proto2 allows enums to start at any number. When an enum doesn't have a zero value, protoc-gen-ts adds a synthetic `UNSPECIFIED$ = 0` entry at the beginning of the enum.
+
+**Algorithm**:
+1. Check if any enum value has `number == 0`
+2. If not, add synthetic value before other values
+3. Use comment: `@generated synthetic value - protobuf-ts requires all enums to have a 0 value`
+4. Name is always `UNSPECIFIED$` with `$` suffix to avoid collisions
+
+**Example**: Proto2 enum without zero:
+```proto
+enum Status {
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+```
+
+Generated TypeScript:
+```typescript
+export enum Status {
+    /**
+     * @generated synthetic value - protobuf-ts requires all enums to have a 0 value
+     */
+    UNSPECIFIED$ = 0,
+    /**
+     * @generated from protobuf enum value: ACTIVE = 1;
+     */
+    ACTIVE = 1,
+    /**
+     * @generated from protobuf enum value: INACTIVE = 2;
+     */
+    INACTIVE = 2
+}
+```
+
+Implementation: Check `value.GetNumber() == 0` for all values before generating enum body. If no zero found, output the synthetic value first.
 
 ### Service Method Name CamelCase Conversion (SOLVED)
 Service method names undergo full camelCase conversion (using `toCamelCase()`) just like field names, not just lowercasing the first letter. This handles special cases like leading underscores.

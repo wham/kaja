@@ -3596,6 +3596,25 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	g.pNoIndent(" */")
 	g.pNoIndent("export enum %s {", enumName)
 	
+	// Check if enum has a zero value
+	hasZero := false
+	for _, value := range enum.Value {
+		if value.GetNumber() == 0 {
+			hasZero = true
+			break
+		}
+	}
+	
+	// Add synthetic zero value if needed
+	if !hasZero {
+		g.indent = "    "
+		g.p("/**")
+		g.p(" * @generated synthetic value - protobuf-ts requires all enums to have a 0 value")
+		g.p(" */")
+		g.p("UNSPECIFIED$ = 0,")
+		g.indent = ""
+	}
+	
 	// Detect common prefix
 	commonPrefix := g.detectEnumPrefix(enum)
 	
