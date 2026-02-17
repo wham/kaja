@@ -33,6 +33,10 @@ and your job is find at least one additional case where the tests will fail.
 
 6. **stripPackage() doesn't escape imported types:** The `stripPackage()` function at line 1766 is used when generating service method input/output types (`I:` and `O:` fields in ServiceType at line 4038-4039). While it DOES escape types from the same file (line 1808), it does NOT escape imported types (line 1838-1839). The function returns `simpleName` directly for imported types without calling `escapeTypescriptKeyword()`. This causes a bug: if an imported message is named `String`, `Array`, `Number`, etc., the ServiceType will reference it as `String` instead of `String$`, but the actual type is exported as `String$`. This also affects the import statements - they import `String` instead of `String$`.
 
+7. **Oneof names need escaping too:** The TS plugin applies reserved object property escaping to oneof names via `createTypescriptNameForField()` in `interpreter.ts`. The Go plugin just calls `g.toCamelCase()` on the oneof name without any escaping. Oneof names like `toString`, `constructor`, `__proto__` should be escaped. For example, `toString` should become `toString$` in the interface. Also, oneofs starting with `_` are incorrectly detected as proto3 optional (line 1307 in main.go).
+
+8. **Reserved object properties are checked AFTER lowerCamelCase:** In TS plugin's `createTypescriptNameForField()`, the reserved check happens AFTER converting to lowerCamelCase. So `__proto__` becomes `Proto` first, then checked against `['__proto__', 'toString']` - which doesn't match. But `toString` stays `toString` and matches, so it becomes `toString$`. The Go plugin needs to apply the same logic.
+
 ### How to run tests
 
 ```bash

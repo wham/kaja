@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  oneof __proto__ {
+    string text = 1;
+    int32 number = 2;
+  }
+  
+  oneof toString {
+    bool flag = 3;
+    double value = 4;
+  }
+}
