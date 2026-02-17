@@ -1303,8 +1303,22 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 			oneofIdx := field.GetOneofIndex()
 			oneofProtoName := msg.OneofDecl[oneofIdx].GetName()
 			
-			// Check if this is a proto3 optional (synthetic oneof starting with "_")
-			isProto3Optional := len(oneofProtoName) > 0 && oneofProtoName[0] == '_'
+			// Check if this is a proto3 optional (synthetic oneof)
+			// Proto3 optional oneofs: start with "_", have exactly 1 field, field name = oneof name minus "_"
+			isProto3Optional := false
+			if len(oneofProtoName) > 0 && oneofProtoName[0] == '_' {
+				// Count fields in this oneof
+				fieldCount := 0
+				for _, f := range msg.Field {
+					if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
+						fieldCount++
+					}
+				}
+				// Proto3 optional has exactly 1 field and field name matches oneof name (minus leading _)
+				if fieldCount == 1 && field.GetName() == oneofProtoName[1:] {
+					isProto3Optional = true
+				}
+			}
 			
 			if isProto3Optional {
 				// Proto3 optional field - treat as regular optional field
@@ -1325,6 +1339,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					
 					// Convert oneof name to camelCase
 					oneofCamelName := g.toCamelCase(oneofProtoName)
+					
+					// Escape reserved property names
+					if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+						oneofCamelName = oneofCamelName + "$"
+					}
 					
 					// Extract message index from msgPath (last element)
 					var msgIdx int32
@@ -2096,6 +2115,10 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 	oneofCamelName := ""
 	if oneofName != "" {
 		oneofCamelName = g.toCamelCase(oneofName)
+		// Escape reserved property names
+		if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+			oneofCamelName = oneofCamelName + "$"
+		}
 	}
 	
 	// Determine field kind and extra fields
@@ -2266,8 +2289,14 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			oneofIdx := field.GetOneofIndex()
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
-				// Proto3 optional fields are in synthetic oneofs (starting with "_")
-				if len(oneofName) > 0 && oneofName[0] == '_' {
+				// Proto3 optional fields are in synthetic oneofs
+				// They start with "_" and the field name matches oneof name minus the "_"
+				isProto3Optional := false
+				if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
+					isProto3Optional = true
+				}
+				
+				if isProto3Optional {
 					info.isProto3Optional = true
 				} else {
 					info.oneofName = oneofName
@@ -2361,7 +2390,13 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
 				// Proto3 optional fields are in synthetic oneofs
-				if len(oneofName) > 0 && oneofName[0] != '_' {
+				// They start with "_" and the field name matches oneof name minus the "_"
+				isProto3Optional := false
+				if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
+					isProto3Optional = true
+				}
+				
+				if !isProto3Optional {
 					// Real oneof - add initialization for it (only once)
 					if !oneofSeen[oneofIdx] {
 						oneofSeen[oneofIdx] = true
@@ -2399,6 +2434,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if item.isOneof {
 			// Initialize oneof
 			oneofCamelName := g.toCamelCase(item.oneofName)
+			// Escape reserved property names
+			if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+				oneofCamelName = oneofCamelName + "$"
+			}
 			g.p("message.%s = { oneofKind: undefined };", oneofCamelName)
 		} else {
 			// Initialize regular field
@@ -2467,10 +2506,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if field.OneofIndex != nil {
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			// Proto3 optional fields are in synthetic oneofs (starting with "_")
-			if len(oneofName) > 0 && oneofName[0] != '_' {
+			// Proto3 optional fields are in synthetic oneofs
+			// They start with "_" and the field name matches oneof name minus the "_"
+			isProto3Optional := false
+			if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
+				isProto3Optional = true
+			}
+			
+			if !isProto3Optional {
 				isRealOneof = true
 				oneofCamelName = g.toCamelCase(oneofName)
+				// Escape reserved property names
+				if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+					oneofCamelName = oneofCamelName + "$"
+				}
 			}
 		}
 		
@@ -2653,10 +2702,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if field.OneofIndex != nil {
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			// Proto3 optional fields are in synthetic oneofs (starting with "_")
-			if len(oneofName) > 0 && oneofName[0] != '_' {
+			// Proto3 optional fields are in synthetic oneofs
+			// They start with "_" and the field name matches oneof name minus the "_"
+			isProto3Optional := false
+			if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
+				isProto3Optional = true
+			}
+			
+			if !isProto3Optional {
 				isRealOneof = true
 				oneofCamelName = g.toCamelCase(oneofName)
+				// Escape reserved property names
+				if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+					oneofCamelName = oneofCamelName + "$"
+				}
 			}
 		}
 		
