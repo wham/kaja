@@ -7,7 +7,7 @@ and your job is find at least one additional case where the tests will fail.
 
 1. Analyze what's already in place
 2. Clone the TS plugin source code and inspect together with the Go implementation. Identify way to trick it.
-3. Update [Plan](./NELSON.md#plan) if needed. Be comfortable making bigger changes to the test data. NELSON.md is your memory. Keep it up to date.
+3. Update [Plan](./NELSON.md#plan) if needed. Be comfortable making bigger changes to the test data. NELSON.md is your memory. Keep it up to date. Rather than logging test you made to fail, use it to log general tricks and ideas how to break the app.
 3. Update the existing test or add a new one so it fails. Spend substantial effort here.
 4. Run the tests
 5. Capture important learnings in [Notes](./NELSON.md/#notes). Stuff that will make the task easier for you in the future. For example how to run the tests. How the code is structured. Don't add things that would soften the requirements - i.e. "we are close, this is cosmetic". If you see them, remove them.
@@ -18,48 +18,47 @@ and your job is find at least one additional case where the tests will fail.
 
 - [x] Analyze the source code 
 - [x] Clone TS plugin source and compare
-- [x] Identify bug in parent prefix using escaped names
-- [x] Create failing test (32_merged_keyword)
+- [x] Identify bug in nested type name escaping
+- [x] Create failing test (31_nested_with_keyword)
 - [x] Run tests to confirm failure
 - [ ] Commit and update status.txt
 
 ## Notes
 
-### Bug Found: Parent Prefix Uses Escaped Names
+### Bug Found: Incorrect Keyword Escaping for Nested Types
 
-**The Real Bug:**
-Test 31_nested_with_keyword was already fixed in commit 77cda53. The ACTUAL bug is that when building the parent prefix for nested types, the Go code uses the ESCAPED name instead of the ORIGINAL name.
+**The Bug:**
+The Go implementation escapes individual component names BEFORE merging them with underscores, while the TypeScript implementation merges first, THEN checks if the final merged name is a reserved keyword.
 
-**TypeScript Implementation (Correct):**
-From `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts`:
-1. Get full type name (e.g., `.test.from.of`)
-2. Remove package prefix (e.g., `from.of`)
-3. Replace ALL dots with underscores (e.g., `from_of`)
-4. Check if FINAL merged name is a keyword
-5. Only escape if final name matches
+**Example:**
+- Proto: `message Outer { message class { string value = 1; } }`
+- Full type name: `.test.Outer.class`
+- After removing package: `Outer.class`
 
-**Go Implementation (Incorrect):**
-In `main.go` line 1060:
-1. Escapes top-level name: `from` → `from$` (because "from" is a keyword)
-2. Builds nested with escaped parent: `from$ + "_" + of` → `from$_of`
-3. Result: `from$_of` (WRONG!)
+**TypeScript (Correct):**
+1. Replace dots with underscores: `Outer.class` → `Outer_class`
+2. Check if `Outer_class` is a reserved keyword → NO
+3. Final name: `Outer_class`
 
-**Example that fails:**
-```proto
-message from {
-  message of {
-    string value = 1;
-  }
-}
-```
+**Go (Incorrect):**
+1. Escape each component: `Outer` (OK), `class` → `class$`
+2. Merge with underscores: `Outer_class$`
+3. Final name: `Outer_class$` (WRONG!)
 
-- Expected (TS): `from_of` (because `from_of` is NOT a keyword)
-- Actual (Go): `from$_of` (because parent `from` was escaped to `from$`)
+**Test results:**
+- Expected: `export interface Outer_class`
+- Actual: `export interface Outer_class$`
 
-**Root Cause:**
-Line 1160 in `main.go`: `g.generateMessageInterface(nested, fullName + "_", nestedPath)`
+**More complex example:**
+- Proto: `message Level1 { message interface { message type { } } }`
+- Expected: `Level1_interface_type`
+- Actual: `Level1_interface$_type$` (escapes BOTH components!)
 
-It passes `fullName` (which contains the escaped name) as the parent prefix for nested types. It should pass a prefix built from UNESCAPED names, and only escape the FINAL merged result.
+**The Fix:**
+The Go code needs to:
+1. Build the full merged name first (with underscores)
+2. Then check if the FINAL name is a reserved keyword
+3. Only escape if the final merged name matches a reserved word
 
 ### How to run tests
 
@@ -74,5 +73,6 @@ cd /Users/tom-newotny/kaja/protoc-gen-kaja
 - `main.go`: Main plugin implementation
 - `tests/`: Test cases with .proto files
 - `scripts/test`: Test runner that compares protoc-gen-kaja output vs protoc-gen-ts
-- The bug is in line 1160: passes `fullName + "_"` (escaped) instead of unescaped names
-- When generating nested types, parent prefix contains escaped names, polluting nested type names
+- The bug is in `generateMessageInterface` and `generateMessageClass` functions
+- They call `escapeTypescriptKeyword(baseName)` for each nesting level
+- Should instead escape only the final merged name

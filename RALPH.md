@@ -40,8 +40,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 
 - [x] Fix import ordering within same file (use forward message order + field number order, then reverse)
 - [x] Fix nested type keyword escaping (only top-level types get `$` suffix)
+- [x] Fix nested type names when parent is keyword (use unescaped proto name for prefix)
+- [x] Fix WireType import ordering for empty first message (early when first message has no fields)
+- [x] Fix file-level leading detached comments (output after imports)
 
-**STATUS: ALL 35/35 tests passing!**
+**STATUS: ALL 36/36 tests passing!**
 
 ## Notes
 
@@ -75,7 +78,27 @@ string field16 = 16;
 
 The comment "Comment ending with blank line" is NOT in `loc.LeadingComments` but in `loc.LeadingDetachedComments[0]`.
 
-Implementation: `getLeadingDetachedComments()` extracts these and `generateField()` outputs them before the JSDoc.
+**File-level leading detached comments**: Comments before the first message declaration with a blank line separator are stored in the first message's `LeadingDetachedComments`. These should be output after imports but before any declarations.
+
+Example proto:
+```proto
+// File-level comment
+
+message First { ... }
+```
+
+Expected output:
+```typescript
+import { ... } from "...";
+// File-level comment
+
+export interface First { ... }
+```
+
+Implementation: 
+- `getLeadingDetachedComments()` extracts these 
+- Field detached comments are output before the field's JSDoc in `generateField()`
+- File-level detached comments (from first message) are output after `writeImports()` and before message generation
 
 ### WireType Import Ordering (SOLVED)
 The position of `import { WireType }` relative to `BinaryWriteOptions` depends on file structure:
@@ -84,11 +107,12 @@ The position of `import { WireType }` relative to `BinaryWriteOptions` depends o
 1. File has service AND service comes before first message AND file has >10 messages (teams.proto, users.proto pattern)
 2. OR file has service AND all messages before service are truly empty (zero actual fields, only reserved or GROUP fields) (empty.proto pattern)
 3. OR file has NO service AND is imported ONLY by service files (not by any non-service files) in the same protoc batch (quirks lib/message.proto pattern)
+4. OR file has NO service AND first message is empty (has no actual fields, only nested types or reserved fields)
 
 **WireType LATE** (after IBinaryWriter):
-- All other cases (messages before service, or small files, or imported by both service and non-service files)
+- All other cases (messages before service, or small files, or imported by both service and non-service files, or first message has fields)
 
-Implementation: Track which files are imported exclusively by service files vs also by non-service files during batch processing.
+Implementation: Track which files are imported exclusively by service files vs also by non-service files during batch processing, and check if first message is empty.
 
 ### Imported Type Name Resolution (SOLVED)
 When a type from another package is imported via an `import` statement, the generated TypeScript code should use the simple type name (e.g., `UserProfile`) instead of the package-prefixed name (e.g., `auth_UserProfile`).
@@ -149,12 +173,17 @@ Important:
 - **Only top-level types** get the `$` suffix (nested types don't need escaping)
 - The proto name in `@generated` comments and `MessageType` constructor remains unchanged
 - Nested types like `Outer.class` become `Outer_class` (no `$` because the underscore prevents conflicts)
+- **Nested type prefixes use the unescaped proto name**: If parent `from` is escaped to `from$`, nested type `of` becomes `from_of` NOT `from$_of`
 
-Example: Proto message `Outer` with nested message `class` becomes:
-- Top-level interface: `export interface Outer$` (if "Outer" is a keyword)
-- Nested interface: `export interface Outer_class` (no `$` suffix)
+Example: Proto message `from` with nested message `of` becomes:
+- Top-level interface: `export interface from$` (if "from" is a keyword)
+- Nested interface: `export interface from_of` (uses unescaped parent name)
+- Class: `class from_of$Type` (also uses unescaped parent name)
 
-Implementation: Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`.
+Implementation: 
+- Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`
+- Track both `parentPrefix` (for TypeScript names) and `protoParentPrefix` (for proto names) separately
+- When recursing to nested types, pass `protoName + "_"` for BOTH prefixes (not `fullName + "_"` which includes escaping)
 
 ### Enum Prefix Stripping (SOLVED)
 Enum values have their common prefix stripped based on the enum name:

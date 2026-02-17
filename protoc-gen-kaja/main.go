@@ -411,14 +411,29 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	// Write imports
 	g.writeImports(imports)
 
+	// Output file-level leading detached comments (from first message)
+	if len(file.MessageType) > 0 {
+		firstMsgPath := []int32{4, 0}
+		detachedComments := g.getLeadingDetachedComments(firstMsgPath)
+		for _, comment := range detachedComments {
+			lines := strings.Split(comment, "\n")
+			for _, line := range lines {
+				if line != "" {
+					g.pNoIndent("// %s", line)
+				}
+			}
+			g.pNoIndent("")
+		}
+	}
+
 	// Generate message interfaces (with nested types/enums)
 	for msgIdx, msg := range file.MessageType {
-		g.generateMessageInterface(msg, "", []int32{4, int32(msgIdx)})
+		g.generateMessageInterface(msg, "", "", []int32{4, int32(msgIdx)})
 	}
 
 	// Generate top-level enums
 	for enumIdx, enum := range file.EnumType {
-		g.generateEnum(enum, "", []int32{5, int32(enumIdx)})
+		g.generateEnum(enum, "", "", []int32{5, int32(enumIdx)})
 	}
 
 	// Generate message implementation classes
@@ -858,11 +873,24 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// Determine if WireType comes early:
 		// 1. File has service AND service comes before messages
 		// 2. File has NO service BUT is imported by a service file in the same batch
+		// 3. File has NO service AND first message is empty (no actual fields)
 		wireTypeEarly := false
 		if needsServiceType {
 			wireTypeEarly = serviceBeforeMessages
 		} else {
-			wireTypeEarly = g.isImportedByService
+			// Check if first message is empty
+			firstMessageEmpty := false
+			if len(g.file.MessageType) > 0 {
+				firstMsg := g.file.MessageType[0]
+				actualFieldCount := 0
+				for _, field := range firstMsg.Field {
+					if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+						actualFieldCount++
+					}
+				}
+				firstMessageEmpty = actualFieldCount == 0
+			}
+			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
 		if needsServiceType {
@@ -1044,7 +1072,7 @@ func (g *generator) findFileByName(name string) *descriptorpb.FileDescriptorProt
 	return nil
 }
 
-func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, parentPrefix string, msgPath []int32) {
+func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, parentPrefix string, protoParentPrefix string, msgPath []int32) {
 	// Skip map entry messages
 	if msg.Options != nil && msg.GetOptions().GetMapEntry() {
 		return
@@ -1058,7 +1086,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	}
 	fullName := parentPrefix + escapedName
 	// For @generated comment, use original name not escaped
-	protoName := parentPrefix + baseName
+	protoName := protoParentPrefix + baseName
 	
 	// Message interface first
 	g.pNoIndent("/**")
@@ -1157,7 +1185,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Generate nested message interfaces first
 	for nestedIdx, nested := range msg.NestedType {
 		nestedPath := append(msgPath, 3, int32(nestedIdx))
-		g.generateMessageInterface(nested, fullName + "_", nestedPath)
+		g.generateMessageInterface(nested, protoName + "_", protoName + "_", nestedPath)
 	}
 	
 	// Generate nested enums after nested messages
@@ -1168,7 +1196,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 			enumPath = append([]int32{}, msgPath...)
 			enumPath = append(enumPath, 4, int32(enumIdx))
 		}
-		g.generateEnum(nested, fullName + "_", enumPath)
+		g.generateEnum(nested, protoName + "_", protoName + "_", enumPath)
 	}
 }
 
@@ -1192,7 +1220,7 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 	
 	// Generate nested message classes
 	for _, nested := range msg.NestedType {
-		g.generateMessageClass(nested, fullName + "_", protoName + "_")
+		g.generateMessageClass(nested, protoName + "_", protoName + "_")
 	}
 }
 
@@ -2842,7 +2870,7 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 	return fmt.Sprintf("message.%s !== %s", fieldName, defaultVal)
 }
 
-func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentPrefix string, enumPath []int32) {
+func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentPrefix string, protoParentPrefix string, enumPath []int32) {
 	baseName := enum.GetName()
 	// Only escape top-level types (nested types don't need escaping)
 	escapedName := baseName
@@ -2887,7 +2915,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		pkgPrefix = *g.file.Package + "."
 	}
 	// For enums, only replace underscores in parent prefix (nested messages), not in enum name itself
-	protoNameFormatted := strings.ReplaceAll(parentPrefix, "_", ".") + baseName
+	protoNameFormatted := strings.ReplaceAll(protoParentPrefix, "_", ".") + baseName
 	g.pNoIndent(" * @generated from protobuf enum %s%s", pkgPrefix, protoNameFormatted)
 	g.pNoIndent(" */")
 	g.pNoIndent("export enum %s {", enumName)
