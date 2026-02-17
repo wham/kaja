@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package test;
+
+message BytesDefaultTest {
+  optional bytes null_byte = 1 [default = "\x00"];
+  optional bytes backslash = 2 [default = "\\"];
+  optional bytes quote = 3 [default = "\""];
+  optional bytes newline = 4 [default = "\n"];
+  optional bytes tab = 5 [default = "\t"];
+  optional bytes carriage_return = 6 [default = "\r"];
+  optional bytes mixed = 7 [default = "hello\x00world\n\t\"test\\end"];
+  optional bytes high_bytes = 8 [default = "\xff\xfe\xfd"];
+}

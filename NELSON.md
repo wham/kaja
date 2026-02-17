@@ -57,6 +57,8 @@ and your job is find at least one additional case where the tests will fail.
 
 18. **Proto2 packed option must be respected:** In proto2, repeated numeric/bool/enum fields are UNPACKED by default, unlike proto3 where they're PACKED. Proto2 allows explicit `[packed=true]` or `[packed=false]` annotations to override the default. The TS plugin reads `fieldDescriptor.packed` from the descriptor to determine the actual packing (line 425 in interpreter.ts). The Go plugin's `isPackedType()` function only checks if the field type is packable (numeric/bool/enum) but doesn't check `field.Options.GetPacked()` or the file syntax. This causes: (1) proto2 fields to be incorrectly marked as PACKED when they should be UNPACKED by default, (2) explicit `[packed=false]` to be ignored, (3) missing `[packed = true/false]` annotations in comments. The fix requires checking both the file syntax and the explicit packed option on each field.
 
+19. **Bytes field default values need proper escaping in comments:** Proto2 allows default values for bytes fields, and these need to be properly escaped in TypeScript/JavaScript comments. The Go plugin double-escapes quote characters in bytes default value annotations, generating `\\"` instead of `\"`. In TypeScript/JavaScript comments (both JSDoc `/** */` and inline `/* */`), a single backslash escape `\"` is sufficient to represent a quote character. The issue appears in `formatDefaultValueAnnotation()` or similar escaping logic for bytes defaults. Test with proto2 bytes fields with defaults like `[default = "\""]` or `[default = "hello\x00\t\"test"]` - the comments should show `\"` not `\\"`.
+
 ### How to run tests
 
 ```bash
