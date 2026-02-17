@@ -58,10 +58,13 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix service method leading detached comments (output as // style between methods)
 - [x] Fix same-package nested type resolution (check if type is defined in file, not just uppercase check)
 - [x] Fix service name escaping in ServiceType exports (Array → Array$, but @generated shows original)
+- [x] Fix imported reserved type names (use escaped names like String$, Number$ when importing)
+- [x] Fix service-only file import ordering (reverse service types when file has no messages)
+- [x] Fix WireType positioning for library files (different directory = early, same directory = late)
 
-**STATUS: 50/50 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 52/52 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, and reserved type name escaping for services.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, and WireType positioning for library files vs same-directory files.
 
 ## Notes
 
@@ -104,6 +107,26 @@ When multiple types from the same import file are used, they must be imported in
 - Reversed: [PageInfo, Money, Metadata, Timestamp] ✓ matches expected
 
 Implementation: Sort fields by number in `collectUsedTypes()`, process messages forward, then reverse `messageFieldTypes` array.
+
+### Service-Only File Import Ordering (SOLVED)
+Files that contain ONLY service definitions (no messages) reverse the order of service type imports to match protoc-gen-ts behavior.
+
+**Algorithm**:
+1. Collect service types in forward method order (method 0 → N)
+2. If file has NO messages (`len(g.file.MessageType) == 0`), reverse the service types list
+3. If file has messages, keep service types in forward order (they're added before ServiceType import)
+
+**Example**: File with only service, 3 methods using types String, Array, Number
+- Forward order: String (method 0), Array (method 1), Number (method 2)
+- Reversed: Number, Array, String ✓
+- Import order: `import { Number$ } from "./types"; import { Array$ } from "./types"; import { String$ } from "./types";`
+
+**Example**: File with messages AND service (quirks.proto)
+- Forward order: Message (method 0 output), Void (method 0 input), ...
+- NOT reversed (file has messages)
+- Import order: `import { Message } from "./lib/message"; import { Void } from "./lib/message";`
+
+Implementation: Check `len(g.file.MessageType) == 0` before reversing `serviceTypes` array in `collectUsedTypes()`.
 
 ### Leading Detached Comments (SOLVED)
 Comments that are separated from a field by a blank line are stored in `loc.LeadingDetachedComments[]` array in SourceCodeInfo. These must be output as `//` style comments before the field's JSDoc block, followed by a blank line.
@@ -175,13 +198,24 @@ The position of `import { WireType }` relative to `BinaryWriteOptions` depends o
 **WireType EARLY** (right after ServiceType):
 1. File has service AND service comes before first message AND file has >10 messages (teams.proto, users.proto pattern)
 2. OR file has service AND all messages before service are truly empty (zero actual fields, only reserved or GROUP fields) (empty.proto pattern)
-3. OR file has NO service AND is imported ONLY by service files (not by any non-service files) in the same protoc batch (quirks lib/message.proto pattern)
+3. OR file has NO service AND is imported ONLY by service files in DIFFERENT directories (quirks lib/message.proto pattern - library file in subdirectory)
 4. OR file has NO service AND first message is empty (has no actual fields, only nested types or reserved fields)
 
 **WireType LATE** (after IBinaryWriter):
-- All other cases (messages before service, or small files, or imported by both service and non-service files, or first message has fields)
+- All other cases, including:
+  - Files imported by service files in the SAME directory (not library files)
+  - Files imported by both service and non-service files
+  - Files with messages before service
+  - Small files
+  - Files with non-empty first message
 
-Implementation: Track which files are imported exclusively by service files vs also by non-service files during batch processing, and check if first message is empty.
+**Library File Detection**: A file is considered a "library file imported only by service files" if:
+- It has no service
+- It's imported by at least one service file in a DIFFERENT directory (e.g., `v1/quirks.proto` imports `v1/lib/message.proto`)
+- It's NOT imported by any non-service files
+- It's NOT imported by any service files in the SAME directory (e.g., `service.proto` imports `types.proto` in same dir = NOT a library file)
+
+Implementation: Track files imported by service files, separated by same-directory vs different-directory imports. Only different-directory imports trigger the "library file" behavior.
 
 ### Imported Type Name Resolution (SOLVED)
 When a type from another package is imported via an `import` statement, the generated TypeScript code should use the simple type name (e.g., `UserProfile`) instead of the package-prefixed name (e.g., `auth_UserProfile`).
@@ -244,19 +278,19 @@ Important:
 - Nested types like `Outer.class` become `Outer_class` (no `$` because the underscore prevents conflicts)
 - **Nested type prefixes use the unescaped proto name**: If parent `from` is escaped to `from$`, nested type `of` becomes `from_of` NOT `from$_of`
 - **Service name escaping**: Service names like `Array` become `Array$` for TypeScript exports but proto name remains in comments
+- **Imported type name escaping**: When importing reserved type names from other packages, the import statement must use the escaped name (e.g., `import { String$ } from "./types"`), and the type must be referenced with the escaped name throughout the file. The `stripPackage()` function returns the escaped name for imported types, and the import generation function uses `escapeTypescriptKeyword()` when creating import statements.
 
-Example: Proto message `from` with nested message `of` becomes:
-- Top-level interface: `export interface from$` (if "from" is a keyword)
-- Nested interface: `export interface from_of` (uses unescaped parent name)
-- Class: `class from_of$Type` (also uses unescaped parent name)
-
-Example: Proto service `Array` becomes:
-- ServiceType export: `export const Array$ = new ServiceType("test.Array", [...])`
-- Comment: `@generated ServiceType for protobuf service test.Array` (original name)
-- Client interface: `export interface IArray$Client { ... }`
-- Client class: `export class Array$Client implements IArray$Client { ... }`
+Example: Proto message `String` in package `types` becomes:
+- Export: `export interface String$ { ... }`
+- Import: `import { String$ } from "./types"`
+- Usage: `method(input: String$): UnaryCall<String$, String$>`
 
 Implementation: 
+- Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`
+- Track both `parentPrefix` (for TypeScript names) and `protoParentPrefix` (for proto names) separately
+- When recursing to nested types, pass `protoName + "_"` for BOTH prefixes (not `fullName + "_"` which includes escaping)
+- In `stripPackage()`, always return `escapeTypescriptKeyword(simpleName)` for imported types from different packages
+- In import generation, use `escapeTypescriptKeyword()` when extracting type names from imported files
 - Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`
 - Track both `parentPrefix` (for TypeScript names) and `protoParentPrefix` (for proto names) separately
 - When recursing to nested types, pass `protoName + "_"` for BOTH prefixes (not `fullName + "_"` which includes escaping)

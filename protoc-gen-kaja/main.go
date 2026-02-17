@@ -129,18 +129,27 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 
 	// Pre-scan: identify files with services in this batch
 	filesWithServices := make(map[string]bool)
-	importedByServiceFiles := make(map[string]bool)
+	importedByServiceFilesInSameDir := make(map[string]bool) // Dependencies imported by service files in the same directory
+	importedByServiceFilesInDiffDir := make(map[string]bool) // Dependencies imported by service files in different directories
 	importedByNonServiceFiles := make(map[string]bool)
 	
 	for _, fileName := range req.FileToGenerate {
 		file := findFile(req.ProtoFile, fileName)
 		if file != nil {
 			hasService := len(file.Service) > 0
+			fileDir := filepath.Dir(fileName)
 			if hasService {
 				filesWithServices[fileName] = true
 				// Mark all dependencies of this service file
 				for _, dep := range file.Dependency {
-					importedByServiceFiles[dep] = true
+					depDir := filepath.Dir(dep)
+					if fileDir == depDir {
+						// Same directory - not a library file
+						importedByServiceFilesInSameDir[dep] = true
+					} else {
+						// Different directory - potential library file
+						importedByServiceFilesInDiffDir[dep] = true
+					}
 				}
 			} else {
 				// Mark all dependencies of this non-service file
@@ -158,9 +167,19 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			continue
 		}
 
-		// Check if this file is imported by a service file in the batch
-		// AND not imported by any non-service files
-		isImportedOnlyByServices := importedByServiceFiles[fileName] && !importedByNonServiceFiles[fileName]
+		// A file is "imported by service files only" if:
+		// 1. It's imported by at least one service file in a DIFFERENT directory (library file pattern)
+		// 2. It's NOT imported by any non-service files
+		// 3. It's NOT imported by any service files in the SAME directory (same-dir imports don't count)
+		// 4. It's NOT a main file (has a service) - main service files handle their own imports
+		//
+		// This flag affects WireType positioning: library files in subdirectories used only by services
+		// get WireType early, while files in the same directory as their importers get it late.
+		hasService := len(file.Service) > 0
+		isImportedOnlyByServices := !hasService && 
+			importedByServiceFilesInDiffDir[fileName] && 
+			!importedByServiceFilesInSameDir[fileName] &&
+			!importedByNonServiceFiles[fileName]
 		
 		content := generateFile(file, req.ProtoFile, params, isImportedOnlyByServices)
 		if content == "" {
@@ -548,6 +567,14 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		messageFieldTypes[i], messageFieldTypes[j] = messageFieldTypes[j], messageFieldTypes[i]
 	}
 	
+	// Also reverse serviceTypes ONLY if file has no messages (service-only files)
+	// In files with both messages and services, imports follow message field order
+	if len(g.file.MessageType) == 0 && len(serviceTypes) > 0 {
+		for i, j := 0, len(serviceTypes)-1; i < j; i, j = i+1, j-1 {
+			serviceTypes[i], serviceTypes[j] = serviceTypes[j], serviceTypes[i]
+		}
+	}
+	
 	// Build final ordered list:
 	// 1. Service-only types (not used in message fields) - these go BEFORE ServiceType
 	// 2. Message field types (even if also used in services) - these go AFTER runtime imports
@@ -722,7 +749,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		found := false
 		for _, enum := range matchedDepFile.EnumType {
 			if enum.GetName() == parts[0] && len(parts) == 1 {
-				importedName = enum.GetName()
+				importedName = escapeTypescriptKeyword(enum.GetName())
 				importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 				found = true
 				break
@@ -750,7 +777,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			// Must be a message
 			for _, msg := range matchedDepFile.MessageType {
 				if msg.GetName() == parts[0] {
-					importedName = msg.GetName()
+					importedName = escapeTypescriptKeyword(msg.GetName())
 					importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 					break
 				}
@@ -905,8 +932,13 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
-	// Phase 2: Standard runtime imports if we have messages or services
-	if len(g.file.MessageType) > 0 || needsServiceType {
+	// Import ServiceType if needed (before Phase 2 imports)
+	if needsServiceType {
+		g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
+	}
+	
+	// Phase 2: Standard runtime imports if we have messages
+	if len(g.file.MessageType) > 0 {
 		// Check if any message (including nested) has actual fields (not just GROUP fields)
 		hasAnyFields := false
 		var checkMessageForFields func(*descriptorpb.DescriptorProto) bool
@@ -960,9 +992,6 @@ func (g *generator) writeImports(imports map[string]bool) {
 			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
-		if needsServiceType {
-			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
-		}
 		// Add ScalarType and LongType for wrappers - must come first
 		if isWrapper {
 			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
@@ -1834,13 +1863,15 @@ func (g *generator) stripPackage(typeName string) string {
 			}
 			
 			// For simple (non-nested) types, check if it's been imported
-			if g.importedTypeNames[simpleName] {
-				// This type was imported, use just the simple name
-				return simpleName
+			escapedName := escapeTypescriptKeyword(simpleName)
+			if g.importedTypeNames[escapedName] {
+				// This type was imported, use the escaped name
+				return escapedName
 			}
 			
-			// Not imported, use the simple name anyway (should not happen if imports are correct)
-			return simpleName
+			// Not imported yet - use escaped name anyway
+			// (this handles the case where stripPackage is called during import generation)
+			return escapedName
 		}
 	}
 	
@@ -3308,9 +3339,10 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 
 func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
 	g := &generator{
-		params: params,
-		file:   file,
-		allFiles: allFiles,
+		params:            params,
+		file:              file,
+		allFiles:          allFiles,
+		importedTypeNames: make(map[string]bool),
 	}
 	
 	// Header
