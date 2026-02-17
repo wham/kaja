@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  oneof value {
+    string constructor = 1;
+    int32 toString = 2;
+    bool name = 3;
+  }
+}

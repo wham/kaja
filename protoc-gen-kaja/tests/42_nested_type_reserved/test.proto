@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Outer {
+  message constructor {
+    string value = 1;
+  }
+  
+  constructor nested = 1;
+}
+
+// Test top-level message with reserved type name
+message Array {
+  string value = 1;
+}

@@ -56,12 +56,35 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix google.protobuf.Struct/Value/ListValue JSON methods (need exact switch order and error messages)
 - [x] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
 - [x] Fix service method leading detached comments (output as // style between methods)
+- [x] Fix same-package nested type resolution (check if type is defined in file, not just uppercase check)
 
-**STATUS: 42/42 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 49/49 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, and method-level detached comments.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, and edge cases with lowercase message names.
 
 ## Notes
+
+### Same-Package Type Resolution (SOLVED)
+When a type is in the same package as the current file, we need to distinguish between:
+1. Types defined in the current file (same package, same file) - use simple/underscore name
+2. Types in sub-packages (e.g., `ecommerce.auth.User`) - import and use simple name
+
+The distinction cannot be made by checking if the first character is uppercase, because proto allows lowercase message names (e.g., `message to { ... }`).
+
+**Algorithm**:
+1. Strip package prefix to get remainder (e.g., `test.to.String` → `to.String`)
+2. Check if the first part before the dot is a top-level message/enum in the current file
+3. If yes, it's a same-file type → return with dots replaced by underscores (`to_String`)
+4. If no, it's a sub-package → fall through to import logic
+
+**Example**: Package `test`, type `test.to.String`
+- Remainder after stripping package: `to.String`
+- Check if `to` is a message in this file → YES
+- Return `to_String` (underscores for nested type)
+
+This handles the edge case where a message name starts with lowercase (bad style but valid proto).
+
+Implementation: Check `g.file.MessageType` and `g.file.EnumType` to see if the first part of the remainder matches a top-level type name.
 
 ### Import Ordering Within Same File (SOLVED)
 When multiple types from the same import file are used, they must be imported in a specific order that matches protoc-gen-ts. The TypeScript plugin processes messages in forward declaration order and fields in field number order, then **prepends** each import to the top of the file (atTop = true).

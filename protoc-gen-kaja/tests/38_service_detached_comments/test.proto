@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package test;
+
+// Service with detached comments between methods
+service TestService {
+  // Comment for first method
+  rpc First(Request) returns (Response);
+  
+  // This is a detached comment between methods
+  // It should appear in the generated client as standalone comments
+  
+  // Comment for second method
+  rpc Second(Request) returns (Response);
+  
+  // Another detached comment
+  // This one has multiple lines
+  // And should also be preserved
+  
+  // Comment for third method
+  rpc Third(Request) returns (Response);
+}
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}

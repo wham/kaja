@@ -1752,13 +1752,36 @@ func (g *generator) stripPackage(typeName string) string {
 			// Could be same package or sub-package
 			// Extract what comes after the package prefix
 			remainder := strings.TrimPrefix(typeName, prefix)
-			// Check if there's another dot (indicating sub-package)
-			if !strings.Contains(remainder, ".") || 
-			   (strings.Index(remainder, ".") > 0 && remainder[0] >= 'A' && remainder[0] <= 'Z') {
-				// Same package (no dots) OR nested type (first char is uppercase, then dot)
-				// e.g., "MyMessage" or "MyMessage.NestedType"
-				// Replace dots with underscores for nested types
-				return strings.ReplaceAll(remainder, ".", "_")
+			
+			// To distinguish between same-package types and sub-packages:
+			// - Check if the type is defined in this file
+			// - If it's defined here, it's a same-package type (possibly nested)
+			// - If not, it's a sub-package
+			parts := strings.Split(remainder, ".")
+			if len(parts) > 0 {
+				// Check if the first part is a top-level message/enum in this file
+				isInThisFile := false
+				firstPart := parts[0]
+				for _, msg := range g.file.MessageType {
+					if msg.GetName() == firstPart {
+						isInThisFile = true
+						break
+					}
+				}
+				if !isInThisFile {
+					for _, enum := range g.file.EnumType {
+						if enum.GetName() == firstPart {
+							isInThisFile = true
+							break
+						}
+					}
+				}
+				
+				if isInThisFile {
+					// It's a type defined in this file (possibly nested)
+					// Replace dots with underscores for nested types
+					return strings.ReplaceAll(remainder, ".", "_")
+				}
 			}
 			// Otherwise it's a sub-package, fall through to handle as external type
 		}
