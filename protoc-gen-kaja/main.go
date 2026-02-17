@@ -2441,7 +2441,11 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 				if enumType != nil {
 					enumPrefix = g.detectEnumPrefix(enumType)
 				}
-				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s, \"%s\"] }", keyT, keyTypeName, valueFullTypeName, valueTypeName, enumPrefix)
+				if enumPrefix != "" {
+					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s, \"%s\"] }", keyT, keyTypeName, valueFullTypeName, valueTypeName, enumPrefix)
+				} else {
+					extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"enum\", T: () => [\"%s\", %s] }", keyT, keyTypeName, valueFullTypeName, valueTypeName)
+				}
 			} else {
 				valueT := g.getScalarTypeEnum(valueField)
 				valueTypeName := g.getScalarTypeName(valueField)
