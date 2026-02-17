@@ -46,8 +46,9 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix reserved object properties escaping (__proto__, toString get $ suffix)
 - [x] Fix service method name escaping (name, constructor, close, toString)
 - [x] Fix WireType import when no fields exist (skip import entirely)
+- [x] Fix gRPC reserved method names (makeUnaryRequest, methods, typeName, etc.)
 
-**STATUS: ALL 38/38 tests passing!**
+**STATUS: ALL 39/39 tests passing!**
 
 ## Notes
 
@@ -271,11 +272,26 @@ Implementation:
 - Tracks generated oneofs to avoid duplication
 
 ### Service Method Name Escaping (SOLVED)
-Service method names that conflict with JavaScript class properties/methods must be escaped with a `$` suffix. The reserved method names are:
+Service method names that conflict with JavaScript class properties/methods must be escaped with a `$` suffix. The reserved method names include:
+
+**Generic reserved names**:
 - `name` - Class.prototype.name property
 - `constructor` - Class constructor keyword
 - `close` - Common class method
 - `toString` - Object.prototype.toString method
+
+**gRPC client reserved method names**:
+- `makeUnaryRequest` - gRPC client unary call method
+- `makeClientStreamRequest` - gRPC client stream call method
+- `makeServerStreamRequest` - gRPC server stream call method
+- `makeBidiStreamRequest` - gRPC bidirectional stream call method
+- `getChannel` - gRPC client channel getter
+- `waitForReady` - gRPC client ready state method
+
+**ServiceInfo interface properties**:
+- `methods` - Service methods array
+- `typeName` - Service type name string
+- `options` - Service options object
 
 **Algorithm**:
 1. Convert method name to camelCase (e.g., `GetData` → `getData`)

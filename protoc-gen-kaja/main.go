@@ -57,7 +57,14 @@ var tsReservedTypeNames = map[string]bool{
 
 // Reserved class method/property names that need escaping in service clients
 var tsReservedMethodNames = map[string]bool{
+	// Generic reserved names
 	"name": true, "constructor": true, "close": true, "toString": true,
+	// gRPC client reserved method names
+	"makeUnaryRequest": true, "makeClientStreamRequest": true,
+	"makeServerStreamRequest": true, "makeBidiStreamRequest": true,
+	"getChannel": true, "waitForReady": true,
+	// ServiceInfo interface properties
+	"methods": true, "typeName": true, "options": true,
 }
 
 // Escape TypeScript reserved keywords and type names by adding '$' suffix
