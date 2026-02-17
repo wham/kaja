@@ -3798,23 +3798,23 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 	isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
 	isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 	
-	// Proto2 optional fields need undefined check
+	// Optional message fields (proto2, proto3 implicit or explicit optional) use truthy check
+	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE && 
+	   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+		return fmt.Sprintf("message.%s", fieldName)
+	}
+	
+	// Proto2 optional fields (non-message) need undefined check
 	if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
 		return fmt.Sprintf("message.%s !== undefined", fieldName)
 	}
-	// Proto3 optional SCALARS and ENUMS need undefined check (messages use truthy)
-	if isProto3Optional && field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+	// Proto3 optional SCALARS and ENUMS need undefined check
+	if isProto3Optional {
 		return fmt.Sprintf("message.%s !== undefined", fieldName)
 	}
 	
 	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_BYTES {
 		return fmt.Sprintf("message.%s.length", fieldName)
-	}
-	
-	// Optional message fields (proto3 implicit or explicit optional) need existence check with truthy
-	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE && 
-	   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
-		return fmt.Sprintf("message.%s", fieldName)
 	}
 	
 	defaultVal := g.getDefaultValue(field)
