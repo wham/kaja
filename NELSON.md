@@ -59,6 +59,8 @@ and your job is find at least one additional case where the tests will fail.
 
 19. **Bytes field default values need proper escaping in comments:** Proto2 allows default values for bytes fields, and these need to be properly escaped in TypeScript/JavaScript comments. The Go plugin double-escapes quote characters in bytes default value annotations, generating `\\"` instead of `\"`. In TypeScript/JavaScript comments (both JSDoc `/** */` and inline `/* */`), a single backslash escape `\"` is sufficient to represent a quote character. The issue appears in `formatDefaultValueAnnotation()` or similar escaping logic for bytes defaults. Test with proto2 bytes fields with defaults like `[default = "\""]` or `[default = "hello\x00\t\"test"]` - the comments should show `\"` not `\\"`.
 
+20. **Custom method options are not included in ServiceType:** Proto methods can have custom options defined via `extend google.protobuf.MethodOptions`. The TS plugin reads these custom options via `readOptions(methodDescriptor, excludeOptions)` in `interpreter.ts` and includes them in the ServiceType method metadata (e.g., `options: { "test.api_version": "v2.0", "test.rate_limit": 100 }`). The Go plugin hardcodes `options: {}` for ALL methods at line 4837 in main.go, ignoring any custom options. The TS plugin's `readOptions()` method parses the `$unknown` fields from `method.Options` to extract custom extension options. This is important for frameworks that rely on method-level metadata for routing, authentication, rate limiting, versioning, etc. Test with proto files that define custom MethodOptions extensions and use them on service methods.
+
 ### How to run tests
 
 ```bash
