@@ -33,7 +33,7 @@ and your job is find at least one additional case where the tests will fail.
 
 4. **Compare the actual source:** Look at `/tmp/protobuf-ts/packages/plugin/src/code-gen/local-type-name.ts` and `interpreter.ts` to see exact logic. The `createTypescriptNameForMethod` function in `interpreter.ts` is the source of truth for method name escaping.
 
-5. **Inter-method comments in services:** Comments between RPC methods (not attached to any specific method) should be preserved in the generated client code as `//` style comments. The Go implementation currently skips these detached comments.
+5. **Nested type naming collision:** When a nested type name alone is a reserved word (like `String`, `Array`), the full path with underscore separator (e.g., `Outer_String`) is used to avoid collision. The Go implementation may incorrectly use just the short name, causing TypeScript compilation errors.
 
 ### How to run tests
 

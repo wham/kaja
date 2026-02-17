@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message to {
+  message String {
+    string value = 1;
+  }
+  
+  String data = 1;
+}
