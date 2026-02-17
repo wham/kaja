@@ -55,9 +55,22 @@ var tsReservedTypeNames = map[string]bool{
 	"number": true, "Number": true, "boolean": true, "Boolean": true, "bigint": true, "BigInt": true,
 }
 
+// Reserved class method/property names that need escaping in service clients
+var tsReservedMethodNames = map[string]bool{
+	"name": true, "constructor": true, "close": true, "toString": true,
+}
+
 // Escape TypeScript reserved keywords and type names by adding '$' suffix
 func escapeTypescriptKeyword(name string) string {
 	if tsReservedKeywords[name] || tsReservedTypeNames[name] {
+		return name + "$"
+	}
+	return name
+}
+
+// Escape reserved class method/property names by adding '$' suffix
+func escapeMethodName(name string) string {
+	if tsReservedMethodNames[name] {
 		return name + "$"
 	}
 	return name
@@ -870,6 +883,20 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Phase 2: Standard runtime imports if we have messages or services
 	if len(g.file.MessageType) > 0 || needsServiceType {
+		// Check if any message has actual fields (not just GROUP fields)
+		hasAnyFields := false
+		for _, msg := range g.file.MessageType {
+			for _, field := range msg.Field {
+				if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+					hasAnyFields = true
+					break
+				}
+			}
+			if hasAnyFields {
+				break
+			}
+		}
+		
 		// Determine if WireType comes early:
 		// 1. File has service AND service comes before messages
 		// 2. File has NO service BUT is imported by a service file in the same batch
@@ -896,12 +923,12 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if needsServiceType {
 			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
 		}
-		if wireTypeEarly {
+		if hasAnyFields && wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		if !wireTypeEarly {
+		if hasAnyFields && !wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
@@ -3480,7 +3507,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
-		methodName := g.lowerFirst(method.GetName())
+		methodName := escapeMethodName(g.lowerFirst(method.GetName()))
 		
 		g.p("/**")
 		
@@ -3563,7 +3590,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
-		methodName := g.lowerFirst(method.GetName())
+		methodName := escapeMethodName(g.lowerFirst(method.GetName()))
 		
 		g.p("/**")
 		
@@ -3766,8 +3793,16 @@ comma = ""
 		streamingFlags += "clientStreaming: true, "
 	}
 
-	g.p("{ name: \"%s\", %soptions: {}, I: %s, O: %s }%s",
-		method.GetName(), streamingFlags, inputType, outputType, comma)
+	// Check if method name needs escaping and add localName
+	methodName := g.lowerFirst(method.GetName())
+	escapedName := escapeMethodName(methodName)
+	localNameField := ""
+	if escapedName != methodName {
+		localNameField = fmt.Sprintf("localName: \"%s\", ", escapedName)
+	}
+
+	g.p("{ name: \"%s\", %s%soptions: {}, I: %s, O: %s }%s",
+		method.GetName(), localNameField, streamingFlags, inputType, outputType, comma)
 }
 g.indent = ""
 g.pNoIndent("]);")

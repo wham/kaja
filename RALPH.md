@@ -44,8 +44,10 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix WireType import ordering for empty first message (early when first message has no fields)
 - [x] Fix file-level leading detached comments (output after imports)
 - [x] Fix reserved object properties escaping (__proto__, toString get $ suffix)
+- [x] Fix service method name escaping (name, constructor, close, toString)
+- [x] Fix WireType import when no fields exist (skip import entirely)
 
-**STATUS: ALL 37/37 tests passing!**
+**STATUS: ALL 38/38 tests passing!**
 
 ## Notes
 
@@ -267,3 +269,37 @@ Implementation:
 - When encountering first field of a oneof, generates entire oneof group
 - Uses `toCamelCase()` helper to convert oneof names
 - Tracks generated oneofs to avoid duplication
+
+### Service Method Name Escaping (SOLVED)
+Service method names that conflict with JavaScript class properties/methods must be escaped with a `$` suffix. The reserved method names are:
+- `name` - Class.prototype.name property
+- `constructor` - Class constructor keyword
+- `close` - Common class method
+- `toString` - Object.prototype.toString method
+
+**Algorithm**:
+1. Convert method name to camelCase (e.g., `GetData` → `getData`)
+2. Check if result is in reserved method names list
+3. If yes, append `$` to the method name (e.g., `name$`)
+4. Add `localName` parameter to method metadata in ServiceType when escaping was applied
+
+**Important**: The `name` field in method metadata always uses the original proto name (e.g., `Name`), not the escaped/camelCase version.
+
+Example: Proto method `rpc Name(Request) returns (Response);` becomes:
+- Interface method: `name$(input: Request, options?: RpcOptions): UnaryCall<Request, Response>`
+- Implementation method: `name$(input: Request, options?: RpcOptions): UnaryCall<Request, Response> { ... }`
+- ServiceType metadata: `{ name: "Name", localName: "name$", options: {}, I: Request, O: Response }`
+
+Implementation: `escapeMethodName()` checks for reserved names and escapes them, applied in `generateServiceClient()` for both interface and implementation.
+
+### WireType Import for Empty Messages (SOLVED)
+When a file contains only messages with no fields (all messages are empty), the `WireType` import should be omitted entirely since it's not used.
+
+Example: A file with only `message Request {}` and `message Response {}` should not import WireType.
+
+**Algorithm**:
+1. Check all messages in the file for actual fields (excluding GROUP type fields)
+2. If no message has any fields, set `hasAnyFields = false`
+3. Only emit WireType import if `hasAnyFields` is true
+
+Implementation: Added `hasAnyFields` check before emitting WireType import, scanning all messages for non-GROUP fields.
