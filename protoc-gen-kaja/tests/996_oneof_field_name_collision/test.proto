@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  // Oneof with a field that has the same name as the oneof group
+  oneof value {
+    string value_text = 1;  // When camelCased: valueText
+    int32 value_number = 2;  // When camelCased: valueNumber
+  }
+  
+  // Another case: oneof name becomes same as a field name after camelCase
+  oneof data_field {
+    string text = 3;
+    int32 number = 4;
+  }
+  
+  string dataField = 5;  // This collides with the oneof name after camelCase
+}
+
+message AnotherTest {
+  oneof result {
+    string result = 1;  // Direct collision: field name == oneof name
+  }
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+message BoolMapTest {
+  // Map with boolean key - should use string in TypeScript
+  map<bool, string> flags = 1;
+  map<bool, int32> counts = 2;
+  map<bool, BoolMapTest> nested = 3;
+}

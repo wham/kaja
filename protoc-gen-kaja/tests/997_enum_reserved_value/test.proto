@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package test;
+
+// Enum with TypeScript reserved words as values
+enum ReservedEnum {
+  UNSPECIFIED = 0;
+  ABSTRACT = 1;
+  AS = 2;
+  ASYNC = 3;
+  AWAIT = 4;
+  BREAK = 5;
+  CASE = 6;
+  CATCH = 7;
+  CLASS = 8;
+  CONST = 9;
+  CONTINUE = 10;
+  DEBUGGER = 11;
+  DEFAULT = 12;
+  DELETE = 13;
+  DO = 14;
+  ELSE = 15;
+  ENUM = 16;
+  EXPORT = 17;
+  EXTENDS = 18;
+  FALSE = 19;
+  FINALLY = 20;
+  FOR = 21;
+  FUNCTION = 22;
+  IF = 23;
+  IMPLEMENTS = 24;
+  IMPORT = 25;
+  IN = 26;
+  INSTANCEOF = 27;
+  INTERFACE = 28;
+  LET = 29;
+  NEW = 30;
+  NULL = 31;
+  PACKAGE = 32;
+  PRIVATE = 33;
+  PROTECTED = 34;
+  PUBLIC = 35;
+  RETURN = 36;
+  STATIC = 37;
+  SUPER = 38;
+  SWITCH = 39;
+  THIS = 40;
+  THROW = 41;
+  TRUE = 42;
+  TRY = 43;
+  TYPEOF = 44;
+  VAR = 45;
+  VOID = 46;
+  WHILE = 47;
+  WITH = 48;
+  YIELD = 49;
+}
+
+message TestMessage {
+  ReservedEnum status = 1;
+}

@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package test;
+
+// Proto2 enum that doesn't start at 0
+enum Status {
+  STARTED = 1;
+  RUNNING = 2;
+  STOPPED = 3;
+}
+
+message Task {
+  optional string name = 1;
+  optional Status status = 2;
+}

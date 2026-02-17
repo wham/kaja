@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package test;
+
+// Deprecated enum
+enum Status {
+  option deprecated = true;
+  
+  UNSPECIFIED = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+
+// Enum with deprecated values
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  LOW = 1 [deprecated = true];
+  MEDIUM = 2;
+  HIGH = 3 [deprecated = true];
+}
+
+message Task {
+  Status status = 1;
+  Priority priority = 2;
+}
