@@ -57,10 +57,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement google.protobuf wrapper types (Int32Value, StringValue, etc.) custom methods
 - [x] Fix service method leading detached comments (output as // style between methods)
 - [x] Fix same-package nested type resolution (check if type is defined in file, not just uppercase check)
+- [x] Fix service name escaping in ServiceType exports (Array → Array$, but @generated shows original)
 
-**STATUS: 49/49 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 50/50 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, and edge cases with lowercase message names.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, and reserved type name escaping for services.
 
 ## Notes
 
@@ -239,14 +240,21 @@ Message, enum, and service names that collide with TypeScript reserved keywords 
 
 Important: 
 - **Only top-level types** get the `$` suffix (nested types don't need escaping)
-- The proto name in `@generated` comments and `MessageType` constructor remains unchanged
+- The proto name in `@generated` comments and `MessageType`/`ServiceType` constructor remains unchanged
 - Nested types like `Outer.class` become `Outer_class` (no `$` because the underscore prevents conflicts)
 - **Nested type prefixes use the unescaped proto name**: If parent `from` is escaped to `from$`, nested type `of` becomes `from_of` NOT `from$_of`
+- **Service name escaping**: Service names like `Array` become `Array$` for TypeScript exports but proto name remains in comments
 
 Example: Proto message `from` with nested message `of` becomes:
 - Top-level interface: `export interface from$` (if "from" is a keyword)
 - Nested interface: `export interface from_of` (uses unescaped parent name)
 - Class: `class from_of$Type` (also uses unescaped parent name)
+
+Example: Proto service `Array` becomes:
+- ServiceType export: `export const Array$ = new ServiceType("test.Array", [...])`
+- Comment: `@generated ServiceType for protobuf service test.Array` (original name)
+- Client interface: `export interface IArray$Client { ... }`
+- Client class: `export class Array$Client implements IArray$Client { ... }`
 
 Implementation: 
 - Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`

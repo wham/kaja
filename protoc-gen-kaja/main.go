@@ -3697,7 +3697,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
-	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, serviceName)
+	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, baseName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export interface %s {", clientName)
 	g.indent = "    "
@@ -3791,7 +3791,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
-	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, serviceName)
+	g.pNoIndent(" * @generated from protobuf service %s%s", pkgPrefix, baseName)
 	g.pNoIndent(" */")
 	g.pNoIndent("export class %sClient implements %s, ServiceInfo {", serviceName, clientName)
 	g.indent = "    "
@@ -3997,12 +3997,13 @@ pkgPrefix = *g.file.Package + "."
 }
 
 svcName := svc.GetName()
+escapedSvcName := escapeTypescriptKeyword(svcName)
 fullName := pkgPrefix + svcName
 
 g.pNoIndent("/**")
 g.pNoIndent(" * @generated ServiceType for protobuf service %s", fullName)
 g.pNoIndent(" */")
-g.pNoIndent("export const %s = new ServiceType(\"%s\", [", svcName, fullName)
+g.pNoIndent("export const %s = new ServiceType(\"%s\", [", escapedSvcName, fullName)
 
 // Generate method descriptors
 g.indent = "    "
