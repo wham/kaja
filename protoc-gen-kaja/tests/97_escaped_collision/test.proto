@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test;
+
+message Request {}
+message Response {}
+
+// Test service where method names collide after escaping
+service TestService {
+  // This becomes "name$" after escaping
+  rpc Name(Request) returns (Response);
+  
+  // This should ALSO become "name$" but would collide!
+  // Wait, proto doesn't allow $ in names...
+  // Let me try a different approach: what if we have both Name and NAME?
+  // After camelCase: name and name - collision before escaping
+  
+  // Let me try: constructor and Constructor$ (if allowed)
+  rpc Constructor(Request) returns (Response);
+}
