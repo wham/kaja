@@ -672,10 +672,11 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
 				// Blank line before the license header
 				g.pNoIndent("//")
-				for idx, detached := range loc.LeadingDetachedComments {
+				for _, detached := range loc.LeadingDetachedComments {
 					// Don't use TrimSpace - it removes trailing newlines which represent blank // lines
 					// Just check if the comment has any non-whitespace content
 					if strings.TrimSpace(detached) != "" {
+						// DON'T trim trailing newline - it will create the separator
 						for _, line := range strings.Split(detached, "\n") {
 							line = strings.TrimRight(line, " \t")
 							if line == "" {
@@ -687,10 +688,6 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 								}
 								g.pNoIndent("// %s", line)
 							}
-						}
-						// Add blank line separator after detached comment block (except for last block)
-						if idx < len(loc.LeadingDetachedComments)-1 {
-							g.pNoIndent("")
 						}
 					}
 				}
