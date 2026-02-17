@@ -4142,10 +4142,12 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 	
-	// 4. Check if we need stackIntercept (for unary or streaming methods)
+	// 4. Check if we need stackIntercept (for any method - unary or streaming)
+	hasAnyMethod := false
 	hasUnary := false
 	for _, service := range file.Service {
 		for _, method := range service.Method {
+			hasAnyMethod = true
 			if !method.GetClientStreaming() && !method.GetServerStreaming() {
 				hasUnary = true
 				break
@@ -4156,7 +4158,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 	
-	if hasUnary {
+	if hasAnyMethod {
 		g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	
@@ -4178,11 +4180,28 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
 			seen[reqType] = true
 		}
+		
+		// If method 0 is streaming, emit its call type
+		if method.GetClientStreaming() || method.GetServerStreaming() {
+			var callTypeImport string
+			if method.GetClientStreaming() && method.GetServerStreaming() {
+				callTypeImport = "DuplexStreamingCall"
+			} else if method.GetServerStreaming() {
+				callTypeImport = "ServerStreamingCall"
+			} else if method.GetClientStreaming() {
+				callTypeImport = "ClientStreamingCall"
+			}
+			if callTypeImport != "" {
+				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+			}
+		}
 	}
 	
-	// Always emit UnaryCall and RpcOptions at the end
+	// Emit UnaryCall only if there are unary methods, RpcOptions always
 	if len(file.Service) > 0 {
-		g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+		if hasUnary {
+			g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+		}
 		g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	

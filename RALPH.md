@@ -70,10 +70,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement file-level deprecation (option deprecated = true propagates to all elements)
 - [x] Fix boolean map keys (TypeScript object keys are always strings, need conversion)
 - [x] Implement service method idempotency_level option support
+- [x] Fix streaming method client imports (stackIntercept for all methods, call types for method 0)
 
-**STATUS: 70/70 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 72/72 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including idempotency_level support.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including streaming method imports.
 
 ## Notes
 
@@ -626,3 +627,43 @@ export const IdempotentService = new ServiceType("IdempotentService", [
 ```
 
 **Implementation**: Read `method.GetOptions().GetIdempotencyLevel()` and add `idempotency` field to metadata only when level is `NO_SIDE_EFFECTS` or `IDEMPOTENT`. The field is omitted for `IDEMPOTENCY_UNKNOWN` (default value).
+
+### Streaming Method Client Imports (SOLVED)
+Service client files must import the correct call types and `stackIntercept` function for streaming methods.
+
+**Required imports for streaming services**:
+1. `stackIntercept` - Needed by ALL methods (unary AND streaming), not just unary
+2. Call type for method 0 - Must be emitted after method 0's message types
+3. Call types for methods 1-N - Emitted according to interleave/group strategy
+
+**Algorithm**:
+1. Check if file has ANY service methods (not just unary) to determine if `stackIntercept` is needed
+2. Import `stackIntercept` if ANY methods exist (unary or streaming)
+3. After emitting method 0's message types (Response, Request), check if method 0 is streaming
+4. If method 0 is streaming, emit its call type (ServerStreamingCall, ClientStreamingCall, or DuplexStreamingCall)
+5. Import `UnaryCall` only if there are actual unary methods (not for streaming-only services)
+
+**Example**: Service with only streaming methods:
+```proto
+service TestService {
+  rpc StreamWithIdempotency(Request) returns (stream Response);
+  rpc ClientStreamIdempotent(stream Request) returns (Response);
+  rpc BidiIdempotent(stream Request) returns (stream Response);
+}
+```
+
+Expected imports:
+```typescript
+import { TestService } from "./test";
+import type { DuplexStreamingCall } from "@protobuf-ts/runtime-rpc";
+import type { ClientStreamingCall } from "@protobuf-ts/runtime-rpc";
+import { stackIntercept } from "@protobuf-ts/runtime-rpc";
+import type { Response } from "./test";
+import type { Request } from "./test";
+import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";  // method 0's call type
+import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
+```
+
+Note: NO `UnaryCall` import because service has no unary methods.
+
+Implementation: Track `hasAnyMethod` and `hasUnary` separately, emit `stackIntercept` for any methods, emit call type after method 0 types, and only import `UnaryCall` when `hasUnary` is true.
