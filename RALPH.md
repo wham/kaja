@@ -61,10 +61,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix imported reserved type names (use escaped names like String$, Number$ when importing)
 - [x] Fix service-only file import ordering (reverse service types when file has no messages)
 - [x] Fix WireType positioning for library files (different directory = early, same directory = late)
+- [x] Fix nested type imports (import Container_String not Container for nested types)
 
-**STATUS: 52/52 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 54/54 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, and WireType positioning for library files vs same-directory files.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, WireType positioning for library files vs same-directory files, and nested type imports.
 
 ## Notes
 
@@ -443,3 +444,21 @@ Example: A file with only `message Request {}` and `message Response {}` should 
 3. Only emit WireType import if `hasAnyFields` is true
 
 Implementation: Added `hasAnyFields` check before emitting WireType import, scanning all messages for non-GROUP fields.
+
+### Nested Type Imports (SOLVED)
+When importing nested types from another package (e.g., `types.Container.String`), the import statement must use the full nested type name with underscore separator, not just the parent type.
+
+**Example**: Proto type `types.Container.String` (nested message String inside Container)
+- Wrong: `import { Container } from "./types"`
+- Correct: `import { Container_String } from "./types"`
+
+**Algorithm**:
+1. Split the type name after package prefix into parts (e.g., `["Container", "String"]`)
+2. If `len(parts) == 2`, check if it's a nested enum first
+3. If not nested enum but `len(parts) == 2`, check if it's a nested message
+4. If nested message found, import as `Parent_Nested`
+5. Only if `len(parts) == 1`, import as simple top-level type
+
+**Important**: This applies to both the import generation logic (where we create import statements) and the candidate file checking logic (where we determine which file contains a type).
+
+Implementation: Added nested message checking in `generateImport()` function, mirroring the existing nested enum logic. Also added nested message checking in the candidate file loop to correctly identify which file contains a nested type.

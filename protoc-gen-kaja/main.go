@@ -713,7 +713,24 @@ func (g *generator) writeImports(imports map[string]bool) {
 					}
 				}
 				
-				// Check messages
+				// Check nested messages
+				if !found && len(parts) == 2 {
+					for _, msg := range candidate.file.MessageType {
+						if msg.GetName() == parts[0] {
+							for _, nested := range msg.NestedType {
+								if nested.GetName() == parts[1] {
+									found = true
+									break
+								}
+							}
+							if found {
+								break
+							}
+						}
+					}
+				}
+				
+				// Check top-level messages
 				if !found {
 					for _, msg := range candidate.file.MessageType {
 						if msg.GetName() == parts[0] {
@@ -773,8 +790,26 @@ func (g *generator) writeImports(imports map[string]bool) {
 				}
 			}
 		}
+		if !found && len(parts) == 2 {
+			// Check if it's a nested message (Message.Nested)
+			for _, msg := range matchedDepFile.MessageType {
+				if msg.GetName() == parts[0] {
+					for _, nested := range msg.NestedType {
+						if nested.GetName() == parts[1] {
+							importedName = fmt.Sprintf("%s_%s", parts[0], parts[1])
+							importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
+							found = true
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+			}
+		}
 		if !found {
-			// Must be a message
+			// Must be a top-level message
 			for _, msg := range matchedDepFile.MessageType {
 				if msg.GetName() == parts[0] {
 					importedName = escapeTypescriptKeyword(msg.GetName())
