@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package test;
+
+import "types.proto";
+
+service TestService {
+  // Uses doubly-nested type
+  rpc DoSomething(Outer.Middle.Inner) returns (Outer.Middle.Inner);
+  
+  // Uses singly-nested type
+  rpc DoAnother(Outer.Middle) returns (Outer.Middle);
+}

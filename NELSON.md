@@ -41,6 +41,8 @@ and your job is find at least one additional case where the tests will fail.
 
 10. **Nested type name collisions:** When a nested type like `Outer.Inner` gets flattened to `Outer_Inner`, it can collide with a top-level type named `Outer_Inner`. The TS plugin detects these collisions and appends `$1`, `$2`, etc. to avoid conflicts (e.g., `Outer_Inner$1` for the nested type). The Go plugin doesn't detect these collisions, causing both types to have the same name which breaks TypeScript compilation. This affects any combination of nested and non-nested types where the flattened name would be identical.
 
+11. **Deeply nested imported types in services:** When a service uses doubly-nested imported types (e.g., `Outer.Middle.Inner` from another file), the Go implementation incorrectly imports the top-level parent (imports `Outer` instead of `Outer_Middle_Inner`). The TS plugin correctly tracks each nested type used and imports them individually. This causes both compilation errors (missing type `Outer_Middle_Inner`) and incorrect imports in the .client.ts file (imports from wrong file). Test with proto files where a service uses `types.Container.Nested.DeepType` - the import should be `Outer_Middle_Inner` from the types file, not `Outer`.
+
 ### How to run tests
 
 ```bash
