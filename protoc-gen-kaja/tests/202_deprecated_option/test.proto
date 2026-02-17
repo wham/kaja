@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package deprecated.test;
+
+// Test deprecated message
+message OldMessage {
+  option deprecated = true;
+  
+  string data = 1;
+}
+
+// Test message with deprecated fields
+message UserProfile {
+  string name = 1;
+  
+  // This field is deprecated
+  string old_email = 2 [deprecated = true];
+  
+  string current_email = 3;
+  
+  int32 age = 4 [deprecated = true];
+}
+
+// Test deprecated enum
+enum OldStatus {
+  option deprecated = true;
+  
+  OLD_STATUS_UNSPECIFIED = 0;
+  OLD_STATUS_ACTIVE = 1;
+  OLD_STATUS_INACTIVE = 2;
+}
+
+// Test enum with deprecated values
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_DEPRECATED_VALUE = 2 [deprecated = true];
+  STATUS_INACTIVE = 3;
+}
+
+// Test deprecated service
+service OldService {
+  option deprecated = true;
+  
+  rpc GetData(OldMessage) returns (OldMessage);
+}
+
+// Test service with deprecated method
+service UserService {
+  rpc GetUser(UserProfile) returns (UserProfile);
+  
+  rpc LegacyGetUser(UserProfile) returns (UserProfile) {
+    option deprecated = true;
+  };
+  
+  rpc UpdateUser(UserProfile) returns (UserProfile);
+}
+
+// Test nested message with deprecated field
+message Container {
+  message NestedOld {
+    option deprecated = true;
+    string value = 1;
+  }
+  
+  message Nested {
+    string name = 1;
+    int32 old_count = 2 [deprecated = true];
+  }
+  
+  NestedOld old_nested = 1 [deprecated = true];
+  Nested nested = 2;
+}
