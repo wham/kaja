@@ -47,8 +47,9 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix service method name escaping (name, constructor, close, toString)
 - [x] Fix WireType import when no fields exist (skip import entirely)
 - [x] Fix gRPC reserved method names (makeUnaryRequest, methods, typeName, etc.)
+- [x] Fix service method name camelCase conversion (__proto__ → Proto, _transport → Transport)
 
-**STATUS: ALL 39/39 tests passing!**
+**STATUS: ALL 40/40 tests passing!**
 
 ## Notes
 
@@ -307,6 +308,24 @@ Example: Proto method `rpc Name(Request) returns (Response);` becomes:
 - ServiceType metadata: `{ name: "Name", localName: "name$", options: {}, I: Request, O: Response }`
 
 Implementation: `escapeMethodName()` checks for reserved names and escapes them, applied in `generateServiceClient()` for both interface and implementation.
+
+### Service Method Name CamelCase Conversion (SOLVED)
+Service method names undergo full camelCase conversion (using `toCamelCase()`) just like field names, not just lowercasing the first letter. This handles special cases like leading underscores.
+
+**Algorithm**:
+1. Convert proto method name via `toCamelCase()` which handles underscores properly:
+   - Names starting with `_` get first letter capitalized after underscore removal
+   - Multiple underscores are collapsed
+2. Then check for reserved name conflicts via `escapeMethodName()`
+
+**Examples**:
+- `__proto__` → splits to `["", "", "proto", "", ""]` → joins to `Proto` (starts with underscore so capitalize)
+- `_transport` → splits to `["", "transport"]` → joins to `Transport` (starts with underscore so capitalize)
+- `GetData` → normal camelCase → `getData`
+
+**Important**: Must use `toCamelCase()` not `lowerFirst()` because `lowerFirst()` only lowercases the first character, while `toCamelCase()` properly handles underscore-based naming including leading underscores.
+
+Implementation: Changed all method name processing from `g.lowerFirst(method.GetName())` to `g.toCamelCase(method.GetName())` in service client generation (interface, implementation, and metadata).
 
 ### WireType Import for Empty Messages (SOLVED)
 When a file contains only messages with no fields (all messages are empty), the `WireType` import should be omitted entirely since it's not used.

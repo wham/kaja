@@ -3514,7 +3514,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
-		methodName := escapeMethodName(g.lowerFirst(method.GetName()))
+		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
 		g.p("/**")
 		
@@ -3597,7 +3597,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	for methodIdx, method := range service.Method {
 		reqType := g.stripPackage(method.GetInputType())
 		resType := g.stripPackage(method.GetOutputType())
-		methodName := escapeMethodName(g.lowerFirst(method.GetName()))
+		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
 		g.p("/**")
 		
@@ -3801,7 +3801,7 @@ comma = ""
 	}
 
 	// Check if method name needs escaping and add localName
-	methodName := g.lowerFirst(method.GetName())
+	methodName := g.toCamelCase(method.GetName())
 	escapedName := escapeMethodName(methodName)
 	localNameField := ""
 	if escapedName != methodName {
