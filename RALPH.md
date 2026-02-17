@@ -62,10 +62,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix service-only file import ordering (reverse service types when file has no messages)
 - [x] Fix WireType positioning for library files (different directory = early, same directory = late)
 - [x] Fix nested type imports (import Container_String not Container for nested types)
+- [x] Fix type name collisions (nested type with same name as top-level gets numeric suffix)
 
-**STATUS: 54/54 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 61/61 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, WireType positioning for library files vs same-directory files, and nested type imports.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including message generation, service generation, field types, comments, import ordering, WKT custom methods, method-level detached comments, edge cases with lowercase message names, reserved type name escaping for services and imported types, service-only file import ordering, WireType positioning for library files vs same-directory files, nested type imports, and type name collision handling.
 
 ## Notes
 
@@ -462,3 +463,31 @@ When importing nested types from another package (e.g., `types.Container.String`
 **Important**: This applies to both the import generation logic (where we create import statements) and the candidate file checking logic (where we determine which file contains a type).
 
 Implementation: Added nested message checking in `generateImport()` function, mirroring the existing nested enum logic. Also added nested message checking in the candidate file loop to correctly identify which file contains a nested type.
+
+### Type Name Collisions (SOLVED)
+When a nested type would generate the same TypeScript name as a top-level type, the nested type gets a numeric suffix to avoid collision.
+
+**Example**: Proto file with:
+- Top-level message `Outer_Inner`
+- Nested message `Outer.Inner`
+
+Both would normally generate TypeScript name `Outer_Inner`, causing a collision. The resolution:
+- `Outer_Inner` (top-level) stays as `Outer_Inner`
+- `Outer.Inner` (nested) becomes `Outer_Inner$1`
+
+**Algorithm**:
+1. Before generating any types, scan all messages and enums in the file
+2. Build a map from TypeScript name to list of full proto names that generate it
+3. When multiple proto types map to the same TypeScript name, assign numeric suffixes:
+   - First occurrence gets no suffix (suffix = 0)
+   - Second occurrence gets `$1` (suffix = 1)
+   - Third occurrence gets `$2` (suffix = 2), etc.
+4. During generation, check `g.typeNameSuffixes` map and append suffix if needed
+
+**Important**: 
+- The suffix applies to the TypeScript name in interfaces, classes, and exports
+- The `@generated` comment still shows the original proto name without suffix
+- Field types that reference colliding types also use the suffixed name
+- The collision detection happens in `detectTypeNameCollisions()` called before any generation
+
+Implementation: Added `typeNameSuffixes` map to generator struct, `detectTypeNameCollisions()` function to scan and assign suffixes, and updated `generateMessageInterface()`, `generateMessageClass()`, `generateEnum()`, and `stripPackage()` to apply suffixes when generating and referencing types.
