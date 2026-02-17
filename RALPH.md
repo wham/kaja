@@ -77,29 +77,32 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Add JSDoc comment escaping for */ sequences
 - [x] Fix proto2 optional message fields write condition (use truthy check)
 - [x] Implement custom method options support (extension parsing)
+- [x] Fix file-level detached comment block separators (add `//` separator between blocks)
 
-**STATUS: 75/76 tests passing**
-
-**Remaining issue**: Test 50_method_custom_options fails due to missing `//` separator line in google.protobuf.descriptor.proto file-level detached comments. Expected has TWO `//` lines between BSD license and Author comment blocks, actual has ONE. The test proto files (test.ts, test.client.ts) match perfectly - only the imported google.protobuf.descriptor.ts differs.
+**STATUS: 76/76 tests passing ✅**
 
 ## Notes
 
-### Current Status (75/76 tests passing)
+### Current Status (76/76 tests passing) ✅
 
-The protoc-gen-kaja implementation has all features implemented. One remaining test failure in file-level detached comment formatting.
+The protoc-gen-kaja implementation is complete! All features have been implemented and all tests are passing.
 
-**Failing test**: 50_method_custom_options
-**Issue**: google.protobuf.descriptor.proto file-level detached comments need TWO `//` separator lines between BSD license and Author blocks, but only ONE is output.
-**Note**: The test's own generated files (test.ts, test.client.ts) match perfectly. Only the imported google.protobuf.descriptor.ts file differs by this one line.
+### File-Level Detached Comment Block Separators (SOLVED)
 
-### Detached Comment Formatting Rules (PARTIALLY SOLVED)
-
-Detached comments (comments separated from declarations by blank lines) have different formatting rules depending on context:
+File-level detached comments stored in the syntax field's `LeadingDetachedComments` need special handling when there are multiple comment blocks:
 
 **File-level detached comments** (output after imports):
-- Blank lines WITHIN blocks: `//` (no trailing space) - NOT YET WORKING CORRECTLY
-- Separators BETWEEN blocks: Need TWO `//` lines for descriptor.proto, but unclear why
+- Blank lines WITHIN blocks: `//` (no trailing space) ✓ WORKING  
+- Separators BETWEEN blocks: `//` line between blocks ✓ WORKING
 - After all blocks: Blank line before first declaration
+
+**Algorithm for file-level comments**:
+1. For each comment block, split by `\n` to get lines
+2. Check if last element is empty (trailing newline case)
+3. Output all lines except the trailing empty one
+4. If block had trailing newline, output it as `//`
+5. Between blocks (not after last): output another `//` as separator
+6. Result: blocks ending with newlines get `//` + `//` separator = TWO `//` lines between blocks
 
 **Message-level detached comments** (output before message JSDoc):
 - Blank lines WITHIN blocks: `// ` (WITH trailing space) ✓ WORKING
@@ -107,11 +110,15 @@ Detached comments (comments separated from declarations by blank lines) have dif
 - After all blocks: Blank line before JSDoc
 
 **Service method detached comments** (output before method JSDoc for non-first methods):
-- Blank lines within blocks: `// ` (with trailing space from `g.p("// %s", line)` where line is empty)
-- No separators between blocks (output all blocks consecutively)
+- Blank lines within blocks: `// ` (with trailing space from `g.p("// %s", line)` where line is empty) ✓ WORKING
+- No separators between blocks (output all blocks consecutively) ✓ WORKING
 - After all blocks: Blank line before JSDoc
 
-**Current limitation**: File-level detached comment block separators for google.protobuf.descriptor.proto require TWO `//` lines instead of one. The cause is unclear - may be related to how protobuf stores trailing blank lines in comment blocks in SourceCodeInfo.
+**Implementation notes**:
+- Syntax-field detached comments (lines 668-707 in main.go) handle file-level comments for files like descriptor.proto
+- First-message detached comments (lines 712-738 in main.go) handle file-level comments for files that don't have syntax-field comments
+- Both use the same algorithm: preserve trailing newlines as blank comment lines, add `//` separators between blocks
+- Message-level comments use blank line separators instead of `//`, and have trailing space for blank lines within blocks
 
 ### Bytes Default Value Escaping (SOLVED)
 Proto default values for bytes/string fields are stored as C-style escaped strings in the descriptor. When displaying these in TypeScript @generated comments, certain escape sequences need special handling because the comments show what the TypeScript SOURCE CODE would look like.

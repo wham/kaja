@@ -672,12 +672,21 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
 				// Blank line before the license header
 				g.pNoIndent("//")
-				for _, detached := range loc.LeadingDetachedComments {
+				for blockIdx, detached := range loc.LeadingDetachedComments {
 					// Don't use TrimSpace - it removes trailing newlines which represent blank // lines
 					// Just check if the comment has any non-whitespace content
 					if strings.TrimSpace(detached) != "" {
-						// DON'T trim trailing newline - it will create the separator
-						for _, line := range strings.Split(detached, "\n") {
+						// Split by newline (keeping trailing empty strings for blank lines)
+						lines := strings.Split(detached, "\n")
+						// Check if last line is empty (trailing newline case)
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						// Output all lines except the trailing empty one (we'll handle it separately)
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
 							line = strings.TrimRight(line, " \t")
 							if line == "" {
 								g.pNoIndent("//")
@@ -688,6 +697,14 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 								}
 								g.pNoIndent("// %s", line)
 							}
+						}
+						// If block has trailing newline, output it
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						// Add // separator between blocks (not after last block)
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
 						}
 					}
 				}
@@ -705,13 +722,26 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	if len(file.MessageType) > 0 {
 		firstMsgPath := []int32{4, 0}
 		detachedComments := g.getLeadingDetachedComments(firstMsgPath)
-		for _, comment := range detachedComments {
-			lines := strings.Split(comment, "\n")
-			for _, line := range lines {
-				if line != "" {
+		for blockIdx, comment := range detachedComments {
+			// Trim trailing newline (it will be represented by // separator or blank line)
+			comment = strings.TrimRight(comment, "\n")
+			// Split by newline and output each line
+			for _, line := range strings.Split(comment, "\n") {
+				line = strings.TrimRight(line, " \t")
+				if line == "" {
+					// For file-level: blank lines within blocks are "//" (no space)
+					g.pNoIndent("//")
+				} else {
 					g.pNoIndent("// %s", line)
 				}
 			}
+			// Add // separator between blocks (not after last block)
+			if blockIdx < len(detachedComments)-1 {
+				g.pNoIndent("//")
+			}
+		}
+		// Blank line after all blocks
+		if len(detachedComments) > 0 {
 			g.pNoIndent("")
 		}
 	}
