@@ -1814,6 +1814,17 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
 	}
 	
+	// Check for jstype option (for int64/uint64 types)
+	jstypeAnnotation := ""
+	if field.Options != nil && field.GetOptions().Jstype != nil {
+		jstype := field.GetOptions().GetJstype()
+		if jstype == descriptorpb.FieldOptions_JS_STRING {
+			jstypeAnnotation = " [jstype = JS_STRING]"
+		} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
+			jstypeAnnotation = " [jstype = JS_NUMBER]"
+		}
+	}
+	
 	// Check if field is deprecated OR file is deprecated
 	fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
 	deprecatedAnnotation := ""
@@ -1825,7 +1836,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		g.p(" * @deprecated")
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation)
+	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation)
 	g.p(" */")
 	
 	fieldName = g.propertyName(field)
@@ -2296,6 +2307,13 @@ func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorPro
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "number"
+			}
+			// JS_STRING falls through to use longType
+		}
 		return g.params.longType
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 		return "boolean"
@@ -2573,17 +2591,33 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		opt = ", opt: true"
 	}
 	
+	// Check for jstype option to add L parameter for JS_NUMBER
+	longTypeParam := ""
+	if field.Options != nil && field.GetOptions().Jstype != nil {
+		if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+			// Only add L parameter for 64-bit integer types
+			switch field.GetType() {
+			case descriptorpb.FieldDescriptorProto_TYPE_INT64,
+				descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+				descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+				descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+				descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+				longTypeParam = ", L: 2 /*LongType.NUMBER*/"
+			}
+		}
+	}
+	
 	// Generate the field descriptor
 	if kind == "scalar" && oneofName == "" {
 		// Regular scalar field needs T parameter
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/ }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, longTypeParam, comma)
 	} else if kind == "scalar" && oneofName != "" {
-		// Scalar oneof field
+		// Scalar oneof field - oneof comes BEFORE T
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/ }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, extraFields, t, typeName, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, extraFields, t, typeName, longTypeParam, comma)
 	} else {
 		// Message, enum, or map field
 		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s%s }%s",
@@ -2848,7 +2882,23 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			deprecatedAnnotation = " [deprecated = true]"
 		}
 		
-		g.p("case /* %s %s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation, field.GetNumber())
+		// Add jstype annotation if applicable
+		jstypeAnnotation := ""
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			jstype := field.GetOptions().GetJstype()
+			if jstype == descriptorpb.FieldOptions_JS_STRING || jstype == descriptorpb.FieldOptions_JS_NUMBER {
+				if fieldNumberInComment == "" {
+					fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
+				}
+				if jstype == descriptorpb.FieldOptions_JS_STRING {
+					jstypeAnnotation = " [jstype = JS_STRING]"
+				} else {
+					jstypeAnnotation = " [jstype = JS_NUMBER]"
+				}
+			}
+		}
+		
+		g.p("case /* %s %s%s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -3051,7 +3101,18 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			deprecatedAnnotation = " [deprecated = true]"
 		}
 		
-		g.p("/* %s %s = %d%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, deprecatedAnnotation)
+		// Add jstype annotation if applicable
+		jstypeAnnotation := ""
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			jstype := field.GetOptions().GetJstype()
+			if jstype == descriptorpb.FieldOptions_JS_STRING {
+				jstypeAnnotation = " [jstype = JS_STRING]"
+			} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
+				jstypeAnnotation = " [jstype = JS_NUMBER]"
+			}
+		}
+		
+		g.p("/* %s %s = %d%s%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, deprecatedAnnotation)
 		
 		// Check if this is a real oneof (not proto3 optional)
 		isRealOneof := false
@@ -3365,6 +3426,13 @@ func (g *generator) getDefaultValue(field *descriptorpb.FieldDescriptorProto) st
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "0" // JS_NUMBER uses number type
+			}
+			// JS_STRING falls through to string default
+		}
 		if g.params.longType == "string" {
 			return "\"0\""
 		}
@@ -3389,12 +3457,30 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 		return "reader.float()"
 	case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.int64().toNumber()"
+			}
+		}
 		return "reader.int64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.uint64().toNumber()"
+			}
+		}
 		return "reader.uint64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_INT32:
 		return "reader.int32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.fixed64().toNumber()"
+			}
+		}
 		return "reader.fixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
 		return "reader.fixed32()"
@@ -3411,10 +3497,22 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
 		return "reader.sfixed32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.sfixed64().toNumber()"
+			}
+		}
 		return "reader.sfixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
 		return "reader.sint32()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		// Check for jstype option
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "reader.sint64().toNumber()"
+			}
+		}
 		return "reader.sint64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 		typeName := g.stripPackage(field.GetTypeName())

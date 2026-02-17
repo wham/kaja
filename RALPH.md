@@ -72,9 +72,9 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement service method idempotency_level option support
 - [x] Fix streaming method client imports (stackIntercept for all methods, call types for method 0)
 
-**STATUS: 72/72 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 73/73 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including streaming method imports.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including jstype option support.
 
 ## Notes
 
@@ -667,3 +667,66 @@ import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 Note: NO `UnaryCall` import because service has no unary methods.
 
 Implementation: Track `hasAnyMethod` and `hasUnary` separately, emit `stackIntercept` for any methods, emit call type after method 0 types, and only import `UnaryCall` when `hasUnary` is true.
+
+### Field jstype Option (SOLVED)
+The `jstype` field option controls JavaScript/TypeScript representation of 64-bit integer types (int64, uint64, sint64, fixed64, sfixed64). It has three values:
+
+**JS_NORMAL (default)**: Use the global `long_type` parameter setting (typically "string")
+**JS_STRING**: Always use string representation
+**JS_NUMBER**: Always use number representation (may lose precision for large values)
+
+**Implementation requirements**:
+1. **Field annotation**: Add `[jstype = JS_STRING]` or `[jstype = JS_NUMBER]` to `@generated` comments
+2. **TypeScript type**: When `jstype = JS_NUMBER`, use `number` type instead of `string`
+3. **Field metadata**: When `jstype = JS_NUMBER`, add `L: 2 /*LongType.NUMBER*/` parameter after `T`
+4. **Default value**: When `jstype = JS_NUMBER`, use `0` (number) instead of `"0"` (string)
+5. **Reader method**: When `jstype = JS_NUMBER`, use `.toNumber()` instead of `.toString()`
+6. **Write condition**: When `jstype = JS_NUMBER`, compare against `0` (number) instead of `"0"` (string)
+
+**Example proto**:
+```proto
+message JsTypeTest {
+  int64 regular_int64 = 1;                      // Uses global long_type (string)
+  int64 string_int64 = 2 [jstype = JS_STRING];  // Always string
+  int64 number_int64 = 3 [jstype = JS_NUMBER];  // Always number
+}
+```
+
+**Generated TypeScript**:
+```typescript
+export interface JsTypeTest {
+  regularInt64: string;     // global setting
+  stringInt64: string;      // explicit JS_STRING
+  numberInt64: number;      // explicit JS_NUMBER
+}
+
+class JsTypeTest$Type extends MessageType<JsTypeTest> {
+  constructor() {
+    super("test.JsTypeTest", [
+      { no: 1, name: "regular_int64", kind: "scalar", T: 3 /*ScalarType.INT64*/ },
+      { no: 2, name: "string_int64", kind: "scalar", T: 3 /*ScalarType.INT64*/ },
+      { no: 3, name: "number_int64", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+    ]);
+  }
+  create(value?: PartialMessage<JsTypeTest>): JsTypeTest {
+    const message = globalThis.Object.create((this.messagePrototype!));
+    message.regularInt64 = "0";
+    message.stringInt64 = "0";
+    message.numberInt64 = 0;  // number default
+    // ...
+  }
+  internalBinaryRead(reader, length, options) {
+    // ...
+    case /* int64 number_int64 = 3 [jstype = JS_NUMBER] */ 3:
+      message.numberInt64 = reader.int64().toNumber();  // .toNumber() not .toString()
+      break;
+    // ...
+  }
+}
+```
+
+**Field metadata parameter order**:
+- Regular scalar: `T: X, L: 2` (L after T)
+- Scalar oneof: `oneof: "name", T: X, L: 2` (oneof before T, L after T)
+
+Implementation: Check `field.Options.Jstype` in `getBaseTypescriptType()`, `getDefaultValue()`, `getReaderMethod()`, and field metadata generation. Add annotation to field JSDoc, read case comments, and write comments.
