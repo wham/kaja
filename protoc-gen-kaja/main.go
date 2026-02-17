@@ -4146,12 +4146,14 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	// Detect common prefix
 	commonPrefix := g.detectEnumPrefix(enum)
 	
-	// Build map from number to first value name (for alias handling)
+	// Build map from number to first value name and index (for alias handling)
 	firstValueForNumber := make(map[int32]string)
-	for _, value := range enum.Value {
+	firstValueIndexForNumber := make(map[int32]int)
+	for idx, value := range enum.Value {
 		num := value.GetNumber()
 		if _, exists := firstValueForNumber[num]; !exists {
 			firstValueForNumber[num] = value.GetName()
+			firstValueIndexForNumber[num] = idx
 		}
 	}
 	
@@ -4161,12 +4163,20 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		// Build path to this enum value: [5 or 4, enumIndex, 2, valueIndex]
 		valuePath := append(enumPath, 2, int32(i))
 		
-		// Get leading and trailing comments
-		leadingComments := g.getLeadingComments(valuePath)
-		trailingComments := g.getTrailingComments(valuePath)
-		
 		// Check if this is an alias (not the first value with this number)
 		isAlias := value.GetName() != firstValueForNumber[value.GetNumber()]
+		
+		// For aliases, use the first value's comments
+		var leadingComments, trailingComments string
+		if isAlias {
+			firstIdx := firstValueIndexForNumber[value.GetNumber()]
+			firstValuePath := append(enumPath, 2, int32(firstIdx))
+			leadingComments = g.getLeadingComments(firstValuePath)
+			trailingComments = g.getTrailingComments(firstValuePath)
+		} else {
+			leadingComments = g.getLeadingComments(valuePath)
+			trailingComments = g.getTrailingComments(valuePath)
+		}
 		
 		g.p("/**")
 		
@@ -4183,8 +4193,8 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		}
 		
 		// Add trailing comments if present (before @generated line)
-		// Skip trailing comments for alias values
-		if trailingComments != "" && !isAlias {
+		// For aliases, we use the first value's trailing comments (fetched above)
+		if trailingComments != "" {
 			for _, line := range strings.Split(trailingComments, "\n") {
 				if line == "" {
 					g.p(" *")

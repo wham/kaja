@@ -79,14 +79,14 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Implement custom method options support (extension parsing)
 - [x] Fix file-level detached comment block separators (add `//` separator between blocks)
 - [x] Implement imported method options support (check extensions in all files)
-- [x] Implement enum alias support (use first value name in @generated, skip alias trailing comments)
+- [x] Implement enum alias support (use first value name in @generated, use first value's comments)
 - [x] Fix repeated jstype fields (jstype option applies to packed repeated fields too)
 
-**STATUS: 80/80 tests passing ✅ - COMPLETE**
+**STATUS: 86/86 tests passing ✅ - COMPLETE**
 
 ## Notes
 
-### Current Status (80/80 tests passing) ✅
+### Current Status (86/86 tests passing) ✅
 
 The protoc-gen-kaja implementation is complete! All features have been implemented and all tests are passing.
 
@@ -111,21 +111,24 @@ The `jstype` field option controls JavaScript/TypeScript representation of 64-bi
 
 Enum aliases (multiple enum values with the same number) require special handling in the generated TypeScript code.
 
-**Problem**: When an enum has `option allow_alias = true` and multiple values share the same number (e.g., `STARTED = 1` and `RUNNING = 1`), the @generated comments must show the FIRST value's name for all aliases, and trailing comments on alias values must be suppressed.
+**Problem**: When an enum has `option allow_alias = true` and multiple values share the same number (e.g., `STARTED = 1` and `RUNNING = 1`), the @generated comments must show the FIRST value's name for all aliases, and both leading and trailing comments should be taken from the first value.
 
 **Solution**:
-1. Build a map from enum number → first value name before generating enum values
+1. Build a map from enum number → first value name and first value index
 2. For each enum value, use the first value's name in the @generated comment (not the current value's name)
 3. Detect if a value is an alias by comparing its name to the first value for that number
-4. Skip trailing comments for alias values (they typically explain "alias for X" which is redundant)
+4. For alias values, fetch comments from the first value's path (using stored index)
+5. This ensures aliases show the first value's leading and trailing comments
 
 **Example**: Proto with aliases:
 ```proto
 enum Status {
   option allow_alias = true;
   UNKNOWN = 0;
+  // First value with number 1
   STARTED = 1;
-  RUNNING = 1;  // alias for STARTED
+  // Alias for STARTED - this comment is ignored
+  RUNNING = 1;
   FINISHED = 2;
 }
 ```
@@ -134,15 +137,23 @@ Generated TypeScript:
 ```typescript
 export enum Status {
     UNKNOWN = 0,
-    /** @generated from protobuf enum value: STARTED = 1; */
+    /**
+     * First value with number 1
+     *
+     * @generated from protobuf enum value: STARTED = 1;
+     */
     STARTED = 1,
-    /** @generated from protobuf enum value: STARTED = 1; */  // Shows STARTED not RUNNING
-    RUNNING = 1,  // No trailing "alias for" comment
+    /**
+     * First value with number 1
+     *
+     * @generated from protobuf enum value: STARTED = 1;
+     */  // Uses STARTED's comment, not RUNNING's
+    RUNNING = 1,
     FINISHED = 2
 }
 ```
 
-**Implementation**: In `generateEnum()`, create `firstValueForNumber` map, check `isAlias` before outputting trailing comments, and use `firstValueForNumber[value.GetNumber()]` in @generated line.
+**Implementation**: In `generateEnum()`, create `firstValueForNumber` and `firstValueIndexForNumber` maps, detect aliases, fetch comments from first value's path for aliases, and use `firstValueForNumber[value.GetNumber()]` in @generated line.
 
 ### Imported Method Options (SOLVED)
 
