@@ -38,22 +38,29 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix type name resolution for imported types (use simple names when imported)
 - [x] Fix package vs sub-package type resolution
 
-**STATUS: 33/34 tests passing. Remaining issue is import ordering within same file in test 28_comprehensive. The order depends on a complex interaction between message declaration order and field number order that needs further investigation of the protoc-gen-ts source.**
+- [x] Fix import ordering within same file (use forward message order + field number order, then reverse)
+
+**STATUS: ALL 34/34 tests passing!**
 
 ## Notes
 
-### Import Ordering Within Same File (UNSOLVED)
-When multiple types from the same import file are used, they must be imported in a specific order that matches protoc-gen-ts. The order is NOT simply:
-- Alphabetical
-- Message declaration order
-- Field number order
-- Simple forward/reverse scan
+### Import Ordering Within Same File (SOLVED)
+When multiple types from the same import file are used, they must be imported in a specific order that matches protoc-gen-ts. The TypeScript plugin processes messages in forward declaration order and fields in field number order, then **prepends** each import to the top of the file (atTop = true).
 
-Investigation shows different files require different ordering:
-- `auth/user.proto`: Expected AuditInfo, Metadata, Address (from UserProfile fields 8, 7, 5)
-- `analytics/events.proto`: Expected PageInfo, Money, Metadata, Timestamp (complex pattern)
+**Algorithm**:
+1. Process messages in forward declaration order (first message to last)
+2. For each message, process fields sorted by field number (ascending)
+3. Collect types as encountered (skip duplicates)
+4. Reverse the final list (because TypeScript prepends, last encountered appears first)
 
-The algorithm appears to depend on scanning messages in a specific order (possibly related to service methods?) and collecting field types. Requires deeper analysis of protoc-gen-ts source or the protoc descriptor traversal order.
+**Example**: `analytics/events.proto`
+- Process Event fields in order: timestamp=5 (Timestamp), metadata=11 (Metadata)
+- Process PurchaseEvent fields: total=2 (Money)
+- Process GetEventsRequest fields: start_time=3 (Timestamp, skip), end_time=4 (Timestamp, skip), page=5 (PageInfo)
+- Collected order: [Timestamp, Metadata, Money, PageInfo]
+- Reversed: [PageInfo, Money, Metadata, Timestamp] ✓ matches expected
+
+Implementation: Sort fields by number in `collectUsedTypes()`, process messages forward, then reverse `messageFieldTypes` array.
 
 ### Leading Detached Comments (SOLVED)
 Comments that are separated from a field by a blank line are stored in `loc.LeadingDetachedComments[]` array in SourceCodeInfo. These must be output as `//` style comments before the field's JSDoc block, followed by a blank line.
@@ -201,6 +208,5 @@ Implementation:
 
 ## Status
 
-
-
+DONE
 

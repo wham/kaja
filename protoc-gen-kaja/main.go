@@ -440,12 +440,32 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 	var messageFieldTypes []string
 	var serviceTypes []string
 	
-	// Scan all messages for field types in reverse field order
+	// Scan all messages for field types
+	// Process in forward declaration order, fields in field number order
+	// Then reverse the list to match TypeScript plugin's prepend behavior
 	var scanMessage func(*descriptorpb.DescriptorProto)
 	scanMessage = func(msg *descriptorpb.DescriptorProto) {
-		// Process fields in reverse order
-		for i := len(msg.Field) - 1; i >= 0; i-- {
-			field := msg.Field[i]
+		// Sort fields by field number
+		type fieldWithNumber struct {
+			field *descriptorpb.FieldDescriptorProto
+			number int32
+		}
+		var sortedFields []fieldWithNumber
+		for _, field := range msg.Field {
+			sortedFields = append(sortedFields, fieldWithNumber{field, field.GetNumber()})
+		}
+		// Sort by field number
+		for i := 0; i < len(sortedFields); i++ {
+			for j := i + 1; j < len(sortedFields); j++ {
+				if sortedFields[i].number > sortedFields[j].number {
+					sortedFields[i], sortedFields[j] = sortedFields[j], sortedFields[i]
+				}
+			}
+		}
+		
+		// Process fields in field number order
+		for _, f := range sortedFields {
+			field := f.field
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
 				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
 				typeName := field.GetTypeName()
@@ -461,8 +481,8 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		}
 	}
 	
-	// Process messages in reverse order
-	for i := len(g.file.MessageType) - 1; i >= 0; i-- {
+	// Process messages in forward order
+	for i := 0; i < len(g.file.MessageType); i++ {
 		scanMessage(g.file.MessageType[i])
 	}
 	
@@ -485,6 +505,12 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		}
 	}
 	
+	// Reverse messageFieldTypes to match TypeScript plugin's prepend behavior
+	// TypeScript plugin adds imports at the top (prepends), so last encountered appears first
+	for i, j := 0, len(messageFieldTypes)-1; i < j; i, j = i+1, j-1 {
+		messageFieldTypes[i], messageFieldTypes[j] = messageFieldTypes[j], messageFieldTypes[i]
+	}
+	
 	// Build final ordered list:
 	// 1. Service-only types (not used in message fields) - these go BEFORE ServiceType
 	// 2. Message field types (even if also used in services) - these go AFTER runtime imports
@@ -499,7 +525,7 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		}
 	}
 	
-	// Then add message field types in encounter order
+	// Then add message field types in reversed order (to match TypeScript prepend)
 	for _, typeName := range messageFieldTypes {
 		if !used[typeName] {
 			orderedTypes = append(orderedTypes, typeName)
