@@ -67,6 +67,8 @@ and your job is find at least one additional case where the tests will fail.
 
 23. **JSDoc comment escaping for `*/`:** Proto comments can contain `*/` which would prematurely close JSDoc comments. The TS plugin escapes this by replacing `*/` with `*\/` in `/tmp/protobuf-ts/packages/plugin/src/framework/typescript-comments.ts`. The Go plugin correctly implements this escaping at line 276 in main.go. Test case `tests/102_special_comment/test.proto` verifies this works. No other special escaping is done for comments (e.g., `@` symbols are not escaped).
 
+24. **WKT generation for files with only imports:** When a proto file contains only imports but no messages, enums, or services, the Go plugin incorrectly generates the imported well-known type files (e.g., `google/protobuf/empty.ts`, `google/protobuf/timestamp.ts`), while the TS plugin doesn't generate anything. The bug is in the WKT generation logic at lines 207-240 in main.go: it checks if any file in `req.FileToGenerate` depends on WKT files and generates them even when those files are empty (have no declarations). The logic at line 656 correctly skips empty files, but this happens AFTER the WKT generation decision is made. The TS plugin doesn't have this separate WKT generation loop - it only generates files that have actual declarations. Test with a proto file that has `import "google/protobuf/empty.proto";` but no other content.
+
 ### How to run tests
 
 ```bash

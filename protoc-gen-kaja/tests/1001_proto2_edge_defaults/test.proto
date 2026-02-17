@@ -1,0 +1,20 @@
+syntax = "proto2";
+
+package test;
+
+message EdgeDefaults {
+  // Special float values
+  optional float inf_float = 1 [default = inf];
+  optional float neg_inf_float = 2 [default = -inf];
+  optional float nan_float = 3 [default = nan];
+  
+  // Max/min int values
+  optional int32 max_int32 = 4 [default = 2147483647];
+  optional int32 min_int32 = 5 [default = -2147483648];
+  optional int64 max_int64 = 6 [default = 9223372036854775807];
+  optional int64 min_int64 = 7 [default = -9223372036854775808];
+  
+  // Max unsigned values  
+  optional uint32 max_uint32 = 8 [default = 4294967295];
+  optional uint64 max_uint64 = 9 [default = 18446744073709551615];
+}

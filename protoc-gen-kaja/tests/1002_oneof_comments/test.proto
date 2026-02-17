@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Test {
+  // Leading comment for the oneof group
+  // Multiple lines here
+  oneof choice {
+    // Field comment
+    string option_a = 1;
+    int32 option_b = 2;
+  }
+  
+  // Trailing comment stays outside
+  string other = 3;
+}
