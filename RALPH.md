@@ -68,12 +68,45 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Add synthetic zero value for enums without zero (UNSPECIFIED$ = 0)
 - [x] Implement deprecated option support (messages, fields, enums, enum values, services, methods)
 - [x] Implement file-level deprecation (option deprecated = true propagates to all elements)
+- [x] Fix boolean map keys (TypeScript object keys are always strings, need conversion)
 
-**STATUS: 68/68 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 69/69 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including file-level deprecation support.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including boolean map key handling.
 
 ## Notes
+
+### Boolean Map Keys (SOLVED)
+In JavaScript/TypeScript, object keys are always strings, even when the proto definition uses `bool` as the map key type. This requires special handling:
+
+**TypeScript interface**: Boolean map keys must use `[key: string]` not `[key: boolean]`
+```typescript
+export interface BoolMapTest {
+    boolToString: {
+        [key: string]: string;  // Not [key: boolean]
+    };
+}
+```
+
+**Deserialization**: Boolean values read from protobuf must be converted to strings using `.toString()`
+```typescript
+key = reader.bool().toString();
+map[key ?? "false"] = val ?? "";  // Default is string "false"
+```
+
+**Serialization**: String keys must be converted back to boolean using `k === "true"`
+```typescript
+for (let k of globalThis.Object.keys(message.boolToString))
+    writer.tag(1, WireType.Varint).bool(k === "true").tag(2, ...).string(message.boolToString[k]);
+```
+
+**Implementation**:
+- `getTypescriptTypeForMapKey()`: Returns "string" for boolean keys (not "boolean")
+- `getReaderMethodForMapKey()`: Adds `.toString()` for boolean keys
+- `getMapKeyDefault()`: Returns `"false"` (string) not `false` (boolean)
+- Map writing code: Checks `isBooleanKey` and converts `k === "true"` to boolean for writer
+
+This matches JavaScript's behavior where `obj[true]` and `obj["true"]` are the same, and all object keys are stored as strings.
 
 ### Same-Package Type Resolution (SOLVED)
 When a type is in the same package as the current file, we need to distinguish between:

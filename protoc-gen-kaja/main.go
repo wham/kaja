@@ -2263,10 +2263,22 @@ func (g *generator) getTypescriptTypeForMapKey(field *descriptorpb.FieldDescript
 		// 64-bit integers as map keys use the same type as regular fields
 		return g.params.longType
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
-		return "boolean"
+		// Boolean map keys are converted to strings in JavaScript/TypeScript
+		// because object keys are always strings
+		return "string"
 	default:
 		return "string"
 	}
+}
+
+func (g *generator) getReaderMethodForMapKey(field *descriptorpb.FieldDescriptorProto) string {
+	// Map keys are always strings in JavaScript/TypeScript objects
+	// Boolean keys need .toString() conversion
+	if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_BOOL {
+		return "reader.bool().toString()"
+	}
+	// Other key types use the standard reader method
+	return g.getReaderMethod(field)
 }
 
 func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorProto) string {
@@ -2965,7 +2977,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				g.indent = "                "
 				g.p("case 1:")
 				g.indent = "                    "
-				g.p("key = %s;", g.getReaderMethod(keyField))
+				g.p("key = %s;", g.getReaderMethodForMapKey(keyField))
 				g.indent = "                    "
 				g.p("break;")
 				g.indent = "                "
@@ -3090,6 +3102,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 					keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_SFIXED32 ||
 					keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_SFIXED64
 				
+				isBooleanKey := keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_BOOL
+				
 				if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 					// Message value - needs special handling
 					if isNumericKey {
@@ -3098,6 +3112,15 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).int32(parseInt(k));", field.GetNumber())
 						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
 						g.p("%s.internalBinaryWrite(message.%s[k as any], writer, options);", g.stripPackage(valueField.GetTypeName()), fieldName)
+						g.p("writer.join().join();")
+						g.indent = "        "
+						g.p("}")
+					} else if isBooleanKey {
+						g.p("for (let k of globalThis.Object.keys(message.%s)) {", fieldName)
+						g.indent = "            "
+						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).bool(k === \"true\");", field.GetNumber())
+						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
+						g.p("%s.internalBinaryWrite(message.%s[k], writer, options);", g.stripPackage(valueField.GetTypeName()), fieldName)
 						g.p("writer.join().join();")
 						g.indent = "        "
 						g.p("}")
@@ -3132,6 +3155,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 						valueWriter := g.getMapValueWriter(valueField, valueAccessor)
 						g.p("writer.tag(%d, WireType.LengthDelimited).fork()%s%s.join();",
 							field.GetNumber(), keyWriter, valueWriter)
+					} else if isBooleanKey {
+						valueWriter := g.getMapValueWriter(valueField, "message."+fieldName+"[k]")
+						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).bool(k === \"true\")%s.join();",
+							field.GetNumber(), valueWriter)
 					} else {
 						valueWriter := g.getMapValueWriter(valueField, "message."+fieldName+"[k]")
 						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k)%s.join();",
@@ -4480,7 +4507,8 @@ func (g *generator) getMapKeyDefault(field *descriptorpb.FieldDescriptorProto) s
 		}
 		return "0"
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
-		return "false"
+		// Boolean keys are stored as strings in TypeScript object keys
+		return "\"false\""
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 		return "\"\""
 	default:
