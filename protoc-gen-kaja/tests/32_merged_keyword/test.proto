@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package test;
+
+// Test case where individual component is NOT a keyword,
+// but when merged with underscore, creates a keyword
+
+message from {
+  message of {
+    // "from_of" is NOT a reserved keyword, should stay "from_of"
+    string value = 1;
+  }
+}
+
+// Top level keywords should still be escaped
+message class {
+  string data = 1;
+}
+
+// Test case where parent is safe but merged name might look like keyword
+message my {
+  message class {
+    // "my_class" is NOT a keyword (only "class" is), should be "my_class"
+    string value = 1;
+  }
+}
