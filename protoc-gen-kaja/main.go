@@ -264,6 +264,11 @@ func (g *generator) pNoIndent(format string, args ...interface{}) {
 	g.b.WriteString("\n")
 }
 
+// isFileDeprecated returns true if the entire file is marked as deprecated
+func (g *generator) isFileDeprecated() bool {
+	return g.file.Options != nil && g.file.GetOptions().GetDeprecated()
+}
+
 // getLeadingDetachedComments retrieves leading detached comments for a given path in SourceCodeInfo
 // Leading detached comments are comments separated from the element by a blank line
 func (g *generator) getLeadingDetachedComments(path []int32) []string {
@@ -508,6 +513,10 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 	}
 	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
 	g.pNoIndent("// tslint:disable")
+	// Add file-level deprecation comment if the entire file is deprecated
+	if g.isFileDeprecated() {
+		g.pNoIndent("// @deprecated")
+	}
 	
 	// Add file-level leading detached comments (license headers, etc.)
 	// These are typically attached to the syntax declaration (field 12)
@@ -1554,8 +1563,8 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
-	// Add @deprecated if message has deprecated option
-	if msg.Options != nil && msg.GetOptions().GetDeprecated() {
+	// Add @deprecated if message has deprecated option OR file is deprecated
+	if (msg.Options != nil && msg.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
 	}
 	
@@ -1805,11 +1814,14 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
 	}
 	
-	// Check if field is deprecated
+	// Check if field is deprecated OR file is deprecated
+	fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
 	deprecatedAnnotation := ""
-	if field.Options != nil && field.GetOptions().GetDeprecated() {
+	if fieldIsDeprecated {
 		deprecatedAnnotation = " [deprecated = true]"
-		// Add @deprecated tag before @generated
+	}
+	// Add @deprecated tag for both field-level and file-level deprecation
+	if fieldIsDeprecated || g.isFileDeprecated() {
 		g.p(" * @deprecated")
 	}
 	
@@ -3173,8 +3185,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	// Export constant
 	g.pNoIndent("/**")
-	// Add @deprecated if message has deprecated option
-	if msg.Options != nil && msg.GetOptions().GetDeprecated() {
+	// Add @deprecated if message has deprecated option OR file is deprecated
+	if (msg.Options != nil && msg.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
 	}
 	g.pNoIndent(" * @generated MessageType for protobuf message %s", typeName)
@@ -3624,8 +3636,8 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		}
 	}
 	
-	// Add @deprecated if enum has deprecated option
-	if enum.Options != nil && enum.GetOptions().GetDeprecated() {
+	// Add @deprecated if enum has deprecated option OR file is deprecated
+	if (enum.Options != nil && enum.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
 	}
 	
@@ -3692,14 +3704,15 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 			g.p(" *")
 		}
 		
-		// Add @deprecated if value has deprecated option
-		if value.Options != nil && value.GetOptions().GetDeprecated() {
+		// Add @deprecated if value has deprecated option OR file is deprecated
+		valueIsDeprecated := value.Options != nil && value.GetOptions().GetDeprecated()
+		if valueIsDeprecated || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
 		
 		// Build the @generated line with deprecated annotation if applicable
 		deprecatedAnnotation := ""
-		if value.Options != nil && value.GetOptions().GetDeprecated() {
+		if valueIsDeprecated {
 			deprecatedAnnotation = " [deprecated = true]"
 		}
 		
@@ -3796,6 +3809,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
 	g.pNoIndent("// tslint:disable")
+	// Add file-level deprecation comment if the entire file is deprecated
+	if g.isFileDeprecated() {
+		g.pNoIndent("// @deprecated")
+	}
 	
 	// Add file-level leading detached comments (license headers, etc.)
 	if file.SourceCodeInfo != nil {
@@ -4193,8 +4210,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
-	// Add @deprecated if service has deprecated option
-	if service.Options != nil && service.GetOptions().GetDeprecated() {
+	// Add @deprecated if service has deprecated option OR file is deprecated
+	if (service.Options != nil && service.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
 	}
 	
@@ -4246,8 +4263,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p(" *")
 		}
 		
-		// Add @deprecated if method has deprecated option
-		if method.Options != nil && method.GetOptions().GetDeprecated() {
+		// Add @deprecated if method has deprecated option OR file is deprecated
+		if (method.Options != nil && method.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
 		
@@ -4297,8 +4314,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
-	// Add @deprecated if service has deprecated option
-	if service.Options != nil && service.GetOptions().GetDeprecated() {
+	// Add @deprecated if service has deprecated option OR file is deprecated
+	if (service.Options != nil && service.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
 	}
 	
@@ -4355,8 +4372,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p(" *")
 		}
 		
-		// Add @deprecated if method has deprecated option
-		if method.Options != nil && method.GetOptions().GetDeprecated() {
+		// Add @deprecated if method has deprecated option OR file is deprecated
+		if (method.Options != nil && method.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
 		
@@ -4517,8 +4534,8 @@ escapedSvcName := escapeTypescriptKeyword(svcName)
 fullName := pkgPrefix + svcName
 
 g.pNoIndent("/**")
-// Add @deprecated if service has deprecated option
-if svc.Options != nil && svc.GetOptions().GetDeprecated() {
+// Add @deprecated if service has deprecated option OR file is deprecated
+if (svc.Options != nil && svc.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 	g.pNoIndent(" * @deprecated")
 }
 g.pNoIndent(" * @generated ServiceType for protobuf service %s", fullName)

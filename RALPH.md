@@ -67,10 +67,11 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix client file import path resolution (check dependencies first, not just package match)
 - [x] Add synthetic zero value for enums without zero (UNSPECIFIED$ = 0)
 - [x] Implement deprecated option support (messages, fields, enums, enum values, services, methods)
+- [x] Implement file-level deprecation (option deprecated = true propagates to all elements)
 
-**STATUS: 67/67 tests passing - PORT COMPLETE! 🎉**
+**STATUS: 68/68 tests passing - PORT COMPLETE! 🎉**
 
-**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including the deprecated option support for all descriptor types.
+**PROGRESS**: The protoc-gen-ts → Go port is complete! All test cases pass, including file-level deprecation support.
 
 ## Notes
 
