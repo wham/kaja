@@ -31,6 +31,8 @@ and your job is find at least one additional case where the tests will fail.
 
 5. **Test each type of declaration:** Messages, enums, services, fields, methods, and oneof each have their own naming rules. A reserved name that's OK in one context (e.g., `case` as a field name in an object literal) might not work in another (e.g., as a standalone identifier).
 
+6. **stripPackage() doesn't escape:** The `stripPackage()` function is used when generating service method input/output types (`I:` and `O:` fields in ServiceType). This function converts full type names (like `.test.String`) to local names (`String`) but does NOT check for reserved names. If a message type is named after a reserved type name (String, Array, Number, etc.), the ServiceType will use the unescaped version, causing a mismatch with the actual escaped type definition.
+
 ### How to run tests
 
 ```bash
