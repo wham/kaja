@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
@@ -273,6 +274,145 @@ func (g *generator) isFileDeprecated() bool {
 func escapeJSDocComment(s string) string {
 	// Escape */ sequences which would close the JSDoc comment prematurely
 	return strings.ReplaceAll(s, "*/", "*\\/")
+}
+
+// getCustomMethodOptions extracts custom extension values from method options
+func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) map[string]interface{} {
+	if opts == nil {
+		return nil
+	}
+	
+	// Build a map of extension field number -> extension descriptor
+	extensionMap := make(map[int32]*descriptorpb.FieldDescriptorProto)
+	for _, ext := range g.file.Extension {
+		if ext.GetExtendee() == ".google.protobuf.MethodOptions" {
+			extensionMap[ext.GetNumber()] = ext
+		}
+	}
+	
+	// Parse unknown fields from options
+	result := make(map[string]interface{})
+	msg := opts.ProtoReflect()
+	unknown := msg.GetUnknown()
+	
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		
+		// Check if this field number matches an extension
+		ext, found := extensionMap[int32(num)]
+		if !found {
+			// Skip unknown field
+			switch typ {
+			case protowire.VarintType:
+				_, n := protowire.ConsumeVarint(unknown)
+				unknown = unknown[n:]
+			case protowire.Fixed64Type:
+				unknown = unknown[8:]
+			case protowire.BytesType:
+				_, n := protowire.ConsumeBytes(unknown)
+				unknown = unknown[n:]
+			case protowire.Fixed32Type:
+				unknown = unknown[4:]
+			}
+			continue
+		}
+		
+		// Found an extension! Extract the value based on type
+		pkg := ""
+		if g.file.Package != nil {
+			pkg = *g.file.Package + "."
+		}
+		extName := pkg + ext.GetName()
+		
+		switch ext.GetType() {
+		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+			v, n := protowire.ConsumeBytes(unknown)
+			result[extName] = string(v)
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+			v, n := protowire.ConsumeVarint(unknown)
+			result[extName] = v != 0
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_INT32, 
+		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+			v, n := protowire.ConsumeVarint(unknown)
+			result[extName] = int(v)
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+			_, n := protowire.ConsumeFixed32(unknown)
+			// Skip float for now
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+			_, n := protowire.ConsumeFixed64(unknown)
+			// Skip double for now
+			unknown = unknown[n:]
+		default:
+			// Skip other types
+			switch typ {
+			case protowire.VarintType:
+				_, n := protowire.ConsumeVarint(unknown)
+				unknown = unknown[n:]
+			case protowire.Fixed64Type:
+				unknown = unknown[8:]
+			case protowire.BytesType:
+				_, n := protowire.ConsumeBytes(unknown)
+				unknown = unknown[n:]
+			case protowire.Fixed32Type:
+				unknown = unknown[4:]
+			}
+		}
+	}
+	
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// formatCustomOptions formats custom options as a TypeScript object literal
+func formatCustomOptions(opts map[string]interface{}) string {
+	if len(opts) == 0 {
+		return "{}"
+	}
+	
+	var parts []string
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(opts))
+	for k := range opts {
+		keys = append(keys, k)
+	}
+	// Simple alphabetical sort
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[i] > keys[j] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	
+	for _, k := range keys {
+		v := opts[k]
+		var valueStr string
+		switch val := v.(type) {
+		case string:
+			valueStr = fmt.Sprintf("\"%s\"", val)
+		case bool:
+			valueStr = fmt.Sprintf("%t", val)
+		case int:
+			valueStr = fmt.Sprintf("%d", val)
+		default:
+			valueStr = fmt.Sprintf("%v", val)
+		}
+		parts = append(parts, fmt.Sprintf("\"%s\": %s", k, valueStr))
+	}
+	
+	return "{ " + strings.Join(parts, ", ") + " }"
 }
 
 // getLeadingDetachedComments retrieves leading detached comments for a given path in SourceCodeInfo
@@ -550,7 +690,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 						}
 						// Add blank line separator after detached comment block (except for last block)
 						if idx < len(loc.LeadingDetachedComments)-1 {
-							g.pNoIndent("//")
+							g.pNoIndent("")
 						}
 					}
 				}
@@ -4862,8 +5002,12 @@ comma = ""
 		streamingFlags += "clientStreaming: true, "
 	}
 
-	g.p("{ name: \"%s\", %s%s%soptions: {}, I: %s, O: %s }%s",
-		method.GetName(), localNameField, idempotencyField, streamingFlags, inputType, outputType, comma)
+	// Extract custom method options
+	customOpts := g.getCustomMethodOptions(method.Options)
+	optsStr := formatCustomOptions(customOpts)
+
+	g.p("{ name: \"%s\", %s%s%soptions: %s, I: %s, O: %s }%s",
+		method.GetName(), localNameField, idempotencyField, streamingFlags, optsStr, inputType, outputType, comma)
 }
 g.indent = ""
 g.pNoIndent("]);")
