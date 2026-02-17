@@ -21,7 +21,11 @@ and your job is find at least one additional case where the tests will fail.
 - [x] Identify bug in nested type name escaping
 - [x] Create failing test (31_nested_with_keyword)
 - [x] Run tests to confirm failure
-- [ ] Commit and update status.txt
+- [x] Find ANOTHER bug (reserved object properties)
+- [x] Create test 33_reserved_properties
+- [x] Confirm test 33 fails
+- [x] Update NELSON.md
+- [x] Commit and set status.txt
 
 ## Notes
 
@@ -73,6 +77,34 @@ cd /Users/tom-newotny/kaja/protoc-gen-kaja
 - `main.go`: Main plugin implementation
 - `tests/`: Test cases with .proto files
 - `scripts/test`: Test runner that compares protoc-gen-kaja output vs protoc-gen-ts
-- The bug is in `generateMessageInterface` and `generateMessageClass` functions
-- They call `escapeTypescriptKeyword(baseName)` for each nesting level
-- Should instead escape only the final merged name
+- Bug 1 (nested keywords): in `generateMessageInterface` and `generateMessageClass` - escape too early
+- Bug 2 (reserved props): in `propertyName`/`toCamelCase` - missing reserved object property escaping
+
+### Bug #2: Missing Reserved Object Property Escaping
+
+**The Bug:**
+The Go implementation doesn't escape field names that are reserved JavaScript object properties like `__proto__` and `toString`.
+
+**TypeScript (Correct):**
+```typescript
+const reservedObjectProperties = '__proto__,toString'.split(',');
+if (reservedObjectProperties.includes(name)) {
+    name = name + escapeCharacter;
+}
+```
+
+**Go (Missing):**
+The `propertyName()` and `toCamelCase()` functions convert field names to camelCase but don't check for reserved object properties.
+
+**Example:**
+- Proto: `int32 to_string = 1;`
+- After camelCase: `toString`
+- Expected: `toString$` (escaped)
+- Actual: `toString` (NOT escaped - BUG!)
+
+**Impact:**
+Fields named `__proto__` or `to_string` (becomes `toString`) will break at runtime because they collide with built-in Object properties.
+
+**Test case: 33_reserved_properties**
+- Fails because `toString` should be `toString$`
+- Also tests `__proto__` field name
