@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-PROMPT_FILE="PROMPT.md"
+PROMPT_FILE="RALPH.md"
 MAX_LOOPS=1000
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
@@ -15,14 +15,14 @@ fi
 for ((i=1; i<=MAX_LOOPS; i++)); do
     echo "=== Loop $i/$MAX_LOOPS ==="
     
-    # Check if last non-empty line of PROMPT.md is "DONE"
+    # Check if last non-empty line of RALPH.md is "DONE"
     last_line=$(grep -v '^[[:space:]]*$' "$PROMPT_FILE" | tail -n 1 | tr -d '\r\n')
     if [[ "$last_line" == "DONE" ]]; then
         echo "Last line is 'DONE'. Stopping loop."
         exit 0
     fi
     
-    # Read prompt from PROMPT.md
+    # Read prompt from RALPH.md
     prompt=$(cat "$PROMPT_FILE")
     
     # Run GitHub Copilot CLI in non-interactive mode with all permissions enabled
