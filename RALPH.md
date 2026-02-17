@@ -78,34 +78,19 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix proto2 optional message fields write condition (use truthy check)
 - [x] Implement custom method options support (extension parsing)
 
-**STATUS: 75/76 tests passing - Near Complete**
+**STATUS: 75/76 tests passing**
 
-**PROGRESS**: The protoc-gen-ts → Go port is functionally complete. All features are implemented including custom method options. One test (50_method_custom_options) has minor formatting differences in blank comment lines within google.protobuf.descriptor.proto that don't affect functionality.
-
-**Remaining**: Minor blank line formatting in detached comments (whether to use `//` or blank line as separator, and trailing spaces in blank comment lines). These are cosmetic differences in the google.protobuf.descriptor.proto file and do not affect the generated code's functionality.
+**Remaining issue**: Test 50_method_custom_options fails due to missing `//` separator line in google.protobuf.descriptor.proto file-level detached comments. Expected has TWO `//` lines between BSD license and Author comment blocks, actual has ONE. The test proto files (test.ts, test.client.ts) match perfectly - only the imported google.protobuf.descriptor.ts differs.
 
 ## Notes
 
 ### Current Status (75/76 tests passing)
 
-The protoc-gen-kaja implementation is functionally complete with all features implemented:
-- ✅ Core message/enum/service generation
-- ✅ Proto2 and proto3 support
-- ✅ Optional fields, oneofs, maps, repeated fields
-- ✅ Import handling and type resolution
-- ✅ Comment preservation (leading, trailing, detached)
-- ✅ Well-known types (Any, Duration, Timestamp, FieldMask, Struct, wrappers)
-- ✅ Keyword escaping (TypeScript and JavaScript reserved names)
-- ✅ Custom method options (extension parsing)
-- ✅ Deprecated option support
-- ✅ Proto2 packed option support
-- ✅ JSDoc comment escaping
+The protoc-gen-kaja implementation has all features implemented. One remaining test failure in file-level detached comment formatting.
 
-**One remaining test failure**: Test 50_method_custom_options has minor formatting differences in blank comment line representation within google.protobuf.descriptor.proto:
-- Some blank lines within detached comment blocks are rendered as `//` (no trailing space) instead of `// ` (with trailing space)
-- Some block separators use `//` instead of true blank lines
-
-These are cosmetic differences that don't affect the functionality of generated code. The test proto's own generated files (test.ts, test.client.ts) match perfectly including custom options.
+**Failing test**: 50_method_custom_options
+**Issue**: google.protobuf.descriptor.proto file-level detached comments need TWO `//` separator lines between BSD license and Author blocks, but only ONE is output.
+**Note**: The test's own generated files (test.ts, test.client.ts) match perfectly. Only the imported google.protobuf.descriptor.ts file differs by this one line.
 
 ### Bytes Default Value Escaping (SOLVED)
 Proto default values for bytes/string fields are stored as C-style escaped strings in the descriptor. When displaying these in TypeScript @generated comments, certain escape sequences need special handling because the comments show what the TypeScript SOURCE CODE would look like.
