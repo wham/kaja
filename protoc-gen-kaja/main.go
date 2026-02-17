@@ -1051,7 +1051,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	baseName := msg.GetName()
-	escapedName := escapeTypescriptKeyword(baseName)
+	// Only escape top-level types (nested types don't need escaping)
+	escapedName := baseName
+	if parentPrefix == "" {
+		escapedName = escapeTypescriptKeyword(baseName)
+	}
 	fullName := parentPrefix + escapedName
 	// For @generated comment, use original name not escaped
 	protoName := parentPrefix + baseName
@@ -1175,7 +1179,11 @@ func (g *generator) generateMessageClass(msg *descriptorpb.DescriptorProto, pare
 	}
 	
 	baseName := msg.GetName()
-	escapedName := escapeTypescriptKeyword(baseName)
+	// Only escape top-level types (nested types don't need escaping)
+	escapedName := baseName
+	if parentPrefix == "" {
+		escapedName = escapeTypescriptKeyword(baseName)
+	}
 	fullName := parentPrefix + escapedName
 	protoName := protoParentPrefix + baseName
 	
@@ -2836,7 +2844,11 @@ func (g *generator) getWriteCondition(field *descriptorpb.FieldDescriptorProto, 
 
 func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentPrefix string, enumPath []int32) {
 	baseName := enum.GetName()
-	escapedName := escapeTypescriptKeyword(baseName)
+	// Only escape top-level types (nested types don't need escaping)
+	escapedName := baseName
+	if parentPrefix == "" {
+		escapedName = escapeTypescriptKeyword(baseName)
+	}
 	enumName := parentPrefix + escapedName
 	
 	g.pNoIndent("/**")

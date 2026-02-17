@@ -39,8 +39,9 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix package vs sub-package type resolution
 
 - [x] Fix import ordering within same file (use forward message order + field number order, then reverse)
+- [x] Fix nested type keyword escaping (only top-level types get `$` suffix)
 
-**STATUS: ALL 34/34 tests passing!**
+**STATUS: ALL 35/35 tests passing!**
 
 ## Notes
 
@@ -145,9 +146,15 @@ Message, enum, and service names that collide with TypeScript reserved keywords 
 - Reserved type names: `object`, `Uint8Array`, `Array`, `String`, `Number`, etc.
 
 Important: 
-- Only the TypeScript interface/enum/class names get the `$` suffix
+- **Only top-level types** get the `$` suffix (nested types don't need escaping)
 - The proto name in `@generated` comments and `MessageType` constructor remains unchanged
-- Both escaped and proto names must be tracked separately through nested types
+- Nested types like `Outer.class` become `Outer_class` (no `$` because the underscore prevents conflicts)
+
+Example: Proto message `Outer` with nested message `class` becomes:
+- Top-level interface: `export interface Outer$` (if "Outer" is a keyword)
+- Nested interface: `export interface Outer_class` (no `$` suffix)
+
+Implementation: Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`.
 
 ### Enum Prefix Stripping (SOLVED)
 Enum values have their common prefix stripped based on the enum name:
