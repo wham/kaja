@@ -47,6 +47,8 @@ and your job is find at least one additional case where the tests will fail.
 
 13. **Enums must have a zero value:** The TS plugin requires all enums to have a value numbered 0 for proper TypeScript/JavaScript initialization. When an enum doesn't have a 0 value (which is valid in proto2), the TS plugin synthetically adds `UNSPECIFIED$ = 0` to the generated TypeScript enum. The Go plugin doesn't add this synthetic zero value, causing the generated code to differ. This is found by looking at `/tmp/protobuf-ts/packages/plugin/src/code-gen/enum-generator.ts` where it generates `"@generated synthetic value - protobuf-ts requires all enums to have a 0 value"` comment. Test with a proto2 enum that starts at 1 instead of 0.
 
+14. **Missing @deprecated JSDoc tags:** The TS plugin adds `@deprecated` JSDoc tags to the generated TypeScript code for elements marked with `option deprecated = true` in proto files. This applies to messages, enums, enum values, services, methods, and fields. The tag is added by `CommentGenerator.makeDeprecatedTag()` in `comment-generator.ts`. The Go plugin doesn't generate these `@deprecated` tags at all. Additionally, the TS plugin adds `@deprecated` to messages/enums/services when the entire proto file is marked deprecated, and includes the deprecated option in `@generated from protobuf` comments (e.g., `@generated from protobuf field: string old_email = 2 [deprecated = true]` vs just `@generated from protobuf field: string old_email = 2`).
+
 ### How to run tests
 
 ```bash
