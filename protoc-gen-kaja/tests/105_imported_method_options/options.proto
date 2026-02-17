@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package custom;
+
+import "google/protobuf/descriptor.proto";
+
+// Custom method options defined in a separate file
+extend google.protobuf.MethodOptions {
+  string auth_level = 52001;
+  int32 timeout_ms = 52002;
+  bool cache_enabled = 52003;
+}
