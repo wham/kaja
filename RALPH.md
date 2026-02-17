@@ -43,8 +43,9 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 - [x] Fix nested type names when parent is keyword (use unescaped proto name for prefix)
 - [x] Fix WireType import ordering for empty first message (early when first message has no fields)
 - [x] Fix file-level leading detached comments (output after imports)
+- [x] Fix reserved object properties escaping (__proto__, toString get $ suffix)
 
-**STATUS: ALL 36/36 tests passing!**
+**STATUS: ALL 37/37 tests passing!**
 
 ## Notes
 
@@ -184,6 +185,31 @@ Implementation:
 - Only call `escapeTypescriptKeyword()` when `parentPrefix == ""` in `generateMessageInterface()`, `generateMessageClass()`, and `generateEnum()`
 - Track both `parentPrefix` (for TypeScript names) and `protoParentPrefix` (for proto names) separately
 - When recursing to nested types, pass `protoName + "_"` for BOTH prefixes (not `fullName + "_"` which includes escaping)
+
+### Reserved Object Properties (SOLVED)
+Field names that conflict with JavaScript's reserved object properties must be escaped with a `$` suffix. The reserved properties are:
+- `__proto__` - JavaScript object prototype property
+- `toString` - Object.prototype.toString method
+
+**Algorithm**:
+1. Convert field name to camelCase (e.g., `to_string` → `toString`)
+2. Check if result is `__proto__` or `toString`
+3. If yes, append `$` to the property name (e.g., `toString$`)
+4. Add `localName` parameter to field metadata when escaping was applied
+
+**Important**: The `jsonName` check must compare against the **unescaped** camelCase name, not the final property name. For field `to_string`:
+- Proto name: `to_string`
+- CamelCase: `toString` (unescaped)
+- Property name: `toString$` (escaped)
+- JSON name: `toString` (default, matches unescaped)
+- Result: No `jsonName` in metadata (since it matches unescaped camelCase)
+
+Example: Proto field `int32 to_string = 2;` becomes:
+- Interface property: `toString$: number`
+- Metadata: `{ no: 2, name: "to_string", kind: "scalar", localName: "toString$", T: 5 }`
+- create() method: `message.toString$ = 0`
+
+Implementation: `propertyName()` checks for reserved names and escapes them, `needsLocalName()` determines if metadata needs localName field.
 
 ### Enum Prefix Stripping (SOLVED)
 Enum values have their common prefix stripped based on the enum name:

@@ -1396,9 +1396,25 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 
 // propertyName returns the TypeScript property name for a field
 // This does camelCase conversion where all letters after underscores are capitalized
+// Reserved object properties (__proto__, toString) get $ suffix
 func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) string {
 	name := field.GetName()
-	return g.toCamelCase(name)
+	camelName := g.toCamelCase(name)
+	
+	// Escape reserved object properties
+	if camelName == "__proto__" || camelName == "toString" {
+		return camelName + "$"
+	}
+	
+	return camelName
+}
+
+// needsLocalName returns true if the field's TypeScript property name differs
+// from the default camelCase conversion (i.e., it was escaped)
+func (g *generator) needsLocalName(field *descriptorpb.FieldDescriptorProto) bool {
+	name := field.GetName()
+	camelName := g.toCamelCase(name)
+	return camelName == "__proto__" || camelName == "toString"
 }
 
 // toCamelCase converts a snake_case name to camelCase
@@ -1892,13 +1908,21 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		}
 	}
 	
-	// Add jsonName when it differs from the TypeScript property name
+	// Add localName when property name was escaped for reserved object properties
+	localNameField := ""
+	if g.needsLocalName(field) {
+		propertyName := g.propertyName(field)
+		localNameField = fmt.Sprintf(", localName: \"%s\"", propertyName)
+	}
+	
+	// Add jsonName when it differs from the TypeScript property name (before escaping)
 	jsonNameField := ""
 	if field.JsonName != nil {
-		propertyName := g.propertyName(field)
+		// Compare against unescaped camelCase name
+		camelName := g.toCamelCase(field.GetName())
 		actualJsonName := *field.JsonName
-		// Include jsonName if it differs from the TypeScript property name
-		if propertyName != actualJsonName {
+		// Include jsonName if it differs from the unescaped camelCase name
+		if camelName != actualJsonName {
 			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", actualJsonName)
 		}
 	}
@@ -1921,17 +1945,17 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 	if kind == "scalar" && oneofName == "" {
 		// Regular scalar field needs T parameter
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/ }%s",
-			field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, t, typeName, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/ }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, comma)
 	} else if kind == "scalar" && oneofName != "" {
 		// Scalar oneof field
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s, T: %s /*ScalarType.%s*/ }%s",
-			field.GetNumber(), field.GetName(), kind, extraFields, t, typeName, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/ }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, extraFields, t, typeName, comma)
 	} else {
 		// Message, enum, or map field
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s }%s",
-			field.GetNumber(), field.GetName(), kind, jsonNameField, repeat, opt, extraFields, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, extraFields, comma)
 	}
 }
 
