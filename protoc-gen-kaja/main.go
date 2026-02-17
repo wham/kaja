@@ -110,15 +110,23 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	// Pre-scan: identify files with services in this batch
 	filesWithServices := make(map[string]bool)
 	importedByServiceFiles := make(map[string]bool)
+	importedByNonServiceFiles := make(map[string]bool)
 	
 	for _, fileName := range req.FileToGenerate {
 		file := findFile(req.ProtoFile, fileName)
-		if file != nil && len(file.Service) > 0 {
-			filesWithServices[fileName] = true
-			
-			// Mark all dependencies of this service file
-			for _, dep := range file.Dependency {
-				importedByServiceFiles[dep] = true
+		if file != nil {
+			hasService := len(file.Service) > 0
+			if hasService {
+				filesWithServices[fileName] = true
+				// Mark all dependencies of this service file
+				for _, dep := range file.Dependency {
+					importedByServiceFiles[dep] = true
+				}
+			} else {
+				// Mark all dependencies of this non-service file
+				for _, dep := range file.Dependency {
+					importedByNonServiceFiles[dep] = true
+				}
 			}
 		}
 	}
@@ -131,9 +139,10 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		}
 
 		// Check if this file is imported by a service file in the batch
-		isImportedByService := importedByServiceFiles[fileName]
+		// AND not imported by any non-service files
+		isImportedOnlyByServices := importedByServiceFiles[fileName] && !importedByNonServiceFiles[fileName]
 		
-		content := generateFile(file, req.ProtoFile, params, isImportedByService)
+		content := generateFile(file, req.ProtoFile, params, isImportedOnlyByServices)
 		if content == "" {
 			continue
 		}
@@ -200,7 +209,8 @@ type generator struct {
 	file                *descriptorpb.FileDescriptorProto
 	allFiles            []*descriptorpb.FileDescriptorProto
 	indent              string
-	isImportedByService bool
+	isImportedByService bool     // True if imported ONLY by service files (not by non-service files)
+	importedTypeNames   map[string]bool // Set of simple type names that have been imported
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -346,6 +356,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		file:                file,
 		allFiles:            allFiles,
 		isImportedByService: isImportedByService,
+		importedTypeNames:   make(map[string]bool),
 	}
 
 	// Header
@@ -488,7 +499,7 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		}
 	}
 	
-	// Then add message field types
+	// Then add message field types in encounter order
 	for _, typeName := range messageFieldTypes {
 		if !used[typeName] {
 			orderedTypes = append(orderedTypes, typeName)
@@ -642,12 +653,14 @@ func (g *generator) writeImports(imports map[string]bool) {
 		parts := strings.Split(strings.TrimPrefix(typeNameStripped, depPkg+"."), ".")
 		
 		var importStmt string
+		var importedName string
 		
 		// Check if it's a top-level enum
 		found := false
 		for _, enum := range matchedDepFile.EnumType {
 			if enum.GetName() == parts[0] && len(parts) == 1 {
-				importStmt = fmt.Sprintf("import { %s } from \"%s\";", enum.GetName(), matchedImportPath)
+				importedName = enum.GetName()
+				importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 				found = true
 				break
 			}
@@ -658,7 +671,8 @@ func (g *generator) writeImports(imports map[string]bool) {
 				if msg.GetName() == parts[0] {
 					for _, enum := range msg.EnumType {
 						if enum.GetName() == parts[1] {
-							importStmt = fmt.Sprintf("import { %s_%s } from \"%s\";", parts[0], parts[1], matchedImportPath)
+							importedName = fmt.Sprintf("%s_%s", parts[0], parts[1])
+							importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 							found = true
 							break
 						}
@@ -673,10 +687,16 @@ func (g *generator) writeImports(imports map[string]bool) {
 			// Must be a message
 			for _, msg := range matchedDepFile.MessageType {
 				if msg.GetName() == parts[0] {
-					importStmt = fmt.Sprintf("import { %s } from \"%s\";", msg.GetName(), matchedImportPath)
+					importedName = msg.GetName()
+					importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 					break
 				}
 			}
+		}
+		
+		// Track the imported name so we can use it without package prefix
+		if importedName != "" {
+			g.importedTypeNames[importedName] = true
 		}
 		
 		return importStmt
@@ -809,21 +829,25 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Phase 2: Standard runtime imports if we have messages or services
 	if len(g.file.MessageType) > 0 || needsServiceType {
-		// Special case: file without services imported by service files
-		wireTypeFirst := !needsServiceType && g.isImportedByService
+		// Determine if WireType comes early:
+		// 1. File has service AND service comes before messages
+		// 2. File has NO service BUT is imported by a service file in the same batch
+		wireTypeEarly := false
+		if needsServiceType {
+			wireTypeEarly = serviceBeforeMessages
+		} else {
+			wireTypeEarly = g.isImportedByService
+		}
 		
 		if needsServiceType {
 			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
-			if serviceBeforeMessages {
-				g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
-			}
-		} else if wireTypeFirst {
-			// No services but imported by service file - WireType first
+		}
+		if wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
-		if !serviceBeforeMessages && !wireTypeFirst {
+		if !wireTypeEarly {
 			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
@@ -1456,18 +1480,28 @@ func (g *generator) stripPackage(typeName string) string {
 	// Remove leading dot
 	typeName = strings.TrimPrefix(typeName, ".")
 	
-	// Check if this is from the same package
+	// Check if this is from the EXACT same package (not a sub-package)
 	if g.file.Package != nil && *g.file.Package != "" {
 		prefix := *g.file.Package + "."
 		if strings.HasPrefix(typeName, prefix) {
-			// Same package - strip package and replace dots with underscores for nested types
-			typeName = strings.TrimPrefix(typeName, prefix)
-			return strings.ReplaceAll(typeName, ".", "_")
+			// Could be same package or sub-package
+			// Extract what comes after the package prefix
+			remainder := strings.TrimPrefix(typeName, prefix)
+			// Check if there's another dot (indicating sub-package)
+			if !strings.Contains(remainder, ".") || 
+			   (strings.Index(remainder, ".") > 0 && remainder[0] >= 'A' && remainder[0] <= 'Z') {
+				// Same package (no dots) OR nested type (first char is uppercase, then dot)
+				// e.g., "MyMessage" or "MyMessage.NestedType"
+				// Replace dots with underscores for nested types
+				return strings.ReplaceAll(remainder, ".", "_")
+			}
+			// Otherwise it's a sub-package, fall through to handle as external type
 		}
 	}
 	
 	// Different package - need to strip package but keep message.nested structure
 	// e.g., api.v1.HealthCheckResponse.Status -> HealthCheckResponse_Status
+	//  or   auth.UserProfile -> UserProfile (if imported)
 	parts := strings.Split(typeName, ".")
 	
 	// Find where the package ends and the type begins
@@ -1476,7 +1510,22 @@ func (g *generator) stripPackage(typeName string) string {
 		if len(part) > 0 && part[0] >= 'A' && part[0] <= 'Z' {
 			// Found the start of the type name
 			typeParts := parts[i:]
-			return strings.Join(typeParts, "_")
+			simpleName := typeParts[0]
+			
+			// Check if this is a nested type (e.g., Message.Nested)
+			if len(typeParts) > 1 {
+				// For nested types, always use underscore notation
+				return strings.Join(typeParts, "_")
+			}
+			
+			// For simple (non-nested) types, check if it's been imported
+			if g.importedTypeNames[simpleName] {
+				// This type was imported, use just the simple name
+				return simpleName
+			}
+			
+			// Not imported, use the simple name anyway (should not happen if imports are correct)
+			return simpleName
 		}
 	}
 	
