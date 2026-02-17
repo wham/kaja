@@ -4100,6 +4100,15 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	// Detect common prefix
 	commonPrefix := g.detectEnumPrefix(enum)
 	
+	// Build map from number to first value name (for alias handling)
+	firstValueForNumber := make(map[int32]string)
+	for _, value := range enum.Value {
+		num := value.GetNumber()
+		if _, exists := firstValueForNumber[num]; !exists {
+			firstValueForNumber[num] = value.GetName()
+		}
+	}
+	
 	for i, value := range enum.Value {
 		g.indent = "    "
 		
@@ -4109,6 +4118,9 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		// Get leading and trailing comments
 		leadingComments := g.getLeadingComments(valuePath)
 		trailingComments := g.getTrailingComments(valuePath)
+		
+		// Check if this is an alias (not the first value with this number)
+		isAlias := value.GetName() != firstValueForNumber[value.GetNumber()]
 		
 		g.p("/**")
 		
@@ -4125,7 +4137,8 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		}
 		
 		// Add trailing comments if present (before @generated line)
-		if trailingComments != "" {
+		// Skip trailing comments for alias values
+		if trailingComments != "" && !isAlias {
 			for _, line := range strings.Split(trailingComments, "\n") {
 				if line == "" {
 					g.p(" *")
@@ -4148,7 +4161,9 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 			deprecatedAnnotation = " [deprecated = true]"
 		}
 		
-		g.p(" * @generated from protobuf enum value: %s = %d%s;", value.GetName(), value.GetNumber(), deprecatedAnnotation)
+		// For aliases (multiple values with same number), show the first value's name
+		nameToShow := firstValueForNumber[value.GetNumber()]
+		g.p(" * @generated from protobuf enum value: %s = %d%s;", nameToShow, value.GetNumber(), deprecatedAnnotation)
 		g.p(" */")
 		
 		// Strip common prefix
