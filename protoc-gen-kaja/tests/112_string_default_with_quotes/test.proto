@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package test;
+
+// Test that string default values containing escaped double quotes
+// are properly escaped in the @generated annotation.
+// The TS plugin escapes the first \" in the default value,
+// while the Go plugin may handle it differently.
+message StringDefaults {
+  optional string with_quote = 1 [default = "hello \"world\""];
+  optional string simple = 2 [default = "hello"];
+}

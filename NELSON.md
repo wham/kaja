@@ -220,7 +220,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Correct order (TS):** RpcTransport → ServiceInfo → ServiceConst → **UnaryCall** → stackIntercept → Res → Req → ServerStreamingCall → RpcOptions
 - **Wrong order (Go):** RpcTransport → ServiceInfo → ServiceConst → stackIntercept → Res → Req → ServerStreamingCall → **UnaryCall** → RpcOptions
 
+### Run 31 — String default value quote escaping bug (SUCCESS)
+- **Bug found:** `escapeForTypeScriptStringLiteral()` in main.go handles `\"` (backslash-quote in C-escaped string) by writing `\\"` (3 chars: backslash, backslash, quote). But the TS plugin's `getDeclarationString()` uses `.replace('"', '\\"')` which only escapes the FIRST occurrence of `"` with a single backslash. The Go plugin's result strips the backslash entirely because `escapeForTypeScriptStringLiteral` writes `\\"` which in the Go raw string `` `\\"` `` is actually `\\` + `"` — two backslashes then a quote — but the TS output shows only `\"` (one backslash, one quote).
+- **Test:** `112_string_default_with_quotes` — proto2 message with string field `[default = "hello \"world\""]`.
+- **Root cause:** `escapeForTypeScriptStringLiteral` at line ~3681-3684 handles `\"` by writing `\\"` (Go raw literal), but the actual output discards the first backslash, producing `"hello "world""`. The TS plugin outputs `"hello \"world""` — note only the FIRST escaped quote gets a backslash, the second doesn't (because JS `.replace()` without `/g` only replaces first match).
+- **Affects:** Three code paths: (1) interface JSDoc `@generated from protobuf field:`, (2) `internalBinaryRead` case comment, (3) `internalBinaryWrite` comment. All three show incorrect escaping.
+
 ### Ideas for future runs
+- String default value with multiple escaped quotes — `.replace()` only escapes first, so `"a\"b\"c"` → `"a\"b"c""` in TS. Test with multiple quotes to expose even more difference.
+- Bytes default value with special escaping — `\x00`, `\377`, etc. — Go and TS may format the octal/hex escapes differently.
+- String default value with backslash — `default = "hello\\world"` — escaping of literal backslashes may differ.
+- String default value with newline — `default = "line1\nline2"` — `\n` in default annotation could cause issues in JSDoc comment output.
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
 - `oneof` containing a `bytes` field — verified, write condition correct.
