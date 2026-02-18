@@ -799,15 +799,14 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			for _, line := range strings.Split(comment, "\n") {
 				line = strings.TrimRight(line, " \t")
 				if line == "" {
-					// For file-level: blank lines within blocks are "//" (no space)
-					g.pNoIndent("//")
+					g.pNoIndent("// ")
 				} else {
 					g.pNoIndent("// %s", line)
 				}
 			}
-			// Add // separator between blocks (not after last block)
+			// Add empty line separator between blocks (not after last block)
 			if blockIdx < len(detachedComments)-1 {
-				g.pNoIndent("//")
+				g.pNoIndent("")
 			}
 		}
 		// Blank line after all blocks

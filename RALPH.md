@@ -65,7 +65,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 102_oneof_name_escape: Added `oneofKind` to the oneof name escaping check (alongside `__proto__` and `toString`) in all 5 locations where oneofCamelName is computed
 - [x] Fix test 103_field_detached_comment_blank: Detached comment blank lines within a block should use `// ` (with trailing space), and separators between blocks should be empty lines (not `//`). Fixed in 6 locations: field, oneof, oneof member, and service (interface + implementation).
 - [x] Fix test 104_service_method_detached_blocks: Added empty line separators between multiple detached comment blocks for service methods (both interface and implementation), matching the pattern used by field detached comments
-- [x] All 108/108 tests passing — DONE
+- [x] Fix test 105_file_detached_comment_blank: File-level detached comments (first message) need `// ` (with trailing space) for blank lines within blocks and empty lines between blocks, same pattern as field/service detached comments. Note: the file-header license comment section (syntax path 12) uses `//` (no trailing space) — do NOT change those.
+- [x] All 109/109 tests passing — DONE
 
 ## Notes
 
@@ -93,3 +94,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service-level detached comments (LeadingDetachedComments on path `[6, svcIndex]`) must be output as `//` line comments before the `/**` JSDoc block for both the interface and the class in `generateServiceClient`. Same pattern as oneof detached comments but using `g.pNoIndent()` since service comments are at top level (no indent).
 - Oneof names whose camelCase form equals `oneofKind` must also be escaped with `$` suffix. There are 5 separate locations where `oneofCamelName` is computed and needs the escape check: interface generation (~line 1943), field descriptor generation (~line 2885), create() method (~line 3225), internalBinaryRead (~line 3346), and internalBinaryWrite (~line 3569). All must check `__proto__`, `toString`, AND `oneofKind`.
 - Service method detached comments with multiple blocks need empty line separators between blocks (`if idx < len(detachedComments)-1 { g.pNoIndent("") }`), plus blank-line-within-block handling (`// ` with trailing space) and a final blank line after all blocks before the JSDoc. Same pattern as field detached comments. Both the interface and implementation sections of `generateServiceClient` need this fix.
+- File-level detached comments on the first message (path `[4, 0]`) use `// ` (trailing space) for blank lines and empty lines between blocks. IMPORTANT: the file-header license comment section (syntax path `[12]`) uses `//` (no trailing space) — these are two different code paths and must NOT be confused.
