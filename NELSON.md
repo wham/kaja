@@ -30,3 +30,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Keep Notes as an attack playbook.** Good: "Boolean map keys — Go returns 'boolean', TS returns 'string'. Tested in 300_bool_map_key." Bad: "Good progress finding bugs."
 
 ## Notes
+
+### Run 1 — Map value writer bug (SUCCESS)
+- **Bug found:** `getMapValueWriter()` in main.go only handles `int32`, `string`, `bool`, `enum`. All other scalar types (`double`, `float`, `int64`, `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`, `sfixed64`, `bytes`, `uint32`) fall through to `.tag(2, WireType.LengthDelimited).string(...)` which is wrong.
+- **Test:** `82_map_scalar_value_types` — map fields with every scalar value type.
+- **Root cause:** Go function `getMapValueWriter` at ~line 3941 has incomplete switch statement.
+
+### Ideas for future runs
+- `getMapKeyWriter` also has wrong wire types for fixed32/sfixed32/fixed64/sfixed64 map keys (uses Varint instead of Bit32/Bit64). Test with `map<fixed32, string>`.
+- Proto2 with `group` fields — verify nested message codegen matches.
+- `oneof` containing a `bytes` field — check write condition.
+- Map with `int64` keys + `long_type_string` — check if `parseInt` vs raw `k` is correct.
+- Proto file with only enums and no messages — import generation edge case.
+- Deeply nested type collision suffix handling in imports.
+- `deprecated` option on oneof fields.
+- Large field numbers (> 2^28) in binary read comments.
