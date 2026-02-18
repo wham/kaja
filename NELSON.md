@@ -195,6 +195,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin constructs each annotation as a separate format string (e.g., `jsonNameAnnotation = " [json_name = ...]"`, `packedAnnotation = " [packed = ...]"`) and concatenates them. The TS plugin collects all options into a `string[]` array and joins with `", "` inside a single `[...]`. Three affected code paths: (1) interface JSDoc at line ~2138, (2) internalBinaryRead comment at line ~3329, (3) internalBinaryWrite comment at line ~3568.
 - **Additional difference:** Import ordering for `WireType` also differs in this test but may be a separate issue.
 
+### Run 28 — Message trailing comment dropped (SUCCESS)
+- **Bug found:** `generateMessageInterface()` in main.go never calls `getTrailingComments(msgPath)` for message declarations. The TS plugin uses `addCommentsForDescriptor(statement, descMessage, 'appendToLeadingBlock')` which appends the message's trailing comment (comment between `{` and first member) into the JSDoc block, separated by a blank line from the leading comment.
+- **Test:** `109_message_trailing_comment` — message with trailing comment (`// Trailing comment on Foo` after `{`), and empty message with only a trailing comment.
+- **Root cause:** `generateMessageInterface()` at lines 1840-1880 only calls `getLeadingComments(msgPath)` but never `getTrailingComments(msgPath)` or `getEnumTrailingComments(msgPath)`. Compare with `generateEnum()` at line 4126 which correctly calls `getEnumTrailingComments(enumPath)` and appends trailing comments into the JSDoc.
+- **Affects:** Only the `export interface` JSDoc. The `export const` JSDoc and `$Type` class `// @generated` comment do not include trailing comments in either plugin.
+- **Also broken:** The message class `$Type` JSDoc (line ~3555) also likely misses trailing comments but the TS plugin doesn't add them there either, so no diff.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -222,3 +229,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Nested enum `@deprecated` from file-level deprecation — does the Go plugin handle this correctly for nested enums?
 - `toCamelCase` vs `rt.lowerCamelCase` — verified equivalent for many edge cases (consecutive underscores, leading underscores, digits). Same results.
 - Client file generation for multiple services — complex import ordering, potential for import deduplication bugs.
+- Service trailing comments — `addCommentsForDescriptor` uses `'appendToLeadingBlock'` for services and methods too. Go plugin may be missing trailing comments on service declarations (similar to the message trailing comment bug).
+- Message trailing comment on nested messages — same bug likely applies since `generateMessageInterface` is called recursively for nested messages.
+- Message trailing comment with `__HAS_TRAILING_BLANK__` — the enum handler `getEnumTrailingComments` preserves trailing blank info; the message handler would need the same treatment.
