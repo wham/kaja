@@ -56,7 +56,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 96_service_trailing_blank_comment: Service and method comments in client file need `hasTrailingBlank` conditional (two `*` lines instead of one)
 - [x] All 100/100 tests passing
 - [x] Fix test 97_oneof_detached_comment: Added leading detached comments support for oneof declarations, same pattern as regular fields
-- [x] All 101/101 tests passing — DONE
+- [x] Fix test 98_oneof_member_detached_comment: Oneof trailing comment (from `oneof` declaration path) goes into the oneof JSDoc; non-first member field detached comments go as `//` before the field JSDoc
+- [x] All 102/102 tests passing — DONE
 
 ## Notes
 
@@ -78,3 +79,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum trailing comments (TrailingComments on the enum path, e.g. `[5,0]`) need to be included in the enum's JSDoc comment. Added `getEnumTrailingComments` method that preserves trailing blank info (unlike regular `getTrailingComments` which strips it). Enum value leading comments also need `__HAS_TRAILING_BLANK__` handling.
 - Service and method comments in `generateServiceClient` (client file) had 4 locations that unconditionally output one ` *` after comment lines but need two when `hasTrailingBlank` is true. Same pattern as everywhere else.
 - Oneof declarations need detached comment handling (LeadingDetachedComments on the oneof path `[4, msgIdx, 8, oneofIdx]`). These are output as `// ...` lines before the oneof's JSDoc `/**` block, same pattern as field detached comments.
+- The first oneof member field's "detached comment" is actually a **trailing comment** on the oneof declaration itself (path `[4, msgIdx, 8, oneofIdx]`), not a LeadingDetachedComment on the field. It goes into the oneof JSDoc block before `@generated from protobuf oneof:`. Non-first member field detached comments are proper LeadingDetachedComments on the field path and go as `//` style before the field's JSDoc.

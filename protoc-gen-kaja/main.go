@@ -4918,21 +4918,16 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
-		// Add method-level leading detached comments if this is not the first method
 		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
-		if methodIdx > 0 {
-			detachedComments := g.getLeadingDetachedComments(methodPath)
-			if len(detachedComments) > 0 {
-				// Not first method - output detached comments as // style BEFORE JSDoc
-				for _, detached := range detachedComments {
-					// For // style output, trim trailing empty lines
-					detached = strings.TrimRight(detached, "\n")
-					for _, line := range strings.Split(detached, "\n") {
-						g.p("// %s", line)
-					}
+		detachedComments := g.getLeadingDetachedComments(methodPath)
+		if len(detachedComments) > 0 {
+			for _, detached := range detachedComments {
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					g.p("// %s", line)
 				}
-				g.pNoIndent("")
 			}
+			g.pNoIndent("")
 		}
 		
 		g.p("/**")
@@ -5037,21 +5032,16 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		resType := g.stripPackage(method.GetOutputType())
 		methodName := escapeMethodName(g.toCamelCase(method.GetName()))
 		
-		// Add method-level leading detached comments if this is not the first method
 		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
-		if methodIdx > 0 {
-			detachedComments := g.getLeadingDetachedComments(methodPath)
-			if len(detachedComments) > 0 {
-				// Not first method - output detached comments as // style BEFORE JSDoc
-				for _, detached := range detachedComments {
-					// For // style output, trim trailing empty lines
-					detached = strings.TrimRight(detached, "\n")
-					for _, line := range strings.Split(detached, "\n") {
-						g.p("// %s", line)
-					}
+		detachedComments := g.getLeadingDetachedComments(methodPath)
+		if len(detachedComments) > 0 {
+			for _, detached := range detachedComments {
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					g.p("// %s", line)
 				}
-				g.pNoIndent("")
 			}
+			g.pNoIndent("")
 		}
 		
 		g.p("/**")
