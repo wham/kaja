@@ -1841,9 +1841,11 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	// Message interface first
 	g.pNoIndent("/**")
 	
-	// Add leading comments if available (msgPath should point to this message)
+	// Add leading and trailing comments if available (msgPath should point to this message)
 	if len(msgPath) > 0 {
 		leadingComments := g.getLeadingComments(msgPath)
+		trailingComments := g.getEnumTrailingComments(msgPath)
+		
 		if leadingComments != "" {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
@@ -1858,13 +1860,33 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
-			// Add separator blank line(s) before @generated
+			// Add separator blank line(s)
 			if hasTrailingBlank {
-				// Comment had trailing blank, add two separators
 				g.pNoIndent(" *")
 				g.pNoIndent(" *")
 			} else {
-				// Comment didn't have trailing blank, add one separator
+				g.pNoIndent(" *")
+			}
+		}
+		
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
+				}
+			}
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
 				g.pNoIndent(" *")
 			}
 		}
