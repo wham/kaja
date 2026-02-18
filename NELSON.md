@@ -405,6 +405,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `parseCustomOptions` (line ~419) never checks `ext.GetLabel() == LABEL_REPEATED`. It appends each wire value as a separate `customOption`. Then `formatCustomOptions` (line ~680) formats each entry as a separate key-value pair. Should check if the extension is repeated and merge values with the same key into a list/array.
 - **Affects:** All four custom option types (message, field, method, service) when an extension uses `repeated` label. Duplicate keys in a JS object literal are technically valid but semantically wrong — only the last value survives.
 
+### Run 51 — Custom bytes-typed option value silently dropped (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go has no case for `TYPE_BYTES`. Bytes-typed extension values fall through to the `default:` branch (line ~511) which calls `ConsumeBytes` but never appends the value to `result`. The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which correctly deserializes bytes values and encodes them as base64 strings (e.g., `"aGVsbG8="` for `"hello"`).
+- **Test:** `132_custom_bytes_option` — field with `[(field_metadata) = "hello"]` and `[(field_metadata) = "\x01\x02\x03"]`, message with `option (msg_tag) = "tag1"`, all using `bytes`-typed extensions.
+- **Root cause:** Lines 453-510 handle `TYPE_STRING`, `TYPE_BOOL`, `TYPE_ENUM`, `TYPE_INT*`, `TYPE_UINT*`, `TYPE_SINT*`, `TYPE_FIXED*`, `TYPE_SFIXED*`, `TYPE_FLOAT`, `TYPE_DOUBLE`, `TYPE_MESSAGE` but NOT `TYPE_BYTES`. The fix would add a case that calls `ConsumeBytes` and base64-encodes the result (matching the TS plugin's `toJson()` behavior for bytes).
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses bytes type. Both the field-level `options:` property and the message-level third constructor argument are dropped.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
@@ -415,11 +421,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
-- Custom option with bytes value — does Go plugin handle TYPE_BYTES extension values?
+- Custom option with bytes value — USED in run 51 (TYPE_BYTES missing, base64 encoding dropped).
 - Custom option with nested message value (message inside message) — would require recursive deserialization.
 - Custom field option with message type — same bug as run 49 but for FieldOptions extensions.
 - Custom method option with message type — same bug but for MethodOptions.
 - Custom service option with message type — same bug but for ServiceOptions.
 - Repeated custom option with int/bool/enum types — same bug but different value types.
-- Custom enum options on enum declarations — Go plugin has no `getCustomEnumOptions`.
-- Custom enum value options on enum values — Go plugin has no `getCustomEnumValueOptions`.
+- Custom enum options on enum declarations — Go plugin has no `getCustomEnumOptions`. BUT TS plugin also doesn't output enum-level options, so no diff (VERIFIED).
+- Custom enum value options on enum values — Go plugin has no `getCustomEnumValueOptions`. BUT TS plugin also doesn't output enum-value options, so no diff (VERIFIED).
