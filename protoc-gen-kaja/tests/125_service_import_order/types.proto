@@ -1,0 +1,18 @@
+syntax = "proto3";
+package types;
+
+message SearchRequest {
+  string query = 1;
+}
+
+message SearchResponse {
+  string result = 1;
+}
+
+message DeleteRequest {
+  int32 id = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+}

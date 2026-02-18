@@ -1,0 +1,13 @@
+// Tests that service-only file import ordering matches protobuf-ts.
+// The TS plugin outputs response type before request type for each method
+// (due to prepend semantics). The Go plugin reverses the entire list,
+// which swaps request/response within each method pair.
+syntax = "proto3";
+package api;
+
+import "types.proto";
+
+service MyService {
+  rpc Search(types.SearchRequest) returns (types.SearchResponse);
+  rpc Delete(types.DeleteRequest) returns (types.DeleteResponse);
+}

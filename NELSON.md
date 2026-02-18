@@ -360,18 +360,24 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 2363-2393 generate the oneof member field JSDoc and property but never fetch or output trailing comments. Regular field generation at line ~2146 correctly calls `getTrailingComments(fieldPath)` and outputs them as `// comment` after the property.
 - **Affects:** Only the interface declaration. The `internalBinaryRead` and `internalBinaryWrite` methods don't output trailing comments for any fields.
 
+### Run 44 — Service-only file import ordering (SUCCESS)
+- **Bug found:** In service-only files (no messages, only services with imported types), the Go plugin emits type imports in the wrong order. For each method, the TS plugin outputs response type before request type (due to prepend semantics), but the Go plugin outputs request before response.
+- **Test:** `125_service_import_order` — service file importing `types.proto` with two methods `Search(SearchRequest) → SearchResponse` and `Delete(DeleteRequest) → DeleteResponse`.
+- **Root cause:** Lines 960-968 build the service type import list by adding output type first, then input type (correct for TS prepend). Then line 982 reverses the entire list, which flips request/response within each method pair. After reversal: [DeleteRequest, DeleteResponse, SearchRequest, SearchResponse] instead of [DeleteResponse, DeleteRequest, SearchResponse, SearchRequest].
+- **Correct order (TS):** DeleteResponse, DeleteRequest, SearchResponse, SearchRequest (latest method first, response before request)
+- **Wrong order (Go):** DeleteRequest, DeleteResponse, SearchRequest, SearchResponse (latest method first, request before response — reversed pair ordering)
+- **Affects:** Only service-only files (`len(g.file.MessageType) == 0`). Files with both messages and services use a different code path that doesn't reverse.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
-- Import ordering with services that have types from different imported files.
 - Proto2 group fields — how does the Go plugin handle groups in terms of field descriptors?
 - Deeply nested messages (5+ levels) — test for type name construction correctness.
 - Enum prefix detection edge cases — enum names with consecutive uppercase letters (e.g., `HTTPStatus` → `HTTPSTATUS_` vs `H_T_T_P_STATUS_`).
 - `exclude_options` file option interaction — TS plugin has `ts.exclude_options` that can suppress custom options.
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
-- Enum alias leading comments — does Go use alias's own comments or first value's comments? Go correctly uses first value (line 4318-4322), matches TS.
-- Enum alias trailing comments — same as above, Go appears correct.
 - Enum alias where first value has custom json_name or other options — does the TS getDeclarationString for aliases include the first value's options or the alias's?
-- Regular field trailing comments — verify Go handles trailing comments on regular fields correctly (line ~2146). Already handles this, but edge cases may differ (e.g., multi-line trailing comments).
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
+- Service-only file with shared request/response types — dedup behavior when same type used in multiple methods.
+- Multiple services in same service-only file — import ordering across services.
