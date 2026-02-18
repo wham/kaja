@@ -411,6 +411,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 453-510 handle `TYPE_STRING`, `TYPE_BOOL`, `TYPE_ENUM`, `TYPE_INT*`, `TYPE_UINT*`, `TYPE_SINT*`, `TYPE_FIXED*`, `TYPE_SFIXED*`, `TYPE_FLOAT`, `TYPE_DOUBLE`, `TYPE_MESSAGE` but NOT `TYPE_BYTES`. The fix would add a case that calls `ConsumeBytes` and base64-encodes the result (matching the TS plugin's `toJson()` behavior for bytes).
 - **Affects:** All four custom option types (message, field, method, service) when an extension uses bytes type. Both the field-level `options:` property and the message-level third constructor argument are dropped.
 
+### Run 52 — Custom 64-bit integer option values formatted as numbers instead of strings (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go stores all integer types (including int64, uint64, sint64, fixed64, sfixed64) as `int(v)` which is formatted as a numeric literal in the output. The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which follows the protobuf JSON mapping spec: 64-bit integers are encoded as **strings** (e.g., `"1000"` not `1000`). 32-bit integers remain numbers.
+- **Test:** `133_custom_int64_option` — message with custom MessageOptions of types int64, uint64, sint64, fixed64, sfixed64.
+- **Root cause:** Five affected type cases in `parseCustomOptions`: TYPE_INT64, TYPE_UINT64, TYPE_SINT64, TYPE_FIXED64, TYPE_SFIXED64 all use `int(v)` then format with `%d`. Should store as string for 64-bit types to match protobuf JSON mapping.
+- **Also affected:** `parseMessageValue` at lines 616-629 has the same bug for nested message option values with 64-bit types.
+- **Note:** 32-bit types (int32, uint32, sint32, fixed32, sfixed32) correctly remain as numbers in both plugins.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.

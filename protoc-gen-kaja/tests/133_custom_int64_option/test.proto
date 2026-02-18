@@ -1,0 +1,25 @@
+// Tests custom options with 64-bit integer types.
+// The TS plugin uses toJson() which formats 64-bit integers as strings
+// (e.g., "1000" not 1000) per the protobuf JSON mapping spec.
+// The Go plugin formats them as numbers.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  int64 max_size = 51001;
+  uint64 max_count = 51002;
+  sint64 offset = 51003;
+  fixed64 hash = 51004;
+  sfixed64 delta = 51005;
+}
+
+message Item {
+  option (max_size) = 1000;
+  option (max_count) = 500;
+  option (offset) = -10;
+  option (hash) = 42;
+  option (delta) = -7;
+  string name = 1;
+}
