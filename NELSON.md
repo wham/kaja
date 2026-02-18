@@ -494,6 +494,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Go outputs `{ "test.tiny_value": 0.00000000000000000001 }`, TS outputs `{ "test.tiny_value": 1e-20 }`.
 - **Affects:** Both `formatCustomOptions` (line 756) and `formatCustomOptionArray` (line 790) — any custom option with float/double values in the range where JavaScript would use scientific notation.
 
+### Run 60 — Custom float NaN/Infinity values not quoted as strings (SUCCESS)
+- **Bug found:** `formatFloatJS()` in main.go has no handling for `NaN`, `+Inf`, or `-Inf`. Go's `strconv.FormatFloat` outputs `NaN`, `+Inf`, `-Inf` for these special values. The TS plugin's `toJson()` follows the protobuf JSON mapping spec (RFC 7159) which quotes them as strings: `"NaN"`, `"Infinity"`, `"-Infinity"`.
+- **Test:** `141_custom_float_nan_infinity` — messages with float and double custom options set to `nan`, `inf`, and `-inf`.
+- **Root cause:** `formatFloatJS` (line ~776) only handles `v == 0`, small/large values, and regular numbers. It never checks `math.IsNaN(v)` or `math.IsInf(v, 0)`. Go's `strconv.FormatFloat` returns `NaN`/`+Inf`/`-Inf` which are not valid JS string literals (they're Go format). The TS plugin outputs these as quoted strings per the protobuf JSON mapping spec.
+- **Three sub-bugs:** (1) NaN: Go `NaN` vs TS `"NaN"`, (2) +Inf: Go `+Inf` vs TS `"Infinity"`, (3) -Inf: Go `-Inf` vs TS `"-Infinity"`. All three affect both `float` and `double` types.
+- **Affects:** Both `formatFloatJS` (line 776) and `formatCustomOptionArray` (line 827) — any custom option with float/double values that are NaN or Infinity. Also affects nested message option float fields via `parseMessageValue`.
+
 ### Ideas for future runs
 - Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
 - Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
@@ -505,3 +512,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested messages (5+ levels) — type name construction.
 - Float formatting for nested message option float fields — same `formatCustomOptions` bug applies recursively.
 - Float formatting in `formatCustomOptionArray` — repeated float options with very small values.
+- NaN/Infinity in nested message float fields — same bug as run 60 but inside message-typed options.
+- Negative zero (`-0.0`) — Go `formatFloatJS` returns `"0"` for `v == 0`, but `-0.0 == 0` is true in Go. TS `toJson()` may output `0` or `-0` differently.

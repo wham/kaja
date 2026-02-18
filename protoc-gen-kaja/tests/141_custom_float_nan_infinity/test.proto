@@ -1,0 +1,43 @@
+// Tests that custom float/double option values of NaN, Infinity, and -Infinity
+// are output as quoted strings matching protobuf JSON mapping spec.
+// The TS plugin outputs "NaN", "Infinity", "-Infinity" (strings).
+// The Go plugin outputs NaN, +Inf, -Inf (Go format, not valid JS strings).
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  float special_float = 51001;
+  double special_double = 51002;
+}
+
+message NanFloat {
+  option (special_float) = nan;
+  string name = 1;
+}
+
+message InfFloat {
+  option (special_float) = inf;
+  string name = 1;
+}
+
+message NegInfFloat {
+  option (special_float) = -inf;
+  string name = 1;
+}
+
+message NanDouble {
+  option (special_double) = nan;
+  string name = 1;
+}
+
+message InfDouble {
+  option (special_double) = inf;
+  string name = 1;
+}
+
+message NegInfDouble {
+  option (special_double) = -inf;
+  string name = 1;
+}
