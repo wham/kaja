@@ -617,13 +617,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's import generation (around `generateImports` or `stripPackage`) doesn't track which type names have already been used in the current file. When two different packages define a type with the same simple name, the TS plugin's `TypeScriptImports` class detects the collision and adds `as Name$` alias. The Go plugin lacks this collision detection entirely.
 - **Affects:** import statement, interface property type, field descriptor `T:`, `internalBinaryRead`, and `internalBinaryWrite` — ALL reference the unaliased name.
 
+### Run 74 — Map value type import ordering bug (SUCCESS)
+- **Bug found:** When a map field's value type (e.g., `google.protobuf.Value`) and a regular field's type (e.g., `google.protobuf.Struct`) are from the same import file, the Go plugin orders them wrong. The Go plugin scans direct fields first, then nested types (including map entry messages), so map value types are appended AFTER regular field types. After reversal, map value types appear BEFORE regular field types in imports. The TS plugin processes map value types inline during field processing, so they appear in field-number order.
+- **Test:** `155_map_value_import_order` — `map<string, google.protobuf.Value>` at field 1, `google.protobuf.Struct` at field 2. Expected: `Value` import before `Struct`. Got: `Struct` before `Value`.
+- **Root cause:** In `scanMessage()` at line ~1500, fields are processed first (adding map entry type to messageFieldTypes), then `for _, nested := range msg.NestedType` processes nested types including the synthetic `ValuesEntry` message whose `value` field has type `Value`. So `Value` is appended after `Struct` in messageFieldTypes. After the list is reversed (line ~1542), `Value` ends up before `Struct` — but in the wrong direction (Go has `Struct, Value` in final output, TS has `Value, Struct`).
+
 ### Ideas for future runs
 - Same collision but with enum types (two packages defining same-named enum).
 - Three-way collision: local type + two imports with same simple name — TS uses `Item$`, `Item$1`?
 - Collision between a message name and an imported well-known type (e.g., local `Timestamp` + import `google.protobuf.Timestamp`).
 - Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
 - Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
-- Service with custom option that contains a field named with leading underscores.
 - Custom option with oneof field inside message-typed option value.
 - Multiple fields colliding on same property name with different types (e.g., `int32 x123y = 1; string x_123_y = 3`) — may expose additional dedup bugs in `internalBinaryWrite` or other contexts.
 - `toCamelCase` collisions with `bool` and `bytes` fields — default value dedup.
+- Map with message value from different package + regular field from same package — import ordering bug variant.
