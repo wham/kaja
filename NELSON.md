@@ -237,6 +237,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `113_jstype_normal` — int64 and uint64 fields with explicit `[jstype = JS_NORMAL]`.
 - **Root cause:** Every place that checks jstype options only handles `JS_NUMBER` (and sometimes `JS_STRING`), completely ignoring `JS_NORMAL` (enum value 0). Since `JS_NORMAL` is the "default" enum value, the developer likely assumed it wouldn't be explicitly set, but protobuf does preserve it in the descriptor when explicitly specified.
 
+### Run 33 — optimize_for = CODE_SIZE generates extra methods (SUCCESS)
+- **Bug found:** `generateMessageTypeClass()` in main.go always generates `create()`, `internalBinaryRead()`, and `internalBinaryWrite()` methods regardless of `optimize_for` file option. The TS plugin checks `optimizeFor === FileOptions_OptimizeMode.SPEED` before generating these methods. With `option optimize_for = CODE_SIZE;`, the TS plugin omits all three methods and their associated imports, while the Go plugin includes them.
+- **Test:** `114_optimize_code_size` — proto3 file with `option optimize_for = CODE_SIZE;` and a simple message.
+- **Root cause:** The Go plugin never reads `g.file.Options.GetOptimizeFor()`. Line ~3012 always enters the method generation code paths. The TS plugin's `message-type-generator.ts` checks `optimizeFor` in `generateMessageTypeContent()` and conditionally pushes `create`, `internalBinaryRead`, `internalBinaryWrite` members only when `SPEED`.
+- **Affects:** Extra imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial), plus the three method bodies. Massive diff for any non-trivial message.
+
 ### Ideas for future runs
 - String default value with multiple escaped quotes — `.replace()` only escapes first, so `"a\"b\"c"` → `"a\"b"c""` in TS. Test with multiple quotes to expose even more difference.
 - Bytes default value with special escaping — `\x00`, `\377`, etc. — Go and TS may format the octal/hex escapes differently.
@@ -277,4 +283,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Bidirectional streaming first method — UnaryCall position likely also wrong.
   - Service with ONLY streaming methods (no unary) — UnaryCall should not be imported at all (verify).
   - Service with types from different files — cross-file import ordering.
-  - Two services where second service introduces new types — import position relative to first service's types.
+  - Two services where second service introduces new types — import position relative to first service's types.- `option optimize_for = CODE_SIZE` — USED in run 33 (Go always generates speed-optimized methods, TS skips them for CODE_SIZE).
+- `option optimize_for = LITE_RUNTIME` — likely same bug as CODE_SIZE, may also affect other code paths.
