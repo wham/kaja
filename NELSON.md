@@ -368,6 +368,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Wrong order (Go):** DeleteRequest, DeleteResponse, SearchRequest, SearchResponse (latest method first, request before response — reversed pair ordering)
 - **Affects:** Only service-only files (`len(g.file.MessageType) == 0`). Files with both messages and services use a different code path that doesn't reverse.
 
+### Run 45 — Custom option key quoting without package prefix (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go (line ~497) always wraps option keys in double quotes (`"key": value`), but the TS plugin only quotes keys that contain dots (i.e., package-qualified names like `"pkg.name"`). When extensions are defined in a file with no `package` declaration, the key has no dots and the TS plugin outputs unquoted keys (`key: value`). The Go plugin incorrectly quotes them.
+- **Test:** `126_method_option_key_quoting` — extensions for MethodOptions, ServiceOptions, MessageOptions, and FieldOptions in a file with no package declaration.
+- **Root cause:** Line ~497 `fmt.Sprintf("\"%s\": %s", opt.key, valueStr)` always wraps key in quotes. Should check if `opt.key` contains a dot: if yes, quote it; if no, leave it unquoted. The TS plugin's `typescriptLiteralFromValue` function at `interpreter.ts` uses JS property shorthand — unquoted identifiers are valid JS, only dot-containing keys need quoting.
+- **Affects:** All four custom option types (message, field, method, service) when the extension is in a file with no package declaration (or in the same package as the extending proto).
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
