@@ -112,18 +112,31 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Two interacting bugs: (1) `opt` calculation doesn't check `oneofName != ""` to skip oneof members, (2) the "message, enum, or map" field descriptor branch (line 2978-2981) includes `opt` in the format string, while the scalar-oneof branch (line 2973-2977) happens to omit it. So scalar oneof fields are accidentally correct, but enum oneof fields are broken.
 - **Note:** Proto2 message fields in oneofs are also technically affected but `opt` is never set for message types (line 2946 excludes TYPE_MESSAGE), so only enum fields trigger the bug.
 
+### Run 15 — Service/method trailing blank comment missing extra separator (SUCCESS)
+- **Bug found:** Service and method JSDoc comment blocks strip `__HAS_TRAILING_BLANK__` sentinel but never USE the `hasTrailingBlank` flag. When a service or method comment ends with a blank line, the TS plugin outputs two `*` separator lines (one for the trailing blank + one for the regular separator before `@generated`), but the Go plugin always outputs only one.
+- **Test:** `96_service_trailing_blank_comment` — service and method with comments ending in blank line (`//`).
+- **Root cause:** Four affected code paths all have the same bug:
+  1. Service interface JSDoc (line ~4843): always `g.pNoIndent(" *")` regardless of `hasTrailingBlank`
+  2. Method interface JSDoc (line ~4897): always `g.p(" *")` regardless
+  3. Service class JSDoc (line ~4947): always `g.pNoIndent(" *")` regardless
+  4. Method class JSDoc (line ~5006): always `g.p(" *")` regardless
+- Compare with message JSDoc (line ~1861-1868) which correctly checks `if hasTrailingBlank` and outputs two separator lines.
+
+### Run 16 — Oneof detached comments missing (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go (line ~2207) never calls `getLeadingDetachedComments()` for the oneof declaration path. When a comment is separated from the `oneof` keyword by a blank line, it becomes a "detached comment" in protobuf source code info (path `[4, msgIdx, 8, oneofIdx]`). The TS plugin outputs these as `//` style comments before the oneof's JSDoc block. The Go plugin drops them entirely.
+- **Test:** `97_oneof_detached_comment` — message with a detached comment before a oneof declaration.
+- **Root cause:** Line ~2207 in `generateOneofField`: only calls `getLeadingComments(oneofPath)` but not `getLeadingDetachedComments(oneofPath)`. Compare with `generateField` at line ~2022 which properly handles detached comments.
+
 ### Ideas for future runs
-- Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — similar to run 12 but in enum value JSDoc (line ~4221 doesn't strip sentinel). Separate bug from run 13.
-- Proto2 with `group` fields — verify nested message codegen matches.
-- `oneof` containing a `bytes` field — check write condition.
+- Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
+- Proto2 with `group` fields — verified, output matches.
+- `oneof` containing a `bytes` field — verified, write condition correct.
 - Proto file with only enums and no messages — import generation edge case.
 - Deeply nested type collision suffix handling in imports.
 - Large field numbers (> 2^28) in binary read comments.
-- Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
-- Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
-- Deep nesting (3+ levels) with oneofs — would amplify the nested oneof path bug even more.
-- `internalBinaryRead` oneof case comment missing `[default = ...]` — same as this run but in the binary read method (line ~3205). Check if it's handled there.
-- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
+- Enum oneof fields with custom json_name — check if "message, enum, or map" branch ordering differs.
+- Deep nesting (3+ levels) with oneofs — amplifies nested oneof path bug.
+- Detached comments for oneof MEMBER fields (not the oneof declaration itself) — `generateOneofField` also doesn't call `getLeadingDetachedComments` for the individual fields within the oneof.
 - Message-level detached comments from first field — similar to enum, the TS plugin may merge first field's detached comments into the message JSDoc.
-- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
-- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
+- Proto2 extensions — Go plugin skips files with only extensions entirely.
+- `toCamelCase` edge cases with Unicode or special characters.
