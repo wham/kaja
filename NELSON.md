@@ -169,6 +169,19 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `104_service_method_detached_blocks` — service with a method that has two detached comment blocks before it.
 - **Root cause:** Lines 4944-4951 iterate `for _, detached := range detachedComments` but never track the index and never output `g.pNoIndent("")` between blocks. Compare with field-level code at lines 2026-2044 which checks `if idx < len(detachedComments)-1 { g.pNoIndent("") }`. Same bug in class body at lines 5078-5086.
 
+### Run 24 — File-level detached comment blank line formatting (SUCCESS)
+- **Bug found:** File-level detached comments (from first message path `[4, 0]`) at lines 791-817 have two formatting bugs identical to run 22's field-level bug:
+  1. **Blank line within a detached block**: Go outputs `//` (no trailing space), TS outputs `// ` (with trailing space). Line 803 uses `g.pNoIndent("//")` but should use `g.pNoIndent("// ")`.
+  2. **Separator between detached blocks**: Go outputs `//` (a comment), TS outputs an empty line. Line 810 uses `g.pNoIndent("//")` but should use `g.pNoIndent("")`.
+- **Test:** `105_file_detached_comment_blank` — proto file with two detached comment blocks before the first message, first block containing a blank line.
+- **Root cause:** The message-level detached comment code (line ~1822-1834) was fixed to use `"// "` for blank lines and `""` for block separators, but the file-level code (line ~800-811) was never updated to match.
+
+### Run 25 — Top-level enum detached comments missing (SUCCESS)
+- **Bug found:** `generateEnum()` in main.go (line ~4198) does NOT handle detached comments before the enum JSDoc. When a comment before the `enum` keyword is separated from the enum's own leading comment by a blank line, it becomes a "detached comment" in protobuf source code info (path `[5, enumIdx]`). The TS plugin outputs these as `//` style comments before the enum's `/**` JSDoc block. The Go plugin drops them entirely.
+- **Test:** `106_enum_detached_comment` — enum with a detached comment (separated from leading comment by blank line).
+- **Root cause:** `generateEnum()` at line ~4218 immediately opens with `g.pNoIndent("/**")` without first calling `getLeadingDetachedComments(enumPath)`. Compare with `generateMessageInterface()` at lines 1808-1836 which properly handles detached comments before the `/**`.
+- **Note:** Same bug likely applies to nested enums within messages (path `[4, msgIdx, 4, enumIdx]`).
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -185,4 +198,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - First method detached comment merging for service with NO service-level comment — different edge case.
 - Oneof field detached comment blank line formatting — same bug as run 22 likely applies to oneof field detached comments.
 - Service method detached comment blank line formatting — same bug pattern in service code. USED in run 23 (block separator missing).
-- File-level detached comment blank line formatting — line ~800 uses `g.pNoIndent("//")` for blanks, may also differ from TS.
+- File-level detached comment blank line formatting — USED in run 24 (both blank line and separator bugs confirmed).
+- Syntax-level detached comments (line ~744-778) also use `"//"` for blanks — same bug pattern, likely also differs from TS.
+- Enum value detached comments — tested, Go matches TS (no bug found).
+- File-level comments from first ENUM (not message) — lines 791-817 only check `file.MessageType`, what about files with enums first?
