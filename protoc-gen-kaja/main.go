@@ -1499,7 +1499,26 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
 				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
 				typeName := field.GetTypeName()
-				// Store the full type name (e.g., .api.v1.HealthCheckResponse.Status)
+				// For map fields, register the value type (not the entry type)
+				// at the position of the map field itself
+				if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+					entryMsg := g.findMessageType(typeName)
+					if entryMsg != nil && entryMsg.Options != nil && entryMsg.GetOptions().GetMapEntry() {
+						// Extract the value field (field number 2) type
+						for _, entryField := range entryMsg.Field {
+							if entryField.GetNumber() == 2 &&
+								(entryField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
+									entryField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM) {
+								valType := entryField.GetTypeName()
+								if !usedInMessages[valType] {
+									usedInMessages[valType] = true
+									messageFieldTypes = append(messageFieldTypes, valType)
+								}
+							}
+						}
+						continue
+					}
+				}
 				if !usedInMessages[typeName] {
 					usedInMessages[typeName] = true
 					messageFieldTypes = append(messageFieldTypes, typeName)
@@ -1507,6 +1526,10 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 			}
 		}
 		for _, nested := range msg.NestedType {
+			// Skip map entry messages — their value types are handled inline above
+			if nested.Options != nil && nested.GetOptions().GetMapEntry() {
+				continue
+			}
 			scanMessage(nested)
 		}
 	}
