@@ -182,6 +182,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `generateEnum()` at line ~4218 immediately opens with `g.pNoIndent("/**")` without first calling `getLeadingDetachedComments(enumPath)`. Compare with `generateMessageInterface()` at lines 1808-1836 which properly handles detached comments before the `/**`.
 - **Note:** Same bug likely applies to nested enums within messages (path `[4, msgIdx, 4, enumIdx]`).
 
+### Run 26 — Oneof declaration missing @deprecated in deprecated file (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go (line ~2233-2270) does NOT add `@deprecated` tag to the oneof declaration JSDoc when the file is deprecated (`option deprecated = true`). The TS plugin's `CommentGenerator.isDeprecated()` checks `desc.parent.file.deprecated` for oneof descriptors, adding `@deprecated` to the oneof declaration when the entire file is deprecated.
+- **Test:** `107_deprecated_file_oneof` — proto3 file with `option deprecated = true` containing a message with a `oneof choice { string text; int32 number; }`.
+- **Root cause:** Lines 2233-2270 in `generateOneofField` only handle leading comments, trailing comments, and detached comments for the oneof declaration JSDoc, but never check `g.isFileDeprecated()`. Compare with field JSDoc at line ~2131 which checks `g.isFileDeprecated()`, and with oneof **member** fields at line ~2367 which correctly checks both `fieldIsDeprecated` and `g.isFileDeprecated()`.
+- **Note:** Protobuf doesn't support `deprecated` option directly on `oneof` declarations, so the only way an oneof declaration gets `@deprecated` is through file-level deprecation.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -201,4 +207,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - File-level detached comment blank line formatting — USED in run 24 (both blank line and separator bugs confirmed).
 - Syntax-level detached comments (line ~744-778) also use `"//"` for blanks — same bug pattern, likely also differs from TS.
 - Enum value detached comments — tested, Go matches TS (no bug found).
-- File-level comments from first ENUM (not message) — lines 791-817 only check `file.MessageType`, what about files with enums first?
+- File-level comments from first ENUM (not message) — lines 791-817 only check `file.MessageType`, what about files with enums first? TESTED: Go matches TS (no bug).
+- Syntax-level detached comments blank lines — TESTED: Go matches TS, both output `//` without space (no bug).
+- Enum-only file detached comments — TESTED: Go matches TS (no bug, comments handled via syntax path).
+- Oneof declaration `@deprecated` when only the oneof's parent **message** is deprecated (not file) — unclear if this case exists since proto doesn't have `deprecated` on oneofs directly.
+- Service/method `@deprecated` edge cases — file-level deprecation on service methods in client file vs main file.
+- Nested enum `@deprecated` from file-level deprecation — does the Go plugin handle this correctly for nested enums?
+- `toCamelCase` vs `rt.lowerCamelCase` — verified equivalent for many edge cases (consecutive underscores, leading underscores, digits). Same results.
+- Client file generation for multiple services — complex import ordering, potential for import deduplication bugs.
