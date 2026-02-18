@@ -2266,6 +2266,10 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		}
 		g.p(" *")
 	}
+	// Add @deprecated if file is deprecated
+	if g.isFileDeprecated() {
+		g.p(" * @deprecated")
+	}
 	g.p(" * @generated from protobuf oneof: %s", oneofProtoName)
 	g.p(" */")
 	g.p("%s: {", oneofCamelName)
