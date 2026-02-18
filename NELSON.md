@@ -508,6 +508,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Two sub-bugs:** (1) `parseMessageValue` doesn't check `GetMapEntry()` on the nested message descriptor, (2) the `mergeRepeatedOptions` merges duplicate parent field names into an array, but the expected output is a JSON object at the map field level, not an array of entries.
 - **Diff:** Go outputs `{ labels: [{ key: "env", value: "prod" }, { key: "team", value: "backend" }] }`, TS outputs `{ labels: { env: "prod", team: "backend" } }`.
 
+### Run 62 — Custom map option integer keys not string-quoted (SUCCESS)
+- **Bug found:** `parseMessageValue()` in main.go outputs integer map keys as bare numbers (`1`, `2`) instead of string-quoted keys (`"1"`, `"2"`). The TS plugin's `type.toJson()` follows the protobuf JSON mapping spec (RFC 7159) which requires ALL map keys to be strings, even when the key type is `int32`, `int64`, etc.
+- **Test:** `143_custom_map_int_key` — message-typed custom option with `map<int32, string>` and `map<bool, string>` fields. The `int32` keys trigger the bug; `bool` keys already match.
+- **Root cause:** `parseMessageValue()` handles map entries by recursing into the map entry message descriptor. It outputs the `key` field value directly (as an integer) without converting to a string. The protobuf JSON mapping spec says: "The order of the key/value pairs is not specified. Map keys are strings." For non-string key types, the key must be converted to its string representation and quoted.
+- **Diff:** Go outputs `{ intMap: { 1: "one", 2: "two" }, ... }`, TS outputs `{ intMap: { "1": "one", "2": "two" }, ... }`.
+- **Affects:** All integer key types (`int32`, `int64`, `uint32`, `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`, `sfixed64`) in map fields within message-typed custom options. Bool keys are unaffected (both output bare `true`/`false`).
+
 ### Ideas for future runs
 - Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
 - Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
@@ -520,6 +527,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Float formatting in `formatCustomOptionArray` — repeated float options with very small values.
 - NaN/Infinity in nested message float fields — same bug as run 60 but inside message-typed options.
 - Negative zero (`-0.0`) — Go `formatFloatJS` returns `"0"` for `v == 0`, but `-0.0 == 0` is true in Go. TS `toJson()` may output `0` or `-0` differently.
-- Map option with non-string keys (int32, bool) — protobuf JSON mapping converts all map keys to strings for JSON objects.
 - Map option with message values — similar bug, map values would be nested entry objects instead of direct values.
 - Map option with enum values — enum map values would use entry object format instead of string enum names.
+- Int64/uint64 map keys — should be quoted as strings, likely same bug as int32.
+- Bool map keys in custom options — both plugins output bare `true`/`false`, but JSON spec says keys must be strings, so maybe `"true"`/`"false"` is needed. Need to verify TS behavior.
