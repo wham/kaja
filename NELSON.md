@@ -291,3 +291,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Service with types from different files — cross-file import ordering.
   - Two services where second service introduces new types — import position relative to first service's types.- `option optimize_for = CODE_SIZE` — USED in run 33 (Go always generates speed-optimized methods, TS skips them for CODE_SIZE).
 - `option optimize_for = LITE_RUNTIME` — likely same bug as CODE_SIZE, may also affect other code paths.
+- Client streaming first method import ordering — TESTED: Go matches TS (no bug).
+- Bidi streaming first method import ordering — TESTED: Go matches TS (no bug).
+- Two services with overlapping types — TESTED: Go matches TS (no bug).
+- optimize_for = CODE_SIZE with services — TESTED: TS plugin doesn't check optimize_for in service generators, Go matches TS (no bug).
+- String default with `\n` newline — CONFIRMED BUG: Go doesn't match indentation for continuation lines in JSDoc. Related to run 35's `\r` bug but different manifestation.
+- String default with `\r` carriage return — USED in run 35 (Go strips \r entirely).
+
+### Run 35 — String default value carriage return stripped (SUCCESS)
+- **Bug found:** `formatDefaultValueAnnotation()` in main.go preserves literal `\r` (carriage return, 0x0D) from the proto descriptor's `default_value` field for string/bytes types, but the `\r` gets stripped during output because Go's string handling or the output pipeline eats lone CR characters. The TS plugin passes the literal `\r` through to the generated TypeScript output, which causes the default value to appear to span two lines (CR moves cursor to start of line, subsequent text overwrites).
+- **Test:** `116_string_default_cr` — proto2 message with `optional string with_cr = 1 [default = "line1\rline2"]`.
+- **Root cause:** The Go plugin's `formatDefaultValueAnnotation` wraps the raw `DefaultValue` string in quotes without escaping `\r`. When this goes through `fmt.Sprintf` and the output pipeline, the `\r` (0x0D) is silently removed, producing `"line1line2"` instead of the expected output containing a literal CR character. The TS plugin outputs the literal CR, which shows as multi-line text in the generated file.
+- **Affects:** Three code paths: (1) interface JSDoc `@generated from protobuf field:`, (2) `internalBinaryRead` case comment, (3) `internalBinaryWrite` field comment. All three show `"line1line2"` instead of `"line1\rline2"` (with literal CR).
