@@ -348,8 +348,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Affects:** Any field with custom `FieldOptions` extensions. Runtime code can't access custom options via field info.
 - **Note:** Run 39 found the same pattern for message options. This is the field-level variant.
 
+### Run 42 — Custom service options missing from ServiceType constructor (SUCCESS)
+- **Bug found:** `generateServiceTypeConst()` in main.go always calls `new ServiceType("name", [methods])` with exactly 2 arguments. The TS plugin's `service-type-generator.ts` checks `if (Object.keys(interpreterType.options).length)` and passes them as a third argument: `new ServiceType("name", [methods], { "pkg.option_name": value })`. The Go plugin has `getCustomMethodOptions` and `getCustomMessageOptions` and `getCustomFieldOptions` but NO `getCustomServiceOptions`.
+- **Test:** `123_custom_service_options` — service with custom service options `api_version = "v2"` and `internal = true` via `extend google.protobuf.ServiceOptions`.
+- **Root cause:** Line ~5472 in `generateServiceTypeConst` always closes with `]);` after methods. Never reads `svc.Options.ProtoReflect().GetUnknown()` for custom extensions. The TS plugin's interpreter calls `this.readOptions(desc, excludeOptions)` at line 222 of `interpreter.js` for the service descriptor.
+- **Affects:** Any service with custom `ServiceOptions` extensions. Runtime code can't access them via `ServiceType.options`.
+
 ### Ideas for future runs
-- Custom service options — TS plugin passes options to `ServiceType` constructor third arg, Go plugin may omit them.
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
 - Import ordering with services that have types from different imported files.
