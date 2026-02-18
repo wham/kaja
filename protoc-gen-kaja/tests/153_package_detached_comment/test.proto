@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+// This is a package-level comment.
+
+package test;
+
+message MyMessage {
+    string name = 1;
+}

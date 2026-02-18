@@ -605,6 +605,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The `create()` method generation at lines ~3755-3816 iterates all fields and calls `g.getDefaultValue(field)` without tracking which property names have already been initialized. When two different proto fields produce the same camelCase property name, the initialization is emitted twice: `message.x123Y = ""; message.x123Y = "";`.
 - **Note:** The TS plugin's `createFieldInfoLiteral` and `create()` generator likely deduplicates via a Set of already-initialized property names.
 
+### Run 72 — Package-level detached comments missing (SUCCESS)
+- **Bug found:** `generateFile()` in main.go only handles leading detached comments from the **syntax** declaration (path `[12]`) but NOT from the **package** declaration (path `[2]`). When a comment appears between the syntax and package declarations (or before the package declaration), it becomes a detached comment on the package path. The TS plugin includes both syntax and package detached comments in the file header via `getSyntaxComments` and `getPackageComments`.
+- **Test:** `153_package_detached_comment` — proto3 file with a comment between `syntax` and `package` declarations, separated by blank lines.
+- **Root cause:** Lines 1324-1367 in the Go plugin only iterate source code info locations looking for `loc.Path[0] == 12` (syntax field). The TS plugin at line 361145-361148 explicitly collects both: `[...getSyntaxComments(file).leadingDetached, ...getPackageComments(file).leadingDetached]`.
+- **Note:** The package field number in `FileDescriptorProto` is 2. The Go plugin never checks for `loc.Path == [2]` with `LeadingDetachedComments`.
+
 ### Ideas for future runs
 - Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
 - Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
