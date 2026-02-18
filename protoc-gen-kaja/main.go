@@ -466,6 +466,14 @@ func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []cus
 	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
 }
 
+func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) []customOption {
+	if opts == nil {
+		return nil
+	}
+	extensionMap := g.buildExtensionMap(".google.protobuf.ServiceOptions")
+	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+}
+
 // formatCustomOptions formats custom options as a TypeScript object literal
 func formatCustomOptions(opts []customOption) string {
 	if len(opts) == 0 {
@@ -5518,7 +5526,12 @@ comma = ""
 		method.GetName(), localNameField, idempotencyField, streamingFlags, optsStr, inputType, outputType, comma)
 }
 g.indent = ""
-g.pNoIndent("]);")
+customSvcOpts := g.getCustomServiceOptions(svc.Options)
+if len(customSvcOpts) > 0 {
+	g.pNoIndent("], %s);", formatCustomOptions(customSvcOpts))
+} else {
+	g.pNoIndent("]);")
+}
 }
 
 func (g *generator) generateTimestampMethods() {

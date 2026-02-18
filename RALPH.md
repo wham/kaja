@@ -94,7 +94,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 120_custom_message_options: Refactored custom option parsing into shared `buildExtensionMap`/`parseCustomOptions` functions, added `getCustomMessageOptions` for MessageOptions, and passed custom message options as third argument to MessageType constructor's `super()` call
 - [x] All 124/124 tests passing
 - [x] Fix test 121_enum_alias_deprecated: Enum aliases should use the original value's deprecated status, not the alias's own. Changed deprecation check to look at `enum.Value[firstValueIndexForNumber[...]]` when `isAlias` is true.
-- [x] All 125/125 tests passing — DONE
+- [x] Fix test 122_custom_field_options: Added `getCustomFieldOptions` (like `getCustomMethodOptions`/`getCustomMessageOptions`) and included `options: { ... }` in field descriptor output when custom field options are present
+- [x] All 126/126 tests passing — DONE
 
 ## Notes
 
@@ -138,3 +139,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Mixed streaming/unary services: When method 0 is streaming and later methods are unary, UnaryCall must appear ABOVE the other streaming call types (DuplexStreamingCall, ClientStreamingCall) because in protobuf-ts's prepend model, later-processed methods' imports go to the top. The UnaryCall emission was moved from after section 3 to before section 3's call type emissions, guarded by `method0CallType != "" && hasUnaryInService`.
 - Custom message options: Messages with custom options (via `extend google.protobuf.MessageOptions`) need those options passed as a third argument to the MessageType constructor's `super()` call, e.g. `super("test.User", [...], { "test.resource_name": "users", "test.cacheable": true })`. The option extraction logic (`buildExtensionMap` + `parseCustomOptions`) is shared between method and message options. Extension fields are found in `file.Extension` of all files, matched by `extendee` name. Values are read from unknown fields in the options message's wire format.
 - Enum alias deprecated: When `allow_alias = true` and an alias has `[deprecated = true]` but the original value does not, the generated alias entry should use the **original value's** deprecated status (not the alias's). Protobuf-ts treats aliases as duplicates of the original — they get the original's comments, name in `@generated`, and deprecation status.
+- Custom field options: Fields with custom options (via `extend google.protobuf.FieldOptions`) need `options: { ... }` in their field descriptor entries. Added `getCustomFieldOptions` following the same pattern as `getCustomMethodOptions`/`getCustomMessageOptions` (builds extension map for `.google.protobuf.FieldOptions`, parses unknown fields). The `options` property is appended after `longTypeParam` in all 3 field descriptor output branches (regular scalar, oneof scalar, message/enum/map).
