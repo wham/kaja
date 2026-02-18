@@ -4707,6 +4707,21 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 
+		// When method 0 is streaming and there are unary methods later,
+		// UnaryCall is prepended last (appears above other streaming call types)
+		hasUnaryInService := false
+		if method0CallType != "" {
+			for _, m := range service.Method {
+				if !m.GetClientStreaming() && !m.GetServerStreaming() {
+					hasUnaryInService = true
+					break
+				}
+			}
+			if hasUnaryInService {
+				g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+			}
+		}
+
 		if shouldInterleave {
 			// Interleave: emit streaming methods with their call types interleaved
 			for _, sm := range streamingMethods {
@@ -4795,15 +4810,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 	
-	// When method 0 of first service is streaming but there are unary methods,
-	// UnaryCall must appear before stackIntercept (matching protobuf-ts prepend order)
+	// Compute method0IsStreaming for later use
 	method0IsStreaming := false
 	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
 		m0 := file.Service[0].Method[0]
 		method0IsStreaming = m0.GetClientStreaming() || m0.GetServerStreaming()
-	}
-	if hasUnary && method0IsStreaming {
-		g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	
 	if hasAnyMethod {
