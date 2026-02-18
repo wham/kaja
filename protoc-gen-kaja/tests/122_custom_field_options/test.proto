@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string label = 50001;
+  bool searchable = 50002;
+}
+
+message Product {
+  string name = 1 [(label) = "Product Name", (searchable) = true];
+  int32 quantity = 2 [(label) = "Quantity"];
+  string description = 3;
+}

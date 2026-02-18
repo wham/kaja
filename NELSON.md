@@ -341,8 +341,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~4365 `valueIsDeprecated := value.Options != nil && value.GetOptions().GetDeprecated()` uses the current value. For aliases, it should look up the first value's descriptor (like the TS plugin does) for both `@deprecated` tag and `[deprecated = true]` annotation. Lines 4372-4373 also use the wrong descriptor for `deprecatedAnnotation`.
 - **Affects:** Any enum with `allow_alias = true` where the alias has `[deprecated = true]` but the original value doesn't. The Go plugin incorrectly shows `@deprecated` and `[deprecated = true]` on the alias's JSDoc.
 
+### Run 41 — Custom field options missing from field descriptor (SUCCESS)
+- **Bug found:** `generateFieldDescriptor()` in main.go never emits `options: { "pkg.ext_name": value }` on field descriptors. The TS plugin's `createFieldInfoLiteral` includes `fieldInfo.options` (set by `fi.options = this.readOptions(fd, excludeOptions)` in the interpreter) as a property assignment when present. The Go plugin has zero code for custom field options.
+- **Test:** `122_custom_field_options` — message with fields that have custom field options via `extend google.protobuf.FieldOptions { string label = 50001; bool searchable = 50002; }`.
+- **Root cause:** No `getCustomFieldOptions` function exists in main.go. The field descriptor generation at lines ~2860-3055 only handles built-in properties (`no`, `name`, `kind`, `localName`, `jsonName`, `oneof`, `repeat`, `opt`, `T`, `L`, `K`, `V`). Compare with TS plugin's `createFieldInfoLiteral` which checks `if (fieldInfo.options)` and adds the `options` property.
+- **Affects:** Any field with custom `FieldOptions` extensions. Runtime code can't access custom options via field info.
+- **Note:** Run 39 found the same pattern for message options. This is the field-level variant.
+
 ### Ideas for future runs
-- Custom field options — TS plugin adds `options` property to field descriptors, Go plugin doesn't.
 - Custom service options — TS plugin passes options to `ServiceType` constructor third arg, Go plugin may omit them.
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
