@@ -1,0 +1,25 @@
+// Tests that map string keys starting with a digit are properly quoted in
+// custom option output. JavaScript identifiers cannot start with a digit,
+// so keys like "123abc" must be quoted: { "123abc": "val" }.
+// The Go plugin only quotes keys containing dots, missing digit-leading keys.
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Config {
+  map<string, string> labels = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  Config config = 50001;
+}
+
+message Item {
+  option (config) = {
+    labels: { key: "123abc" value: "val1" }
+    labels: { key: "normal" value: "val2" }
+  };
+  string name = 1;
+}

@@ -515,6 +515,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Go outputs `{ intMap: { 1: "one", 2: "two" }, ... }`, TS outputs `{ intMap: { "1": "one", "2": "two" }, ... }`.
 - **Affects:** All integer key types (`int32`, `int64`, `uint32`, `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`, `sfixed64`) in map fields within message-typed custom options. Bool keys are unaffected (both output bare `true`/`false`).
 
+### Run 63 — Custom map string key starting with digit not quoted (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go at line 857 only quotes object keys that contain dots (`strings.Contains(opt.key, ".")`). But the TS plugin uses `validPropertyKey = /^(?![0-9])[a-zA-Z0-9$_]+$/` which also rejects keys starting with a digit. A `map<string, string>` custom option with key `"123abc"` produces `123abc: "val"` (invalid JS identifier) in the Go plugin, but `"123abc": "val"` (properly quoted) in the TS plugin.
+- **Test:** `144_custom_map_digit_key` — message-typed custom option with `map<string, string>` where one key starts with a digit.
+- **Root cause:** Line 857 `strings.Contains(opt.key, ".")` is too narrow. Should use a regex like `/^[a-zA-Z_$][a-zA-Z0-9_$]*$/` or equivalent check to determine if a key is a valid JS identifier. The TS plugin's `typescriptLiteralFromValue` uses `validPropertyKey.test(key)` which correctly rejects digit-leading keys.
+- **Affects:** Any `map<string, *>` field inside a message-typed custom option where the string key starts with a digit. Produces invalid JavaScript syntax.
+- **Related:** Keys containing special characters (spaces, hyphens, etc.) would also fail, but those can't be proto map keys since proto restricts key types to strings, ints, and bools.
+
 ### Ideas for future runs
 - Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
 - Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
@@ -531,3 +538,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Map option with enum values — enum map values would use entry object format instead of string enum names.
 - Int64/uint64 map keys — should be quoted as strings, likely same bug as int32.
 - Bool map keys in custom options — both plugins output bare `true`/`false`, but JSON spec says keys must be strings, so maybe `"true"`/`"false"` is needed. Need to verify TS behavior.
+- Map string keys with other special chars (hyphens, spaces) — same quoting bug but requires non-proto-standard key values.
