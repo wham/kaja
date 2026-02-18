@@ -2030,14 +2030,14 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 				for _, line := range strings.Split(detached, "\n") {
 					line = strings.TrimRight(line, " \t")
 					if line == "" {
-						g.p("//")
+						g.p("// ")
 					} else {
 						g.p("// %s", line)
 					}
 				}
 				// Add blank line separator after detached comment block (except for last block)
 				if idx < len(detachedComments)-1 {
-					g.p("//")
+					g.pNoIndent("")
 				}
 			}
 			// Add blank line after all detached comments, before JSDoc
@@ -2219,13 +2219,13 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 			for _, line := range strings.Split(detached, "\n") {
 				line = strings.TrimRight(line, " \t")
 				if line == "" {
-					g.p("//")
+					g.p("// ")
 				} else {
 					g.p("// %s", line)
 				}
 			}
 			if idx < len(detachedComments)-1 {
-				g.p("//")
+				g.pNoIndent("")
 			}
 		}
 		g.pNoIndent("")
@@ -2299,13 +2299,13 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 					for _, line := range strings.Split(detached, "\n") {
 						line = strings.TrimRight(line, " \t")
 						if line == "" {
-							g.p("//")
+							g.p("// ")
 						} else {
 							g.p("// %s", line)
 						}
 					}
 					if dIdx < len(fieldDetached)-1 {
-						g.p("//")
+						g.pNoIndent("")
 					}
 				}
 				g.pNoIndent("")
@@ -4883,13 +4883,13 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				for _, line := range strings.Split(detached, "\n") {
 					line = strings.TrimRight(line, " \t")
 					if line == "" {
-						g.pNoIndent("//")
+						g.pNoIndent("// ")
 					} else {
 						g.pNoIndent("// %s", line)
 					}
 				}
 				if idx < len(detachedComments)-1 {
-					g.pNoIndent("//")
+					g.pNoIndent("")
 				}
 			}
 			g.pNoIndent("")
@@ -5013,13 +5013,13 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				for _, line := range strings.Split(detached, "\n") {
 					line = strings.TrimRight(line, " \t")
 					if line == "" {
-						g.pNoIndent("//")
+						g.pNoIndent("// ")
 					} else {
 						g.pNoIndent("// %s", line)
 					}
 				}
 				if idx < len(detachedComments)-1 {
-					g.pNoIndent("//")
+					g.pNoIndent("")
 				}
 			}
 			g.pNoIndent("")
