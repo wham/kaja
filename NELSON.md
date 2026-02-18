@@ -561,6 +561,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~5008 `if !strings.HasSuffix(enumPrefix, "_")` prevents adding a second trailing `_` when the enum name already ends with `_`. But the TS regex naturally produces the double `_` because the conversion inserts `_` before each uppercase, and the trailing `_` from the original name stays as-is.
 - **Two affected outputs:** (1) Enum member names: TS strips to `UNSPECIFIED/FOO/BAR`, Go keeps `MY_ENUM__UNSPECIFIED/MY_ENUM__FOO/MY_ENUM__BAR`. (2) Field descriptor EnumInfo tuple: TS includes third element `"MY_ENUM__"`, Go omits it entirely.
 
+### Run 67 — Enum prefix detection with leading underscore in enum name (SUCCESS)
+- **Bug found:** `detectEnumPrefix()` in main.go computes the UPPER_SNAKE_CASE prefix differently from the TS plugin's `findEnumSharedPrefix()` when the enum name has a **leading underscore**. The TS regex `replace(/[A-Z]/g, letter => "_" + letter.toLowerCase())` produces `"_foo"` for `"_Foo"`, then strips the leading `_` → `"foo"` → uppercase → `"FOO_"`. The Go plugin's loop inserts `_` before uppercase at i>0: `_` → `__F` → `__Foo` → uppercase `__FOO_`. So TS gets `_FOO_`, Go gets `__FOO_`.
+- **Test:** `148_enum_underscore_prefix` — enum `_Foo` with values `_FOO_UNSPECIFIED`, `_FOO_BAR`, `_FOO_BAZ`.
+- **Root cause:** The TS regex `replace(/[A-Z]/g, ...)` replaces the first uppercase `F` with `_f`, producing a leading `_`. Then `enumPrefix[0] === "_"` strips it. The Go loop writes the leading `_` literally at i=0 (since it's not uppercase, no underscore is inserted), then at i=1 inserts `_` before `F`, giving `__F`. The Go code never strips a leading underscore.
+- **Two affected outputs:** (1) Enum member names: TS strips prefix `_FOO_` to get `UNSPECIFIED/BAR/BAZ`, Go keeps full names `_FOO_UNSPECIFIED/_FOO_BAR/_FOO_BAZ`. (2) Field descriptor EnumInfo tuple: TS includes third element `"_FOO_"`, Go omits it entirely.
+
 ### Ideas for future runs
 - Empty message (no fields) — check if `super()` constructor differs for empty field array.
 - Service with only one method — check formatting edge cases.

@@ -1,0 +1,14 @@
+syntax = "proto3";
+package test;
+
+// Enum with a leading underscore in the name.
+// The prefix detection algorithm should produce "_FOO_" as the shared prefix.
+enum _Foo {
+  _FOO_UNSPECIFIED = 0;
+  _FOO_BAR = 1;
+  _FOO_BAZ = 2;
+}
+
+message Container {
+  _Foo status = 1;
+}
