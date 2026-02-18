@@ -591,3 +591,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `150_client_import_streaming_interleave` — service with 3 methods: `GetUser(UserRequest)→UserResponse` (unary), `GetItem(ItemRequest)→ItemResponse` (unary), `SearchUser(UserRequest)→stream UserResponse` (server streaming). Method 2 reuses method 0's types.
 - **Root cause:** The `shouldInterleave` detection at line ~5159 scans N→1 for the first non-method-0 method with new types. Method 2 (streaming) has no new types (all method 0's), so it's skipped. Method 1 (non-streaming) is found → `shouldInterleave = false`. The Group branch then separates non-streaming types from call types. But the TS plugin's prepend model naturally interleaves: method 2's `ServerStreamingCall` is prepended AFTER method 1's `ItemResponse, ItemRequest`, so it appears ABOVE them.
 - **Diff:** Expected `ServerStreamingCall` ABOVE `ItemResponse, ItemRequest`. Got `ItemResponse, ItemRequest` ABOVE `ServerStreamingCall`.
+
+### Run 70 — Oneof with underscore name misidentified as proto3 optional (SUCCESS)
+- **Bug found:** `generateMessageInterface()` at line ~2547 and `generateMessageTypeClass()` at line ~3679 use a heuristic to detect proto3 optional fields: `oneofName[0] == '_' && fieldCount == 1 && field.GetName() == oneofName[1:]`. But a real oneof named `_value` with a single field `value` matches this heuristic. The TS plugin uses `field.proto.proto3Optional` flag (which is `false` for real oneofs) instead of a heuristic.
+- **Test:** `151_oneof_underscore_name` — message with `oneof _value { string value = 2; }` (a real oneof whose name starts with underscore).
+- **Root cause:** Lines 2547-2559 and 3679-3684 both use the same broken heuristic. The Go plugin has `field.Proto3Optional` available (used at lines 2793, 3083, 3591) but doesn't use it in the oneof detection heuristic.
+- **Affects:** ALL codegen for the field: interface (oneof ADT vs optional scalar), field descriptor (`oneof:` property, `opt:` property), `create()` (oneof init vs scalar default), `internalBinaryRead` (oneof unwrap vs direct assign), `internalBinaryWrite` (oneof kind check vs default value check).
+- **Note:** This only triggers when ALL three conditions are met: (1) oneof name starts with `_`, (2) oneof has exactly 1 field, (3) field name equals oneof name minus leading `_`. Unusual but valid proto.
+
+### Ideas for future runs
+- Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
+- Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
+- Service with custom option that contains a field named with leading underscores.
+- Custom option with oneof field inside message-typed option value.
