@@ -3313,7 +3313,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	if g.file.Package != nil && *g.file.Package != "" {
 		pkgPrefix = *g.file.Package + "."
 	}
-	protoTypeName := pkgPrefix + strings.ReplaceAll(fullName, "_", ".")
+	protoTypeName := pkgPrefix + protoName
 	
 	for _, field := range msg.Field {
 		if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {

@@ -39,7 +39,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 86_proto2_oneof: Proto2 oneof member fields should not show `optional` label in comments
 - [x] All 90/90 tests passing
 - [x] Fix test 87_oneof_json_name: Added json_name annotation to oneof field comments and jsonName property to scalar oneof field info entries
-- [x] All 91/91 tests passing — DONE
+- [x] All 91/91 tests passing
+- [x] Fix test 88_oneof_deprecated: Added @deprecated JSDoc tag and [deprecated = true] annotation for deprecated oneof member fields
+- [x] All 92/92 tests passing
+- [x] Fix test 89_oneof_jstype: Added jstype annotation (`[jstype = JS_NUMBER]`/`[jstype = JS_STRING]`) to oneof member field `@generated` comments
+- [x] All 93/93 tests passing — DONE
 
 ## Notes
 
@@ -53,3 +57,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Proto2 `required` message fields must still generate optional TS interface properties (`?:`) because messages have no zero value. The fix adds a check: when `LABEL_REQUIRED` and `TYPE_MESSAGE`, set `optional = "?"`.
 - Proto2 oneof member fields have `LABEL_OPTIONAL` but should NOT show `optional` in generated comments. The fix checks `field.OneofIndex == nil` before adding the `optional` prefix in `getProtoType`.
 - Oneof scalar fields with custom `json_name` need it in two places: (1) the interface field comment `[json_name = "..."]` and (2) the field info entry `jsonName: "..."` inserted between `localName` and `oneof` properties. The `internalBinaryRead`/`Write` comment paths already handled it.
+- Deprecated oneof member fields need `@deprecated` JSDoc tag and `[deprecated = true]` in the `@generated` comment, same pattern as regular fields. The oneof interface generation (around line 2229) was missing this; added `fieldIsDeprecated` check and `oneofDeprecatedAnnotation` string.
+- Oneof fields with `jstype` option need `[jstype = JS_NUMBER]` or `[jstype = JS_STRING]` in the `@generated` comment, same as regular fields. Added `oneofJstypeAnnotation` between `oneofJsonNameAnnotation` and `oneofDeprecatedAnnotation` in the format string.
