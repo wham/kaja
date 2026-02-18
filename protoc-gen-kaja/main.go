@@ -2678,6 +2678,9 @@ func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorPro
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "number"
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "bigint"
+			}
 			// JS_STRING falls through to use longType
 		}
 		return g.params.longType
@@ -2694,6 +2697,23 @@ func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorPro
 	default:
 		return "any"
 	}
+}
+
+func isJsTypeNormal(field *descriptorpb.FieldDescriptorProto) bool {
+	return field.Options != nil && field.GetOptions().Jstype != nil &&
+		field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL
+}
+
+func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {
+	switch field.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		return true
+	}
+	return false
 }
 
 func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorProto {
@@ -2958,19 +2978,13 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		opt = ", opt: true"
 	}
 	
-	// Check for jstype option to add L parameter for JS_NUMBER
+	// Check for jstype option to add L parameter
 	longTypeParam := ""
-	if field.Options != nil && field.GetOptions().Jstype != nil {
+	if field.Options != nil && field.GetOptions().Jstype != nil && is64BitIntType(field) {
 		if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
-			// Only add L parameter for 64-bit integer types
-			switch field.GetType() {
-			case descriptorpb.FieldDescriptorProto_TYPE_INT64,
-				descriptorpb.FieldDescriptorProto_TYPE_UINT64,
-				descriptorpb.FieldDescriptorProto_TYPE_SINT64,
-				descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
-				descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-				longTypeParam = ", L: 2 /*LongType.NUMBER*/"
-			}
+			longTypeParam = ", L: 2 /*LongType.NUMBER*/"
+		} else if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+			longTypeParam = ", L: 0 /*LongType.BIGINT*/"
 		}
 	}
 	
@@ -3721,6 +3735,8 @@ func (g *generator) formatFieldOptionsAnnotation(field *descriptorpb.FieldDescri
 			options = append(options, "jstype = JS_STRING")
 		} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
 			options = append(options, "jstype = JS_NUMBER")
+		} else if jstype == descriptorpb.FieldOptions_JS_NORMAL {
+			options = append(options, "jstype = JS_NORMAL")
 		}
 	}
 
@@ -3778,6 +3794,9 @@ func (g *generator) getDefaultValue(field *descriptorpb.FieldDescriptorProto) st
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "0" // JS_NUMBER uses number type
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "0n" // JS_NORMAL uses bigint type
+			}
 			// JS_STRING falls through to string default
 		}
 		if g.params.longType == "string" {
@@ -3809,6 +3828,9 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.int64().toNumber()"
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.int64().toBigInt()"
+			}
 		}
 		return "reader.int64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
@@ -3816,6 +3838,9 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.uint64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.uint64().toBigInt()"
 			}
 		}
 		return "reader.uint64().toString()"
@@ -3826,6 +3851,9 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.fixed64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.fixed64().toBigInt()"
 			}
 		}
 		return "reader.fixed64().toString()"
@@ -3849,6 +3877,9 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.sfixed64().toNumber()"
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.sfixed64().toBigInt()"
+			}
 		}
 		return "reader.sfixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
@@ -3858,6 +3889,9 @@ func (g *generator) getReaderMethod(field *descriptorpb.FieldDescriptorProto) st
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.sint64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.sint64().toBigInt()"
 			}
 		}
 		return "reader.sint64().toString()"
@@ -3890,6 +3924,9 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.int64().toNumber()"
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.int64().toBigInt()"
+			}
 		}
 		return "reader.int64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
@@ -3897,6 +3934,9 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.uint64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.uint64().toBigInt()"
 			}
 		}
 		return "reader.uint64().toString()"
@@ -3907,6 +3947,9 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.fixed64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.fixed64().toBigInt()"
 			}
 		}
 		return "reader.fixed64().toString()"
@@ -3926,6 +3969,9 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.sfixed64().toNumber()"
 			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.sfixed64().toBigInt()"
+			}
 		}
 		return "reader.sfixed64().toString()"
 	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
@@ -3935,6 +3981,9 @@ func (g *generator) getReaderMethodSimple(field *descriptorpb.FieldDescriptorPro
 		if field.Options != nil && field.GetOptions().Jstype != nil {
 			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
 				return "reader.sint64().toNumber()"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "reader.sint64().toBigInt()"
 			}
 		}
 		return "reader.sint64().toString()"
