@@ -95,7 +95,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 124/124 tests passing
 - [x] Fix test 121_enum_alias_deprecated: Enum aliases should use the original value's deprecated status, not the alias's own. Changed deprecation check to look at `enum.Value[firstValueIndexForNumber[...]]` when `isAlias` is true.
 - [x] Fix test 122_custom_field_options: Added `getCustomFieldOptions` (like `getCustomMethodOptions`/`getCustomMessageOptions`) and included `options: { ... }` in field descriptor output when custom field options are present
-- [x] All 126/126 tests passing — DONE
+- [x] Fix test 123_custom_service_options: Added `getCustomServiceOptions` (like `getCustomMessageOptions`) and included custom service options as third argument to ServiceType constructor
+- [x] All 127/127 tests passing
+- [x] Fix test 124_oneof_member_trailing_comment: Added trailing comment support for oneof member fields — append `// <comment>` after the property declaration in the interface when field has a trailing comment
+- [x] All 128/128 tests passing — DONE
 
 ## Notes
 
@@ -140,3 +143,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom message options: Messages with custom options (via `extend google.protobuf.MessageOptions`) need those options passed as a third argument to the MessageType constructor's `super()` call, e.g. `super("test.User", [...], { "test.resource_name": "users", "test.cacheable": true })`. The option extraction logic (`buildExtensionMap` + `parseCustomOptions`) is shared between method and message options. Extension fields are found in `file.Extension` of all files, matched by `extendee` name. Values are read from unknown fields in the options message's wire format.
 - Enum alias deprecated: When `allow_alias = true` and an alias has `[deprecated = true]` but the original value does not, the generated alias entry should use the **original value's** deprecated status (not the alias's). Protobuf-ts treats aliases as duplicates of the original — they get the original's comments, name in `@generated`, and deprecation status.
 - Custom field options: Fields with custom options (via `extend google.protobuf.FieldOptions`) need `options: { ... }` in their field descriptor entries. Added `getCustomFieldOptions` following the same pattern as `getCustomMethodOptions`/`getCustomMessageOptions` (builds extension map for `.google.protobuf.FieldOptions`, parses unknown fields). The `options` property is appended after `longTypeParam` in all 3 field descriptor output branches (regular scalar, oneof scalar, message/enum/map).
+- Custom service options: Services with custom options (via `extend google.protobuf.ServiceOptions`) need those options passed as a third argument to the ServiceType constructor, e.g. `new ServiceType("test.SearchService", [...], { "test.api_version": "v2", "test.internal": true })`. Added `getCustomServiceOptions` following the same pattern as `getCustomMessageOptions` (builds extension map for `.google.protobuf.ServiceOptions`, parses unknown fields).
+- Oneof member trailing comments: Fields inside a oneof that have trailing comments (e.g., `string value = 1; // The success value`) need those comments appended as inline `// ...` after the property declaration in the interface. Use `getTrailingComments(fieldPath)` and append to the property line.

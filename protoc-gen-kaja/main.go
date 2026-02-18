@@ -955,7 +955,7 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 	for _, service := range g.file.Service {
 		for i := 0; i < len(service.Method); i++ {
 			method := service.Method[i]
-			// Add output type first
+			// Add output type first (matches protobuf-ts ordering within each method)
 			outputType := method.GetOutputType()
 			if outputType != "" && !usedInServices[outputType] {
 				usedInServices[outputType] = true
@@ -976,11 +976,40 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 		messageFieldTypes[i], messageFieldTypes[j] = messageFieldTypes[j], messageFieldTypes[i]
 	}
 	
-	// Also reverse serviceTypes ONLY if file has no messages (service-only files)
-	// In files with both messages and services, imports follow message field order
+	// For service-only files, reverse per-method-pair order to match protobuf-ts's
+	// prepend semantics: later methods appear first, but within each method
+	// output stays above input. Collect per-method type pairs, reverse the pairs,
+	// then flatten. For files with messages, keep forward order (output, input).
 	if len(g.file.MessageType) == 0 && len(serviceTypes) > 0 {
-		for i, j := 0, len(serviceTypes)-1; i < j; i, j = i+1, j-1 {
-			serviceTypes[i], serviceTypes[j] = serviceTypes[j], serviceTypes[i]
+		// Re-collect as per-method pairs so we can reverse method order
+		var methodPairs [][]string
+		usedInServices2 := make(map[string]bool)
+		for _, service := range g.file.Service {
+			for i := 0; i < len(service.Method); i++ {
+				method := service.Method[i]
+				var pair []string
+				outputType := method.GetOutputType()
+				if outputType != "" && !usedInServices2[outputType] {
+					usedInServices2[outputType] = true
+					pair = append(pair, outputType)
+				}
+				inputType := method.GetInputType()
+				if inputType != "" && !usedInServices2[inputType] {
+					usedInServices2[inputType] = true
+					pair = append(pair, inputType)
+				}
+				if len(pair) > 0 {
+					methodPairs = append(methodPairs, pair)
+				}
+			}
+		}
+		// Reverse method pair order (last method's types appear first)
+		for i, j := 0, len(methodPairs)-1; i < j; i, j = i+1, j-1 {
+			methodPairs[i], methodPairs[j] = methodPairs[j], methodPairs[i]
+		}
+		serviceTypes = nil
+		for _, pair := range methodPairs {
+			serviceTypes = append(serviceTypes, pair...)
 		}
 	}
 	
