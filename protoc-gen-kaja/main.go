@@ -465,17 +465,26 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
 			result = append(result, customOption{key: extName, value: enumName})
 			unknown = unknown[n:]
-		case descriptorpb.FieldDescriptorProto_TYPE_INT32, 
-		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
-		     descriptorpb.FieldDescriptorProto_TYPE_UINT32,
-		     descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
 			v, n := protowire.ConsumeVarint(unknown)
 			result = append(result, customOption{key: extName, value: int(v)})
 			unknown = unknown[n:]
-		case descriptorpb.FieldDescriptorProto_TYPE_SINT32,
-		     descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+			v, n := protowire.ConsumeVarint(unknown)
+			result = append(result, customOption{key: extName, value: fmt.Sprintf("%d", int64(v))})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+			v, n := protowire.ConsumeVarint(unknown)
+			result = append(result, customOption{key: extName, value: fmt.Sprintf("%d", v)})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
 			v, n := protowire.ConsumeVarint(unknown)
 			result = append(result, customOption{key: extName, value: int(protowire.DecodeZigZag(v))})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+			v, n := protowire.ConsumeVarint(unknown)
+			result = append(result, customOption{key: extName, value: fmt.Sprintf("%d", protowire.DecodeZigZag(v))})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
 			v, n := protowire.ConsumeFixed32(unknown)
@@ -483,7 +492,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
 			v, n := protowire.ConsumeFixed64(unknown)
-			result = append(result, customOption{key: extName, value: int(int64(v))})
+			result = append(result, customOption{key: extName, value: fmt.Sprintf("%d", int64(v))})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
 			v, n := protowire.ConsumeFixed32(unknown)
@@ -491,7 +500,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
 			v, n := protowire.ConsumeFixed64(unknown)
-			result = append(result, customOption{key: extName, value: int(v)})
+			result = append(result, customOption{key: extName, value: fmt.Sprintf("%d", v)})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			v, n := protowire.ConsumeFixed32(unknown)
@@ -609,16 +618,25 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			result = append(result, customOption{key: fieldName, value: enumName})
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
-		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
-		     descriptorpb.FieldDescriptorProto_TYPE_UINT32,
-		     descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
 			v, n := protowire.ConsumeVarint(data)
 			result = append(result, customOption{key: fieldName, value: int(v)})
 			data = data[n:]
-		case descriptorpb.FieldDescriptorProto_TYPE_SINT32,
-		     descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", int64(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
 			v, n := protowire.ConsumeVarint(data)
 			result = append(result, customOption{key: fieldName, value: int(protowire.DecodeZigZag(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", protowire.DecodeZigZag(v))})
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
 			v, n := protowire.ConsumeFixed32(data)
@@ -626,7 +644,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
 			v, n := protowire.ConsumeFixed64(data)
-			result = append(result, customOption{key: fieldName, value: int(int64(v))})
+			result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", int64(v))})
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
 			v, n := protowire.ConsumeFixed32(data)
@@ -634,7 +652,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
 			v, n := protowire.ConsumeFixed64(data)
-			result = append(result, customOption{key: fieldName, value: int(v)})
+			result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", v)})
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			v, n := protowire.ConsumeFixed32(data)
