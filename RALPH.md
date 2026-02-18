@@ -100,7 +100,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 124_oneof_member_trailing_comment: Added trailing comment support for oneof member fields — append `// <comment>` after the property declaration in the interface when field has a trailing comment
 - [x] Fix test 125_service_import_order: Service-only file imports need per-method-pair reversal (not element-level) to match protobuf-ts prepend semantics — output stays above input within each method, but later methods appear above earlier methods
 - [x] Fix test 126_method_option_key_quoting: Custom option keys without dots (no package prefix) should be unquoted in TS object literals; only dot-containing keys (e.g. `"test.resource_name"`) get quoted
-- [x] All 131/131 tests passing — DONE
+- [x] Fix test 127_custom_enum_type_option: Added TYPE_ENUM handling to parseCustomOptions — reads varint value, resolves to enum value name via resolveEnumValueName helper that searches all files (including nested enums in messages)
+- [x] All 132/132 tests passing — DONE
 
 ## Notes
 
@@ -148,3 +149,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom service options: Services with custom options (via `extend google.protobuf.ServiceOptions`) need those options passed as a third argument to the ServiceType constructor, e.g. `new ServiceType("test.SearchService", [...], { "test.api_version": "v2", "test.internal": true })`. Added `getCustomServiceOptions` following the same pattern as `getCustomMessageOptions` (builds extension map for `.google.protobuf.ServiceOptions`, parses unknown fields).
 - Service-only file import ordering: simple array reversal breaks per-method pair ordering (output above input). Must collect types as per-method pairs, reverse the pairs (so later methods appear first), then flatten. Files with messages don't reverse at all — they keep the forward collection order (output, input per method).
 - Custom option key quoting: protobuf-ts only quotes custom option keys that contain dots (package-qualified names like `"test.resource_name": "users"`). Simple names without dots are unquoted (`column_name: "q"`). The `formatCustomOptions` function was unconditionally quoting all keys with `fmt.Sprintf("\"%s\": ...")`. Fixed by checking `strings.Contains(opt.key, ".")` before deciding whether to quote.
+- Custom enum-typed options: When a custom option field has `TYPE_ENUM`, the varint wire value must be resolved to the enum value's name string (e.g., `2` → `"VISIBILITY_INTERNAL"`). Added `resolveEnumValueName` helper that searches all files' top-level and nested enums by fully-qualified type name. The string name is stored as the option value, so `formatCustomOptions` outputs it as a quoted string.
