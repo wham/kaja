@@ -275,6 +275,12 @@ func (g *generator) isFileDeprecated() bool {
 	return g.file.Options != nil && g.file.GetOptions().GetDeprecated()
 }
 
+// isOptimizeCodeSize returns true if the file has option optimize_for = CODE_SIZE
+func (g *generator) isOptimizeCodeSize() bool {
+	return g.file.Options != nil && g.file.Options.OptimizeFor != nil &&
+		g.file.GetOptions().GetOptimizeFor() == descriptorpb.FileOptions_CODE_SIZE
+}
+
 // escapeJSDocComment escapes sequences that would break JSDoc comments
 func escapeJSDocComment(s string) string {
 	// Escape */ sequences which would close the JSDoc comment prematurely
@@ -1501,6 +1507,8 @@ func (g *generator) writeImports(imports map[string]bool) {
 			wireTypeEarly = false
 		}
 		
+		// Skip method-related imports when optimize_for = CODE_SIZE
+		if !g.isOptimizeCodeSize() {
 		// Add ScalarType and LongType for wrappers - must come first
 		if isWrapper {
 			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
@@ -1525,6 +1533,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
+		}
 		
 		// Add JSON imports for Timestamp
 		if isTimestamp {
@@ -3114,6 +3123,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		g.generateAnyMethods()
 	}
 	
+	// Skip create, internalBinaryRead, internalBinaryWrite when optimize_for = CODE_SIZE
+	if !g.isOptimizeCodeSize() {
 	// create method
 	g.p("create(value?: PartialMessage<%s>): %s {", fullName, fullName)
 	g.indent = "        "
@@ -3584,6 +3595,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("return writer;")
 	g.indent = "    "
 	g.p("}")
+	} // end !isOptimizeCodeSize
 	
 	g.indent = ""
 	g.pNoIndent("}")
