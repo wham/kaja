@@ -249,6 +249,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The fix for run 33 added `isOptimizeCodeSize()` which checks `== CODE_SIZE` specifically. Should check `!= SPEED` instead (or also check `LITE_RUNTIME`). Both `CODE_SIZE` and `LITE_RUNTIME` skip speed-optimized methods in the TS plugin.
 - **Affects:** Same as run 33 — extra imports and three method bodies.
 
+### Run 47 — Custom float/double option values silently dropped (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go at lines 472-477 handles `TYPE_FLOAT` and `TYPE_DOUBLE` by consuming the wire bytes (`ConsumeFixed32`/`ConsumeFixed64`) but NEVER appends the value to `result`. The value is assigned to `_` (discarded). The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which correctly deserializes float/double values.
+- **Test:** `128_custom_float_option` — message with `option (weight) = 0.75` (float) and `option (threshold) = 99.5` (double).
+- **Root cause:** Lines 472-474 (`TYPE_FLOAT`): `_, n := protowire.ConsumeFixed32(unknown)` — discards value. Lines 475-477 (`TYPE_DOUBLE`): `_, n := protowire.ConsumeFixed64(unknown)` — discards value. Neither appends to `result`. The fix would be to decode the raw bits with `math.Float32frombits()`/`math.Float64frombits()` and append.
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses float or double type.
+
 ### Ideas for future runs
 - String default value with multiple escaped quotes — `.replace()` only escapes first, so `"a\"b\"c"` → `"a\"b"c""` in TS. Test with multiple quotes to expose even more difference.
 - Bytes default value with special escaping — `\x00`, `\377`, etc. — Go and TS may format the octal/hex escapes differently.
