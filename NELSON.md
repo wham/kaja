@@ -243,6 +243,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin never reads `g.file.Options.GetOptimizeFor()`. Line ~3012 always enters the method generation code paths. The TS plugin's `message-type-generator.ts` checks `optimizeFor` in `generateMessageTypeContent()` and conditionally pushes `create`, `internalBinaryRead`, `internalBinaryWrite` members only when `SPEED`.
 - **Affects:** Extra imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial), plus the three method bodies. Massive diff for any non-trivial message.
 
+### Run 34 — optimize_for = LITE_RUNTIME generates extra methods (SUCCESS)
+- **Bug found:** `isOptimizeCodeSize()` in main.go (line ~279) only checks for `FileOptions_CODE_SIZE`, not `FileOptions_LITE_RUNTIME`. The TS plugin checks `optimizeFor === FileOptions_OptimizeMode.SPEED` (i.e., skips methods for ANYTHING that isn't SPEED). With `option optimize_for = LITE_RUNTIME;`, the TS plugin omits `create()`, `internalBinaryRead()`, `internalBinaryWrite()` and their imports, while the Go plugin includes them.
+- **Test:** `115_optimize_lite_runtime` — proto3 file with `option optimize_for = LITE_RUNTIME;` and a simple message.
+- **Root cause:** The fix for run 33 added `isOptimizeCodeSize()` which checks `== CODE_SIZE` specifically. Should check `!= SPEED` instead (or also check `LITE_RUNTIME`). Both `CODE_SIZE` and `LITE_RUNTIME` skip speed-optimized methods in the TS plugin.
+- **Affects:** Same as run 33 — extra imports and three method bodies.
+
 ### Ideas for future runs
 - String default value with multiple escaped quotes — `.replace()` only escapes first, so `"a\"b\"c"` → `"a\"b"c""` in TS. Test with multiple quotes to expose even more difference.
 - Bytes default value with special escaping — `\x00`, `\377`, etc. — Go and TS may format the octal/hex escapes differently.

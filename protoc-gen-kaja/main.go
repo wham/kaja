@@ -275,10 +275,13 @@ func (g *generator) isFileDeprecated() bool {
 	return g.file.Options != nil && g.file.GetOptions().GetDeprecated()
 }
 
-// isOptimizeCodeSize returns true if the file has option optimize_for = CODE_SIZE
+// isOptimizeCodeSize returns true if the file has option optimize_for = CODE_SIZE or LITE_RUNTIME
 func (g *generator) isOptimizeCodeSize() bool {
-	return g.file.Options != nil && g.file.Options.OptimizeFor != nil &&
-		g.file.GetOptions().GetOptimizeFor() == descriptorpb.FileOptions_CODE_SIZE
+	if g.file.Options == nil || g.file.Options.OptimizeFor == nil {
+		return false
+	}
+	opt := g.file.GetOptions().GetOptimizeFor()
+	return opt == descriptorpb.FileOptions_CODE_SIZE || opt == descriptorpb.FileOptions_LITE_RUNTIME
 }
 
 // escapeJSDocComment escapes sequences that would break JSDoc comments
