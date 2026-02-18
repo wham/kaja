@@ -145,6 +145,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `propertyName()` at line ~2393 and `needsLocalName()` at line ~2410 only check `__proto__` and `toString`. Missing the `oneofKindDiscriminator` escape from TS plugin's `createTypescriptNameForField()` in `interpreter.js`.
 - **Affects:** interface property name, constructor default init, field descriptor `localName`, `internalBinaryRead`, `internalBinaryWrite` — ALL use the unescaped name.
 
+### Run 20 — Service-level detached comments missing (SUCCESS)
+- **Bug found:** `generateServiceClient()` in main.go never calls `getLeadingDetachedComments()` for the service path `[6, svcIdx]`. When a comment before the `service` keyword is separated by a blank line from the service's own leading comment, it becomes a "detached comment" in protobuf source code info. The TS plugin outputs these as `//` style comments before both the interface and class JSDoc blocks. The Go plugin drops them entirely.
+- **Test:** `101_service_detached_comment` — service with a detached comment (separated from leading comment by blank line).
+- **Root cause:** Two affected code paths: (1) interface generation at line ~4878 only calls `getLeadingComments` but not `getLeadingDetachedComments`, (2) class generation at line ~4990 same issue. Compare with message generation at line ~1813 which properly handles detached comments.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -158,6 +163,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Proto2 extensions — Go plugin skips files with only extensions entirely.
 - `toCamelCase` edge cases with Unicode or special characters.
 - `propertyName` incomplete reserved property list — only checks `__proto__` and `toString`, may miss others like `constructor`.
-- Service-level detached comments (path [6, svcIdx]) — not fetched at all in generateServiceClient.
+- Service-level detached comments (path [6, svcIdx]) — TESTED in run 20, confirmed missing.
 - Enum field trailing comments — check if trailing comments on enum values are handled correctly.
 - First method detached comment merging for service with NO service-level comment — different edge case.
