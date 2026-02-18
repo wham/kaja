@@ -30,6 +30,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 79_only_imports: Skip WKT generation when no FileToGenerate produced output
 - [x] Verify test 61_imported_method_options still passes (transitive WKT deps)
 - [x] All 85/85 tests passing
+- [x] Fix test 82_map_scalar_value_types: getMapValueWriter now delegates to getWireType+getWriterMethodName instead of hardcoding only 4 types
+- [x] All 86/86 tests passing
 
 ## Notes
 
@@ -37,4 +39,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Use `protoc-gen-kaja/scripts/diff <test_name>` to inspect specific failures.
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
 - The WKT generation logic (main.go ~line 209) must check `len(generatedFiles) > 0` before generating WKTs, but check ALL FileToGenerate (not just those with output) for dependency relationships. This handles both: (a) import-only files producing no output (test 79), and (b) transitive WKT deps through non-output files like `options.proto` (test 61).
-- The `generatedFiles` map tracks which FileToGenerate actually produced output content.
+- The `getMapValueWriter` function was simplified to reuse `getWireType` and `getWriterMethodName` instead of an incomplete switch statement. The old version only handled 4 types (int32, string, bool, enum) and fell back to string for everything else.

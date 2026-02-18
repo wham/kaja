@@ -3945,30 +3945,9 @@ func (g *generator) getMapValueWriter(field *descriptorpb.FieldDescriptorProto, 
 }
 
 func (g *generator) getMapKeyWriter(field *descriptorpb.FieldDescriptorProto, varName string) string {
-	switch field.GetType() {
-	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
-		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
-		return fmt.Sprintf(".tag(1, WireType.Varint).int32(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
-		return fmt.Sprintf(".tag(1, WireType.Varint).sint32(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_UINT32,
-		descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
-		return fmt.Sprintf(".tag(1, WireType.Varint).uint32(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
-		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-		return fmt.Sprintf(".tag(1, WireType.Varint).int64(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
-		return fmt.Sprintf(".tag(1, WireType.Varint).sint64(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_UINT64,
-		descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
-		return fmt.Sprintf(".tag(1, WireType.Varint).uint64(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
-		return fmt.Sprintf(".tag(1, WireType.LengthDelimited).string(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
-		return fmt.Sprintf(".tag(1, WireType.Varint).bool(%s)", varName)
-	default:
-		return fmt.Sprintf(".tag(1, WireType.LengthDelimited).string(%s)", varName)
-	}
+	wireType := g.getWireType(field)
+	writerMethod := g.getWriterMethodName(field)
+	return fmt.Sprintf(".tag(1, %s).%s(%s)", wireType, writerMethod, varName)
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
