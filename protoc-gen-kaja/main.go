@@ -258,8 +258,10 @@ type generator struct {
 	allFiles            []*descriptorpb.FileDescriptorProto
 	indent              string
 	isImportedByService bool     // True if imported ONLY by service files (not by non-service files)
-	importedTypeNames   map[string]bool // Set of simple type names that have been imported
-	typeNameSuffixes    map[string]int  // Map from full proto type name to numeric suffix (0 = no suffix, 1 = $1, etc.)
+	importedTypeNames   map[string]bool   // Set of simple type names that have been imported
+	typeNameSuffixes    map[string]int    // Map from full proto type name to numeric suffix (0 = no suffix, 1 = $1, etc.)
+	localTypeNames      map[string]bool   // Set of TS names defined locally in this file (for collision detection)
+	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".common.Item" → "Item$")
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1295,6 +1297,8 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		isImportedByService: isImportedByService,
 		importedTypeNames:   make(map[string]bool),
 		typeNameSuffixes:    make(map[string]int),
+		localTypeNames:      make(map[string]bool),
+		importAliases:       make(map[string]string),
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -1621,6 +1625,9 @@ func (g *generator) collectImports(file *descriptorpb.FileDescriptorProto) map[s
 }
 
 func (g *generator) writeImports(imports map[string]bool) {
+	// Collect local type names for collision detection
+	g.collectLocalTypeNames()
+
 	// Collect used types - service-only types first, then message field types
 	usedTypes, orderedTypes := g.collectUsedTypes()
 	
@@ -1916,9 +1923,38 @@ func (g *generator) writeImports(imports map[string]bool) {
 			}
 		}
 		
-		// Track the imported name so we can use it without package prefix
+		// Check for name collision with local types and create alias if needed
 		if importedName != "" {
-			g.importedTypeNames[importedName] = true
+			// If already imported (same type from same file), return existing import
+			if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
+				return importStmt
+			}
+			if g.importedTypeNames[importedName] {
+				// Already imported with the same name — check it's from same source
+				return importStmt
+			}
+			// Check collision with local type names only
+			if g.localTypeNames[importedName] {
+				// Name collision with local type — create alias with '$' suffix
+				taken := make(map[string]bool)
+				for k := range g.localTypeNames {
+					taken[k] = true
+				}
+				for k := range g.importedTypeNames {
+					taken[k] = true
+				}
+				alias := importedName + "$"
+				i := 0
+				for taken[alias] {
+					i++
+					alias = importedName + "$" + fmt.Sprintf("%d", i+1)
+				}
+				importStmt = fmt.Sprintf("import { %s as %s } from \"%s\";", importedName, alias, matchedImportPath)
+				g.importAliases[typeName] = alias
+				g.importedTypeNames[alias] = true
+			} else {
+				g.importedTypeNames[importedName] = true
+			}
 		}
 		
 		return importStmt
@@ -2285,6 +2321,42 @@ func (g *generator) isLocalType(typeName string) bool {
 	}
 	
 	return false
+}
+
+// collectLocalTypeNames populates g.localTypeNames with all TS names
+// that are defined locally in this file (messages, enums, including nested).
+// This is used to detect import name collisions.
+func (g *generator) collectLocalTypeNames() {
+	var collectMsg func(msg *descriptorpb.DescriptorProto, prefix string)
+	collectMsg = func(msg *descriptorpb.DescriptorProto, prefix string) {
+		name := prefix + msg.GetName()
+		tsName := escapeTypescriptKeyword(name)
+		// Check for typeNameSuffixes
+		fullProtoName := ""
+		if g.file.Package != nil && *g.file.Package != "" {
+			fullProtoName = *g.file.Package + "." + strings.ReplaceAll(name, "_", ".")
+		} else {
+			fullProtoName = strings.ReplaceAll(name, "_", ".")
+		}
+		if suffix, exists := g.typeNameSuffixes[fullProtoName]; exists && suffix > 0 {
+			tsName = tsName + fmt.Sprintf("$%d", suffix)
+		}
+		g.localTypeNames[tsName] = true
+		for _, nested := range msg.NestedType {
+			collectMsg(nested, name+"_")
+		}
+		for _, enum := range msg.EnumType {
+			enumName := prefix + msg.GetName() + "_" + enum.GetName()
+			g.localTypeNames[enumName] = true
+		}
+	}
+	for _, msg := range g.file.MessageType {
+		collectMsg(msg, "")
+	}
+	for _, enum := range g.file.EnumType {
+		tsName := escapeTypescriptKeyword(enum.GetName())
+		g.localTypeNames[tsName] = true
+	}
 }
 
 func (g *generator) getRelativeImportPath(fromDir, toPath string) string {
@@ -3148,6 +3220,16 @@ func (g *generator) getProtoTypeName(typeName string) string {
 }
 
 func (g *generator) stripPackage(typeName string) string {
+	// Check if this type has an import alias (collision-resolved name)
+	if alias, ok := g.importAliases[typeName]; ok {
+		return alias
+	}
+	// Also check with leading dot stripped
+	dotPrefixed := "." + strings.TrimPrefix(typeName, ".")
+	if alias, ok := g.importAliases[dotPrefixed]; ok {
+		return alias
+	}
+
 	// Remove leading dot
 	typeName = strings.TrimPrefix(typeName, ".")
 	
@@ -5056,6 +5138,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		file:              file,
 		allFiles:          allFiles,
 		importedTypeNames: make(map[string]bool),
+		localTypeNames:   make(map[string]bool),
+		importAliases:    make(map[string]string),
 	}
 	
 	// Header
