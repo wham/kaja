@@ -2389,13 +2389,13 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 
 // propertyName returns the TypeScript property name for a field
 // This does camelCase conversion where all letters after underscores are capitalized
-// Reserved object properties (__proto__, toString) get $ suffix
+// Reserved object properties (__proto__, toString) and the oneofKind discriminator get $ suffix
 func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) string {
 	name := field.GetName()
 	camelName := g.toCamelCase(name)
 	
-	// Escape reserved object properties
-	if camelName == "__proto__" || camelName == "toString" {
+	// Escape reserved object properties and oneofKind discriminator
+	if camelName == "__proto__" || camelName == "toString" || camelName == "oneofKind" {
 		return camelName + "$"
 	}
 	
@@ -2407,7 +2407,7 @@ func (g *generator) propertyName(field *descriptorpb.FieldDescriptorProto) strin
 func (g *generator) needsLocalName(field *descriptorpb.FieldDescriptorProto) bool {
 	name := field.GetName()
 	camelName := g.toCamelCase(name)
-	return camelName == "__proto__" || camelName == "toString"
+	return camelName == "__proto__" || camelName == "toString" || camelName == "oneofKind"
 }
 
 // toCamelCase converts a snake_case name to camelCase

@@ -57,7 +57,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 100/100 tests passing
 - [x] Fix test 97_oneof_detached_comment: Added leading detached comments support for oneof declarations, same pattern as regular fields
 - [x] Fix test 98_oneof_member_detached_comment: Oneof trailing comment (from `oneof` declaration path) goes into the oneof JSDoc; non-first member field detached comments go as `//` before the field JSDoc
-- [x] All 102/102 tests passing — DONE
+- [x] All 102/102 tests passing
+- [x] Fix test 99_service_first_method_detached: Removed `methodIdx > 0` guard on detached comment output for service methods — first method's detached comments were being skipped
+- [x] All 103/103 tests passing
+- [x] Fix test 100_oneof_kind_field_escape: Added `oneofKind` to the list of reserved property names that get `$` suffix escaping (alongside `__proto__` and `toString`), matching protobuf-ts's `oneofKindDiscriminator` collision handling
+- [x] All 104/104 tests passing — DONE
 
 ## Notes
 
@@ -80,3 +84,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service and method comments in `generateServiceClient` (client file) had 4 locations that unconditionally output one ` *` after comment lines but need two when `hasTrailingBlank` is true. Same pattern as everywhere else.
 - Oneof declarations need detached comment handling (LeadingDetachedComments on the oneof path `[4, msgIdx, 8, oneofIdx]`). These are output as `// ...` lines before the oneof's JSDoc `/**` block, same pattern as field detached comments.
 - The first oneof member field's "detached comment" is actually a **trailing comment** on the oneof declaration itself (path `[4, msgIdx, 8, oneofIdx]`), not a LeadingDetachedComment on the field. It goes into the oneof JSDoc block before `@generated from protobuf oneof:`. Non-first member field detached comments are proper LeadingDetachedComments on the field path and go as `//` style before the field's JSDoc.
+- Service method detached comments should be output for ALL methods including the first one (methodIdx == 0). The `methodIdx > 0` guard was wrong — it skipped the first method's detached comments in both the interface and implementation sections of `generateServiceClient`.
+- Field names whose camelCase form equals `oneofKind` must be escaped with `$` suffix (e.g. `oneofKind$`). This is because `oneofKind` is the discriminator property used by protobuf-ts for oneof unions. The TS plugin checks against `oneofKindDiscriminator` option (default `"oneofKind"`). The escaping must also trigger `localName` in the field info descriptor.
