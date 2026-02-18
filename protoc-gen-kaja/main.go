@@ -5151,46 +5151,33 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method0Types[g.stripPackage(method0.GetInputType())] = true
 		}
 		
-		// Determine import ordering strategy:
-		// - If first non-method-0 method encountered (in N→1 order) is streaming: Interleave
-		// - If first non-method-0 method encountered is non-streaming: Group (non-streaming, then call types, then streaming messages)
-		shouldInterleave := false
-		foundFirstMethod := false
-		for i := len(service.Method) - 1; i >= 1 && !foundFirstMethod; i-- {
+		// Import entry: either a type import or a streaming call type import
+		type importEntry struct {
+			typeName string
+			typePath string
+			callType string // non-empty for streaming call type imports ("duplex", "client", "server")
+		}
+		
+		var imports []importEntry
+		
+		// Pre-compute which method index first uses each type (forward order).
+		// This determines where the type import should appear in the N→1 prepend stack.
+		firstMethodForType := map[string]int{}
+		for i := 0; i < len(service.Method); i++ {
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
-			
-			// Skip methods where both types are method 0 types
-			if method0Types[resType] && method0Types[reqType] {
-				continue
+			if _, ok := firstMethodForType[resType]; !ok {
+				firstMethodForType[resType] = i
 			}
-			
-			foundFirstMethod = true
-			isStreaming := method.GetClientStreaming() || method.GetServerStreaming()
-			shouldInterleave = isStreaming
-		}
-		
-		type streamingMethodInfo struct {
-			methodIdx int
-			callType  string // "duplex", "client", "server"
-			types     []struct {
-				typeName string
-				typePath string
+			if _, ok := firstMethodForType[reqType]; !ok {
+				firstMethodForType[reqType] = i
 			}
 		}
 		
-		var streamingMethods []streamingMethodInfo
-		var nonStreamingTypes []struct {
-			typeName string
-			typePath string
-		}
-		
-		// Collect streaming and non-streaming methods from N→1
-		var deferredInputs []struct {
-			typeName string
-			typePath string
-		}
+		// Collect all method imports in N→1 order (matching protobuf-ts prepend semantics).
+		// For each method, only add type imports for types that are FIRST used by this method.
+		var deferredInputs []importEntry
 		
 		for i := len(service.Method) - 1; i >= 1; i-- {
 			method := service.Method[i]
@@ -5208,7 +5195,17 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 			
 			if isStreaming {
-				// Determine call type
+				// Only add types that are first used by this method
+				if firstMethodForType[resType] == i && !method0Types[resType] && !seen[resType] {
+					imports = append(imports, importEntry{typeName: resType, typePath: resTypePath})
+					seen[resType] = true
+				}
+				if firstMethodForType[reqType] == i && !method0Types[reqType] && !seen[reqType] {
+					imports = append(imports, importEntry{typeName: reqType, typePath: reqTypePath})
+					seen[reqType] = true
+				}
+				
+				// Add call type marker
 				var callType string
 				if method.GetClientStreaming() && method.GetServerStreaming() {
 					callType = "duplex"
@@ -5217,78 +5214,33 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				} else if method.GetClientStreaming() {
 					callType = "client"
 				}
-				
-				// Collect types for this streaming method
-				var types []struct {
-					typeName string
-					typePath string
-				}
-				
-				// Output type first (if not method 0)
-				if !method0Types[resType] && !seen[resType] {
-					types = append(types, struct {
-						typeName string
-						typePath string
-					}{resType, resTypePath})
-					seen[resType] = true
-				}
-				// Input type second (if not method 0 and not already seen)
-				if !method0Types[reqType] && !seen[reqType] {
-					types = append(types, struct {
-						typeName string
-						typePath string
-					}{reqType, reqTypePath})
-					seen[reqType] = true
-				}
-				
-				streamingMethods = append(streamingMethods, streamingMethodInfo{
-					methodIdx: i,
-					callType:  callType,
-					types:     types,
-				})
+				imports = append(imports, importEntry{callType: callType})
 			} else {
-				// Collect non-streaming types
-				// Emit output first
+				// Non-streaming: collect types (includes types first used by this or lower methods)
+				// Output first
 				if !method0Types[resType] && !seen[resType] {
-					nonStreamingTypes = append(nonStreamingTypes, struct {
-						typeName string
-						typePath string
-					}{resType, resTypePath})
+					imports = append(imports, importEntry{typeName: resType, typePath: resTypePath})
 					seen[resType] = true
 					
 					// Check if any deferred inputs match this output's path and emit them now
-					var remainingDeferred []struct {
-						typeName string
-						typePath string
-					}
+					var remainingDeferred []importEntry
 					for _, deferred := range deferredInputs {
 						if deferred.typePath == resTypePath {
-							// Emit deferred input that matches current output's path
-							nonStreamingTypes = append(nonStreamingTypes, deferred)
+							imports = append(imports, deferred)
 						} else {
-							// Keep deferring
 							remainingDeferred = append(remainingDeferred, deferred)
 						}
 					}
 					deferredInputs = remainingDeferred
 				}
 				
-				// For input: only emit immediately if same path as output OR if same as output type
-				// Otherwise defer
+				// Input: emit immediately if same path as output, otherwise defer
 				if !method0Types[reqType] && !seen[reqType] {
 					if reqType == resType || reqTypePath == resTypePath {
-						// Same type or same path: emit immediately
-						nonStreamingTypes = append(nonStreamingTypes, struct {
-							typeName string
-							typePath string
-						}{reqType, reqTypePath})
+						imports = append(imports, importEntry{typeName: reqType, typePath: reqTypePath})
 						seen[reqType] = true
 					} else {
-						// Different path: defer
-						deferredInputs = append(deferredInputs, struct {
-							typeName string
-							typePath string
-						}{reqType, reqTypePath})
+						deferredInputs = append(deferredInputs, importEntry{typeName: reqType, typePath: reqTypePath})
 						seen[reqType] = true
 					}
 				}
@@ -5296,10 +5248,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 		
 		// Append any remaining deferred inputs
-		nonStreamingTypes = append(nonStreamingTypes, deferredInputs...)
+		imports = append(imports, deferredInputs...)
 		
 		// Determine method 0's call type (if streaming) so we don't duplicate it
-		// (section 5 below already emits method 0's streaming call type)
 		method0CallType := ""
 		if len(service.Method) > 0 {
 			m0 := service.Method[0]
@@ -5329,27 +5280,27 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 
-		if shouldInterleave {
-			// Interleave: emit streaming methods with their call types interleaved
-			// In protobuf-ts prepend model, the first method to register a call type "owns" it.
-			// Since streamingMethods is in reverse order, the last occurrence corresponds to the first registration.
-			// Only emit each call type at its last occurrence in the list.
+		{
+			// Deduplicate streaming call types: only emit at last occurrence
+			// (which corresponds to first registration in protobuf-ts's forward/prepend model)
 			lastCallTypeIdx := map[string]int{}
-			for i, sm := range streamingMethods {
-				if sm.callType != method0CallType {
-					lastCallTypeIdx[sm.callType] = i
+			for i, entry := range imports {
+				if entry.callType != "" && entry.callType != method0CallType {
+					lastCallTypeIdx[entry.callType] = i
 				}
 			}
-			for i, sm := range streamingMethods {
-				// Emit message types for this method
-				for _, t := range sm.types {
-					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
-				}
-				
-				// Emit call type only at its last occurrence (matching protobuf-ts's first-registration semantics)
-				if idx, ok := lastCallTypeIdx[sm.callType]; ok && idx == i {
+			
+			for i, entry := range imports {
+				if entry.callType != "" {
+					// Call type entry: only emit at last occurrence, skip method 0's call type
+					if entry.callType == method0CallType {
+						continue
+					}
+					if idx, ok := lastCallTypeIdx[entry.callType]; ok && idx != i {
+						continue
+					}
 					var callTypeImport string
-					switch sm.callType {
+					switch entry.callType {
 					case "duplex":
 						callTypeImport = "DuplexStreamingCall"
 					case "client":
@@ -5360,51 +5311,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					if callTypeImport != "" {
 						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
 					}
-				}
-			}
-			
-			// Then emit non-streaming types
-			for _, t := range nonStreamingTypes {
-				g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
-			}
-		} else {
-			// Group: emit non-streaming first, then all call types, then streaming message types
-			// Emit non-streaming types
-			for _, t := range nonStreamingTypes {
-				g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
-			}
-			
-			// Emit all streaming call types together (skip method 0's call type)
-			needDuplex := false
-			needClient := false
-			needServer := false
-			for _, sm := range streamingMethods {
-				if sm.callType == method0CallType {
-					continue
-				}
-				switch sm.callType {
-				case "duplex":
-					needDuplex = true
-				case "client":
-					needClient = true
-				case "server":
-					needServer = true
-				}
-			}
-			if needDuplex {
-				g.pNoIndent("import type { DuplexStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-			}
-			if needClient {
-				g.pNoIndent("import type { ClientStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-			}
-			if needServer {
-				g.pNoIndent("import type { ServerStreamingCall } from \"@protobuf-ts/runtime-rpc\";")
-			}
-			
-			// Emit streaming message types
-			for _, sm := range streamingMethods {
-				for _, t := range sm.types {
-					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
+				} else {
+					// Type import entry
+					g.pNoIndent("import type { %s } from \"%s\";", entry.typeName, entry.typePath)
 				}
 			}
 		}
