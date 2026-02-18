@@ -735,7 +735,9 @@ func formatCustomOptions(opts []customOption) string {
 		var valueStr string
 		switch val := opt.value.(type) {
 		case string:
-			valueStr = fmt.Sprintf("\"%s\"", strings.ReplaceAll(val, `"`, `\"`))
+			escaped := strings.ReplaceAll(val, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			valueStr = fmt.Sprintf("\"%s\"", escaped)
 		case bool:
 			valueStr = fmt.Sprintf("%t", val)
 		case int:
@@ -765,7 +767,9 @@ func formatCustomOptionArray(vals []interface{}) string {
 	for _, v := range vals {
 		switch val := v.(type) {
 		case string:
-			elems = append(elems, fmt.Sprintf("\"%s\"", strings.ReplaceAll(val, `"`, `\"`)))
+			escaped := strings.ReplaceAll(val, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			elems = append(elems, fmt.Sprintf("\"%s\"", escaped))
 		case bool:
 			elems = append(elems, fmt.Sprintf("%t", val))
 		case int:

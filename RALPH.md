@@ -111,7 +111,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 133_custom_int64_option: 64-bit integer custom option values (int64, uint64, sint64, fixed64, sfixed64) must be formatted as quoted strings per protobuf JSON mapping spec — split from 32-bit counterparts in both parseCustomOptions and parseMessageValue
 - [x] Fix test 134_nested_repeated_option: Applied `mergeRepeatedOptions` to `parseMessageValue` return value — repeated fields inside nested message options were producing duplicate keys instead of arrays
 - [x] Fix test 135_custom_option_string_escape: Escaped double quotes inside custom option string values using `strings.ReplaceAll(val, `"`, `\"`)` in both `formatCustomOptions` and `formatCustomOptionArray`
-- [x] All 140/140 tests passing — DONE
+- [x] Fix test 136_custom_option_string_backslash: Backslashes in custom option string values must be escaped as `\\` before quote escaping — added `strings.ReplaceAll(val, `\`, `\\`)` before `"` escaping in both `formatCustomOptions` and `formatCustomOptionArray`
+- [x] All 141/141 tests passing — DONE
 
 ## Notes
 
@@ -166,4 +167,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom bytes options: TYPE_BYTES fields in custom options must be base64-encoded using `base64.StdEncoding.EncodeToString`. The bytes value is read via `protowire.ConsumeBytes` and stored as a string (which formatCustomOptions wraps in quotes). Both `parseCustomOptions` and `parseMessageValue` need the TYPE_BYTES case.
 - Custom 64-bit integer options: Per protobuf JSON mapping spec, 64-bit integer types (int64, uint64, sint64, fixed64, sfixed64) must be output as quoted strings (e.g., `"1000"` not `1000`). 32-bit types (int32, uint32, sint32, fixed32, sfixed32) remain as numeric values. This applies in both `parseCustomOptions` (extension fields) and `parseMessageValue` (message fields). TYPE_INT64 uses `int64(v)` cast for correct negative value handling; TYPE_UINT64 uses raw `v`.
 - Nested repeated options: `parseMessageValue` must call `mergeRepeatedOptions` on its result before returning, same as `parseCustomOptions` does. Without this, repeated fields inside nested message-typed options produce duplicate keys (e.g., `tags: "a", tags: "b"`) instead of arrays (`tags: ["a", "b"]`).
-- Custom option string escaping: String values in custom options may contain double quotes (e.g., `"hello \"world\""` in proto). These must be escaped as `\"` in the TypeScript output. Both `formatCustomOptions` and `formatCustomOptionArray` need `strings.ReplaceAll(val, `"`, `\"`)` when formatting string values.
+- Custom option string escaping: String values in custom options may contain double quotes and backslashes. Backslashes must be escaped first (`\` → `\\`), then double quotes (`"` → `\"`). Both `formatCustomOptions` and `formatCustomOptionArray` need this two-step escaping. Order matters: escape backslashes before quotes to avoid double-escaping.
