@@ -89,6 +89,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   2. Line ~2214: `fieldPath = [4, msgIndex, 2, fieldIndex]` constructs a flat path instead of the full nested path (e.g., `[4, parentIdx, 3, nestedIdx, 2, fieldIndex]`).
 - **Also broken:** The oneof path at line ~2176 `[4, msgIndex, 8, oneofIndex]` has the same nesting issue.
 
+### Run 11 — Proto2 oneof default annotation missing (SUCCESS)
+- **Bug found:** `generateOneofField()` at line ~2251 does NOT include `[default = ...]` annotation in the `@generated from protobuf field:` JSDoc for oneof member fields in proto2. Regular field JSDoc at line ~2098 includes `defaultAnnotation`, but the oneof branch at line ~2251 omits it entirely.
+- **Test:** `92_proto2_oneof_default` — proto2 oneof with string/int32/bool fields that have default values.
+- **Root cause:** Line ~2251 format string is `"%s %s = %d%s%s%s"` with only `oneofJsonNameAnnotation, oneofJstypeAnnotation, oneofDeprecatedAnnotation`. Missing `defaultAnnotation`. Same pattern as runs 7-9 — oneof JSDoc generation is a subset of regular field JSDoc.
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
@@ -97,7 +102,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
-- Oneof field JSDoc missing `[default = ...]` annotation for proto2 oneof members (regular field has it, oneof doesn't).
 - Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
-- `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
 - Deep nesting (3+ levels) with oneofs — would amplify the nested oneof path bug even more.
+- `internalBinaryRead` oneof case comment missing `[default = ...]` — same as this run but in the binary read method (line ~3205). Check if it's handled there.
+- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
