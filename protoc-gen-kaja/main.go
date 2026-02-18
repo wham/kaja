@@ -602,7 +602,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			continue
 		}
 		
-		fieldName := fd.GetName()
+		fieldName := fd.GetJsonName()
 		switch fd.GetType() {
 		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 			v, n := protowire.ConsumeBytes(data)
