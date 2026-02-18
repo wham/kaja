@@ -4,9 +4,7 @@
 
 set -euo pipefail
 
-# Set default model to Claude Opus 4.6
-export COPILOT_MODEL=claude-opus-4.6
-
+MODEL="claude-opus-4.6"
 PROMPT_FILE="RALPH.md"
 NELSON_FILE="NELSON.md"
 STATUS_FILE="status.txt"
@@ -33,7 +31,7 @@ for ((i=1; i<=MAX_LOOPS; i++)); do
             
             # Run NELSON.md task
             nelson_prompt=$(cat "$NELSON_FILE")
-            copilot --yolo -p "$nelson_prompt" || {
+            copilot --model "$MODEL" --yolo -p "$nelson_prompt" || {
                 echo "Error: GitHub Copilot CLI command failed for NELSON.md"
                 exit 1
             }
@@ -58,7 +56,7 @@ for ((i=1; i<=MAX_LOOPS; i++)); do
     
     # Run GitHub Copilot CLI in non-interactive mode with all permissions enabled
     echo "Running GitHub Copilot CLI with prompt from $PROMPT_FILE"
-    copilot --yolo -p "$prompt" || {
+    copilot --model "$MODEL" --yolo -p "$prompt" || {
         echo "Error: GitHub Copilot CLI command failed"
         exit 1
     }
