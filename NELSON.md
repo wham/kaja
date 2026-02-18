@@ -127,6 +127,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `97_oneof_detached_comment` — message with a detached comment before a oneof declaration.
 - **Root cause:** Line ~2207 in `generateOneofField`: only calls `getLeadingComments(oneofPath)` but not `getLeadingDetachedComments(oneofPath)`. Compare with `generateField` at line ~2022 which properly handles detached comments.
 
+### Run 17 — Oneof member field detached comments missing (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go never calls `getLeadingDetachedComments()` for individual oneof member field paths. Two sub-bugs:
+  1. First oneof member's detached comment should be merged INTO the oneof declaration JSDoc (shown before `@generated from protobuf oneof:`). Go plugin drops it entirely.
+  2. Subsequent oneof member's detached comments should be output as `//` style comments before that field's JSDoc. Go plugin drops them entirely.
+- **Test:** `98_oneof_member_detached_comment` — oneof with string and int32 fields, each having a detached comment (separated from leading comment by blank line).
+- **Root cause:** Line ~2278 constructs `fieldPath` but never calls `getLeadingDetachedComments(fieldPath)`. Compare with `generateField` at line 2022-2046 which properly handles detached comments. The TS plugin handles these by: (1) merging first member's detached comments into the oneof JSDoc, (2) outputting subsequent members' detached comments as `//` blocks before the `/**` JSDoc.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -136,7 +143,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — check if "message, enum, or map" branch ordering differs.
 - Deep nesting (3+ levels) with oneofs — amplifies nested oneof path bug.
-- Detached comments for oneof MEMBER fields (not the oneof declaration itself) — `generateOneofField` also doesn't call `getLeadingDetachedComments` for the individual fields within the oneof.
 - Message-level detached comments from first field — similar to enum, the TS plugin may merge first field's detached comments into the message JSDoc.
 - Proto2 extensions — Go plugin skips files with only extensions entirely.
 - `toCamelCase` edge cases with Unicode or special characters.
+- `propertyName` incomplete reserved property list — only checks `__proto__` and `toString`, may miss others like `constructor`.
+- Service detached comments — check if service-level and method-level detached comment handling differs.
+- Enum field trailing comments — check if trailing comments on enum values are handled correctly.

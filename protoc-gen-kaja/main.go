@@ -2255,6 +2255,18 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		}
 	}
 	
+	// Oneof trailing comment goes into the oneof JSDoc (before @generated)
+	oneofTrailingComment := g.getTrailingComments(oneofPath)
+	if oneofTrailingComment != "" {
+		for _, line := range strings.Split(oneofTrailingComment, "\n") {
+			if line == "" {
+				g.p(" *")
+			} else {
+				g.p(" * %s", escapeJSDocComment(line))
+			}
+		}
+		g.p(" *")
+	}
 	g.p(" * @generated from protobuf oneof: %s", oneofProtoName)
 	g.p(" */")
 	g.p("%s: {", oneofCamelName)
@@ -2277,6 +2289,28 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		// Get field leading comment
 		fieldPath := append(append([]int32{}, msgPath...), 2, fieldIndex)
 		fieldLeadingComments := g.getLeadingComments(fieldPath)
+		
+		// Add detached comments for non-first oneof member fields as // style
+		if i > 0 {
+			fieldDetached := g.getLeadingDetachedComments(fieldPath)
+			if len(fieldDetached) > 0 {
+				for dIdx, detached := range fieldDetached {
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						line = strings.TrimRight(line, " \t")
+						if line == "" {
+							g.p("//")
+						} else {
+							g.p("// %s", line)
+						}
+					}
+					if dIdx < len(fieldDetached)-1 {
+						g.p("//")
+					}
+				}
+				g.pNoIndent("")
+			}
+		}
 		
 		// Generate field JSDoc
 		g.p("/**")
