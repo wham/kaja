@@ -88,7 +88,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 117_string_default_newline: JSDoc continuation lines after `\n` in string defaults need ` * ` prefix, but `\r`→`\n` conversions do NOT. Moved `\r`→`\n` from formatDefaultValueAnnotation into g.p() to distinguish the two cases.
 - [x] All 121/121 tests passing
 - [x] Fix test 118_streaming_only_service: When all service methods are streaming, section 3 (streaming call type imports) was duplicating section 5 (method 0 call type). Added `method0CallType` tracking to skip method 0's call type from section 3 emission.
-- [x] All 122/122 tests passing — DONE
+- [x] All 122/122 tests passing
+- [x] Fix test 119_mixed_streaming_unary_import: When method 0 is streaming and later methods are unary, UnaryCall must appear ABOVE other streaming call types (not below). Moved UnaryCall emission to before section 3's streaming call types, computed within the first-service block using `hasUnaryInService` check.
+- [x] All 123/123 tests passing — DONE
 
 ## Notes
 
@@ -129,3 +131,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `optimize_for = LITE_RUNTIME` behaves identically to `CODE_SIZE` — both skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their Phase 2 imports. The `isOptimizeCodeSize()` helper checks for both `CODE_SIZE` and `LITE_RUNTIME`.
 - String default values with `\r` (CR, 0x0d) characters: the `\r`→`\n` conversion is now handled in `g.p()` instead of `formatDefaultValueAnnotation`. This allows `g.p()` to distinguish `\r` (raw line break, no JSDoc prefix) from `\n` (JSDoc continuation with ` * ` prefix). The `g.p()` function processes characters individually: `\n` in a JSDoc line (starting with ` * `) adds ` * ` prefix to the continuation line; `\r` just adds the indent.
 - Streaming-only services: When all methods in a service are streaming, the call type import (e.g., `ServerStreamingCall`) was emitted twice — once in the streaming methods section (section 3) and once in the method 0 section (section 5). Fix: compute `method0CallType` and skip it from section 3's emission since section 5 already handles it. This dedup applies to both the interleave and grouped code paths.
+- Mixed streaming/unary services: When method 0 is streaming and later methods are unary, UnaryCall must appear ABOVE the other streaming call types (DuplexStreamingCall, ClientStreamingCall) because in protobuf-ts's prepend model, later-processed methods' imports go to the top. The UnaryCall emission was moved from after section 3 to before section 3's call type emissions, guarded by `method0CallType != "" && hasUnaryInService`.
