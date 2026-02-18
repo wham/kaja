@@ -188,6 +188,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 2233-2270 in `generateOneofField` only handle leading comments, trailing comments, and detached comments for the oneof declaration JSDoc, but never check `g.isFileDeprecated()`. Compare with field JSDoc at line ~2131 which checks `g.isFileDeprecated()`, and with oneof **member** fields at line ~2367 which correctly checks both `fieldIsDeprecated` and `g.isFileDeprecated()`.
 - **Note:** Protobuf doesn't support `deprecated` option directly on `oneof` declarations, so the only way an oneof declaration gets `@deprecated` is through file-level deprecation.
 
+### Run 27 — Field annotation brackets and ordering bug (SUCCESS)
+- **Bug found:** When a field has multiple proto options (e.g., `packed` + `json_name`, or `jstype` + `deprecated`), the Go plugin outputs each option in its own separate brackets `[json_name = "vals"] [packed = false]`, while the TS plugin combines them into a single bracket with comma separation `[packed = false, json_name = "vals"]`.
+- **Also broken:** The option ordering differs. TS plugin uses: `packed`, `default`, `json_name`, `jstype`, `deprecated` (from `getDeclarationString` in `@bufbuild/protoplugin`). Go plugin uses: `default`, `json_name`, `jstype`, `packed`, `deprecated`.
+- **Test:** `108_field_multi_options` — repeated int32 field with both `[packed = false, json_name = "vals"]`.
+- **Root cause:** The Go plugin constructs each annotation as a separate format string (e.g., `jsonNameAnnotation = " [json_name = ...]"`, `packedAnnotation = " [packed = ...]"`) and concatenates them. The TS plugin collects all options into a `string[]` array and joins with `", "` inside a single `[...]`. Three affected code paths: (1) interface JSDoc at line ~2138, (2) internalBinaryRead comment at line ~3329, (3) internalBinaryWrite comment at line ~3568.
+- **Additional difference:** Import ordering for `WireType` also differs in this test but may be a separate issue.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
