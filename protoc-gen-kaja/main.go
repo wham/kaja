@@ -2390,7 +2390,12 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		g.p(" * @generated from protobuf field: %s %s = %d%s", g.getProtoType(field), field.GetName(), field.GetNumber(), optionsAnnotation)
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
-		g.p("%s: %s;", fieldJsonName, fieldType)
+		fieldTrailingComment := g.getTrailingComments(fieldPath)
+		if fieldTrailingComment != "" {
+			g.p("%s: %s; // %s", fieldJsonName, fieldType, fieldTrailingComment)
+		} else {
+			g.p("%s: %s;", fieldJsonName, fieldType)
+		}
 		g.indent = "    "
 		if i < len(fields)-1 {
 			g.p("} | {")
