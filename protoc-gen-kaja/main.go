@@ -854,7 +854,7 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = fmt.Sprintf("%v", val)
 		}
 		keyStr := opt.key
-		if strings.Contains(opt.key, ".") {
+		if strings.Contains(opt.key, ".") || (len(opt.key) > 0 && opt.key[0] >= '0' && opt.key[0] <= '9') {
 			keyStr = fmt.Sprintf("\"%s\"", opt.key)
 		}
 		parts = append(parts, fmt.Sprintf("%s: %s", keyStr, valueStr))
