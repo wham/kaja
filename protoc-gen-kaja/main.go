@@ -1689,7 +1689,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			if depFile.Package != nil {
 				depPkg = *depFile.Package
 			}
-			if strings.HasPrefix(typeNameStripped, depPkg+".") {
+			if depPkg == "" || strings.HasPrefix(typeNameStripped, depPkg+".") {
 				candidateFiles = append(candidateFiles, &struct {
 					file *descriptorpb.FileDescriptorProto
 					path string
