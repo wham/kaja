@@ -81,6 +81,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~3316 should use `protoName` (which is already passed to the function and uses `.` only for nesting) instead of reconstructing from `fullName`. The `protoName` parameter correctly preserves underscores in message names.
 - **Note:** Same bug pattern would affect nested messages with underscored names too (double mangling).
 
+### Run 10 — Nested message oneof comment lookup bug (SUCCESS)
+- **Bug found:** `generateOneofField()` at line ~2206 uses `g.file.MessageType[msgIndex]` to look up field indices for source code comment paths. But for nested messages, `msgIndex` is the nested message index within its parent (extracted from `msgPath[len(msgPath)-1]`), NOT a top-level message index. This causes `g.file.MessageType[msgIndex]` to reference the wrong top-level message.
+- **Test:** `91_nested_oneof_comment` — `Outer` message (field `name = 1`) with nested `Inner` message containing a oneof with fields `text = 1` and `number = 2`. The Go plugin displays "This is the outer name field" instead of "This is the inner string choice" for `text = 1`, because it looks up comments from `Outer` instead of `Inner`.
+- **Root cause:** Two bugs in `generateOneofField`:
+  1. Line ~2206: `g.file.MessageType[msgIndex]` accesses top-level messages using a nested message index. Should walk the msgPath to find the actual nested message descriptor.
+  2. Line ~2214: `fieldPath = [4, msgIndex, 2, fieldIndex]` constructs a flat path instead of the full nested path (e.g., `[4, parentIdx, 3, nestedIdx, 2, fieldIndex]`).
+- **Also broken:** The oneof path at line ~2176 `[4, msgIndex, 8, oneofIndex]` has the same nesting issue.
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
@@ -89,7 +97,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
-- Nested message oneof field path bug — `generateOneofField` uses `g.file.MessageType[msgIndex]` which is wrong for nested messages (would look at wrong message or panic).
 - Oneof field JSDoc missing `[default = ...]` annotation for proto2 oneof members (regular field has it, oneof doesn't).
 - Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
+- Deep nesting (3+ levels) with oneofs — would amplify the nested oneof path bug even more.
