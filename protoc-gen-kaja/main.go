@@ -648,6 +648,104 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 		}
 		
 		fieldName := fd.GetJsonName()
+
+		// Handle packed repeated encoding: wire type is BytesType but field is a scalar numeric type
+		if typ == protowire.BytesType && fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			switch fd.GetType() {
+			case descriptorpb.FieldDescriptorProto_TYPE_INT32, descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+				descriptorpb.FieldDescriptorProto_TYPE_INT64, descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+				descriptorpb.FieldDescriptorProto_TYPE_SINT32, descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+				descriptorpb.FieldDescriptorProto_TYPE_BOOL, descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+				packed, pn := protowire.ConsumeBytes(data)
+				data = data[pn:]
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeVarint(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					switch fd.GetType() {
+					case descriptorpb.FieldDescriptorProto_TYPE_INT32:
+						result = append(result, customOption{key: fieldName, value: int(int32(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_UINT32:
+						result = append(result, customOption{key: fieldName, value: int(v)})
+					case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+						result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", int64(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+						result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", v)})
+					case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
+						result = append(result, customOption{key: fieldName, value: int(protowire.DecodeZigZag(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+						result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", protowire.DecodeZigZag(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+						result = append(result, customOption{key: fieldName, value: v != 0})
+					case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+						enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+						result = append(result, customOption{key: fieldName, value: enumName})
+					}
+				}
+				continue
+			case descriptorpb.FieldDescriptorProto_TYPE_FIXED32, descriptorpb.FieldDescriptorProto_TYPE_SFIXED32,
+				descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+				packed, pn := protowire.ConsumeBytes(data)
+				data = data[pn:]
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeFixed32(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					switch fd.GetType() {
+					case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
+						result = append(result, customOption{key: fieldName, value: int(v)})
+					case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+						result = append(result, customOption{key: fieldName, value: int(int32(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+						fval := float64(math.Float32frombits(v))
+						if math.IsNaN(fval) {
+							result = append(result, customOption{key: fieldName, value: "NaN"})
+						} else if math.IsInf(fval, 1) {
+							result = append(result, customOption{key: fieldName, value: "Infinity"})
+						} else if math.IsInf(fval, -1) {
+							result = append(result, customOption{key: fieldName, value: "-Infinity"})
+						} else {
+							result = append(result, customOption{key: fieldName, value: fval})
+						}
+					}
+				}
+				continue
+			case descriptorpb.FieldDescriptorProto_TYPE_FIXED64, descriptorpb.FieldDescriptorProto_TYPE_SFIXED64,
+				descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+				packed, pn := protowire.ConsumeBytes(data)
+				data = data[pn:]
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeFixed64(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					switch fd.GetType() {
+					case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+						result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", v)})
+					case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+						result = append(result, customOption{key: fieldName, value: fmt.Sprintf("%d", int64(v))})
+					case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+						fval := math.Float64frombits(v)
+						if math.IsNaN(fval) {
+							result = append(result, customOption{key: fieldName, value: "NaN"})
+						} else if math.IsInf(fval, 1) {
+							result = append(result, customOption{key: fieldName, value: "Infinity"})
+						} else if math.IsInf(fval, -1) {
+							result = append(result, customOption{key: fieldName, value: "-Infinity"})
+						} else {
+							result = append(result, customOption{key: fieldName, value: fval})
+						}
+					}
+				}
+				continue
+			}
+		}
+
 		switch fd.GetType() {
 		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 			v, n := protowire.ConsumeBytes(data)
