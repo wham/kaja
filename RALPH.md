@@ -34,7 +34,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 86/86 tests passing
 - [x] Fix test 83_map_fixed_key_types: Simplified getMapKeyWriter to reuse getWireType+getWriterMethodName
 - [x] Fix test 84_map_message_value_fixed_keys: Message-value map write path now uses getMapKeyWriter for proper wire types/methods instead of hardcoding Varint/int32
-- [x] All 88/88 tests passing — DONE
+- [x] All 88/88 tests passing
+- [x] Fix test 85_proto2_required_message: Required message fields in proto2 should still generate optional TS properties (`?:`)
+- [x] All 89/89 tests passing — DONE
 
 ## Notes
 
@@ -45,3 +47,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - The `getMapValueWriter` function was simplified to reuse `getWireType` and `getWriterMethodName` instead of an incomplete switch statement. The old version only handled 4 types (int32, string, bool, enum) and fell back to string for everything else.
 - The `getMapKeyWriter` function had the same problem — it grouped fixed types with their non-fixed counterparts (e.g. SFIXED32 with INT32), using WireType.Varint instead of WireType.Bit32. Simplified it the same way to delegate to getWireType+getWriterMethodName.
 - The message-value map write path (line ~3456) had its own hardcoded key writer (Varint/int32 for all numeric keys) instead of reusing `getMapKeyWriter`. Fixed to use the same keyVar/valueAccessor logic as the scalar path, plus `getMapKeyWriter` for proper wire types.
+- Proto2 `required` message fields must still generate optional TS interface properties (`?:`) because messages have no zero value. The fix adds a check: when `LABEL_REQUIRED` and `TYPE_MESSAGE`, set `optional = "?"`.
