@@ -471,6 +471,27 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			v, n := protowire.ConsumeVarint(unknown)
 			result = append(result, customOption{key: extName, value: int(v)})
 			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+			v, n := protowire.ConsumeVarint(unknown)
+			result = append(result, customOption{key: extName, value: int(protowire.DecodeZigZag(v))})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+			v, n := protowire.ConsumeFixed32(unknown)
+			result = append(result, customOption{key: extName, value: int(int32(v))})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+			v, n := protowire.ConsumeFixed64(unknown)
+			result = append(result, customOption{key: extName, value: int(int64(v))})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
+			v, n := protowire.ConsumeFixed32(unknown)
+			result = append(result, customOption{key: extName, value: int(v)})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+			v, n := protowire.ConsumeFixed64(unknown)
+			result = append(result, customOption{key: extName, value: int(v)})
+			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			v, n := protowire.ConsumeFixed32(unknown)
 			result = append(result, customOption{key: extName, value: float64(math.Float32frombits(v))})

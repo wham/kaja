@@ -386,20 +386,25 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Two bugs: (1) `TYPE_ENUM` is missing from the `parseCustomOptions` switch — it silently drops the value. (2) Even if added, the Go plugin would need to look up the enum value NAME (e.g., `"VISIBILITY_INTERNAL"`) from the enum descriptor, since the TS plugin uses `toJson()` which converts enum numbers to their canonical string names.
 - **Affects:** All four custom option types (message, field, method, service) when an extension uses an enum type. Both the option value and the containing options object are completely dropped.
 
+### Run 48 — Custom sint32 option value silently dropped (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go has no case for `TYPE_SINT32` or `TYPE_SINT64`. These types use zigzag encoding on the wire (`protowire.VarintType`), so they fall through to the `default:` branch which calls `ConsumeVarint` but never appends the value to `result`. The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which correctly deserializes sint32/sint64 values with zigzag decoding.
+- **Test:** `129_custom_sint_option` — message with `option (priority) = -5` where `priority` is a `sint32` extension of `MessageOptions`.
+- **Root cause:** Lines 467-473 handle `TYPE_INT32/INT64/UINT32/UINT64` but don't include `TYPE_SINT32/SINT64`. These need zigzag decoding via `protowire.DecodeZigZag()` after `ConsumeVarint`. Without the case, the value is silently consumed and discarded.
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses sint32 or sint64 type.
+- **Related:** `TYPE_FIXED32/FIXED64/SFIXED32/SFIXED64` are also missing — they need `ConsumeFixed32`/`ConsumeFixed64` with appropriate signed/unsigned interpretation.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
 - Proto2 group fields — how does the Go plugin handle groups in terms of field descriptors?
 - Deeply nested messages (5+ levels) — test for type name construction correctness.
-- Enum prefix detection edge cases — enum names with consecutive uppercase letters (e.g., `HTTPStatus` → `HTTPSTATUS_` vs `H_T_T_P_STATUS_`). VERIFIED: Go and TS algorithms produce identical results for `HTTPStatus`, `MyHTTPStatus`, `myEnum`, `My_Enum`. Both insert `_` before each uppercase letter. No bug.
+- Enum prefix detection edge cases — VERIFIED: Go and TS algorithms produce identical results. No bug.
 - `exclude_options` file option interaction — TS plugin has `ts.exclude_options` that can suppress custom options.
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
-- Enum alias where first value has custom json_name or other options — does the TS getDeclarationString for aliases include the first value's options or the alias's?
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
-- Service-only file with shared request/response types — dedup behavior when same type used in multiple methods.
-- Multiple services in same service-only file — import ordering across services.
-- Custom option with float/double value — Go plugin skips float (line 417-419) and double (line 420-422) extension values entirely (no result appended). TS plugin handles them via `toJson()`.
 - Custom option with message-typed value — Go plugin likely drops nested message extensions (falls into default bytes branch). TS handles via `fromBinary()` + `toJson()`.
-- Custom option with sint32/sint64 value — Go plugin doesn't handle zigzag encoding for signed types (TYPE_SINT32/SINT64 fall into default). TS handles correctly.
 - Custom option with fixed32/fixed64/sfixed32/sfixed64 value — Go plugin doesn't handle fixed-width types. TS handles correctly.
+- Custom option with sint64 value — same bug as sint32 but with 64-bit zigzag encoding.
+- Custom option with repeated field — Go plugin likely doesn't handle repeated extension fields.
+- Custom option with bytes value — does Go plugin handle TYPE_BYTES extension values?
