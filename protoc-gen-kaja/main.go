@@ -327,41 +327,49 @@ type customOption struct {
 }
 
 type extInfo struct {
-	ext *descriptorpb.FieldDescriptorProto
-	pkg string
+	ext       *descriptorpb.FieldDescriptorProto
+	pkg       string
+	msgPrefix string // parent message name(s) for nested extensions, e.g. "Extensions."
 }
 
 // buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
 func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 	extensionMap := make(map[int32]extInfo)
-	
-	// Check extensions in current file
-	for _, ext := range g.file.Extension {
-		if ext.GetExtendee() == extendeeName {
-			pkg := ""
-			if g.file.Package != nil {
-				pkg = *g.file.Package
-			}
-			extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
+
+	collectFromFile := func(f *descriptorpb.FileDescriptorProto) {
+		pkg := ""
+		if f.Package != nil {
+			pkg = *f.Package
 		}
-	}
-	
-	// Check extensions in all imported files
-	for _, depFile := range g.allFiles {
-		if depFile == g.file {
-			continue
-		}
-		for _, ext := range depFile.Extension {
+		// Top-level extensions
+		for _, ext := range f.Extension {
 			if ext.GetExtendee() == extendeeName {
-				pkg := ""
-				if depFile.Package != nil {
-					pkg = *depFile.Package
-				}
 				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
 			}
 		}
+		// Extensions nested in messages (recursively)
+		var scanMsg func(msg *descriptorpb.DescriptorProto, prefix string)
+		scanMsg = func(msg *descriptorpb.DescriptorProto, prefix string) {
+			msgPrefix := prefix + msg.GetName() + "."
+			for _, ext := range msg.Extension {
+				if ext.GetExtendee() == extendeeName {
+					extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, msgPrefix: msgPrefix}
+				}
+			}
+			for _, nested := range msg.NestedType {
+				scanMsg(nested, msgPrefix)
+			}
+		}
+		for _, msg := range f.MessageType {
+			scanMsg(msg, "")
+		}
 	}
-	
+
+	// Check current file and all imported files
+	for _, f := range g.allFiles {
+		collectFromFile(f)
+	}
+
 	return extensionMap
 }
 
@@ -449,7 +457,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 		if pkg != "" {
 			pkg += "."
 		}
-		extName := pkg + ext.GetName()
+		extName := pkg + extInf.msgPrefix + ext.GetName()
 		
 		switch ext.GetType() {
 		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
