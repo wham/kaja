@@ -61,22 +61,5 @@ func build() error {
 
 	slog.Info("UI built successfully")
 
-	pgt, err := ui.BuildProtocGenTs()
-	if err != nil {
-		return err
-	}
-
-	outputFile = path.Join(outputDirectory, "protoc-gen-ts")
-	if err := os.WriteFile(outputFile, pgt, 0644); err != nil {
-		slog.Error("Failed to write output file", "error", err)
-		return err
-	}
-	if err := os.Chmod(outputFile, 0755); err != nil {
-		slog.Error("Failed to set file permissions", "error", err)
-		return err
-	}
-
-	slog.Info("protoc-gen-ts built successfully", "outputFile", outputFile)
-
 	return nil
 }

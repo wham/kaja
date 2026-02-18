@@ -19,22 +19,6 @@ then
     fi
 fi
 
-# Check if Node.js is installed, if not ask for user confirmation to install it using Homebrew
-if ! command -v node &> /dev/null
-then
-    echo "Node.js is not installed."
-    read -p "Would you like to install Node.js using Homebrew? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Installing Node.js using Homebrew..."
-        brew install node
-    else
-        echo "Node.js installation skipped. Exiting script."
-        exit 1
-    fi
-fi
-
 cd "$(dirname "$0")/.."
 
 # Kill any existing server on port 41520
@@ -48,9 +32,14 @@ install_protoc
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
+# Build protoc-gen-kaja
+go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
+
+# Generate UI proto client code using protoc-gen-kaja
+protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --kaja_opt=generate_dependencies --proto_path=server/proto api.proto
+
 cd "./ui"
 npm i
-npm run protoc
 
 cd ../server
 go run cmd/build-ui/main.go
