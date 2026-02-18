@@ -1940,7 +1940,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 					oneofCamelName := g.toCamelCase(oneofProtoName)
 					
 					// Escape reserved property names
-					if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+					if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
 						oneofCamelName = oneofCamelName + "$"
 					}
 					
@@ -2882,7 +2882,7 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 	if oneofName != "" {
 		oneofCamelName = g.toCamelCase(oneofName)
 		// Escape reserved property names
-		if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+		if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
 			oneofCamelName = oneofCamelName + "$"
 		}
 	}
@@ -3222,7 +3222,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			// Initialize oneof
 			oneofCamelName := g.toCamelCase(item.oneofName)
 			// Escape reserved property names
-			if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+			if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
 				oneofCamelName = oneofCamelName + "$"
 			}
 			g.p("message.%s = { oneofKind: undefined };", oneofCamelName)
@@ -3343,7 +3343,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				isRealOneof = true
 				oneofCamelName = g.toCamelCase(oneofName)
 				// Escape reserved property names
-				if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+				if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
 					oneofCamelName = oneofCamelName + "$"
 				}
 			}
@@ -3566,7 +3566,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				isRealOneof = true
 				oneofCamelName = g.toCamelCase(oneofName)
 				// Escape reserved property names
-				if oneofCamelName == "__proto__" || oneofCamelName == "toString" {
+				if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
 					oneofCamelName = oneofCamelName + "$"
 				}
 			}
