@@ -52,7 +52,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 94_enum_value_trailing_blank_comment: Added enum trailing comments support and __HAS_TRAILING_BLANK__ handling for enum value leading comments
 - [x] All 98/98 tests passing
 - [x] Fix test 95_proto2_oneof_enum: Proto2 oneof enum members should not get `opt: true` — added `field.OneofIndex == nil` check
-- [x] All 99/99 tests passing — DONE
+- [x] All 99/99 tests passing
+- [x] Fix test 96_service_trailing_blank_comment: Service and method comments in client file need `hasTrailingBlank` conditional (two `*` lines instead of one)
+- [x] All 100/100 tests passing — DONE
 
 ## Notes
 
@@ -72,3 +74,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Oneof member fields with default values need `[default = ...]` in their `@generated from protobuf field:` interface comments. The oneof comment generation was missing the `defaultAnnotation` that regular field comments already had. Added `oneofDefaultAnnotation` using the same `formatDefaultValueAnnotation` helper.
 - The `__HAS_TRAILING_BLANK__` marker must be handled in ALL comment generation paths. Oneof comments (~line 2177) and oneof field comments (~line 2222) were missing this handling, causing the marker to appear literally in output. The pattern is: strip the marker, then emit two `*` lines instead of one before the `@generated` tag.
 - Enum trailing comments (TrailingComments on the enum path, e.g. `[5,0]`) need to be included in the enum's JSDoc comment. Added `getEnumTrailingComments` method that preserves trailing blank info (unlike regular `getTrailingComments` which strips it). Enum value leading comments also need `__HAS_TRAILING_BLANK__` handling.
+- Service and method comments in `generateServiceClient` (client file) had 4 locations that unconditionally output one ` *` after comment lines but need two when `hasTrailingBlank` is true. Same pattern as everywhere else.

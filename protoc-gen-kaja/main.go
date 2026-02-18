@@ -2211,6 +2211,26 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	oneofPath := append(append([]int32{}, msgPath...), 8, oneofIndex)
 	oneofLeadingComments := g.getLeadingComments(oneofPath)
 	
+	// Add leading detached comments (as // style before JSDoc)
+	detachedComments := g.getLeadingDetachedComments(oneofPath)
+	if len(detachedComments) > 0 {
+		for idx, detached := range detachedComments {
+			detached = strings.TrimRight(detached, "\n")
+			for _, line := range strings.Split(detached, "\n") {
+				line = strings.TrimRight(line, " \t")
+				if line == "" {
+					g.p("//")
+				} else {
+					g.p("// %s", line)
+				}
+			}
+			if idx < len(detachedComments)-1 {
+				g.p("//")
+			}
+		}
+		g.pNoIndent("")
+	}
+	
 	// Generate oneof JSDoc
 	g.p("/**")
 	
