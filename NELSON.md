@@ -150,6 +150,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `101_service_detached_comment` — service with a detached comment (separated from leading comment by blank line).
 - **Root cause:** Two affected code paths: (1) interface generation at line ~4878 only calls `getLeadingComments` but not `getLeadingDetachedComments`, (2) class generation at line ~4990 same issue. Compare with message generation at line ~1813 which properly handles detached comments.
 
+### Run 21 — Oneof declaration name oneofKind collision not escaped (SUCCESS)
+- **Bug found:** Oneof name escaping in main.go only checks `__proto__` and `toString` at all 5 locations (lines 1943, 2885, 3225, 3346, 3569), but NEVER checks `oneofKind`. A `oneof oneof_kind { ... }` declaration camelCases to `oneofKind`, which collides with the `oneofKindDiscriminator`. The TS plugin uses `createTypescriptNameForField` which escapes it to `oneofKind$`. The Go plugin leaves it as `oneofKind`.
+- **Test:** `102_oneof_name_escape` — message with a `oneof oneof_kind { string text; int32 number; }`.
+- **Root cause:** Same bug as run 19 but for the **oneof name** rather than a field name. All 5 escape checks for oneof names miss the `oneofKind` discriminator collision.
+- **Affects:** interface property name (`oneofKind$:` vs `oneofKind:`), field descriptor `oneof:` value, create() default, internalBinaryRead discriminator, internalBinaryWrite discriminator.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
