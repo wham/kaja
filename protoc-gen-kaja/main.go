@@ -2235,7 +2235,16 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 				oneofJsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
 			}
 		}
-		g.p(" * @generated from protobuf field: %s %s = %d%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofJsonNameAnnotation)
+		// Check if field is deprecated
+		fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
+		oneofDeprecatedAnnotation := ""
+		if fieldIsDeprecated {
+			oneofDeprecatedAnnotation = " [deprecated = true]"
+		}
+		if fieldIsDeprecated || g.isFileDeprecated() {
+			g.p(" * @deprecated")
+		}
+		g.p(" * @generated from protobuf field: %s %s = %d%s%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofJsonNameAnnotation, oneofDeprecatedAnnotation)
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
 		g.p("%s: %s;", fieldJsonName, fieldType)
