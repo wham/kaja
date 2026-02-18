@@ -78,7 +78,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 111_client_streaming_first_unary_import: When method 0 is streaming and later methods are unary, UnaryCall import must appear before stackIntercept (matching protobuf-ts prepend order)
 - [x] All 115/115 tests passing
 - [x] Fix test 112_string_default_with_quotes: String/bytes default values use `strings.Replace(val, `"`, `\"`, 1)` (first match only) to match protobuf-ts's `String.replace` behavior. Removed unused `escapeForTypeScriptStringLiteral` function.
-- [x] All 116/116 tests passing — DONE
+- [x] All 116/116 tests passing
+- [x] Fix test 113_jstype_normal: Added `jstype = JS_NORMAL` support — explicit JS_NORMAL on 64-bit integer fields overrides `long_type_string` parameter to use `bigint` type, `0n` default, `.toBigInt()` reader, `L: 0 /*LongType.BIGINT*/` descriptor param, and `[jstype = JS_NORMAL]` annotation
+- [x] All 117/117 tests passing
+- [x] Fix test 114_optimize_code_size: Added `optimize_for = CODE_SIZE` support — skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial)
+- [x] All 118/118 tests passing — DONE
 
 ## Notes
 
@@ -115,3 +119,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service and method trailing comments in client file (`generateServiceClient`) need to be included in all 4 JSDoc locations: service interface, service class, method interface, method class. Uses same `getEnumTrailingComments` pattern with `__HAS_TRAILING_BLANK__` handling. Service uses `g.pNoIndent`, methods use `g.p`.
 - Client file import ordering for UnaryCall depends on whether method 0 of the first service is streaming. In protobuf-ts, imports are prepended (each new import goes to top), so the last-registered import appears first. When method 0 is streaming, UnaryCall (from a later unary method) gets prepended after all of method 0's imports, placing it ABOVE stackIntercept. When method 0 is unary, UnaryCall is registered early (during method 0) and ends up below stackIntercept. The Go code emits in forward order, so it must check `method0IsStreaming` to decide where UnaryCall goes.
 - String/bytes default value annotation: protobuf-ts uses JavaScript `String.replace('"', '\\"')` which only replaces the FIRST double-quote occurrence. Our Go code must use `strings.Replace(val, `"`, `\"`, 1)` (count=1) to match this behavior. Do NOT escape all quotes.
+- `jstype = JS_NORMAL` on 64-bit integer fields (int64, uint64, sint64, fixed64, sfixed64) overrides the `long_type_string` parameter. Effects: TS type becomes `bigint`, default value is `0n`, reader uses `.toBigInt()`, field descriptor gets `L: 0 /*LongType.BIGINT*/`, and annotation shows `[jstype = JS_NORMAL]`. Helper functions `isJsTypeNormal()` and `is64BitIntType()` were added. All 10 reader method locations (5 types × 2 functions: `getReaderMethod` + `getReaderMethodSimple`) need the JS_NORMAL check alongside the existing JS_NUMBER check.
+- `optimize_for = CODE_SIZE` (file option): When set, `generateMessageTypeClass` skips `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods, and the Phase 2 standard runtime imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial) are omitted. Only `MessageType` import remains. The `isOptimizeCodeSize()` helper checks `file.Options.OptimizeFor == CODE_SIZE`.
