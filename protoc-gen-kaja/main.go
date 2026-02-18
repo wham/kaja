@@ -4691,6 +4691,22 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		// Append any remaining deferred inputs
 		nonStreamingTypes = append(nonStreamingTypes, deferredInputs...)
 		
+		// Determine method 0's call type (if streaming) so we don't duplicate it
+		// (section 5 below already emits method 0's streaming call type)
+		method0CallType := ""
+		if len(service.Method) > 0 {
+			m0 := service.Method[0]
+			if m0.GetClientStreaming() || m0.GetServerStreaming() {
+				if m0.GetClientStreaming() && m0.GetServerStreaming() {
+					method0CallType = "duplex"
+				} else if m0.GetServerStreaming() {
+					method0CallType = "server"
+				} else {
+					method0CallType = "client"
+				}
+			}
+		}
+
 		if shouldInterleave {
 			// Interleave: emit streaming methods with their call types interleaved
 			for _, sm := range streamingMethods {
@@ -4699,18 +4715,20 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
 				}
 				
-				// Emit call type for this method
-				var callTypeImport string
-				switch sm.callType {
-				case "duplex":
-					callTypeImport = "DuplexStreamingCall"
-				case "client":
-					callTypeImport = "ClientStreamingCall"
-				case "server":
-					callTypeImport = "ServerStreamingCall"
-				}
-				if callTypeImport != "" {
-					g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+				// Emit call type for this method (skip if same as method 0's, which is emitted later)
+				if sm.callType != method0CallType {
+					var callTypeImport string
+					switch sm.callType {
+					case "duplex":
+						callTypeImport = "DuplexStreamingCall"
+					case "client":
+						callTypeImport = "ClientStreamingCall"
+					case "server":
+						callTypeImport = "ServerStreamingCall"
+					}
+					if callTypeImport != "" {
+						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+					}
 				}
 			}
 			
@@ -4725,11 +4743,14 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
 			}
 			
-			// Emit all streaming call types together
+			// Emit all streaming call types together (skip method 0's call type)
 			needDuplex := false
 			needClient := false
 			needServer := false
 			for _, sm := range streamingMethods {
+				if sm.callType == method0CallType {
+					continue
+				}
 				switch sm.callType {
 				case "duplex":
 					needDuplex = true
