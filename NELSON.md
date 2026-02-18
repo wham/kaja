@@ -638,3 +638,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Multiple fields colliding on same property name with different types (e.g., `int32 x123y = 1; string x_123_y = 3`) — may expose additional dedup bugs in `internalBinaryWrite` or other contexts.
 - `toCamelCase` collisions with `bool` and `bytes` fields — default value dedup.
 - Map with message value from different package + regular field from same package — import ordering bug variant.
+
+### Run 76 — No-package enum option value falls back to numeric (SUCCESS)
+- **Bug found:** `resolveEnumValueName()` in main.go constructs FQN as `"." + f.GetPackage() + "." + enum.GetName()`. When a file has NO package, `f.GetPackage()` returns `""`, producing `"..Visibility"` (double dot). But protoc's `ext.GetTypeName()` returns `.Visibility` (single dot). The FQN mismatch causes the lookup to fail, falling back to the numeric value string (e.g., `"2"` instead of `"VISIBILITY_INTERNAL"`).
+- **Test:** `157_no_package_enum_option` — no-package file with an enum `Visibility`, a custom `MessageOptions` extension of that enum type, and a message using `option (visibility) = VISIBILITY_INTERNAL`.
+- **Root cause:** Line 387 in `resolveEnumValueName`: `fqn := "." + f.GetPackage() + "." + enum.GetName()`. When package is empty: `"." + "" + "." + "Visibility"` = `"..Visibility"` but protoc gives `.Visibility`. Same bug at line 407 in `findEnumInMessage`.
+- **Affects:** All custom enum-typed options in no-package proto files. The TS plugin outputs enum value names (via `toJson`), Go plugin outputs numeric string values.
