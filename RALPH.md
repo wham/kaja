@@ -103,7 +103,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 127_custom_enum_type_option: Added TYPE_ENUM handling to parseCustomOptions — reads varint value, resolves to enum value name via resolveEnumValueName helper that searches all files (including nested enums in messages)
 - [x] All 132/132 tests passing
 - [x] Fix test 128_custom_float_option: Added TYPE_FLOAT and TYPE_DOUBLE handling to parseCustomOptions — decode Fixed32/Fixed64 wire values using math.Float32frombits/Float64frombits and store as float64. Added float64 case to formatCustomOptions using strconv.FormatFloat.
-- [x] All 133/133 tests passing — DONE
+- [x] Fix test 129_custom_sint_option: Added TYPE_SINT32/SINT64 (zigzag-decoded), TYPE_SFIXED32/SFIXED64 (fixed-width signed), and TYPE_FIXED32/FIXED64 (fixed-width unsigned) handling to parseCustomOptions
+- [x] All 134/134 tests passing — DONE
 
 ## Notes
 
@@ -152,4 +153,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service-only file import ordering: simple array reversal breaks per-method pair ordering (output above input). Must collect types as per-method pairs, reverse the pairs (so later methods appear first), then flatten. Files with messages don't reverse at all — they keep the forward collection order (output, input per method).
 - Custom option key quoting: protobuf-ts only quotes custom option keys that contain dots (package-qualified names like `"test.resource_name": "users"`). Simple names without dots are unquoted (`column_name: "q"`). The `formatCustomOptions` function was unconditionally quoting all keys with `fmt.Sprintf("\"%s\": ...")`. Fixed by checking `strings.Contains(opt.key, ".")` before deciding whether to quote.
 - Custom enum-typed options: When a custom option field has `TYPE_ENUM`, the varint wire value must be resolved to the enum value's name string (e.g., `2` → `"VISIBILITY_INTERNAL"`). Added `resolveEnumValueName` helper that searches all files' top-level and nested enums by fully-qualified type name. The string name is stored as the option value, so `formatCustomOptions` outputs it as a quoted string.
-- Custom float/double options: TYPE_FLOAT and TYPE_DOUBLE extension fields use Fixed32/Fixed64 wire encoding. Decode with `math.Float32frombits(v)` / `math.Float64frombits(v)`, cast to `float64`, and format with `strconv.FormatFloat(val, 'f', -1, 64)` for clean decimal output (e.g., `0.75`, `99.5`).
+- Custom sint/sfixed/fixed options: TYPE_SINT32/SINT64 use zigzag encoding — decode with `protowire.DecodeZigZag(v)`. TYPE_SFIXED32/SFIXED64 use Fixed32/Fixed64 wire format with signed interpretation (cast through int32/int64). TYPE_FIXED32/FIXED64 use Fixed32/Fixed64 wire format with unsigned interpretation. All store as `int` value in customOption.

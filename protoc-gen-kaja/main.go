@@ -500,6 +500,14 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			v, n := protowire.ConsumeFixed64(unknown)
 			result = append(result, customOption{key: extName, value: math.Float64frombits(v)})
 			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
+			v, n := protowire.ConsumeBytes(unknown)
+			msgDesc := g.findMessageType(ext.GetTypeName())
+			if msgDesc != nil {
+				nested := g.parseMessageValue(v, msgDesc)
+				result = append(result, customOption{key: extName, value: nested})
+			}
+			unknown = unknown[n:]
 		default:
 			switch typ {
 			case protowire.VarintType:
@@ -518,6 +526,115 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 	
 	if len(result) == 0 {
 		return nil
+	}
+	return result
+}
+
+// parseMessageValue decodes a message's wire bytes into an ordered list of field name→value pairs
+func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.DescriptorProto) []customOption {
+	// Build field number → field descriptor map
+	fieldMap := make(map[int32]*descriptorpb.FieldDescriptorProto)
+	for _, f := range msgDesc.Field {
+		fieldMap[f.GetNumber()] = f
+	}
+	
+	var result []customOption
+	for len(data) > 0 {
+		num, typ, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			break
+		}
+		data = data[n:]
+		
+		fd, found := fieldMap[int32(num)]
+		if !found {
+			// Skip unknown field
+			switch typ {
+			case protowire.VarintType:
+				_, n = protowire.ConsumeVarint(data)
+			case protowire.Fixed64Type:
+				n = 8
+			case protowire.BytesType:
+				_, n = protowire.ConsumeBytes(data)
+			case protowire.Fixed32Type:
+				n = 4
+			}
+			data = data[n:]
+			continue
+		}
+		
+		fieldName := fd.GetName()
+		switch fd.GetType() {
+		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+			v, n := protowire.ConsumeBytes(data)
+			result = append(result, customOption{key: fieldName, value: string(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: v != 0})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+			v, n := protowire.ConsumeVarint(data)
+			enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+			result = append(result, customOption{key: fieldName, value: enumName})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: int(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		     descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+			v, n := protowire.ConsumeVarint(data)
+			result = append(result, customOption{key: fieldName, value: int(protowire.DecodeZigZag(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+			v, n := protowire.ConsumeFixed32(data)
+			result = append(result, customOption{key: fieldName, value: int(int32(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+			v, n := protowire.ConsumeFixed64(data)
+			result = append(result, customOption{key: fieldName, value: int(int64(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FIXED32:
+			v, n := protowire.ConsumeFixed32(data)
+			result = append(result, customOption{key: fieldName, value: int(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FIXED64:
+			v, n := protowire.ConsumeFixed64(data)
+			result = append(result, customOption{key: fieldName, value: int(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+			v, n := protowire.ConsumeFixed32(data)
+			result = append(result, customOption{key: fieldName, value: float64(math.Float32frombits(v))})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+			v, n := protowire.ConsumeFixed64(data)
+			result = append(result, customOption{key: fieldName, value: math.Float64frombits(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
+			v, n := protowire.ConsumeBytes(data)
+			nestedMsg := g.findMessageType(fd.GetTypeName())
+			if nestedMsg != nil {
+				nested := g.parseMessageValue(v, nestedMsg)
+				result = append(result, customOption{key: fieldName, value: nested})
+			}
+			data = data[n:]
+		default:
+			switch typ {
+			case protowire.VarintType:
+				_, n = protowire.ConsumeVarint(data)
+			case protowire.Fixed64Type:
+				n = 8
+			case protowire.BytesType:
+				_, n = protowire.ConsumeBytes(data)
+			case protowire.Fixed32Type:
+				n = 4
+			}
+			data = data[n:]
+		}
 	}
 	return result
 }
@@ -573,6 +690,8 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = fmt.Sprintf("%d", val)
 		case float64:
 			valueStr = strconv.FormatFloat(val, 'f', -1, 64)
+		case []customOption:
+			valueStr = formatCustomOptions(val)
 		default:
 			valueStr = fmt.Sprintf("%v", val)
 		}
