@@ -213,6 +213,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Compare with `generateMessageInterface()` at line 1847 which correctly calls `getEnumTrailingComments(msgPath)`.
 - **Affects:** Both interface and class JSDoc for services, and both interface and class method JSDoc.
 
+### Run 30 — Client file UnaryCall import position wrong when first method is streaming (SUCCESS)
+- **Bug found:** `generateClientFile()` in main.go always emits `UnaryCall` import at the very end of the import block (line ~4769), after all streaming call types and method type imports. But the TS plugin emits it BEFORE `stackIntercept` (right after the service constant import) when the first method is streaming. The TS plugin processes imports in declaration order, so `UnaryCall` (referenced by a subsequent unary method) appears earlier in the import list.
+- **Test:** `111_client_streaming_first_unary_import` — service where first method is `rpc Watch(Request) returns (stream Response)` and second method is `rpc DoSomething(Request) returns (Response)`.
+- **Root cause:** Lines 4766-4769 emit `UnaryCall` unconditionally at the end of all imports, but should emit it before `stackIntercept` when the first method is streaming. The TS plugin's import emission is driven by code generation order — as it generates method signatures, it imports types as needed. The Go plugin groups imports in a fixed order that doesn't account for the first-method-streaming case.
+- **Correct order (TS):** RpcTransport → ServiceInfo → ServiceConst → **UnaryCall** → stackIntercept → Res → Req → ServerStreamingCall → RpcOptions
+- **Wrong order (Go):** RpcTransport → ServiceInfo → ServiceConst → stackIntercept → Res → Req → ServerStreamingCall → **UnaryCall** → RpcOptions
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -243,3 +250,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service trailing comments — `addCommentsForDescriptor` uses `'appendToLeadingBlock'` for services and methods too. Go plugin may be missing trailing comments on service declarations (similar to the message trailing comment bug).
 - Message trailing comment on nested messages — same bug likely applies since `generateMessageInterface` is called recursively for nested messages.
 - Message trailing comment with `__HAS_TRAILING_BLANK__` — the enum handler `getEnumTrailingComments` preserves trailing blank info; the message handler would need the same treatment.
+- Client file import ordering — CONFIRMED BUG in run 30 for streaming-first+unary case. More import ordering bugs likely exist:
+  - Multiple services in a single file — import dedup across services.
+  - Client streaming first method — similar ordering issue to server streaming.
+  - Bidirectional streaming first method — UnaryCall position likely also wrong.
+  - Service with ONLY streaming methods (no unary) — UnaryCall should not be imported at all (verify).
+  - Service with types from different files — cross-file import ordering.
+  - Two services where second service introduces new types — import position relative to first service's types.
