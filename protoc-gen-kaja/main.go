@@ -5003,11 +5003,9 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 		prefixBuilder.WriteRune(r)
 	}
 	
-	// Convert to uppercase and add trailing underscore
-	enumPrefix := strings.ToUpper(prefixBuilder.String())
-	if !strings.HasSuffix(enumPrefix, "_") {
-		enumPrefix += "_"
-	}
+	// Convert to uppercase and always add trailing underscore
+	// (protobuf-ts unconditionally appends '_' after the UPPER_SNAKE_CASE conversion)
+	enumPrefix := strings.ToUpper(prefixBuilder.String()) + "_"
 	
 	// Check if all enum values start with this prefix
 	allHavePrefix := true
