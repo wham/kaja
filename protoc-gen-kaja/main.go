@@ -260,9 +260,19 @@ type generator struct {
 }
 
 func (g *generator) p(format string, args ...interface{}) {
-	g.b.WriteString(g.indent)
-	fmt.Fprintf(&g.b, format, args...)
-	g.b.WriteString("\n")
+	line := fmt.Sprintf(format, args...)
+	if strings.Contains(line, "\n") {
+		parts := strings.Split(line, "\n")
+		for _, part := range parts {
+			g.b.WriteString(g.indent)
+			g.b.WriteString(part)
+			g.b.WriteString("\n")
+		}
+	} else {
+		g.b.WriteString(g.indent)
+		g.b.WriteString(line)
+		g.b.WriteString("\n")
+	}
 }
 
 func (g *generator) pNoIndent(format string, args ...interface{}) {
@@ -3695,6 +3705,8 @@ func (g *generator) formatDefaultValueAnnotation(field *descriptorpb.FieldDescri
 		descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		// Match protobuf-ts: only escape the first double-quote (JS String.replace replaces first match only)
 		escaped := strings.Replace(defaultVal, `"`, `\"`, 1)
+		// TypeScript printer normalizes \r to \n
+		escaped = strings.ReplaceAll(escaped, "\r", "\n")
 		return fmt.Sprintf("\"%s\"", escaped)
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 		// Enum defaults show the enum value name (not the number)
