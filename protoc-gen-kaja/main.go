@@ -2226,7 +2226,16 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 			}
 			g.p(" *")
 		}
-		g.p(" * @generated from protobuf field: %s %s = %d", g.getProtoType(field), field.GetName(), field.GetNumber())
+		// Check if we need to show json_name (only for explicitly set, not auto-generated)
+		oneofJsonNameAnnotation := ""
+		if field.JsonName != nil {
+			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
+			actualJsonName := *field.JsonName
+			if protocDefaultJsonName != actualJsonName {
+				oneofJsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
+			}
+		}
+		g.p(" * @generated from protobuf field: %s %s = %d%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofJsonNameAnnotation)
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
 		g.p("%s: %s;", fieldJsonName, fieldType)
@@ -2883,10 +2892,10 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/%s }%s",
 			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, longTypeParam, comma)
 	} else if kind == "scalar" && oneofName != "" {
-		// Scalar oneof field - oneof comes BEFORE T
+		// Scalar oneof field - jsonName comes BEFORE oneof, oneof comes BEFORE T
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s, T: %s /*ScalarType.%s*/%s }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, extraFields, t, typeName, longTypeParam, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, extraFields, t, typeName, longTypeParam, comma)
 	} else {
 		// Message, enum, or map field
 		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s%s }%s",

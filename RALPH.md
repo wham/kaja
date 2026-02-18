@@ -36,7 +36,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 84_map_message_value_fixed_keys: Message-value map write path now uses getMapKeyWriter for proper wire types/methods instead of hardcoding Varint/int32
 - [x] All 88/88 tests passing
 - [x] Fix test 85_proto2_required_message: Required message fields in proto2 should still generate optional TS properties (`?:`)
-- [x] All 89/89 tests passing — DONE
+- [x] Fix test 86_proto2_oneof: Proto2 oneof member fields should not show `optional` label in comments
+- [x] All 90/90 tests passing
+- [x] Fix test 87_oneof_json_name: Added json_name annotation to oneof field comments and jsonName property to scalar oneof field info entries
+- [x] All 91/91 tests passing — DONE
 
 ## Notes
 
@@ -48,3 +51,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - The `getMapKeyWriter` function had the same problem — it grouped fixed types with their non-fixed counterparts (e.g. SFIXED32 with INT32), using WireType.Varint instead of WireType.Bit32. Simplified it the same way to delegate to getWireType+getWriterMethodName.
 - The message-value map write path (line ~3456) had its own hardcoded key writer (Varint/int32 for all numeric keys) instead of reusing `getMapKeyWriter`. Fixed to use the same keyVar/valueAccessor logic as the scalar path, plus `getMapKeyWriter` for proper wire types.
 - Proto2 `required` message fields must still generate optional TS interface properties (`?:`) because messages have no zero value. The fix adds a check: when `LABEL_REQUIRED` and `TYPE_MESSAGE`, set `optional = "?"`.
+- Proto2 oneof member fields have `LABEL_OPTIONAL` but should NOT show `optional` in generated comments. The fix checks `field.OneofIndex == nil` before adding the `optional` prefix in `getProtoType`.
+- Oneof scalar fields with custom `json_name` need it in two places: (1) the interface field comment `[json_name = "..."]` and (2) the field info entry `jsonName: "..."` inserted between `localName` and `oneof` properties. The `internalBinaryRead`/`Write` comment paths already handled it.
