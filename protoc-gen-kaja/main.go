@@ -261,13 +261,30 @@ type generator struct {
 
 func (g *generator) p(format string, args ...interface{}) {
 	line := fmt.Sprintf(format, args...)
-	if strings.Contains(line, "\n") {
-		parts := strings.Split(line, "\n")
-		for _, part := range parts {
-			g.b.WriteString(g.indent)
-			g.b.WriteString(part)
-			g.b.WriteString("\n")
+	hasLF := strings.Contains(line, "\n")
+	hasCR := strings.Contains(line, "\r")
+	if hasLF || hasCR {
+		isJSDoc := strings.HasPrefix(line, " * ")
+		// Process character by character to distinguish \n (JSDoc continuation)
+		// from \r (raw line break without JSDoc prefix, matching TS printer behavior)
+		var current strings.Builder
+		g.b.WriteString(g.indent)
+		for i := 0; i < len(line); i++ {
+			ch := line[i]
+			if ch == '\n' || ch == '\r' {
+				g.b.WriteString(current.String())
+				g.b.WriteString("\n")
+				current.Reset()
+				g.b.WriteString(g.indent)
+				if ch == '\n' && isJSDoc {
+					g.b.WriteString(" * ")
+				}
+			} else {
+				current.WriteByte(ch)
+			}
 		}
+		g.b.WriteString(current.String())
+		g.b.WriteString("\n")
 	} else {
 		g.b.WriteString(g.indent)
 		g.b.WriteString(line)
@@ -3705,8 +3722,6 @@ func (g *generator) formatDefaultValueAnnotation(field *descriptorpb.FieldDescri
 		descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		// Match protobuf-ts: only escape the first double-quote (JS String.replace replaces first match only)
 		escaped := strings.Replace(defaultVal, `"`, `\"`, 1)
-		// TypeScript printer normalizes \r to \n
-		escaped = strings.ReplaceAll(escaped, "\r", "\n")
 		return fmt.Sprintf("\"%s\"", escaped)
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 		// Enum defaults show the enum value name (not the number)
