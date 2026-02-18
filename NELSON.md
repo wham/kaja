@@ -41,6 +41,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `83_map_fixed_key_types` — map fields with fixed32/fixed64/sfixed32/sfixed64 keys.
 - **Root cause:** Go function `getMapKeyWriter` at ~line 3947 has incorrect switch groupings.
 
+### Run 3 — Map message-value with fixed keys writer bug (SUCCESS)
+- **Bug found:** When map has **message values** + numeric keys, the Go plugin hardcodes `tag(1, WireType.Varint).int32(parseInt(k))` for ALL numeric key types (line 3461). The scalar-value branch correctly uses `getMapKeyWriter()`, but the message-value branch bypasses it entirely.
+- **Test:** `84_map_message_value_fixed_keys` — map<fixed32/fixed64/sfixed32/sfixed64, Inner> with message values.
+- **Root cause:** Line 3461 in `internalBinaryWrite` message-value branch hardcodes Varint+int32 instead of using `getMapKeyWriter`.
+- **Also broken:** `k as any` vs `k` accessor, and `parseInt(k)` vs `BigInt(k)` for 64-bit keys.
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
@@ -49,5 +55,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested type collision suffix handling in imports.
 - `deprecated` option on oneof fields.
 - Large field numbers (> 2^28) in binary read comments.
-- `getMapValueWriter` — check if fixed-width value types also have wrong wire types (similar to key bug).
+- Map message-value branch also hardcodes `int32(parseInt(k))` for uint32/sint32/int64/uint64/sint64 keys — those would also differ.
 - Check `internalBinaryRead` for map entries with fixed-width keys — does reader use correct methods?
+- Map with boolean key + message value — does the Go plugin handle `k as any` correctly?
