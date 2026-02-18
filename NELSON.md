@@ -622,6 +622,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `155_map_value_import_order` — `map<string, google.protobuf.Value>` at field 1, `google.protobuf.Struct` at field 2. Expected: `Value` import before `Struct`. Got: `Struct` before `Value`.
 - **Root cause:** In `scanMessage()` at line ~1500, fields are processed first (adding map entry type to messageFieldTypes), then `for _, nested := range msg.NestedType` processes nested types including the synthetic `ValuesEntry` message whose `value` field has type `Value`. So `Value` is appended after `Struct` in messageFieldTypes. After the list is reversed (line ~1542), `Value` ends up before `Struct` — but in the wrong direction (Go has `Struct, Value` in final output, TS has `Value, Struct`).
 
+### Run 75 — No-package import missing (SUCCESS)
+- **Bug found:** `generateImport()` in main.go fails to emit `import { Shared } from "./types"` when both the current file and the dependency file have NO `package` declaration. Types from packageless proto files are never matched to their source dependency.
+- **Test:** `156_no_package_import` — `types.proto` (no package) defines `Shared`, `test.proto` (no package) imports and uses `Shared`.
+- **Root cause:** Line ~1692 in `generateImport`: `if strings.HasPrefix(typeNameStripped, depPkg+".")`. When `depPkg` is `""` (no package), `depPkg+"."` is `"."`. The `typeNameStripped` for `Shared` is `"Shared"` (after `TrimPrefix(typeName, ".")`). `HasPrefix("Shared", ".")` is false → the type never matches any dependency file → no import emitted.
+- **Affects:** Any cross-file type reference where both files have no package declaration. The import statement is silently dropped, causing a ReferenceError at runtime. All type usages (interface property, field descriptor `T:`, `internalBinaryRead`, `internalBinaryWrite`) reference the missing import.
+
 ### Ideas for future runs
 - Same collision but with enum types (two packages defining same-named enum).
 - Three-way collision: local type + two imports with same simple name — TS uses `Item$`, `Item$1`?
