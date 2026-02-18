@@ -4994,18 +4994,23 @@ func (g *generator) detectEnumPrefix(enum *descriptorpb.EnumDescriptorProto) str
 	// For example, "MyEnum" => "MY_ENUM_", "const_enum" => "CONST_ENUM_"
 	enumName := enum.GetName()
 	
-	// Insert underscores before uppercase letters (for camelCase names)
+	// Match protobuf-ts algorithm:
+	// 1. Prepend "_" before every uppercase letter
+	// 2. Strip leading "_" if present
+	// 3. Uppercase
+	// 4. Append "_"
 	var prefixBuilder strings.Builder
-	for i, r := range enumName {
-		if i > 0 && r >= 'A' && r <= 'Z' {
+	for _, r := range enumName {
+		if r >= 'A' && r <= 'Z' {
 			prefixBuilder.WriteRune('_')
 		}
 		prefixBuilder.WriteRune(r)
 	}
-	
-	// Convert to uppercase and always add trailing underscore
-	// (protobuf-ts unconditionally appends '_' after the UPPER_SNAKE_CASE conversion)
-	enumPrefix := strings.ToUpper(prefixBuilder.String()) + "_"
+	intermediate := prefixBuilder.String()
+	if len(intermediate) > 0 && intermediate[0] == '_' {
+		intermediate = intermediate[1:]
+	}
+	enumPrefix := strings.ToUpper(intermediate) + "_"
 	
 	// Check if all enum values start with this prefix
 	allHavePrefix := true
