@@ -45,7 +45,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 89_oneof_jstype: Added jstype annotation (`[jstype = JS_NUMBER]`/`[jstype = JS_STRING]`) to oneof member field `@generated` comments
 - [x] All 93/93 tests passing
 - [x] Fix test 90_map_underscore_message: Used `protoName` instead of `strings.ReplaceAll(fullName, "_", ".")` for map error messages, since message names can contain underscores
-- [x] All 94/94 tests passing — DONE
+- [x] Fix test 91_nested_oneof_comment: Pass msg descriptor and full msgPath to generateOneofField instead of just msgIndex, so nested message oneofs use correct source locations
+- [x] Fix test 92_proto2_oneof_default: Added default value annotation (`[default = ...]`) to oneof member field `@generated` interface comments
+- [x] All 96/96 tests passing
+- [x] Fix test 93_oneof_trailing_blank_comment: Added __HAS_TRAILING_BLANK__ marker handling to oneof and oneof-field comment generation, matching the pattern used elsewhere
+- [x] Fix test 94_enum_value_trailing_blank_comment: Added enum trailing comments support and __HAS_TRAILING_BLANK__ handling for enum value leading comments
+- [x] All 98/98 tests passing — DONE
 
 ## Notes
 
@@ -60,4 +65,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Proto2 oneof member fields have `LABEL_OPTIONAL` but should NOT show `optional` in generated comments. The fix checks `field.OneofIndex == nil` before adding the `optional` prefix in `getProtoType`.
 - Oneof scalar fields with custom `json_name` need it in two places: (1) the interface field comment `[json_name = "..."]` and (2) the field info entry `jsonName: "..."` inserted between `localName` and `oneof` properties. The `internalBinaryRead`/`Write` comment paths already handled it.
 - Deprecated oneof member fields need `@deprecated` JSDoc tag and `[deprecated = true]` in the `@generated` comment, same pattern as regular fields. The oneof interface generation (around line 2229) was missing this; added `fieldIsDeprecated` check and `oneofDeprecatedAnnotation` string.
+- For nested messages, `generateOneofField` must receive the actual message descriptor and full `msgPath` (e.g. `[4, 0, 3, 0]`), not just the last element of `msgPath`. Using `g.file.MessageType[msgIndex]` only works for top-level messages. The field path must be built as `msgPath + [2, fieldIndex]` and the oneof path as `msgPath + [8, oneofIndex]`.
 - The map binary read error string (`"unknown map entry field for ..."`) was using `strings.ReplaceAll(fullName, "_", ".")` to convert the TS name back to proto name. This breaks when message names themselves contain underscores (e.g., `My_Container`). Fixed to use `protoName` parameter directly, which already has the correct dot-separated nesting.
+- Oneof member fields with default values need `[default = ...]` in their `@generated from protobuf field:` interface comments. The oneof comment generation was missing the `defaultAnnotation` that regular field comments already had. Added `oneofDefaultAnnotation` using the same `formatDefaultValueAnnotation` helper.
+- The `__HAS_TRAILING_BLANK__` marker must be handled in ALL comment generation paths. Oneof comments (~line 2177) and oneof field comments (~line 2222) were missing this handling, causing the marker to appear literally in output. The pattern is: strip the marker, then emit two `*` lines instead of one before the `@generated` tag.
+- Enum trailing comments (TrailingComments on the enum path, e.g. `[5,0]`) need to be included in the enum's JSDoc comment. Added `getEnumTrailingComments` method that preserves trailing blank info (unlike regular `getTrailingComments` which strips it). Enum value leading comments also need `__HAS_TRAILING_BLANK__` handling.

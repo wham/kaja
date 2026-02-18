@@ -566,6 +566,47 @@ func (g *generator) getTrailingComments(path []int32) string {
 	return ""
 }
 
+// getEnumTrailingComments retrieves trailing comments for an enum, preserving trailing blank info
+func (g *generator) getEnumTrailingComments(path []int32) string {
+	if g.file.SourceCodeInfo == nil {
+		return ""
+	}
+	for _, loc := range g.file.SourceCodeInfo.Location {
+		if len(loc.Path) != len(path) {
+			continue
+		}
+		match := true
+		for i := range path {
+			if loc.Path[i] != path[i] {
+				match = false
+				break
+			}
+		}
+		if match && loc.TrailingComments != nil {
+			comment := *loc.TrailingComments
+			hasTrailingBlank := strings.HasSuffix(comment, "\n\n") || strings.HasSuffix(comment, "\n \n")
+			comment = strings.TrimRight(comment, " \t\n")
+			lines := strings.Split(comment, "\n")
+			for i, line := range lines {
+				line = strings.TrimRight(line, " \t")
+				if line == "" {
+					lines[i] = ""
+				} else if strings.HasPrefix(line, " ") {
+					lines[i] = line[1:]
+				} else {
+					lines[i] = line
+				}
+			}
+			result := strings.Join(lines, "\n")
+			if hasTrailingBlank {
+				result += "\n__HAS_TRAILING_BLANK__"
+			}
+			return result
+		}
+	}
+	return ""
+}
+
 // detectTypeNameCollisions scans all messages and enums to detect naming collisions
 // and assigns numeric suffixes ($1, $2, etc.) where needed
 func (g *generator) detectTypeNameCollisions() {
@@ -4122,9 +4163,11 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	
 	g.pNoIndent("/**")
 	
-	// Add leading comments if available
+	// Add leading and trailing comments if available
 	if len(enumPath) > 0 {
 		leadingComments := g.getLeadingComments(enumPath)
+		trailingComments := g.getEnumTrailingComments(enumPath)
+		
 		if leadingComments != "" {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
@@ -4139,16 +4182,38 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
-			// Add separator blank line(s) before @generated
+			// Add separator after leading comments
 			if hasTrailingBlank {
-				// Comment had trailing blank, add two separators
 				g.pNoIndent(" *")
 				g.pNoIndent(" *")
 			} else {
-				// Comment didn't have trailing blank, add one separator
 				g.pNoIndent(" *")
 			}
 		}
+		
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
+				}
+			}
+			// Add separator after trailing comments
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" *")
+			}
+		}
+		
 	}
 	
 	// Add @deprecated if enum has deprecated option OR file is deprecated
@@ -4219,6 +4284,10 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		
 		// Add leading comments if present
 		if leadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
 			for _, line := range strings.Split(leadingComments, "\n") {
 				if line == "" {
 					g.p(" *")
@@ -4226,7 +4295,12 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.p(" *")
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
 		}
 		
 		// Add trailing comments if present (before @generated line)

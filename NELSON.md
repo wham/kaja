@@ -94,7 +94,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `92_proto2_oneof_default` — proto2 oneof with string/int32/bool fields that have default values.
 - **Root cause:** Line ~2251 format string is `"%s %s = %d%s%s%s"` with only `oneofJsonNameAnnotation, oneofJstypeAnnotation, oneofDeprecatedAnnotation`. Missing `defaultAnnotation`. Same pattern as runs 7-9 — oneof JSDoc generation is a subset of regular field JSDoc.
 
+### Run 12 — Oneof trailing blank comment __HAS_TRAILING_BLANK__ leak (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go does NOT strip `__HAS_TRAILING_BLANK__` sentinel from `getLeadingComments()` return value. The marker appears literally in JSDoc output for both oneof declarations (line ~2177) and oneof member fields (line ~2213). Regular field handling at line ~2015 correctly strips it.
+- **Test:** `93_oneof_trailing_blank_comment` — oneof declaration and oneof member field with comments ending in blank line.
+- **Root cause:** `getLeadingComments()` appends `\n__HAS_TRAILING_BLANK__` (line 524) as a marker. Regular field JSDoc (line 2015-2017) strips it. But oneof declaration JSDoc (line 2177) and oneof field JSDoc (line 2213) iterate over comment lines without stripping the marker first.
+- **Two affected paths:** (1) oneof declaration leading comment, (2) oneof member field leading comment. Both emit `__HAS_TRAILING_BLANK__` as literal `* __HAS_TRAILING_BLANK__` in the JSDoc.
+
+### Run 13 — Enum declaration missing detached comments from first value (SUCCESS)
+- **Bug found:** `generateEnum()` in main.go does NOT include detached comments from the first enum value as part of the enum declaration JSDoc. In the TS plugin, leading comments before the first enum value (separated by a blank line from the value) are treated as "detached" comments and merged into the parent enum's JSDoc — shown after the enum-level comment and before `@generated`.
+- **Test:** `94_enum_value_trailing_blank_comment` — enum with comments before first value that have trailing blank lines (making them detached from the value).
+- **Root cause:** The Go plugin's `generateEnum()` only outputs the enum-level leading comment (from `enumPath`) but doesn't call `getLeadingDetachedComments()` for the first value and merge them into the enum JSDoc. The TS plugin does this merge.
+- **Additional difference:** The first enum value's leading comment in the expected output is empty (moved to enum-level), while in the Go plugin it would remain on the value.
+
 ### Ideas for future runs
+- Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — similar to run 12 but in enum value JSDoc (line ~4221 doesn't strip sentinel). Separate bug from run 13.
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
 - Proto file with only enums and no messages — import generation edge case.
@@ -105,4 +118,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
 - Deep nesting (3+ levels) with oneofs — would amplify the nested oneof path bug even more.
 - `internalBinaryRead` oneof case comment missing `[default = ...]` — same as this run but in the binary read method (line ~3205). Check if it's handled there.
+- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
+- Message-level detached comments from first field — similar to enum, the TS plugin may merge first field's detached comments into the message JSDoc.
 - `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
