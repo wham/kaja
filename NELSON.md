@@ -64,13 +64,19 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `87_oneof_json_name` — oneof with scalar fields that have custom json_name values.
 - **Root cause:** Line ~2887 in `generateFieldDescriptor()`: the scalar-oneof format string is `{ no: %d, name: "%s", kind: "%s"%s%s, T: %s ... }` where `%s%s` are `localNameField, extraFields` — missing `jsonNameField`. Compare to the non-oneof scalar branch which correctly includes `jsonNameField`.
 
+### Run 7 — Oneof deprecated annotation missing (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go (line ~2238) does NOT include `@deprecated` tag or `[deprecated = true]` annotation in the `@generated from protobuf field:` JSDoc for oneof member fields. The TS plugin includes both.
+- **Test:** `88_oneof_deprecated` — oneof with deprecated member fields.
+- **Root cause:** The oneof field JSDoc generation at line ~2238 only appends `oneofJsonNameAnnotation` to the `@generated` line. It never checks `field.Options.GetDeprecated()` and never emits `@deprecated`. Compare with regular field JSDoc at lines ~2093-2104 which handles both.
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
 - Proto file with only enums and no messages — import generation edge case.
 - Deeply nested type collision suffix handling in imports.
-- `deprecated` option on oneof fields.
 - Large field numbers (> 2^28) in binary read comments.
-- `jstype` on map fields — rejected by protoc, not a valid test vector.
 - Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
+- `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
+- Oneof field JSDoc also missing `[jstype = ...]` and `[packed = ...]` annotations (though packed doesn't apply to oneof).
+- Nested message oneof field path bug — `generateOneofField` uses `g.file.MessageType[msgIndex]` which is wrong for nested messages (would look at wrong message or panic).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
