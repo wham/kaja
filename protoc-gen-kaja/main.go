@@ -4846,6 +4846,29 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 				g.pNoIndent(" *")
 			}
 		}
+		
+		trailingComments := g.getEnumTrailingComments([]int32{6, int32(svcIndex)})
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
+				}
+			}
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" *")
+			}
+		}
 	}
 	
 	// Add @deprecated if service has deprecated option OR file is deprecated
@@ -4894,6 +4917,29 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			}
 			
 			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", escapeJSDocComment(line))
+				}
+			}
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
+		}
+		
+		trailingComments := g.getEnumTrailingComments(methodPath)
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
 			for _, line := range lines {
 				if line == "" {
 					g.p(" *")
@@ -4986,6 +5032,32 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
+	// Add service-level trailing comments if available
+	if svcIndex >= 0 {
+		trailingComments := g.getEnumTrailingComments([]int32{6, int32(svcIndex)})
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.pNoIndent(" *")
+				} else {
+					g.pNoIndent(" * %s", escapeJSDocComment(line))
+				}
+			}
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" *")
+			}
+		}
+	}
+	
 	// Add @deprecated if service has deprecated option OR file is deprecated
 	if (service.Options != nil && service.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
 		g.pNoIndent(" * @deprecated")
@@ -5037,6 +5109,29 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			}
 			
 			lines := strings.Split(leadingComments, "\n")
+			for _, line := range lines {
+				if line == "" {
+					g.p(" *")
+				} else {
+					g.p(" * %s", escapeJSDocComment(line))
+				}
+			}
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
+		}
+		
+		trailingComments := g.getEnumTrailingComments(methodPath)
+		if trailingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+			}
+			
+			lines := strings.Split(trailingComments, "\n")
 			for _, line := range lines {
 				if line == "" {
 					g.p(" *")
