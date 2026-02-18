@@ -452,3 +452,24 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Repeated custom option with int/bool/enum types — same bug but different value types.
 - Custom enum options on enum declarations — Go plugin has no `getCustomEnumOptions`. BUT TS plugin also doesn't output enum-level options, so no diff (VERIFIED).
 - Custom enum value options on enum values — Go plugin has no `getCustomEnumValueOptions`. BUT TS plugin also doesn't output enum-value options, so no diff (VERIFIED).
+
+### Run 55 — Custom option string backslash not escaped (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go at line 738 only escapes double quotes (`"` → `\"`) but NOT backslashes (`\` → `\\`). The TS plugin's `toJson()` properly JSON-serializes strings, escaping all special characters. A custom option like `option (desc) = "path\\to\\file"` produces the raw string `path\to\file` in the descriptor, which the Go plugin wraps as `"path\to\file"` (invalid JS — `\t` = tab, `\f` = form feed), while the TS plugin outputs `"path\\to\\file"`.
+- **Test:** `136_custom_option_string_backslash` — message with `option (description) = "path\\to\\file"`.
+- **Root cause:** Line 738 `strings.ReplaceAll(val, `"`, `\"`)` escapes only quotes. Should also escape backslashes FIRST (`\` → `\\`), then quotes. Same bug in `formatCustomOptionArray` at line 768.
+- **Affects:** All four custom option types (message, field, method, service) when a string extension value contains backslash characters. Produces invalid JavaScript string literals.
+- **Related:** Newlines (`\n`), tabs (`\t`), carriage returns (`\r`), null bytes (`\0`) and other control characters would also need escaping for valid JS strings. None of these are handled.
+
+### Run 56 — Custom option string newline not escaped (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go at line 738-740 escapes `\` and `"` but NOT newline characters (`\n`). When a custom option string contains a literal newline (e.g., `option (description) = "line1\nline2"`), the Go plugin outputs a raw newline in the JS string literal, producing `"line1\nline2"` (split across two lines — invalid JS). The TS plugin's `ts.createStringLiteral(value)` properly escapes newlines to `\\n` in the output.
+- **Test:** `137_custom_option_string_newline` — message with `option (description) = "line1\nline2"`.
+- **Root cause:** Line 738-740 in `formatCustomOptions`: only `strings.ReplaceAll` for `\` and `"`, never for `\n`, `\r`, `\t`, or other control characters. The TS plugin uses TypeScript AST's `createStringLiteral()` which handles all escaping. Same bug in `formatCustomOptionArray` at line 770-772.
+- **Affects:** All four custom option types (message, field, method, service) when a string extension value contains newline, tab, or other control characters. Produces invalid JavaScript string literals.
+
+### Ideas for future runs
+- Custom option string with tab — `\t` also unescaped, but less likely to cause visible diff since tab might render the same.
+- Custom option string in `formatCustomOptionArray` (repeated string with newline) — same bug at line 768.
+- Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (reverse of run 40).
+- Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` sentinel leak.
+- Deeply nested messages (5+ levels) — type name construction.
+- Proto2 group fields — field descriptor handling.

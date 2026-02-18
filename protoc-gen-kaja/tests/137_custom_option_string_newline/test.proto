@@ -1,0 +1,16 @@
+// Tests custom option string values containing newline characters.
+// The TS plugin properly escapes \n to \\n in generated JS string literals.
+// The Go plugin outputs literal newline characters, producing invalid JS.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  string description = 50001;
+}
+
+message Documented {
+  option (description) = "line1\nline2";
+  string name = 1;
+}
