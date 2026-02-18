@@ -226,6 +226,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `escapeForTypeScriptStringLiteral` at line ~3681-3684 handles `\"` by writing `\\"` (Go raw literal), but the actual output discards the first backslash, producing `"hello "world""`. The TS plugin outputs `"hello \"world""` — note only the FIRST escaped quote gets a backslash, the second doesn't (because JS `.replace()` without `/g` only replaces first match).
 - **Affects:** Three code paths: (1) interface JSDoc `@generated from protobuf field:`, (2) `internalBinaryRead` case comment, (3) `internalBinaryWrite` comment. All three show incorrect escaping.
 
+### Run 32 — JS_NORMAL jstype option completely ignored (SUCCESS)
+- **Bug found:** The Go plugin completely ignores `[jstype = JS_NORMAL]` on int64/uint64 fields. `JS_NORMAL = 0` is a valid explicit jstype option that means "use the normal representation" (bigint). Multiple code paths affected:
+  1. `formatFieldOptionsAnnotation()` at line ~3718: only checks `JS_STRING` and `JS_NUMBER`, skips `JS_NORMAL` → missing `[jstype = JS_NORMAL]` in JSDoc.
+  2. `generateFieldDescriptor()` at line ~2963: only adds `L: 2 /*LongType.NUMBER*/` for `JS_NUMBER`, never adds `L: 0 /*LongType.BIGINT*/` for `JS_NORMAL`.
+  3. `getBaseTypescriptType()` at line ~2678: only checks `JS_NUMBER` → returns `longType` (string) instead of `bigint`.
+  4. `getReaderMethod()`: only checks `JS_NUMBER` → uses `.toString()` instead of `.toBigInt()`.
+  5. `getDefaultValue()`: only checks `JS_NUMBER` → returns `"0"` instead of `0n`.
+  6. `getWriteCondition()`: derived from `getDefaultValue`, compares against `"0"` instead of `0n`.
+- **Test:** `113_jstype_normal` — int64 and uint64 fields with explicit `[jstype = JS_NORMAL]`.
+- **Root cause:** Every place that checks jstype options only handles `JS_NUMBER` (and sometimes `JS_STRING`), completely ignoring `JS_NORMAL` (enum value 0). Since `JS_NORMAL` is the "default" enum value, the developer likely assumed it wouldn't be explicitly set, but protobuf does preserve it in the descriptor when explicitly specified.
+
 ### Ideas for future runs
 - String default value with multiple escaped quotes — `.replace()` only escapes first, so `"a\"b\"c"` → `"a\"b"c""` in TS. Test with multiple quotes to expose even more difference.
 - Bytes default value with special escaping — `\x00`, `\377`, etc. — Go and TS may format the octal/hex escapes differently.
