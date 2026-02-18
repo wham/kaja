@@ -362,7 +362,57 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 	return extensionMap
 }
 
-// getCustomMethodOptions extracts custom extension values from method options
+// resolveEnumValueName looks up an enum value name by its fully-qualified type name and numeric value
+func (g *generator) resolveEnumValueName(typeName string, number int32) string {
+	for _, f := range g.allFiles {
+		for _, enum := range f.EnumType {
+			fqn := "." + f.GetPackage() + "." + enum.GetName()
+			if fqn == typeName {
+				for _, val := range enum.Value {
+					if val.GetNumber() == number {
+						return val.GetName()
+					}
+				}
+			}
+		}
+		// Also check nested enums inside messages
+		for _, msg := range f.MessageType {
+			if name := g.findEnumInMessage(f, msg, typeName, number); name != "" {
+				return name
+			}
+		}
+	}
+	return fmt.Sprintf("%d", number)
+}
+
+func (g *generator) findEnumInMessage(f *descriptorpb.FileDescriptorProto, msg *descriptorpb.DescriptorProto, typeName string, number int32) string {
+	prefix := "." + f.GetPackage() + "." + msg.GetName()
+	for _, enum := range msg.EnumType {
+		fqn := prefix + "." + enum.GetName()
+		if fqn == typeName {
+			for _, val := range enum.Value {
+				if val.GetNumber() == number {
+					return val.GetName()
+				}
+			}
+		}
+	}
+	for _, nested := range msg.NestedType {
+		nestedPrefix := prefix + "." + nested.GetName()
+		for _, enum := range nested.EnumType {
+			fqn := nestedPrefix + "." + enum.GetName()
+			if fqn == typeName {
+				for _, val := range enum.Value {
+					if val.GetNumber() == number {
+						return val.GetName()
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // parseCustomOptions extracts custom extension values from raw unknown fields
 func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]extInfo) []customOption {
 	var result []customOption
@@ -406,6 +456,11 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 		case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 			v, n := protowire.ConsumeVarint(unknown)
 			result = append(result, customOption{key: extName, value: v != 0})
+			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+			v, n := protowire.ConsumeVarint(unknown)
+			enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
+			result = append(result, customOption{key: extName, value: enumName})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32, 
 		     descriptorpb.FieldDescriptorProto_TYPE_INT64,
