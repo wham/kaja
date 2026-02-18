@@ -310,3 +310,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's `formatFieldOptionsAnnotation` (via `formatDefaultValueAnnotation`) produces a string with a literal newline. When this string is passed to `g.p()` for the `@generated` JSDoc line, the newline splits the output across two `g.p()` calls (or raw output lines). The first line gets `* ` prefix from JSDoc, but the continuation line gets only indentation. The TS plugin's TypeScript printer handles multi-line JSDoc strings by adding ` * ` continuation on each line.
 - **Only affects:** Interface JSDoc `@generated from protobuf field:` comments. The `internalBinaryRead` and `internalBinaryWrite` comments use `/* */` block comments where continuation doesn't need `* ` prefix — both plugins match there.
 - **Note:** The `\r` was fixed in run 35 by converting to `\n`, but the `\n` continuation format was never addressed.
+
+### Run 37 — Streaming-only service duplicate ServerStreamingCall import (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go emits duplicate `ServerStreamingCall` import in the client file when ALL methods are server-streaming (no unary methods). The grouped branch (line ~4728-4750) emits `ServerStreamingCall` for streaming methods N→1, then method 0's call type emission (line ~4811-4824) emits it AGAIN unconditionally.
+- **Test:** `118_streaming_only_service` — service with two server-streaming RPCs (`Watch` and `Follow`) using the same `Req`/`Res` types.
+- **Root cause:** Two independent code paths both emit the streaming call type import without deduplication:
+  1. Line ~4748-4749: The grouped branch checks `needServer` across all non-method-0 streaming methods and emits `ServerStreamingCall`.
+  2. Line ~4811-4824: Method 0's streaming call type is emitted unconditionally without checking if it was already emitted.
+- **Affects:** Any service where method 0 AND at least one other method are the same streaming type (server, client, or duplex). The import appears twice in the generated `.client.ts` file.
+- **Note:** Same bug applies to `DuplexStreamingCall` and `ClientStreamingCall` — all three streaming call types have the same dedup issue. Only tested with `ServerStreamingCall`.

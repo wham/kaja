@@ -1,0 +1,18 @@
+// Tests service with only server-streaming methods (no unary).
+// The Go plugin emits a duplicate ServerStreamingCall import
+// in the client file when all methods are server-streaming.
+syntax = "proto3";
+package test;
+
+message Req {
+    string query = 1;
+}
+
+message Res {
+    string data = 1;
+}
+
+service StreamService {
+    rpc Watch(Req) returns (stream Res);
+    rpc Follow(Req) returns (stream Res);
+}
