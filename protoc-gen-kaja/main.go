@@ -384,7 +384,12 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 func (g *generator) resolveEnumValueName(typeName string, number int32) string {
 	for _, f := range g.allFiles {
 		for _, enum := range f.EnumType {
-			fqn := "." + f.GetPackage() + "." + enum.GetName()
+			var fqn string
+			if f.GetPackage() == "" {
+				fqn = "." + enum.GetName()
+			} else {
+				fqn = "." + f.GetPackage() + "." + enum.GetName()
+			}
 			if fqn == typeName {
 				for _, val := range enum.Value {
 					if val.GetNumber() == number {
@@ -404,7 +409,12 @@ func (g *generator) resolveEnumValueName(typeName string, number int32) string {
 }
 
 func (g *generator) findEnumInMessage(f *descriptorpb.FileDescriptorProto, msg *descriptorpb.DescriptorProto, typeName string, number int32) string {
-	prefix := "." + f.GetPackage() + "." + msg.GetName()
+	var prefix string
+	if f.GetPackage() == "" {
+		prefix = "." + msg.GetName()
+	} else {
+		prefix = "." + f.GetPackage() + "." + msg.GetName()
+	}
 	for _, enum := range msg.EnumType {
 		fqn := prefix + "." + enum.GetName()
 		if fqn == typeName {
