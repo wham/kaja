@@ -527,7 +527,32 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 	if len(result) == 0 {
 		return nil
 	}
+	// Merge repeated fields with the same key into arrays
+	result = mergeRepeatedOptions(result)
 	return result
+}
+
+// mergeRepeatedOptions merges customOption entries with the same key into array values.
+// e.g. [{key:"tags", value:"alpha"}, {key:"tags", value:"beta"}] → [{key:"tags", value:["alpha","beta"]}]
+func mergeRepeatedOptions(opts []customOption) []customOption {
+	var merged []customOption
+	seen := make(map[string]int) // key → index in merged
+	for _, opt := range opts {
+		if idx, ok := seen[opt.key]; ok {
+			// Already seen this key — convert to or append to array
+			existing := merged[idx].value
+			switch arr := existing.(type) {
+			case []interface{}:
+				merged[idx].value = append(arr, opt.value)
+			default:
+				merged[idx].value = []interface{}{existing, opt.value}
+			}
+		} else {
+			seen[opt.key] = len(merged)
+			merged = append(merged, opt)
+		}
+	}
+	return merged
 }
 
 // parseMessageValue decodes a message's wire bytes into an ordered list of field name→value pairs
@@ -692,6 +717,8 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = strconv.FormatFloat(val, 'f', -1, 64)
 		case []customOption:
 			valueStr = formatCustomOptions(val)
+		case []interface{}:
+			valueStr = formatCustomOptionArray(val)
 		default:
 			valueStr = fmt.Sprintf("%v", val)
 		}
@@ -703,6 +730,28 @@ func formatCustomOptions(opts []customOption) string {
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// formatCustomOptionArray formats a []interface{} as a TypeScript array literal
+func formatCustomOptionArray(vals []interface{}) string {
+	var elems []string
+	for _, v := range vals {
+		switch val := v.(type) {
+		case string:
+			elems = append(elems, fmt.Sprintf("\"%s\"", val))
+		case bool:
+			elems = append(elems, fmt.Sprintf("%t", val))
+		case int:
+			elems = append(elems, fmt.Sprintf("%d", val))
+		case float64:
+			elems = append(elems, strconv.FormatFloat(val, 'f', -1, 64))
+		case []customOption:
+			elems = append(elems, formatCustomOptions(val))
+		default:
+			elems = append(elems, fmt.Sprintf("%v", v))
+		}
+	}
+	return "[" + strings.Join(elems, ", ") + "]"
 }
 
 // getLeadingDetachedComments retrieves leading detached comments for a given path in SourceCodeInfo

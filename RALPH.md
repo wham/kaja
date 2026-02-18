@@ -104,7 +104,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 132/132 tests passing
 - [x] Fix test 128_custom_float_option: Added TYPE_FLOAT and TYPE_DOUBLE handling to parseCustomOptions — decode Fixed32/Fixed64 wire values using math.Float32frombits/Float64frombits and store as float64. Added float64 case to formatCustomOptions using strconv.FormatFloat.
 - [x] Fix test 129_custom_sint_option: Added TYPE_SINT32/SINT64 (zigzag-decoded), TYPE_SFIXED32/SFIXED64 (fixed-width signed), and TYPE_FIXED32/FIXED64 (fixed-width unsigned) handling to parseCustomOptions
-- [x] All 134/134 tests passing — DONE
+- [x] Fix test 130_custom_message_type_option: Added TYPE_MESSAGE handling to parseCustomOptions — recursively decodes message wire bytes using findMessageType + new parseMessageValue helper, outputs nested object via formatCustomOptions recursion
+- [x] All 135/135 tests passing
+- [x] Fix test 131_repeated_custom_option: Repeated custom option extensions must be merged into arrays — added `mergeRepeatedOptions` post-processing in `parseCustomOptions` and `formatCustomOptionArray` for `[]interface{}` output
+- [x] All 136/136 tests passing — DONE
 
 ## Notes
 
@@ -154,3 +157,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom option key quoting: protobuf-ts only quotes custom option keys that contain dots (package-qualified names like `"test.resource_name": "users"`). Simple names without dots are unquoted (`column_name: "q"`). The `formatCustomOptions` function was unconditionally quoting all keys with `fmt.Sprintf("\"%s\": ...")`. Fixed by checking `strings.Contains(opt.key, ".")` before deciding whether to quote.
 - Custom enum-typed options: When a custom option field has `TYPE_ENUM`, the varint wire value must be resolved to the enum value's name string (e.g., `2` → `"VISIBILITY_INTERNAL"`). Added `resolveEnumValueName` helper that searches all files' top-level and nested enums by fully-qualified type name. The string name is stored as the option value, so `formatCustomOptions` outputs it as a quoted string.
 - Custom sint/sfixed/fixed options: TYPE_SINT32/SINT64 use zigzag encoding — decode with `protowire.DecodeZigZag(v)`. TYPE_SFIXED32/SFIXED64 use Fixed32/Fixed64 wire format with signed interpretation (cast through int32/int64). TYPE_FIXED32/FIXED64 use Fixed32/Fixed64 wire format with unsigned interpretation. All store as `int` value in customOption.
+- Custom message-typed options: When a custom option field has `TYPE_MESSAGE`, the LengthDelimited wire value must be recursively decoded into an ordered list of field name→value pairs. Added `parseMessageValue` helper that builds a `fieldNumber → FieldDescriptorProto` map from the message descriptor, then decodes each field using the same type-switching logic as `parseCustomOptions`. Returns `[]customOption` which is handled by `formatCustomOptions` via a new `[]customOption` type case that recursively calls `formatCustomOptions`. Message field names (unlike extension names) are simple names without dots, so they are always unquoted in the output.
+- Repeated custom options: When an extension field has `repeated` label, multiple wire values with the same field number must be merged into a single array value (e.g., `{ "test.tags": ["alpha", "beta"] }` not `{ "test.tags": "alpha", "test.tags": "beta" }`). Added `mergeRepeatedOptions` post-processing step in `parseCustomOptions` and `formatCustomOptionArray` helper for `[]interface{}` type in formatting.
