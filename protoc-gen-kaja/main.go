@@ -753,7 +753,7 @@ func formatCustomOptions(opts []customOption) string {
 		case int:
 			valueStr = fmt.Sprintf("%d", val)
 		case float64:
-			valueStr = strconv.FormatFloat(val, 'f', -1, 64)
+			valueStr = formatFloatJS(val)
 		case []customOption:
 			valueStr = formatCustomOptions(val)
 		case []interface{}:
@@ -769,6 +769,43 @@ func formatCustomOptions(opts []customOption) string {
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// formatFloatJS formats a float64 the way JavaScript's Number.prototype.toString() does:
+// scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise.
+func formatFloatJS(v float64) string {
+	if v == 0 {
+		return "0"
+	}
+	// JavaScript uses fixed-point for 1e-6 <= |v| < 1e21
+	abs := v
+	if abs < 0 {
+		abs = -abs
+	}
+	if abs < 1e-6 || abs >= 1e21 {
+		// Use Go 'e' format then adjust to JS style:
+		// Go: 1e-20 → "1e-20", 1.23e-15 → "1.23e-15" — these match JS
+		// But Go uses lowercase 'e' which JS also does, and Go omits '+' for negative exp.
+		// For positive exponent, JS uses 'e+', Go 'e' format also does.
+		s := strconv.FormatFloat(v, 'e', -1, 64)
+		// Go's 'e' format uses e+00 / e-00 with at least 2 digits for exponent,
+		// but JS uses minimal digits. Remove leading zeros from exponent.
+		if idx := strings.Index(s, "e"); idx >= 0 {
+			expPart := s[idx+1:] // e.g. "+021" or "-020" or "+07"
+			sign := expPart[0]   // '+' or '-'
+			digits := strings.TrimLeft(expPart[1:], "0")
+			if digits == "" {
+				digits = "0"
+			}
+			if sign == '-' {
+				s = s[:idx] + "e-" + digits
+			} else {
+				s = s[:idx] + "e+" + digits
+			}
+		}
+		return s
+	}
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
 // formatCustomOptionArray formats a []interface{} as a TypeScript array literal
@@ -787,7 +824,7 @@ func formatCustomOptionArray(vals []interface{}) string {
 		case int:
 			elems = append(elems, fmt.Sprintf("%d", val))
 		case float64:
-			elems = append(elems, strconv.FormatFloat(val, 'f', -1, 64))
+			elems = append(elems, formatFloatJS(val))
 		case []customOption:
 			elems = append(elems, formatCustomOptions(val))
 		default:
