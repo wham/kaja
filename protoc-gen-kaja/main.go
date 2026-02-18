@@ -738,12 +738,34 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 					nested := g.parseMessageValue(v, nestedMsg)
 					var mapKey string
 					var mapVal interface{}
+					// Determine if map key is numeric (needs quoting in JSON)
+					var keyIsNumeric bool
+					for _, f := range nestedMsg.Field {
+						if f.GetNumber() == 1 { // key field
+							switch f.GetType() {
+							case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+								descriptorpb.FieldDescriptorProto_TYPE_INT64,
+								descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+								descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+								descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+								descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+								descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
+								descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+								descriptorpb.FieldDescriptorProto_TYPE_SFIXED32,
+								descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+								keyIsNumeric = true
+							}
+						}
+					}
 					for _, e := range nested {
 						if e.key == "key" {
 							mapKey = fmt.Sprintf("%v", e.value)
 						} else if e.key == "value" {
 							mapVal = e.value
 						}
+					}
+					if keyIsNumeric {
+						mapKey = fmt.Sprintf("\"%s\"", mapKey)
 					}
 					result = append(result, customOption{key: fieldName, value: mapEntryValue{key: mapKey, value: mapVal}})
 				} else {

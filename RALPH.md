@@ -118,7 +118,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 144/144 tests passing
 - [x] Fix test 140_custom_float_scientific_notation: Added `formatFloatJS` helper that matches JavaScript's `Number.prototype.toString()` — scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise. Replaced `strconv.FormatFloat(val, 'f', -1, 64)` in both `formatCustomOptions` and `formatCustomOptionArray`.
 - [x] Fix test 141_custom_float_nan_infinity: NaN, +Inf, and -Inf float/double values in custom options must be stored as strings ("NaN", "Infinity", "-Infinity") so they're output as quoted JS strings, matching protobuf-ts's JSON serialization of special float values
-- [x] All 146/146 tests passing — DONE
+- [x] All 146/146 tests passing
+- [x] Fix test 142_custom_map_option: Map fields in custom message options must be serialized as plain objects ({ key1: value1 }) not arrays of entries. Added mapEntryValue struct and detection of GetMapEntry() in parseMessageValue's TYPE_MESSAGE case. Updated mergeRepeatedOptions to merge map entries into []customOption (object format).
+- [x] All 147/147 tests passing
+- [x] Fix test 143_custom_map_int_key: Integer map keys in custom options must be quoted strings (`"1": "one"` not `1: "one"`) per JSON mapping spec. Added numeric key type detection in parseMessageValue's map entry handling — wraps key in `"..."` when key field type is any integer type.
+- [x] All 148/148 tests passing — DONE
 
 ## Notes
 
@@ -178,3 +182,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Nested extensions: `buildExtensionMap` must scan `msg.Extension` recursively (not just `file.Extension`) to find extensions defined inside messages (e.g., `message Extensions { extend google.protobuf.FieldOptions { ... } }`). The `extInfo.msgPrefix` field stores parent message names so the extension key becomes `<package>.<MessageName>.<field_name>` (e.g., `test.Extensions.searchable`).
 - Custom float NaN/Infinity: NaN, +Inf, -Inf float/double values must be stored as string type (not float64) in customOption so they're automatically quoted in output. Protobuf-ts's `toJson()` serializes these as `"NaN"`, `"Infinity"`, `"-Infinity"` (quoted strings). Both `parseCustomOptions` and `parseMessageValue` float/double branches need `math.IsNaN`/`math.IsInf` checks before storing.
 - Custom float scientific notation: JavaScript's `Number.prototype.toString()` uses scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise. Go's `strconv.FormatFloat(v, 'f', -1, 64)` always uses fixed-point. Added `formatFloatJS` helper that uses Go's `'e'` format for the scientific range (with exponent leading-zero stripping to match JS) and `'f'` format otherwise.
+- Custom map options: Map fields (`map<K, V>`) in custom message-typed options must be serialized as plain objects (`{ key1: value1, key2: value2 }`) not as arrays of entry messages (`[{ key: ..., value: ... }]`). Protobuf-ts's `toJson()` converts map entries to object format. In `parseMessageValue`, detect `GetMapEntry()` on the nested message, extract key/value from entry, and store as `mapEntryValue` struct. `mergeRepeatedOptions` then merges multiple `mapEntryValue` instances for the same field into a `[]customOption` (object).
+- Custom map integer keys: Integer map keys (int32, int64, uint32, uint64, sint32, sint64, fixed32, fixed64, sfixed32, sfixed64) must be quoted strings in the output (`"1": "one"` not `1: "one"`), per protobuf JSON mapping spec. Boolean keys remain unquoted. In `parseMessageValue`'s map entry handling, detect numeric key type and wrap the key string in `"..."` before storing in `mapEntryValue`.
