@@ -14,7 +14,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 4. **Test.** Run the tests. Read the output carefully. If a test fails, understand WHY before changing code.
 5. **Update memory.** Update [Plan](#plan) with what's done and what's next. Update [Notes](#notes) with learnings that will help future runs. Be specific — file paths, function names, gotchas, how to run tests.
 6. **Commit.** One-line past-tense message summarizing what changed.
-7. **Check completion.** If ALL tests pass, write "DONE" to status.txt and stop. If any test fails, do NOT write DONE. Just end — you'll run again.
+7. **Check completion.** If ALL tests pass, write "DONE" to /status.txt and stop. If any test fails, do NOT write DONE. Just end — you'll run again.
 
 ## Rules
 
@@ -27,5 +27,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 ## Plan
 
+- [x] Fix test 79_only_imports: Skip WKT generation when no FileToGenerate produced output
+- [x] Verify test 61_imported_method_options still passes (transitive WKT deps)
+- [x] All 85/85 tests passing
 
 ## Notes
+
+- Run tests with `protoc-gen-kaja/scripts/test --summary`. Full output without `--summary`.
+- Use `protoc-gen-kaja/scripts/diff <test_name>` to inspect specific failures.
+- Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
+- The WKT generation logic (main.go ~line 209) must check `len(generatedFiles) > 0` before generating WKTs, but check ALL FileToGenerate (not just those with output) for dependency relationships. This handles both: (a) import-only files producing no output (test 79), and (b) transitive WKT deps through non-output files like `options.proto` (test 61).
+- The `generatedFiles` map tracks which FileToGenerate actually produced output content.

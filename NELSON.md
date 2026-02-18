@@ -17,7 +17,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 5. **Test.** Run the full test suite. Verify your new test fails. If it passes (the Go plugin handles it correctly), try a different angle — don't give up.
 6. **Update memory.** Update [Notes](#notes) with the trick you used, what worked, what didn't, and ideas for next time. Keep notes focused on **attack strategies**, not on tests you've already added. If a trick has been successfully used, note it briefly and move on to new ideas.
 7. **Commit.** One-line past-tense commit message summarizing the new test.
-8. **Check result.** If at least one test fails, write "HAHA" to status.txt and stop. If all tests pass (you failed to break it), just end — you'll run again with a different approach.
+8. **Check result.** If at least one test fails, write "HAHA" to /status.txt and stop. If all tests pass (you failed to break it), just end — you'll run again with a different approach.
 
 ## Rules
 
