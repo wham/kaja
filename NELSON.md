@@ -53,8 +53,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~2149 `field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REQUIRED` prevents adding `?` for required fields, but message types should always get `?` in TS regardless of required label.
 - **Also found but not tested:** Proto2 oneof fields — Go adds `optional` label in comments but TS omits it for oneof members. Save for future run.
 
+### Run 5 — Proto2 oneof field label bug (SUCCESS)
+- **Bug found:** `getProtoType()` in main.go adds `optional` label for proto2 fields with `LABEL_OPTIONAL`, but doesn't check if the field is a oneof member. Oneof members in proto2 have `LABEL_OPTIONAL` in the descriptor but TS plugin omits the label for them.
+- **Test:** `86_proto2_oneof` — proto2 message with oneof containing string/int32/bool fields.
+- **Root cause:** `getProtoType()` at line ~2367 checks `isProto2 && LABEL_OPTIONAL` but never checks `field.OneofIndex`. Affects both `@generated from protobuf field:` JSDoc and `internalBinaryRead` case comments.
+
 ### Ideas for future runs
-- **Proto2 oneof field comments** — In proto2, Go adds `optional` label to oneof field comments, but TS plugin omits it. Verified in test3.proto diff above. This affects both the interface JSDoc and the binary read/write comments.
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
 - Proto file with only enums and no messages — import generation edge case.
