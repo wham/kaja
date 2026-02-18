@@ -458,6 +458,14 @@ func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) [
 	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
 }
 
+func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []customOption {
+	if opts == nil {
+		return nil
+	}
+	extensionMap := g.buildExtensionMap(".google.protobuf.FieldOptions")
+	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+}
+
 // formatCustomOptions formats custom options as a TypeScript object literal
 func formatCustomOptions(opts []customOption) string {
 	if len(opts) == 0 {
@@ -3036,21 +3044,28 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		}
 	}
 	
+	// Custom field options
+	customFieldOptsStr := ""
+	customFieldOpts := g.getCustomFieldOptions(field.Options)
+	if len(customFieldOpts) > 0 {
+		customFieldOptsStr = ", options: " + formatCustomOptions(customFieldOpts)
+	}
+
 	// Generate the field descriptor
 	if kind == "scalar" && oneofName == "" {
 		// Regular scalar field needs T parameter
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/%s }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, longTypeParam, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s, T: %s /*ScalarType.%s*/%s%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, t, typeName, longTypeParam, customFieldOptsStr, comma)
 	} else if kind == "scalar" && oneofName != "" {
 		// Scalar oneof field - jsonName comes BEFORE oneof, oneof comes BEFORE T
 		typeName := g.getScalarTypeName(field)
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/%s }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, extraFields, t, typeName, longTypeParam, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s, T: %s /*ScalarType.%s*/%s%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, extraFields, t, typeName, longTypeParam, customFieldOptsStr, comma)
 	} else {
 		// Message, enum, or map field
-		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s%s }%s",
-			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, extraFields, comma)
+		g.p("{ no: %d, name: \"%s\", kind: \"%s\"%s%s%s%s%s%s }%s",
+			field.GetNumber(), field.GetName(), kind, localNameField, jsonNameField, repeat, opt, extraFields, customFieldOptsStr, comma)
 	}
 }
 
