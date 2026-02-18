@@ -43,7 +43,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 88_oneof_deprecated: Added @deprecated JSDoc tag and [deprecated = true] annotation for deprecated oneof member fields
 - [x] All 92/92 tests passing
 - [x] Fix test 89_oneof_jstype: Added jstype annotation (`[jstype = JS_NUMBER]`/`[jstype = JS_STRING]`) to oneof member field `@generated` comments
-- [x] All 93/93 tests passing — DONE
+- [x] All 93/93 tests passing
+- [x] Fix test 90_map_underscore_message: Used `protoName` instead of `strings.ReplaceAll(fullName, "_", ".")` for map error messages, since message names can contain underscores
+- [x] All 94/94 tests passing — DONE
 
 ## Notes
 
@@ -58,4 +60,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Proto2 oneof member fields have `LABEL_OPTIONAL` but should NOT show `optional` in generated comments. The fix checks `field.OneofIndex == nil` before adding the `optional` prefix in `getProtoType`.
 - Oneof scalar fields with custom `json_name` need it in two places: (1) the interface field comment `[json_name = "..."]` and (2) the field info entry `jsonName: "..."` inserted between `localName` and `oneof` properties. The `internalBinaryRead`/`Write` comment paths already handled it.
 - Deprecated oneof member fields need `@deprecated` JSDoc tag and `[deprecated = true]` in the `@generated` comment, same pattern as regular fields. The oneof interface generation (around line 2229) was missing this; added `fieldIsDeprecated` check and `oneofDeprecatedAnnotation` string.
-- Oneof fields with `jstype` option need `[jstype = JS_NUMBER]` or `[jstype = JS_STRING]` in the `@generated` comment, same as regular fields. Added `oneofJstypeAnnotation` between `oneofJsonNameAnnotation` and `oneofDeprecatedAnnotation` in the format string.
+- The map binary read error string (`"unknown map entry field for ..."`) was using `strings.ReplaceAll(fullName, "_", ".")` to convert the TS name back to proto name. This breaks when message names themselves contain underscores (e.g., `My_Container`). Fixed to use `protoName` parameter directly, which already has the correct dot-separated nesting.

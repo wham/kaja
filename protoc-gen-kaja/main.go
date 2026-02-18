@@ -1903,13 +1903,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 						oneofCamelName = oneofCamelName + "$"
 					}
 					
-					// Extract message index from msgPath (last element)
-					var msgIdx int32
-					if len(msgPath) > 0 {
-						msgIdx = msgPath[len(msgPath)-1]
-					}
-					
-					g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, msgIdx, oneofIdx)
+					g.generateOneofField(oneofCamelName, oneofProtoName, oneofFields, msg, msgPath, oneofIdx)
 					firstFieldGenerated = true
 				}
 			}
@@ -2169,11 +2163,11 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	g.indent = ""
 }
 
-func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName string, fields []*descriptorpb.FieldDescriptorProto, msgIndex int32, oneofIndex int32) {
+func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName string, fields []*descriptorpb.FieldDescriptorProto, msg *descriptorpb.DescriptorProto, msgPath []int32, oneofIndex int32) {
 	g.indent = "    "
 	
 	// Get oneof leading comment
-	oneofPath := []int32{4, msgIndex, 8, oneofIndex}
+	oneofPath := append(append([]int32{}, msgPath...), 8, oneofIndex)
 	oneofLeadingComments := g.getLeadingComments(oneofPath)
 	
 	// Generate oneof JSDoc
@@ -2203,7 +2197,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		
 		// Get field index in message
 		var fieldIndex int32
-		for idx, f := range g.file.MessageType[msgIndex].Field {
+		for idx, f := range msg.Field {
 			if f.GetNumber() == field.GetNumber() {
 				fieldIndex = int32(idx)
 				break
@@ -2211,7 +2205,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		}
 		
 		// Get field leading comment
-		fieldPath := []int32{4, msgIndex, 2, fieldIndex}
+		fieldPath := append(append([]int32{}, msgPath...), 2, fieldIndex)
 		fieldLeadingComments := g.getLeadingComments(fieldPath)
 		
 		// Generate field JSDoc
