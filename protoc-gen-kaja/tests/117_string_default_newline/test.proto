@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package test;
+
+message StringNewlineDefault {
+  optional string with_newline = 1 [default = "line1\nline2"];
+}
