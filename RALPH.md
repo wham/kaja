@@ -69,7 +69,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 106_enum_detached_comment: Added leading detached comments support for enum declarations, same pattern as message/field/oneof detached comments — `//` style before JSDoc with `// ` for blank lines and empty separators between blocks
 - [x] All 110/110 tests passing
 - [x] Fix test 107_deprecated_file_oneof: Added `@deprecated` to oneof JSDoc when file has `option deprecated = true`
-- [x] All 111/111 tests passing — DONE
+- [x] All 111/111 tests passing
+- [x] Fix test 108_field_multi_options: Combined separate `[opt]` brackets into single `[opt1, opt2, ...]` format using `formatFieldOptionsAnnotation` helper. Fixed WireType import ordering by generalizing `wireTypeVeryLate` condition.
+- [x] All 112/112 tests passing — DONE
 
 ## Notes
 
@@ -99,4 +101,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service method detached comments with multiple blocks need empty line separators between blocks (`if idx < len(detachedComments)-1 { g.pNoIndent("") }`), plus blank-line-within-block handling (`// ` with trailing space) and a final blank line after all blocks before the JSDoc. Same pattern as field detached comments. Both the interface and implementation sections of `generateServiceClient` need this fix.
 - File-level detached comments on the first message (path `[4, 0]`) use `// ` (trailing space) for blank lines and empty lines between blocks. IMPORTANT: the file-header license comment section (syntax path `[12]`) uses `//` (no trailing space) — these are two different code paths and must NOT be confused.
 - Enum declarations need detached comment handling (LeadingDetachedComments on enum path e.g. `[5, enumIdx]`). Same pattern as message/field detached comments: `//` style before JSDoc, `// ` (trailing space) for blank lines within blocks, empty lines between blocks, blank line after all blocks before JSDoc.
+- Field options in comments must be combined into a single `[opt1, opt2, ...]` bracket, not separate `[opt1] [opt2]` brackets. Order matches protobuf-ts: packed, default, json_name, jstype, deprecated. Use `formatFieldOptionsAnnotation` helper.
+- WireType import ordering depends on whether the first message's InternalBinaryRead registers WireType (for repeated numeric/enum fields). If yes, WireType goes after UnknownFieldHandler ("very late"). The check is: first message has at least one repeated scalar/enum field that is not string/bytes/message. This is syntax-agnostic (applies to both proto2 and proto3).
 - File-level `option deprecated = true` must propagate `@deprecated` to oneof JSDoc comments. The oneof comment generation (around line 2269) was missing the `g.isFileDeprecated()` check before `@generated from protobuf oneof:`. Added it between the trailing comment and the `@generated` tag.
