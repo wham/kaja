@@ -133,7 +133,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 148_enum_underscore_prefix: Enum prefix detection for names starting with `_` (e.g., `_Foo`) must match protobuf-ts: prepend `_` before ALL uppercase, strip leading `_`, uppercase, append `_`. Our code skipped prepending at i=0, producing `__FOO_` instead of `_FOO_`.
 - [x] All 153/153 tests passing
 - [x] Fix test 149_multi_server_streaming_import: When multiple non-method-0 streaming methods share the same call type, only emit the import at the last occurrence in streamingMethods (which corresponds to the first registration in protobuf-ts's prepend model). Used `lastCallTypeIdx` map to track where each call type should be emitted.
-- [x] All 154/154 tests passing — DONE
+- [x] All 154/154 tests passing
+- [x] Fix test 150_client_import_streaming_interleave: Unified streaming and non-streaming import collection into single ordered list with forward-pass `firstMethodForType` map to correctly position type imports relative to streaming call types
+- [x] All 155/155 tests passing — DONE
 
 ## Notes
 
@@ -200,3 +202,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Empty services: Services with zero methods need special handling: (1) skip `RpcOptions` import (guarded by `hasAnyMethod`), (2) output `new ServiceType("...", []);` on one line instead of `[\n]);` (early return before the method-descriptor loop).
 - Enum prefix detection: protobuf-ts's `findEnumSharedPrefix` unconditionally appends `_` after UPPER_SNAKE_CASE conversion. The Go code was conditionally adding `_` only when the prefix didn't already end with `_`, which broke for enum names ending with `_` (e.g., `MyEnum_` should produce prefix `MY_ENUM__` not `MY_ENUM_`).
 - Duplicate streaming call type imports: When multiple non-method-0 streaming methods share the same call type (e.g., two server-streaming methods), only one import should be emitted. In the interleave path, use `lastCallTypeIdx` map to emit each call type only at its last occurrence in `streamingMethods` (which corresponds to the first registration in protobuf-ts's prepend model, since streamingMethods is collected in reverse order).
+- Client import ordering for mixed streaming/non-streaming: When a type is used by both streaming and non-streaming methods, the type import must appear at the position of the FIRST method (forward order) that uses it. A forward-pass `firstMethodForType` map determines this. Without it, the N→1 collection would place the type at the first streaming method that encounters it (which may be at a higher index), causing it to appear above streaming call types when it should be below. The unified `imports` list (replacing separate `streamingMethods` and `nonStreamingTypes`) maintains correct relative ordering.
