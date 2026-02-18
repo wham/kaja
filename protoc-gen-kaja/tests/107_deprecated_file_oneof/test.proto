@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package test;
+
+option deprecated = true;
+
+message MyMessage {
+  oneof choice {
+    string text = 1;
+    int32 number = 2;
+  }
+}
