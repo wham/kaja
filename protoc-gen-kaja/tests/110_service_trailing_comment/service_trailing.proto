@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Req {
+  string name = 1;
+}
+message Res {
+  string result = 1;
+}
+
+// Leading comment on service
+service MyService { // Trailing comment on service
+  // Leading comment on method
+  rpc DoSomething(Req) returns (Res); // Trailing comment on method
+}

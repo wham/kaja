@@ -202,6 +202,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Affects:** Only the `export interface` JSDoc. The `export const` JSDoc and `$Type` class `// @generated` comment do not include trailing comments in either plugin.
 - **Also broken:** The message class `$Type` JSDoc (line ~3555) also likely misses trailing comments but the TS plugin doesn't add them there either, so no diff.
 
+### Run 29 — Service and method trailing comments dropped (SUCCESS)
+- **Bug found:** `generateServiceClient()` in main.go never calls `getTrailingComments()` or `getEnumTrailingComments()` for service or method paths. The TS plugin's `addCommentsForDescriptor` uses `'appendToLeadingBlock'` mode which appends trailing comments into the JSDoc block, separated by a blank line from the leading comment — for both services and methods.
+- **Test:** `110_service_trailing_comment` — service and method each with trailing comments (`// Trailing comment on service` after `{`, `// Trailing comment on method` after `;`).
+- **Root cause:** Four affected code paths:
+  1. Interface service JSDoc (line ~4826): only `getLeadingComments`, no trailing.
+  2. Class service JSDoc (line ~4964): only `getLeadingComments`, no trailing.
+  3. Interface method JSDoc (line ~4889): only `getLeadingComments`, no trailing.
+  4. Class method JSDoc (line ~5032): only `getLeadingComments`, no trailing.
+- Compare with `generateMessageInterface()` at line 1847 which correctly calls `getEnumTrailingComments(msgPath)`.
+- **Affects:** Both interface and class JSDoc for services, and both interface and class method JSDoc.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
