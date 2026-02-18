@@ -131,7 +131,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 147_enum_trailing_underscore_prefix: Enum prefix detection must unconditionally append `_` after UPPER_SNAKE_CASE conversion (protobuf-ts always appends `_`). Our code was using `HasSuffix("_")` guard which skipped the extra `_` for enum names ending with `_` (e.g., `MyEnum_` → `MY_ENUM_` instead of correct `MY_ENUM__`)
 - [x] All 152/152 tests passing
 - [x] Fix test 148_enum_underscore_prefix: Enum prefix detection for names starting with `_` (e.g., `_Foo`) must match protobuf-ts: prepend `_` before ALL uppercase, strip leading `_`, uppercase, append `_`. Our code skipped prepending at i=0, producing `__FOO_` instead of `_FOO_`.
-- [x] All 153/153 tests passing — DONE
+- [x] All 153/153 tests passing
+- [x] Fix test 149_multi_server_streaming_import: When multiple non-method-0 streaming methods share the same call type, only emit the import at the last occurrence in streamingMethods (which corresponds to the first registration in protobuf-ts's prepend model). Used `lastCallTypeIdx` map to track where each call type should be emitted.
+- [x] All 154/154 tests passing — DONE
 
 ## Notes
 
@@ -197,3 +199,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Packed repeated scalars in custom options: In proto3, repeated scalar fields use packed encoding by default. The wire type is `BytesType` (LengthDelimited) containing multiple concatenated values. `parseMessageValue` must check `typ == BytesType && label == REPEATED` and, for scalar types, read the packed bytes first, then decode each value from the inner byte slice. Covers varint types (int32, uint32, int64, uint64, sint32, sint64, bool, enum), fixed32 types (fixed32, sfixed32, float), and fixed64 types (fixed64, sfixed64, double).
 - Empty services: Services with zero methods need special handling: (1) skip `RpcOptions` import (guarded by `hasAnyMethod`), (2) output `new ServiceType("...", []);` on one line instead of `[\n]);` (early return before the method-descriptor loop).
 - Enum prefix detection: protobuf-ts's `findEnumSharedPrefix` unconditionally appends `_` after UPPER_SNAKE_CASE conversion. The Go code was conditionally adding `_` only when the prefix didn't already end with `_`, which broke for enum names ending with `_` (e.g., `MyEnum_` should produce prefix `MY_ENUM__` not `MY_ENUM_`).
+- Duplicate streaming call type imports: When multiple non-method-0 streaming methods share the same call type (e.g., two server-streaming methods), only one import should be emitted. In the interleave path, use `lastCallTypeIdx` map to emit each call type only at its last occurrence in `streamingMethods` (which corresponds to the first registration in protobuf-ts's prepend model, since streamingMethods is collected in reverse order).
