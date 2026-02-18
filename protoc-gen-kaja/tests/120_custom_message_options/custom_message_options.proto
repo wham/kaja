@@ -1,0 +1,20 @@
+// Tests custom message options. The TS plugin passes custom message
+// options as a third argument to the MessageType constructor.
+// The Go plugin omits them entirely.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+// Define custom message options
+extend google.protobuf.MessageOptions {
+  string resource_name = 51001;
+  bool cacheable = 51002;
+}
+
+message User {
+  option (resource_name) = "users";
+  option (cacheable) = true;
+  string name = 1;
+  int32 age = 2;
+}
