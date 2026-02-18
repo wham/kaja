@@ -1,0 +1,22 @@
+// Tests custom options defined via extensions nested inside messages.
+// The Go plugin's buildExtensionMap only checks file.Extension,
+// not msg.Extension, so options from nested extensions are dropped.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Extensions {
+  extend google.protobuf.MessageOptions {
+    string resource_name = 50001;
+  }
+  extend google.protobuf.FieldOptions {
+    bool searchable = 50002;
+  }
+}
+
+message User {
+  option (Extensions.resource_name) = "users";
+  string name = 1 [(Extensions.searchable) = true];
+  string email = 2;
+}

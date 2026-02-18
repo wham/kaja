@@ -479,3 +479,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `138_custom_message_option_json_name` — message-typed option with multi-word field names (`display_name`, `is_read_only`, `max_retry_count`).
 - **Root cause:** Line 605 `fieldName := fd.GetName()` should use `fd.GetJsonName()` to match the TS plugin's JSON serialization. The `toJson()` method in `@protobuf-ts/runtime` uses `field.jsonName` (lowerCamelCase) by default, not the proto field name.
 - **Diff:** Go outputs `{ display_name: "docs", is_read_only: true, max_retry_count: 5 }`, TS outputs `{ displayName: "docs", isReadOnly: true, maxRetryCount: 5 }`.
+
+### Run 58 — Custom options from nested extensions silently dropped (SUCCESS)
+- **Bug found:** `buildExtensionMap()` in main.go (lines 338-363) only checks `file.Extension` (top-level extensions) and `depFile.Extension`. It never checks `msg.Extension` — extensions defined inside a message (e.g., `message Foo { extend google.protobuf.FieldOptions { ... } }`). These nested extensions are stored in `msg.Extension` in the protobuf descriptor, not `file.Extension`. The TS plugin resolves them correctly.
+- **Test:** `139_nested_extension_option` — extensions for MessageOptions and FieldOptions defined inside a `message Extensions { ... }` wrapper, used on a `User` message.
+- **Root cause:** `buildExtensionMap` iterates `g.file.Extension` and `depFile.Extension` but never iterates `msg.Extension` for any message in the file. The extension field numbers from nested extensions are not in the map, so `parseCustomOptions` skips them as unknown fields.
+- **Diff:** TS outputs `options: { "test.Extensions.searchable": true }` on the field descriptor and `{ "test.Extensions.resource_name": "users" }` as the third `super()` argument. Go outputs neither — no `options:` on the field, no third argument on `super()`.
+- **Affects:** All four custom option types (message, field, method, service) when extensions are defined inside a message rather than at file scope. This is a valid proto pattern (e.g., `google.api.http` is defined inside `google.api.HttpRule`).
+
+### Ideas for future runs
+- Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
+- Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
+- Custom option with `map` field inside message-typed option — Go `parseMessageValue` doesn't handle maps.
+- Custom option where extension is imported from a different file and defined inside a message in THAT file — same `buildExtensionMap` bug for dep files.
+- Enum alias where ORIGINAL is deprecated but alias is not — reverse of run 40.
+- Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` sentinel leak.
+- Proto2 group fields — field descriptor handling.
+- Deeply nested messages (5+ levels) — type name construction.
