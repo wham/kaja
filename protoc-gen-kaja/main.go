@@ -326,6 +326,11 @@ type customOption struct {
 	value interface{}
 }
 
+type mapEntryValue struct {
+	key   string
+	value interface{}
+}
+
 type extInfo struct {
 	ext       *descriptorpb.FieldDescriptorProto
 	pkg       string
@@ -578,7 +583,21 @@ func mergeRepeatedOptions(opts []customOption) []customOption {
 	var merged []customOption
 	seen := make(map[string]int) // key → index in merged
 	for _, opt := range opts {
-		if idx, ok := seen[opt.key]; ok {
+		if me, ok := opt.value.(mapEntryValue); ok {
+			// Map entry: merge into []customOption (object)
+			entry := customOption{key: me.key, value: me.value}
+			if idx, exists := seen[opt.key]; exists {
+				existing := merged[idx].value
+				if arr, ok := existing.([]customOption); ok {
+					merged[idx].value = append(arr, entry)
+				} else {
+					merged[idx].value = []customOption{entry}
+				}
+			} else {
+				seen[opt.key] = len(merged)
+				merged = append(merged, customOption{key: opt.key, value: []customOption{entry}})
+			}
+		} else if idx, ok := seen[opt.key]; ok {
 			// Already seen this key — convert to or append to array
 			existing := merged[idx].value
 			switch arr := existing.(type) {
@@ -714,8 +733,23 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			v, n := protowire.ConsumeBytes(data)
 			nestedMsg := g.findMessageType(fd.GetTypeName())
 			if nestedMsg != nil {
-				nested := g.parseMessageValue(v, nestedMsg)
-				result = append(result, customOption{key: fieldName, value: nested})
+				if nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+					// Map entry: parse key/value and store as mapEntryValue
+					nested := g.parseMessageValue(v, nestedMsg)
+					var mapKey string
+					var mapVal interface{}
+					for _, e := range nested {
+						if e.key == "key" {
+							mapKey = fmt.Sprintf("%v", e.value)
+						} else if e.key == "value" {
+							mapVal = e.value
+						}
+					}
+					result = append(result, customOption{key: fieldName, value: mapEntryValue{key: mapKey, value: mapVal}})
+				} else {
+					nested := g.parseMessageValue(v, nestedMsg)
+					result = append(result, customOption{key: fieldName, value: nested})
+				}
 			}
 			data = data[n:]
 		default:
