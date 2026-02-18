@@ -319,3 +319,27 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   2. Line ~4811-4824: Method 0's streaming call type is emitted unconditionally without checking if it was already emitted.
 - **Affects:** Any service where method 0 AND at least one other method are the same streaming type (server, client, or duplex). The import appears twice in the generated `.client.ts` file.
 - **Note:** Same bug applies to `DuplexStreamingCall` and `ClientStreamingCall` — all three streaming call types have the same dedup issue. Only tested with `ServerStreamingCall`.
+
+### Run 38 — UnaryCall import position wrong with multiple streaming types (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go emits `UnaryCall` import AFTER grouped streaming call type imports (`DuplexStreamingCall`, `ClientStreamingCall`), but the TS plugin emits `UnaryCall` BEFORE them (right after the service import). This happens when method 0 is streaming AND there are other streaming methods with different call types AND a unary method.
+- **Test:** `119_mixed_streaming_unary_import` — service with server-streaming, client-streaming, duplex-streaming, and unary methods.
+- **Root cause:** The grouped branch at lines ~4763-4769 emits `DuplexStreamingCall`/`ClientStreamingCall`/`ServerStreamingCall` for non-method-0 streaming methods. Then at line ~4798, `UnaryCall` is emitted only after the grouped streaming call types. The TS plugin uses prepend semantics where `UnaryCall` (needed by the unary method) gets prepended before streaming call types.
+- **Differs from run 30:** Run 30 was one streaming method + one unary. This is multiple streaming types + unary, where the grouped streaming imports all appear before `UnaryCall`.
+- **Correct order (TS):** Service → UnaryCall → DuplexStreamingCall → ClientStreamingCall → stackIntercept → types
+- **Wrong order (Go):** Service → DuplexStreamingCall → ClientStreamingCall → UnaryCall → stackIntercept → types
+
+### Ideas for future runs
+- Negative enum values in proto2 — TESTED: Go matches TS (no bug).
+- Bytes default values with escape sequences — TESTED: Go matches TS (no bug).
+- String defaults with \t, \\, \0, single quotes, unicode — TESTED: Go matches TS (no bug).
+- Multi-service with overlapping types in client file — TESTED: Go matches TS (no bug).
+- Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
+- Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
+- Import ordering with services that have types from different imported files.
+- Proto2 group fields — how does the Go plugin handle groups in terms of field descriptors?
+- Proto file with `option java_package` or `option go_package` — do these affect TS output?
+- Message with 100+ fields — test for any ordering/overflow issues.
+- Deeply nested messages (5+ levels) — test for type name construction correctness.
+- Proto2 message with both required and optional message fields — combination edge cases.
+- Oneof containing map fields — not valid proto, but check error handling.
+- Proto file importing itself (circular) — check error output matches.

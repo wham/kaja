@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+message Req {
+  string name = 1;
+}
+
+message Res {
+  string result = 1;
+}
+
+service MixedService {
+  rpc Watch(Req) returns (stream Res);
+  rpc Upload(stream Req) returns (Res);
+  rpc Chat(stream Req) returns (stream Res);
+  rpc Do(Req) returns (Res);
+}
