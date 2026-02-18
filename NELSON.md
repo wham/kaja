@@ -164,6 +164,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The message-level detached comment code (line ~1822-1834) correctly uses `g.pNoIndent("// ")` for blank lines and `g.pNoIndent("")` for block separators, but the field-level code (line ~2033-2040) uses `g.p("//")` for both — wrong in both cases.
 - **Note:** Same bug likely exists in other `//` detached comment handlers (oneof field, service method). The message-level handler was fixed but field-level was not.
 
+### Run 23 — Service method detached comment block separator missing (SUCCESS)
+- **Bug found:** `generateServiceClient()` in main.go at lines 4944-4951 and 5078-5086 does NOT add empty line separators between multiple detached comment blocks for service methods. When a method has two detached comment blocks (two comments each separated by a blank line from the next), the TS plugin outputs an empty line between them, but the Go plugin concatenates them without any separator.
+- **Test:** `104_service_method_detached_blocks` — service with a method that has two detached comment blocks before it.
+- **Root cause:** Lines 4944-4951 iterate `for _, detached := range detachedComments` but never track the index and never output `g.pNoIndent("")` between blocks. Compare with field-level code at lines 2026-2044 which checks `if idx < len(detachedComments)-1 { g.pNoIndent("") }`. Same bug in class body at lines 5078-5086.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -179,5 +184,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum field trailing comments — check if trailing comments on enum values are handled correctly.
 - First method detached comment merging for service with NO service-level comment — different edge case.
 - Oneof field detached comment blank line formatting — same bug as run 22 likely applies to oneof field detached comments.
-- Service method detached comment blank line formatting — same bug pattern in service code.
+- Service method detached comment blank line formatting — same bug pattern in service code. USED in run 23 (block separator missing).
 - File-level detached comment blank line formatting — line ~800 uses `g.pNoIndent("//")` for blanks, may also differ from TS.

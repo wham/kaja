@@ -1,0 +1,21 @@
+syntax = "proto3";
+package test;
+
+// Service comment.
+service TestService {
+
+  // First detached block.
+
+  // Second detached block.
+
+  // Method comment.
+  rpc DoSomething(Request) returns (Response);
+}
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}
