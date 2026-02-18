@@ -5465,7 +5465,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		if hasUnary && !method0IsStreaming {
 			g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
 		}
-		g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
+		if hasAnyMethod {
+			g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
+		}
 	}
 	
 	// Generate service clients
@@ -6035,6 +6037,15 @@ if (svc.Options != nil && svc.GetOptions().GetDeprecated()) || g.isFileDeprecate
 }
 g.pNoIndent(" * @generated ServiceType for protobuf service %s", fullName)
 g.pNoIndent(" */")
+
+if len(svc.Method) == 0 {
+	customSvcOpts := g.getCustomServiceOptions(svc.Options)
+	if len(customSvcOpts) > 0 {
+		g.pNoIndent("export const %s = new ServiceType(\"%s\", [], %s);", escapedSvcName, fullName, formatCustomOptions(customSvcOpts))
+	} else {
+		g.pNoIndent("export const %s = new ServiceType(\"%s\", []);", escapedSvcName, fullName)
+	}
+} else {
 g.pNoIndent("export const %s = new ServiceType(\"%s\", [", escapedSvcName, fullName)
 
 // Generate method descriptors
@@ -6089,6 +6100,7 @@ if len(customSvcOpts) > 0 {
 	g.pNoIndent("], %s);", formatCustomOptions(customSvcOpts))
 } else {
 	g.pNoIndent("]);")
+}
 }
 }
 
