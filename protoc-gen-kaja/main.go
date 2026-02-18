@@ -494,7 +494,11 @@ func formatCustomOptions(opts []customOption) string {
 		default:
 			valueStr = fmt.Sprintf("%v", val)
 		}
-		parts = append(parts, fmt.Sprintf("\"%s\": %s", opt.key, valueStr))
+		keyStr := opt.key
+		if strings.Contains(opt.key, ".") {
+			keyStr = fmt.Sprintf("\"%s\"", opt.key)
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", keyStr, valueStr))
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
