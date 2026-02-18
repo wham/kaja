@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math"
@@ -500,6 +501,10 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			v, n := protowire.ConsumeFixed64(unknown)
 			result = append(result, customOption{key: extName, value: math.Float64frombits(v)})
 			unknown = unknown[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+			v, n := protowire.ConsumeBytes(unknown)
+			result = append(result, customOption{key: extName, value: base64.StdEncoding.EncodeToString(v)})
+			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 			v, n := protowire.ConsumeBytes(unknown)
 			msgDesc := g.findMessageType(ext.GetTypeName())
@@ -638,6 +643,10 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
 			v, n := protowire.ConsumeFixed64(data)
 			result = append(result, customOption{key: fieldName, value: math.Float64frombits(v)})
+			data = data[n:]
+		case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+			v, n := protowire.ConsumeBytes(data)
+			result = append(result, customOption{key: fieldName, value: base64.StdEncoding.EncodeToString(v)})
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
 			v, n := protowire.ConsumeBytes(data)
