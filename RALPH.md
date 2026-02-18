@@ -98,7 +98,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 123_custom_service_options: Added `getCustomServiceOptions` (like `getCustomMessageOptions`) and included custom service options as third argument to ServiceType constructor
 - [x] All 127/127 tests passing
 - [x] Fix test 124_oneof_member_trailing_comment: Added trailing comment support for oneof member fields — append `// <comment>` after the property declaration in the interface when field has a trailing comment
-- [x] All 128/128 tests passing — DONE
+- [x] Fix test 125_service_import_order: Service-only file imports need per-method-pair reversal (not element-level) to match protobuf-ts prepend semantics — output stays above input within each method, but later methods appear above earlier methods
+- [x] All 130/130 tests passing — DONE
 
 ## Notes
 
@@ -144,4 +145,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum alias deprecated: When `allow_alias = true` and an alias has `[deprecated = true]` but the original value does not, the generated alias entry should use the **original value's** deprecated status (not the alias's). Protobuf-ts treats aliases as duplicates of the original — they get the original's comments, name in `@generated`, and deprecation status.
 - Custom field options: Fields with custom options (via `extend google.protobuf.FieldOptions`) need `options: { ... }` in their field descriptor entries. Added `getCustomFieldOptions` following the same pattern as `getCustomMethodOptions`/`getCustomMessageOptions` (builds extension map for `.google.protobuf.FieldOptions`, parses unknown fields). The `options` property is appended after `longTypeParam` in all 3 field descriptor output branches (regular scalar, oneof scalar, message/enum/map).
 - Custom service options: Services with custom options (via `extend google.protobuf.ServiceOptions`) need those options passed as a third argument to the ServiceType constructor, e.g. `new ServiceType("test.SearchService", [...], { "test.api_version": "v2", "test.internal": true })`. Added `getCustomServiceOptions` following the same pattern as `getCustomMessageOptions` (builds extension map for `.google.protobuf.ServiceOptions`, parses unknown fields).
-- Oneof member trailing comments: Fields inside a oneof that have trailing comments (e.g., `string value = 1; // The success value`) need those comments appended as inline `// ...` after the property declaration in the interface. Use `getTrailingComments(fieldPath)` and append to the property line.
+- Service-only file import ordering: simple array reversal breaks per-method pair ordering (output above input). Must collect types as per-method pairs, reverse the pairs (so later methods appear first), then flatten. Files with messages don't reverse at all — they keep the forward collection order (output, input per method).
