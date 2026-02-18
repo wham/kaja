@@ -61,7 +61,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 99_service_first_method_detached: Removed `methodIdx > 0` guard on detached comment output for service methods — first method's detached comments were being skipped
 - [x] All 103/103 tests passing
 - [x] Fix test 100_oneof_kind_field_escape: Added `oneofKind` to the list of reserved property names that get `$` suffix escaping (alongside `__proto__` and `toString`), matching protobuf-ts's `oneofKindDiscriminator` collision handling
-- [x] All 104/104 tests passing — DONE
+- [x] Fix test 101_service_detached_comment: Added service-level LeadingDetachedComments as `//` line comments before JSDoc blocks for both the interface and implementation class in generateServiceClient
+- [x] All 105/105 tests passing — DONE
 
 ## Notes
 
@@ -86,3 +87,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - The first oneof member field's "detached comment" is actually a **trailing comment** on the oneof declaration itself (path `[4, msgIdx, 8, oneofIdx]`), not a LeadingDetachedComment on the field. It goes into the oneof JSDoc block before `@generated from protobuf oneof:`. Non-first member field detached comments are proper LeadingDetachedComments on the field path and go as `//` style before the field's JSDoc.
 - Service method detached comments should be output for ALL methods including the first one (methodIdx == 0). The `methodIdx > 0` guard was wrong — it skipped the first method's detached comments in both the interface and implementation sections of `generateServiceClient`.
 - Field names whose camelCase form equals `oneofKind` must be escaped with `$` suffix (e.g. `oneofKind$`). This is because `oneofKind` is the discriminator property used by protobuf-ts for oneof unions. The TS plugin checks against `oneofKindDiscriminator` option (default `"oneofKind"`). The escaping must also trigger `localName` in the field info descriptor.
+- Service-level detached comments (LeadingDetachedComments on path `[6, svcIndex]`) must be output as `//` line comments before the `/**` JSDoc block for both the interface and the class in `generateServiceClient`. Same pattern as oneof detached comments but using `g.pNoIndent()` since service comments are at top level (no indent).
