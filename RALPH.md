@@ -123,7 +123,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 147/147 tests passing
 - [x] Fix test 143_custom_map_int_key: Integer map keys in custom options must be quoted strings (`"1": "one"` not `1: "one"`) per JSON mapping spec. Added numeric key type detection in parseMessageValue's map entry handling — wraps key in `"..."` when key field type is any integer type.
 - [x] Fix test 144_custom_map_digit_key: String map keys starting with a digit (e.g. `123abc`) must be quoted in JS object literals since they aren't valid JS identifiers. Extended `formatCustomOptions` key quoting to also check `opt.key[0] >= '0' && opt.key[0] <= '9'`.
-- [x] All 149/149 tests passing — DONE
+- [x] All 149/149 tests passing
+- [x] Fix test 145_custom_option_packed_repeated: Added packed repeated encoding handling to parseMessageValue — when wire type is BytesType for repeated scalar fields, reads packed bytes and decodes all contained values individually (varint, fixed32, fixed64 formats)
+- [x] All 150/150 tests passing — DONE
 
 ## Notes
 
@@ -186,3 +188,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom map options: Map fields (`map<K, V>`) in custom message-typed options must be serialized as plain objects (`{ key1: value1, key2: value2 }`) not as arrays of entry messages (`[{ key: ..., value: ... }]`). Protobuf-ts's `toJson()` converts map entries to object format. In `parseMessageValue`, detect `GetMapEntry()` on the nested message, extract key/value from entry, and store as `mapEntryValue` struct. `mergeRepeatedOptions` then merges multiple `mapEntryValue` instances for the same field into a `[]customOption` (object).
 - Custom map integer keys: Integer map keys (int32, int64, uint32, uint64, sint32, sint64, fixed32, fixed64, sfixed32, sfixed64) must be quoted strings in the output (`"1": "one"` not `1: "one"`), per protobuf JSON mapping spec. Boolean keys remain unquoted. In `parseMessageValue`'s map entry handling, detect numeric key type and wrap the key string in `"..."` before storing in `mapEntryValue`.
 - Custom map digit-leading string keys: String map keys starting with a digit (e.g., `123abc`) must be quoted in JS object literals since they aren't valid JS identifiers. In `formatCustomOptions`, the key quoting check was extended to also trigger when `opt.key[0]` is a digit (`'0'`-`'9'`), not just when the key contains a dot.
+- Packed repeated scalars in custom options: In proto3, repeated scalar fields use packed encoding by default. The wire type is `BytesType` (LengthDelimited) containing multiple concatenated values. `parseMessageValue` must check `typ == BytesType && label == REPEATED` and, for scalar types, read the packed bytes first, then decode each value from the inner byte slice. Covers varint types (int32, uint32, int64, uint64, sint32, sint64, bool, enum), fixed32 types (fixed32, sfixed32, float), and fixed64 types (fixed64, sfixed64, double).
