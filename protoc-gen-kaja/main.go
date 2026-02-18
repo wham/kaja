@@ -2943,8 +2943,9 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 			opt = ", opt: true"
 		}
 	} else if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL && 
-	    field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-		// Proto2 optional scalars get opt flag (not messages, they're implicitly optional)
+	    field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE &&
+	    field.OneofIndex == nil {
+		// Proto2 optional scalars get opt flag (not messages or oneof members)
 		opt = ", opt: true"
 	}
 	
