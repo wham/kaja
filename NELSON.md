@@ -354,6 +354,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~5472 in `generateServiceTypeConst` always closes with `]);` after methods. Never reads `svc.Options.ProtoReflect().GetUnknown()` for custom extensions. The TS plugin's interpreter calls `this.readOptions(desc, excludeOptions)` at line 222 of `interpreter.js` for the service descriptor.
 - **Affects:** Any service with custom `ServiceOptions` extensions. Runtime code can't access them via `ServiceType.options`.
 
+### Run 43 — Oneof member field trailing comments dropped (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go never calls `getTrailingComments()` for individual oneof member field paths. The TS plugin's `createFieldPropertySignature` is called for each oneof member field, and then `addCommentsForDescriptor(property, descField, 'trailingLines')` adds trailing comments as inline `// comment` after the property declaration. The Go plugin outputs `fieldName: type;` without any trailing comment.
+- **Test:** `124_oneof_member_trailing_comment` — oneof with two string fields, each having trailing comments (`// The success value` and `// The error message`).
+- **Root cause:** Lines 2363-2393 generate the oneof member field JSDoc and property but never fetch or output trailing comments. Regular field generation at line ~2146 correctly calls `getTrailingComments(fieldPath)` and outputs them as `// comment` after the property.
+- **Affects:** Only the interface declaration. The `internalBinaryRead` and `internalBinaryWrite` methods don't output trailing comments for any fields.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
@@ -366,3 +372,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum alias leading comments — does Go use alias's own comments or first value's comments? Go correctly uses first value (line 4318-4322), matches TS.
 - Enum alias trailing comments — same as above, Go appears correct.
 - Enum alias where first value has custom json_name or other options — does the TS getDeclarationString for aliases include the first value's options or the alias's?
+- Regular field trailing comments — verify Go handles trailing comments on regular fields correctly (line ~2146). Already handles this, but edge cases may differ (e.g., multi-line trailing comments).
+- Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
+- Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
