@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+message UserRequest {
+  string user_id = 1;
+}
+message UserResponse {
+  string name = 1;
+}
