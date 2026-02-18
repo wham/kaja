@@ -3939,18 +3939,9 @@ func (g *generator) getWriterMethod(field *descriptorpb.FieldDescriptorProto, va
 }
 
 func (g *generator) getMapValueWriter(field *descriptorpb.FieldDescriptorProto, varName string) string {
-	switch field.GetType() {
-	case descriptorpb.FieldDescriptorProto_TYPE_INT32:
-		return fmt.Sprintf(".tag(2, WireType.Varint).int32(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
-		return fmt.Sprintf(".tag(2, WireType.LengthDelimited).string(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
-		return fmt.Sprintf(".tag(2, WireType.Varint).bool(%s)", varName)
-	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
-		return fmt.Sprintf(".tag(2, WireType.Varint).int32(%s)", varName)
-	default:
-		return fmt.Sprintf(".tag(2, WireType.LengthDelimited).string(%s)", varName)
-	}
+	wireType := g.getWireType(field)
+	methodName := g.getWriterMethodName(field)
+	return fmt.Sprintf(".tag(2, %s).%s(%s)", wireType, methodName, varName)
 }
 
 func (g *generator) getMapKeyWriter(field *descriptorpb.FieldDescriptorProto, varName string) string {
