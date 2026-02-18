@@ -501,10 +501,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Three sub-bugs:** (1) NaN: Go `NaN` vs TS `"NaN"`, (2) +Inf: Go `+Inf` vs TS `"Infinity"`, (3) -Inf: Go `-Inf` vs TS `"-Infinity"`. All three affect both `float` and `double` types.
 - **Affects:** Both `formatFloatJS` (line 776) and `formatCustomOptionArray` (line 827) — any custom option with float/double values that are NaN or Infinity. Also affects nested message option float fields via `parseMessageValue`.
 
+### Run 61 — Custom map option field outputs array instead of object (SUCCESS)
+- **Bug found:** `parseMessageValue()` in main.go treats map fields inside message-typed custom options as repeated message entries, producing an array of `{key, value}` objects. The TS plugin's `type.toJson()` follows the protobuf JSON mapping spec and converts map fields to JSON objects with string keys.
+- **Test:** `142_custom_map_option` — message with `option (resource_config) = { labels: { key: "env", value: "prod" } labels: { key: "team", value: "backend" } }` where `resource_config` has a `map<string, string> labels` field.
+- **Root cause:** `parseMessageValue()` at line ~713 handles `TYPE_MESSAGE` by recursing into the nested message descriptor. For map entry messages (which have `options.map_entry = true`), it should instead detect the map entry, extract key and value fields, and produce a JSON object `{ key1: val1, key2: val2 }`. Currently it produces `[{ key: "env", value: "prod" }, { key: "team", value: "backend" }]` — an array of entry objects.
+- **Two sub-bugs:** (1) `parseMessageValue` doesn't check `GetMapEntry()` on the nested message descriptor, (2) the `mergeRepeatedOptions` merges duplicate parent field names into an array, but the expected output is a JSON object at the map field level, not an array of entries.
+- **Diff:** Go outputs `{ labels: [{ key: "env", value: "prod" }, { key: "team", value: "backend" }] }`, TS outputs `{ labels: { env: "prod", team: "backend" } }`.
+
 ### Ideas for future runs
 - Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
 - Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
-- Custom option with `map` field inside message-typed option — Go `parseMessageValue` doesn't handle maps.
 - Custom option where extension is imported from a different file and defined inside a message in THAT file — same `buildExtensionMap` bug for dep files.
 - Enum alias where ORIGINAL is deprecated but alias is not — reverse of run 40.
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` sentinel leak.
@@ -514,3 +520,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Float formatting in `formatCustomOptionArray` — repeated float options with very small values.
 - NaN/Infinity in nested message float fields — same bug as run 60 but inside message-typed options.
 - Negative zero (`-0.0`) — Go `formatFloatJS` returns `"0"` for `v == 0`, but `-0.0 == 0` is true in Go. TS `toJson()` may output `0` or `-0` differently.
+- Map option with non-string keys (int32, bool) — protobuf JSON mapping converts all map keys to strings for JSON objects.
+- Map option with message values — similar bug, map values would be nested entry objects instead of direct values.
+- Map option with enum values — enum map values would use entry object format instead of string enum names.
