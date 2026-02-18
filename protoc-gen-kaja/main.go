@@ -2220,6 +2220,13 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 			}
 			g.p(" *")
 		}
+		// Check for default value annotation
+		oneofDefaultAnnotation := ""
+		if field.DefaultValue != nil {
+			defaultVal := field.GetDefaultValue()
+			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
+			oneofDefaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
+		}
 		// Check if we need to show json_name (only for explicitly set, not auto-generated)
 		oneofJsonNameAnnotation := ""
 		if field.JsonName != nil {
@@ -2248,7 +2255,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		if fieldIsDeprecated || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
-		g.p(" * @generated from protobuf field: %s %s = %d%s%s%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofJsonNameAnnotation, oneofJstypeAnnotation, oneofDeprecatedAnnotation)
+		g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofDefaultAnnotation, oneofJsonNameAnnotation, oneofJstypeAnnotation, oneofDeprecatedAnnotation)
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
 		g.p("%s: %s;", fieldJsonName, fieldType)
