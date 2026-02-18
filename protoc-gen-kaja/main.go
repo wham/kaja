@@ -4362,7 +4362,14 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		}
 		
 		// Add @deprecated if value has deprecated option OR file is deprecated
-		valueIsDeprecated := value.Options != nil && value.GetOptions().GetDeprecated()
+		// For aliases, use the first value's deprecated status (not the alias's)
+		var checkValue *descriptorpb.EnumValueDescriptorProto
+		if isAlias {
+			checkValue = enum.Value[firstValueIndexForNumber[value.GetNumber()]]
+		} else {
+			checkValue = value
+		}
+		valueIsDeprecated := checkValue.Options != nil && checkValue.GetOptions().GetDeprecated()
 		if valueIsDeprecated || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
