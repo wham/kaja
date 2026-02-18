@@ -58,6 +58,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `86_proto2_oneof` — proto2 message with oneof containing string/int32/bool fields.
 - **Root cause:** `getProtoType()` at line ~2367 checks `isProto2 && LABEL_OPTIONAL` but never checks `field.OneofIndex`. Affects both `@generated from protobuf field:` JSDoc and `internalBinaryRead` case comments.
 
+### Run 6 — Oneof scalar jsonName dropped (SUCCESS)
+- **Bug found:** `generateFieldDescriptor()` in main.go has 3 branches for emitting field descriptors. The `scalar && oneofName != ""` branch omits `jsonNameField` from the format string — it only includes `localNameField` and `extraFields` (which has `oneof`). So custom `json_name` on scalar oneof fields is silently dropped from reflection metadata.
+- **Also broken:** The JSDoc `@generated from protobuf field:` comment for oneof fields also drops the `[json_name = "..."]` annotation (separate but related code path in the oneof field comment generation).
+- **Test:** `87_oneof_json_name` — oneof with scalar fields that have custom json_name values.
+- **Root cause:** Line ~2887 in `generateFieldDescriptor()`: the scalar-oneof format string is `{ no: %d, name: "%s", kind: "%s"%s%s, T: %s ... }` where `%s%s` are `localNameField, extraFields` — missing `jsonNameField`. Compare to the non-oneof scalar branch which correctly includes `jsonNameField`.
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
@@ -66,3 +72,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `deprecated` option on oneof fields.
 - Large field numbers (> 2^28) in binary read comments.
 - `jstype` on map fields — rejected by protoc, not a valid test vector.
+- Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
+- `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
