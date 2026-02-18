@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+// Message name with underscore and a map field.
+// The error string in binaryReadMap should use "My_Container" not "My.Container".
+message My_Container {
+  map<string, int32> labels = 1;
+}

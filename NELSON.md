@@ -69,6 +69,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `88_oneof_deprecated` — oneof with deprecated member fields.
 - **Root cause:** The oneof field JSDoc generation at line ~2238 only appends `oneofJsonNameAnnotation` to the `@generated` line. It never checks `field.Options.GetDeprecated()` and never emits `@deprecated`. Compare with regular field JSDoc at lines ~2093-2104 which handles both.
 
+### Run 8 — Oneof jstype annotation missing (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go (line ~2247) does NOT include `[jstype = ...]` annotation in the `@generated from protobuf field:` JSDoc for oneof member fields with int64/uint64 types. The TS plugin includes them.
+- **Test:** `89_oneof_jstype` — oneof with int64 `[jstype = JS_NUMBER]` and uint64 `[jstype = JS_STRING]` fields.
+- **Root cause:** The oneof field JSDoc at line ~2247 only appends `oneofJsonNameAnnotation` and `oneofDeprecatedAnnotation`. It never checks `field.Options.GetJstype()` and never emits `[jstype = ...]`. Compare with regular field JSDoc at lines ~2072-2081 which handles jstype. Same pattern as run 7's deprecated bug — oneof JSDoc generation is incomplete compared to regular field JSDoc.
+- **Related:** `[packed = ...]` annotation is also likely missing for oneof fields, but packed doesn't apply to oneof members (they can't be repeated). The `[default = ...]` annotation is also potentially missing for proto2 oneof members.
+
+### Run 9 — Map binaryReadMap error string underscore bug (SUCCESS)
+- **Bug found:** `generateMessageTypeClass()` at line ~3316 reconstructs the proto type name from `fullName` (TypeScript name) using `strings.ReplaceAll(fullName, "_", ".")`. But the `_` in `fullName` can be part of the actual message name (e.g., `My_Container`), not just a nesting separator. This converts `My_Container` to `My.Container` in the `"unknown map entry field for ..."` error string.
+- **Test:** `90_map_underscore_message` — message named `My_Container` with a `map<string, int32>` field.
+- **Root cause:** Line ~3316 should use `protoName` (which is already passed to the function and uses `.` only for nesting) instead of reconstructing from `fullName`. The `protoName` parameter correctly preserves underscores in message names.
+- **Note:** Same bug pattern would affect nested messages with underscored names too (double mangling).
+
 ### Ideas for future runs
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
@@ -77,6 +89,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
-- Oneof field JSDoc also missing `[jstype = ...]` and `[packed = ...]` annotations (though packed doesn't apply to oneof).
 - Nested message oneof field path bug — `generateOneofField` uses `g.file.MessageType[msgIndex]` which is wrong for nested messages (would look at wrong message or panic).
+- Oneof field JSDoc missing `[default = ...]` annotation for proto2 oneof members (regular field has it, oneof doesn't).
+- Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
 - `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
