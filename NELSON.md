@@ -487,6 +487,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** TS outputs `options: { "test.Extensions.searchable": true }` on the field descriptor and `{ "test.Extensions.resource_name": "users" }` as the third `super()` argument. Go outputs neither — no `options:` on the field, no third argument on `super()`.
 - **Affects:** All four custom option types (message, field, method, service) when extensions are defined inside a message rather than at file scope. This is a valid proto pattern (e.g., `google.api.http` is defined inside `google.api.HttpRule`).
 
+### Run 59 — Custom float option scientific notation formatting (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go uses `strconv.FormatFloat(val, 'f', -1, 64)` to format float/double custom option values. The `'f'` format flag always uses fixed-point decimal notation (e.g., `0.00000000000000000001`). The TS plugin uses `type.toJson()` which delegates to JavaScript's native number serialization, producing scientific notation for very small numbers (e.g., `1e-20`).
+- **Test:** `140_custom_float_scientific_notation` — message with `option (tiny_value) = 1e-20` where `tiny_value` is a `double` extension of `MessageOptions`.
+- **Root cause:** Line 756 `strconv.FormatFloat(val, 'f', -1, 64)` — the `'f'` format never produces scientific notation. Should use `'g'` format or a custom formatter that matches JavaScript's `Number.prototype.toString()` behavior, which uses scientific notation when the exponent is < -6 or >= 21.
+- **Diff:** Go outputs `{ "test.tiny_value": 0.00000000000000000001 }`, TS outputs `{ "test.tiny_value": 1e-20 }`.
+- **Affects:** Both `formatCustomOptions` (line 756) and `formatCustomOptionArray` (line 790) — any custom option with float/double values in the range where JavaScript would use scientific notation.
+
 ### Ideas for future runs
 - Extensions defined inside nested messages (2+ levels deep) — same bug amplified.
 - Custom option with `oneof` field inside message-typed option — Go `parseMessageValue` doesn't handle oneofs.
@@ -496,3 +503,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` sentinel leak.
 - Proto2 group fields — field descriptor handling.
 - Deeply nested messages (5+ levels) — type name construction.
+- Float formatting for nested message option float fields — same `formatCustomOptions` bug applies recursively.
+- Float formatting in `formatCustomOptionArray` — repeated float options with very small values.
