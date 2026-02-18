@@ -418,6 +418,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Also affected:** `parseMessageValue` at lines 616-629 has the same bug for nested message option values with 64-bit types.
 - **Note:** 32-bit types (int32, uint32, sint32, fixed32, sfixed32) correctly remain as numbers in both plugins.
 
+### Run 53 — Nested message option repeated fields not merged into array (SUCCESS)
+- **Bug found:** `parseMessageValue()` in main.go (line ~691) does NOT call `mergeRepeatedOptions()` on its result. When a message-typed custom option contains repeated fields (e.g., `repeated string tags`), each wire occurrence of the field creates a separate `customOption` entry. The `formatCustomOptions` then outputs duplicate keys (`tags: "admin", tags: "internal"`) instead of a merged array (`tags: ["admin", "internal"]`).
+- **Test:** `134_nested_repeated_option` — message with `option (resource).tags = "admin"; option (resource).tags = "internal";` where `resource` is a `ResourceInfo` message extension with `repeated string tags`.
+- **Root cause:** `parseCustomOptions()` at line 545 correctly calls `mergeRepeatedOptions(result)` before returning. But `parseMessageValue()` at line 691 just returns `result` without merging. Since `parseMessageValue` is called recursively from `parseCustomOptions` (line 522), repeated fields inside nested message values are never merged.
+- **Affects:** Any message-typed custom option (MessageOptions, FieldOptions, MethodOptions, ServiceOptions) where the message type contains `repeated` fields. The output has duplicate object keys which is semantically wrong in JavaScript.
+- **Note:** Same bug would also affect deeply nested messages (message inside message) if they have repeated fields — `parseMessageValue` calls itself recursively (line 673) and never merges.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
