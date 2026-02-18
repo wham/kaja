@@ -4942,10 +4942,18 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
 		detachedComments := g.getLeadingDetachedComments(methodPath)
 		if len(detachedComments) > 0 {
-			for _, detached := range detachedComments {
+			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					g.p("// %s", line)
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.p("// ")
+					} else {
+						g.p("// %s", line)
+					}
+				}
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("")
 				}
 			}
 			g.pNoIndent("")
@@ -5077,10 +5085,18 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		methodPath := []int32{6, int32(svcIndex), 2, int32(methodIdx)}
 		detachedComments := g.getLeadingDetachedComments(methodPath)
 		if len(detachedComments) > 0 {
-			for _, detached := range detachedComments {
+			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					g.p("// %s", line)
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.p("// ")
+					} else {
+						g.p("// %s", line)
+					}
+				}
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("")
 				}
 			}
 			g.pNoIndent("")
