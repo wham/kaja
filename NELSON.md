@@ -567,6 +567,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The TS regex `replace(/[A-Z]/g, ...)` replaces the first uppercase `F` with `_f`, producing a leading `_`. Then `enumPrefix[0] === "_"` strips it. The Go loop writes the leading `_` literally at i=0 (since it's not uppercase, no underscore is inserted), then at i=1 inserts `_` before `F`, giving `__F`. The Go code never strips a leading underscore.
 - **Two affected outputs:** (1) Enum member names: TS strips prefix `_FOO_` to get `UNSPECIFIED/BAR/BAZ`, Go keeps full names `_FOO_UNSPECIFIED/_FOO_BAR/_FOO_BAZ`. (2) Field descriptor EnumInfo tuple: TS includes third element `"_FOO_"`, Go omits it entirely.
 
+### Run 68 — Duplicate ServerStreamingCall import in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go's interleave branch (lines ~5337-5357) emits the streaming call type import for EACH streaming method individually, without deduplication. When multiple methods share the same streaming call type (e.g., two server-streaming methods), `ServerStreamingCall` is imported once per method. The group branch (lines ~5360-5395) correctly uses `needServer`/`needClient`/`needDuplex` booleans to dedup.
+- **Test:** `149_multi_server_streaming_import` — service with unary first method + two server-streaming methods. Go emits `import type { ServerStreamingCall }` twice.
+- **Root cause:** The interleave branch at line ~5350 does `if sm.callType != method0CallType` per streaming method and emits the call type import each time, but never tracks which call types have already been emitted. The group branch uses boolean flags (`needServer`, etc.) to avoid duplicates.
+- **Trigger:** Requires `shouldInterleave=true` (last non-method-0 method is streaming) AND multiple streaming methods with the same call type AND method 0 is NOT the same call type.
+
 ### Ideas for future runs
 - Empty message (no fields) — check if `super()` constructor differs for empty field array.
 - Service with only one method — check formatting edge cases.

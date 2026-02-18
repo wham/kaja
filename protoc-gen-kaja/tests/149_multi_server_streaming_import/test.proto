@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package test;
+
+message A {
+  string v = 1;
+}
+
+message B {
+  string v = 1;
+}
+
+message C {
+  string v = 1;
+}
+
+message D {
+  string v = 1;
+}
+
+// Service where first method is unary, and two subsequent methods
+// are both server-streaming. The Go plugin emits duplicate
+// ServerStreamingCall imports in the client file interleave branch.
+service Svc {
+  rpc Unary1(A) returns (B);
+  rpc Stream1(C) returns (stream D);
+  rpc Stream2(A) returns (stream B);
+}
