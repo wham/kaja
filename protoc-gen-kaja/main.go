@@ -3796,8 +3796,18 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		}
 	}
 	
-	// Keep initialization items in proto file order (don't sort)
-	// The initItems are already in the order fields appear in msg.Field
+	// Deduplicate fields with the same property name (e.g. x123y and x_123_y both → x123Y)
+	fieldNameSeen := make(map[string]bool)
+	dedupItems := initItems[:0]
+	for _, item := range initItems {
+		if item.isOneof || !fieldNameSeen[item.fieldName] {
+			if !item.isOneof {
+				fieldNameSeen[item.fieldName] = true
+			}
+			dedupItems = append(dedupItems, item)
+		}
+	}
+	initItems = dedupItems
 	
 	// Generate initializations in proto file order
 	for _, item := range initItems {
