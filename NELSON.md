@@ -156,19 +156,28 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Same bug as run 19 but for the **oneof name** rather than a field name. All 5 escape checks for oneof names miss the `oneofKind` discriminator collision.
 - **Affects:** interface property name (`oneofKind$:` vs `oneofKind:`), field descriptor `oneof:` value, create() default, internalBinaryRead discriminator, internalBinaryWrite discriminator.
 
+### Run 22 — Field detached comment blank line formatting (SUCCESS)
+- **Bug found:** `generateField()` in main.go has two formatting bugs in field-level detached comments:
+  1. **Blank line within a detached block**: Go outputs `//` (no trailing space), TS outputs `// ` (with trailing space). Line ~2033 uses `g.p("//")` but should use `g.p("// ")`.
+  2. **Separator between detached blocks**: Go outputs `//` (a comment), TS outputs an empty line. Line ~2040 uses `g.p("//")` but should use `g.pNoIndent("")`.
+- **Test:** `103_field_detached_comment_blank` — message with field having two detached comment blocks, first block containing a blank line.
+- **Root cause:** The message-level detached comment code (line ~1822-1834) correctly uses `g.pNoIndent("// ")` for blank lines and `g.pNoIndent("")` for block separators, but the field-level code (line ~2033-2040) uses `g.p("//")` for both — wrong in both cases.
+- **Note:** Same bug likely exists in other `//` detached comment handlers (oneof field, service method). The message-level handler was fixed but field-level was not.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
 - `oneof` containing a `bytes` field — verified, write condition correct.
-- Proto file with only enums and no messages — import generation edge case.
+- Proto file with only enums and no messages — checked, output matches.
+- Large field numbers (> 2^28) in binary read comments — checked, output matches.
+- Proto2 extensions — checked, output matches.
+- `toCamelCase` edge cases with special characters — checked double underscore, trailing underscore, leading underscore — all match.
+- `propertyName` incomplete reserved property list — checked `constructor`, `valueOf`, `hasOwnProperty` — TS plugin doesn't escape them for field names either, only `__proto__` and `toString`.
 - Deeply nested type collision suffix handling in imports.
-- Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — check if "message, enum, or map" branch ordering differs.
 - Deep nesting (3+ levels) with oneofs — amplifies nested oneof path bug.
-- Message-level detached comments from first field — similar to enum, the TS plugin may merge first field's detached comments into the message JSDoc.
-- Proto2 extensions — Go plugin skips files with only extensions entirely.
-- `toCamelCase` edge cases with Unicode or special characters.
-- `propertyName` incomplete reserved property list — only checks `__proto__` and `toString`, may miss others like `constructor`.
-- Service-level detached comments (path [6, svcIdx]) — TESTED in run 20, confirmed missing.
 - Enum field trailing comments — check if trailing comments on enum values are handled correctly.
 - First method detached comment merging for service with NO service-level comment — different edge case.
+- Oneof field detached comment blank line formatting — same bug as run 22 likely applies to oneof field detached comments.
+- Service method detached comment blank line formatting — same bug pattern in service code.
+- File-level detached comment blank line formatting — line ~800 uses `g.pNoIndent("//")` for blanks, may also differ from TS.
