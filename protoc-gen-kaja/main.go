@@ -4874,7 +4874,28 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		}
 	}
 	
-	// Interface
+	// Interface - detached comments
+	if svcIndex >= 0 {
+		detachedComments := g.getLeadingDetachedComments([]int32{6, int32(svcIndex)})
+		if len(detachedComments) > 0 {
+			for idx, detached := range detachedComments {
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.pNoIndent("//")
+					} else {
+						g.pNoIndent("// %s", line)
+					}
+				}
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("//")
+				}
+			}
+			g.pNoIndent("")
+		}
+	}
+	
 	g.pNoIndent("/**")
 	
 	// Add service-level leading comments if available
@@ -4983,7 +5004,28 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	g.indent = ""
 	g.pNoIndent("}")
 	
-	// Implementation
+	// Implementation - detached comments
+	if svcIndex >= 0 {
+		detachedComments := g.getLeadingDetachedComments([]int32{6, int32(svcIndex)})
+		if len(detachedComments) > 0 {
+			for idx, detached := range detachedComments {
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.pNoIndent("//")
+					} else {
+						g.pNoIndent("// %s", line)
+					}
+				}
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("//")
+				}
+			}
+			g.pNoIndent("")
+		}
+	}
+	
 	g.pNoIndent("/**")
 	
 	// Add service-level leading comments if available
