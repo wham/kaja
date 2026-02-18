@@ -4215,6 +4215,28 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		enumName = enumName + fmt.Sprintf("$%d", suffix)
 	}
 	
+	// Add leading detached comments before enum JSDoc
+	if len(enumPath) > 0 {
+		detachedComments := g.getLeadingDetachedComments(enumPath)
+		if len(detachedComments) > 0 {
+			for idx, detached := range detachedComments {
+				detached = strings.TrimRight(detached, "\n")
+				for _, line := range strings.Split(detached, "\n") {
+					line = strings.TrimRight(line, " \t")
+					if line == "" {
+						g.pNoIndent("// ")
+					} else {
+						g.pNoIndent("// %s", line)
+					}
+				}
+				if idx < len(detachedComments)-1 {
+					g.pNoIndent("")
+				}
+			}
+			g.pNoIndent("")
+		}
+	}
+
 	g.pNoIndent("/**")
 	
 	// Add leading and trailing comments if available
