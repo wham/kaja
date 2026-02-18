@@ -115,7 +115,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 137_custom_option_string_newline: Newline (`\n`) and carriage return (`\r`) characters in custom option string values must be escaped as `\\n`/`\\r` in generated JS string literals — added escaping after backslash/quote escaping in both `formatCustomOptions` and `formatCustomOptionArray`
 - [x] Fix test 138_custom_message_option_json_name: Used `fd.GetJsonName()` instead of `fd.GetName()` in `parseMessageValue` — message-typed custom option fields should use camelCase JSON names (e.g., `displayName`) not proto snake_case names (e.g., `display_name`)
 - [x] Fix test 139_nested_extension_option: Extended `buildExtensionMap` to scan extensions nested inside messages (via `msg.Extension`) recursively, not just top-level `file.Extension`. Added `msgPrefix` to `extInfo` struct so nested extension names include parent message name (e.g., `test.Extensions.searchable` instead of `test.searchable`).
-- [x] All 144/144 tests passing — DONE
+- [x] All 144/144 tests passing
+- [x] Fix test 140_custom_float_scientific_notation: Added `formatFloatJS` helper that matches JavaScript's `Number.prototype.toString()` — scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise. Replaced `strconv.FormatFloat(val, 'f', -1, 64)` in both `formatCustomOptions` and `formatCustomOptionArray`.
+- [x] All 145/145 tests passing — DONE
 
 ## Notes
 
@@ -173,3 +175,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom option string escaping: String values in custom options may contain double quotes, backslashes, newlines, and carriage returns. Escape order: backslashes first (`\` → `\\`), then double quotes (`"` → `\"`), then newlines (`\n` → `\n` literal), then carriage returns (`\r` → `\r` literal). Both `formatCustomOptions` and `formatCustomOptionArray` need all four escaping steps. Order matters: escape backslashes before everything else to avoid double-escaping.
 - Custom message option JSON names: Message-typed custom option field values use `GetJsonName()` (camelCase) not `GetName()` (snake_case). Protobuf-ts serializes message option values via `toJson()`, which uses lowerCamelCase. In `parseMessageValue`, line 605, use `fd.GetJsonName()` instead of `fd.GetName()`.
 - Nested extensions: `buildExtensionMap` must scan `msg.Extension` recursively (not just `file.Extension`) to find extensions defined inside messages (e.g., `message Extensions { extend google.protobuf.FieldOptions { ... } }`). The `extInfo.msgPrefix` field stores parent message names so the extension key becomes `<package>.<MessageName>.<field_name>` (e.g., `test.Extensions.searchable`).
+- Custom float scientific notation: JavaScript's `Number.prototype.toString()` uses scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise. Go's `strconv.FormatFloat(v, 'f', -1, 64)` always uses fixed-point. Added `formatFloatJS` helper that uses Go's `'e'` format for the scientific range (with exponent leading-zero stripping to match JS) and `'f'` format otherwise.

@@ -512,11 +512,29 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			v, n := protowire.ConsumeFixed32(unknown)
-			result = append(result, customOption{key: extName, value: float64(math.Float32frombits(v))})
+			fval := float64(math.Float32frombits(v))
+			if math.IsNaN(fval) {
+				result = append(result, customOption{key: extName, value: "NaN"})
+			} else if math.IsInf(fval, 1) {
+				result = append(result, customOption{key: extName, value: "Infinity"})
+			} else if math.IsInf(fval, -1) {
+				result = append(result, customOption{key: extName, value: "-Infinity"})
+			} else {
+				result = append(result, customOption{key: extName, value: fval})
+			}
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
 			v, n := protowire.ConsumeFixed64(unknown)
-			result = append(result, customOption{key: extName, value: math.Float64frombits(v)})
+			fval := math.Float64frombits(v)
+			if math.IsNaN(fval) {
+				result = append(result, customOption{key: extName, value: "NaN"})
+			} else if math.IsInf(fval, 1) {
+				result = append(result, customOption{key: extName, value: "Infinity"})
+			} else if math.IsInf(fval, -1) {
+				result = append(result, customOption{key: extName, value: "-Infinity"})
+			} else {
+				result = append(result, customOption{key: extName, value: fval})
+			}
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 			v, n := protowire.ConsumeBytes(unknown)
@@ -664,11 +682,29 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			v, n := protowire.ConsumeFixed32(data)
-			result = append(result, customOption{key: fieldName, value: float64(math.Float32frombits(v))})
+			fval := float64(math.Float32frombits(v))
+			if math.IsNaN(fval) {
+				result = append(result, customOption{key: fieldName, value: "NaN"})
+			} else if math.IsInf(fval, 1) {
+				result = append(result, customOption{key: fieldName, value: "Infinity"})
+			} else if math.IsInf(fval, -1) {
+				result = append(result, customOption{key: fieldName, value: "-Infinity"})
+			} else {
+				result = append(result, customOption{key: fieldName, value: fval})
+			}
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
 			v, n := protowire.ConsumeFixed64(data)
-			result = append(result, customOption{key: fieldName, value: math.Float64frombits(v)})
+			fval := math.Float64frombits(v)
+			if math.IsNaN(fval) {
+				result = append(result, customOption{key: fieldName, value: "NaN"})
+			} else if math.IsInf(fval, 1) {
+				result = append(result, customOption{key: fieldName, value: "Infinity"})
+			} else if math.IsInf(fval, -1) {
+				result = append(result, customOption{key: fieldName, value: "-Infinity"})
+			} else {
+				result = append(result, customOption{key: fieldName, value: fval})
+			}
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 			v, n := protowire.ConsumeBytes(data)
