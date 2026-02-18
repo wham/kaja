@@ -84,7 +84,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 114_optimize_code_size: Added `optimize_for = CODE_SIZE` support — skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial)
 - [x] Fix test 115_optimize_lite_runtime: `optimize_for = LITE_RUNTIME` behaves same as CODE_SIZE — extended `isOptimizeCodeSize()` to also check for `LITE_RUNTIME`
 - [x] Fix test 116_string_default_cr: String default values with `\r` (CR) chars must be converted to `\n` (LF) to match TypeScript printer's newline normalization. Modified `g.p()` to handle embedded newlines by adding indent to continuation lines.
-- [x] All 120/120 tests passing — DONE
+- [x] All 120/120 tests passing
+- [x] Fix test 117_string_default_newline: JSDoc continuation lines after `\n` in string defaults need ` * ` prefix, but `\r`→`\n` conversions do NOT. Moved `\r`→`\n` from formatDefaultValueAnnotation into g.p() to distinguish the two cases.
+- [x] All 121/121 tests passing
+- [x] Fix test 118_streaming_only_service: When all service methods are streaming, section 3 (streaming call type imports) was duplicating section 5 (method 0 call type). Added `method0CallType` tracking to skip method 0's call type from section 3 emission.
+- [x] All 122/122 tests passing — DONE
 
 ## Notes
 
@@ -123,4 +127,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - String/bytes default value annotation: protobuf-ts uses JavaScript `String.replace('"', '\\"')` which only replaces the FIRST double-quote occurrence. Our Go code must use `strings.Replace(val, `"`, `\"`, 1)` (count=1) to match this behavior. Do NOT escape all quotes.
 - `jstype = JS_NORMAL` on 64-bit integer fields (int64, uint64, sint64, fixed64, sfixed64) overrides the `long_type_string` parameter. Effects: TS type becomes `bigint`, default value is `0n`, reader uses `.toBigInt()`, field descriptor gets `L: 0 /*LongType.BIGINT*/`, and annotation shows `[jstype = JS_NORMAL]`. Helper functions `isJsTypeNormal()` and `is64BitIntType()` were added. All 10 reader method locations (5 types × 2 functions: `getReaderMethod` + `getReaderMethodSimple`) need the JS_NORMAL check alongside the existing JS_NUMBER check.
 - `optimize_for = LITE_RUNTIME` behaves identically to `CODE_SIZE` — both skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their Phase 2 imports. The `isOptimizeCodeSize()` helper checks for both `CODE_SIZE` and `LITE_RUNTIME`.
-- String default values with `\r` (CR, 0x0d) characters must be converted to `\n` (LF, 0x0a) in `formatDefaultValueAnnotation`. The TypeScript printer normalizes all CR to LF. The `g.p()` function was also modified to handle embedded `\n` within format output by splitting into separate lines, each with proper `g.indent` indentation. This matches how the TS printer re-indents continuation lines in comments.
+- String default values with `\r` (CR, 0x0d) characters: the `\r`→`\n` conversion is now handled in `g.p()` instead of `formatDefaultValueAnnotation`. This allows `g.p()` to distinguish `\r` (raw line break, no JSDoc prefix) from `\n` (JSDoc continuation with ` * ` prefix). The `g.p()` function processes characters individually: `\n` in a JSDoc line (starting with ` * `) adds ` * ` prefix to the continuation line; `\r` just adds the indent.
+- Streaming-only services: When all methods in a service are streaming, the call type import (e.g., `ServerStreamingCall`) was emitted twice — once in the streaming methods section (section 3) and once in the method 0 section (section 5). Fix: compute `method0CallType` and skip it from section 3's emission since section 5 already handles it. This dedup applies to both the interleave and grouped code paths.
