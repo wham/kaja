@@ -32,6 +32,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 85/85 tests passing
 - [x] Fix test 82_map_scalar_value_types: getMapValueWriter now delegates to getWireType+getWriterMethodName instead of hardcoding only 4 types
 - [x] All 86/86 tests passing
+- [x] Fix test 83_map_fixed_key_types: Simplified getMapKeyWriter to reuse getWireType+getWriterMethodName
+- [x] All 87/87 tests passing — DONE
 
 ## Notes
 
@@ -40,3 +42,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
 - The WKT generation logic (main.go ~line 209) must check `len(generatedFiles) > 0` before generating WKTs, but check ALL FileToGenerate (not just those with output) for dependency relationships. This handles both: (a) import-only files producing no output (test 79), and (b) transitive WKT deps through non-output files like `options.proto` (test 61).
 - The `getMapValueWriter` function was simplified to reuse `getWireType` and `getWriterMethodName` instead of an incomplete switch statement. The old version only handled 4 types (int32, string, bool, enum) and fell back to string for everything else.
+- The `getMapKeyWriter` function had the same problem — it grouped fixed types with their non-fixed counterparts (e.g. SFIXED32 with INT32), using WireType.Varint instead of WireType.Bit32. Simplified it the same way to delegate to getWireType+getWriterMethodName.
