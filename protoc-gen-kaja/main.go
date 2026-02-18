@@ -2146,9 +2146,13 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		// 2. Proto3 message (messages are always optional)
 		// 3. Proto3 explicit optional scalar (proto3_optional = true)
 		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
-		if field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED &&
-		   field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
-			if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+		if field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
+				// Proto2 required message fields are still optional in TS (no zero value)
+				if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+					optional = "?"
+				}
+			} else if isProto2 && field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
 				// Proto2 optional scalar or message
 				optional = "?"
 			} else if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
