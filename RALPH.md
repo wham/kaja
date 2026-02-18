@@ -62,7 +62,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 103/103 tests passing
 - [x] Fix test 100_oneof_kind_field_escape: Added `oneofKind` to the list of reserved property names that get `$` suffix escaping (alongside `__proto__` and `toString`), matching protobuf-ts's `oneofKindDiscriminator` collision handling
 - [x] Fix test 101_service_detached_comment: Added service-level LeadingDetachedComments as `//` line comments before JSDoc blocks for both the interface and implementation class in generateServiceClient
-- [x] All 105/105 tests passing — DONE
+- [x] Fix test 102_oneof_name_escape: Added `oneofKind` to the oneof name escaping check (alongside `__proto__` and `toString`) in all 5 locations where oneofCamelName is computed
+- [x] Fix test 103_field_detached_comment_blank: Detached comment blank lines within a block should use `// ` (with trailing space), and separators between blocks should be empty lines (not `//`). Fixed in 6 locations: field, oneof, oneof member, and service (interface + implementation).
+- [x] All 107/107 tests passing — DONE
 
 ## Notes
 
@@ -88,3 +90,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service method detached comments should be output for ALL methods including the first one (methodIdx == 0). The `methodIdx > 0` guard was wrong — it skipped the first method's detached comments in both the interface and implementation sections of `generateServiceClient`.
 - Field names whose camelCase form equals `oneofKind` must be escaped with `$` suffix (e.g. `oneofKind$`). This is because `oneofKind` is the discriminator property used by protobuf-ts for oneof unions. The TS plugin checks against `oneofKindDiscriminator` option (default `"oneofKind"`). The escaping must also trigger `localName` in the field info descriptor.
 - Service-level detached comments (LeadingDetachedComments on path `[6, svcIndex]`) must be output as `//` line comments before the `/**` JSDoc block for both the interface and the class in `generateServiceClient`. Same pattern as oneof detached comments but using `g.pNoIndent()` since service comments are at top level (no indent).
+- Oneof names whose camelCase form equals `oneofKind` must also be escaped with `$` suffix. There are 5 separate locations where `oneofCamelName` is computed and needs the escape check: interface generation (~line 1943), field descriptor generation (~line 2885), create() method (~line 3225), internalBinaryRead (~line 3346), and internalBinaryWrite (~line 3569). All must check `__proto__`, `toString`, AND `oneofKind`.
+- Detached comment formatting: blank lines *within* a single detached block must render as `// ` (with trailing space), while separators *between* detached blocks must be empty lines (no `//` prefix). The file-level detached comments (syntax path) use `//` (no space) for blank lines and `//` for separators — this is intentionally different and already correct. The message-level detached comments were already correct. The fix was needed in field, oneof, oneof member, and service detached comment rendering (6 locations total).
