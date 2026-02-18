@@ -688,7 +688,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		}
 	}
-	return result
+	return mergeRepeatedOptions(result)
 }
 
 func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
