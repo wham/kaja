@@ -71,7 +71,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 107_deprecated_file_oneof: Added `@deprecated` to oneof JSDoc when file has `option deprecated = true`
 - [x] All 111/111 tests passing
 - [x] Fix test 108_field_multi_options: Combined separate `[opt]` brackets into single `[opt1, opt2, ...]` format using `formatFieldOptionsAnnotation` helper. Fixed WireType import ordering by generalizing `wireTypeVeryLate` condition.
-- [x] All 112/112 tests passing — DONE
+- [x] All 112/112 tests passing
+- [x] Fix test 109_message_trailing_comment: Added message trailing comment support to interface JSDoc, same pattern as enum trailing comments — use `getEnumTrailingComments` (preserves trailing blank info) and insert between leading comments and `@generated` tag
+- [x] Fix test 110_service_trailing_comment: Added trailing comment support to service and method JSDoc in generateServiceClient — 4 locations (service interface, service class, method interface, method class) using getEnumTrailingComments pattern
+- [x] All 114/114 tests passing — DONE
 
 ## Notes
 
@@ -104,3 +107,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Field options in comments must be combined into a single `[opt1, opt2, ...]` bracket, not separate `[opt1] [opt2]` brackets. Order matches protobuf-ts: packed, default, json_name, jstype, deprecated. Use `formatFieldOptionsAnnotation` helper.
 - WireType import ordering depends on whether the first message's InternalBinaryRead registers WireType (for repeated numeric/enum fields). If yes, WireType goes after UnknownFieldHandler ("very late"). The check is: first message has at least one repeated scalar/enum field that is not string/bytes/message. This is syntax-agnostic (applies to both proto2 and proto3).
 - File-level `option deprecated = true` must propagate `@deprecated` to oneof JSDoc comments. The oneof comment generation (around line 2269) was missing the `g.isFileDeprecated()` check before `@generated from protobuf oneof:`. Added it between the trailing comment and the `@generated` tag.
+- Message interface JSDoc needs trailing comments (TrailingComments on message path e.g. `[4, msgIdx]`) inserted between leading comments and `@generated` tag. Reuse `getEnumTrailingComments` (which preserves trailing blank info via `__HAS_TRAILING_BLANK__` marker) since `getTrailingComments` strips that info.
+- Service and method trailing comments in client file (`generateServiceClient`) need to be included in all 4 JSDoc locations: service interface, service class, method interface, method class. Uses same `getEnumTrailingComments` pattern with `__HAS_TRAILING_BLANK__` handling. Service uses `g.pNoIndent`, methods use `g.p`.
