@@ -599,8 +599,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Affects:** ALL codegen for the field: interface (oneof ADT vs optional scalar), field descriptor (`oneof:` property, `opt:` property), `create()` (oneof init vs scalar default), `internalBinaryRead` (oneof unwrap vs direct assign), `internalBinaryWrite` (oneof kind check vs default value check).
 - **Note:** This only triggers when ALL three conditions are met: (1) oneof name starts with `_`, (2) oneof has exactly 1 field, (3) field name equals oneof name minus leading `_`. Unusual but valid proto.
 
+### Run 71 — Duplicate property initialization in create() for colliding camelCase names (SUCCESS)
+- **Bug found:** `generateMessageTypeClass()` in main.go generates duplicate `message.x123Y = "";` in the `create()` method when two fields (`x123y` and `x_123_y`) resolve to the same TypeScript property name `x123Y` via `toCamelCase`. The TS plugin deduplicates initialization by checking if a property was already initialized; the Go plugin initializes every field without tracking.
+- **Test:** `152_duplicate_property_create` — message with `string x123y = 1` and `string x_123_y = 3` (both resolve to `x123Y`).
+- **Root cause:** The `create()` method generation at lines ~3755-3816 iterates all fields and calls `g.getDefaultValue(field)` without tracking which property names have already been initialized. When two different proto fields produce the same camelCase property name, the initialization is emitted twice: `message.x123Y = ""; message.x123Y = "";`.
+- **Note:** The TS plugin's `createFieldInfoLiteral` and `create()` generator likely deduplicates via a Set of already-initialized property names.
+
 ### Ideas for future runs
 - Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
 - Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
 - Service with custom option that contains a field named with leading underscores.
 - Custom option with oneof field inside message-typed option value.
+- Multiple fields colliding on same property name with different types (e.g., `int32 x123y = 1; string x_123_y = 3`) — may expose additional dedup bugs in `internalBinaryWrite` or other contexts.
+- `toCamelCase` collisions with `bool` and `bytes` fields — default value dedup.
