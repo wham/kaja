@@ -399,6 +399,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 503-515: `TYPE_MESSAGE` hits the `default` case. For `BytesType` wire type, it calls `ConsumeBytes` and advances the pointer, but never deserializes or appends the value. The TS plugin outputs `{ "test.resource": { name: "users", readonly: true } }` as the third argument to `super()`, while the Go plugin omits the third argument entirely.
 - **Affects:** All four custom option types (message, field, method, service) when an extension uses a message type. The Go plugin would need to recursively deserialize the message binary using the message type's field descriptors and convert to a JSON-like object.
 
+### Run 50 — Repeated custom option values not merged into array (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go creates one `customOption` per wire occurrence. For repeated extensions (e.g., `repeated string tags`), each `option (tags) = "x"` creates a separate entry `{key: "test.tags", value: "x"}`. The TS plugin merges them into a single entry with an array value: `{ "test.tags": ["alpha", "beta"] }`. The Go plugin outputs duplicate keys: `{ "test.tags": "alpha", "test.tags": "beta" }`.
+- **Test:** `131_repeated_custom_option` — message with `option (tags) = "alpha"; option (tags) = "beta";` where `tags` is a `repeated string` extension of `MessageOptions`.
+- **Root cause:** `parseCustomOptions` (line ~419) never checks `ext.GetLabel() == LABEL_REPEATED`. It appends each wire value as a separate `customOption`. Then `formatCustomOptions` (line ~680) formats each entry as a separate key-value pair. Should check if the extension is repeated and merge values with the same key into a list/array.
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses `repeated` label. Duplicate keys in a JS object literal are technically valid but semantically wrong — only the last value survives.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
@@ -409,10 +415,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
-- Custom option with fixed32/fixed64/sfixed32/sfixed64 value — Go plugin doesn't handle fixed-width types. TS handles correctly.
-- Custom option with repeated field — Go plugin likely doesn't handle repeated extension fields.
 - Custom option with bytes value — does Go plugin handle TYPE_BYTES extension values?
 - Custom option with nested message value (message inside message) — would require recursive deserialization.
 - Custom field option with message type — same bug as run 49 but for FieldOptions extensions.
 - Custom method option with message type — same bug but for MethodOptions.
 - Custom service option with message type — same bug but for ServiceOptions.
+- Repeated custom option with int/bool/enum types — same bug but different value types.
+- Custom enum options on enum declarations — Go plugin has no `getCustomEnumOptions`.
+- Custom enum value options on enum values — Go plugin has no `getCustomEnumValueOptions`.
