@@ -4840,7 +4840,12 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.pNoIndent(" *")
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" *")
+			}
 		}
 	}
 	
@@ -4894,7 +4899,12 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.p(" *")
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
 		}
 		
 		// Add @deprecated if method has deprecated option OR file is deprecated
@@ -4944,7 +4954,12 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 					g.pNoIndent(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.pNoIndent(" *")
+			if hasTrailingBlank {
+				g.pNoIndent(" *")
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" *")
+			}
 		}
 	}
 	
@@ -5003,7 +5018,12 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.p(" *")
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
 		}
 		
 		// Add @deprecated if method has deprecated option OR file is deprecated
