@@ -47,14 +47,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 3461 in `internalBinaryWrite` message-value branch hardcodes Varint+int32 instead of using `getMapKeyWriter`.
 - **Also broken:** `k as any` vs `k` accessor, and `parseInt(k)` vs `BigInt(k)` for 64-bit keys.
 
+### Run 4 — Proto2 required message field optionality bug (SUCCESS)
+- **Bug found:** Proto2 `required` message fields should still have `?` optional marker in TypeScript interface. The Go plugin at line ~2149 excludes `LABEL_REQUIRED` from the optional check entirely, but the TS plugin still adds `?` for message types even when `required`.
+- **Test:** `85_proto2_required_message` — required message field vs required scalar field.
+- **Root cause:** Line ~2149 `field.GetLabel() != descriptorpb.FieldDescriptorProto_LABEL_REQUIRED` prevents adding `?` for required fields, but message types should always get `?` in TS regardless of required label.
+- **Also found but not tested:** Proto2 oneof fields — Go adds `optional` label in comments but TS omits it for oneof members. Save for future run.
+
 ### Ideas for future runs
+- **Proto2 oneof field comments** — In proto2, Go adds `optional` label to oneof field comments, but TS plugin omits it. Verified in test3.proto diff above. This affects both the interface JSDoc and the binary read/write comments.
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
-- Map with `int64` keys + `long_type_string` — check if `parseInt` vs raw `k` is correct.
 - Proto file with only enums and no messages — import generation edge case.
 - Deeply nested type collision suffix handling in imports.
 - `deprecated` option on oneof fields.
 - Large field numbers (> 2^28) in binary read comments.
-- Map message-value branch also hardcodes `int32(parseInt(k))` for uint32/sint32/int64/uint64/sint64 keys — those would also differ.
-- Check `internalBinaryRead` for map entries with fixed-width keys — does reader use correct methods?
-- Map with boolean key + message value — does the Go plugin handle `k as any` correctly?
+- `jstype` on map fields — rejected by protoc, not a valid test vector.

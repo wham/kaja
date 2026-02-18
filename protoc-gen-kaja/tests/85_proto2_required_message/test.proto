@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package test;
+
+message Inner {
+  optional string value = 1;
+}
+
+// Required message fields should still be optional in TypeScript
+message Outer {
+  required Inner required_inner = 1;
+  required string required_string = 2;
+  optional Inner optional_inner = 3;
+}
