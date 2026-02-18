@@ -611,7 +611,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 1324-1367 in the Go plugin only iterate source code info locations looking for `loc.Path[0] == 12` (syntax field). The TS plugin at line 361145-361148 explicitly collects both: `[...getSyntaxComments(file).leadingDetached, ...getPackageComments(file).leadingDetached]`.
 - **Note:** The package field number in `FileDescriptorProto` is 2. The Go plugin never checks for `loc.Path == [2]` with `LeadingDetachedComments`.
 
+### Run 73 — Import name collision not aliased (SUCCESS)
+- **Bug found:** When a file imports a type from another file that has the SAME name as a type defined in the current file (e.g., both files define `Item`), the TS plugin renames the import with an alias (`import { Item as Item$ } from "./common"`) and uses `Item$` throughout. The Go plugin imports it without an alias (`import { Item } from "./common"`), causing a name collision — both the local `Item` and the imported `Item` would refer to the same binding.
+- **Test:** `154_import_name_collision` — `common.proto` defines `common.Item`, `test.proto` defines `test.Item` and references both.
+- **Root cause:** The Go plugin's import generation (around `generateImports` or `stripPackage`) doesn't track which type names have already been used in the current file. When two different packages define a type with the same simple name, the TS plugin's `TypeScriptImports` class detects the collision and adds `as Name$` alias. The Go plugin lacks this collision detection entirely.
+- **Affects:** import statement, interface property type, field descriptor `T:`, `internalBinaryRead`, and `internalBinaryWrite` — ALL reference the unaliased name.
+
 ### Ideas for future runs
+- Same collision but with enum types (two packages defining same-named enum).
+- Three-way collision: local type + two imports with same simple name — TS uses `Item$`, `Item$1`?
+- Collision between a message name and an imported well-known type (e.g., local `Timestamp` + import `google.protobuf.Timestamp`).
 - Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
 - Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
 - Service with custom option that contains a field named with leading underscores.
