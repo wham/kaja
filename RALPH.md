@@ -83,7 +83,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 117/117 tests passing
 - [x] Fix test 114_optimize_code_size: Added `optimize_for = CODE_SIZE` support — skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their imports (BinaryWriteOptions, IBinaryWriter, WireType, BinaryReadOptions, IBinaryReader, UnknownFieldHandler, PartialMessage, reflectionMergePartial)
 - [x] Fix test 115_optimize_lite_runtime: `optimize_for = LITE_RUNTIME` behaves same as CODE_SIZE — extended `isOptimizeCodeSize()` to also check for `LITE_RUNTIME`
-- [x] All 119/119 tests passing — DONE
+- [x] Fix test 116_string_default_cr: String default values with `\r` (CR) chars must be converted to `\n` (LF) to match TypeScript printer's newline normalization. Modified `g.p()` to handle embedded newlines by adding indent to continuation lines.
+- [x] All 120/120 tests passing — DONE
 
 ## Notes
 
@@ -122,3 +123,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - String/bytes default value annotation: protobuf-ts uses JavaScript `String.replace('"', '\\"')` which only replaces the FIRST double-quote occurrence. Our Go code must use `strings.Replace(val, `"`, `\"`, 1)` (count=1) to match this behavior. Do NOT escape all quotes.
 - `jstype = JS_NORMAL` on 64-bit integer fields (int64, uint64, sint64, fixed64, sfixed64) overrides the `long_type_string` parameter. Effects: TS type becomes `bigint`, default value is `0n`, reader uses `.toBigInt()`, field descriptor gets `L: 0 /*LongType.BIGINT*/`, and annotation shows `[jstype = JS_NORMAL]`. Helper functions `isJsTypeNormal()` and `is64BitIntType()` were added. All 10 reader method locations (5 types × 2 functions: `getReaderMethod` + `getReaderMethodSimple`) need the JS_NORMAL check alongside the existing JS_NUMBER check.
 - `optimize_for = LITE_RUNTIME` behaves identically to `CODE_SIZE` — both skip `create()`, `internalBinaryRead()`, `internalBinaryWrite()` methods and their Phase 2 imports. The `isOptimizeCodeSize()` helper checks for both `CODE_SIZE` and `LITE_RUNTIME`.
+- String default values with `\r` (CR, 0x0d) characters must be converted to `\n` (LF, 0x0a) in `formatDefaultValueAnnotation`. The TypeScript printer normalizes all CR to LF. The `g.p()` function was also modified to handle embedded `\n` within format output by splitting into separate lines, each with proper `g.indent` indentation. This matches how the TS printer re-indents continuation lines in comments.
