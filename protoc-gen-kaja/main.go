@@ -161,7 +161,8 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		}
 	}
 
-	// Generate files for each proto file to generate
+	// Generate files for each proto file to generate, tracking which produced output
+	generatedFiles := make(map[string]bool)
 	for _, fileName := range req.FileToGenerate {
 		file := findFile(req.ProtoFile, fileName)
 		if file == nil {
@@ -187,6 +188,7 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			continue
 		}
 
+		generatedFiles[fileName] = true
 		outputName := getOutputFileName(fileName)
 		resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
 			Name:    proto.String(outputName),
@@ -204,37 +206,40 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 		}
 	}
 	
-	// Also generate for google.protobuf well-known types if they're dependencies
-	for _, file := range req.ProtoFile {
-		fileName := file.GetName()
-		// Check if this is a well-known type
-		if strings.HasPrefix(fileName, "google/protobuf/") {
-			// Check if any file to generate depends on this
-			needsGeneration := false
-			for _, genFileName := range req.FileToGenerate {
-				genFile := findFile(req.ProtoFile, genFileName)
-				if genFile == nil {
-					continue
-				}
-				for _, dep := range genFile.Dependency {
-					if dep == fileName {
-						needsGeneration = true
+	// Also generate for google.protobuf well-known types if they're dependencies,
+	// but only if at least one FileToGenerate produced output
+	if len(generatedFiles) > 0 {
+		for _, file := range req.ProtoFile {
+			fileName := file.GetName()
+			// Check if this is a well-known type
+			if strings.HasPrefix(fileName, "google/protobuf/") {
+				// Check if any file to generate depends on this
+				needsGeneration := false
+				for _, genFileName := range req.FileToGenerate {
+					genFile := findFile(req.ProtoFile, genFileName)
+					if genFile == nil {
+						continue
+					}
+					for _, dep := range genFile.Dependency {
+						if dep == fileName {
+							needsGeneration = true
+							break
+						}
+					}
+					if needsGeneration {
 						break
 					}
 				}
+				
 				if needsGeneration {
-					break
-				}
-			}
-			
-			if needsGeneration {
-				content := generateFile(file, req.ProtoFile, params, false) // Well-known types are never imported by service files
-				if content != "" {
-					outputName := getOutputFileName(fileName)
-					resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-						Name:    proto.String(outputName),
-						Content: proto.String(content),
-					})
+					content := generateFile(file, req.ProtoFile, params, false) // Well-known types are never imported by service files
+					if content != "" {
+						outputName := getOutputFileName(fileName)
+						resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+							Name:    proto.String(outputName),
+							Content: proto.String(content),
+						})
+					}
 				}
 			}
 		}
