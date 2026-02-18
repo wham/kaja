@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/encoding/protowire"
@@ -470,10 +472,12 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			result = append(result, customOption{key: extName, value: int(v)})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
-			_, n := protowire.ConsumeFixed32(unknown)
+			v, n := protowire.ConsumeFixed32(unknown)
+			result = append(result, customOption{key: extName, value: float64(math.Float32frombits(v))})
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
-			_, n := protowire.ConsumeFixed64(unknown)
+			v, n := protowire.ConsumeFixed64(unknown)
+			result = append(result, customOption{key: extName, value: math.Float64frombits(v)})
 			unknown = unknown[n:]
 		default:
 			switch typ {
@@ -546,6 +550,8 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = fmt.Sprintf("%t", val)
 		case int:
 			valueStr = fmt.Sprintf("%d", val)
+		case float64:
+			valueStr = strconv.FormatFloat(val, 'f', -1, 64)
 		default:
 			valueStr = fmt.Sprintf("%v", val)
 		}
