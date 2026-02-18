@@ -36,8 +36,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `82_map_scalar_value_types` — map fields with every scalar value type.
 - **Root cause:** Go function `getMapValueWriter` at ~line 3941 has incomplete switch statement.
 
+### Run 2 — Map fixed key wire type bug (SUCCESS)
+- **Bug found:** `getMapKeyWriter()` in main.go groups fixed-width types with their varint counterparts. `fixed32` grouped with `uint32` → `Varint`+`uint32()` instead of `Bit32`+`fixed32()`. Same for `fixed64`, `sfixed32`, `sfixed64`.
+- **Test:** `83_map_fixed_key_types` — map fields with fixed32/fixed64/sfixed32/sfixed64 keys.
+- **Root cause:** Go function `getMapKeyWriter` at ~line 3947 has incorrect switch groupings.
+
 ### Ideas for future runs
-- `getMapKeyWriter` also has wrong wire types for fixed32/sfixed32/fixed64/sfixed64 map keys (uses Varint instead of Bit32/Bit64). Test with `map<fixed32, string>`.
 - Proto2 with `group` fields — verify nested message codegen matches.
 - `oneof` containing a `bytes` field — check write condition.
 - Map with `int64` keys + `long_type_string` — check if `parseInt` vs raw `k` is correct.
@@ -45,3 +49,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested type collision suffix handling in imports.
 - `deprecated` option on oneof fields.
 - Large field numbers (> 2^28) in binary read comments.
+- `getMapValueWriter` — check if fixed-width value types also have wrong wire types (similar to key bug).
+- Check `internalBinaryRead` for map entries with fixed-width keys — does reader use correct methods?
