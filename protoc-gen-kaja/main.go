@@ -2365,9 +2365,9 @@ func (g *generator) getProtoType(field *descriptorpb.FieldDescriptorProto) strin
 		// Proto3 explicit optional
 		label = "optional "
 	} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
-		// Only show "optional" for proto2 optional fields
+		// Only show "optional" for proto2 optional fields (not oneof members)
 		isProto2 := g.file.GetSyntax() == "proto2" || g.file.GetSyntax() == ""
-		if isProto2 {
+		if isProto2 && field.OneofIndex == nil {
 			label = "optional "
 		}
 	} else if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
