@@ -2543,21 +2543,7 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 			oneofProtoName := msg.OneofDecl[oneofIdx].GetName()
 			
 			// Check if this is a proto3 optional (synthetic oneof)
-			// Proto3 optional oneofs: start with "_", have exactly 1 field, field name = oneof name minus "_"
-			isProto3Optional := false
-			if len(oneofProtoName) > 0 && oneofProtoName[0] == '_' {
-				// Count fields in this oneof
-				fieldCount := 0
-				for _, f := range msg.Field {
-					if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
-						fieldCount++
-					}
-				}
-				// Proto3 optional has exactly 1 field and field name matches oneof name (minus leading _)
-				if fieldCount == 1 && field.GetName() == oneofProtoName[1:] {
-					isProto3Optional = true
-				}
-			}
+			isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 			
 			if isProto3Optional {
 				// Proto3 optional field - treat as regular optional field
@@ -3674,12 +3660,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			oneofIdx := field.GetOneofIndex()
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
-				// Proto3 optional fields are in synthetic oneofs
-				// They start with "_" and the field name matches oneof name minus the "_"
-				isProto3Optional := false
-				if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
-					isProto3Optional = true
-				}
+				isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 				
 				if isProto3Optional {
 					info.isProto3Optional = true
@@ -3783,12 +3764,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			oneofIdx := field.GetOneofIndex()
 			if oneofIdx < int32(len(msg.OneofDecl)) {
 				oneofName := msg.OneofDecl[oneofIdx].GetName()
-				// Proto3 optional fields are in synthetic oneofs
-				// They start with "_" and the field name matches oneof name minus the "_"
-				isProto3Optional := false
-				if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
-					isProto3Optional = true
-				}
+				isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 				
 				if !isProto3Optional {
 					// Real oneof - add initialization for it (only once)
@@ -3884,12 +3860,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if field.OneofIndex != nil {
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			// Proto3 optional fields are in synthetic oneofs
-			// They start with "_" and the field name matches oneof name minus the "_"
-			isProto3Optional := false
-			if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
-				isProto3Optional = true
-			}
+			isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 			
 			if !isProto3Optional {
 				isRealOneof = true
@@ -4064,12 +4035,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		if field.OneofIndex != nil {
 			oneofIdx := field.GetOneofIndex()
 			oneofName := msg.OneofDecl[oneofIdx].GetName()
-			// Proto3 optional fields are in synthetic oneofs
-			// They start with "_" and the field name matches oneof name minus the "_"
-			isProto3Optional := false
-			if len(oneofName) > 0 && oneofName[0] == '_' && field.GetName() == oneofName[1:] {
-				isProto3Optional = true
-			}
+			isProto3Optional := field.Proto3Optional != nil && *field.Proto3Optional
 			
 			if !isProto3Optional {
 				isRealOneof = true
