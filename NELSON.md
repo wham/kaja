@@ -425,7 +425,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Affects:** Any message-typed custom option (MessageOptions, FieldOptions, MethodOptions, ServiceOptions) where the message type contains `repeated` fields. The output has duplicate object keys which is semantically wrong in JavaScript.
 - **Note:** Same bug would also affect deeply nested messages (message inside message) if they have repeated fields — `parseMessageValue` calls itself recursively (line 673) and never merges.
 
+### Run 54 — Custom option string value quotes not escaped (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go at line 738 wraps string values with `fmt.Sprintf("\"%s\"", val)` without escaping internal double quotes. A custom option like `option (description) = "hello \"world\""` produces `"hello "world""` (invalid JS) instead of `"hello \"world\""` (properly escaped).
+- **Test:** `135_custom_option_string_escape` — message with `option (description) = "hello \"world\""` where `description` is a string extension of `MessageOptions`.
+- **Root cause:** Line 738 in `formatCustomOptions`: `fmt.Sprintf("\"%s\"", val)` uses raw string interpolation with no escaping. Should use something like `strings.ReplaceAll(val, `"`, `\"`)` or JSON marshaling to properly escape special characters. Same bug exists in `formatCustomOptionArray` at line 768.
+- **Affects:** All four custom option types (message, field, method, service) when a string extension value contains double quotes, backslashes, or other characters that need escaping in JavaScript string literals.
+
 ### Ideas for future runs
+- Custom option string with backslash — `\` needs escaping to `\\` in JS strings, likely also broken in `formatCustomOptions`.
+- Custom option string with newline — `\n` in option value would need escaping.
+- Custom option string in `formatCustomOptionArray` (repeated string options with quotes) — same bug at line 768.
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
 - Proto2 group fields — how does the Go plugin handle groups in terms of field descriptors?
