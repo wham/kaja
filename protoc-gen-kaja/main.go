@@ -1474,27 +1474,29 @@ func (g *generator) writeImports(imports map[string]bool) {
 			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
-		// Proto2 files with "packed" in package name OR repeated fields with jstype option get WireType very late
-		// Note: proto2 files may have syntax="" (empty string) or "proto2"
-		syntax := g.file.GetSyntax()
-		isProto2 := syntax == "" || syntax == "proto2"
-		hasRepeatedJstype := false
-		if isProto2 {
-			// Check for repeated fields with jstype option
-			for _, msg := range g.file.MessageType {
-				for _, field := range msg.Field {
-					if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED &&
-						field.Options != nil && field.GetOptions().Jstype != nil {
-						hasRepeatedJstype = true
+		// WireType goes after UnknownFieldHandler ("very late") when the first message's
+		// InternalBinaryRead registers WireType (via scalarRepeated for repeated numeric/enum
+		// fields). This happens when the first message with fields has at least one repeated
+		// scalar/enum field that is not string/bytes.
+		firstMsgHasRepeatedNumeric := false
+		if len(g.file.MessageType) > 0 {
+			firstMsg := g.file.MessageType[0]
+			for _, field := range firstMsg.Field {
+				if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+					continue
+				}
+				if field.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+					ft := field.GetType()
+					if ft != descriptorpb.FieldDescriptorProto_TYPE_STRING &&
+						ft != descriptorpb.FieldDescriptorProto_TYPE_BYTES &&
+						ft != descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+						firstMsgHasRepeatedNumeric = true
 						break
 					}
 				}
-				if hasRepeatedJstype {
-					break
-				}
 			}
 		}
-		if isProto2 && (strings.Contains(g.file.GetPackage(), "packed") || hasRepeatedJstype) {
+		if firstMsgHasRepeatedNumeric {
 			wireTypeVeryLate = true
 			wireTypeEarly = false
 		}
@@ -2083,59 +2085,16 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	fieldName := field.GetName()
 	fieldNumber := field.GetNumber()
 	
-	// Check if we need to show json_name (only for explicitly set, not auto-generated)
-	jsonNameAnnotation := ""
-	if field.JsonName != nil {
-		protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
-		actualJsonName := *field.JsonName
-		// Only show if different from what protoc would auto-generate
-		if protocDefaultJsonName != actualJsonName {
-			jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
-		}
-	}
-	
-	// Check if there's a default value annotation
-	defaultAnnotation := ""
-	if field.DefaultValue != nil {
-		defaultVal := field.GetDefaultValue()
-		// Format default value based on field type
-		formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
-		defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
-	}
-	
-	// Check for jstype option (for int64/uint64 types)
-	jstypeAnnotation := ""
-	if field.Options != nil && field.GetOptions().Jstype != nil {
-		jstype := field.GetOptions().GetJstype()
-		if jstype == descriptorpb.FieldOptions_JS_STRING {
-			jstypeAnnotation = " [jstype = JS_STRING]"
-		} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
-			jstypeAnnotation = " [jstype = JS_NUMBER]"
-		}
-	}
-	
-	// Check for packed option (for repeated fields)
-	packedAnnotation := ""
-	if field.Options != nil && field.GetOptions().Packed != nil {
-		if field.GetOptions().GetPacked() {
-			packedAnnotation = " [packed = true]"
-		} else {
-			packedAnnotation = " [packed = false]"
-		}
-	}
+	optionsAnnotation := g.formatFieldOptionsAnnotation(field)
 	
 	// Check if field is deprecated OR file is deprecated
 	fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
-	deprecatedAnnotation := ""
-	if fieldIsDeprecated {
-		deprecatedAnnotation = " [deprecated = true]"
-	}
 	// Add @deprecated tag for both field-level and file-level deprecation
 	if fieldIsDeprecated || g.isFileDeprecated() {
 		g.p(" * @deprecated")
 	}
 	
-	g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s%s", protoType, fieldName, fieldNumber, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation)
+	g.p(" * @generated from protobuf field: %s %s = %d%s", protoType, fieldName, fieldNumber, optionsAnnotation)
 	g.p(" */")
 	
 	fieldName = g.propertyName(field)
@@ -2336,42 +2295,13 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 				g.p(" *")
 			}
 		}
-		// Check for default value annotation
-		oneofDefaultAnnotation := ""
-		if field.DefaultValue != nil {
-			defaultVal := field.GetDefaultValue()
-			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
-			oneofDefaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
-		}
-		// Check if we need to show json_name (only for explicitly set, not auto-generated)
-		oneofJsonNameAnnotation := ""
-		if field.JsonName != nil {
-			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
-			actualJsonName := *field.JsonName
-			if protocDefaultJsonName != actualJsonName {
-				oneofJsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
-			}
-		}
-		// Check for jstype option
-		oneofJstypeAnnotation := ""
-		if field.Options != nil {
-			jstype := field.GetOptions().GetJstype()
-			if jstype == descriptorpb.FieldOptions_JS_STRING {
-				oneofJstypeAnnotation = " [jstype = JS_STRING]"
-			} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
-				oneofJstypeAnnotation = " [jstype = JS_NUMBER]"
-			}
-		}
+		optionsAnnotation := g.formatFieldOptionsAnnotation(field)
 		// Check if field is deprecated
 		fieldIsDeprecated := field.Options != nil && field.GetOptions().GetDeprecated()
-		oneofDeprecatedAnnotation := ""
-		if fieldIsDeprecated {
-			oneofDeprecatedAnnotation = " [deprecated = true]"
-		}
 		if fieldIsDeprecated || g.isFileDeprecated() {
 			g.p(" * @deprecated")
 		}
-		g.p(" * @generated from protobuf field: %s %s = %d%s%s%s%s", g.getProtoType(field), field.GetName(), field.GetNumber(), oneofDefaultAnnotation, oneofJsonNameAnnotation, oneofJstypeAnnotation, oneofDeprecatedAnnotation)
+		g.p(" * @generated from protobuf field: %s %s = %d%s", g.getProtoType(field), field.GetName(), field.GetNumber(), optionsAnnotation)
 		g.p(" */")
 		fieldType := g.getTypescriptType(field)
 		g.p("%s: %s;", fieldJsonName, fieldType)
@@ -3262,71 +3192,16 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		g.indent = "                "
 		fieldName := g.propertyName(field)
 		
-		// Add default value annotation if present
-		defaultAnnotation := ""
-		if field.DefaultValue != nil {
-			defaultVal := field.GetDefaultValue()
-			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
-			defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
-		}
+		// Build the options annotation
+		optionsAnnotation := g.formatFieldOptionsAnnotation(field)
 		
-		// Add json_name annotation to comment if custom (explicitly set)
-		// Field number is shown explicitly when there's a default or custom json_name
+		// Show field number if there are options
 		fieldNumberInComment := ""
-		jsonNameAnnotation := ""
-		if field.JsonName != nil {
-			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
-			actualJsonName := *field.JsonName
-			if protocDefaultJsonName != actualJsonName {
-				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
-				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
-			}
-		}
-		// Show field number if there's a default value
-		if defaultAnnotation != "" && fieldNumberInComment == "" {
+		if optionsAnnotation != "" {
 			fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
 		}
 		
-		// Add deprecated annotation if applicable
-		deprecatedAnnotation := ""
-		if field.Options != nil && field.GetOptions().GetDeprecated() {
-			// For inline comment, show field number and deprecated annotation
-			if fieldNumberInComment == "" {
-				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
-			}
-			deprecatedAnnotation = " [deprecated = true]"
-		}
-		
-		// Add jstype annotation if applicable
-		jstypeAnnotation := ""
-		if field.Options != nil && field.GetOptions().Jstype != nil {
-			jstype := field.GetOptions().GetJstype()
-			if jstype == descriptorpb.FieldOptions_JS_STRING || jstype == descriptorpb.FieldOptions_JS_NUMBER {
-				if fieldNumberInComment == "" {
-					fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
-				}
-				if jstype == descriptorpb.FieldOptions_JS_STRING {
-					jstypeAnnotation = " [jstype = JS_STRING]"
-				} else {
-					jstypeAnnotation = " [jstype = JS_NUMBER]"
-				}
-			}
-		}
-		
-		// Add packed annotation if applicable
-		packedAnnotation := ""
-		if field.Options != nil && field.GetOptions().Packed != nil {
-			if fieldNumberInComment == "" {
-				fieldNumberInComment = fmt.Sprintf(" = %d", field.GetNumber())
-			}
-			if field.GetOptions().GetPacked() {
-				packedAnnotation = " [packed = true]"
-			} else {
-				packedAnnotation = " [packed = false]"
-			}
-		}
-		
-		g.p("case /* %s %s%s%s%s%s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation, field.GetNumber())
+		g.p("case /* %s %s%s%s */ %d:", g.getProtoType(field), field.GetName(), fieldNumberInComment, optionsAnnotation, field.GetNumber())
 		g.indent = "                    "
 		
 		// Check if this is a real oneof (not proto3 optional)
@@ -3505,52 +3380,9 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		
 		fieldName := g.propertyName(field)
 		
-		// Add json_name annotation to comment if custom (explicitly set)
-		jsonNameAnnotation := ""
-		if field.JsonName != nil {
-			protocDefaultJsonName := g.protocGeneratedJsonName(field.GetName())
-			actualJsonName := *field.JsonName
-			if protocDefaultJsonName != actualJsonName {
-				jsonNameAnnotation = fmt.Sprintf(" [json_name = \"%s\"]", actualJsonName)
-			}
-		}
+		optionsAnnotation := g.formatFieldOptionsAnnotation(field)
 		
-		// Add default value annotation if present
-		defaultAnnotation := ""
-		if field.DefaultValue != nil {
-			defaultVal := field.GetDefaultValue()
-			formattedDefault := g.formatDefaultValueAnnotation(field, defaultVal)
-			defaultAnnotation = fmt.Sprintf(" [default = %s]", formattedDefault)
-		}
-		
-		// Add deprecated annotation if applicable
-		deprecatedAnnotation := ""
-		if field.Options != nil && field.GetOptions().GetDeprecated() {
-			deprecatedAnnotation = " [deprecated = true]"
-		}
-		
-		// Add jstype annotation if applicable
-		jstypeAnnotation := ""
-		if field.Options != nil && field.GetOptions().Jstype != nil {
-			jstype := field.GetOptions().GetJstype()
-			if jstype == descriptorpb.FieldOptions_JS_STRING {
-				jstypeAnnotation = " [jstype = JS_STRING]"
-			} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
-				jstypeAnnotation = " [jstype = JS_NUMBER]"
-			}
-		}
-		
-		// Add packed annotation if applicable
-		packedAnnotation := ""
-		if field.Options != nil && field.GetOptions().Packed != nil {
-			if field.GetOptions().GetPacked() {
-				packedAnnotation = " [packed = true]"
-			} else {
-				packedAnnotation = " [packed = false]"
-			}
-		}
-		
-		g.p("/* %s %s = %d%s%s%s%s%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), defaultAnnotation, jsonNameAnnotation, jstypeAnnotation, packedAnnotation, deprecatedAnnotation)
+		g.p("/* %s %s = %d%s; */", g.getProtoType(field), field.GetName(), field.GetNumber(), optionsAnnotation)
 		
 		// Check if this is a real oneof (not proto3 optional)
 		isRealOneof := false
@@ -3875,6 +3707,51 @@ func (g *generator) formatDefaultValueAnnotation(field *descriptorpb.FieldDescri
 	default:
 		return defaultVal
 	}
+}
+
+// formatFieldOptionsAnnotation builds a combined "[opt1, opt2, ...]" string for field comments.
+// Order matches protobuf-ts: packed, default, json_name, jstype, deprecated.
+func (g *generator) formatFieldOptionsAnnotation(field *descriptorpb.FieldDescriptorProto) string {
+	var options []string
+
+	// 1. packed
+	if field.Options != nil && field.GetOptions().Packed != nil {
+		options = append(options, fmt.Sprintf("packed = %v", field.GetOptions().GetPacked()))
+	}
+
+	// 2. default
+	if field.DefaultValue != nil {
+		formattedDefault := g.formatDefaultValueAnnotation(field, field.GetDefaultValue())
+		options = append(options, fmt.Sprintf("default = %s", formattedDefault))
+	}
+
+	// 3. json_name
+	if field.JsonName != nil {
+		protocDefault := g.protocGeneratedJsonName(field.GetName())
+		if protocDefault != *field.JsonName {
+			options = append(options, fmt.Sprintf("json_name = \"%s\"", *field.JsonName))
+		}
+	}
+
+	// 4. jstype
+	if field.Options != nil && field.GetOptions().Jstype != nil {
+		jstype := field.GetOptions().GetJstype()
+		if jstype == descriptorpb.FieldOptions_JS_STRING {
+			options = append(options, "jstype = JS_STRING")
+		} else if jstype == descriptorpb.FieldOptions_JS_NUMBER {
+			options = append(options, "jstype = JS_NUMBER")
+		}
+	}
+
+	// 5. deprecated
+	if field.Options != nil && field.GetOptions().GetDeprecated() {
+		options = append(options, "deprecated = true")
+	}
+
+	if len(options) == 0 {
+		return ""
+	}
+	return " [" + strings.Join(options, ", ") + "]"
 }
 
 func (g *generator) getDefaultValue(field *descriptorpb.FieldDescriptorProto) string {
