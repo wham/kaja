@@ -134,6 +134,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `98_oneof_member_detached_comment` — oneof with string and int32 fields, each having a detached comment (separated from leading comment by blank line).
 - **Root cause:** Line ~2278 constructs `fieldPath` but never calls `getLeadingDetachedComments(fieldPath)`. Compare with `generateField` at line 2022-2046 which properly handles detached comments. The TS plugin handles these by: (1) merging first member's detached comments into the oneof JSDoc, (2) outputting subsequent members' detached comments as `//` blocks before the `/**` JSDoc.
 
+### Run 18 — First method detached comment dropped in service (SUCCESS)
+- **Bug found:** `generateServiceClient()` in main.go skips detached comments for the first method (`methodIdx == 0`). The `if methodIdx > 0` guard at line ~4923 prevents fetching detached comments for the first method. The TS plugin outputs them as `//` style comments before the first method's JSDoc, both in the interface and the class body.
+- **Test:** `99_service_first_method_detached` — service with a detached comment before the first method (separated from first method's leading comment by a blank line).
+- **Root cause:** Two affected code paths: (1) interface generation at line ~4923 `if methodIdx > 0`, (2) class generation at line ~5042 `if methodIdx > 0`. Both skip first method's detached comments. Compare with enum handling (test 94) where first value's detached comments are merged into the enum JSDoc. For services, the TS plugin instead outputs them as `//` comments inside the interface/class body.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
@@ -147,5 +152,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Proto2 extensions — Go plugin skips files with only extensions entirely.
 - `toCamelCase` edge cases with Unicode or special characters.
 - `propertyName` incomplete reserved property list — only checks `__proto__` and `toString`, may miss others like `constructor`.
-- Service detached comments — check if service-level and method-level detached comment handling differs.
+- Service-level detached comments (path [6, svcIdx]) — not fetched at all in generateServiceClient.
 - Enum field trailing comments — check if trailing comments on enum values are handled correctly.
+- First method detached comment merging for service with NO service-level comment — different edge case.
