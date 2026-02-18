@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Set default model to Claude Opus 4.6
+export COPILOT_MODEL=claude-opus-4.6
+
 PROMPT_FILE="RALPH.md"
 NELSON_FILE="NELSON.md"
 STATUS_FILE="status.txt"

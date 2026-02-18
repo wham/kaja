@@ -4,6 +4,8 @@ You are porting [protoc-gen-ts](https://github.com/timostamm/protobuf-ts/tree/ma
 
 ## Steps
 
+Start by saying you model name and version.
+
 1. Analyze what's already in place
 2. Do additional web research how to achieve the task. Clone the TS plugin source code and inspect.
 3. Update [Plan](./RALPH.md#plan) if needed. Be comfortable trying bigger architecture changes. Document. RALPH.md is your memory. Keep it up to date.
