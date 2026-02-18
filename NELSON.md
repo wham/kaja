@@ -547,3 +547,29 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Severity:** CRASH (panic), not just wrong output. Any message-typed custom option with packed repeated scalar fields causes the entire code generation to fail.
 - **Affects:** All packable scalar types inside message-typed custom options: int32, int64, uint32, uint64, sint32, sint64, fixed32, fixed64, sfixed32, sfixed64, float, double, bool, enum. All four option scopes (MessageOptions, FieldOptions, MethodOptions, ServiceOptions).
 - **Why test 134 passes:** Test 134 uses `repeated string` which is NOT packed (strings are always unpacked), so each value is a separate wire entry and `ConsumeBytes` works correctly.
+
+### Run 65 — Empty service formatting bugs (SUCCESS)
+- **Bug found:** `generateServiceTypeConst()` in main.go always outputs `new ServiceType("name", [` on one line and `]);` on a separate line. When a service has zero methods, this produces `[\n]` (two lines). The TS plugin outputs `[]` on a single line for empty method arrays.
+- **Also broken:** The client file unconditionally imports `RpcOptions` (line ~5784) even when there are no methods that use it. The TS plugin doesn't import `RpcOptions` for empty services.
+- **Test:** `146_empty_service` — service with no methods.
+- **Root cause:** Line 6038 `g.pNoIndent("export const %s = new ServiceType(\"%s\", [", ...)` unconditionally opens the array on its own line. When `len(svc.Method) == 0`, the closing `]);` at line 6091 appears on the next line. Should special-case empty methods: `export const X = new ServiceType("name", []);` on one line.
+- **Two sub-bugs:** (1) `test.ts` has `[\n]` instead of `[]`, (2) `test.client.ts` has spurious `import type { RpcOptions }` import.
+
+### Run 66 — Enum prefix detection with trailing underscore in enum name (SUCCESS)
+- **Bug found:** `detectEnumPrefix()` in main.go computes the UPPER_SNAKE_CASE prefix differently from the TS plugin's `findEnumSharedPrefix()` when the enum name has a trailing underscore. The TS plugin uses regex replacement `replace(/[A-Z]/g, letter => "_" + letter.toLowerCase())` then strips leading `_` then uppercases, then adds `_`. The Go plugin inserts `_` before uppercase letters at i>0, uppercases, then adds `_` only if not already trailing. For `MyEnum_`, TS produces `MY_ENUM__` (double underscore), Go produces `MY_ENUM_` (single). This causes Go to not detect the shared prefix and keep full enum value names.
+- **Test:** `147_enum_trailing_underscore_prefix` — enum `MyEnum_` with values `MY_ENUM__UNSPECIFIED`, `MY_ENUM__FOO`, `MY_ENUM__BAR`.
+- **Root cause:** Line ~5008 `if !strings.HasSuffix(enumPrefix, "_")` prevents adding a second trailing `_` when the enum name already ends with `_`. But the TS regex naturally produces the double `_` because the conversion inserts `_` before each uppercase, and the trailing `_` from the original name stays as-is.
+- **Two affected outputs:** (1) Enum member names: TS strips to `UNSPECIFIED/FOO/BAR`, Go keeps `MY_ENUM__UNSPECIFIED/MY_ENUM__FOO/MY_ENUM__BAR`. (2) Field descriptor EnumInfo tuple: TS includes third element `"MY_ENUM__"`, Go omits it entirely.
+
+### Ideas for future runs
+- Empty message (no fields) — check if `super()` constructor differs for empty field array.
+- Service with only one method — check formatting edge cases.
+- Custom option with `group` type inside message — how does the Go plugin handle `TYPE_GROUP` in `parseMessageValue`?
+- Map field where value type is imported from another file — check import ordering.
+- Proto2 message with only `extensions` range and no fields — does Go handle this differently?
+- Enum with only one value (the zero value) — edge case in prefix detection.
+- File with both messages and enums but no services — import ordering edge cases.
+- Client file generation for service where ALL methods share the same input/output types — import dedup.
+- `toCamelCase` edge cases for method names with consecutive uppercase letters.
+- `detectEnumPrefix` with enum names containing consecutive underscores (e.g., `My__Enum`) — same regex vs loop difference.
+- Enum name that's already UPPER_SNAKE_CASE (e.g., `MY_STATUS`) — Go would produce `M_Y__S_T_A_T_U_S_` vs TS `_M_Y__S_T_A_T_U_S_` stripped to `M_Y__S_T_A_T_U_S_` — actually same, but worth verifying.
