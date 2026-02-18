@@ -129,7 +129,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 146_empty_service: Empty services (no methods) need two fixes: (1) skip RpcOptions import when no methods exist, (2) output `[]` on same line as ServiceType constructor instead of `[\n]`
 - [x] All 151/151 tests passing
 - [x] Fix test 147_enum_trailing_underscore_prefix: Enum prefix detection must unconditionally append `_` after UPPER_SNAKE_CASE conversion (protobuf-ts always appends `_`). Our code was using `HasSuffix("_")` guard which skipped the extra `_` for enum names ending with `_` (e.g., `MyEnum_` → `MY_ENUM_` instead of correct `MY_ENUM__`)
-- [x] All 152/152 tests passing — DONE
+- [x] All 152/152 tests passing
+- [x] Fix test 148_enum_underscore_prefix: Enum prefix detection for names starting with `_` (e.g., `_Foo`) must match protobuf-ts: prepend `_` before ALL uppercase, strip leading `_`, uppercase, append `_`. Our code skipped prepending at i=0, producing `__FOO_` instead of `_FOO_`.
+- [x] All 153/153 tests passing — DONE
 
 ## Notes
 

@@ -5331,14 +5331,23 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 
 		if shouldInterleave {
 			// Interleave: emit streaming methods with their call types interleaved
-			for _, sm := range streamingMethods {
+			// In protobuf-ts prepend model, the first method to register a call type "owns" it.
+			// Since streamingMethods is in reverse order, the last occurrence corresponds to the first registration.
+			// Only emit each call type at its last occurrence in the list.
+			lastCallTypeIdx := map[string]int{}
+			for i, sm := range streamingMethods {
+				if sm.callType != method0CallType {
+					lastCallTypeIdx[sm.callType] = i
+				}
+			}
+			for i, sm := range streamingMethods {
 				// Emit message types for this method
 				for _, t := range sm.types {
 					g.pNoIndent("import type { %s } from \"%s\";", t.typeName, t.typePath)
 				}
 				
-				// Emit call type for this method (skip if same as method 0's, which is emitted later)
-				if sm.callType != method0CallType {
+				// Emit call type only at its last occurrence (matching protobuf-ts's first-registration semantics)
+				if idx, ok := lastCallTypeIdx[sm.callType]; ok && idx == i {
 					var callTypeImport string
 					switch sm.callType {
 					case "duplex":
