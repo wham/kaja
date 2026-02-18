@@ -92,7 +92,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 119_mixed_streaming_unary_import: When method 0 is streaming and later methods are unary, UnaryCall must appear ABOVE other streaming call types (not below). Moved UnaryCall emission to before section 3's streaming call types, computed within the first-service block using `hasUnaryInService` check.
 - [x] All 123/123 tests passing
 - [x] Fix test 120_custom_message_options: Refactored custom option parsing into shared `buildExtensionMap`/`parseCustomOptions` functions, added `getCustomMessageOptions` for MessageOptions, and passed custom message options as third argument to MessageType constructor's `super()` call
-- [x] All 124/124 tests passing — DONE
+- [x] All 124/124 tests passing
+- [x] Fix test 121_enum_alias_deprecated: Enum aliases should use the original value's deprecated status, not the alias's own. Changed deprecation check to look at `enum.Value[firstValueIndexForNumber[...]]` when `isAlias` is true.
+- [x] All 125/125 tests passing — DONE
 
 ## Notes
 
@@ -135,3 +137,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Streaming-only services: When all methods in a service are streaming, the call type import (e.g., `ServerStreamingCall`) was emitted twice — once in the streaming methods section (section 3) and once in the method 0 section (section 5). Fix: compute `method0CallType` and skip it from section 3's emission since section 5 already handles it. This dedup applies to both the interleave and grouped code paths.
 - Mixed streaming/unary services: When method 0 is streaming and later methods are unary, UnaryCall must appear ABOVE the other streaming call types (DuplexStreamingCall, ClientStreamingCall) because in protobuf-ts's prepend model, later-processed methods' imports go to the top. The UnaryCall emission was moved from after section 3 to before section 3's call type emissions, guarded by `method0CallType != "" && hasUnaryInService`.
 - Custom message options: Messages with custom options (via `extend google.protobuf.MessageOptions`) need those options passed as a third argument to the MessageType constructor's `super()` call, e.g. `super("test.User", [...], { "test.resource_name": "users", "test.cacheable": true })`. The option extraction logic (`buildExtensionMap` + `parseCustomOptions`) is shared between method and message options. Extension fields are found in `file.Extension` of all files, matched by `extendee` name. Values are read from unknown fields in the options message's wire format.
+- Enum alias deprecated: When `allow_alias = true` and an alias has `[deprecated = true]` but the original value does not, the generated alias entry should use the **original value's** deprecated status (not the alias's). Protobuf-ts treats aliases as duplicates of the original — they get the original's comments, name in `@generated`, and deprecation status.
