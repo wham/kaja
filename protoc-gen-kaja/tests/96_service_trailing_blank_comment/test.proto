@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package test;
+
+// Service comment with trailing blank line.
+//
+service MyService {
+  // Method comment with trailing blank line.
+  //
+  rpc DoSomething(Request) returns (Response);
+}
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}
