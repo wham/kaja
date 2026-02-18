@@ -50,7 +50,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 96/96 tests passing
 - [x] Fix test 93_oneof_trailing_blank_comment: Added __HAS_TRAILING_BLANK__ marker handling to oneof and oneof-field comment generation, matching the pattern used elsewhere
 - [x] Fix test 94_enum_value_trailing_blank_comment: Added enum trailing comments support and __HAS_TRAILING_BLANK__ handling for enum value leading comments
-- [x] All 98/98 tests passing — DONE
+- [x] All 98/98 tests passing
+- [x] Fix test 95_proto2_oneof_enum: Proto2 oneof enum members should not get `opt: true` — added `field.OneofIndex == nil` check
+- [x] All 99/99 tests passing — DONE
 
 ## Notes
 
