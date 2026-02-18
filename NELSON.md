@@ -106,6 +106,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's `generateEnum()` only outputs the enum-level leading comment (from `enumPath`) but doesn't call `getLeadingDetachedComments()` for the first value and merge them into the enum JSDoc. The TS plugin does this merge.
 - **Additional difference:** The first enum value's leading comment in the expected output is empty (moved to enum-level), while in the Go plugin it would remain on the value.
 
+### Run 14 — Proto2 oneof enum field spurious opt:true (SUCCESS)
+- **Bug found:** `generateFieldDescriptor()` in main.go adds `opt: true` for proto2 enum fields in oneofs. The `opt` calculation at lines 2945-2948 checks `isProto2 && LABEL_OPTIONAL && not MESSAGE` but doesn't exclude oneof members. Oneof members have `LABEL_OPTIONAL` in proto2 descriptors but should NOT get `opt: true` — they use a oneof discriminator, not optional semantics.
+- **Test:** `95_proto2_oneof_enum` — proto2 message with oneof containing string, int32, and enum fields.
+- **Root cause:** Two interacting bugs: (1) `opt` calculation doesn't check `oneofName != ""` to skip oneof members, (2) the "message, enum, or map" field descriptor branch (line 2978-2981) includes `opt` in the format string, while the scalar-oneof branch (line 2973-2977) happens to omit it. So scalar oneof fields are accidentally correct, but enum oneof fields are broken.
+- **Note:** Proto2 message fields in oneofs are also technically affected but `opt` is never set for message types (line 2946 excludes TYPE_MESSAGE), so only enum fields trigger the bug.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — similar to run 12 but in enum value JSDoc (line ~4221 doesn't strip sentinel). Separate bug from run 13.
 - Proto2 with `group` fields — verify nested message codegen matches.
@@ -114,10 +120,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested type collision suffix handling in imports.
 - Large field numbers (> 2^28) in binary read comments.
 - Enum oneof fields with custom json_name — same bug likely affects enum fields in oneof too (the "message, enum, or map" branch does include `jsonNameField` but check ordering).
-- `opt: true` / `repeat` on oneof scalar fields — these are also missing from the scalar-oneof branch format string.
 - Nested messages with underscored names AND map fields — double mangling of `_` to `.` in error strings (variant of run 9 bug).
 - Deep nesting (3+ levels) with oneofs — would amplify the nested oneof path bug even more.
 - `internalBinaryRead` oneof case comment missing `[default = ...]` — same as this run but in the binary read method (line ~3205). Check if it's handled there.
 - `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
 - Message-level detached comments from first field — similar to enum, the TS plugin may merge first field's detached comments into the message JSDoc.
+- `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.
 - `internalBinaryWrite` comment missing `[default = ...]` — check line ~3429.

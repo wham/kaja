@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package test;
+
+enum Color {
+  COLOR_RED = 0;
+  COLOR_GREEN = 1;
+  COLOR_BLUE = 2;
+}
+
+// Proto2 oneof with enum field should NOT get "opt: true" in field descriptor.
+// Oneof members are never optional — they use the oneof discriminator.
+message MyMessage {
+  required string id = 1;
+
+  oneof value {
+    string text = 2;
+    int32 number = 3;
+    Color color = 4;
+  }
+}
