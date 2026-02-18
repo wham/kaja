@@ -2175,6 +2175,10 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	
 	// Add leading comments if present
 	if oneofLeadingComments != "" {
+		hasTrailingBlank := strings.HasSuffix(oneofLeadingComments, "__HAS_TRAILING_BLANK__")
+		if hasTrailingBlank {
+			oneofLeadingComments = strings.TrimSuffix(oneofLeadingComments, "\n__HAS_TRAILING_BLANK__")
+		}
 		for _, line := range strings.Split(oneofLeadingComments, "\n") {
 			if line == "" {
 				g.p(" *")
@@ -2182,7 +2186,12 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 				g.p(" * %s", escapeJSDocComment(line))
 			}
 		}
-		g.p(" *")
+		if hasTrailingBlank {
+			g.p(" *")
+			g.p(" *")
+		} else {
+			g.p(" *")
+		}
 	}
 	
 	g.p(" * @generated from protobuf oneof: %s", oneofProtoName)
@@ -2211,6 +2220,10 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		// Generate field JSDoc
 		g.p("/**")
 		if fieldLeadingComments != "" {
+			hasTrailingBlank := strings.HasSuffix(fieldLeadingComments, "__HAS_TRAILING_BLANK__")
+			if hasTrailingBlank {
+				fieldLeadingComments = strings.TrimSuffix(fieldLeadingComments, "\n__HAS_TRAILING_BLANK__")
+			}
 			for _, line := range strings.Split(fieldLeadingComments, "\n") {
 				if line == "" {
 					g.p(" *")
@@ -2218,7 +2231,12 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 					g.p(" * %s", escapeJSDocComment(line))
 				}
 			}
-			g.p(" *")
+			if hasTrailingBlank {
+				g.p(" *")
+				g.p(" *")
+			} else {
+				g.p(" *")
+			}
 		}
 		// Check for default value annotation
 		oneofDefaultAnnotation := ""
