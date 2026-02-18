@@ -393,6 +393,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Affects:** All four custom option types (message, field, method, service) when an extension uses sint32 or sint64 type.
 - **Related:** `TYPE_FIXED32/FIXED64/SFIXED32/SFIXED64` are also missing — they need `ConsumeFixed32`/`ConsumeFixed64` with appropriate signed/unsigned interpretation.
 
+### Run 49 — Custom message-typed option value silently dropped (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go has no case for `TYPE_MESSAGE`. Message-typed extension values fall through to the `default` branch (line ~503) which consumes the wire bytes via `ConsumeBytes` but never adds the deserialized value to `result`. The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which correctly deserializes message values into JSON objects.
+- **Test:** `130_custom_message_type_option` — message with `option (resource) = { name: "users", readonly: true }` where `resource` is a `ResourceInfo` message extension of `MessageOptions`.
+- **Root cause:** Lines 503-515: `TYPE_MESSAGE` hits the `default` case. For `BytesType` wire type, it calls `ConsumeBytes` and advances the pointer, but never deserializes or appends the value. The TS plugin outputs `{ "test.resource": { name: "users", readonly: true } }` as the third argument to `super()`, while the Go plugin omits the third argument entirely.
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses a message type. The Go plugin would need to recursively deserialize the message binary using the message type's field descriptors and convert to a JSON-like object.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
@@ -403,8 +409,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` — the oneof trailing comment handler at line 2302 may have the same sentinel issue.
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
-- Custom option with message-typed value — Go plugin likely drops nested message extensions (falls into default bytes branch). TS handles via `fromBinary()` + `toJson()`.
 - Custom option with fixed32/fixed64/sfixed32/sfixed64 value — Go plugin doesn't handle fixed-width types. TS handles correctly.
-- Custom option with sint64 value — same bug as sint32 but with 64-bit zigzag encoding.
 - Custom option with repeated field — Go plugin likely doesn't handle repeated extension fields.
 - Custom option with bytes value — does Go plugin handle TYPE_BYTES extension values?
+- Custom option with nested message value (message inside message) — would require recursive deserialization.
+- Custom field option with message type — same bug as run 49 but for FieldOptions extensions.
+- Custom method option with message type — same bug but for MethodOptions.
+- Custom service option with message type — same bug but for ServiceOptions.
