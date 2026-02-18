@@ -317,28 +317,24 @@ func escapeJSDocComment(s string) string {
 	return strings.ReplaceAll(s, "*/", "*\\/")
 }
 
-// getCustomMethodOptions extracts custom extension values from method options
 // customOption represents a key-value pair for custom options
 type customOption struct {
 	key   string
 	value interface{}
 }
 
-func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
-	if opts == nil {
-		return nil
-	}
-	
-	// Build a map of extension field number -> (extension descriptor, package)
-	type extInfo struct {
-		ext *descriptorpb.FieldDescriptorProto
-		pkg string
-	}
+type extInfo struct {
+	ext *descriptorpb.FieldDescriptorProto
+	pkg string
+}
+
+// buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
+func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 	extensionMap := make(map[int32]extInfo)
 	
 	// Check extensions in current file
 	for _, ext := range g.file.Extension {
-		if ext.GetExtendee() == ".google.protobuf.MethodOptions" {
+		if ext.GetExtendee() == extendeeName {
 			pkg := ""
 			if g.file.Package != nil {
 				pkg = *g.file.Package
@@ -350,10 +346,10 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 	// Check extensions in all imported files
 	for _, depFile := range g.allFiles {
 		if depFile == g.file {
-			continue // Skip current file (already processed)
+			continue
 		}
 		for _, ext := range depFile.Extension {
-			if ext.GetExtendee() == ".google.protobuf.MethodOptions" {
+			if ext.GetExtendee() == extendeeName {
 				pkg := ""
 				if depFile.Package != nil {
 					pkg = *depFile.Package
@@ -363,10 +359,13 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 		}
 	}
 	
-	// Parse unknown fields from options - preserve order by using slice
+	return extensionMap
+}
+
+// getCustomMethodOptions extracts custom extension values from method options
+// parseCustomOptions extracts custom extension values from raw unknown fields
+func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]extInfo) []customOption {
 	var result []customOption
-	msg := opts.ProtoReflect()
-	unknown := msg.GetUnknown()
 	
 	for len(unknown) > 0 {
 		num, typ, n := protowire.ConsumeTag(unknown)
@@ -375,10 +374,8 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 		}
 		unknown = unknown[n:]
 		
-		// Check if this field number matches an extension
 		extInf, found := extensionMap[int32(num)]
 		if !found {
-			// Skip unknown field
 			switch typ {
 			case protowire.VarintType:
 				_, n := protowire.ConsumeVarint(unknown)
@@ -394,7 +391,6 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 			continue
 		}
 		
-		// Found an extension! Extract the value based on type
 		ext := extInf.ext
 		pkg := extInf.pkg
 		if pkg != "" {
@@ -420,14 +416,11 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
 			_, n := protowire.ConsumeFixed32(unknown)
-			// Skip float for now
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
 			_, n := protowire.ConsumeFixed64(unknown)
-			// Skip double for now
 			unknown = unknown[n:]
 		default:
-			// Skip other types
 			switch typ {
 			case protowire.VarintType:
 				_, n := protowire.ConsumeVarint(unknown)
@@ -447,6 +440,22 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 		return nil
 	}
 	return result
+}
+
+func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
+	if opts == nil {
+		return nil
+	}
+	extensionMap := g.buildExtensionMap(".google.protobuf.MethodOptions")
+	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+}
+
+func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) []customOption {
+	if opts == nil {
+		return nil
+	}
+	extensionMap := g.buildExtensionMap(".google.protobuf.MessageOptions")
+	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
 }
 
 // formatCustomOptions formats custom options as a TypeScript object literal
@@ -3105,9 +3114,16 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	// Keep fields in proto file order (don't sort)
 	// The order in msg.Field is the order they appear in the .proto file
 	
+	// Get custom message options
+	customMsgOpts := g.getCustomMessageOptions(msg.Options)
+	customMsgOptsStr := ""
+	if len(customMsgOpts) > 0 {
+		customMsgOptsStr = ", " + formatCustomOptions(customMsgOpts)
+	}
+	
 	// If no fields, use compact format
 	if len(allFields) == 0 {
-		g.p("super(\"%s\", []);", typeName)
+		g.p("super(\"%s\", []%s);", typeName, customMsgOptsStr)
 	} else {
 		g.p("super(\"%s\", [", typeName)
 		
@@ -3125,7 +3141,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		}
 		
 		g.indent = "        "
-		g.p("]);")
+		g.p("]%s);", customMsgOptsStr)
 	}
 	g.indent = "    "
 	g.p("}")
