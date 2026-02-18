@@ -127,7 +127,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 145_custom_option_packed_repeated: Added packed repeated encoding handling to parseMessageValue — when wire type is BytesType for repeated scalar fields, reads packed bytes and decodes all contained values individually (varint, fixed32, fixed64 formats)
 - [x] All 150/150 tests passing
 - [x] Fix test 146_empty_service: Empty services (no methods) need two fixes: (1) skip RpcOptions import when no methods exist, (2) output `[]` on same line as ServiceType constructor instead of `[\n]`
-- [x] All 151/151 tests passing — DONE
+- [x] All 151/151 tests passing
+- [x] Fix test 147_enum_trailing_underscore_prefix: Enum prefix detection must unconditionally append `_` after UPPER_SNAKE_CASE conversion (protobuf-ts always appends `_`). Our code was using `HasSuffix("_")` guard which skipped the extra `_` for enum names ending with `_` (e.g., `MyEnum_` → `MY_ENUM_` instead of correct `MY_ENUM__`)
+- [x] All 152/152 tests passing — DONE
 
 ## Notes
 
@@ -192,3 +194,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom map digit-leading string keys: String map keys starting with a digit (e.g., `123abc`) must be quoted in JS object literals since they aren't valid JS identifiers. In `formatCustomOptions`, the key quoting check was extended to also trigger when `opt.key[0]` is a digit (`'0'`-`'9'`), not just when the key contains a dot.
 - Packed repeated scalars in custom options: In proto3, repeated scalar fields use packed encoding by default. The wire type is `BytesType` (LengthDelimited) containing multiple concatenated values. `parseMessageValue` must check `typ == BytesType && label == REPEATED` and, for scalar types, read the packed bytes first, then decode each value from the inner byte slice. Covers varint types (int32, uint32, int64, uint64, sint32, sint64, bool, enum), fixed32 types (fixed32, sfixed32, float), and fixed64 types (fixed64, sfixed64, double).
 - Empty services: Services with zero methods need special handling: (1) skip `RpcOptions` import (guarded by `hasAnyMethod`), (2) output `new ServiceType("...", []);` on one line instead of `[\n]);` (early return before the method-descriptor loop).
+- Enum prefix detection: protobuf-ts's `findEnumSharedPrefix` unconditionally appends `_` after UPPER_SNAKE_CASE conversion. The Go code was conditionally adding `_` only when the prefix didn't already end with `_`, which broke for enum names ending with `_` (e.g., `MyEnum_` should produce prefix `MY_ENUM__` not `MY_ENUM_`).
