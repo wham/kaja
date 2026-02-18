@@ -74,7 +74,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 112/112 tests passing
 - [x] Fix test 109_message_trailing_comment: Added message trailing comment support to interface JSDoc, same pattern as enum trailing comments — use `getEnumTrailingComments` (preserves trailing blank info) and insert between leading comments and `@generated` tag
 - [x] Fix test 110_service_trailing_comment: Added trailing comment support to service and method JSDoc in generateServiceClient — 4 locations (service interface, service class, method interface, method class) using getEnumTrailingComments pattern
-- [x] All 114/114 tests passing — DONE
+- [x] All 114/114 tests passing
+- [x] Fix test 111_client_streaming_first_unary_import: When method 0 is streaming and later methods are unary, UnaryCall import must appear before stackIntercept (matching protobuf-ts prepend order)
+- [x] All 115/115 tests passing — DONE
 
 ## Notes
 
@@ -108,4 +110,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - WireType import ordering depends on whether the first message's InternalBinaryRead registers WireType (for repeated numeric/enum fields). If yes, WireType goes after UnknownFieldHandler ("very late"). The check is: first message has at least one repeated scalar/enum field that is not string/bytes/message. This is syntax-agnostic (applies to both proto2 and proto3).
 - File-level `option deprecated = true` must propagate `@deprecated` to oneof JSDoc comments. The oneof comment generation (around line 2269) was missing the `g.isFileDeprecated()` check before `@generated from protobuf oneof:`. Added it between the trailing comment and the `@generated` tag.
 - Message interface JSDoc needs trailing comments (TrailingComments on message path e.g. `[4, msgIdx]`) inserted between leading comments and `@generated` tag. Reuse `getEnumTrailingComments` (which preserves trailing blank info via `__HAS_TRAILING_BLANK__` marker) since `getTrailingComments` strips that info.
-- Service and method trailing comments in client file (`generateServiceClient`) need to be included in all 4 JSDoc locations: service interface, service class, method interface, method class. Uses same `getEnumTrailingComments` pattern with `__HAS_TRAILING_BLANK__` handling. Service uses `g.pNoIndent`, methods use `g.p`.
+- Service and method trailing comments in client file (`generateServiceClient`) need to be included in all 4 JSDoc locations: service interface, service class, method interface, method class. Uses same `getEnumTrailingComments` pattern with `__HAS_TRAILING_BLANK__` handling. Service uses `g.pNoIndent`, methods use `g.p`.- Client file import ordering for UnaryCall depends on whether method 0 of the first service is streaming. In protobuf-ts, imports are prepended (each new import goes to top), so the last-registered import appears first. When method 0 is streaming, UnaryCall (from a later unary method) gets prepended after all of method 0's imports, placing it ABOVE stackIntercept. When method 0 is unary, UnaryCall is registered early (during method 0) and ends up below stackIntercept. The Go code emits in forward order, so it must check `method0IsStreaming` to decide where UnaryCall goes.
