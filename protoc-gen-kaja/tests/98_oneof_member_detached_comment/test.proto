@@ -1,0 +1,17 @@
+syntax = "proto3";
+package spec;
+
+// A message with oneof member fields that have detached comments.
+message TestMessage {
+    oneof choice {
+        // This is a detached comment for the string field.
+
+        // This is the leading comment for the string field.
+        string text = 1;
+
+        // This is a detached comment for the int field.
+
+        // This is the leading comment for the int field.
+        int32 number = 2;
+    }
+}
