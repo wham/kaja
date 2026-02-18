@@ -374,12 +374,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~497 `fmt.Sprintf("\"%s\": %s", opt.key, valueStr)` always wraps key in quotes. Should check if `opt.key` contains a dot: if yes, quote it; if no, leave it unquoted. The TS plugin's `typescriptLiteralFromValue` function at `interpreter.ts` uses JS property shorthand — unquoted identifiers are valid JS, only dot-containing keys need quoting.
 - **Affects:** All four custom option types (message, field, method, service) when the extension is in a file with no package declaration (or in the same package as the extending proto).
 
+### Run 46 — Custom option with enum-typed value dropped (SUCCESS)
+- **Bug found:** `parseCustomOptions()` in main.go (line ~401) handles `TYPE_STRING`, `TYPE_BOOL`, `TYPE_INT32/INT64/UINT32/UINT64` but has NO case for `TYPE_ENUM`. Enum-typed extension values fall through to the `default:` branch (line ~423) which consumes the varint bytes but never adds them to the result. The TS plugin's `readOptions()` uses `type.fromBinary()` + `type.toJson()` which correctly deserializes enum fields AND converts them to their string names (e.g., `"VISIBILITY_PRIVATE"` instead of numeric `1`).
+- **Test:** `127_custom_enum_type_option` — message with `option (visibility) = VISIBILITY_INTERNAL` and field with `[(field_visibility) = VISIBILITY_PRIVATE]`, where both options use a custom `Visibility` enum type.
+- **Root cause:** Two bugs: (1) `TYPE_ENUM` is missing from the `parseCustomOptions` switch — it silently drops the value. (2) Even if added, the Go plugin would need to look up the enum value NAME (e.g., `"VISIBILITY_INTERNAL"`) from the enum descriptor, since the TS plugin uses `toJson()` which converts enum numbers to their canonical string names.
+- **Affects:** All four custom option types (message, field, method, service) when an extension uses an enum type. Both the option value and the containing options object are completely dropped.
+
 ### Ideas for future runs
 - Service with only duplex-streaming methods — test for duplicate DuplexStreamingCall import (same bug class as run 37).
 - Service with only client-streaming methods — test for duplicate ClientStreamingCall import.
 - Proto2 group fields — how does the Go plugin handle groups in terms of field descriptors?
 - Deeply nested messages (5+ levels) — test for type name construction correctness.
-- Enum prefix detection edge cases — enum names with consecutive uppercase letters (e.g., `HTTPStatus` → `HTTPSTATUS_` vs `H_T_T_P_STATUS_`).
+- Enum prefix detection edge cases — enum names with consecutive uppercase letters (e.g., `HTTPStatus` → `HTTPSTATUS_` vs `H_T_T_P_STATUS_`). VERIFIED: Go and TS algorithms produce identical results for `HTTPStatus`, `MyHTTPStatus`, `myEnum`, `My_Enum`. Both insert `_` before each uppercase letter. No bug.
 - `exclude_options` file option interaction — TS plugin has `ts.exclude_options` that can suppress custom options.
 - Enum alias where ORIGINAL is deprecated but alias is not — TS would show @deprecated on alias too (because it uses first descriptor), Go would not. Reverse of run 40.
 - Enum alias where first value has custom json_name or other options — does the TS getDeclarationString for aliases include the first value's options or the alias's?
@@ -387,3 +393,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Enum value trailing comments — does Go handle trailing comments on enum values? Check lines 4330-4345.
 - Service-only file with shared request/response types — dedup behavior when same type used in multiple methods.
 - Multiple services in same service-only file — import ordering across services.
+- Custom option with float/double value — Go plugin skips float (line 417-419) and double (line 420-422) extension values entirely (no result appended). TS plugin handles them via `toJson()`.
+- Custom option with message-typed value — Go plugin likely drops nested message extensions (falls into default bytes branch). TS handles via `fromBinary()` + `toJson()`.
+- Custom option with sint32/sint64 value — Go plugin doesn't handle zigzag encoding for signed types (TYPE_SINT32/SINT64 fall into default). TS handles correctly.
+- Custom option with fixed32/fixed64/sfixed32/sfixed64 value — Go plugin doesn't handle fixed-width types. TS handles correctly.

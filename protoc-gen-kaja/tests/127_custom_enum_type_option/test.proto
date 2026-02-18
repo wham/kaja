@@ -1,0 +1,27 @@
+// Tests custom options with enum-typed values.
+// The TS plugin converts enum option values to their string names via toJson.
+// The Go plugin drops enum-typed custom options entirely.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+enum Visibility {
+  VISIBILITY_PUBLIC = 0;
+  VISIBILITY_PRIVATE = 1;
+  VISIBILITY_INTERNAL = 2;
+}
+
+extend google.protobuf.MessageOptions {
+  Visibility visibility = 51001;
+}
+
+extend google.protobuf.FieldOptions {
+  Visibility field_visibility = 51002;
+}
+
+message SecretDocument {
+  option (visibility) = VISIBILITY_INTERNAL;
+  string title = 1 [(field_visibility) = VISIBILITY_PRIVATE];
+  string content = 2;
+}
