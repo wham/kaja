@@ -3456,11 +3456,22 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				if valueField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
 					// Message value - needs special handling
 					if isNumericKey {
+						keyVar := "k"
+						valueAccessor := "message." + fieldName + "[k]"
+						if keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_INT32 ||
+							keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_UINT32 ||
+							keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_SINT32 ||
+							keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_FIXED32 ||
+							keyField.GetType() == descriptorpb.FieldDescriptorProto_TYPE_SFIXED32 {
+							keyVar = "parseInt(k)"
+							valueAccessor = "message." + fieldName + "[k as any]"
+						}
+						keyWriter := g.getMapKeyWriter(keyField, keyVar)
 						g.p("for (let k of globalThis.Object.keys(message.%s)) {", fieldName)
 						g.indent = "            "
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).int32(parseInt(k));", field.GetNumber())
+						g.p("writer.tag(%d, WireType.LengthDelimited).fork()%s;", field.GetNumber(), keyWriter)
 						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
-						g.p("%s.internalBinaryWrite(message.%s[k as any], writer, options);", g.stripPackage(valueField.GetTypeName()), fieldName)
+						g.p("%s.internalBinaryWrite(%s, writer, options);", g.stripPackage(valueField.GetTypeName()), valueAccessor)
 						g.p("writer.join().join();")
 						g.indent = "        "
 						g.p("}")
