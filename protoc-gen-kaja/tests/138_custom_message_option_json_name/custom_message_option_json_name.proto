@@ -1,0 +1,23 @@
+// Tests that message-typed custom option fields use JSON camelCase key names.
+// The TS plugin serializes message option values via toJson(), which uses
+// lowerCamelCase field names (jsonName). The Go plugin uses the proto field
+// name (snake_case) instead.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message ResourceConfig {
+  string display_name = 1;
+  bool is_read_only = 2;
+  int32 max_retry_count = 3;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceConfig resource_config = 51001;
+}
+
+message Document {
+  option (resource_config) = { display_name: "docs", is_read_only: true, max_retry_count: 5 };
+  string id = 1;
+}

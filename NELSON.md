@@ -473,3 +473,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Oneof declaration trailing comment with `__HAS_TRAILING_BLANK__` sentinel leak.
 - Deeply nested messages (5+ levels) — type name construction.
 - Proto2 group fields — field descriptor handling.
+
+### Run 57 — Message-typed custom option uses proto field name instead of JSON name (SUCCESS)
+- **Bug found:** `parseMessageValue()` in main.go (line ~605) uses `fd.GetName()` (proto field name, snake_case) as the key for nested message option fields. The TS plugin uses `type.toJson()` which serializes with `jsonName` (lowerCamelCase) by default.
+- **Test:** `138_custom_message_option_json_name` — message-typed option with multi-word field names (`display_name`, `is_read_only`, `max_retry_count`).
+- **Root cause:** Line 605 `fieldName := fd.GetName()` should use `fd.GetJsonName()` to match the TS plugin's JSON serialization. The `toJson()` method in `@protobuf-ts/runtime` uses `field.jsonName` (lowerCamelCase) by default, not the proto field name.
+- **Diff:** Go outputs `{ display_name: "docs", is_read_only: true, max_retry_count: 5 }`, TS outputs `{ displayName: "docs", isReadOnly: true, maxRetryCount: 5 }`.
