@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+// Message with a field named oneof_kind which collides with the
+// oneofKindDiscriminator used by protobuf-ts for oneof unions.
+message MyMessage {
+    string oneof_kind = 1;
+    int32 other = 2;
+}

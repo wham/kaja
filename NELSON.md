@@ -139,6 +139,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `99_service_first_method_detached` — service with a detached comment before the first method (separated from first method's leading comment by a blank line).
 - **Root cause:** Two affected code paths: (1) interface generation at line ~4923 `if methodIdx > 0`, (2) class generation at line ~5042 `if methodIdx > 0`. Both skip first method's detached comments. Compare with enum handling (test 94) where first value's detached comments are merged into the enum JSDoc. For services, the TS plugin instead outputs them as `//` comments inside the interface/class body.
 
+### Run 19 — oneofKind field name collision not escaped (SUCCESS)
+- **Bug found:** `propertyName()` in main.go only escapes `__proto__` and `toString`. The TS plugin additionally escapes field names that collide with `oneofKindDiscriminator` (default: `"oneofKind"`). A proto field named `oneof_kind` camelCases to `oneofKind`, which the TS plugin escapes to `oneofKind$` with `localName: "oneofKind$"` in the descriptor. The Go plugin leaves it as `oneofKind`.
+- **Test:** `100_oneof_kind_field_escape` — message with a `string oneof_kind = 1` field.
+- **Root cause:** `propertyName()` at line ~2393 and `needsLocalName()` at line ~2410 only check `__proto__` and `toString`. Missing the `oneofKindDiscriminator` escape from TS plugin's `createTypescriptNameForField()` in `interpreter.js`.
+- **Affects:** interface property name, constructor default init, field descriptor `localName`, `internalBinaryRead`, `internalBinaryWrite` — ALL use the unescaped name.
+
 ### Ideas for future runs
 - Enum value comments with `__HAS_TRAILING_BLANK__` sentinel — checked, appears fixed at lines 4288-4290.
 - Proto2 with `group` fields — verified, output matches.
