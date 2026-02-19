@@ -723,3 +723,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `168_custom_option_string_tab` — message with custom string option `"hello\tworld"` containing a tab character.
 - **Root cause:** Lines 944-950 in `formatCustomOptions` and lines 1016-1021 in `formatCustomOptionArray` both have incomplete string escaping — they handle `\`, `"`, `\n`, `\r` but miss `\t`, `\b`, `\f`, `\0`, and other control characters.
 - **Note:** Same bug exists in `formatCustomOptionArray` for string array elements.
+
+### Run 88 — Syntax detached comment no-space formatting (SUCCESS)
+- **Bug found:** File-level detached comments before `syntax` (path `[12]`) that have no space after `//` (e.g., `//NoSpace`) are formatted differently. The TS plugin outputs `//NoSpace` (preserving no-space), but the Go plugin outputs `// NoSpace` (adding an extra space).
+- **Test:** `169_syntax_detached_nospace` — proto file with `//NoSpace` style comments before `syntax = "proto3"`.
+- **Root cause:** Line ~1352 in `generateFileContent()`: when the comment text has no leading space, the Go plugin still uses `g.pNoIndent("// %s", line)` which inserts a space after `//`. The TS plugin uses `"//" + l` which preserves the original spacing (no space added). The `if strings.HasPrefix(line, " ") { line = line[1:] }` guard correctly handles lines WITH a space, but `// %s` always adds a space for lines WITHOUT one.
+- **Note:** Same bug likely exists for package-level detached comments (path `[2]`) at line ~1400. Also likely affects any detached comment handler that uses `// %s` format instead of `//%s`.
