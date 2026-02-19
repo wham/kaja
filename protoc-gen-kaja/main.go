@@ -3332,37 +3332,69 @@ func (g *generator) stripPackage(typeName string) string {
 	// Different package - need to strip package but keep message.nested structure
 	// e.g., api.v1.HealthCheckResponse.Status -> HealthCheckResponse_Status
 	//  or   auth.UserProfile -> UserProfile (if imported)
-	parts := strings.Split(typeName, ".")
 	
-	// Find where the package ends and the type begins
-	// We need to identify the first capital letter as start of type name
-	for i, part := range parts {
-		if len(part) > 0 && part[0] >= 'A' && part[0] <= 'Z' {
-			// Found the start of the type name
-			typeParts := parts[i:]
-			simpleName := typeParts[0]
-			
-			// Check if this is a nested type (e.g., Message.Nested)
-			if len(typeParts) > 1 {
-				// For nested types, always use underscore notation
-				return strings.Join(typeParts, "_")
-			}
-			
-			// For simple (non-nested) types, check if it's been imported
-			escapedName := escapeTypescriptKeyword(simpleName)
-			if g.importedTypeNames[escapedName] {
-				// This type was imported, use the escaped name
-				return escapedName
-			}
-			
-			// Not imported yet - use escaped name anyway
-			// (this handles the case where stripPackage is called during import generation)
-			return escapedName
-		}
+	// Find the source file for this type to get its actual package
+	remainder := ""
+	if srcPkg := g.findPackageForType(typeName); srcPkg != "" {
+		remainder = strings.TrimPrefix(typeName, srcPkg+".")
+	} else {
+		// No package (empty package) — the entire typeName is the type path
+		remainder = typeName
 	}
 	
-	// Fallback: just take the last part (shouldn't happen)
-	return parts[len(parts)-1]
+	if remainder == "" {
+		return typeName
+	}
+	
+	parts := strings.Split(remainder, ".")
+	if len(parts) > 1 {
+		return strings.Join(parts, "_")
+	}
+	
+	return escapeTypescriptKeyword(parts[0])
+}
+
+// findPackageForType returns the package name for a fully-qualified type name
+// by searching all known files. Returns "" if the type has no package.
+func (g *generator) findPackageForType(typeName string) string {
+	typeName = strings.TrimPrefix(typeName, ".")
+
+	checkFile := func(file *descriptorpb.FileDescriptorProto) bool {
+		pkg := file.GetPackage()
+		var remainder string
+		if pkg != "" {
+			if !strings.HasPrefix(typeName, pkg+".") {
+				return false
+			}
+			remainder = strings.TrimPrefix(typeName, pkg+".")
+		} else {
+			remainder = typeName
+		}
+		parts := strings.Split(remainder, ".")
+		for _, msg := range file.MessageType {
+			if msg.GetName() == parts[0] {
+				return true
+			}
+		}
+		for _, enum := range file.EnumType {
+			if enum.GetName() == parts[0] {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Check current file
+	if checkFile(g.file) {
+		return g.file.GetPackage()
+	}
+	// Check all files
+	for _, f := range g.allFiles {
+		if checkFile(f) {
+			return f.GetPackage()
+		}
+	}
+	return ""
 }
 
 func (g *generator) getTypescriptType(field *descriptorpb.FieldDescriptorProto) string {
