@@ -271,7 +271,8 @@ type generator struct {
 	binaryReadOptionsRef     string            // "BinaryReadOptions" normally, "BinaryReadOptions$" when local type collides
 	binaryWriteOptionsRef    string            // "BinaryWriteOptions" normally, "BinaryWriteOptions$" when local type collides
 	iBinaryReaderRef         string            // "IBinaryReader" normally, "IBinaryReader$" when local type collides
-	iBinaryWriterRef         string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
+	iBinaryWriterRef             string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
+	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1322,7 +1323,8 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		binaryReadOptionsRef:     "BinaryReadOptions",
 		binaryWriteOptionsRef:    "BinaryWriteOptions",
 		iBinaryReaderRef:         "IBinaryReader",
-		iBinaryWriterRef:         "IBinaryWriter",
+		iBinaryWriterRef:             "IBinaryWriter",
+		reflectionMergePartialRef:    "reflectionMergePartial",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2028,7 +2030,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
 		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.partialMessageImport())
-		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.reflectionMergePartialImport())
 		}
 		
 		// Add JSON imports for Timestamp
@@ -2210,6 +2212,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime IBinaryWriter collision
 	if g.localTypeNames["IBinaryWriter"] {
 		g.iBinaryWriterRef = "IBinaryWriter$"
+	}
+	// Detect runtime reflectionMergePartial collision
+	if g.localTypeNames["reflectionMergePartial"] {
+		g.reflectionMergePartialRef = "reflectionMergePartial$"
 	}
 }
 
@@ -4019,7 +4025,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	
 	g.p("if (value !== undefined)")
 	g.indent = "            "
-	g.p("reflectionMergePartial<%s>(this, message, value);", fullName)
+	g.p("%s<%s>(this, message, value);", g.reflectionMergePartialRef, fullName)
 	g.indent = "        "
 	g.p("return message;")
 	g.indent = "    "
@@ -4874,6 +4880,13 @@ func (g *generator) iBinaryWriterImport() string {
 		return "IBinaryWriter as IBinaryWriter$"
 	}
 	return "IBinaryWriter"
+}
+
+func (g *generator) reflectionMergePartialImport() string {
+	if g.reflectionMergePartialRef == "reflectionMergePartial$" {
+		return "reflectionMergePartial as reflectionMergePartial$"
+	}
+	return "reflectionMergePartial"
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
