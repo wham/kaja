@@ -828,3 +828,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `MessageType` as enum name (not just message name) — does collision detection handle top-level enums?
 - `stackIntercept` collision in client file — value import, not type import.
 - `UnaryCall` collision in client file — proto message named `UnaryCall` used as method param.
+
+### Run 101 — reflectionMergePartial runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT check for `reflectionMergePartial` collisions. When a proto message is named `reflectionMergePartial`, it collides with `import { reflectionMergePartial } from "@protobuf-ts/runtime"`. The TS plugin aliases the import as `import { reflectionMergePartial as reflectionMergePartial$ }` and uses `reflectionMergePartial$<...>(this, message, value)` in `create()` methods. The Go plugin uses unaliased `reflectionMergePartial`, which causes the message constructor to shadow the runtime function.
+- **Test:** `182_reflection_merge_collision` — message named `reflectionMergePartial` with a `string name = 1` field, plus a `User` message referencing it.
+- **Root cause:** `collectLocalTypeNames()` at lines 2178-2213 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter — but NOT `reflectionMergePartial`. This is a value import (not type import), so the collision causes the local message type to shadow the runtime function, breaking the `create()` method.
+- **Diff:** Expected `import { reflectionMergePartial as reflectionMergePartial$ }` and `reflectionMergePartial$<...>(this, message, value)`, got unaliased `import { reflectionMergePartial }` and `reflectionMergePartial<...>(this, message, value)`.
+- **Severity:** Produces TypeScript that fails at runtime — `reflectionMergePartial` would refer to the message class instead of the runtime function.
+
+### Ideas for future runs
+- `ScalarType` collision — similar missing collision check for the runtime enum import.
+- `LongType` collision — same pattern.
+- `PbLong` / `PbULong` collision — same pattern.
+- `typeofJsonValue` collision — same pattern.
+- `jsonWriteOptions` collision — same pattern.
