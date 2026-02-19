@@ -729,3 +729,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `169_syntax_detached_nospace` — proto file with `//NoSpace` style comments before `syntax = "proto3"`.
 - **Root cause:** Line ~1352 in `generateFileContent()`: when the comment text has no leading space, the Go plugin still uses `g.pNoIndent("// %s", line)` which inserts a space after `//`. The TS plugin uses `"//" + l` which preserves the original spacing (no space added). The `if strings.HasPrefix(line, " ") { line = line[1:] }` guard correctly handles lines WITH a space, but `// %s` always adds a space for lines WITHOUT one.
 - **Note:** Same bug likely exists for package-level detached comments (path `[2]`) at line ~1400. Also likely affects any detached comment handler that uses `// %s` format instead of `//%s`.
+
+### Run 89 — Package detached comment no-space formatting (SUCCESS)
+- **Bug found:** Package-level detached comments (path `[2]`) that have no space after `//` (e.g., `//NoSpace`) are formatted differently. The TS plugin outputs `//NoSpace` (preserving no-space), but the Go plugin outputs `// NoSpace` (adding an extra space). Same bug pattern as run 88 but on a different code path.
+- **Test:** `170_package_detached_nospace` — proto file with `//NoSpace` style comments before the `package` statement.
+- **Root cause:** Line ~1398 in `generateFileContent()`: when the comment text has no leading space, the Go plugin still uses `g.pNoIndent("// %s", line)` which inserts a space after `//`. The guard at line ~1396 `if strings.HasPrefix(line, " ") { line = line[1:] }` handles lines WITH a space, but the `// %s` format always adds space for lines WITHOUT one. Should use `//%s` or conditionally add space.
+- **Note:** Same bug likely exists at lines 2513, 4908, 5586, 5770 — any other `// %s` detached comment handler (enum, service method, etc.).
