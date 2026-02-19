@@ -882,9 +882,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Go plugin's `create()` generation at lines ~4002-4013 skips fields whose `fieldName` was already seen (first-wins). TS plugin's `makeMessagePropertyAssignments` calls `messageType.create()` → `reflectionCreate()` which assigns all fields in order (last-wins), then uses `Object.entries()` to emit the final values.
 - **Diff:** Expected `message.x123Y = 0;`, got `message.x123Y = "";`.
 
+### Run 108 — Client file syntax detached comment missing block separator (SUCCESS)
+- **Bug found:** `generateClientFile()` in main.go at lines 5317-5343 handles syntax-level detached comments differently from the main file handler at lines 1357-1399. When multiple detached comment blocks exist before `syntax = "proto3"`, the main file correctly outputs a `//` trailing newline AND a `//` separator between blocks. The client file handler only outputs ONE `//` after each block (line 5340), missing the between-block separator.
+- **Test:** `189_client_syntax_two_blocks` — service file with two syntax-level detached comment blocks.
+- **Root cause:** Client file handler at lines 5323-5342 uses a simple `for _, detached` loop with one `g.pNoIndent("//")` after each block. The main file handler at lines 1365-1395 uses `for blockIdx, detached` and outputs both `if hasTrailingNewline { g.pNoIndent("//") }` AND `if blockIdx < len(...)-1 { g.pNoIndent("//") }`. The client file is missing the trailing newline check entirely and uses a single `//` that conflates trailing newline and block separator.
+- **Diff:** Expected two `//` lines between blocks, got one.
+
 ### Ideas for future runs
 - `ServerStreamingCall` as service name collision — same pattern, untested.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Enum detached comment nospace formatting — `"// %s"` adds space for no-space comments (same pattern as runs 88-89 but different code path).
+- Client file package-level detached comments — same pattern as this run, but for `loc.Path[0] == 2` instead of `loc.Path[0] == 12`. Client file may not handle package-level detached blocks either.
+- Client file detached comment blank line formatting — client handler uses `g.pNoIndent("//")` for blank lines within blocks, should be `g.pNoIndent("// ")` with space.
