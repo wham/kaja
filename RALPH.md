@@ -179,6 +179,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 181/181 tests passing — DONE
 - [x] Fix test 177_binary_read_options_collision: When a proto message is named `BinaryReadOptions`, the runtime `BinaryReadOptions` import from `@protobuf-ts/runtime` collides. Added `binaryReadOptionsRef` field (like `wireTypeRef`/`messageTypeRef`/etc.), set to `"BinaryReadOptions$"` when local type named `BinaryReadOptions` exists. Updated import line and all usage sites (`internalBinaryRead` signature, `binaryReadMap` signature, `unpack` method).
 - [x] All 182/182 tests passing — DONE
+- [x] Fix test 178_binary_write_options_collision: When a proto message is named `BinaryWriteOptions`, the runtime `BinaryWriteOptions` import from `@protobuf-ts/runtime` collides. Added `binaryWriteOptionsRef` field (like `binaryReadOptionsRef`), set to `"BinaryWriteOptions$"` when local type named `BinaryWriteOptions` exists. Updated import line and `internalBinaryWrite` method signature to use `binaryWriteOptionsRef`.
+- [x] All 183/183 tests passing — DONE
 
 ## Notes
 
@@ -264,3 +266,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Runtime UnknownFieldHandler import collision: Same pattern as WireType/MessageType/ServiceType — when a proto message is named `UnknownFieldHandler`, the runtime import is aliased as `UnknownFieldHandler$`. Uses `unknownFieldHandlerRef` field. Two usage sites: `onRead` in internalBinaryRead and `onWrite` in internalBinaryWrite. Import uses `unknownFieldHandlerImport()` helper.
 - Runtime PartialMessage import collision: Same pattern as all other runtime import collisions — when a proto message is named `PartialMessage`, the runtime import is aliased as `PartialMessage$`. Uses `partialMessageRef` field. Two usage sites: import line and `create()` method parameter type. Import uses `partialMessageImport()` helper.
 - Runtime BinaryReadOptions import collision: Same pattern as all other runtime import collisions — when a proto message is named `BinaryReadOptions`, the runtime import is aliased as `BinaryReadOptions$`. Uses `binaryReadOptionsRef` field. Three usage sites: import line, `internalBinaryRead` method signature (`options: BinaryReadOptions$`), `binaryReadMap` private method signature, and `unpack` method for Any types. Import uses `binaryReadOptionsImport()` helper.
+- Runtime BinaryWriteOptions import collision: Same pattern as BinaryReadOptions — when a proto message is named `BinaryWriteOptions`, the runtime import is aliased as `BinaryWriteOptions$`. Uses `binaryWriteOptionsRef` field. Two usage sites: import line and `internalBinaryWrite` method signature. Import uses `binaryWriteOptionsImport()` helper.
