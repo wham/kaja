@@ -5320,7 +5320,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
 				// Blank line before the license header
 				g.pNoIndent("//")
-				for _, detached := range loc.LeadingDetachedComments {
+				for blockIdx, detached := range loc.LeadingDetachedComments {
 					if strings.TrimSpace(detached) != "" {
 						lines := strings.Split(detached, "\n")
 						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
@@ -5336,8 +5336,13 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 								g.pNoIndent("//%s", line)
 							}
 						}
-						// Add blank line after detached comment block
-						g.pNoIndent("//")
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						// Add // separator between blocks (not after last block)
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
 					}
 				}
 			}
