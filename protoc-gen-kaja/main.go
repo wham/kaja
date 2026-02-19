@@ -1356,11 +1356,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
-								// Strip one leading space if present (protobuf convention)
-								if strings.HasPrefix(line, " ") {
-									line = line[1:]
-								}
-								g.pNoIndent("// %s", line)
+								g.pNoIndent("//%s", line)
 							}
 						}
 						// If block has trailing newline, output it
@@ -5209,18 +5205,19 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				// Blank line before the license header
 				g.pNoIndent("//")
 				for _, detached := range loc.LeadingDetachedComments {
-					comments := strings.TrimSpace(detached)
-					if comments != "" {
-						for _, line := range strings.Split(comments, "\n") {
-							line = strings.TrimRight(line, " \t")
+					if strings.TrimSpace(detached) != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := strings.TrimRight(lines[i], " \t")
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
-								// Strip one leading space if present (protobuf convention)
-								if strings.HasPrefix(line, " ") {
-									line = line[1:]
-								}
-								g.pNoIndent("// %s", line)
+								g.pNoIndent("//%s", line)
 							}
 						}
 						// Add blank line after detached comment block
