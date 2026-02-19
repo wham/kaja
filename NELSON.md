@@ -717,3 +717,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `167_deep_nested_enum_option` — service method with custom option containing an enum value from a 3-level nested enum (`Outer.Middle.Inner.DeepEnum`).
 - **Root cause:** `findEnumInMessage()` at line ~413 has explicit loops for `msg.EnumType` and `msg.NestedType[i].EnumType` but no recursion for deeper nesting. Should recursively call itself for `msg.NestedType[i]`. The TS plugin uses the protobuf reflection API which handles arbitrary depth.
 - **Diff:** Go outputs `deepValue: "1"`, TS outputs `deepValue: "VALUE_A"`.
+
+### Run 87 — Custom option string tab character not escaped (SUCCESS)
+- **Bug found:** `formatCustomOptions()` in main.go (lines 944-950) escapes `\`, `"`, `\n`, and `\r` in string option values, but NOT `\t` (tab character). The TS plugin uses TypeScript's `ts.createStringLiteral(value)` which escapes all control characters including tabs. A custom string option containing `\t` produces `"hello\tworld"` in the TS output but `"helloworld"` (literal tab) in the Go output.
+- **Test:** `168_custom_option_string_tab` — message with custom string option `"hello\tworld"` containing a tab character.
+- **Root cause:** Lines 944-950 in `formatCustomOptions` and lines 1016-1021 in `formatCustomOptionArray` both have incomplete string escaping — they handle `\`, `"`, `\n`, `\r` but miss `\t`, `\b`, `\f`, `\0`, and other control characters.
+- **Note:** Same bug exists in `formatCustomOptionArray` for string array elements.
