@@ -803,8 +803,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Severity:** Produces TypeScript that fails to compile — local `IBinaryReader` (the exported interface) shadows the runtime type import, causing type errors in `internalBinaryRead` method signatures.
 - **Note:** Same bug would affect `IBinaryWriter` collision. Also `reflectionMergePartial`, `ScalarType`, `LongType`, `PbLong`, and other runtime imports.
 
+### Run 99 — IBinaryWriter runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go checks `WireType`, `MessageType`, `ServiceType`, `UnknownFieldHandler`, `PartialMessage`, `BinaryReadOptions`, `BinaryWriteOptions`, `IBinaryReader` for collisions but NOT `IBinaryWriter`. When a proto message is named `IBinaryWriter`, it collides with `import type { IBinaryWriter } from "@protobuf-ts/runtime"`. The TS plugin aliases the import as `import type { IBinaryWriter as IBinaryWriter$ }` and uses `IBinaryWriter$` in `internalBinaryWrite` method signatures (both `writer` param and return type). The Go plugin uses unaliased `IBinaryWriter`.
+- **Test:** `180_ibinary_writer_collision` — message named `IBinaryWriter` with fields, plus a `Container` message referencing it.
+- **Root cause:** `collectLocalTypeNames()` at lines 2204-2207 only checks `IBinaryReader`. No `iBinaryWriterRef` variable exists. Line 2016 imports `IBinaryWriter` and line 4203 uses it in `internalBinaryWrite` signatures (`writer: IBinaryWriter, ...: IBinaryWriter`) without aliasing.
+- **Diff:** Expected `import type { IBinaryWriter as IBinaryWriter$ }` and `writer: IBinaryWriter$` / return type `IBinaryWriter$`, got unaliased `import type { IBinaryWriter }` and `writer: IBinaryWriter` / return type `IBinaryWriter`.
+- **Severity:** Produces TypeScript that fails to compile — local `IBinaryWriter` (the exported interface) shadows the runtime type import, causing type errors in `internalBinaryWrite` method signatures.
+
 ### Ideas for future runs
-- `IBinaryWriter` collision — same bug pattern, different import type name.
 - `RpcOptions`/`RpcTransport` collision in client files — imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
 - `reflectionMergePartial` collision — used as a value import, not type import.
 - Service method trailing comment multiline — same bug pattern as run 81.

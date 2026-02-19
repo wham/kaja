@@ -271,6 +271,7 @@ type generator struct {
 	binaryReadOptionsRef     string            // "BinaryReadOptions" normally, "BinaryReadOptions$" when local type collides
 	binaryWriteOptionsRef    string            // "BinaryWriteOptions" normally, "BinaryWriteOptions$" when local type collides
 	iBinaryReaderRef         string            // "IBinaryReader" normally, "IBinaryReader$" when local type collides
+	iBinaryWriterRef         string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1321,6 +1322,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		binaryReadOptionsRef:     "BinaryReadOptions",
 		binaryWriteOptionsRef:    "BinaryWriteOptions",
 		iBinaryReaderRef:         "IBinaryReader",
+		iBinaryWriterRef:         "IBinaryWriter",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2013,7 +2015,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
 		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryWriteOptionsImport())
-		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.iBinaryWriterImport())
 		if hasAnyFields && !wireTypeEarly && !wireTypeVeryLate {
 			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
@@ -2204,6 +2206,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime IBinaryReader collision
 	if g.localTypeNames["IBinaryReader"] {
 		g.iBinaryReaderRef = "IBinaryReader$"
+	}
+	// Detect runtime IBinaryWriter collision
+	if g.localTypeNames["IBinaryWriter"] {
+		g.iBinaryWriterRef = "IBinaryWriter$"
 	}
 }
 
@@ -4200,7 +4206,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	// internalBinaryWrite method
-	g.p("internalBinaryWrite(message: %s, writer: IBinaryWriter, options: %s): IBinaryWriter {", fullName, g.binaryWriteOptionsRef)
+	g.p("internalBinaryWrite(message: %s, writer: %s, options: %s): %s {", fullName, g.iBinaryWriterRef, g.binaryWriteOptionsRef, g.iBinaryWriterRef)
 	g.indent = "        "
 	
 	// Sort fields by field number for write method (for efficiency)
@@ -4861,6 +4867,13 @@ func (g *generator) iBinaryReaderImport() string {
 		return "IBinaryReader as IBinaryReader$"
 	}
 	return "IBinaryReader"
+}
+
+func (g *generator) iBinaryWriterImport() string {
+	if g.iBinaryWriterRef == "IBinaryWriter$" {
+		return "IBinaryWriter as IBinaryWriter$"
+	}
+	return "IBinaryWriter"
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
