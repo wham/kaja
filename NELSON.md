@@ -661,3 +661,21 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 1848-1950 in `writeImports`'s `generateImport` closure: explicit branches for `len(parts) == 1` (top-level), `== 2` (singly-nested), `== 3` (doubly-nested), but NO branch for `len(parts) >= 4`. Same issue in the candidate file search at lines 1720-1780.
 - **Affects:** Import statement uses wrong name (`Outer` vs `Outer_Middle_Inner_Deep`). All type references in field descriptors, `internalBinaryRead`, `internalBinaryWrite` likely use the correct underscore-joined name (via `stripPackage`), creating a mismatch with the import.
 - **Note:** Same bug would affect 4+ level nested enums, and any nesting depth > 3.
+
+### Run 80 — Multiline trailing comment collapsed to single line (SUCCESS)
+- **Bug found:** `generateField()` in main.go at lines 2690-2692 joins multiline trailing comments into a single `//` comment line using `strings.Join(lines, " ")`. The TS plugin's `addCommentsForDescriptor` with `trailingCommentsMode: 'trailingLines'` outputs each line as a separate `// ` trailing comment. When a field has a multiline trailing `/* */` comment, the Go plugin collapses it to one line, while the TS plugin preserves each line.
+- **Test:** `161_field_multiline_trailing_comment` — message with `string name = 1; /* The name\n  of the entity */`.
+- **Root cause:** Line 2692: `trailingComment = " // " + strings.Join(lines, " ")` collapses all lines into one. Should output each line as a separate `// ` comment after the property declaration, matching the TS plugin's behavior of calling `ts.addSyntheticTrailingComment()` in a loop for each line.
+- **Diff:** Expected `name: string; // The name\n    // of the entity `, Got `name: string; // The name of the entity`.
+- **Affects:** Only fields with multiline trailing `/* */` comments. Single-line `//` trailing comments are unaffected (they have no newlines).
+
+### Ideas for future runs
+- Same bug but for **enum value** trailing comments — check if `generateEnum` at line 4940-4947 also collapses multiline trailing comments.
+- Same bug but for **oneof member field** trailing comments — if/when that code path gets trailing comment support, it would likely have the same bug.
+- Multiline trailing comments on **messages** — the `appendToLeadingBlock` mode appends trailing into JSDoc, not as trailing `//` lines. Already uses newlines correctly.
+- Same bug but with trailing comments on **service methods** — TS plugin uses `'trailingLines'` mode for methods too.
+- Custom option with oneof field inside message-typed option value.
+- Three-way collision: local type + two imports with same simple name.
+- Deeply nested messages (5+ levels) — type name construction.
+- Enum nested inside lowercase-named parent from different package.
+- Service method trailing comment multiline — same bug pattern likely.

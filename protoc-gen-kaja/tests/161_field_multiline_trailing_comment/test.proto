@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+message Foo {
+  string name = 1; /* The name
+  of the entity */
+  int32 age = 2;
+}
