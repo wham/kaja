@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message MessageType {
+  string value = 1;
+}
+
+message Container {
+  MessageType msg = 1;
+}

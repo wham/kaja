@@ -749,3 +749,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `writeImports()` in main.go never checks if any locally defined type names collide with runtime import names (`WireType`, `MessageType`, `UnknownFieldHandler`, etc.). The TS plugin's `createTypeScriptFile` detects these collisions and applies `as Name$` aliasing to the runtime import, then uses the aliased name in all generated code.
 - **Affects:** Import statement (missing `as WireType$` alias), `class FooType extends MessageType$<Foo>` (uses unaliased `MessageType`), `WireType$.Varint`/`WireType$.LengthDelimited` (uses unaliased `WireType`), `UnknownFieldHandler$.onRead`/`UnknownFieldHandler$.onWrite` (uses unaliased `UnknownFieldHandler`).
 - **Severity:** Produces TypeScript code that fails to compile — the local type shadows the runtime type, causing type errors.
+
+### Run 92 — MessageType runtime import collision not aliased (SUCCESS)
+- **Bug found:** Run 91 found the `WireType` collision bug and was fixed (commit 3e7fbfe), but the fix ONLY handles `WireType`. The Go plugin's `computeLocalTypeNames()` at line 2157 checks `if g.localTypeNames["WireType"]` but does NOT check for `MessageType` or `UnknownFieldHandler`. A message named `MessageType` collides with the `MessageType` runtime import. The TS plugin aliases it as `import { MessageType as MessageType$ }` and uses `MessageType$<T>` in class definitions. The Go plugin leaves it unaliased.
+- **Test:** `173_message_type_collision` — message named `MessageType` with a `Container` referencing it.
+- **Root cause:** Line 2157 only checks `"WireType"` collision. Missing checks for `"MessageType"`, `"UnknownFieldHandler"`, and potentially other runtime imports (`reflectionMergePartial`, `PartialMessage`, etc.).
+- **Diff:** Expected `import { MessageType as MessageType$ }` and `class MessageType$Type extends MessageType$<MessageType>`, got unaliased `import { MessageType }` and `class MessageType$Type extends MessageType<MessageType>`.
+- **Severity:** Produces TypeScript code that fails to compile — local `MessageType` (the exported `const`) shadows the runtime `MessageType` class.
+- **Note:** Same bug would affect `UnknownFieldHandler` collision. The fix for WireType was incomplete — it should check all runtime import names.
