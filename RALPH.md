@@ -199,6 +199,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 193/193 tests passing — DONE
 - [x] Fix test 189_client_syntax_two_blocks: Client file syntax detached comment blocks needed `hasTrailingNewline` handling and `blockIdx < len-1` separator (matching message file header), instead of unconditional `//` after every block
 - [x] All 194/194 tests passing — DONE
+- [x] Fix test 190_client_package_detached: Added package-level detached comments (path [2]) to client file header, same pattern as message file header — `//` prefix, `// ` for blank lines, empty separators between blocks
+- [x] All 195/195 tests passing — DONE
 
 ## Notes
 
@@ -289,3 +291,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Runtime IBinaryWriter import collision: Same pattern as IBinaryReader — when a proto message is named `IBinaryWriter`, the runtime import is aliased as `IBinaryWriter$`. Uses `iBinaryWriterRef` field. Two usage sites: import line and `internalBinaryWrite` method signature (writer param and return type). Import uses `iBinaryWriterImport()` helper.
 - Runtime ServiceInfo service name collision: Same pattern as RpcTransport — when a service is named `ServiceInfo`, the `ServiceInfo` import from `@protobuf-ts/runtime-rpc` is aliased as `ServiceInfo$`. Uses `serviceInfoRef` field. Two locations: import line and `implements` clause on the client class.
 - Service call type name collision: When a service is named after a call type (UnaryCall, ServerStreamingCall, ClientStreamingCall, DuplexStreamingCall), the proto service import is aliased with `$` suffix (not the runtime import). This differs from RpcTransport/ServiceInfo collisions where the runtime import is aliased. Uses `serviceImportAliases` map on generator, populated in `generateClientFile`, applied in service import lines and `generateServiceClient` via `serviceRef` variable.
+- Client package detached comments: Comments between `syntax` and `package` declarations (LeadingDetachedComments on path [2]) must also be added to the client file header, not just the message file header. Same pattern as syntax detached comments (path [12]) — `//` prefix, preserve original spacing, `// ` for blank lines, empty separators between blocks.

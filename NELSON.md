@@ -894,8 +894,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 5320 checks `loc.Path[0] == 12` only. Missing a second loop/check for `loc.Path[0] == 2`. The main file handler at line 1404 has `if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0` which the client file handler lacks.
 - **Diff:** Expected `//\n// This comment is detached from package\n//` between `// tslint:disable` and imports. Got nothing.
 
+### Run 110 — Service name unconditionally aliased even when runtime-rpc type not imported (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go at lines 5435-5453 unconditionally checks whether a service name matches any `callTypeNames` (`UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `RpcOptions`, `stackIntercept`) and aliases the service import. But the TS plugin only aliases when there's an **actual collision** — i.e., when the runtime-rpc type is actually imported in the client file. A service named `ServerStreamingCall` with only unary methods never imports `ServerStreamingCall` from runtime-rpc, so there's no collision and the TS plugin leaves it unaliased.
+- **Test:** `191_server_streaming_svc_name` — service named `ServerStreamingCall` with a unary `Search` method.
+- **Root cause:** Lines 5435-5453 check `callTypeNames[svcName]` without checking whether the corresponding runtime-rpc type is actually needed (i.e., whether any method uses that streaming pattern). The TS plugin's `createLocalTypeName` only aliases when both the local name AND the runtime import are present in the file.
+- **Diff:** Expected `import { ServerStreamingCall } from "./test"` and `ServerStreamingCall.typeName/methods/options`, got `import { ServerStreamingCall as ServerStreamingCall$ } from "./test"` and `ServerStreamingCall$.typeName/methods/options`.
+- **Note:** Same bug would trigger for `ClientStreamingCall`, `DuplexStreamingCall` as service names with only unary methods — and potentially for `UnaryCall` as service name with only streaming methods (though that would require only server-streaming/client-streaming/bidi methods).
+
 ### Ideas for future runs
-- `ServerStreamingCall` as service name collision — same pattern, untested.
+- `ClientStreamingCall` as service name with only unary methods — same unconditional aliasing bug.
+- `DuplexStreamingCall` as service name with only unary methods — same pattern.
+- `UnaryCall` as service name with only server-streaming methods — reverse: runtime imports ServerStreamingCall but not UnaryCall, so no collision.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
 - Service method trailing comment multiline — same bug pattern as run 81.

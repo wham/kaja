@@ -5432,13 +5432,28 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.rpcTransportRef = "RpcTransport"
 	g.serviceInfoRef = "ServiceInfo"
 	g.serviceImportAliases = make(map[string]string)
-	callTypeNames := map[string]bool{
-		"UnaryCall":           true,
-		"ServerStreamingCall": true,
-		"ClientStreamingCall": true,
-		"DuplexStreamingCall": true,
-		"RpcOptions":          true,
-		"stackIntercept":      true,
+	// Build set of call type names actually imported from runtime-rpc based on methods
+	usedCallTypes := make(map[string]bool)
+	hasAnyMethod := false
+	for _, service := range file.Service {
+		for _, method := range service.Method {
+			hasAnyMethod = true
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+			if cs && ss {
+				usedCallTypes["DuplexStreamingCall"] = true
+			} else if ss {
+				usedCallTypes["ServerStreamingCall"] = true
+			} else if cs {
+				usedCallTypes["ClientStreamingCall"] = true
+			} else {
+				usedCallTypes["UnaryCall"] = true
+			}
+		}
+	}
+	if hasAnyMethod {
+		usedCallTypes["RpcOptions"] = true
+		usedCallTypes["stackIntercept"] = true
 	}
 	for _, service := range file.Service {
 		svcName := escapeTypescriptKeyword(service.GetName())
@@ -5448,7 +5463,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		if service.GetName() == "ServiceInfo" {
 			g.serviceInfoRef = "ServiceInfo$"
 		}
-		if callTypeNames[svcName] {
+		if usedCallTypes[svcName] {
 			g.serviceImportAliases[svcName] = svcName + "$"
 		}
 	}
@@ -5696,11 +5711,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// 4. Check if we need stackIntercept (for any method - unary or streaming)
-	hasAnyMethod := false
 	hasUnary := false
 	for _, service := range file.Service {
 		for _, method := range service.Method {
-			hasAnyMethod = true
 			if !method.GetClientStreaming() && !method.GetServerStreaming() {
 				hasUnary = true
 				break
