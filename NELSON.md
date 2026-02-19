@@ -869,9 +869,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 5388-5407 check `RpcTransport`, `ServiceInfo`, and call type names (`UnaryCall`, etc.) but NOT `RpcOptions`. The TS plugin's `createLocalTypeName` checks ALL runtime-rpc imports for collisions with service names.
 - **Same pattern as runs 100, 104** — service name collision with runtime-rpc imports. Each run tests a different runtime-rpc name.
 
+### Run 106 — Service name stackIntercept collision not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go's service name collision check (lines 5388-5408) does NOT check for `stackIntercept`. When a service is named `stackIntercept`, the client file imports `import { stackIntercept } from "./test"` (service const) and `import { stackIntercept } from "@protobuf-ts/runtime-rpc"` (runtime function). The TS plugin aliases the service const import as `import { stackIntercept as stackIntercept$ } from "./test"` and uses `stackIntercept$.typeName`, `stackIntercept$.methods`, `stackIntercept$.options` in the class body. The Go plugin leaves it unaliased.
+- **Test:** `187_service_name_stack_intercept` — service named `stackIntercept` with a unary `Search` method.
+- **Root cause:** Lines 5391-5396 `callTypeNames` includes `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `RpcOptions` but NOT `stackIntercept`. Lines 5400-5405 check `RpcTransport` and `ServiceInfo` but NOT `stackIntercept`. The `stackIntercept` function is in `clientRuntimeNames` (for method TYPE collisions) but not in either service NAME collision check.
+- **Diff:** Expected `import { stackIntercept as stackIntercept$ } from "./test"` and `stackIntercept$.typeName/methods/options`, got unaliased `import { stackIntercept } from "./test"` and `stackIntercept.typeName/methods/options`.
+- **Severity:** Produces TypeScript that fails to compile — duplicate `stackIntercept` binding from two import declarations.
+
 ### Ideas for future runs
 - `ServerStreamingCall` as service name collision — same pattern, untested.
-- `stackIntercept` as service name collision — value import, not type import.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
 - Service method trailing comment multiline — same bug pattern as run 81.
