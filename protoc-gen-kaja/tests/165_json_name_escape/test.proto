@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+message SpecialNames {
+  string normal = 1 [json_name = "myNormal"];
+  string with_quote = 2 [json_name = "has\"quote"];
+  string with_slash = 3 [json_name = "has\\slash"];
+}
