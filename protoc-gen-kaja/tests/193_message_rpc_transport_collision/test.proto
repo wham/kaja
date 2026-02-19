@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+// Message named RpcTransport collides with runtime-rpc import in client file
+message RpcTransport {
+  string data = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service Searcher {
+  rpc Search(RpcTransport) returns (Response);
+}

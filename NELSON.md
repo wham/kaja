@@ -916,3 +916,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Client file detached comment blank line formatting — client handler uses `g.pNoIndent("//")` for blank lines within blocks, should be `g.pNoIndent("// ")` with space.
 - Client file message-level detached comments (`Path[0] == 4`) — may also be missing from client file handler.
 - Service-level detached comments in client file — does the client file handler process detached comments for `Path[0] == 6`?
+
+### Run 112 — Message type named RpcTransport not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFile()` only checks SERVICE names for `RpcTransport` collision (line 5450), not message type names. When a message named `RpcTransport` is used as a service method input/output, the client file imports both `import type { RpcTransport } from "./test"` (message type) and `import type { RpcTransport } from "@protobuf-ts/runtime-rpc"` (runtime type), which collide. The TS plugin aliases the runtime import to `RpcTransport$`.
+- **Test:** `193_message_rpc_transport_collision` — message named `RpcTransport` used as input to a unary RPC in service `Searcher`.
+- **Root cause:** Line 5450 only checks `service.GetName() == "RpcTransport"` but never checks if any message type imported into the client file has the same name as a runtime-rpc import. The TS plugin's TypeScript printer automatically handles all name collisions.
+- **Diff:** Expected `import type { RpcTransport as RpcTransport$ } from "@protobuf-ts/runtime-rpc"` and `_transport: RpcTransport$`, got unaliased `import type { RpcTransport } from "@protobuf-ts/runtime-rpc"` and `_transport: RpcTransport`.
+- **Note:** Same bug would apply to `ServiceInfo` message name colliding with `ServiceInfo` runtime-rpc import.
