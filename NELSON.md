@@ -757,3 +757,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import { MessageType as MessageType$ }` and `class MessageType$Type extends MessageType$<MessageType>`, got unaliased `import { MessageType }` and `class MessageType$Type extends MessageType<MessageType>`.
 - **Severity:** Produces TypeScript code that fails to compile — local `MessageType` (the exported `const`) shadows the runtime `MessageType` class.
 - **Note:** Same bug would affect `UnknownFieldHandler` collision. The fix for WireType was incomplete — it should check all runtime import names.
+
+### Run 93 — ServiceType runtime-rpc import collision not aliased (SUCCESS)
+- **Bug found:** When a proto message is named `ServiceType`, it collides with the `ServiceType` import from `@protobuf-ts/runtime-rpc`. The TS plugin aliases the import as `import { ServiceType as ServiceType$ }` and uses `ServiceType$` in the service type constructor call (`new ServiceType$("name", [...])`). The Go plugin imports `ServiceType` unaliased, creating a collision with the locally generated `ServiceType` const (the message type).
+- **Test:** `174_service_type_collision` — file with `message ServiceType { string value = 1; }` and a `service SearchService { rpc Search(Request) returns (Response); }`.
+- **Root cause:** Line ~1903 `import { ServiceType } from "@protobuf-ts/runtime-rpc"` is always unaliased. Line ~6128 `new ServiceType(...)` uses the unaliased name. The Go plugin's `computeLocalTypeNames()` at lines 2163-2169 only checks `WireType` and `MessageType` (from `@protobuf-ts/runtime`) but NOT `ServiceType` (from `@protobuf-ts/runtime-rpc`). Missing `g.serviceTypeRef` aliasing variable.
+- **Diff:** Expected `import { ServiceType as ServiceType$ }` and `new ServiceType$("test.SearchService", [...])`, got unaliased `import { ServiceType }` and `new ServiceType("test.SearchService", [...])`.
+- **Affects:** Import statement aliasing and all `new ServiceType(...)` constructor calls for service type consts. Produces TypeScript that fails to compile — local `ServiceType` (message const) shadows the runtime-rpc `ServiceType` class.
+- **Note:** Different from runs 91-92 which tested `@protobuf-ts/runtime` imports. This tests `@protobuf-ts/runtime-rpc` imports — a completely separate import path and code section.

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test;
+
+// Message with same name as runtime-rpc's ServiceType import.
+message ServiceType {
+  string value = 1;
+}
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service SearchService {
+  rpc Search(Request) returns (Response);
+}
