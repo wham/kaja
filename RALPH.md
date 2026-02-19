@@ -195,6 +195,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 186_service_name_rpc_options_collision: When a service is named `RpcOptions`, it collides with the runtime-rpc `RpcOptions` type import in the client file. Added `"RpcOptions"` to `callTypeNames` so the proto service import is aliased with `$` suffix (same pattern as UnaryCall/ServerStreamingCall).
 - [x] Fix test 187_service_name_stack_intercept: When a service is named `stackIntercept`, it collides with the runtime-rpc `stackIntercept` function import. Added `"stackIntercept"` to `callTypeNames` so the proto service import is aliased with `$` suffix (same pattern as UnaryCall/RpcOptions).
 - [x] All 192/192 tests passing — DONE
+- [x] Fix test 188_duplicate_local_name_create: Duplicate camelCase property dedup in create() must use last-write-wins (keep LAST occurrence), matching JS `Object.entries` behavior. Reversed iteration order in dedup loop, then re-reversed to restore original order.
+- [x] All 193/193 tests passing — DONE
+- [x] Fix test 189_client_syntax_two_blocks: Client file syntax detached comment blocks needed `hasTrailingNewline` handling and `blockIdx < len-1` separator (matching message file header), instead of unconditional `//` after every block
+- [x] All 194/194 tests passing — DONE
 
 ## Notes
 

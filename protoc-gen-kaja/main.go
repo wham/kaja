@@ -5348,6 +5348,39 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 	}
+
+	// Add package-level leading detached comments (path [2])
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimSpace(detached) != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := strings.TrimRight(lines[i], " \t")
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
 	
 	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
 	
