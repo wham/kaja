@@ -5457,6 +5457,21 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			g.serviceImportAliases[svcName] = svcName + "$"
 		}
 	}
+	// Also check if any proto message type used in service methods collides with
+	// RpcTransport or ServiceInfo runtime-rpc imports.
+	for _, service := range file.Service {
+		for _, method := range service.Method {
+			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
+				tsName := g.stripPackage(typeName)
+				if tsName == "RpcTransport" {
+					g.rpcTransportRef = "RpcTransport$"
+				}
+				if tsName == "ServiceInfo" {
+					g.serviceInfoRef = "ServiceInfo$"
+				}
+			}
+		}
+	}
 
 	// Collect imports
 	seen := make(map[string]bool)
