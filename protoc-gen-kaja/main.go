@@ -5446,6 +5446,35 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	g.precomputeImportAliases(depFiles)
 
+	// Detect cross-file type name collisions in client imports.
+	// In the client file, local types (from current file) are also imported,
+	// so they can collide with external imports that have the same TS name.
+	// Registration order: method by method, input then output — first to claim a name wins.
+	{
+		claimed := make(map[string]string) // raw tsName → first proto type
+		seenProto := make(map[string]bool)
+		for _, service := range file.Service {
+			for _, method := range service.Method {
+				for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
+					if seenProto[typeName] {
+						continue
+					}
+					seenProto[typeName] = true
+					if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
+						continue
+					}
+					tsName := g.stripPackage(typeName)
+					if existing, ok := claimed[tsName]; ok && existing != typeName {
+						g.importAliases[typeName] = tsName + "$"
+						g.rawImportNames[typeName] = tsName
+					} else if !ok {
+						claimed[tsName] = typeName
+					}
+				}
+			}
+		}
+	}
+
 	// Build set of runtime-rpc names actually imported based on methods
 	usedCallTypes := make(map[string]bool)
 	hasAnyMethod := false
