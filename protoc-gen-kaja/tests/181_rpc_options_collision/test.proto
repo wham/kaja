@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+// Message with the same name as the runtime-rpc import RpcOptions.
+// This should cause a collision in the client file where both
+// the proto type and the runtime type are imported.
+message RpcOptions {
+  string value = 1;
+}
+
+message Request {
+  string query = 1;
+}
+
+service TestService {
+  rpc Search(Request) returns (RpcOptions);
+}

@@ -810,11 +810,21 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import type { IBinaryWriter as IBinaryWriter$ }` and `writer: IBinaryWriter$` / return type `IBinaryWriter$`, got unaliased `import type { IBinaryWriter }` and `writer: IBinaryWriter` / return type `IBinaryWriter`.
 - **Severity:** Produces TypeScript that fails to compile — local `IBinaryWriter` (the exported interface) shadows the runtime type import, causing type errors in `internalBinaryWrite` method signatures.
 
+### Run 100 — RpcOptions runtime-rpc import collision not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go does NOT alias proto type imports when they collide with `@protobuf-ts/runtime-rpc` imports like `RpcOptions`. When a proto message is named `RpcOptions` and used as a service method's response type, the client file imports both `import type { RpcOptions } from "./test"` (proto type) and `import type { RpcOptions } from "@protobuf-ts/runtime-rpc"` (runtime type). The TS plugin aliases the proto import as `import type { RpcOptions as RpcOptions$ } from "./test"` and uses `RpcOptions$` throughout method signatures.
+- **Test:** `181_rpc_options_collision` — message named `RpcOptions` used as service method response type.
+- **Root cause:** The client file generator has NO collision detection for proto type imports vs runtime-rpc imports. `collectLocalTypeNames()` only handles `@protobuf-ts/runtime` imports (WireType, MessageType, etc.) in the main `.ts` file. The client file generator at lines 5350-5636 never checks if imported proto types collide with `RpcOptions`, `RpcTransport`, `ServiceInfo`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, or `stackIntercept`.
+- **Diff:** Expected `import type { RpcOptions as RpcOptions$ } from "./test"` and `UnaryCall<Request, RpcOptions$>`, got unaliased `import type { RpcOptions } from "./test"` and `UnaryCall<Request, RpcOptions>`.
+- **Affects:** Import statement, interface method return types, class method return types, `stackIntercept` type parameters — ALL use unaliased name, causing TypeScript compile errors.
+- **Note:** Same bug would affect `RpcTransport`, `ServiceInfo`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `stackIntercept` collisions — ANY proto type whose name matches a runtime-rpc import.
+
 ### Ideas for future runs
-- `RpcOptions`/`RpcTransport` collision in client files — imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
+- `RpcTransport` collision in client file — same bug as run 100 but with a different runtime-rpc import.
 - `reflectionMergePartial` collision — used as a value import, not type import.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Three-way collision: local type + two imports with same simple name.
 - Enum nested inside lowercase-named parent from different package.
 - Custom option with oneof field inside message-typed option value.
 - `MessageType` as enum name (not just message name) — does collision detection handle top-level enums?
+- `stackIntercept` collision in client file — value import, not type import.
+- `UnaryCall` collision in client file — proto message named `UnaryCall` used as method param.
