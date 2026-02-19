@@ -863,10 +863,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 5388-5395 only check `service.GetName() == "RpcTransport"` and `service.GetName() == "ServiceInfo"`. Missing checks for `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `stackIntercept`, `RpcOptions`.
 - **Note:** Different from the method TYPE collision (run 100 tested `RpcOptions` as method type). This is the SERVICE NAME collision — the service const import `import { UnaryCall } from "./test"` clashes with the runtime-rpc type import. The TS plugin aliases the SERVICE import (not the runtime import), using `UnaryCall$` for `.typeName`, `.methods`, `.options`.
 
+### Run 105 — Service name RpcOptions collision not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go's service name collision check (lines 5388-5407) does NOT check for `RpcOptions`. When a service is named `RpcOptions`, the client file imports `import { RpcOptions } from "./test"` (service const) and `import type { RpcOptions } from "@protobuf-ts/runtime-rpc"` (for method options). The TS plugin aliases the service const import as `import { RpcOptions as RpcOptions$ } from "./test"` and uses `RpcOptions$.typeName`, `RpcOptions$.methods`, `RpcOptions$.options` in the class body. The Go plugin leaves it unaliased.
+- **Test:** `186_service_name_rpc_options_collision` — service named `RpcOptions` with a unary `Search` method.
+- **Root cause:** Lines 5388-5407 check `RpcTransport`, `ServiceInfo`, and call type names (`UnaryCall`, etc.) but NOT `RpcOptions`. The TS plugin's `createLocalTypeName` checks ALL runtime-rpc imports for collisions with service names.
+- **Same pattern as runs 100, 104** — service name collision with runtime-rpc imports. Each run tests a different runtime-rpc name.
+
 ### Ideas for future runs
 - `ServerStreamingCall` as service name collision — same pattern, untested.
 - `stackIntercept` as service name collision — value import, not type import.
-- `RpcOptions` as service name collision — same bug, different runtime-rpc import.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
 - Service method trailing comment multiline — same bug pattern as run 81.
