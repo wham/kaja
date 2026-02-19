@@ -5067,6 +5067,7 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		// For aliases, we use the first value's trailing comments (fetched above)
 		if trailingComments != "" {
 			for _, line := range strings.Split(trailingComments, "\n") {
+				line = strings.TrimRight(line, " \t")
 				if line == "" {
 					g.p(" *")
 				} else {
