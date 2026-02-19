@@ -165,6 +165,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 168_custom_option_string_tab: Added `\t` (tab) character escaping to custom option string values in both `formatCustomOptions` and `formatCustomOptionArray`, same pattern as `\n`/`\r` escaping
 - [x] Fix test 169_syntax_detached_nospace: Syntax detached comments without leading space (e.g., `//NoSpace`) should NOT get a space added. Changed format from `"// %s"` (with space stripping) to `"//%s"` (preserving original leading space from SourceCodeInfo). Also fixed client file header to split original `detached` text instead of `TrimSpace`d version.
 - [x] All 174/174 tests passing — DONE
+- [x] Fix test 170_package_detached_nospace: Package-level detached comments without leading space need `//%s` format (same fix as syntax detached comments in test 169) — preserve original spacing instead of stripping and re-adding
+- [x] All 175/175 tests passing — DONE
 
 ## Notes
 

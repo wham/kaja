@@ -1392,10 +1392,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
-								if strings.HasPrefix(line, " ") {
-									line = line[1:]
-								}
-								g.pNoIndent("// %s", line)
+								g.pNoIndent("//%s", line)
 							}
 						}
 						if hasTrailingNewline {
