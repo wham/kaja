@@ -851,9 +851,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Severity:** Produces TypeScript that fails to compile — duplicate `RpcTransport` binding from two different import declarations.
 - **Note:** Same bug would affect service names matching `ServiceInfo`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `stackIntercept`, or `RpcOptions`.
 
+### Run 103 — ServiceInfo service name collision not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go only aliases `RpcTransport` when a service name collides with it (lines 5384-5390). When a service is named `ServiceInfo`, the client file imports both `import { ServiceInfo } from "./test"` (service const) and `import type { ServiceInfo } from "@protobuf-ts/runtime-rpc"` (runtime interface). The TS plugin aliases the runtime import as `import type { ServiceInfo as ServiceInfo$ }` and uses `ServiceInfo$` in the class declaration (`implements IServiceInfoClient, ServiceInfo$`). The Go plugin leaves it unaliased.
+- **Test:** `184_service_info_collision` — service named `ServiceInfo` with a `Search` method.
+- **Root cause:** Lines 5381-5390 only check `service.GetName() == "RpcTransport"`. Missing checks for `ServiceInfo`, `stackIntercept`, `RpcOptions`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`.
+- **Diff:** Expected `import type { ServiceInfo as ServiceInfo$ }` and `implements IServiceInfoClient, ServiceInfo$`, got unaliased `import type { ServiceInfo }` and `implements IServiceInfoClient, ServiceInfo`.
+
 ### Ideas for future runs
-- `ServiceInfo` as service name collision in client file — same pattern.
+- `stackIntercept` as service name collision — value import, not type import.
 - `UnaryCall` as message name used in method + as service call return type — dual collision.
-- `stackIntercept` as service name collision — value import vs value import.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
