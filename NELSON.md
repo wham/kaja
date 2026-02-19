@@ -765,3 +765,19 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import { ServiceType as ServiceType$ }` and `new ServiceType$("test.SearchService", [...])`, got unaliased `import { ServiceType }` and `new ServiceType("test.SearchService", [...])`.
 - **Affects:** Import statement aliasing and all `new ServiceType(...)` constructor calls for service type consts. Produces TypeScript that fails to compile — local `ServiceType` (message const) shadows the runtime-rpc `ServiceType` class.
 - **Note:** Different from runs 91-92 which tested `@protobuf-ts/runtime` imports. This tests `@protobuf-ts/runtime-rpc` imports — a completely separate import path and code section.
+
+### Run 94 — UnknownFieldHandler runtime import collision not aliased (SUCCESS)
+- **Bug found:** `computeLocalTypeNames()` in main.go checks `WireType`, `MessageType`, and `ServiceType` for collisions but NOT `UnknownFieldHandler`. When a proto message is named `UnknownFieldHandler`, it collides with the `UnknownFieldHandler` import from `@protobuf-ts/runtime`. The TS plugin aliases the import as `import { UnknownFieldHandler as UnknownFieldHandler$ }` and uses `UnknownFieldHandler$.onRead` / `UnknownFieldHandler$.onWrite` throughout. The Go plugin uses unaliased `UnknownFieldHandler`.
+- **Test:** `175_unknown_field_handler_collision` — message named `UnknownFieldHandler` with fields, plus a `Container` message referencing it.
+- **Root cause:** `computeLocalTypeNames()` at lines 2167-2178 only checks `WireType`, `MessageType`, `ServiceType`. No `unknownFieldHandlerRef` variable exists (unlike `wireTypeRef`, `messageTypeRef`, `serviceTypeRef`). Lines 2015, 4108, 4354 all hardcode `UnknownFieldHandler` instead of using a ref variable.
+- **Diff:** Expected `import { UnknownFieldHandler as UnknownFieldHandler$ }` and `UnknownFieldHandler$.onRead`/`UnknownFieldHandler$.onWrite`, got unaliased `import { UnknownFieldHandler }` and `UnknownFieldHandler.onRead`/`UnknownFieldHandler.onWrite`.
+- **Severity:** Produces TypeScript that fails to compile — local `UnknownFieldHandler` (the exported interface/const) shadows the runtime `UnknownFieldHandler` object, which has no `.onRead`/`.onWrite` methods.
+
+### Ideas for future runs
+- `reflectionMergePartial` collision — imported from `@protobuf-ts/runtime` but starts with lowercase so can't be a proto message name. Skip.
+- `PartialMessage` collision — if a message is named `PartialMessage`, the Go plugin would collide. But it's a TYPE import (`import type`), so aliasing rules may differ.
+- `RpcOptions`/`RpcTransport` collision in client files — these are imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
+- Service method trailing comment multiline — same bug pattern as run 81.
+- Three-way collision: local type + two imports with same simple name.
+- Enum nested inside lowercase-named parent from different package.
+- Custom option with oneof field inside message-typed option value.

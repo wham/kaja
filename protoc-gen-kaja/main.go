@@ -263,9 +263,10 @@ type generator struct {
 	localTypeNames      map[string]bool   // Set of TS names defined locally in this file (for collision detection)
 	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".beta.Data" → "Data$")
 	rawImportNames      map[string]string // Map from proto type name → raw TS import name before aliasing (e.g., ".beta.Data" → "Data")
-	wireTypeRef         string            // "WireType" normally, "WireType$" when local type collides with runtime WireType
-	messageTypeRef      string            // "MessageType" normally, "MessageType$" when local type collides with runtime MessageType
-	serviceTypeRef      string            // "ServiceType" normally, "ServiceType$" when local type collides with runtime-rpc ServiceType
+	wireTypeRef              string            // "WireType" normally, "WireType$" when local type collides with runtime WireType
+	messageTypeRef           string            // "MessageType" normally, "MessageType$" when local type collides with runtime MessageType
+	serviceTypeRef           string            // "ServiceType" normally, "ServiceType$" when local type collides with runtime-rpc ServiceType
+	unknownFieldHandlerRef   string            // "UnknownFieldHandler" normally, "UnknownFieldHandler$" when local type collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1308,9 +1309,10 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		localTypeNames:      make(map[string]bool),
 		importAliases:       make(map[string]string),
 		rawImportNames:      make(map[string]string),
-		wireTypeRef:         "WireType",
-		messageTypeRef:      "MessageType",
-		serviceTypeRef:      "ServiceType",
+		wireTypeRef:              "WireType",
+		messageTypeRef:           "MessageType",
+		serviceTypeRef:           "ServiceType",
+		unknownFieldHandlerRef:   "UnknownFieldHandler",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2012,7 +2014,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
 		}
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
-		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.unknownFieldHandlerImport())
 		if hasAnyFields && wireTypeVeryLate {
 			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
@@ -2176,6 +2178,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime-rpc ServiceType collision
 	if g.localTypeNames["ServiceType"] {
 		g.serviceTypeRef = "ServiceType$"
+	}
+	// Detect runtime UnknownFieldHandler collision
+	if g.localTypeNames["UnknownFieldHandler"] {
+		g.unknownFieldHandlerRef = "UnknownFieldHandler$"
 	}
 }
 
@@ -4105,7 +4111,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("let d = reader.skip(wireType);")
 	g.p("if (u !== false)")
 	g.indent = "                        "
-	g.p("(u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);")
+	g.p("(u === true ? %s.onRead : u)(this.typeName, message, fieldNo, wireType, d);", g.unknownFieldHandlerRef)
 	g.indent = "            "
 	g.p("}")
 	g.indent = "        "
@@ -4351,7 +4357,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("let u = options.writeUnknownFields;")
 	g.p("if (u !== false)")
 	g.indent = "            "
-	g.p("(u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);")
+	g.p("(u == true ? %s.onWrite : u)(this.typeName, message, writer);", g.unknownFieldHandlerRef)
 	g.indent = "        "
 	g.p("return writer;")
 	g.indent = "    "
@@ -4796,6 +4802,13 @@ func (g *generator) wireTypeImportAlias() string {
 		return " as WireType$"
 	}
 	return ""
+}
+
+func (g *generator) unknownFieldHandlerImport() string {
+	if g.unknownFieldHandlerRef == "UnknownFieldHandler$" {
+		return "UnknownFieldHandler as UnknownFieldHandler$"
+	}
+	return "UnknownFieldHandler"
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
