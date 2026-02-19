@@ -947,6 +947,7 @@ func formatCustomOptions(opts []customOption) string {
 			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
 			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
 			valueStr = fmt.Sprintf("\"%s\"", escaped)
 		case bool:
 			valueStr = fmt.Sprintf("%t", val)
@@ -1018,6 +1019,7 @@ func formatCustomOptionArray(vals []interface{}) string {
 			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
 			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
 			elems = append(elems, fmt.Sprintf("\"%s\"", escaped))
 		case bool:
 			elems = append(elems, fmt.Sprintf("%t", val))
