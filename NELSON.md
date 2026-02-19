@@ -685,3 +685,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested messages (5+ levels) — type name construction.
 - Enum nested inside lowercase-named parent from different package.
 - Service method trailing comment multiline — same bug pattern likely.
+
+### Run 82 — Service client file import name collision not aliased (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go does NOT alias imported types when two different packages export a type with the same simple name. When `alpha.Data` and `beta.Data` are both used in a service, the TS plugin imports `Data` from `alpha` and `Data as Data$` from `beta`, using `Data$` throughout. The Go plugin imports `Data` from only one package (beta) and drops the other import entirely.
+- **Test:** `163_service_import_collision` — service with `rpc GetAlpha(alpha.Data) returns (beta.Data)` where both packages define a type named `Data`.
+- **Root cause:** Two affected code paths: (1) main service file (`svc.ts`) at import generation: imports both but doesn't alias the collision, producing duplicate `Data` symbols. (2) client file (`svc.client.ts`) at import generation: only imports from one package, completely dropping the other type's import. Both files use unaliased `Data` for both types.
+- **Differs from run 73:** Run 73 tested import collision in MESSAGE files (local type vs imported type with same name). This test covers SERVICE files where two EXTERNAL imports collide — a different code path (`generateClientFileContent` and service import generation).
+- **Affects:** `import` statement aliasing, interface method signatures, class method signatures, `stackIntercept` type parameters, and service type descriptor `I:`/`O:` references.
