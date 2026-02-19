@@ -157,6 +157,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 163_service_import_collision: Added `precomputeImportAliases` that detects import name collisions in protobuf-ts registration order (input first, output second) separately from emission order (output above input). Added `formatTypeImport` helper for `{ Name as Alias }` syntax. Applied to both svc.ts and svc.client.ts.
 - [x] Fix test 164_empty_message_wiretype_import: When first message is empty AND a service is present, WireType must be early — moved `firstMessageEmpty` check out of the `else` branch so it applies in both service and non-service cases
 - [x] All 169/169 tests passing — DONE
+- [x] Fix test 165_json_name_escape: Escaped backslashes and double quotes in field descriptor `jsonName` values using `strings.ReplaceAll` — comment annotations (JSDoc, binary read/write) intentionally leave json_name unescaped
+- [x] All 170/170 tests passing — DONE
 
 ## Notes
 
@@ -232,3 +234,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - No-package client import resolution: `getImportPathForType`'s `typeInFile` helper had the same bug as `generateImport` (test 156) — when `pkg == ""`, it checked `strings.HasPrefix(typeName, ".")` which always failed for stripped type names. Fix: add `pkg != ""` guard before the prefix check, and split `typeName` directly (not with `pkg+"."` prefix) when package is empty.
 - Multiline trailing comments: Block comments (`/* ... */`) produce multiline trailing comments in SourceCodeInfo. These must be output as separate lines: first line appended to the field declaration with `// `, subsequent lines as standalone `// ` comments below. The `getTrailingComments` function must use `TrimRight("\n")` (not `TrimSpace`) to preserve trailing whitespace within lines — protobuf-ts preserves these spaces.
 - Empty first message WireType ordering: When the first message has no fields (empty message), WireType import must be early (before BinaryWriteOptions) regardless of whether a service is present. The `firstMessageEmpty` check was previously inside the `else` branch (no service only). Moved it out so it applies in both `needsServiceType` and non-service cases. This is because in protobuf-ts's prepend model, the second message's WireType registration gets prepended above the empty first message's imports.
+- jsonName escaping: Only the field descriptor `jsonName: "..."` value needs `\`→`\\` and `"`→`\"` escaping. Comment annotations (`[json_name = "..."]` in JSDoc, internalBinaryRead/Write) are plain text inside `/* */` comments and must NOT be escaped — protobuf-ts outputs them raw.
