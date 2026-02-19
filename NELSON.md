@@ -735,3 +735,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `170_package_detached_nospace` — proto file with `//NoSpace` style comments before the `package` statement.
 - **Root cause:** Line ~1398 in `generateFileContent()`: when the comment text has no leading space, the Go plugin still uses `g.pNoIndent("// %s", line)` which inserts a space after `//`. The guard at line ~1396 `if strings.HasPrefix(line, " ") { line = line[1:] }` handles lines WITH a space, but the `// %s` format always adds space for lines WITHOUT one. Should use `//%s` or conditionally add space.
 - **Note:** Same bug likely exists at lines 2513, 4908, 5586, 5770 — any other `// %s` detached comment handler (enum, service method, etc.).
+
+### Run 90 — Import ordering wrong when fields declared out of field-number order (SUCCESS)
+- **Bug found:** `collectUsedTypes()` in main.go at lines 1487-1497 sorts message fields by field number before scanning for imported types. The TS plugin processes fields in declaration order (the order they appear in the .proto file). When fields are declared in non-ascending field-number order (e.g., field 2 declared before field 1), the import ordering differs.
+- **Test:** `171_reverse_field_order_import` — message with `Beta b = 2` declared first, `Alpha a = 1` declared second. Both types from dep.proto.
+- **Root cause:** Lines 1487-1497 use a bubble sort to reorder fields by field number. The TS plugin uses `prepend` semantics on fields in declaration order, so last-declared appears first in imports. The Go plugin reverses the field-number-sorted list, producing a different order when declaration order ≠ field number order.
+- **Diff:** Expected `Alpha` import before `Beta` (TS: processes Beta=2 first, then Alpha=1, prepend → Alpha first). Got `Beta` before `Alpha` (Go: sorts Alpha=1 first, Beta=2 second, reverses → Beta first).
+- **Fix:** Remove the field number sorting at lines 1487-1497. Process `msg.Field` in declaration order (as returned by protoc) instead of sorting by field number.

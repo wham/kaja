@@ -1,0 +1,10 @@
+syntax = "proto3";
+package dep;
+
+message Alpha {
+  string value = 1;
+}
+
+message Beta {
+  string name = 1;
+}
