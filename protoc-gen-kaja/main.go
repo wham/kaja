@@ -1963,21 +1963,21 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// 3. File has NO service AND first message is empty (no actual fields)
 		wireTypeEarly := false
 		wireTypeVeryLate := false // After UnknownFieldHandler
-		if needsServiceType {
-			wireTypeEarly = serviceBeforeMessages
-		} else {
-			// Check if first message is empty
-			firstMessageEmpty := false
-			if len(g.file.MessageType) > 0 {
-				firstMsg := g.file.MessageType[0]
-				actualFieldCount := 0
-				for _, field := range firstMsg.Field {
-					if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
-						actualFieldCount++
-					}
+		// Check if first message is empty (no actual fields)
+		firstMessageEmpty := false
+		if len(g.file.MessageType) > 0 {
+			firstMsg := g.file.MessageType[0]
+			actualFieldCount := 0
+			for _, field := range firstMsg.Field {
+				if field.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
+					actualFieldCount++
 				}
-				firstMessageEmpty = actualFieldCount == 0
 			}
+			firstMessageEmpty = actualFieldCount == 0
+		}
+		if needsServiceType {
+			wireTypeEarly = serviceBeforeMessages || firstMessageEmpty
+		} else {
 			wireTypeEarly = g.isImportedByService || firstMessageEmpty
 		}
 		
