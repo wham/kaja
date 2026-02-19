@@ -1,0 +1,18 @@
+syntax = "proto3";
+package test;
+
+import "dep/shared.proto";
+
+message Result {
+  int32 code = 1;
+}
+
+message Request {
+  string query = 1;
+  dep.Result dep_result = 2;
+}
+
+service TestService {
+  rpc Search(Request) returns (dep.Result);
+  rpc Create(Result) returns (Result);
+}
