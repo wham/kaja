@@ -148,7 +148,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 158_no_package_client_import: When proto files have no `package` statement, `getImportPathForType`'s `typeInFile` helper rejected all no-package files because `strings.HasPrefix(typeName, ""+".") always returned false. Added `pkg != ""` guard and separate `parts` splitting for empty package, same pattern as test 156.
 - [x] All 163/163 tests passing — DONE
 - [x] Fix test 159_lowercase_nested_cross_pkg: Replaced uppercase-letter heuristic in stripPackage with actual file package lookup via findPackageForType — heuristic failed for message names starting with lowercase (e.g., `lowercaseParent.Nested` → `Nested` instead of `lowercaseParent_Nested`)
-- [x] All 164/164 tests passing — DONE
+- [x] Fix test 160_deep_nested_import: Replaced hardcoded 1-2-3 level nesting checks in generateImport with recursive `findTypeInDescriptors` helper — handles arbitrary nesting depth (test had 4 levels: `Outer.Middle.Inner.Deep`)
+- [x] All 165/165 tests passing — DONE
 
 ## Notes
 

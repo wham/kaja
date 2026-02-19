@@ -1144,17 +1144,12 @@ func (g *generator) getTrailingComments(path []int32) string {
 		}
 		if match && loc.TrailingComments != nil {
 			comment := *loc.TrailingComments
-			comment = strings.TrimSpace(comment)
+			comment = strings.TrimRight(comment, "\n")
 			// Strip one leading space from each line (protobuf convention)
 			lines := strings.Split(comment, "\n")
 			for i, line := range lines {
-				line = strings.TrimRight(line, " \t")
-				if line == "" {
-					lines[i] = ""
-				} else if strings.HasPrefix(line, " ") {
+				if strings.HasPrefix(line, " ") {
 					lines[i] = line[1:]
-				} else {
-					lines[i] = line
 				}
 			}
 			return strings.Join(lines, "\n")
@@ -2684,12 +2679,15 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	
 	// Get trailing comments if fieldPath is provided
 	trailingComment := ""
+	var trailingCommentExtraLines []string
 	if len(fieldPath) > 0 {
 		tc := g.getTrailingComments(fieldPath)
 		if tc != "" {
-			// Convert multiline comments to single line with proper formatting
 			lines := strings.Split(tc, "\n")
-			trailingComment = " // " + strings.Join(lines, " ")
+			trailingComment = " // " + lines[0]
+			for _, extra := range lines[1:] {
+				trailingCommentExtraLines = append(trailingCommentExtraLines, extra)
+			}
 		}
 	}
 	
@@ -2740,6 +2738,10 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 			}
 		}
 		g.p("%s%s: %s;%s", fieldName, optional, fieldType, trailingComment)
+	}
+	// Output extra trailing comment lines (multiline trailing comments)
+	for _, extra := range trailingCommentExtraLines {
+		g.p("// %s", extra)
 	}
 	
 	g.indent = ""
