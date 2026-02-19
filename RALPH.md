@@ -159,6 +159,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 169/169 tests passing — DONE
 - [x] Fix test 165_json_name_escape: Escaped backslashes and double quotes in field descriptor `jsonName` values using `strings.ReplaceAll` — comment annotations (JSDoc, binary read/write) intentionally leave json_name unescaped
 - [x] All 170/170 tests passing — DONE
+- [x] Fix test 166_enum_value_trailing_whitespace: Enum value trailing comments in JSDoc blocks need `TrimRight(" \t")` per line — block comments produce trailing spaces from ` */` that must be stripped in JSDoc output (but preserved in `//` line comment output per test 161)
+- [x] All 171/171 tests passing — DONE
 
 ## Notes
 
@@ -235,3 +237,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Multiline trailing comments: Block comments (`/* ... */`) produce multiline trailing comments in SourceCodeInfo. These must be output as separate lines: first line appended to the field declaration with `// `, subsequent lines as standalone `// ` comments below. The `getTrailingComments` function must use `TrimRight("\n")` (not `TrimSpace`) to preserve trailing whitespace within lines — protobuf-ts preserves these spaces.
 - Empty first message WireType ordering: When the first message has no fields (empty message), WireType import must be early (before BinaryWriteOptions) regardless of whether a service is present. The `firstMessageEmpty` check was previously inside the `else` branch (no service only). Moved it out so it applies in both `needsServiceType` and non-service cases. This is because in protobuf-ts's prepend model, the second message's WireType registration gets prepended above the empty first message's imports.
 - jsonName escaping: Only the field descriptor `jsonName: "..."` value needs `\`→`\\` and `"`→`\"` escaping. Comment annotations (`[json_name = "..."]` in JSDoc, internalBinaryRead/Write) are plain text inside `/* */` comments and must NOT be escaped — protobuf-ts outputs them raw.
+- Enum value trailing whitespace in JSDoc: Block comments (`/* ... */`) produce trailing spaces on the last line (from the space before `*/`). When outputting these as JSDoc lines (` * comment`), each line must be `TrimRight(" \t")` to strip trailing whitespace. This is different from `//` line comment output (test 161) where trailing whitespace is preserved. The fix is in the enum value trailing comment output loop (around line 5069), NOT in `getTrailingComments` itself.

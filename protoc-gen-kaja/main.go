@@ -416,6 +416,10 @@ func (g *generator) findEnumInMessage(f *descriptorpb.FileDescriptorProto, msg *
 	} else {
 		prefix = "." + f.GetPackage() + "." + msg.GetName()
 	}
+	return g.findEnumInMessageWithPrefix(prefix, msg, typeName, number)
+}
+
+func (g *generator) findEnumInMessageWithPrefix(prefix string, msg *descriptorpb.DescriptorProto, typeName string, number int32) string {
 	for _, enum := range msg.EnumType {
 		fqn := prefix + "." + enum.GetName()
 		if fqn == typeName {
@@ -428,15 +432,8 @@ func (g *generator) findEnumInMessage(f *descriptorpb.FileDescriptorProto, msg *
 	}
 	for _, nested := range msg.NestedType {
 		nestedPrefix := prefix + "." + nested.GetName()
-		for _, enum := range nested.EnumType {
-			fqn := nestedPrefix + "." + enum.GetName()
-			if fqn == typeName {
-				for _, val := range enum.Value {
-					if val.GetNumber() == number {
-						return val.GetName()
-					}
-				}
-			}
+		if name := g.findEnumInMessageWithPrefix(nestedPrefix, nested, typeName, number); name != "" {
+			return name
 		}
 	}
 	return ""
