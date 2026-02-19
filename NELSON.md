@@ -705,3 +705,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 3726: `fmt.Sprintf(", jsonName: \"%s\"", actualJsonName)` inserts the raw json_name value. Should first escape `\` → `\\` and `"` → `\"` before embedding in the JS string literal.
 - **Affects:** Only the field descriptor in the `super()` constructor call. The `@generated from protobuf field:` JSDoc comment and the interface property name both use the json_name differently (as proto annotation text, not as a JS string literal) and are not affected the same way.
 - **Severity:** Produces invalid JavaScript syntax when json_name contains `"` or `\`, causing runtime parse errors.
+
+### Run 85 — Enum value trailing comment trailing whitespace not stripped (SUCCESS)
+- **Bug found:** `getTrailingComments()` in main.go (line ~1131) does NOT strip trailing whitespace per line from comment text. It only does `strings.TrimRight(comment, "\n")` on the whole string and strips ONE leading space per line, but never trims trailing spaces/tabs per line. Block-style trailing comments like `/* trailing block */` produce raw text with a trailing space before `*/` which protoc preserves. The TS plugin's TypeScript printer strips trailing whitespace from JSDoc lines; the Go plugin does not.
+- **Test:** `166_enum_value_trailing_whitespace` — enum with values having multiline and single-line block-style trailing comments (`/* ... */`).
+- **Root cause:** `getTrailingComments()` at line ~1131 lacks per-line `strings.TrimRight(line, " \t")`. Compare with `getEnumTrailingComments()` at line ~1165 which correctly does `strings.TrimRight(line, " \t")` for each line.
+- **Affects:** Any enum value with a `/* ... */` trailing comment — the space before `*/` leaks into JSDoc output. Field trailing comments in `//` inline format are also affected but less visually obvious.
