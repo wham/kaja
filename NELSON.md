@@ -780,12 +780,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import type { PartialMessage as PartialMessage$ }` and `create(value?: PartialMessage$<PartialMessage>)`, got unaliased `import type { PartialMessage }` and `create(value?: PartialMessage<PartialMessage>)`.
 - **Severity:** Produces TypeScript where `PartialMessage<PartialMessage>` is self-referential — the local `PartialMessage` interface shadows the runtime utility type, causing incorrect type resolution.
 
+### Run 96 — BinaryReadOptions import type collision not aliased (SUCCESS)
+- **Bug found:** `computeLocalTypeNames()` in main.go checks `WireType`, `MessageType`, `ServiceType`, `UnknownFieldHandler`, `PartialMessage` for collisions but NOT `import type` imports like `BinaryReadOptions`. When a proto message is named `BinaryReadOptions`, it collides with `import type { BinaryReadOptions } from "@protobuf-ts/runtime"`. The TS plugin aliases the import as `import type { BinaryReadOptions as BinaryReadOptions$ }` and uses `BinaryReadOptions$` in `internalBinaryRead` method signatures. The Go plugin uses unaliased `BinaryReadOptions`.
+- **Test:** `177_binary_read_options_collision` — message named `BinaryReadOptions` with fields, plus a `Container` message referencing it.
+- **Root cause:** `computeLocalTypeNames()` at lines 2172-2191 only checks 5 specific runtime import names. Missing checks for `BinaryReadOptions`, `BinaryWriteOptions`, `IBinaryReader`, `IBinaryWriter` (all `import type` imports from `@protobuf-ts/runtime`).
+- **Diff:** Expected `import type { BinaryReadOptions as BinaryReadOptions$ }` and `options: BinaryReadOptions$` in method signatures, got unaliased `import type { BinaryReadOptions }` and `options: BinaryReadOptions`.
+- **Severity:** Produces TypeScript where the local `BinaryReadOptions` interface shadows the runtime type import, causing type errors in `internalBinaryRead` and `internalBinaryWrite` method signatures.
+- **Note:** Same bug would affect `BinaryWriteOptions`, `IBinaryReader`, `IBinaryWriter` collisions. Also `RpcOptions`/`RpcTransport` in client files.
+
 ### Ideas for future runs
-- `reflectionMergePartial` collision — imported from `@protobuf-ts/runtime` but starts with lowercase so can't be a proto message name. Skip.
+- `BinaryWriteOptions`/`IBinaryWriter`/`IBinaryReader` collision — same bug pattern as run 96 but different import type names.
 - `RpcOptions`/`RpcTransport` collision in client files — these are imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
+- `reflectionMergePartial` collision — imported from `@protobuf-ts/runtime` but starts with lowercase so can't be a proto message name. Skip.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Three-way collision: local type + two imports with same simple name.
 - Enum nested inside lowercase-named parent from different package.
 - Custom option with oneof field inside message-typed option value.
-- `BinaryWriteOptions`/`BinaryReadOptions`/`IBinaryWriter`/`IBinaryReader` collision — all are type imports that may need aliasing.
 - `MessageType` as enum name (not just message name) — does collision detection handle top-level enums?
