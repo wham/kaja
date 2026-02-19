@@ -1096,13 +1096,9 @@ func (g *generator) getLeadingDetachedComments(path []int32) []string {
 			var result []string
 			for _, comment := range loc.LeadingDetachedComments {
 				// Process each detached comment
-				// Don't trim trailing newlines - they represent // blank lines in the proto
-				// Just trim trailing spaces/tabs from the last line
-				comment = strings.TrimRight(comment, " \t")
 				// Strip one leading space from each line (protobuf convention)
 				lines := strings.Split(comment, "\n")
 				for i, line := range lines {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						lines[i] = ""
 					} else if strings.HasPrefix(line, " ") {
@@ -1404,7 +1400,6 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 						}
 						for i := 0; i < endIdx; i++ {
 							line := lines[i]
-							line = strings.TrimRight(line, " \t")
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
@@ -1440,7 +1435,6 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 						}
 						for i := 0; i < endIdx; i++ {
 							line := lines[i]
-							line = strings.TrimRight(line, " \t")
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
@@ -1474,7 +1468,6 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			comment = strings.TrimRight(comment, "\n")
 			// Split by newline and output each line
 			for _, line := range strings.Split(comment, "\n") {
-				line = strings.TrimRight(line, " \t")
 				if line == "" {
 					g.pNoIndent("// ")
 				} else {
@@ -2582,7 +2575,6 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 				detached = strings.TrimRight(detached, "\n")
 				// Split by newline and output each line
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						// For message-level: blank lines within blocks are "// " (with space)
 						g.pNoIndent("// ")
@@ -2800,7 +2792,6 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 				detached = strings.TrimRight(detached, "\n")
 				// Split by newline and output each line
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.p("// ")
 					} else {
@@ -2953,7 +2944,6 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		for idx, detached := range detachedComments {
 			detached = strings.TrimRight(detached, "\n")
 			for _, line := range strings.Split(detached, "\n") {
-				line = strings.TrimRight(line, " \t")
 				if line == "" {
 					g.p("// ")
 				} else {
@@ -3037,7 +3027,6 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 				for dIdx, detached := range fieldDetached {
 					detached = strings.TrimRight(detached, "\n")
 					for _, line := range strings.Split(detached, "\n") {
-						line = strings.TrimRight(line, " \t")
 						if line == "" {
 							g.p("// ")
 						} else {
@@ -5077,7 +5066,6 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.pNoIndent("// ")
 					} else {
@@ -5390,7 +5378,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 							endIdx = len(lines) - 1
 						}
 						for i := 0; i < endIdx; i++ {
-							line := strings.TrimRight(lines[i], " \t")
+							line := lines[i]
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
@@ -5424,7 +5412,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 							endIdx = len(lines) - 1
 						}
 						for i := 0; i < endIdx; i++ {
-							line := strings.TrimRight(lines[i], " \t")
+							line := lines[i]
 							if line == "" {
 								g.pNoIndent("//")
 							} else {
@@ -5895,7 +5883,6 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.pNoIndent("// ")
 					} else {
@@ -5982,7 +5969,6 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.p("// ")
 					} else {
@@ -6079,7 +6065,6 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.pNoIndent("// ")
 					} else {
@@ -6174,7 +6159,6 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			for idx, detached := range detachedComments {
 				detached = strings.TrimRight(detached, "\n")
 				for _, line := range strings.Split(detached, "\n") {
-					line = strings.TrimRight(line, " \t")
 					if line == "" {
 						g.p("// ")
 					} else {

@@ -209,6 +209,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 198/198 tests passing — DONE
 - [x] Fix test 194_message_stack_intercept: When a proto message (not service) is named `stackIntercept`, the runtime-rpc `stackIntercept` function import is aliased as `stackIntercept$` (not the proto type). Added `stackInterceptRef` field following RpcTransport/ServiceInfo pattern. Updated import line and all 4 `stackIntercept<...>` call sites.
 - [x] All 199/199 tests passing — DONE
+- [x] Fix test 195_underscore_digit_field: create() field init order must match JS Object.entries() enumeration — integer-like property keys (e.g., `123` from `_123`) come first in ascending numeric order, then string keys in insertion order. Added `isArrayIndex` helper and sort step after dedup.
+- [x] All 200/200 tests passing — DONE
+- [x] Fix test 196_comment_trailing_whitespace: Preserved trailing whitespace in detached comments (// style) by removing TrimRight from all 15 detached comment locations while keeping TrimRight in 3 JSDoc locations (test 166)
+- [x] All 201/201 tests passing — DONE
 
 ## Notes
 
