@@ -1722,112 +1722,15 @@ func (g *generator) writeImports(imports map[string]bool) {
 				if candidate.file.Package != nil {
 					depPkg = *candidate.file.Package
 				}
-				parts := strings.Split(strings.TrimPrefix(typeNameStripped, depPkg+"."), ".")
-				
-				// Check if this file contains the type
-				found := false
-				
-				// Check top-level enums
-				for _, enum := range candidate.file.EnumType {
-					if enum.GetName() == parts[0] && len(parts) == 1 {
-						found = true
-						break
-					}
+				var remainder string
+				if depPkg != "" {
+					remainder = strings.TrimPrefix(typeNameStripped, depPkg+".")
+				} else {
+					remainder = typeNameStripped
 				}
-				
-				// Check doubly-nested messages (Outer.Middle.Inner)
-				if !found && len(parts) == 3 {
-					for _, msg := range candidate.file.MessageType {
-						if msg.GetName() == parts[0] {
-							for _, nested := range msg.NestedType {
-								if nested.GetName() == parts[1] {
-									for _, innerNested := range nested.NestedType {
-										if innerNested.GetName() == parts[2] {
-											found = true
-											break
-										}
-									}
-									if found {
-										break
-									}
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-				}
-				
-				// Check doubly-nested enums (Outer.Middle.EnumValue)
-				if !found && len(parts) == 3 {
-					for _, msg := range candidate.file.MessageType {
-						if msg.GetName() == parts[0] {
-							for _, nested := range msg.NestedType {
-								if nested.GetName() == parts[1] {
-									for _, enum := range nested.EnumType {
-										if enum.GetName() == parts[2] {
-											found = true
-											break
-										}
-									}
-									if found {
-										break
-									}
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-				}
-				
-				// Check nested enums
-				if !found && len(parts) == 2 {
-					for _, msg := range candidate.file.MessageType {
-						if msg.GetName() == parts[0] {
-							for _, enum := range msg.EnumType {
-								if enum.GetName() == parts[1] {
-									found = true
-									break
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-				}
-				
-				// Check nested messages
-				if !found && len(parts) == 2 {
-					for _, msg := range candidate.file.MessageType {
-						if msg.GetName() == parts[0] {
-							for _, nested := range msg.NestedType {
-								if nested.GetName() == parts[1] {
-									found = true
-									break
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-				}
-				
-				// Check top-level messages
-				if !found {
-					for _, msg := range candidate.file.MessageType {
-						if msg.GetName() == parts[0] {
-							found = true
-							break
-						}
-					}
-				}
-				
-				if found {
+				parts := strings.Split(remainder, ".")
+
+				if findTypeInDescriptors(candidate.file.MessageType, candidate.file.EnumType, parts) {
 					matchedDepFile = candidate.file
 					matchedImportPath = candidate.path
 					break
@@ -1844,116 +1747,24 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if matchedDepFile.Package != nil {
 			depPkg = *matchedDepFile.Package
 		}
-		parts := strings.Split(strings.TrimPrefix(typeNameStripped, depPkg+"."), ".")
+		var remainder string
+		if depPkg != "" {
+			remainder = strings.TrimPrefix(typeNameStripped, depPkg+".")
+		} else {
+			remainder = typeNameStripped
+		}
+		parts := strings.Split(remainder, ".")
 		
 		var importStmt string
 		var importedName string
 		
-		// Check if it's a top-level enum
-		found := false
-		for _, enum := range matchedDepFile.EnumType {
-			if enum.GetName() == parts[0] && len(parts) == 1 {
-				importedName = escapeTypescriptKeyword(enum.GetName())
-				importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-				found = true
-				break
+		if findTypeInDescriptors(matchedDepFile.MessageType, matchedDepFile.EnumType, parts) {
+			if len(parts) == 1 {
+				importedName = escapeTypescriptKeyword(parts[0])
+			} else {
+				importedName = strings.Join(parts, "_")
 			}
-		}
-		if !found && len(parts) == 3 {
-			// Check if it's a doubly-nested message (Outer.Middle.Inner)
-			for _, msg := range matchedDepFile.MessageType {
-				if msg.GetName() == parts[0] {
-					for _, nested := range msg.NestedType {
-						if nested.GetName() == parts[1] {
-							for _, innerNested := range nested.NestedType {
-								if innerNested.GetName() == parts[2] {
-									importedName = fmt.Sprintf("%s_%s_%s", parts[0], parts[1], parts[2])
-									importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-									found = true
-									break
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-					if found {
-						break
-					}
-				}
-			}
-		}
-		if !found && len(parts) == 3 {
-			// Check if it's a doubly-nested enum (Outer.Middle.Enum)
-			for _, msg := range matchedDepFile.MessageType {
-				if msg.GetName() == parts[0] {
-					for _, nested := range msg.NestedType {
-						if nested.GetName() == parts[1] {
-							for _, enum := range nested.EnumType {
-								if enum.GetName() == parts[2] {
-									importedName = fmt.Sprintf("%s_%s_%s", parts[0], parts[1], parts[2])
-									importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-									found = true
-									break
-								}
-							}
-							if found {
-								break
-							}
-						}
-					}
-					if found {
-						break
-					}
-				}
-			}
-		}
-		if !found && len(parts) == 2 {
-			// Check if it's a nested enum (Message.Enum)
-			for _, msg := range matchedDepFile.MessageType {
-				if msg.GetName() == parts[0] {
-					for _, enum := range msg.EnumType {
-						if enum.GetName() == parts[1] {
-							importedName = fmt.Sprintf("%s_%s", parts[0], parts[1])
-							importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-							found = true
-							break
-						}
-					}
-					if found {
-						break
-					}
-				}
-			}
-		}
-		if !found && len(parts) == 2 {
-			// Check if it's a nested message (Message.Nested)
-			for _, msg := range matchedDepFile.MessageType {
-				if msg.GetName() == parts[0] {
-					for _, nested := range msg.NestedType {
-						if nested.GetName() == parts[1] {
-							importedName = fmt.Sprintf("%s_%s", parts[0], parts[1])
-							importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-							found = true
-							break
-						}
-					}
-					if found {
-						break
-					}
-				}
-			}
-		}
-		if !found {
-			// Must be a top-level message
-			for _, msg := range matchedDepFile.MessageType {
-				if msg.GetName() == parts[0] {
-					importedName = escapeTypescriptKeyword(msg.GetName())
-					importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
-					break
-				}
-			}
+			importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 		}
 		
 		// Check for name collision with local types and create alias if needed
@@ -3395,6 +3206,35 @@ func (g *generator) findPackageForType(typeName string) string {
 		}
 	}
 	return ""
+}
+
+// findTypeInDescriptors checks whether the dot-separated parts path
+// (e.g. ["Outer","Middle","Inner","Deep"]) exists as a nested message or
+// enum inside the given top-level lists. Intermediate parts must match
+// messages; the final part may match a message or an enum.
+func findTypeInDescriptors(messages []*descriptorpb.DescriptorProto, enums []*descriptorpb.EnumDescriptorProto, parts []string) bool {
+	if len(parts) == 0 {
+		return false
+	}
+	if len(parts) == 1 {
+		for _, msg := range messages {
+			if msg.GetName() == parts[0] {
+				return true
+			}
+		}
+		for _, enum := range enums {
+			if enum.GetName() == parts[0] {
+				return true
+			}
+		}
+		return false
+	}
+	for _, msg := range messages {
+		if msg.GetName() == parts[0] {
+			return findTypeInDescriptors(msg.NestedType, msg.EnumType, parts[1:])
+		}
+	}
+	return false
 }
 
 func (g *generator) getTypescriptType(field *descriptorpb.FieldDescriptorProto) string {
