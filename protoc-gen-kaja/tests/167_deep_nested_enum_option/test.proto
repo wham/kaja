@@ -1,0 +1,35 @@
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Outer {
+  message Middle {
+    message Inner {
+      enum DeepEnum {
+        UNKNOWN = 0;
+        VALUE_A = 1;
+        VALUE_B = 2;
+      }
+    }
+  }
+}
+
+message MyOption {
+  Outer.Middle.Inner.DeepEnum deep_value = 1;
+}
+
+extend google.protobuf.MethodOptions {
+  MyOption my_opt = 50000;
+}
+
+message Request {}
+message Response {}
+
+service MyService {
+  rpc Foo(Request) returns (Response) {
+    option (my_opt) = {
+      deep_value: VALUE_A
+    };
+  }
+}

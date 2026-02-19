@@ -711,3 +711,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `166_enum_value_trailing_whitespace` — enum with values having multiline and single-line block-style trailing comments (`/* ... */`).
 - **Root cause:** `getTrailingComments()` at line ~1131 lacks per-line `strings.TrimRight(line, " \t")`. Compare with `getEnumTrailingComments()` at line ~1165 which correctly does `strings.TrimRight(line, " \t")` for each line.
 - **Affects:** Any enum value with a `/* ... */` trailing comment — the space before `*/` leaks into JSDoc output. Field trailing comments in `//` inline format are also affected but less visually obvious.
+
+### Run 86 — Deep nested enum in custom option not resolved (SUCCESS)
+- **Bug found:** `resolveEnumValueName()` in main.go calls `findEnumInMessage()` which only searches 2 levels deep — it checks `msg.EnumType` and `msg.NestedType[i].EnumType`, but NOT `msg.NestedType[i].NestedType[j].EnumType` or deeper. When a custom option uses an enum nested 3+ levels inside a message (e.g., `Outer.Middle.Inner.DeepEnum`), the Go plugin fails to resolve the enum value name and falls back to the numeric value.
+- **Test:** `167_deep_nested_enum_option` — service method with custom option containing an enum value from a 3-level nested enum (`Outer.Middle.Inner.DeepEnum`).
+- **Root cause:** `findEnumInMessage()` at line ~413 has explicit loops for `msg.EnumType` and `msg.NestedType[i].EnumType` but no recursion for deeper nesting. Should recursively call itself for `msg.NestedType[i]`. The TS plugin uses the protobuf reflection API which handles arbitrary depth.
+- **Diff:** Go outputs `deepValue: "1"`, TS outputs `deepValue: "VALUE_A"`.
