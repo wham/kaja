@@ -183,6 +183,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 183/183 tests passing — DONE
 - [x] Fix test 179_ibinary_reader_collision: When a proto message is named `IBinaryReader`, the runtime `IBinaryReader` import from `@protobuf-ts/runtime` collides. Added `iBinaryReaderRef` field (like `binaryReadOptionsRef`/`binaryWriteOptionsRef`), set to `"IBinaryReader$"` when local type named `IBinaryReader` exists. Updated import line, `internalBinaryRead` method signature, and `binaryReadMap` method signature to use `iBinaryReaderRef`.
 - [x] All 184/184 tests passing — DONE
+- [x] Fix test 180_ibinary_writer_collision: When a proto message is named `IBinaryWriter`, the runtime `IBinaryWriter` import from `@protobuf-ts/runtime` collides. Added `iBinaryWriterRef` field (like `iBinaryReaderRef`), set to `"IBinaryWriter$"` when local type named `IBinaryWriter` exists. Updated import line, `internalBinaryWrite` method signature (writer param and return type) to use `iBinaryWriterRef`.
+- [x] All 185/185 tests passing — DONE
 
 ## Notes
 
@@ -270,3 +272,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Runtime BinaryReadOptions import collision: Same pattern as all other runtime import collisions — when a proto message is named `BinaryReadOptions`, the runtime import is aliased as `BinaryReadOptions$`. Uses `binaryReadOptionsRef` field. Three usage sites: import line, `internalBinaryRead` method signature (`options: BinaryReadOptions$`), `binaryReadMap` private method signature, and `unpack` method for Any types. Import uses `binaryReadOptionsImport()` helper.
 - Runtime BinaryWriteOptions import collision: Same pattern as BinaryReadOptions — when a proto message is named `BinaryWriteOptions`, the runtime import is aliased as `BinaryWriteOptions$`. Uses `binaryWriteOptionsRef` field. Two usage sites: import line and `internalBinaryWrite` method signature. Import uses `binaryWriteOptionsImport()` helper.
 - Runtime IBinaryReader import collision: Same pattern as BinaryWriteOptions — when a proto message is named `IBinaryReader`, the runtime import is aliased as `IBinaryReader$`. Uses `iBinaryReaderRef` field. Three usage sites: import line, `internalBinaryRead` method signature (`reader: IBinaryReader$`), and `binaryReadMap` private method signature. Import uses `iBinaryReaderImport()` helper.
+- Runtime IBinaryWriter import collision: Same pattern as IBinaryReader — when a proto message is named `IBinaryWriter`, the runtime import is aliased as `IBinaryWriter$`. Uses `iBinaryWriterRef` field. Two usage sites: import line and `internalBinaryWrite` method signature (writer param and return type). Import uses `iBinaryWriterImport()` helper.
