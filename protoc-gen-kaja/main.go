@@ -2458,12 +2458,17 @@ func (g *generator) getImportPathForType(fullTypeName string) string {
 		}
 		
 		// Type must be in this file's package
-		if !strings.HasPrefix(typeName, pkg+".") {
+		if pkg != "" && !strings.HasPrefix(typeName, pkg+".") {
 			return false
 		}
 		
 		// Strip package to get the type parts
-		parts := strings.Split(strings.TrimPrefix(typeName, pkg+"."), ".")
+		var parts []string
+		if pkg == "" {
+			parts = strings.Split(typeName, ".")
+		} else {
+			parts = strings.Split(strings.TrimPrefix(typeName, pkg+"."), ".")
+		}
 		
 		// Check top-level messages
 		for _, msg := range file.MessageType {
