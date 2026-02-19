@@ -152,6 +152,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 165/165 tests passing — DONE
 - [x] Fix test 161_field_multiline_trailing_comment: Multiline trailing comments (block comments) now output each line separately — first line as `// comment` after field declaration, subsequent lines as standalone `// comment` lines below. Fixed `getTrailingComments` to use `TrimRight("\n")` instead of `TrimSpace` to preserve trailing whitespace within lines.
 - [x] All 166/166 tests passing — DONE
+- [x] Fix test 162_oneof_multiline_trailing_comment: Applied same multiline trailing comment splitting to oneof member fields — first line appended to field declaration with `// `, subsequent lines as standalone `// ` lines below
+- [x] All 167/167 tests passing — DONE
 
 ## Notes
 

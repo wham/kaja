@@ -261,7 +261,8 @@ type generator struct {
 	importedTypeNames   map[string]bool   // Set of simple type names that have been imported
 	typeNameSuffixes    map[string]int    // Map from full proto type name to numeric suffix (0 = no suffix, 1 = $1, etc.)
 	localTypeNames      map[string]bool   // Set of TS names defined locally in this file (for collision detection)
-	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".common.Item" → "Item$")
+	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".beta.Data" → "Data$")
+	rawImportNames      map[string]string // Map from proto type name → raw TS import name before aliasing (e.g., ".beta.Data" → "Data")
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1304,6 +1305,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		typeNameSuffixes:    make(map[string]int),
 		localTypeNames:      make(map[string]bool),
 		importAliases:       make(map[string]string),
+		rawImportNames:      make(map[string]string),
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -1673,6 +1675,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 	}
 	
+	// Pre-compute import aliases for types that collide
+	g.precomputeImportAliases(depFiles)
+	
 	// Helper to generate import statement for a type
 	generateImport := func(typeName string) string {
 		if !usedTypes[typeName] {
@@ -1762,34 +1767,10 @@ func (g *generator) writeImports(imports map[string]bool) {
 			importStmt = fmt.Sprintf("import { %s } from \"%s\";", importedName, matchedImportPath)
 		}
 		
-		// Check for name collision with local types and create alias if needed
+		// Use pre-computed alias if this type has a name collision
 		if importedName != "" {
-			// If already imported (same type from same file), return existing import
-			if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
-				return importStmt
-			}
-			if g.importedTypeNames[importedName] {
-				// Already imported with the same name — check it's from same source
-				return importStmt
-			}
-			// Check collision with local type names only
-			if g.localTypeNames[importedName] {
-				// Name collision with local type — create alias with '$' suffix
-				taken := make(map[string]bool)
-				for k := range g.localTypeNames {
-					taken[k] = true
-				}
-				for k := range g.importedTypeNames {
-					taken[k] = true
-				}
-				alias := importedName + "$"
-				i := 0
-				for taken[alias] {
-					i++
-					alias = importedName + "$" + fmt.Sprintf("%d", i+1)
-				}
+			if alias, ok := g.importAliases[typeName]; ok {
 				importStmt = fmt.Sprintf("import { %s as %s } from \"%s\";", importedName, alias, matchedImportPath)
-				g.importAliases[typeName] = alias
 				g.importedTypeNames[alias] = true
 			} else {
 				g.importedTypeNames[importedName] = true
@@ -2196,6 +2177,146 @@ func (g *generator) collectLocalTypeNames() {
 		tsName := escapeTypescriptKeyword(enum.GetName())
 		g.localTypeNames[tsName] = true
 	}
+}
+
+// computeImportedTSName computes the TS name that would be used when importing
+// a proto type from a dependency file. This is the "raw" name without alias resolution.
+func (g *generator) computeImportedTSName(typeName string, depFiles map[string]*descriptorpb.FileDescriptorProto) string {
+	typeNameStripped := strings.TrimPrefix(typeName, ".")
+	for _, depFile := range depFiles {
+		depPkg := ""
+		if depFile.Package != nil {
+			depPkg = *depFile.Package
+		}
+		if depPkg == "" || strings.HasPrefix(typeNameStripped, depPkg+".") {
+			var remainder string
+			if depPkg != "" {
+				remainder = strings.TrimPrefix(typeNameStripped, depPkg+".")
+			} else {
+				remainder = typeNameStripped
+			}
+			parts := strings.Split(remainder, ".")
+			if findTypeInDescriptors(depFile.MessageType, depFile.EnumType, parts) {
+				if len(parts) == 1 {
+					return escapeTypescriptKeyword(parts[0])
+				}
+				return strings.Join(parts, "_")
+			}
+		}
+	}
+	return ""
+}
+
+// precomputeImportAliases detects import name collisions and pre-populates
+// g.importAliases. Types are scanned in protobuf-ts registration order
+// (input first, output second per method), which determines which type
+// keeps the original name and which gets the '$' suffix alias.
+func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.FileDescriptorProto) {
+	type typeInfo struct {
+		protoName string
+		tsName    string
+	}
+
+	var regOrder []typeInfo
+	seen := make(map[string]bool)
+
+	// Service types: input first, output second per method (protobuf-ts registration order)
+	for _, service := range g.file.Service {
+		for _, method := range service.Method {
+			inputType := method.GetInputType()
+			if inputType != "" && !seen[inputType] && !g.isLocalType(inputType) {
+				seen[inputType] = true
+				tsName := g.computeImportedTSName(inputType, depFiles)
+				if tsName != "" {
+					regOrder = append(regOrder, typeInfo{inputType, tsName})
+				}
+			}
+			outputType := method.GetOutputType()
+			if outputType != "" && !seen[outputType] && !g.isLocalType(outputType) {
+				seen[outputType] = true
+				tsName := g.computeImportedTSName(outputType, depFiles)
+				if tsName != "" {
+					regOrder = append(regOrder, typeInfo{outputType, tsName})
+				}
+			}
+		}
+	}
+
+	// Message field types in forward field number order
+	var scanMsg func(*descriptorpb.DescriptorProto)
+	scanMsg = func(msg *descriptorpb.DescriptorProto) {
+		for _, field := range msg.Field {
+			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
+				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+				typeName := field.GetTypeName()
+				if !seen[typeName] && !g.isLocalType(typeName) {
+					seen[typeName] = true
+					tsName := g.computeImportedTSName(typeName, depFiles)
+					if tsName != "" {
+						regOrder = append(regOrder, typeInfo{typeName, tsName})
+					}
+				}
+			}
+		}
+		for _, nested := range msg.NestedType {
+			scanMsg(nested)
+		}
+	}
+	for _, msg := range g.file.MessageType {
+		scanMsg(msg)
+	}
+
+	// Detect collisions: first type to claim a name wins
+	claimed := make(map[string]string) // tsName → first proto type that claimed it
+	for _, info := range regOrder {
+		if g.localTypeNames[info.tsName] {
+			// Collision with local type — alias this imported type
+			taken := make(map[string]bool)
+			for k := range g.localTypeNames {
+				taken[k] = true
+			}
+			for _, v := range g.importAliases {
+				taken[v] = true
+			}
+			alias := info.tsName + "$"
+			for taken[alias] {
+				alias = alias + "$"
+			}
+			g.importAliases[info.protoName] = alias
+			g.rawImportNames[info.protoName] = info.tsName
+		} else if existing, ok := claimed[info.tsName]; ok && existing != info.protoName {
+			// Collision with another imported type
+			taken := make(map[string]bool)
+			for k := range g.localTypeNames {
+				taken[k] = true
+			}
+			for _, v := range claimed {
+				taken[v] = true
+			}
+			for _, v := range g.importAliases {
+				taken[v] = true
+			}
+			alias := info.tsName + "$"
+			for taken[alias] {
+				alias = alias + "$"
+			}
+			g.importAliases[info.protoName] = alias
+			g.rawImportNames[info.protoName] = info.tsName
+		} else if !ok {
+			claimed[info.tsName] = info.protoName
+		}
+	}
+}
+
+// formatTypeImport returns the import clause for a proto type, handling aliases.
+// For aliased types: "OrigName as Alias"
+// For normal types: "TypeName"
+func (g *generator) formatTypeImport(protoTypeName string) string {
+	if alias, ok := g.importAliases[protoTypeName]; ok {
+		rawName := g.rawImportNames[protoTypeName]
+		return rawName + " as " + alias
+	}
+	return g.stripPackage(protoTypeName)
 }
 
 func (g *generator) getRelativeImportPath(fromDir, toPath string) string {
@@ -5056,6 +5177,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		importedTypeNames: make(map[string]bool),
 		localTypeNames:   make(map[string]bool),
 		importAliases:    make(map[string]string),
+		rawImportNames:   make(map[string]string),
 	}
 	
 	// Header
@@ -5109,6 +5231,19 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
 	
+	// Build depFiles and pre-compute import aliases for type name collision detection
+	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	currentFileDir := filepath.Dir(file.GetName())
+	for _, dep := range file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile != nil {
+			depPath := strings.TrimSuffix(dep, ".proto")
+			relPath := g.getRelativeImportPath(currentFileDir, depPath)
+			depFiles[relPath] = depFile
+		}
+	}
+	g.precomputeImportAliases(depFiles)
+	
 	// Collect imports
 	seen := make(map[string]bool)
 	
@@ -5132,15 +5267,17 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			reqTypeImport := g.formatTypeImport(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
 			if !seen[resType] && !service1Types[resType] {
-				g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
+				g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
 				seen[resType] = true
 			}
 			if !seen[reqType] && !service1Types[reqType] {
-				g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
+				g.pNoIndent("import type { %s } from \"%s\";", reqTypeImport, reqTypePath)
 				seen[reqType] = true
 			}
 		}
@@ -5166,9 +5303,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		
 		// Import entry: either a type import or a streaming call type import
 		type importEntry struct {
-			typeName string
-			typePath string
-			callType string // non-empty for streaming call type imports ("duplex", "client", "server")
+			typeName  string // TS name (with alias if applicable, used for dedup)
+			typeImport string // Import clause (e.g., "Data" or "Data as Data$")
+			typePath  string
+			callType  string // non-empty for streaming call type imports ("duplex", "client", "server")
 		}
 		
 		var imports []importEntry
@@ -5197,6 +5335,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			reqTypeImport := g.formatTypeImport(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 			
@@ -5210,11 +5350,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			if isStreaming {
 				// Only add types that are first used by this method
 				if firstMethodForType[resType] == i && !method0Types[resType] && !seen[resType] {
-					imports = append(imports, importEntry{typeName: resType, typePath: resTypePath})
+					imports = append(imports, importEntry{typeName: resType, typeImport: resTypeImport, typePath: resTypePath})
 					seen[resType] = true
 				}
 				if firstMethodForType[reqType] == i && !method0Types[reqType] && !seen[reqType] {
-					imports = append(imports, importEntry{typeName: reqType, typePath: reqTypePath})
+					imports = append(imports, importEntry{typeName: reqType, typeImport: reqTypeImport, typePath: reqTypePath})
 					seen[reqType] = true
 				}
 				
@@ -5232,7 +5372,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				// Non-streaming: collect types (includes types first used by this or lower methods)
 				// Output first
 				if !method0Types[resType] && !seen[resType] {
-					imports = append(imports, importEntry{typeName: resType, typePath: resTypePath})
+					imports = append(imports, importEntry{typeName: resType, typeImport: resTypeImport, typePath: resTypePath})
 					seen[resType] = true
 					
 					// Check if any deferred inputs match this output's path and emit them now
@@ -5250,10 +5390,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				// Input: emit immediately if same path as output, otherwise defer
 				if !method0Types[reqType] && !seen[reqType] {
 					if reqType == resType || reqTypePath == resTypePath {
-						imports = append(imports, importEntry{typeName: reqType, typePath: reqTypePath})
+						imports = append(imports, importEntry{typeName: reqType, typeImport: reqTypeImport, typePath: reqTypePath})
 						seen[reqType] = true
 					} else {
-						deferredInputs = append(deferredInputs, importEntry{typeName: reqType, typePath: reqTypePath})
+						deferredInputs = append(deferredInputs, importEntry{typeName: reqType, typeImport: reqTypeImport, typePath: reqTypePath})
 						seen[reqType] = true
 					}
 				}
@@ -5326,7 +5466,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					}
 				} else {
 					// Type import entry
-					g.pNoIndent("import type { %s } from \"%s\";", entry.typeName, entry.typePath)
+					g.pNoIndent("import type { %s } from \"%s\";", entry.typeImport, entry.typePath)
 				}
 			}
 		}
@@ -5364,17 +5504,19 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		method := file.Service[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
 		reqType := g.stripPackage(method.GetInputType())
+		resTypeImport := g.formatTypeImport(method.GetOutputType())
+		reqTypeImport := g.formatTypeImport(method.GetInputType())
 		resTypePath := g.getImportPathForType(method.GetOutputType())
 		reqTypePath := g.getImportPathForType(method.GetInputType())
 		
 		// Import output type first
 		if !seen[resType] {
-			g.pNoIndent("import type { %s } from \"%s\";", resType, resTypePath)
+			g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
 			seen[resType] = true
 		}
 		// Import input type second
 		if !seen[reqType] {
-			g.pNoIndent("import type { %s } from \"%s\";", reqType, reqTypePath)
+			g.pNoIndent("import type { %s } from \"%s\";", reqTypeImport, reqTypePath)
 			seen[reqType] = true
 		}
 		
