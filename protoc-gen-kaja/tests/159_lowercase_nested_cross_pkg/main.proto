@@ -1,0 +1,9 @@
+syntax = "proto3";
+package test;
+
+import "types.proto";
+
+message Container {
+  other.lowercaseParent.Nested nested = 1;
+  other.lowercaseParent parent = 2;
+}

@@ -628,16 +628,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~1692 in `generateImport`: `if strings.HasPrefix(typeNameStripped, depPkg+".")`. When `depPkg` is `""` (no package), `depPkg+"."` is `"."`. The `typeNameStripped` for `Shared` is `"Shared"` (after `TrimPrefix(typeName, ".")`). `HasPrefix("Shared", ".")` is false → the type never matches any dependency file → no import emitted.
 - **Affects:** Any cross-file type reference where both files have no package declaration. The import statement is silently dropped, causing a ReferenceError at runtime. All type usages (interface property, field descriptor `T:`, `internalBinaryRead`, `internalBinaryWrite`) reference the missing import.
 
+### Run 78 — Lowercase-named nested message type resolution bug (SUCCESS)
+- **Bug found:** `stripPackage()` in main.go at line ~3339 uses an uppercase-first-letter heuristic (`part[0] >= 'A' && part[0] <= 'Z'`) to find where the package ends and the type name begins. When a parent message starts with a lowercase letter (e.g., `lowercaseParent.Nested`), the parent name is mistakenly treated as part of the package, and only `Nested` is returned instead of `lowercaseParent_Nested`.
+- **Test:** `159_lowercase_nested_cross_pkg` — `types.proto` in package `other` defines `lowercaseParent` with nested `Nested`. `main.proto` in package `test` references `other.lowercaseParent.Nested`.
+- **Root cause:** Line ~3340: `if len(part) > 0 && part[0] >= 'A' && part[0] <= 'Z'` skips lowercase-starting parts. For FQN `other.lowercaseParent.Nested`, the loop skips `other` and `lowercaseParent` (both lowercase-starting), finds `Nested` at index 2, and returns just `Nested` instead of `lowercaseParent_Nested`.
+- **Affects:** Interface property type, field descriptor `T:` value, `internalBinaryRead` method call, `internalBinaryWrite` method call — ALL use `Nested` instead of `lowercaseParent_Nested`. The import IS correct (uses a different code path), creating a mismatch.
+- **Note:** Same bug would affect nested enums inside lowercase-named messages from different packages.
+
 ### Ideas for future runs
-- Same collision but with enum types (two packages defining same-named enum).
+- Same bug but with ENUM nested inside a lowercase-named parent from different package.
+- Lowercase-named message from different package used as map VALUE type.
 - Three-way collision: local type + two imports with same simple name — TS uses `Item$`, `Item$1`?
-- Collision between a message name and an imported well-known type (e.g., local `Timestamp` + import `google.protobuf.Timestamp`).
-- Real oneof named `_value` with TWO fields — heuristic correctly identifies it because fieldCount != 1, but there may be other issues with underscored oneof names.
-- Proto3 optional field in a message that ALSO has a real oneof — verify heuristic doesn't affect the real oneof.
 - Custom option with oneof field inside message-typed option value.
-- Multiple fields colliding on same property name with different types (e.g., `int32 x123y = 1; string x_123_y = 3`) — may expose additional dedup bugs in `internalBinaryWrite` or other contexts.
+- Multiple fields colliding on same property name with different types.
 - `toCamelCase` collisions with `bool` and `bytes` fields — default value dedup.
-- Map with message value from different package + regular field from same package — import ordering bug variant.
 
 ### Run 76 — No-package enum option value falls back to numeric (SUCCESS)
 - **Bug found:** `resolveEnumValueName()` in main.go constructs FQN as `"." + f.GetPackage() + "." + enum.GetName()`. When a file has NO package, `f.GetPackage()` returns `""`, producing `"..Visibility"` (double dot). But protoc's `ext.GetTypeName()` returns `.Visibility` (single dot). The FQN mismatch causes the lookup to fail, falling back to the numeric value string (e.g., `"2"` instead of `"VISIBILITY_INTERNAL"`).
