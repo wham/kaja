@@ -265,6 +265,7 @@ type generator struct {
 	rawImportNames      map[string]string // Map from proto type name → raw TS import name before aliasing (e.g., ".beta.Data" → "Data")
 	wireTypeRef         string            // "WireType" normally, "WireType$" when local type collides with runtime WireType
 	messageTypeRef      string            // "MessageType" normally, "MessageType$" when local type collides with runtime MessageType
+	serviceTypeRef      string            // "ServiceType" normally, "ServiceType$" when local type collides with runtime-rpc ServiceType
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1309,6 +1310,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		rawImportNames:      make(map[string]string),
 		wireTypeRef:         "WireType",
 		messageTypeRef:      "MessageType",
+		serviceTypeRef:      "ServiceType",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -1900,7 +1902,11 @@ func (g *generator) writeImports(imports map[string]bool) {
 	
 	// Import ServiceType if needed (before Phase 2 imports)
 	if needsServiceType {
-		g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
+		if g.serviceTypeRef == "ServiceType$" {
+			g.pNoIndent("import { ServiceType as ServiceType$ } from \"@protobuf-ts/runtime-rpc\";")
+		} else {
+			g.pNoIndent("import { ServiceType } from \"@protobuf-ts/runtime-rpc\";")
+		}
 	}
 	
 	// Phase 2: Standard runtime imports if we have messages
@@ -2166,6 +2172,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime MessageType collision
 	if g.localTypeNames["MessageType"] {
 		g.messageTypeRef = "MessageType$"
+	}
+	// Detect runtime-rpc ServiceType collision
+	if g.localTypeNames["ServiceType"] {
+		g.serviceTypeRef = "ServiceType$"
 	}
 }
 
@@ -6120,12 +6130,12 @@ g.pNoIndent(" */")
 if len(svc.Method) == 0 {
 	customSvcOpts := g.getCustomServiceOptions(svc.Options)
 	if len(customSvcOpts) > 0 {
-		g.pNoIndent("export const %s = new ServiceType(\"%s\", [], %s);", escapedSvcName, fullName, formatCustomOptions(customSvcOpts))
+		g.pNoIndent("export const %s = new %s(\"%s\", [], %s);", escapedSvcName, g.serviceTypeRef, fullName, formatCustomOptions(customSvcOpts))
 	} else {
-		g.pNoIndent("export const %s = new ServiceType(\"%s\", []);", escapedSvcName, fullName)
+		g.pNoIndent("export const %s = new %s(\"%s\", []);", escapedSvcName, g.serviceTypeRef, fullName)
 	}
 } else {
-g.pNoIndent("export const %s = new ServiceType(\"%s\", [", escapedSvcName, fullName)
+g.pNoIndent("export const %s = new %s(\"%s\", [", escapedSvcName, g.serviceTypeRef, fullName)
 
 // Generate method descriptors
 g.indent = "    "
