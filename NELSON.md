@@ -669,11 +669,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `name: string; // The name\n    // of the entity `, Got `name: string; // The name of the entity`.
 - **Affects:** Only fields with multiline trailing `/* */` comments. Single-line `//` trailing comments are unaffected (they have no newlines).
 
+### Run 81 — Oneof member multiline trailing comment missing // prefix (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go at line 2892-2894 outputs the entire multiline trailing comment in a single `g.p()` call: `g.p("%s: %s; // %s", fieldJsonName, fieldType, fieldTrailingComment)`. When the trailing comment contains `\n`, the `g.p()` function splits it across lines but only adds `g.indent` (8 spaces) to continuation lines — NOT the `// ` prefix. The TS plugin outputs each continuation line with `// ` prefix.
+- **Test:** `162_oneof_multiline_trailing_comment` — oneof with `string value = 1; /* The success\n    value returned */`.
+- **Root cause:** Line 2894 passes the raw multiline trailing comment to `g.p()`. The `g.p()` function at line 267-295 handles `\n` by adding indent but only adds ` * ` continuation for JSDoc lines (lines starting with ` * `). For `// ` trailing comments, it just adds indent with no `// ` prefix. Compare with regular field handler at lines 2686-2690 which splits by newlines and outputs extra lines separately with `g.p("// %s", extra)`.
+- **Diff:** Expected `value: string; // The success\n        // value returned `, Got `value: string; // The success\n        value returned `.
+- **Affects:** Only oneof member fields with multiline trailing `/* */` block comments. Single-line `//` trailing comments are unaffected.
+
 ### Ideas for future runs
-- Same bug but for **enum value** trailing comments — check if `generateEnum` at line 4940-4947 also collapses multiline trailing comments.
-- Same bug but for **oneof member field** trailing comments — if/when that code path gets trailing comment support, it would likely have the same bug.
+- Same bug but for **enum value** trailing comments — check if `generateEnum` at line 4940-4947 also collapses multiline trailing comments. VERIFIED: enum value trailing comments go into JSDoc (not inline `//`), so they use `g.p(" * %s")` which handles newlines via JSDoc continuation. No bug there.
 - Multiline trailing comments on **messages** — the `appendToLeadingBlock` mode appends trailing into JSDoc, not as trailing `//` lines. Already uses newlines correctly.
-- Same bug but with trailing comments on **service methods** — TS plugin uses `'trailingLines'` mode for methods too.
+- Same bug but with trailing comments on **service methods** — TS plugin uses `'trailingLines'` mode for methods too. Worth checking.
 - Custom option with oneof field inside message-typed option value.
 - Three-way collision: local type + two imports with same simple name.
 - Deeply nested messages (5+ levels) — type name construction.
