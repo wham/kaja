@@ -1,0 +1,15 @@
+syntax = "proto3";
+package test;
+
+// Message named stackIntercept collides with import { stackIntercept } from runtime-rpc
+message stackIntercept {
+    string data = 1;
+}
+
+message Response {
+    string result = 1;
+}
+
+service TestService {
+    rpc DoSomething(stackIntercept) returns (Response);
+}
