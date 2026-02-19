@@ -773,11 +773,19 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import { UnknownFieldHandler as UnknownFieldHandler$ }` and `UnknownFieldHandler$.onRead`/`UnknownFieldHandler$.onWrite`, got unaliased `import { UnknownFieldHandler }` and `UnknownFieldHandler.onRead`/`UnknownFieldHandler.onWrite`.
 - **Severity:** Produces TypeScript that fails to compile — local `UnknownFieldHandler` (the exported interface/const) shadows the runtime `UnknownFieldHandler` object, which has no `.onRead`/`.onWrite` methods.
 
+### Run 95 — PartialMessage runtime import collision not aliased (SUCCESS)
+- **Bug found:** `computeLocalTypeNames()` in main.go checks `WireType`, `MessageType`, `ServiceType`, and `UnknownFieldHandler` for collisions but NOT `PartialMessage`. When a proto message is named `PartialMessage`, it collides with the `import type { PartialMessage }` from `@protobuf-ts/runtime`. The TS plugin aliases the import as `import type { PartialMessage as PartialMessage$ }` and uses `PartialMessage$<T>` in `create()` method signatures. The Go plugin uses unaliased `PartialMessage`.
+- **Test:** `176_partial_message_collision` — message named `PartialMessage` with a string field, plus a `Container` message referencing it.
+- **Root cause:** `computeLocalTypeNames()` at lines 2170-2185 only checks `WireType`, `MessageType`, `ServiceType`, `UnknownFieldHandler`. No `partialMessageRef` variable exists. Line 2021 hardcodes `import type { PartialMessage }` and line 3901 hardcodes `PartialMessage<T>` instead of using a ref variable.
+- **Diff:** Expected `import type { PartialMessage as PartialMessage$ }` and `create(value?: PartialMessage$<PartialMessage>)`, got unaliased `import type { PartialMessage }` and `create(value?: PartialMessage<PartialMessage>)`.
+- **Severity:** Produces TypeScript where `PartialMessage<PartialMessage>` is self-referential — the local `PartialMessage` interface shadows the runtime utility type, causing incorrect type resolution.
+
 ### Ideas for future runs
 - `reflectionMergePartial` collision — imported from `@protobuf-ts/runtime` but starts with lowercase so can't be a proto message name. Skip.
-- `PartialMessage` collision — if a message is named `PartialMessage`, the Go plugin would collide. But it's a TYPE import (`import type`), so aliasing rules may differ.
 - `RpcOptions`/`RpcTransport` collision in client files — these are imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Three-way collision: local type + two imports with same simple name.
 - Enum nested inside lowercase-named parent from different package.
 - Custom option with oneof field inside message-typed option value.
+- `BinaryWriteOptions`/`BinaryReadOptions`/`IBinaryWriter`/`IBinaryReader` collision — all are type imports that may need aliasing.
+- `MessageType` as enum name (not just message name) — does collision detection handle top-level enums?

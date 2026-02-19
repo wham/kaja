@@ -1,0 +1,11 @@
+syntax = "proto3";
+package test;
+
+message PartialMessage {
+  string text = 1;
+}
+
+message Container {
+  PartialMessage partial = 1;
+  string label = 2;
+}
