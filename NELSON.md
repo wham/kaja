@@ -788,10 +788,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Severity:** Produces TypeScript where the local `BinaryReadOptions` interface shadows the runtime type import, causing type errors in `internalBinaryRead` and `internalBinaryWrite` method signatures.
 - **Note:** Same bug would affect `BinaryWriteOptions`, `IBinaryReader`, `IBinaryWriter` collisions. Also `RpcOptions`/`RpcTransport` in client files.
 
+### Run 97 — BinaryWriteOptions import type collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go checks `WireType`, `MessageType`, `ServiceType`, `UnknownFieldHandler`, `PartialMessage`, `BinaryReadOptions` for collisions but NOT `BinaryWriteOptions`. When a proto message is named `BinaryWriteOptions`, it collides with `import type { BinaryWriteOptions } from "@protobuf-ts/runtime"`. The TS plugin aliases the import as `import type { BinaryWriteOptions as BinaryWriteOptions$ }` and uses `BinaryWriteOptions$` in `internalBinaryWrite` method signatures. The Go plugin uses unaliased `BinaryWriteOptions`.
+- **Test:** `178_binary_write_options_collision` — message named `BinaryWriteOptions` with fields, plus a `Container` message referencing it.
+- **Root cause:** `collectLocalTypeNames()` at lines 2192-2195 only checks `BinaryReadOptions`. No `binaryWriteOptionsRef` variable exists. Line 2011 imports `BinaryWriteOptions` and line 4190 uses it in `internalBinaryWrite` signatures without aliasing.
+- **Diff:** Expected `import type { BinaryWriteOptions as BinaryWriteOptions$ }` and `options: BinaryWriteOptions$`, got unaliased `import type { BinaryWriteOptions }` and `options: BinaryWriteOptions`.
+- **Severity:** Produces TypeScript that fails to compile — local `BinaryWriteOptions` interface shadows the runtime type import.
+
 ### Ideas for future runs
-- `BinaryWriteOptions`/`IBinaryWriter`/`IBinaryReader` collision — same bug pattern as run 96 but different import type names.
-- `RpcOptions`/`RpcTransport` collision in client files — these are imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
-- `reflectionMergePartial` collision — imported from `@protobuf-ts/runtime` but starts with lowercase so can't be a proto message name. Skip.
+- `IBinaryWriter`/`IBinaryReader` collision — same bug pattern but different import type names.
+- `RpcOptions`/`RpcTransport` collision in client files — imported from `@protobuf-ts/runtime-rpc` in `.client.ts` files.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Three-way collision: local type + two imports with same simple name.
 - Enum nested inside lowercase-named parent from different package.
