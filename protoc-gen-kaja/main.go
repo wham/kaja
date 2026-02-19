@@ -273,6 +273,7 @@ type generator struct {
 	iBinaryReaderRef         string            // "IBinaryReader" normally, "IBinaryReader$" when local type collides
 	iBinaryWriterRef             string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
 	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
+	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1325,6 +1326,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		iBinaryReaderRef:         "IBinaryReader",
 		iBinaryWriterRef:             "IBinaryWriter",
 		reflectionMergePartialRef:    "reflectionMergePartial",
+		rpcTransportRef:              "RpcTransport",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -5376,6 +5378,17 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 
+	// Check if any service name collides with runtime-rpc import names.
+	// When a service is named "RpcTransport", the service import (import { RpcTransport } from "./test")
+	// collides with the runtime-rpc type import. The runtime-rpc import must be aliased.
+	g.rpcTransportRef = "RpcTransport"
+	for _, service := range file.Service {
+		if service.GetName() == "RpcTransport" {
+			g.rpcTransportRef = "RpcTransport$"
+			break
+		}
+	}
+
 	// Collect imports
 	seen := make(map[string]bool)
 	
@@ -5416,7 +5429,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// RPC imports
-	g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
+	if g.rpcTransportRef == "RpcTransport$" {
+		g.pNoIndent("import type { RpcTransport as RpcTransport$ } from \"@protobuf-ts/runtime-rpc\";")
+	} else {
+		g.pNoIndent("import type { RpcTransport } from \"@protobuf-ts/runtime-rpc\";")
+	}
 	g.pNoIndent("import type { ServiceInfo } from \"@protobuf-ts/runtime-rpc\";")
 	
 	// First service + methods types with special ordering
@@ -5977,7 +5994,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	g.p("typeName = %s.typeName;", serviceName)
 	g.p("methods = %s.methods;", serviceName)
 	g.p("options = %s.options;", serviceName)
-	g.p("constructor(private readonly _transport: RpcTransport) {")
+	g.p("constructor(private readonly _transport: %s) {", g.rpcTransportRef)
 	g.p("}")
 	
 	for methodIdx, method := range service.Method {
