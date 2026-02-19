@@ -1470,31 +1470,13 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 	var serviceTypes []string
 	
 	// Scan all messages for field types
-	// Process in forward declaration order, fields in field number order
+	// Process in forward declaration order (same as proto file order)
 	// Then reverse the list to match TypeScript plugin's prepend behavior
 	var scanMessage func(*descriptorpb.DescriptorProto)
 	scanMessage = func(msg *descriptorpb.DescriptorProto) {
-		// Sort fields by field number
-		type fieldWithNumber struct {
-			field *descriptorpb.FieldDescriptorProto
-			number int32
-		}
-		var sortedFields []fieldWithNumber
+		// Process fields in declaration order (not field number order)
+		// protobuf-ts processes fields in declaration order, then prepends imports
 		for _, field := range msg.Field {
-			sortedFields = append(sortedFields, fieldWithNumber{field, field.GetNumber()})
-		}
-		// Sort by field number
-		for i := 0; i < len(sortedFields); i++ {
-			for j := i + 1; j < len(sortedFields); j++ {
-				if sortedFields[i].number > sortedFields[j].number {
-					sortedFields[i], sortedFields[j] = sortedFields[j], sortedFields[i]
-				}
-			}
-		}
-		
-		// Process fields in field number order
-		for _, f := range sortedFields {
-			field := f.field
 			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE ||
 				field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
 				typeName := field.GetTypeName()
