@@ -901,9 +901,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import { ServerStreamingCall } from "./test"` and `ServerStreamingCall.typeName/methods/options`, got `import { ServerStreamingCall as ServerStreamingCall$ } from "./test"` and `ServerStreamingCall$.typeName/methods/options`.
 - **Note:** Same bug would trigger for `ClientStreamingCall`, `DuplexStreamingCall` as service names with only unary methods — and potentially for `UnaryCall` as service name with only streaming methods (though that would require only server-streaming/client-streaming/bidi methods).
 
+### Run 111 — Message type falsely aliased when runtime-rpc type not imported (SUCCESS)
+- **Bug found:** `generateClientFile()` at lines 5400-5425 unconditionally aliases proto message types that match `clientRuntimeNames` (including `DuplexStreamingCall`, `ServerStreamingCall`, `ClientStreamingCall`, etc.), even when the corresponding runtime-rpc type is NOT actually imported. This is the message-type counterpart of run 110's service-name bug.
+- **Test:** `192_false_client_alias` — message named `DuplexStreamingCall` used as input to a unary RPC. Since no method uses duplex streaming, `DuplexStreamingCall` is never imported from runtime-rpc, so there's no collision. But the Go plugin aliases `import type { DuplexStreamingCall as DuplexStreamingCall$ }`.
+- **Root cause:** Lines 5413-5425 check `clientRuntimeNames[tsName]` without checking `usedCallTypes[tsName]`. The TS plugin's dynamic import tracking only aliases when both the proto type and the runtime-rpc type are present in the file.
+- **Diff:** Expected `import type { DuplexStreamingCall } from "./test"` (unaliased), got `import type { DuplexStreamingCall as DuplexStreamingCall$ } from "./test"` (aliased). All references in method signatures also differ.
+
 ### Ideas for future runs
-- `ClientStreamingCall` as service name with only unary methods — same unconditional aliasing bug.
-- `DuplexStreamingCall` as service name with only unary methods — same pattern.
 - `UnaryCall` as service name with only server-streaming methods — reverse: runtime imports ServerStreamingCall but not UnaryCall, so no collision.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
