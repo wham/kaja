@@ -263,6 +263,7 @@ type generator struct {
 	localTypeNames      map[string]bool   // Set of TS names defined locally in this file (for collision detection)
 	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".beta.Data" → "Data$")
 	rawImportNames      map[string]string // Map from proto type name → raw TS import name before aliasing (e.g., ".beta.Data" → "Data")
+	wireTypeRef         string            // "WireType" normally, "WireType$" when local type collides with runtime WireType
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1305,6 +1306,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		localTypeNames:      make(map[string]bool),
 		importAliases:       make(map[string]string),
 		rawImportNames:      make(map[string]string),
+		wireTypeRef:         "WireType",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -1990,12 +1992,12 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { LongType } from \"@protobuf-ts/runtime\";")
 		}
 		if hasAnyFields && wireTypeEarly {
-			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
 		g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import type { IBinaryWriter } from \"@protobuf-ts/runtime\";")
 		if hasAnyFields && !wireTypeEarly && !wireTypeVeryLate {
-			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
 		// For Any, BinaryReadOptions comes later with JSON imports
 		if !isAny {
@@ -2004,7 +2006,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { UnknownFieldHandler } from \"@protobuf-ts/runtime\";")
 		if hasAnyFields && wireTypeVeryLate {
-			g.pNoIndent("import { WireType } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
 		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
@@ -2150,6 +2152,10 @@ func (g *generator) collectLocalTypeNames() {
 	for _, enum := range g.file.EnumType {
 		tsName := escapeTypescriptKeyword(enum.GetName())
 		g.localTypeNames[tsName] = true
+	}
+	// Detect runtime WireType collision
+	if g.localTypeNames["WireType"] {
+		g.wireTypeRef = "WireType$"
 	}
 }
 
@@ -4041,7 +4047,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				g.p("this.binaryReadMap%d(message.%s, reader, options);", field.GetNumber(), fieldName)
 			} else if g.isPackedType(field) {
 				// Packed repeated fields can come as either packed or unpacked
-				g.p("if (wireType === WireType.LengthDelimited)")
+				g.p("if (wireType === %s.LengthDelimited)", g.wireTypeRef)
 				g.indent = "                        "
 				g.p("for (let e = reader.int32() + reader.pos; reader.pos < e;)")
 				g.indent = "                            "
@@ -4233,8 +4239,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 						keyWriter := g.getMapKeyWriter(keyField, keyVar)
 						g.p("for (let k of globalThis.Object.keys(message.%s)) {", fieldName)
 						g.indent = "            "
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork()%s;", field.GetNumber(), keyWriter)
-						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
+						g.p("writer.tag(%d, %s.LengthDelimited).fork()%s;", field.GetNumber(), g.wireTypeRef, keyWriter)
+						g.p("writer.tag(2, %s.LengthDelimited).fork();", g.wireTypeRef)
 						g.p("%s.internalBinaryWrite(%s, writer, options);", g.stripPackage(valueField.GetTypeName()), valueAccessor)
 						g.p("writer.join().join();")
 						g.indent = "        "
@@ -4242,8 +4248,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 					} else if isBooleanKey {
 						g.p("for (let k of globalThis.Object.keys(message.%s)) {", fieldName)
 						g.indent = "            "
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).bool(k === \"true\");", field.GetNumber())
-						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
+						g.p("writer.tag(%d, %s.LengthDelimited).fork().tag(1, %s.Varint).bool(k === \"true\");", field.GetNumber(), g.wireTypeRef, g.wireTypeRef)
+						g.p("writer.tag(2, %s.LengthDelimited).fork();", g.wireTypeRef)
 						g.p("%s.internalBinaryWrite(message.%s[k], writer, options);", g.stripPackage(valueField.GetTypeName()), fieldName)
 						g.p("writer.join().join();")
 						g.indent = "        "
@@ -4251,8 +4257,8 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 					} else {
 						g.p("for (let k of globalThis.Object.keys(message.%s)) {", fieldName)
 						g.indent = "            "
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k);", field.GetNumber())
-						g.p("writer.tag(2, WireType.LengthDelimited).fork();")
+						g.p("writer.tag(%d, %s.LengthDelimited).fork().tag(1, %s.LengthDelimited).string(k);", field.GetNumber(), g.wireTypeRef, g.wireTypeRef)
+						g.p("writer.tag(2, %s.LengthDelimited).fork();", g.wireTypeRef)
 						g.p("%s.internalBinaryWrite(message.%s[k], writer, options);", g.stripPackage(valueField.GetTypeName()), fieldName)
 						g.p("writer.join().join();")
 						g.indent = "        "
@@ -4277,16 +4283,16 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 						}
 						keyWriter := g.getMapKeyWriter(keyField, keyVar)
 						valueWriter := g.getMapValueWriter(valueField, valueAccessor)
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork()%s%s.join();",
-							field.GetNumber(), keyWriter, valueWriter)
+						g.p("writer.tag(%d, %s.LengthDelimited).fork()%s%s.join();",
+							field.GetNumber(), g.wireTypeRef, keyWriter, valueWriter)
 					} else if isBooleanKey {
 						valueWriter := g.getMapValueWriter(valueField, "message."+fieldName+"[k]")
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.Varint).bool(k === \"true\")%s.join();",
-							field.GetNumber(), valueWriter)
+						g.p("writer.tag(%d, %s.LengthDelimited).fork().tag(1, %s.Varint).bool(k === \"true\")%s.join();",
+							field.GetNumber(), g.wireTypeRef, g.wireTypeRef, valueWriter)
 					} else {
 						valueWriter := g.getMapValueWriter(valueField, "message."+fieldName+"[k]")
-						g.p("writer.tag(%d, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k)%s.join();",
-							field.GetNumber(), valueWriter)
+						g.p("writer.tag(%d, %s.LengthDelimited).fork().tag(1, %s.LengthDelimited).string(k)%s.join();",
+							field.GetNumber(), g.wireTypeRef, g.wireTypeRef, valueWriter)
 					}
 					g.indent = "        "
 				}
@@ -4294,7 +4300,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				// Write packed repeated fields
 				g.p("if (message.%s.length) {", fieldName)
 				g.indent = "            "
-				g.p("writer.tag(%d, WireType.LengthDelimited).fork();", field.GetNumber())
+				g.p("writer.tag(%d, %s.LengthDelimited).fork();", field.GetNumber(), g.wireTypeRef)
 				g.p("for (let i = 0; i < message.%s.length; i++)", fieldName)
 				g.indent = "                "
 				method := g.getWriterMethodName(field)
@@ -4765,22 +4771,30 @@ func (g *generator) getMapKeyWriter(field *descriptorpb.FieldDescriptorProto, va
 	return fmt.Sprintf(".tag(1, %s).%s(%s)", wireType, writerMethod, varName)
 }
 
+func (g *generator) wireTypeImportAlias() string {
+	if g.wireTypeRef == "WireType$" {
+		return " as WireType$"
+	}
+	return ""
+}
+
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
+	wt := g.wireTypeRef
 	switch field.GetType() {
 	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
-		return "WireType.Bit64"
+		return wt + ".Bit64"
 	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
-		return "WireType.Bit32"
+		return wt + ".Bit32"
 	case descriptorpb.FieldDescriptorProto_TYPE_STRING,
 		descriptorpb.FieldDescriptorProto_TYPE_BYTES,
 		descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
-		return "WireType.LengthDelimited"
+		return wt + ".LengthDelimited"
 	default:
-		return "WireType.Varint"
+		return wt + ".Varint"
 	}
 }
 
@@ -5155,6 +5169,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		localTypeNames:   make(map[string]bool),
 		importAliases:    make(map[string]string),
 		rawImportNames:   make(map[string]string),
+		wireTypeRef:      "WireType",
 	}
 	
 	// Header
