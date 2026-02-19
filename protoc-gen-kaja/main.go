@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -984,6 +985,30 @@ func formatCustomOptions(opts []customOption) string {
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// isArrayIndex returns true if s is a canonical JS array index (non-negative integer < 2^32-1).
+// These keys are enumerated first by Object.entries() in ascending numeric order.
+func isArrayIndex(s string) bool {
+	if len(s) == 0 || len(s) > 10 {
+		return false
+	}
+	if s == "0" {
+		return true
+	}
+	if s[0] < '1' || s[0] > '9' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return false
+	}
+	return v < (1<<32 - 1)
 }
 
 // formatFloatJS formats a float64 the way JavaScript's Number.prototype.toString() does:
@@ -4020,7 +4045,41 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	}
 	initItems = dedupItems
 	
-	// Generate initializations in proto file order
+	// Reorder to match JavaScript Object.entries() enumeration:
+	// integer-like keys first (ascending numeric), then string keys (insertion order)
+	var intItems []initItem
+	var strItems []initItem
+	for _, item := range initItems {
+		key := item.fieldName
+		if item.isOneof {
+			oneofCamelName := g.toCamelCase(item.oneofName)
+			if oneofCamelName == "__proto__" || oneofCamelName == "toString" || oneofCamelName == "oneofKind" {
+				oneofCamelName = oneofCamelName + "$"
+			}
+			key = oneofCamelName
+		}
+		if isArrayIndex(key) {
+			intItems = append(intItems, item)
+		} else {
+			strItems = append(strItems, item)
+		}
+	}
+	sort.Slice(intItems, func(i, j int) bool {
+		ki := intItems[i].fieldName
+		if intItems[i].isOneof {
+			ki = g.toCamelCase(intItems[i].oneofName)
+		}
+		kj := intItems[j].fieldName
+		if intItems[j].isOneof {
+			kj = g.toCamelCase(intItems[j].oneofName)
+		}
+		a, _ := strconv.ParseUint(ki, 10, 64)
+		b, _ := strconv.ParseUint(kj, 10, 64)
+		return a < b
+	})
+	initItems = append(intItems, strItems...)
+	
+	// Generate initializations
 	for _, item := range initItems {
 		if item.isOneof {
 			// Initialize oneof
