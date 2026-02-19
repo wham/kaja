@@ -3723,7 +3723,9 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		actualJsonName := *field.JsonName
 		// Include jsonName if it differs from the unescaped camelCase name
 		if camelName != actualJsonName {
-			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", actualJsonName)
+			escaped := strings.ReplaceAll(actualJsonName, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", escaped)
 		}
 	}
 	
