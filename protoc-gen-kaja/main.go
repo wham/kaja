@@ -5397,42 +5397,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	g.precomputeImportAliases(depFiles)
 
-	// Check for runtime-rpc name collisions in client file.
-	// Proto types imported from ./test may collide with runtime-rpc imports
-	// (e.g., a proto message named "RpcOptions" collides with the runtime RpcOptions type).
-	clientRuntimeNames := map[string]bool{
-		"RpcOptions":           true,
-		"RpcTransport":         true,
-		"ServiceInfo":          true,
-		"UnaryCall":            true,
-		"ServerStreamingCall":  true,
-		"ClientStreamingCall":  true,
-		"DuplexStreamingCall":  true,
-		"stackIntercept":       true,
-	}
-	for _, service := range file.Service {
-		for _, method := range service.Method {
-			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
-				if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
-					continue
-				}
-				tsName := g.stripPackage(typeName)
-				if clientRuntimeNames[tsName] {
-					g.importAliases[typeName] = tsName + "$"
-					g.rawImportNames[typeName] = tsName
-				}
-			}
-		}
-	}
-
-	// Check if any service name collides with runtime-rpc import names.
-	// When a service is named "RpcTransport" or "ServiceInfo", the runtime-rpc import is aliased.
-	// When a service is named after a call type (UnaryCall, ServerStreamingCall, etc.),
-	// the proto service import is aliased instead (call type stays unaliased for method signatures).
-	g.rpcTransportRef = "RpcTransport"
-	g.serviceInfoRef = "ServiceInfo"
-	g.serviceImportAliases = make(map[string]string)
-	// Build set of call type names actually imported from runtime-rpc based on methods
+	// Build set of runtime-rpc names actually imported based on methods
 	usedCallTypes := make(map[string]bool)
 	hasAnyMethod := false
 	for _, service := range file.Service {
@@ -5455,6 +5420,31 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		usedCallTypes["RpcOptions"] = true
 		usedCallTypes["stackIntercept"] = true
 	}
+	// Check for runtime-rpc name collisions in client file.
+	// Proto types imported from ./test may collide with runtime-rpc imports
+	// only when that runtime-rpc name is actually imported.
+	for _, service := range file.Service {
+		for _, method := range service.Method {
+			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
+				if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
+					continue
+				}
+				tsName := g.stripPackage(typeName)
+				if usedCallTypes[tsName] {
+					g.importAliases[typeName] = tsName + "$"
+					g.rawImportNames[typeName] = tsName
+				}
+			}
+		}
+	}
+
+	// Check if any service name collides with runtime-rpc import names.
+	// When a service is named "RpcTransport" or "ServiceInfo", the runtime-rpc import is aliased.
+	// When a service is named after a call type (UnaryCall, ServerStreamingCall, etc.),
+	// the proto service import is aliased instead (call type stays unaliased for method signatures).
+	g.rpcTransportRef = "RpcTransport"
+	g.serviceInfoRef = "ServiceInfo"
+	g.serviceImportAliases = make(map[string]string)
 	for _, service := range file.Service {
 		svcName := escapeTypescriptKeyword(service.GetName())
 		if service.GetName() == "RpcTransport" {
