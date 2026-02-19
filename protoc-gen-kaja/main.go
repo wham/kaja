@@ -273,6 +273,7 @@ type generator struct {
 	iBinaryReaderRef         string            // "IBinaryReader" normally, "IBinaryReader$" when local type collides
 	iBinaryWriterRef             string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
 	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
+	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
 	serviceImportAliases         map[string]string // service TS name → aliased name (e.g., "UnaryCall" → "UnaryCall$") when service name collides with call type
@@ -1328,6 +1329,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		iBinaryReaderRef:         "IBinaryReader",
 		iBinaryWriterRef:             "IBinaryWriter",
 		reflectionMergePartialRef:    "reflectionMergePartial",
+		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
 		serviceInfoRef:               "ServiceInfo",
 	}
@@ -5423,6 +5425,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Check for runtime-rpc name collisions in client file.
 	// Proto types imported from ./test may collide with runtime-rpc imports
 	// only when that runtime-rpc name is actually imported.
+	// stackIntercept is handled separately (runtime import aliased, not proto import).
 	for _, service := range file.Service {
 		for _, method := range service.Method {
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
@@ -5430,7 +5433,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					continue
 				}
 				tsName := g.stripPackage(typeName)
-				if usedCallTypes[tsName] {
+				if tsName != "stackIntercept" && usedCallTypes[tsName] {
 					g.importAliases[typeName] = tsName + "$"
 					g.rawImportNames[typeName] = tsName
 				}
@@ -5442,6 +5445,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// When a service is named "RpcTransport" or "ServiceInfo", the runtime-rpc import is aliased.
 	// When a service is named after a call type (UnaryCall, ServerStreamingCall, etc.),
 	// the proto service import is aliased instead (call type stays unaliased for method signatures).
+	g.stackInterceptRef = "stackIntercept"
 	g.rpcTransportRef = "RpcTransport"
 	g.serviceInfoRef = "ServiceInfo"
 	g.serviceImportAliases = make(map[string]string)
@@ -5458,7 +5462,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 	// Also check if any proto message type used in service methods collides with
-	// RpcTransport or ServiceInfo runtime-rpc imports.
+	// RpcTransport, ServiceInfo, or stackIntercept runtime-rpc imports.
 	for _, service := range file.Service {
 		for _, method := range service.Method {
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
@@ -5468,6 +5472,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				}
 				if tsName == "ServiceInfo" {
 					g.serviceInfoRef = "ServiceInfo$"
+				}
+				if tsName == "stackIntercept" {
+					g.stackInterceptRef = "stackIntercept$"
 				}
 			}
 		}
@@ -5737,7 +5744,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	if hasAnyMethod {
-		g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
+		if g.stackInterceptRef == "stackIntercept$" {
+			g.pNoIndent("import { stackIntercept as stackIntercept$ } from \"@protobuf-ts/runtime-rpc\";")
+		} else {
+			g.pNoIndent("import { stackIntercept } from \"@protobuf-ts/runtime-rpc\";")
+		}
 	}
 	
 	// 5. Emit method 0 types (output first, then input)
@@ -6181,7 +6192,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("%s(options?: RpcOptions): DuplexStreamingCall<%s, %s> {", methodName, reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
-			g.p("return stackIntercept<%s, %s>(\"duplex\", this._transport, method, opt);", reqType, resType)
+			g.p("return %s<%s, %s>(\"duplex\", this._transport, method, opt);", g.stackInterceptRef, reqType, resType)
 			g.indent = "    "
 			g.p("}")
 		} else if method.GetServerStreaming() {
@@ -6189,7 +6200,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("%s(input: %s, options?: RpcOptions): ServerStreamingCall<%s, %s> {", methodName, reqType, reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
-			g.p("return stackIntercept<%s, %s>(\"serverStreaming\", this._transport, method, opt, input);", reqType, resType)
+			g.p("return %s<%s, %s>(\"serverStreaming\", this._transport, method, opt, input);", g.stackInterceptRef, reqType, resType)
 			g.indent = "    "
 			g.p("}")
 		} else if method.GetClientStreaming() {
@@ -6197,7 +6208,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("%s(options?: RpcOptions): ClientStreamingCall<%s, %s> {", methodName, reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
-			g.p("return stackIntercept<%s, %s>(\"clientStreaming\", this._transport, method, opt);", reqType, resType)
+			g.p("return %s<%s, %s>(\"clientStreaming\", this._transport, method, opt);", g.stackInterceptRef, reqType, resType)
 			g.indent = "    "
 			g.p("}")
 		} else {
@@ -6205,7 +6216,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s> {", methodName, reqType, reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
-			g.p("return stackIntercept<%s, %s>(\"unary\", this._transport, method, opt, input);", reqType, resType)
+			g.p("return %s<%s, %s>(\"unary\", this._transport, method, opt, input);", g.stackInterceptRef, reqType, resType)
 			g.indent = "    "
 			g.p("}")
 		}
