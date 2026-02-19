@@ -267,6 +267,7 @@ type generator struct {
 	messageTypeRef           string            // "MessageType" normally, "MessageType$" when local type collides with runtime MessageType
 	serviceTypeRef           string            // "ServiceType" normally, "ServiceType$" when local type collides with runtime-rpc ServiceType
 	unknownFieldHandlerRef   string            // "UnknownFieldHandler" normally, "UnknownFieldHandler$" when local type collides
+	partialMessageRef        string            // "PartialMessage" normally, "PartialMessage$" when local type collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1313,6 +1314,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		messageTypeRef:           "MessageType",
 		serviceTypeRef:           "ServiceType",
 		unknownFieldHandlerRef:   "UnknownFieldHandler",
+		partialMessageRef:        "PartialMessage",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2018,7 +2020,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if hasAnyFields && wireTypeVeryLate {
 			g.pNoIndent("import { WireType%s } from \"@protobuf-ts/runtime\";", g.wireTypeImportAlias())
 		}
-		g.pNoIndent("import type { PartialMessage } from \"@protobuf-ts/runtime\";")
+		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.partialMessageImport())
 		g.pNoIndent("import { reflectionMergePartial } from \"@protobuf-ts/runtime\";")
 		}
 		
@@ -2182,6 +2184,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime UnknownFieldHandler collision
 	if g.localTypeNames["UnknownFieldHandler"] {
 		g.unknownFieldHandlerRef = "UnknownFieldHandler$"
+	}
+	// Detect runtime PartialMessage collision
+	if g.localTypeNames["PartialMessage"] {
+		g.partialMessageRef = "PartialMessage$"
 	}
 }
 
@@ -3898,7 +3904,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	// Skip create, internalBinaryRead, internalBinaryWrite when optimize_for = CODE_SIZE
 	if !g.isOptimizeCodeSize() {
 	// create method
-	g.p("create(value?: PartialMessage<%s>): %s {", fullName, fullName)
+	g.p("create(value?: %s<%s>): %s {", g.partialMessageRef, fullName, fullName)
 	g.indent = "        "
 	g.p("const message = globalThis.Object.create((this.messagePrototype!));")
 	
@@ -4809,6 +4815,13 @@ func (g *generator) unknownFieldHandlerImport() string {
 		return "UnknownFieldHandler as UnknownFieldHandler$"
 	}
 	return "UnknownFieldHandler"
+}
+
+func (g *generator) partialMessageImport() string {
+	if g.partialMessageRef == "PartialMessage$" {
+		return "PartialMessage as PartialMessage$"
+	}
+	return "PartialMessage"
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
