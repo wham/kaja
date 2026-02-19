@@ -193,7 +193,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 185_service_name_unary_call_collision: When a service is named `UnaryCall` (or other call types), the proto service import is aliased with `$` suffix (e.g., `import { UnaryCall as UnaryCall$ } from "./test"`) so it doesn't collide with the runtime-rpc `UnaryCall` type. Added `serviceImportAliases` map, applied to both service import lines and `typeName`/`methods`/`options` references in `generateServiceClient`.
 - [x] All 190/190 tests passing — DONE
 - [x] Fix test 186_service_name_rpc_options_collision: When a service is named `RpcOptions`, it collides with the runtime-rpc `RpcOptions` type import in the client file. Added `"RpcOptions"` to `callTypeNames` so the proto service import is aliased with `$` suffix (same pattern as UnaryCall/ServerStreamingCall).
-- [x] All 191/191 tests passing — DONE
+- [x] Fix test 187_service_name_stack_intercept: When a service is named `stackIntercept`, it collides with the runtime-rpc `stackIntercept` function import. Added `"stackIntercept"` to `callTypeNames` so the proto service import is aliased with `$` suffix (same pattern as UnaryCall/RpcOptions).
+- [x] All 192/192 tests passing — DONE
 
 ## Notes
 

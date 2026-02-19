@@ -4000,15 +4000,21 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	// Deduplicate fields with the same property name (e.g. x123y and x_123_y both → x123Y)
+	// Last-write-wins: keep the LAST occurrence (matches JS Object.entries behavior)
 	fieldNameSeen := make(map[string]bool)
-	dedupItems := initItems[:0]
-	for _, item := range initItems {
+	dedupItems := make([]initItem, 0, len(initItems))
+	for i := len(initItems) - 1; i >= 0; i-- {
+		item := initItems[i]
 		if item.isOneof || !fieldNameSeen[item.fieldName] {
 			if !item.isOneof {
 				fieldNameSeen[item.fieldName] = true
 			}
 			dedupItems = append(dedupItems, item)
 		}
+	}
+	// Reverse to restore original order
+	for i, j := 0, len(dedupItems)-1; i < j; i, j = i+1, j-1 {
+		dedupItems[i], dedupItems[j] = dedupItems[j], dedupItems[i]
 	}
 	initItems = dedupItems
 	
