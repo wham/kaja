@@ -268,6 +268,7 @@ type generator struct {
 	serviceTypeRef           string            // "ServiceType" normally, "ServiceType$" when local type collides with runtime-rpc ServiceType
 	unknownFieldHandlerRef   string            // "UnknownFieldHandler" normally, "UnknownFieldHandler$" when local type collides
 	partialMessageRef        string            // "PartialMessage" normally, "PartialMessage$" when local type collides
+	binaryReadOptionsRef     string            // "BinaryReadOptions" normally, "BinaryReadOptions$" when local type collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1315,6 +1316,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		serviceTypeRef:           "ServiceType",
 		unknownFieldHandlerRef:   "UnknownFieldHandler",
 		partialMessageRef:        "PartialMessage",
+		binaryReadOptionsRef:     "BinaryReadOptions",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2013,8 +2015,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		// For Any, BinaryReadOptions comes later with JSON imports
 		if !isAny {
-			g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
-		}
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryReadOptionsImport())		}
 		g.pNoIndent("import type { IBinaryReader } from \"@protobuf-ts/runtime\";")
 		g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.unknownFieldHandlerImport())
 		if hasAnyFields && wireTypeVeryLate {
@@ -2076,10 +2077,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { jsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryReadOptionsImport())
 			g.pNoIndent("import type { IMessageType } from \"@protobuf-ts/runtime\";")
 		}
-		
 		if g.messageTypeRef == "MessageType$" {
 			g.pNoIndent("import { MessageType as MessageType$ } from \"@protobuf-ts/runtime\";")
 		} else {
@@ -2188,6 +2188,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime PartialMessage collision
 	if g.localTypeNames["PartialMessage"] {
 		g.partialMessageRef = "PartialMessage$"
+	}
+	// Detect runtime BinaryReadOptions collision
+	if g.localTypeNames["BinaryReadOptions"] {
+		g.binaryReadOptionsRef = "BinaryReadOptions$"
 	}
 }
 
@@ -4004,7 +4008,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	g.p("}")
 	
 	// internalBinaryRead method
-	g.p("internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: %s): %s {", fullName, fullName)
+	g.p("internalBinaryRead(reader: IBinaryReader, length: number, options: %s, target?: %s): %s {", g.binaryReadOptionsRef, fullName, fullName)
 	g.indent = "        "
 	g.p("let message = target ?? this.create(), end = reader.pos + length;")
 	g.p("while (reader.pos < end) {")
@@ -4141,10 +4145,11 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 				valueField := msgType.Field[1]
 				
 				fieldName := g.propertyName(field)
-				g.p("private binaryReadMap%d(map: %s[\"%s\"], reader: IBinaryReader, options: BinaryReadOptions): void {",
+				g.p("private binaryReadMap%d(map: %s[\"%s\"], reader: IBinaryReader, options: %s): void {",
 					field.GetNumber(),
 					fullName,
-					fieldName)
+					fieldName,
+					g.binaryReadOptionsRef)
 				g.indent = "        "
 				g.p("let len = reader.uint32(), end = reader.pos + len, key: keyof %s[\"%s\"] | undefined, val: %s[\"%s\"][any] | undefined;",
 					fullName, fieldName, fullName, fieldName)
@@ -4822,6 +4827,13 @@ func (g *generator) partialMessageImport() string {
 		return "PartialMessage as PartialMessage$"
 	}
 	return "PartialMessage"
+}
+
+func (g *generator) binaryReadOptionsImport() string {
+	if g.binaryReadOptionsRef == "BinaryReadOptions$" {
+		return "BinaryReadOptions as BinaryReadOptions$"
+	}
+	return "BinaryReadOptions"
 }
 
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
@@ -6777,7 +6789,7 @@ func (g *generator) generateAnyMethods() {
 	g.p("/**")
 	g.p(" * Unpack the message from the `Any`.")
 	g.p(" */")
-	g.p("unpack<T extends object>(any: Any, type: IMessageType<T>, options?: Partial<BinaryReadOptions>): T {")
+	g.p("unpack<T extends object>(any: Any, type: IMessageType<T>, options?: Partial<%s>): T {", g.binaryReadOptionsRef)
 	g.indent = "        "
 	g.p("if (!this.contains(any, type))")
 	g.indent = "            "
