@@ -275,6 +275,7 @@ type generator struct {
 	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
+	serviceImportAliases         map[string]string // service TS name → aliased name (e.g., "UnaryCall" → "UnaryCall$") when service name collides with call type
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -5381,16 +5382,28 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 
 	// Check if any service name collides with runtime-rpc import names.
-	// When a service is named "RpcTransport", the service import (import { RpcTransport } from "./test")
-	// collides with the runtime-rpc type import. The runtime-rpc import must be aliased.
+	// When a service is named "RpcTransport" or "ServiceInfo", the runtime-rpc import is aliased.
+	// When a service is named after a call type (UnaryCall, ServerStreamingCall, etc.),
+	// the proto service import is aliased instead (call type stays unaliased for method signatures).
 	g.rpcTransportRef = "RpcTransport"
 	g.serviceInfoRef = "ServiceInfo"
+	g.serviceImportAliases = make(map[string]string)
+	callTypeNames := map[string]bool{
+		"UnaryCall":           true,
+		"ServerStreamingCall": true,
+		"ClientStreamingCall": true,
+		"DuplexStreamingCall": true,
+	}
 	for _, service := range file.Service {
+		svcName := escapeTypescriptKeyword(service.GetName())
 		if service.GetName() == "RpcTransport" {
 			g.rpcTransportRef = "RpcTransport$"
 		}
 		if service.GetName() == "ServiceInfo" {
 			g.serviceInfoRef = "ServiceInfo$"
+		}
+		if callTypeNames[svcName] {
+			g.serviceImportAliases[svcName] = svcName + "$"
 		}
 	}
 
@@ -5410,9 +5423,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
 		service := file.Service[svcIdx]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
-		g.pNoIndent("import { %s } from \"./%s\";", escapedServiceName, baseFileName)
-		
-		// Add method types in reverse order, but skip types used in service 1
+		svcImportClause := escapedServiceName
+		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
+			svcImportClause = escapedServiceName + " as " + alias
+		}
+		g.pNoIndent("import { %s } from \"./%s\";", svcImportClause, baseFileName)
 		for i := len(service.Method) - 1; i >= 0; i-- {
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
@@ -5449,7 +5464,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	if len(file.Service) > 0 {
 		service := file.Service[0]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
-		g.pNoIndent("import { %s } from \"./%s\";", escapedServiceName, baseFileName)
+		svcImportClause := escapedServiceName
+		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
+			svcImportClause = escapedServiceName + " as " + alias
+		}
+		g.pNoIndent("import { %s } from \"./%s\";", svcImportClause, baseFileName)
 		
 		// Collect method 0 types for filtering
 		method0Types := make(map[string]bool)
@@ -5715,6 +5734,10 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescriptorProto) {
 	baseName := service.GetName()
 	serviceName := escapeTypescriptKeyword(baseName)
+	serviceRef := serviceName
+	if alias, ok := g.serviceImportAliases[serviceName]; ok {
+		serviceRef = alias
+	}
 	clientName := "I" + serviceName + "Client"
 	
 	pkgPrefix := ""
@@ -6000,9 +6023,9 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	g.pNoIndent(" */")
 	g.pNoIndent("export class %sClient implements %s, %s {", serviceName, clientName, g.serviceInfoRef)
 	g.indent = "    "
-	g.p("typeName = %s.typeName;", serviceName)
-	g.p("methods = %s.methods;", serviceName)
-	g.p("options = %s.options;", serviceName)
+	g.p("typeName = %s.typeName;", serviceRef)
+	g.p("methods = %s.methods;", serviceRef)
+	g.p("options = %s.options;", serviceRef)
 	g.p("constructor(private readonly _transport: %s) {", g.rpcTransportRef)
 	g.p("}")
 	
