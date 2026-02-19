@@ -876,6 +876,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected `import { stackIntercept as stackIntercept$ } from "./test"` and `stackIntercept$.typeName/methods/options`, got unaliased `import { stackIntercept } from "./test"` and `stackIntercept.typeName/methods/options`.
 - **Severity:** Produces TypeScript that fails to compile — duplicate `stackIntercept` binding from two import declarations.
 
+### Run 107 — Duplicate localName create() default uses first field instead of last (SUCCESS)
+- **Bug found:** When two fields have different proto names but the same `lowerCamelCase` localName (e.g., `x123y` and `x_1_2_3_y` both → `x123Y`), the `create()` method default value differs. The TS plugin uses `Object.entries(messageType.create())` which calls the runtime's `reflectionCreate` — it iterates all fields and assigns defaults in order, so last-write-wins (`x_1_2_3_y` int32 → `0`). The Go plugin iterates fields with dedup (`fieldNameSeen`) and keeps the FIRST field's default (`x123y` string → `""`).
+- **Test:** `188_duplicate_local_name_create` — `string x123y = 1; int32 x_1_2_3_y = 2;` (both camelCase to `x123Y`).
+- **Root cause:** Go plugin's `create()` generation at lines ~4002-4013 skips fields whose `fieldName` was already seen (first-wins). TS plugin's `makeMessagePropertyAssignments` calls `messageType.create()` → `reflectionCreate()` which assigns all fields in order (last-wins), then uses `Object.entries()` to emit the final values.
+- **Diff:** Expected `message.x123Y = 0;`, got `message.x123Y = "";`.
+
 ### Ideas for future runs
 - `ServerStreamingCall` as service name collision — same pattern, untested.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?

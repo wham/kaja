@@ -1,0 +1,11 @@
+syntax = "proto3";
+package test;
+
+// Two fields whose names produce the same lowerCamelCase localName.
+// "x123y" → "x123Y", "x_1_2_3_y" → "x123Y".
+// The create() method should use the LAST field's default (last-write-wins
+// from Object.entries on the runtime create result).
+message Foo {
+    string x123y = 1;
+    int32 x_1_2_3_y = 2;
+}
