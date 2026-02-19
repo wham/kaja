@@ -654,3 +654,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `158_no_package_client_import` — `types.proto` (no package) defines `Request`/`Response`, `test.proto` (no package) defines `service SearchService { rpc Search(Request) returns (Response); }`. Client file imports `Request`/`Response` from `"./test"` instead of `"./types"`.
 - **Root cause:** Line 2461 in `typeInFile`: `strings.HasPrefix(typeName, pkg+".")`. When `pkg=""`, `pkg+"."` is `"."`. `HasPrefix("Request", ".")` is false. Same pattern as run 75 (line ~1692) but in the client file generation path (`getImportPathForType`).
 - **Affects:** All client files for services in no-package proto files that reference types from other no-package proto files. Import paths point to wrong file.
+
+### Run 79 — 4-level deep nested type import name wrong (SUCCESS)
+- **Bug found:** `writeImports()` in main.go only handles up to 3-level nested types (`len(parts) == 1`, `2`, `3`) when constructing import names. For 4+ level nested types (e.g., `Outer.Middle.Inner.Deep`), the code falls through all specific nesting checks and hits the `if !found` fallback which treats it as a top-level message, importing just `Outer` instead of `Outer_Middle_Inner_Deep`.
+- **Test:** `160_deep_nested_import` — `dep.proto` defines `Outer.Middle.Inner.Deep` (4-level nested), `test.proto` imports and uses it.
+- **Root cause:** Lines 1848-1950 in `writeImports`'s `generateImport` closure: explicit branches for `len(parts) == 1` (top-level), `== 2` (singly-nested), `== 3` (doubly-nested), but NO branch for `len(parts) >= 4`. Same issue in the candidate file search at lines 1720-1780.
+- **Affects:** Import statement uses wrong name (`Outer` vs `Outer_Middle_Inner_Deep`). All type references in field descriptors, `internalBinaryRead`, `internalBinaryWrite` likely use the correct underscore-joined name (via `stripPackage`), creating a mismatch with the import.
+- **Note:** Same bug would affect 4+ level nested enums, and any nesting depth > 3.

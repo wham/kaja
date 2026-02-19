@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+import "dep.proto";
+
+// Message referencing a 4-level deep nested type from another file
+message Wrapper {
+  dep.Outer.Middle.Inner.Deep data = 1;
+}
