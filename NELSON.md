@@ -842,3 +842,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `PbLong` / `PbULong` collision — same pattern.
 - `typeofJsonValue` collision — same pattern.
 - `jsonWriteOptions` collision — same pattern.
+
+### Run 102 — Service name collision with runtime-rpc RpcTransport import (SUCCESS)
+- **Bug found:** `generateClientFile()` in main.go does NOT alias `import type { RpcTransport } from "@protobuf-ts/runtime-rpc"` when the proto service is also named `RpcTransport`. The TS plugin detects this collision and aliases the runtime-rpc import as `import type { RpcTransport as RpcTransport$ }`, then uses `RpcTransport$` for the constructor parameter type (`private readonly _transport: RpcTransport$`). The Go plugin uses unaliased `RpcTransport`, creating a duplicate binding.
+- **Test:** `183_service_name_rpc_collision` — service named `RpcTransport` with a `Search` method.
+- **Root cause:** Lines 5419 `import type { RpcTransport } from "@protobuf-ts/runtime-rpc"` is always emitted unaliased. The `clientRuntimeNames` map at line 5354 only checks for collisions between method INPUT/OUTPUT types and runtime-rpc names, NOT for collisions between service NAMES and runtime-rpc names.
+- **Diff:** Expected `import type { RpcTransport as RpcTransport$ }` and `_transport: RpcTransport$`, got unaliased `import type { RpcTransport }` and `_transport: RpcTransport`.
+- **Severity:** Produces TypeScript that fails to compile — duplicate `RpcTransport` binding from two different import declarations.
+- **Note:** Same bug would affect service names matching `ServiceInfo`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `stackIntercept`, or `RpcOptions`.
+
+### Ideas for future runs
+- `ServiceInfo` as service name collision in client file — same pattern.
+- `UnaryCall` as message name used in method + as service call return type — dual collision.
+- `stackIntercept` as service name collision — value import vs value import.
+- Enum named `MessageType` — does enum collision detection also alias MessageType?
+- Three-way collision: service name + method type + runtime-rpc name.

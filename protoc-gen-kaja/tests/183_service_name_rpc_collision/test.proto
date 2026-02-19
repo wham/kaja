@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// Service named RpcTransport collides with runtime-rpc import
+service RpcTransport {
+  rpc Search(Request) returns (Response);
+}
