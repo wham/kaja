@@ -264,6 +264,7 @@ type generator struct {
 	importAliases       map[string]string // Map from proto type name → aliased TS import name (e.g., ".beta.Data" → "Data$")
 	rawImportNames      map[string]string // Map from proto type name → raw TS import name before aliasing (e.g., ".beta.Data" → "Data")
 	wireTypeRef         string            // "WireType" normally, "WireType$" when local type collides with runtime WireType
+	messageTypeRef      string            // "MessageType" normally, "MessageType$" when local type collides with runtime MessageType
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -1307,6 +1308,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		importAliases:       make(map[string]string),
 		rawImportNames:      make(map[string]string),
 		wireTypeRef:         "WireType",
+		messageTypeRef:      "MessageType",
 	}
 	
 	// Detect type name collisions and assign numeric suffixes
@@ -2068,7 +2070,11 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { IMessageType } from \"@protobuf-ts/runtime\";")
 		}
 		
-		g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
+		if g.messageTypeRef == "MessageType$" {
+			g.pNoIndent("import { MessageType as MessageType$ } from \"@protobuf-ts/runtime\";")
+		} else {
+			g.pNoIndent("import { MessageType } from \"@protobuf-ts/runtime\";")
+		}
 	}
 	
 	// Phase 3: Import message field types and types used in both services and messages
@@ -2156,6 +2162,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime WireType collision
 	if g.localTypeNames["WireType"] {
 		g.wireTypeRef = "WireType$"
+	}
+	// Detect runtime MessageType collision
+	if g.localTypeNames["MessageType"] {
+		g.messageTypeRef = "MessageType$"
 	}
 }
 
@@ -3763,7 +3773,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	className := fullName + "$Type"
 	
 	g.pNoIndent("// @generated message type with reflection information, may provide speed optimized methods")
-	g.pNoIndent("class %s extends MessageType<%s> {", className, fullName)
+	g.pNoIndent("class %s extends %s<%s> {", className, g.messageTypeRef, fullName)
 	g.indent = "    "
 	
 	// Constructor
