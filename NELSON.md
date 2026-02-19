@@ -857,8 +857,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 5381-5390 only check `service.GetName() == "RpcTransport"`. Missing checks for `ServiceInfo`, `stackIntercept`, `RpcOptions`, `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`.
 - **Diff:** Expected `import type { ServiceInfo as ServiceInfo$ }` and `implements IServiceInfoClient, ServiceInfo$`, got unaliased `import type { ServiceInfo }` and `implements IServiceInfoClient, ServiceInfo`.
 
+### Run 104 — Service name UnaryCall collision not aliased in client file (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go's service name collision check (lines 5388-5395) only handles `RpcTransport` and `ServiceInfo`, but NOT `UnaryCall`. When a service is named `UnaryCall`, the client file imports `import { UnaryCall } from "./test"` (service const) and `import type { UnaryCall } from "@protobuf-ts/runtime-rpc"` (call type). The TS plugin aliases the service const import as `import { UnaryCall as UnaryCall$ } from "./test"` and uses `UnaryCall$.typeName`, `UnaryCall$.methods`, `UnaryCall$.options` in the class body. The Go plugin leaves it unaliased.
+- **Test:** `185_service_name_unary_call_collision` — service named `UnaryCall` with a unary `Search` method.
+- **Root cause:** Lines 5388-5395 only check `service.GetName() == "RpcTransport"` and `service.GetName() == "ServiceInfo"`. Missing checks for `UnaryCall`, `ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`, `stackIntercept`, `RpcOptions`.
+- **Note:** Different from the method TYPE collision (run 100 tested `RpcOptions` as method type). This is the SERVICE NAME collision — the service const import `import { UnaryCall } from "./test"` clashes with the runtime-rpc type import. The TS plugin aliases the SERVICE import (not the runtime import), using `UnaryCall$` for `.typeName`, `.methods`, `.options`.
+
 ### Ideas for future runs
+- `ServerStreamingCall` as service name collision — same pattern, untested.
 - `stackIntercept` as service name collision — value import, not type import.
-- `UnaryCall` as message name used in method + as service call return type — dual collision.
+- `RpcOptions` as service name collision — same bug, different runtime-rpc import.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
+- Service method trailing comment multiline — same bug pattern as run 81.
+- Enum detached comment nospace formatting — `"// %s"` adds space for no-space comments (same pattern as runs 88-89 but different code path).
