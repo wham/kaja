@@ -1,0 +1,9 @@
+syntax = "proto3";
+package test;
+
+message Request {}
+message Response {}
+
+service ServerStreamingCall {
+  rpc Search(Request) returns (Response);
+}
