@@ -5394,6 +5394,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		"ClientStreamingCall": true,
 		"DuplexStreamingCall": true,
 		"RpcOptions":          true,
+		"stackIntercept":      true,
 	}
 	for _, service := range file.Service {
 		svcName := escapeTypescriptKeyword(service.GetName())
