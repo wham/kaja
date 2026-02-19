@@ -888,11 +888,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Client file handler at lines 5323-5342 uses a simple `for _, detached` loop with one `g.pNoIndent("//")` after each block. The main file handler at lines 1365-1395 uses `for blockIdx, detached` and outputs both `if hasTrailingNewline { g.pNoIndent("//") }` AND `if blockIdx < len(...)-1 { g.pNoIndent("//") }`. The client file is missing the trailing newline check entirely and uses a single `//` that conflates trailing newline and block separator.
 - **Diff:** Expected two `//` lines between blocks, got one.
 
+### Run 109 — Client file package-level detached comments dropped (SUCCESS)
+- **Bug found:** `generateClientFile()` in main.go at line 5320 only handles syntax-level (`Path[0] == 12`) detached comments but NOT package-level (`Path[0] == 2`) detached comments. The main file handler has both (lines 1362 and 1404). The TS plugin includes package-level detached comments in the client file (shown after `// tslint:disable` and before imports), but the Go plugin drops them entirely.
+- **Test:** `190_client_package_detached` — service file with a detached comment between `syntax` and `package` statements.
+- **Root cause:** Line 5320 checks `loc.Path[0] == 12` only. Missing a second loop/check for `loc.Path[0] == 2`. The main file handler at line 1404 has `if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0` which the client file handler lacks.
+- **Diff:** Expected `//\n// This comment is detached from package\n//` between `// tslint:disable` and imports. Got nothing.
+
 ### Ideas for future runs
 - `ServerStreamingCall` as service name collision — same pattern, untested.
 - Enum named `MessageType` — does enum collision detection also alias MessageType?
 - Three-way collision: service name + method type + runtime-rpc name.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Enum detached comment nospace formatting — `"// %s"` adds space for no-space comments (same pattern as runs 88-89 but different code path).
-- Client file package-level detached comments — same pattern as this run, but for `loc.Path[0] == 2` instead of `loc.Path[0] == 12`. Client file may not handle package-level detached blocks either.
 - Client file detached comment blank line formatting — client handler uses `g.pNoIndent("//")` for blank lines within blocks, should be `g.pNoIndent("// ")` with space.
+- Client file message-level detached comments (`Path[0] == 4`) — may also be missing from client file handler.
+- Service-level detached comments in client file — does the client file handler process detached comments for `Path[0] == 6`?
