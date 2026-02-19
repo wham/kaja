@@ -2891,7 +2891,11 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		fieldType := g.getTypescriptType(field)
 		fieldTrailingComment := g.getTrailingComments(fieldPath)
 		if fieldTrailingComment != "" {
-			g.p("%s: %s; // %s", fieldJsonName, fieldType, fieldTrailingComment)
+			lines := strings.Split(fieldTrailingComment, "\n")
+			g.p("%s: %s; // %s", fieldJsonName, fieldType, lines[0])
+			for _, extra := range lines[1:] {
+				g.p("// %s", extra)
+			}
 		} else {
 			g.p("%s: %s;", fieldJsonName, fieldType)
 		}
