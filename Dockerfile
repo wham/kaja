@@ -15,9 +15,11 @@ RUN if [ "$RUN_TESTS" = "true" ] ; then \
   npm test -- run; \
   fi
 
+COPY protoc-gen-kaja /protoc-gen-kaja
 COPY server /server
 WORKDIR /server
 RUN go run cmd/build-ui/main.go
+RUN go build -C /protoc-gen-kaja -o /server/build/protoc-gen-kaja .
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi
@@ -25,8 +27,7 @@ RUN go build -ldflags "-X main.GitRef=$GIT_REF" -o /build/server ./cmd/server
 
 FROM alpine:latest AS runner
 COPY --from=builder /build/server /server/
-COPY --from=builder /server/build/protoc-gen-ts /server/build/
-RUN apk add --update nodejs
+COPY --from=builder /server/build/protoc-gen-kaja /server/build/
 RUN apk update && apk add --no-cache make protobuf-dev
 WORKDIR /server
 EXPOSE 41520
