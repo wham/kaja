@@ -1093,3 +1093,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's client file import ordering logic doesn't account for services with zero methods. The TS plugin processes all method-related imports (stackIntercept, RpcOptions, I/O types, call types) BEFORE the service imports for services without methods, while the Go plugin interleaves them differently.
 - **Diff:** TS orders: SmallService, stackIntercept, Empty, UnaryCall, RpcOptions, RpcTransport, ServiceInfo, EmptyService. Go orders: SmallService, UnaryCall, Empty, RpcTransport, ServiceInfo, EmptyService, stackIntercept, RpcOptions.
 - **Note:** Only affects `.client.ts` — the main `.ts` file matches. Bug is in the client file import generation at ~line 5594+.
+
+### Run 134 — Multi-service ClientStreamingCall import ordering (SUCCESS)
+- **Bug found:** When a second service has a client-streaming method, the Go plugin places the `ClientStreamingCall` import too early — immediately after the service import, before the message type imports. The TS plugin places it after the message type imports for that service.
+- **Test:** `215_multi_service_client_stream` — `PingService` (unary only) + `LogService` (client-streaming `StreamLogs(stream LogEntry) returns (Summary)`).
+- **Root cause:** Same import ordering bug pattern as runs 128-129, 133. The Go plugin's client file import ordering at ~line 5594+ doesn't match the TS plugin's import ordering for streaming call types.
+- **Diff:** Expected: LogService, Summary, LogEntry, ClientStreamingCall, ... Actual: LogService, ClientStreamingCall, Summary, LogEntry, ...
+- **Note:** Same bug pattern likely applies to `DuplexStreamingCall` for service 2+ (not yet tested).

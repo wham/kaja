@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package test;
+
+message Ping {
+  string text = 1;
+}
+
+message Pong {
+  string reply = 1;
+}
+
+message LogEntry {
+  string line = 1;
+}
+
+message Summary {
+  int32 count = 1;
+}
+
+// First service — unary only
+service PingService {
+  rpc DoPing(Ping) returns (Pong);
+}
+
+// Second service — has a client-streaming method
+service LogService {
+  rpc StreamLogs(stream LogEntry) returns (Summary);
+}
