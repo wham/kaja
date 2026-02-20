@@ -5,30 +5,22 @@ import { Method, Project, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
-function getDuplicateServiceNames(services: Service[]): Set<string> {
-  const nameCount = new Map<string, number>();
-  for (const service of services) {
-    nameCount.set(service.name, (nameCount.get(service.name) || 0) + 1);
-  }
-  const duplicates = new Set<string>();
-  for (const [name, count] of nameCount) {
-    if (count > 1) {
-      duplicates.add(name);
-    }
-  }
-  return duplicates;
+function hasMultiplePackages(services: Service[]): boolean {
+  if (services.length === 0) return false;
+  const first = services[0].packageName;
+  return services.some((s) => s.packageName !== first);
 }
 
-function ServiceName({ service, showPackage }: { service: Service; showPackage: boolean }) {
-  if (!showPackage || !service.packageName) {
-    return <>{service.name}</>;
+function groupServicesByPackage(services: Service[]): [string, Service[]][] {
+  const groups = new Map<string, Service[]>();
+  for (const service of services) {
+    const pkg = service.packageName;
+    if (!groups.has(pkg)) {
+      groups.set(pkg, []);
+    }
+    groups.get(pkg)!.push(service);
   }
-  return (
-    <span>
-      <span style={{ fontSize: 10, color: "var(--fgColor-muted)" }}>{service.packageName}.</span>
-      {service.name}
-    </span>
-  );
+  return [...groups.entries()];
 }
 
 function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
@@ -106,6 +98,11 @@ export function Sidebar({
     return `${projectName}-${serviceKey}`;
   };
 
+  // Helper to get package element id (used when multiple packages are shown as subtrees)
+  const getPackageElementId = (projectName: string, packageName: string) => {
+    return `${projectName}-pkg:${packageName}`;
+  };
+
   // Persist expanded state
   useEffect(() => {
     setPersistedValue("expandedProjects", [...expandedProjects]);
@@ -131,6 +128,10 @@ export function Sidebar({
           const initialServices = new Set<string>();
           projects.slice(0, 2).forEach((project) => {
             if (project.services.length > 0) {
+              // If multiple packages, also expand the first package
+              if (hasMultiplePackages(project.services)) {
+                initialServices.add(getPackageElementId(project.configuration.name, project.services[0].packageName));
+              }
               initialServices.add(getServiceElementId(project.configuration.name, project.services[0]));
             }
           });
@@ -152,6 +153,16 @@ export function Sidebar({
     for (const project of projects) {
       if (project.compilation.status === "running" || project.compilation.status === "pending") {
         compilingPrefixes.push(project.configuration.name + "-");
+      }
+      // Add package IDs as valid when multiple packages exist
+      if (hasMultiplePackages(project.services)) {
+        const seenPackages = new Set<string>();
+        for (const service of project.services) {
+          if (!seenPackages.has(service.packageName)) {
+            seenPackages.add(service.packageName);
+            validServices.add(getPackageElementId(project.configuration.name, service.packageName));
+          }
+        }
       }
       for (const service of project.services) {
         validServices.add(getServiceElementId(project.configuration.name, service));
@@ -211,6 +222,19 @@ export function Sidebar({
       return prev;
     });
 
+    // Expand package if multiple packages and not already expanded
+    if (hasMultiplePackages(project.services)) {
+      const packageElementId = getPackageElementId(projectName, service.packageName);
+      setExpandedServices((prev) => {
+        if (!prev.has(packageElementId)) {
+          const next = new Set(prev);
+          next.add(packageElementId);
+          return next;
+        }
+        return prev;
+      });
+    }
+
     // Expand service if not already expanded
     setExpandedServices((prev) => {
       if (!prev.has(serviceElementId)) {
@@ -250,6 +274,15 @@ export function Sidebar({
     const allProjects = new Set(projects.map((p) => p.configuration.name));
     const allServices = new Set<string>();
     for (const project of projects) {
+      if (hasMultiplePackages(project.services)) {
+        const seenPackages = new Set<string>();
+        for (const service of project.services) {
+          if (!seenPackages.has(service.packageName)) {
+            seenPackages.add(service.packageName);
+            allServices.add(getPackageElementId(project.configuration.name, service.packageName));
+          }
+        }
+      }
       for (const service of project.services) {
         allServices.add(getServiceElementId(project.configuration.name, service));
       }
@@ -348,38 +381,35 @@ export function Sidebar({
                     <LoadingTreeViewItem />
                   ) : (
                     (() => {
-                      const duplicateNames = getDuplicateServiceNames(project.services);
-                      return project.services.map((service, serviceIndex) => {
+                      const multiplePackages = hasMultiplePackages(project.services);
+
+                      const renderServiceItem = (service: Service) => {
                         const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
-                        const serviceId = `${projectName}-${serviceKey}`;
-                        const showPackage = duplicateNames.has(service.name);
-                        const isServiceExpanded = expandedServices.has(serviceId);
+                        const svcId = `${projectName}-${serviceKey}`;
+                        const isServiceExpanded = expandedServices.has(svcId);
                         return (
                           <TreeView.Item
-                            id={serviceId}
+                            id={svcId}
                             key={serviceKey}
                             ref={(el: HTMLElement | null) => {
-                              if (el) elementRefs.current.set(serviceId, el);
-                              else elementRefs.current.delete(serviceId);
+                              if (el) elementRefs.current.set(svcId, el);
+                              else elementRefs.current.delete(svcId);
                             }}
                             expanded={isServiceExpanded}
                             onExpandedChange={(expanded) => {
                               setExpandedServices((prev) => {
                                 const next = new Set(prev);
                                 if (expanded) {
-                                  next.add(serviceId);
+                                  next.add(svcId);
                                 } else {
-                                  next.delete(serviceId);
+                                  next.delete(svcId);
                                 }
                                 return next;
                               });
-                              if (expanded) scrollIntoView(serviceId);
+                              if (expanded) scrollIntoView(svcId);
                             }}
                           >
-                            <TreeView.LeadingVisual>
-                              <PackageIcon size={16} />
-                            </TreeView.LeadingVisual>
-                            <ServiceName service={service} showPackage={showPackage} />
+                            {service.name}
                             <TreeView.SubTree>
                               {service.methods.map((method) => {
                                 const mId = methodId(service, method);
@@ -398,6 +428,46 @@ export function Sidebar({
                                   </TreeView.Item>
                                 );
                               })}
+                            </TreeView.SubTree>
+                          </TreeView.Item>
+                        );
+                      };
+
+                      if (!multiplePackages) {
+                        return project.services.map(renderServiceItem);
+                      }
+
+                      return groupServicesByPackage(project.services).map(([packageName, services]) => {
+                        const packageId = getPackageElementId(projectName, packageName);
+                        const isPackageExpanded = expandedServices.has(packageId);
+                        return (
+                          <TreeView.Item
+                            id={packageId}
+                            key={packageId}
+                            ref={(el: HTMLElement | null) => {
+                              if (el) elementRefs.current.set(packageId, el);
+                              else elementRefs.current.delete(packageId);
+                            }}
+                            expanded={isPackageExpanded}
+                            onExpandedChange={(expanded) => {
+                              setExpandedServices((prev) => {
+                                const next = new Set(prev);
+                                if (expanded) {
+                                  next.add(packageId);
+                                } else {
+                                  next.delete(packageId);
+                                }
+                                return next;
+                              });
+                              if (expanded) scrollIntoView(packageId);
+                            }}
+                          >
+                            <TreeView.LeadingVisual>
+                              <PackageIcon size={16} />
+                            </TreeView.LeadingVisual>
+                            {packageName}
+                            <TreeView.SubTree>
+                              {services.map(renderServiceItem)}
                             </TreeView.SubTree>
                           </TreeView.Item>
                         );
