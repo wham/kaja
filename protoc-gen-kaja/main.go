@@ -1136,6 +1136,10 @@ func (g *generator) getLeadingComments(path []int32) (string, bool) {
 		}
 		if match && loc.LeadingComments != nil {
 			comment := *loc.LeadingComments
+			// A comment that is only newlines (e.g. "//\n") has no content
+			if strings.TrimRight(comment, "\n") == "" {
+				return "", false
+			}
 			// Count trailing blank lines before trimming
 			rawLines := strings.Split(comment, "\n")
 			trailingBlanks := 0
