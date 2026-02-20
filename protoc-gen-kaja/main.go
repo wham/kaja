@@ -1292,14 +1292,16 @@ func (g *generator) collectMessageTypeNames(msg *descriptorpb.DescriptorProto, p
 	// Add to map
 	tsNameToProtoNames[tsName] = append(tsNameToProtoNames[tsName], fullProtoName)
 	
-	// Recurse into nested messages
+	// Recurse into nested messages - use unescaped baseName for prefix
+	// (matching generateMessageInterface which uses parentPrefix + baseName + "_")
+	nestedPrefix := parentPrefix + baseName + "_"
 	for _, nested := range msg.NestedType {
-		g.collectMessageTypeNames(nested, tsName + "_", protoName + ".", tsNameToProtoNames)
+		g.collectMessageTypeNames(nested, nestedPrefix, protoName + ".", tsNameToProtoNames)
 	}
 	
 	// Recurse into nested enums
 	for _, enum := range msg.EnumType {
-		g.collectEnumTypeNames(enum, tsName + "_", protoName + ".", tsNameToProtoNames)
+		g.collectEnumTypeNames(enum, nestedPrefix, protoName + ".", tsNameToProtoNames)
 	}
 }
 
@@ -2174,31 +2176,37 @@ func (g *generator) isLocalType(typeName string) bool {
 // that are defined locally in this file (messages, enums, including nested).
 // This is used to detect import name collisions.
 func (g *generator) collectLocalTypeNames() {
-	var collectMsg func(msg *descriptorpb.DescriptorProto, prefix string)
-	collectMsg = func(msg *descriptorpb.DescriptorProto, prefix string) {
-		name := prefix + msg.GetName()
-		tsName := escapeTypescriptKeyword(name)
+	var collectMsg func(msg *descriptorpb.DescriptorProto, tsPrefix string, protoPrefix string)
+	collectMsg = func(msg *descriptorpb.DescriptorProto, tsPrefix string, protoPrefix string) {
+		baseName := msg.GetName()
+		tsName := tsPrefix + baseName
+		if tsPrefix == "" {
+			tsName = escapeTypescriptKeyword(baseName)
+		}
+		protoName := protoPrefix + baseName
 		// Check for typeNameSuffixes
 		fullProtoName := ""
 		if g.file.Package != nil && *g.file.Package != "" {
-			fullProtoName = *g.file.Package + "." + strings.ReplaceAll(name, "_", ".")
+			fullProtoName = *g.file.Package + "." + protoName
 		} else {
-			fullProtoName = strings.ReplaceAll(name, "_", ".")
+			fullProtoName = protoName
 		}
 		if suffix, exists := g.typeNameSuffixes[fullProtoName]; exists && suffix > 0 {
 			tsName = tsName + fmt.Sprintf("$%d", suffix)
 		}
 		g.localTypeNames[tsName] = true
+		nestedTsPrefix := tsPrefix + baseName + "_"
+		nestedProtoPrefix := protoName + "."
 		for _, nested := range msg.NestedType {
-			collectMsg(nested, name+"_")
+			collectMsg(nested, nestedTsPrefix, nestedProtoPrefix)
 		}
 		for _, enum := range msg.EnumType {
-			enumName := prefix + msg.GetName() + "_" + enum.GetName()
+			enumName := tsPrefix + baseName + "_" + enum.GetName()
 			g.localTypeNames[enumName] = true
 		}
 	}
 	for _, msg := range g.file.MessageType {
-		collectMsg(msg, "")
+		collectMsg(msg, "", "")
 	}
 	for _, enum := range g.file.EnumType {
 		tsName := escapeTypescriptKeyword(enum.GetName())
