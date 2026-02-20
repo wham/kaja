@@ -244,6 +244,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 216/216 tests passing — DONE
 - [x] Fix test 212_import_public: Added `collectTransitivePublicDeps` helper that follows `import public` chains via `PublicDependency` indices. Used it in 3 locations: message file `depFiles`, client file `depFiles`, and `getImportPathForType` — so types transitively visible via `import public` get proper direct imports in generated TS.
 - [x] All 217/217 tests passing — DONE
+- [x] Fix test 213_import_public_enum_prefix: Extended `findEnumType` to search transitive public deps (via `collectTransitivePublicDeps`) in addition to direct deps — enum prefix detection for enums visible through `import public` chains now works correctly
+- [x] All 218/218 tests passing — DONE
 
 ## Notes
 
