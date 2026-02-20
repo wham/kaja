@@ -240,6 +240,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 214/214 tests passing — DONE
 - [x] Fix test 210_multi_service_unary_import: In multi-service client files, UnaryCall import must appear with the FIRST service (forward order) that has a unary method. Pre-scan `firstUnaryServiceIdx` determines which service emits UnaryCall in the N→1 loop; only emit when `svcIdx == firstUnaryServiceIdx` and `firstUnaryServiceIdx >= 1` (service 0 is handled separately).
 - [x] All 215/215 tests passing — DONE
+- [x] Fix test 211_extend_only: Extend-only files (no messages/enums/services, only `extend` declarations) must still trigger WKT dependency generation. Added `hasExtensionFiles` flag — WKT generation runs when any FileToGenerate produced output OR has extensions.
+- [x] All 216/216 tests passing — DONE
 
 ## Notes
 
