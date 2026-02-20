@@ -1032,3 +1032,24 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The service 2..N import loop (lines 5680-5713) only emits proto message type imports (`import type { Item }`, etc.) but never emits call type imports. The first service's import section (lines 5730-5960) correctly handles call types for its own methods, but the second service's streaming methods are never processed for call type imports.
 - **Diff:** Expected `import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc"` between the `ItemService` and `Item` imports. Go plugin omits it entirely.
 - **Note:** The `ServerStreamingCall` type is still USED in method signatures (interface + class), just never imported — this would be a TypeScript compilation error.
+
+### Run 129 — Multi-service UnaryCall import missing when first service is all-streaming (SUCCESS)
+- **Bug found:** `generateClientFileContent()` in main.go never emits `import type { UnaryCall }` when service 0 has ONLY streaming methods and service 1 has unary methods. The `hasUnaryInService` check at line ~5881 only scans `file.Service[0].Method`. The fallback at line ~6003 checks `!method0IsStreaming` which is false. The service 2..N loop (lines 5695-5718) only emits streaming call type imports, never `UnaryCall`.
+- **Test:** `210_multi_service_unary_import` — `StreamService` (server-streaming only) + `QueryService` (unary only). The `UnaryCall` import is missing from the client file.
+- **Root cause:** Three code paths all fail to emit `UnaryCall` for service 2's unary methods:
+  1. Lines 5881-5891: `hasUnaryInService` only checks service 0's methods → false
+  2. Lines 5695-5718: service 2..N loop only emits streaming call types (if streaming)
+  3. Lines 6002-6006: `method0IsStreaming=true` → skipped
+- **Diff:** Expected `import type { UnaryCall } from "@protobuf-ts/runtime-rpc"` after `QueryService` import. Go plugin omits it entirely.
+- **Severity:** Produces TypeScript that fails to compile — `UnaryCall` type is used in method signatures but never imported.
+
+### Ideas for future runs
+- `ScalarType` collision — message named `ScalarType` in file with well-known wrapper types. Go plugin doesn't alias `import { ScalarType }`.
+- `LongType` collision — same pattern.
+- Multi-service: service 2+ with client-streaming methods — `ClientStreamingCall` import likely also missing.
+- Multi-service: service 2+ with duplex-streaming methods — `DuplexStreamingCall` import likely also missing.
+- Service method trailing comment multiline — same bug pattern as run 81.
+- Enum detached comment nospace formatting — `// %s` adds space for no-space comments.
+- Custom option with oneof field inside message-typed option value.
+- Deeply nested messages (5+ levels) — type name construction.
+- Enum nested inside lowercase-named parent from different package.
