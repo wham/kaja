@@ -1072,3 +1072,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Deeply nested messages (5+ levels) — type name construction.
 - Enum nested inside lowercase-named parent from different package.
 - Proto2 required group vs optional group handling.
+
+### Run 132 — Enum prefix missing for import public enums (SUCCESS)
+- **Bug found:** `findEnumType()` in main.go (line ~3675) searches current file enums and `g.file.Dependency` (direct dependencies) for the enum descriptor to detect shared prefix. But enums available through `import public` chains are NOT in `g.file.Dependency` — they're in a transitively imported file. So `findEnumType` returns nil, and `detectEnumPrefix` is never called, dropping the enum prefix from the field descriptor.
+- **Test:** `213_import_public_enum_prefix` — `base.proto` defines `Status` enum with `STATUS_` prefix, `re_export.proto` has `import public "base.proto"`, `consumer.proto` imports `re_export.proto` and uses `Status` in a field.
+- **Root cause:** Line 3700-3726 in `findEnumType` iterates `g.file.Dependency` to scan dependency files for enums, but doesn't call `collectTransitivePublicDeps` to also check transitively public-imported files. Compare with import resolution at line 1748 which correctly calls `collectTransitivePublicDeps(g.file)` to include public imports.
+- **Diff:** Expected `T: () => ["test.Status", Status, "STATUS_"]`, got `T: () => ["test.Status", Status]`. The import statement for `Status` is correct (handled by import resolution), but the enum prefix metadata is wrong.
+- **Note:** Same bug affects map fields with enum values from public imports (line 3812-3817 calls `findEnumType` too).
+
+### Ideas for future runs
+- `findMessageType` may have same `import public` bug — message field descriptor T parameter could be affected.
+- Multi-service: service 2+ with client-streaming methods — `ClientStreamingCall` import likely also missing (same as runs 128-129).
+- Service method trailing comment multiline.
+- Custom option with oneof inside message value.
+- Deeply nested messages (5+ levels) with underscores in names — type name construction edge cases.
