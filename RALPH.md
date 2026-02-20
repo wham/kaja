@@ -219,6 +219,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 203/203 tests passing — DONE
 - [x] Fix test 199_keyword_nested_collision: Fixed collision detection between nested types and top-level types when parent has keyword-escaped name. `collectMessageTypeNames` used `tsName + "_"` (with `$` escape) as prefix for nested types, while `generateMessageInterface` used `parentPrefix + baseName + "_"` (unescaped). Changed to use `parentPrefix + baseName + "_"` to match. Also fixed `collectLocalTypeNames` to track proto names separately instead of using `ReplaceAll(name, "_", ".")` which is ambiguous.
 - [x] All 204/204 tests passing — DONE
+- [x] Fix test 200_json_name_tab_escape: Added `\t` (tab) escaping to jsonName field descriptor values, same location as existing `\` and `"` escaping
+- [x] All 205/205 tests passing — DONE
 
 ## Notes
 

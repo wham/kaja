@@ -278,6 +278,7 @@ type generator struct {
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
 	serviceImportAliases         map[string]string // service TS name → aliased name (e.g., "UnaryCall" → "UnaryCall$") when service name collides with call type
+	callTypeRefs                 map[string]string // call type name → ref name (e.g., "DuplexStreamingCall" → "DuplexStreamingCall$") when message name collides
 }
 
 func (g *generator) p(format string, args ...interface{}) {
@@ -4961,6 +4962,13 @@ func (g *generator) reflectionMergePartialImport() string {
 	return "reflectionMergePartial"
 }
 
+func (g *generator) callTypeImportClause(name string) string {
+	if ref, ok := g.callTypeRefs[name]; ok && ref != name {
+		return name + " as " + ref
+	}
+	return name
+}
+
 func (g *generator) getWireType(field *descriptorpb.FieldDescriptorProto) string {
 	wt := g.wireTypeRef
 	switch field.GetType() {
@@ -5510,10 +5518,19 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		usedCallTypes["RpcOptions"] = true
 		usedCallTypes["stackIntercept"] = true
 	}
+	// Actual streaming/unary call type names (as opposed to other runtime-rpc names like RpcOptions)
+	actualCallTypeNames := map[string]bool{
+		"UnaryCall": true, "ServerStreamingCall": true,
+		"ClientStreamingCall": true, "DuplexStreamingCall": true,
+	}
 	// Check for runtime-rpc name collisions in client file.
 	// Proto types imported from ./test may collide with runtime-rpc imports
 	// only when that runtime-rpc name is actually imported.
-	// stackIntercept is handled separately (runtime import aliased, not proto import).
+	// stackIntercept and call types are handled separately (runtime import aliased, not proto import).
+	g.callTypeRefs = map[string]string{
+		"UnaryCall": "UnaryCall", "ServerStreamingCall": "ServerStreamingCall",
+		"ClientStreamingCall": "ClientStreamingCall", "DuplexStreamingCall": "DuplexStreamingCall",
+	}
 	for _, service := range file.Service {
 		for _, method := range service.Method {
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
@@ -5521,7 +5538,16 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					continue
 				}
 				tsName := g.stripPackage(typeName)
-				if tsName != "stackIntercept" && usedCallTypes[tsName] {
+				if tsName == "stackIntercept" {
+					continue
+				}
+				if actualCallTypeNames[tsName] {
+					if usedCallTypes[tsName] {
+						g.callTypeRefs[tsName] = tsName + "$"
+					}
+					continue
+				}
+				if usedCallTypes[tsName] {
 					g.importAliases[typeName] = tsName + "$"
 					g.rawImportNames[typeName] = tsName
 				}
@@ -5767,7 +5793,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				}
 			}
 			if hasUnaryInService {
-				g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
 			}
 		}
 
@@ -5800,7 +5826,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 						callTypeImport = "ServerStreamingCall"
 					}
 					if callTypeImport != "" {
-						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause(callTypeImport))
 					}
 				} else {
 					// Type import entry
@@ -5871,7 +5897,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				callTypeImport = "ClientStreamingCall"
 			}
 			if callTypeImport != "" {
-				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", callTypeImport)
+				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause(callTypeImport))
 			}
 		}
 	}
@@ -5879,7 +5905,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Emit UnaryCall (if method 0 is unary) and RpcOptions
 	if len(file.Service) > 0 {
 		if hasUnary && !method0IsStreaming {
-			g.pNoIndent("import type { UnaryCall } from \"@protobuf-ts/runtime-rpc\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
 		}
 		if hasAnyMethod {
 			g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
@@ -6083,16 +6109,16 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		// Determine call type and signature based on streaming
 		if method.GetClientStreaming() && method.GetServerStreaming() {
 			// Bidirectional streaming
-			g.p("%s(options?: RpcOptions): DuplexStreamingCall<%s, %s>;", methodName, reqType, resType)
+			g.p("%s(options?: RpcOptions): %s<%s, %s>;", methodName, g.callTypeRefs["DuplexStreamingCall"], reqType, resType)
 		} else if method.GetServerStreaming() {
 			// Server streaming
-			g.p("%s(input: %s, options?: RpcOptions): ServerStreamingCall<%s, %s>;", methodName, reqType, reqType, resType)
+			g.p("%s(input: %s, options?: RpcOptions): %s<%s, %s>;", methodName, reqType, g.callTypeRefs["ServerStreamingCall"], reqType, resType)
 		} else if method.GetClientStreaming() {
 			// Client streaming
-			g.p("%s(options?: RpcOptions): ClientStreamingCall<%s, %s>;", methodName, reqType, resType)
+			g.p("%s(options?: RpcOptions): %s<%s, %s>;", methodName, g.callTypeRefs["ClientStreamingCall"], reqType, resType)
 		} else {
 			// Unary
-			g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s>;", methodName, reqType, reqType, resType)
+			g.p("%s(input: %s, options?: RpcOptions): %s<%s, %s>;", methodName, reqType, g.callTypeRefs["UnaryCall"], reqType, resType)
 		}
 	}
 	
@@ -6273,7 +6299,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		// Determine call type and implementation based on streaming
 		if method.GetClientStreaming() && method.GetServerStreaming() {
 			// Bidirectional streaming
-			g.p("%s(options?: RpcOptions): DuplexStreamingCall<%s, %s> {", methodName, reqType, resType)
+			g.p("%s(options?: RpcOptions): %s<%s, %s> {", methodName, g.callTypeRefs["DuplexStreamingCall"], reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
 			g.p("return %s<%s, %s>(\"duplex\", this._transport, method, opt);", g.stackInterceptRef, reqType, resType)
@@ -6281,7 +6307,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("}")
 		} else if method.GetServerStreaming() {
 			// Server streaming
-			g.p("%s(input: %s, options?: RpcOptions): ServerStreamingCall<%s, %s> {", methodName, reqType, reqType, resType)
+			g.p("%s(input: %s, options?: RpcOptions): %s<%s, %s> {", methodName, reqType, g.callTypeRefs["ServerStreamingCall"], reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
 			g.p("return %s<%s, %s>(\"serverStreaming\", this._transport, method, opt, input);", g.stackInterceptRef, reqType, resType)
@@ -6289,7 +6315,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("}")
 		} else if method.GetClientStreaming() {
 			// Client streaming
-			g.p("%s(options?: RpcOptions): ClientStreamingCall<%s, %s> {", methodName, reqType, resType)
+			g.p("%s(options?: RpcOptions): %s<%s, %s> {", methodName, g.callTypeRefs["ClientStreamingCall"], reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
 			g.p("return %s<%s, %s>(\"clientStreaming\", this._transport, method, opt);", g.stackInterceptRef, reqType, resType)
@@ -6297,7 +6323,7 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 			g.p("}")
 		} else {
 			// Unary
-			g.p("%s(input: %s, options?: RpcOptions): UnaryCall<%s, %s> {", methodName, reqType, reqType, resType)
+			g.p("%s(input: %s, options?: RpcOptions): %s<%s, %s> {", methodName, reqType, g.callTypeRefs["UnaryCall"], reqType, resType)
 			g.indent = "        "
 			g.p("const method = this.methods[%d], opt = this._transport.mergeOptions(options);", g.findMethodIndex(service, method))
 			g.p("return %s<%s, %s>(\"unary\", this._transport, method, opt, input);", g.stackInterceptRef, reqType, resType)
