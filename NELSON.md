@@ -1018,3 +1018,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `getLeadingComments()` at line ~1138 returns `true` whenever `loc.LeadingComments != nil`, regardless of whether the stripped result is empty. The TS plugin effectively treats an empty stripped comment as "no comment". The Go plugin should return `("", false)` when the result after stripping is empty.
 - **Difference from `// `:** A `// ` comment produces `" \n"` in protoc → stripped to `""` in Go (same as `//`). But in the TS plugin, `stripTrailingNewlines(" \n")` → `" "` (one space), which has `length > 0` → content IS shown. So `// ` correctly produces blank JSDoc lines in both plugins, but `//` should produce none.
 - **Note:** This is a very subtle edge case about the distinction between "comment exists but is empty" vs "no comment". Only `//` triggers it — `// ` (with space) is fine because the space survives `stripTrailingNewlines`.
+
+### Run 127 — Syntax whitespace-only detached comment dropped (SUCCESS)
+- **Bug found:** File-level syntax detached comments that are whitespace-only (e.g., `//   ` with spaces but no visible text) are entirely dropped by the Go plugin. The TS plugin correctly outputs them as `//   ` in the file header.
+- **Test:** `208_syntax_whitespace_detached` — proto file with `//   ` (whitespace-only) comment before syntax declaration, separated by blank line.
+- **Root cause:** Line ~1437 in main.go: `if strings.TrimSpace(detached) != ""` — this skips ALL blocks where TrimSpace returns empty string. But whitespace-only blocks like `"   \n"` should still be output as `//   `. The TS plugin's `out-file.js` processes ALL blocks unconditionally with `.every(block => header.push('//', ...block.split('\n').map(l => '//' + l), '//'))`.
+- **Affects:** Both syntax (path [12]) and package (path [2]) detached comment blocks in the file header.
+- **Note:** Same issue likely exists in the package detached comment handler at the next code block (~line 1465+). Test only verifies syntax path.
