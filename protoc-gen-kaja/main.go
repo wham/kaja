@@ -4964,6 +4964,19 @@ func (g *generator) reflectionMergePartialImport() string {
 	return "reflectionMergePartial"
 }
 
+func methodCallTypeName(method *descriptorpb.MethodDescriptorProto) string {
+	cs := method.GetClientStreaming()
+	ss := method.GetServerStreaming()
+	if cs && ss {
+		return "DuplexStreamingCall"
+	} else if ss {
+		return "ServerStreamingCall"
+	} else if cs {
+		return "ClientStreamingCall"
+	}
+	return "UnaryCall"
+}
+
 func (g *generator) callTypeImportClause(name string) string {
 	if ref, ok := g.callTypeRefs[name]; ok && ref != name {
 		return name + " as " + ref
@@ -5528,13 +5541,23 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Check for runtime-rpc name collisions in client file.
 	// Proto types imported from ./test may collide with runtime-rpc imports
 	// only when that runtime-rpc name is actually imported.
-	// stackIntercept and call types are handled separately (runtime import aliased, not proto import).
+	// For call type names (UnaryCall, ServerStreamingCall, etc.), the collision
+	// resolution depends on protobuf-ts registration order: within each method,
+	// the call type is registered BEFORE input/output types. The first
+	// registration of a name wins; the second gets aliased with $.
 	g.callTypeRefs = map[string]string{
 		"UnaryCall": "UnaryCall", "ServerStreamingCall": "ServerStreamingCall",
 		"ClientStreamingCall": "ClientStreamingCall", "DuplexStreamingCall": "DuplexStreamingCall",
 	}
+	runtimeClaimed := make(map[string]bool) // call type names registered so far
+	protoClaimed := make(map[string]bool)   // proto types that claimed a call type name first
 	for _, service := range file.Service {
 		for _, method := range service.Method {
+			// Step 1: Register call type (registered before input/output in protobuf-ts)
+			callType := methodCallTypeName(method)
+			runtimeClaimed[callType] = true
+
+			// Step 2: Check input/output types
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
 				if _, alreadyAliased := g.importAliases[typeName]; alreadyAliased {
 					continue
@@ -5544,7 +5567,16 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					continue
 				}
 				if actualCallTypeNames[tsName] {
-					if usedCallTypes[tsName] {
+					if protoClaimed[tsName] {
+						continue // already handled
+					}
+					if runtimeClaimed[tsName] && usedCallTypes[tsName] {
+						// Runtime was registered first → alias the proto type
+						g.importAliases[typeName] = tsName + "$"
+						g.rawImportNames[typeName] = tsName
+					} else if usedCallTypes[tsName] {
+						// Proto registered first → runtime will be aliased
+						protoClaimed[tsName] = true
 						g.callTypeRefs[tsName] = tsName + "$"
 					}
 					continue

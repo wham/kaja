@@ -223,6 +223,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 205/205 tests passing — DONE
 - [x] Fix test 201_duplex_call_type_collision: When a proto message (not service) is named after a call type (e.g., `DuplexStreamingCall`) and that call type is actually used, the **runtime-rpc** import is aliased with `$` suffix (not the proto import). Added `callTypeRefs` map and `callTypeImportClause` helper. Updated all 4 import emission sites and all 8 method return type sites.
 - [x] All 206/206 tests passing — DONE
+- [x] Fix test 202_json_name_newline: Added `\n` and `\r` escaping to jsonName field descriptor values (alongside existing `\`, `"`, `\t` escaping)
+- [x] All 207/207 tests passing — DONE
 
 ## Notes
 
