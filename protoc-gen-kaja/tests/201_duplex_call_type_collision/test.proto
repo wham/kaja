@@ -1,0 +1,20 @@
+syntax = "proto3";
+package test;
+
+// A message named DuplexStreamingCall which collides with the runtime-rpc type.
+// Since the service has a duplex streaming method, DuplexStreamingCall is
+// actually imported from @protobuf-ts/runtime-rpc, causing a real collision.
+// The TS plugin aliases the runtime-rpc import; the Go plugin aliases the
+// proto import instead.
+message DuplexStreamingCall {
+  string data = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service TestService {
+  rpc Process(DuplexStreamingCall) returns (Response);
+  rpc Chat(stream DuplexStreamingCall) returns (stream Response);
+}

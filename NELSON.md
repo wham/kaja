@@ -967,3 +967,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `200_json_name_tab_escape` — field with `json_name = "na\tme"` containing a tab character.
 - **Root cause:** Lines ~3798-3799 only do `strings.ReplaceAll(actualJsonName, "\", "\\")` and `strings.ReplaceAll(escaped, "\"", "\\\"")`. Missing `strings.ReplaceAll(escaped, "\t", "\\t")` and similar for `\n`, `\r`. Compare with `formatCustomOptions()` at lines 960-964 which correctly escapes `\n`, `\r`, `\t`.
 - **Affects:** Only the `jsonName: "..."` in field descriptor. The JSDoc `@generated from protobuf field:` annotation outputs the tab literally in both plugins (both agree there).
+
+### Run 120 — DuplexStreamingCall message collision aliases wrong import direction (SUCCESS)
+- **Bug found:** When a proto message is named `DuplexStreamingCall` (same as a runtime-rpc streaming call type) and the service actually uses duplex streaming, the Go plugin aliases the PROTO import (`import type { DuplexStreamingCall as DuplexStreamingCall$ } from "./test"`), while the TS plugin aliases the RUNTIME import (`import type { DuplexStreamingCall as DuplexStreamingCall$ } from "@protobuf-ts/runtime-rpc"`).
+- **Test:** `201_duplex_call_type_collision` — message named `DuplexStreamingCall` used as input to both a unary and a duplex streaming method.
+- **Root cause:** Lines 5519-5528 in `generateClientFile` alias the proto import via `g.importAliases[typeName]` when the proto type name matches a used call type. But the TS plugin aliases the runtime-rpc import instead (keeping proto types unaliased for consistency with the main file). The Go plugin's approach reverses the alias direction.
+- **Affects:** All references to the proto message type in the client file use `DuplexStreamingCall$` (wrong, should be unaliased), and the duplex streaming return type uses `DuplexStreamingCall` (runtime type, should be `DuplexStreamingCall$`).
+- **Same bug likely affects:** `ServerStreamingCall`, `ClientStreamingCall`, and `UnaryCall` message names with corresponding streaming methods. Only `stackIntercept` is handled differently (lines 5525: `!= "stackIntercept"` special case).
