@@ -974,3 +974,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 5519-5528 in `generateClientFile` alias the proto import via `g.importAliases[typeName]` when the proto type name matches a used call type. But the TS plugin aliases the runtime-rpc import instead (keeping proto types unaliased for consistency with the main file). The Go plugin's approach reverses the alias direction.
 - **Affects:** All references to the proto message type in the client file use `DuplexStreamingCall$` (wrong, should be unaliased), and the duplex streaming return type uses `DuplexStreamingCall` (runtime type, should be `DuplexStreamingCall$`).
 - **Same bug likely affects:** `ServerStreamingCall`, `ClientStreamingCall`, and `UnaryCall` message names with corresponding streaming methods. Only `stackIntercept` is handled differently (lines 5525: `!= "stackIntercept"` special case).
+
+### Run 121 — jsonName newline character not escaped in field descriptor (SUCCESS)
+- **Bug found:** `generateFieldDescriptor()` at line ~3798-3800 escapes `\`, `"`, and `\t` in the `jsonName` string value but does NOT escape `\n` (newline). When a field has `json_name = "na\nme"`, protoc delivers a literal newline character in the `JsonName` field. The TS plugin escapes it as `\n` in the TypeScript string literal, but the Go plugin outputs the literal newline character, breaking the line.
+- **Test:** `202_json_name_newline` — field with `json_name = "na\nme"` containing a newline character.
+- **Root cause:** Lines 3798-3800 escape `\` → `\\`, `"` → `\"`, `\t` → `\t`, but missing `\n` → `\n`. The fix for test 200 (run 119) only added tab escaping but not newline escaping.
+- **Affects:** Only the `jsonName: "..."` in field descriptor. The JSDoc annotation outputs the newline literally in both plugins (both agree there).
+- **Note:** `\r` (carriage return) is likely also unescaped — same pattern.
