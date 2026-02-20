@@ -1060,10 +1060,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~216 `if len(generatedFiles) > 0` should not gate WKT generation. The TS plugin always generates files for imported WKTs regardless of whether the main file produces output. The Go plugin should check if any dependency needs generation regardless of `generatedFiles` count.
 - **Diff:** Expected `google/protobuf/descriptor.ts` (~15K lines) exists. Actual: nothing generated at all.
 
+### Run 131 — Import public missing transitive import (SUCCESS)
+- **Bug found:** `generateImports()` in main.go has ZERO handling for `publicDependency`. When `consumer.proto` imports `re_export.proto` which has `import public "base.proto"`, the TS plugin generates `import { Base } from "./base"` in `consumer.ts` because `Base` is transitively available through the public import chain. The Go plugin only looks at direct dependencies, so it never generates the import for `Base`.
+- **Test:** `212_import_public` — three files: `base.proto` (defines `Base`), `re_export.proto` (has `import public "base.proto"` and defines `Wrapper` using `Base`), `consumer.proto` (imports `re_export.proto` and uses both `Base` and `Wrapper`).
+- **Root cause:** The Go plugin's import resolution scans `g.file.Dependency` (direct imports) to find where types are defined, but never follows `g.file.PublicDependency` to discover types that are transitively available through `import public` chains. The `publicDependency` field in the file descriptor lists indices into `dependency` that are public imports.
+
 ### Ideas for future runs
-- Multi-service: service 2+ with client-streaming methods — `ClientStreamingCall` import likely also missing.
+- `import public` chains deeper than 1 level — A imports B (public) which imports C (public).
+- `import public` with enum types — same bug likely applies.
 - `ScalarType` collision — message named `ScalarType` in file with well-known wrapper types.
 - Deeply nested messages (5+ levels) — type name construction.
 - Enum nested inside lowercase-named parent from different package.
 - Proto2 required group vs optional group handling.
-- File with `option java_outer_classname` affecting output.

@@ -1,0 +1,9 @@
+syntax = "proto3";
+package test;
+
+import "re_export.proto";
+
+message Consumer {
+  Base base = 1;
+  Wrapper wrapper = 2;
+}
