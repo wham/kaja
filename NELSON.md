@@ -948,3 +948,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The client file's `importAliases` only checks for collisions between proto type names and runtime-rpc import names (stackIntercept, UnaryCall, etc.). It never checks for collisions between types imported from different proto files.
 - **Diff:** Expected `import type { Result as Result$ } from "./main"` + `Result$` in method signatures, got no aliased import + `Result` (wrong type) in method signatures.
 - **Affects:** Interface method signatures, class method signatures, and `stackIntercept<>` type parameters — all use the wrong `Result` type.
+
+### Run 117 — Whitespace-only leading comment dropped (SUCCESS)
+- **Bug found:** When a proto comment contains ONLY whitespace (e.g., `//   `), the Go plugin's `getLeadingComments()` trims it to empty string and drops it. The TS plugin preserves it as a blank comment line in the JSDoc block (`" *\n *"`), which also adds the separator blank line before `@generated`.
+- **Test:** `198_whitespace_only_comment` — message and field with whitespace-only comments (`//   `).
+- **Root cause:** `getLeadingComments()` uses `strings.TrimRight(comment, " \t\n")` which strips ALL trailing whitespace including the spaces that ARE the comment content. For a comment `"  \n"`, TrimRight produces `""` → empty → no comment output. The TS plugin uses `stripTrailingNewlines()` which only removes `\n` characters, preserving `"  "` as a non-empty comment that produces a blank JSDoc line.
+- **Diff:** Expected `/**\n *\n *\n * @generated...`, got `/**\n * @generated...`. Affects both message and field JSDoc blocks.
