@@ -1,0 +1,17 @@
+// Tests that type name collision detection works correctly when a parent
+// message has a TypeScript reserved name. The nested type object.Bar and
+// top-level object_Bar both produce TypeScript name "object_Bar" and should
+// get collision suffixes.
+syntax = "proto3";
+package test;
+
+message object {
+  message Bar {
+    string name = 1;
+  }
+  Bar bar = 1;
+}
+
+message object_Bar {
+  string value = 1;
+}
