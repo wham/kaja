@@ -1744,6 +1744,14 @@ func (g *generator) writeImports(imports map[string]bool) {
 			depFiles[relPath] = depFile
 		}
 	}
+	// Include files transitively reachable via import public
+	for _, pubFile := range g.collectTransitivePublicDeps(g.file) {
+		depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+		relPath := g.getRelativeImportPath(currentFileDir, depPath)
+		if _, exists := depFiles[relPath]; !exists {
+			depFiles[relPath] = pubFile
+		}
+	}
 	
 	// Pre-compute import aliases for types that collide
 	g.precomputeImportAliases(depFiles)
@@ -2550,6 +2558,14 @@ func (g *generator) getImportPathForType(fullTypeName string) string {
 		}
 	}
 	
+	// Check files transitively reachable via import public
+	for _, pubFile := range g.collectTransitivePublicDeps(g.file) {
+		if typeInFile(pubFile, typeNameStripped) {
+			depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+			return g.getRelativeImportPath(currentFileDir, depPath)
+		}
+	}
+	
 	// Check current file
 	if typeInFile(g.file, typeNameStripped) {
 		return "./" + strings.TrimSuffix(filepath.Base(g.file.GetName()), ".proto")
@@ -2592,6 +2608,39 @@ func (g *generator) findFileByName(name string) *descriptorpb.FileDescriptorProt
 		}
 	}
 	return nil
+}
+
+// collectTransitivePublicDeps returns all files transitively reachable via
+// `import public` from the given file's direct dependencies.
+func (g *generator) collectTransitivePublicDeps(file *descriptorpb.FileDescriptorProto) []*descriptorpb.FileDescriptorProto {
+	seen := make(map[string]bool)
+	var result []*descriptorpb.FileDescriptorProto
+	for _, dep := range file.Dependency {
+		seen[dep] = true
+	}
+	var walk func(f *descriptorpb.FileDescriptorProto)
+	walk = func(f *descriptorpb.FileDescriptorProto) {
+		for _, idx := range f.PublicDependency {
+			if int(idx) < len(f.Dependency) {
+				pubDep := f.Dependency[idx]
+				if !seen[pubDep] {
+					seen[pubDep] = true
+					pubFile := g.findFileByName(pubDep)
+					if pubFile != nil {
+						result = append(result, pubFile)
+						walk(pubFile)
+					}
+				}
+			}
+		}
+	}
+	for _, dep := range file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile != nil {
+			walk(depFile)
+		}
+	}
+	return result
 }
 
 func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, parentPrefix string, protoParentPrefix string, msgPath []int32) {
@@ -5524,6 +5573,14 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			depPath := strings.TrimSuffix(dep, ".proto")
 			relPath := g.getRelativeImportPath(currentFileDir, depPath)
 			depFiles[relPath] = depFile
+		}
+	}
+	// Include files transitively reachable via import public
+	for _, pubFile := range g.collectTransitivePublicDeps(file) {
+		depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+		relPath := g.getRelativeImportPath(currentFileDir, depPath)
+		if _, exists := depFiles[relPath]; !exists {
+			depFiles[relPath] = pubFile
 		}
 	}
 	g.precomputeImportAliases(depFiles)
