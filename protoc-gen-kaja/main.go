@@ -5796,6 +5796,20 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			}
 		}
 		
+		// Pre-compute which method first uses each type (forward order) for this service
+		svcFirstMethodForType := map[string]int{}
+		for mi := 0; mi < len(service.Method); mi++ {
+			m := service.Method[mi]
+			rt := g.stripPackage(m.GetOutputType())
+			rq := g.stripPackage(m.GetInputType())
+			if _, ok := svcFirstMethodForType[rt]; !ok {
+				svcFirstMethodForType[rt] = mi
+			}
+			if _, ok := svcFirstMethodForType[rq]; !ok {
+				svcFirstMethodForType[rq] = mi
+			}
+		}
+		
 		for i := len(service.Method) - 1; i >= 0; i-- {
 			method := service.Method[i]
 			resType := g.stripPackage(method.GetOutputType())
@@ -5807,11 +5821,11 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			
 			if isFirstMethodService {
 				// Primary service ordering: types first, then call type (same as service 0 section)
-				if !seen[resType] {
+				if svcFirstMethodForType[resType] == i && !seen[resType] {
 					g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
 					seen[resType] = true
 				}
-				if !seen[reqType] {
+				if svcFirstMethodForType[reqType] == i && !seen[reqType] {
 					g.pNoIndent("import type { %s } from \"%s\";", reqTypeImport, reqTypePath)
 					seen[reqType] = true
 				}
@@ -5835,7 +5849,16 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					}
 				}
 			} else {
-				// Normal N→1 ordering: call type first, then types
+				// Types first (only at the method that first uses them), then call type
+				if svcFirstMethodForType[resType] == i && !seen[resType] && !service1Types[resType] {
+					g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
+					seen[resType] = true
+				}
+				if svcFirstMethodForType[reqType] == i && !seen[reqType] && !service1Types[reqType] {
+					g.pNoIndent("import type { %s } from \"%s\";", reqTypeImport, reqTypePath)
+					seen[reqType] = true
+				}
+				
 				if method.GetClientStreaming() || method.GetServerStreaming() {
 					var callTypeImport string
 					if method.GetClientStreaming() && method.GetServerStreaming() {
@@ -5855,15 +5878,6 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
 						seenCallTypes["UnaryCall"] = true
 					}
-				}
-				
-				if !seen[resType] && !service1Types[resType] {
-					g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
-					seen[resType] = true
-				}
-				if !seen[reqType] && !service1Types[reqType] {
-					g.pNoIndent("import type { %s } from \"%s\";", reqTypeImport, reqTypePath)
-					seen[reqType] = true
 				}
 			}
 		}
