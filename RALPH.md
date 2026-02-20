@@ -242,6 +242,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 215/215 tests passing — DONE
 - [x] Fix test 211_extend_only: Extend-only files (no messages/enums/services, only `extend` declarations) must still trigger WKT dependency generation. Added `hasExtensionFiles` flag — WKT generation runs when any FileToGenerate produced output OR has extensions.
 - [x] All 216/216 tests passing — DONE
+- [x] Fix test 212_import_public: Added `collectTransitivePublicDeps` helper that follows `import public` chains via `PublicDependency` indices. Used it in 3 locations: message file `depFiles`, client file `depFiles`, and `getImportPathForType` — so types transitively visible via `import public` get proper direct imports in generated TS.
+- [x] All 217/217 tests passing — DONE
 
 ## Notes
 
@@ -344,3 +346,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Empty comment detection: `//` (nothing after `//`) stores `"\n"` in SourceCodeInfo — after `TrimRight("\n")` becomes `""` → no content → return `("", false)`. But `// ` (space after `//`) stores `" \n"` → TrimRight("\n") → `" "` → non-empty → has content → return `("", true)` after further processing. The early `TrimRight("\n") == ""` check must come before the trailing-blanks counting and full TrimRight.
 - Multi-service streaming imports: Services 2..N (processed before service 1 in output) need their own streaming call type imports emitted in the N→1 method loop. Within each streaming method, the call type import appears BEFORE type imports (matching protobuf-ts's prepend order where call type is last-prepended = top). A `seenCallTypes` map deduplicates across all services — service 1's call type emission paths (hasUnaryInService, lastCallTypeIdx, method0 streaming) all check `seenCallTypes` before emitting.
 - Multi-service UnaryCall positioning: In multi-service client files, UnaryCall must appear with the FIRST service (forward order) that has a unary method. Pre-scan `firstUnaryServiceIdx` determines which service K emits UnaryCall. If K=0, service 0's code section handles it. If K≥1, the N→1 loop emits it only when `svcIdx == firstUnaryServiceIdx`. This prevents duplicate emissions when multiple services have unary methods.
+- Import public transitive deps: `import public` in proto makes the imported file's types visible to all importers transitively. `FileDescriptorProto.PublicDependency` contains int32 indices into the `Dependency` array indicating which deps are `import public`. `collectTransitivePublicDeps` recursively follows these chains and returns all transitively reachable files. These are added to `depFiles` maps and searched by `getImportPathForType` alongside direct dependencies.

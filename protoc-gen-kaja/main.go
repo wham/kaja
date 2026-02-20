@@ -3698,30 +3698,35 @@ func (g *generator) findEnumType(typeName string) *descriptorpb.EnumDescriptorPr
 		}
 	}
 	
-	// Search in dependencies
+	// Search in dependencies (direct + transitive public)
+	searchFiles := make([]*descriptorpb.FileDescriptorProto, 0)
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
 		if depFile != nil {
-			depPkg := ""
-			if depFile.Package != nil && *depFile.Package != "" {
-				depPkg = *depFile.Package
+			searchFiles = append(searchFiles, depFile)
+		}
+	}
+	searchFiles = append(searchFiles, g.collectTransitivePublicDeps(g.file)...)
+	for _, depFile := range searchFiles {
+		depPkg := ""
+		if depFile.Package != nil && *depFile.Package != "" {
+			depPkg = *depFile.Package
+		}
+		
+		for _, enum := range depFile.EnumType {
+			fullName := ""
+			if depPkg != "" {
+				fullName = depPkg + "."
 			}
-			
-			for _, enum := range depFile.EnumType {
-				fullName := ""
-				if depPkg != "" {
-					fullName = depPkg + "."
-				}
-				fullName += enum.GetName()
-				if typeName == fullName {
-					return enum
-				}
+			fullName += enum.GetName()
+			if typeName == fullName {
+				return enum
 			}
-			for _, msg := range depFile.MessageType {
-				prefix := depPkg
-				if found := g.findEnumTypeInMessage(msg, typeName, prefix); found != nil {
-					return found
-				}
+		}
+		for _, msg := range depFile.MessageType {
+			prefix := depPkg
+			if found := g.findEnumTypeInMessage(msg, typeName, prefix); found != nil {
+				return found
 			}
 		}
 	}
