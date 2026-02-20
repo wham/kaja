@@ -1086,3 +1086,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service method trailing comment multiline.
 - Custom option with oneof inside message value.
 - Deeply nested messages (5+ levels) with underscores in names — type name construction edge cases.
+
+### Run 133 — Empty service + non-empty service client import ordering (SUCCESS)
+- **Bug found:** When a file has an empty service (no methods) alongside a service with methods, the Go plugin orders imports differently in the `.client.ts` file. Specifically, `stackIntercept`, `RpcOptions`, and the method I/O type (`Empty`) are placed after the empty service's import instead of before it.
+- **Test:** `214_empty_service` — file with `EmptyService` (no methods) + `SmallService` (one unary method using `google.protobuf.Empty`).
+- **Root cause:** The Go plugin's client file import ordering logic doesn't account for services with zero methods. The TS plugin processes all method-related imports (stackIntercept, RpcOptions, I/O types, call types) BEFORE the service imports for services without methods, while the Go plugin interleaves them differently.
+- **Diff:** TS orders: SmallService, stackIntercept, Empty, UnaryCall, RpcOptions, RpcTransport, ServiceInfo, EmptyService. Go orders: SmallService, UnaryCall, Empty, RpcTransport, ServiceInfo, EmptyService, stackIntercept, RpcOptions.
+- **Note:** Only affects `.client.ts` — the main `.ts` file matches. Bug is in the client file import generation at ~line 5594+.

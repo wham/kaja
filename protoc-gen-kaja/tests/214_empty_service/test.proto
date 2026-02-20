@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/empty.proto";
+
+// Service with no methods
+service EmptyService {
+}
+
+// Service with one method using imported type
+service SmallService {
+  rpc DoSomething(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
