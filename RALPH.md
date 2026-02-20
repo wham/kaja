@@ -228,6 +228,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 208/208 tests passing — DONE
 - [x] Fix test 204_double_trailing_blank: Changed trailing blank line detection from boolean to count-based — `getLeadingComments` and `getEnumTrailingComments` now count trailing blank lines (N) and preserve N-1 as empty lines in the text plus 1 as `__HAS_TRAILING_BLANK__` marker. Only counts blank lines that come after at least one non-blank line (so whitespace-only comments don't falsely trigger).
 - [x] All 209/209 tests passing — DONE
+- [x] Fix test 205_deprecated_false: `[deprecated = false]` in proto should still produce `[deprecated = true]` annotation — protobuf-ts checks if the option is explicitly set (`Deprecated != nil`), not the value. Changed `GetDeprecated()` to `Deprecated != nil` in `formatFieldOptionsAnnotation`.
+- [x] All 210/210 tests passing — DONE
 
 ## Notes
 

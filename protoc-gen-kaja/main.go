@@ -2043,7 +2043,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if needsServiceType {
 			wireTypeEarly = serviceBeforeMessages || firstMessageEmpty
 		} else {
-			wireTypeEarly = g.isImportedByService || firstMessageEmpty
+			wireTypeEarly = firstMessageEmpty
 		}
 		
 		// WireType goes after UnknownFieldHandler ("very late") when the first message's
