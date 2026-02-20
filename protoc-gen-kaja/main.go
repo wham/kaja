@@ -1136,8 +1136,23 @@ func (g *generator) getLeadingComments(path []int32) (string, bool) {
 		}
 		if match && loc.LeadingComments != nil {
 			comment := *loc.LeadingComments
-			// Check if original comment ends with blank line before trimming
-			hasTrailingBlank := strings.HasSuffix(comment, "\n\n") || strings.HasSuffix(comment, "\n \n")
+			// Count trailing blank lines before trimming
+			rawLines := strings.Split(comment, "\n")
+			trailingBlanks := 0
+			if len(rawLines) > 0 && rawLines[len(rawLines)-1] == "" {
+				foundNonBlank := false
+				for i := len(rawLines) - 2; i >= 0; i-- {
+					if strings.TrimSpace(rawLines[i]) == "" {
+						trailingBlanks++
+					} else {
+						foundNonBlank = true
+						break
+					}
+				}
+				if !foundNonBlank {
+					trailingBlanks = 0 // entire comment is blank/whitespace
+				}
+			}
 			
 			// Don't trim the start - we need to preserve leading empty lines
 			comment = strings.TrimRight(comment, " \t\n")
@@ -1154,8 +1169,11 @@ func (g *generator) getLeadingComments(path []int32) (string, bool) {
 				}
 			}
 			result := strings.Join(lines, "\n")
-			// Add marker if original had trailing blank
-			if hasTrailingBlank {
+			// Add trailing blank lines: extras preserved in text, last one as marker
+			if trailingBlanks > 0 {
+				for i := 0; i < trailingBlanks-1; i++ {
+					result += "\n"
+				}
 				result += "\n__HAS_TRAILING_BLANK__"
 			}
 			return result, true
@@ -1214,7 +1232,23 @@ func (g *generator) getEnumTrailingComments(path []int32) string {
 		}
 		if match && loc.TrailingComments != nil {
 			comment := *loc.TrailingComments
-			hasTrailingBlank := strings.HasSuffix(comment, "\n\n") || strings.HasSuffix(comment, "\n \n")
+			// Count trailing blank lines before trimming
+			rawLines := strings.Split(comment, "\n")
+			trailingBlanks := 0
+			if len(rawLines) > 0 && rawLines[len(rawLines)-1] == "" {
+				foundNonBlank := false
+				for i := len(rawLines) - 2; i >= 0; i-- {
+					if strings.TrimSpace(rawLines[i]) == "" {
+						trailingBlanks++
+					} else {
+						foundNonBlank = true
+						break
+					}
+				}
+				if !foundNonBlank {
+					trailingBlanks = 0
+				}
+			}
 			comment = strings.TrimRight(comment, " \t\n")
 			lines := strings.Split(comment, "\n")
 			for i, line := range lines {
@@ -1228,7 +1262,10 @@ func (g *generator) getEnumTrailingComments(path []int32) string {
 				}
 			}
 			result := strings.Join(lines, "\n")
-			if hasTrailingBlank {
+			if trailingBlanks > 0 {
+				for i := 0; i < trailingBlanks-1; i++ {
+					result += "\n"
+				}
 				result += "\n__HAS_TRAILING_BLANK__"
 			}
 			return result
