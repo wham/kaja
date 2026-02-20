@@ -1,0 +1,8 @@
+syntax = "proto3";
+package test;
+
+// Test that tab characters in custom json_name are properly escaped
+// in the field descriptor's jsonName string literal.
+message Msg {
+  string name = 1 [json_name = "na\tme"];
+}

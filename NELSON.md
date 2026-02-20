@@ -961,3 +961,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 1297 in `collectMessageTypeNames`: `g.collectMessageTypeNames(nested, tsName + "_", ...)` uses `tsName` (which is `object$` after keyword escaping) instead of `baseName` (`object`). The collision map has `object$_Bar` and `object_Bar` as different entries, missing the collision. Compare with `generateMessageInterface` at line 2731 which correctly uses `baseName + "_"`.
 - **Same bug in `collectEnumTypeNames` call:** Line 1301: `g.collectEnumTypeNames(enum, tsName + "_", ...)` has the same issue for nested enums.
 - **Affects:** `export interface`, `class $Type`, `create()`, `internalBinaryRead`, `internalBinaryWrite`, `export const` — all declarations for the colliding type miss the `$1` suffix.
+
+### Run 119 — jsonName tab character not escaped in field descriptor (SUCCESS)
+- **Bug found:** `generateFieldDescriptor()` at line ~3798 escapes `\` and `"` in the `jsonName` string value but does NOT escape control characters like `\t`, `\n`, `\r`. When a field has `json_name = "na\tme"`, protoc delivers a literal tab character in the `JsonName` field. The TS plugin escapes it as `\t` in the TypeScript string literal, but the Go plugin outputs the literal tab character.
+- **Test:** `200_json_name_tab_escape` — field with `json_name = "na\tme"` containing a tab character.
+- **Root cause:** Lines ~3798-3799 only do `strings.ReplaceAll(actualJsonName, "\", "\\")` and `strings.ReplaceAll(escaped, "\"", "\\\"")`. Missing `strings.ReplaceAll(escaped, "\t", "\\t")` and similar for `\n`, `\r`. Compare with `formatCustomOptions()` at lines 960-964 which correctly escapes `\n`, `\r`, `\t`.
+- **Affects:** Only the `jsonName: "..."` in field descriptor. The JSDoc `@generated from protobuf field:` annotation outputs the tab literally in both plugins (both agree there).
