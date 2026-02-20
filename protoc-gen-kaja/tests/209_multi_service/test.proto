@@ -1,0 +1,23 @@
+syntax = "proto3";
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+message Item {
+  string name = 1;
+}
+
+service SearchService {
+  rpc Search(Request) returns (Response);
+}
+
+service ItemService {
+  rpc GetItem(Request) returns (Item);
+  rpc ListItems(Request) returns (stream Item);
+}

@@ -1025,3 +1025,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line ~1437 in main.go: `if strings.TrimSpace(detached) != ""` — this skips ALL blocks where TrimSpace returns empty string. But whitespace-only blocks like `"   \n"` should still be output as `//   `. The TS plugin's `out-file.js` processes ALL blocks unconditionally with `.every(block => header.push('//', ...block.split('\n').map(l => '//' + l), '//'))`.
 - **Affects:** Both syntax (path [12]) and package (path [2]) detached comment blocks in the file header.
 - **Note:** Same issue likely exists in the package detached comment handler at the next code block (~line 1465+). Test only verifies syntax path.
+
+### Run 128 — Multi-service streaming call type import missing (SUCCESS)
+- **Bug found:** `generateClientFile()` in main.go only generates streaming call type imports (`ServerStreamingCall`, `ClientStreamingCall`, `DuplexStreamingCall`) for methods belonging to the FIRST service. When a second (or later) service has streaming methods, the required call type import is never emitted.
+- **Test:** `209_multi_service` — two services: `SearchService` (unary only) and `ItemService` (unary + server streaming). The `ServerStreamingCall` import is missing from the client file.
+- **Root cause:** The service 2..N import loop (lines 5680-5713) only emits proto message type imports (`import type { Item }`, etc.) but never emits call type imports. The first service's import section (lines 5730-5960) correctly handles call types for its own methods, but the second service's streaming methods are never processed for call type imports.
+- **Diff:** Expected `import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc"` between the `ItemService` and `Item` imports. Go plugin omits it entirely.
+- **Note:** The `ServerStreamingCall` type is still USED in method signatures (interface + class), just never imported — this would be a TypeScript compilation error.
