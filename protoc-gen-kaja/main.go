@@ -1115,10 +1115,12 @@ func (g *generator) getLeadingDetachedComments(path []int32) []string {
 	return nil
 }
 
-// getLeadingComments retrieves leading comments for a given path in SourceCodeInfo
-func (g *generator) getLeadingComments(path []int32) string {
+// getLeadingComments retrieves leading comments for a given path in SourceCodeInfo.
+// Returns (comment, true) when a comment exists (even if whitespace-only),
+// or ("", false) when no comment is present.
+func (g *generator) getLeadingComments(path []int32) (string, bool) {
 	if g.file.SourceCodeInfo == nil {
-		return ""
+		return "", false
 	}
 	for _, loc := range g.file.SourceCodeInfo.Location {
 		if len(loc.Path) != len(path) {
@@ -1155,10 +1157,10 @@ func (g *generator) getLeadingComments(path []int32) string {
 			if hasTrailingBlank {
 				result += "\n__HAS_TRAILING_BLANK__"
 			}
-			return result
+			return result, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // getTrailingComments retrieves trailing comments for a given path in SourceCodeInfo
@@ -2598,10 +2600,10 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 	
 	// Add leading and trailing comments if available (msgPath should point to this message)
 	if len(msgPath) > 0 {
-		leadingComments := g.getLeadingComments(msgPath)
+		leadingComments, hasLeading := g.getLeadingComments(msgPath)
 		trailingComments := g.getEnumTrailingComments(msgPath)
 		
-		if leadingComments != "" {
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -2814,13 +2816,13 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 	hasLeadingComments := false
 	hasTrailingBlankInComment := false
 	if len(fieldPath) > 0 {
-		leadingComments := g.getLeadingComments(fieldPath)
+		leadingComments, hasLeading := g.getLeadingComments(fieldPath)
 		// Check if comment had trailing blank line
 		if strings.HasSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__") {
 			hasTrailingBlankInComment = true
 			leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
 		}
-		if leadingComments != "" {
+		if hasLeading {
 			hasLeadingComments = true
 			for _, line := range strings.Split(leadingComments, "\n") {
 				if line == "" {
@@ -2936,7 +2938,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	
 	// Get oneof leading comment
 	oneofPath := append(append([]int32{}, msgPath...), 8, oneofIndex)
-	oneofLeadingComments := g.getLeadingComments(oneofPath)
+	oneofLeadingComments, hasOneofLeading := g.getLeadingComments(oneofPath)
 	
 	// Add leading detached comments (as // style before JSDoc)
 	detachedComments := g.getLeadingDetachedComments(oneofPath)
@@ -2961,7 +2963,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 	g.p("/**")
 	
 	// Add leading comments if present
-	if oneofLeadingComments != "" {
+	if hasOneofLeading {
 		hasTrailingBlank := strings.HasSuffix(oneofLeadingComments, "__HAS_TRAILING_BLANK__")
 		if hasTrailingBlank {
 			oneofLeadingComments = strings.TrimSuffix(oneofLeadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -3018,7 +3020,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		
 		// Get field leading comment
 		fieldPath := append(append([]int32{}, msgPath...), 2, fieldIndex)
-		fieldLeadingComments := g.getLeadingComments(fieldPath)
+		fieldLeadingComments, hasFieldLeading := g.getLeadingComments(fieldPath)
 		
 		// Add detached comments for non-first oneof member fields as // style
 		if i > 0 {
@@ -3043,7 +3045,7 @@ func (g *generator) generateOneofField(oneofCamelName string, oneofProtoName str
 		
 		// Generate field JSDoc
 		g.p("/**")
-		if fieldLeadingComments != "" {
+		if hasFieldLeading {
 			hasTrailingBlank := strings.HasSuffix(fieldLeadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				fieldLeadingComments = strings.TrimSuffix(fieldLeadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -5084,10 +5086,10 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 	
 	// Add leading and trailing comments if available
 	if len(enumPath) > 0 {
-		leadingComments := g.getLeadingComments(enumPath)
+		leadingComments, hasLeading := g.getLeadingComments(enumPath)
 		trailingComments := g.getEnumTrailingComments(enumPath)
 		
-		if leadingComments != "" {
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -5189,20 +5191,21 @@ func (g *generator) generateEnum(enum *descriptorpb.EnumDescriptorProto, parentP
 		
 		// For aliases, use the first value's comments
 		var leadingComments, trailingComments string
+		var hasLeading bool
 		if isAlias {
 			firstIdx := firstValueIndexForNumber[value.GetNumber()]
 			firstValuePath := append(enumPath, 2, int32(firstIdx))
-			leadingComments = g.getLeadingComments(firstValuePath)
+			leadingComments, hasLeading = g.getLeadingComments(firstValuePath)
 			trailingComments = g.getTrailingComments(firstValuePath)
 		} else {
-			leadingComments = g.getLeadingComments(valuePath)
+			leadingComments, hasLeading = g.getLeadingComments(valuePath)
 			trailingComments = g.getTrailingComments(valuePath)
 		}
 		
 		g.p("/**")
 		
 		// Add leading comments if present
-		if leadingComments != "" {
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -5930,8 +5933,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	
 	// Add service-level leading comments if available
 	if svcIndex >= 0 {
-		leadingComments := g.getLeadingComments([]int32{6, int32(svcIndex)})
-		if leadingComments != "" {
+		leadingComments, hasLeading := g.getLeadingComments([]int32{6, int32(svcIndex)})
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -6014,8 +6017,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		g.p("/**")
 		
 		// Add method-level leading comments if available
-		leadingComments := g.getLeadingComments(methodPath)
-		if leadingComments != "" {
+		leadingComments, hasLeading := g.getLeadingComments(methodPath)
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -6112,8 +6115,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 	
 	// Add service-level leading comments if available
 	if svcIndex >= 0 {
-		leadingComments := g.getLeadingComments([]int32{6, int32(svcIndex)})
-		if leadingComments != "" {
+		leadingComments, hasLeading := g.getLeadingComments([]int32{6, int32(svcIndex)})
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
@@ -6204,8 +6207,8 @@ func (g *generator) generateServiceClient(service *descriptorpb.ServiceDescripto
 		g.p("/**")
 		
 		// Add method-level leading comments if available
-		leadingComments := g.getLeadingComments(methodPath)
-		if leadingComments != "" {
+		leadingComments, hasLeading := g.getLeadingComments(methodPath)
+		if hasLeading {
 			hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
 			if hasTrailingBlank {
 				leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
