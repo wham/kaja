@@ -4667,8 +4667,9 @@ func (g *generator) formatFieldOptionsAnnotation(field *descriptorpb.FieldDescri
 		}
 	}
 
-	// 5. deprecated
-	if field.Options != nil && field.GetOptions().GetDeprecated() {
+	// 5. deprecated — protobuf-ts outputs [deprecated = true] whenever the option is explicitly set,
+	// even if the value is false (e.g., [deprecated = false] in proto still produces [deprecated = true])
+	if field.Options != nil && field.GetOptions().Deprecated != nil {
 		options = append(options, "deprecated = true")
 	}
 
