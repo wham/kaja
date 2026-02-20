@@ -1434,7 +1434,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 				for blockIdx, detached := range loc.LeadingDetachedComments {
 					// Don't use TrimSpace - it removes trailing newlines which represent blank // lines
 					// Just check if the comment has any non-whitespace content
-					if strings.TrimSpace(detached) != "" {
+					if strings.TrimRight(detached, "\n") != "" {
 						// Split by newline (keeping trailing empty strings for blank lines)
 						lines := strings.Split(detached, "\n")
 						// Check if last line is empty (trailing newline case)
@@ -1472,7 +1472,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
 				g.pNoIndent("//")
 				for blockIdx, detached := range loc.LeadingDetachedComments {
-					if strings.TrimSpace(detached) != "" {
+					if strings.TrimRight(detached, "\n") != "" {
 						lines := strings.Split(detached, "\n")
 						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
 						endIdx := len(lines)
@@ -5447,7 +5447,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 				// Blank line before the license header
 				g.pNoIndent("//")
 				for blockIdx, detached := range loc.LeadingDetachedComments {
-					if strings.TrimSpace(detached) != "" {
+					if strings.TrimRight(detached, "\n") != "" {
 						lines := strings.Split(detached, "\n")
 						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
 						endIdx := len(lines)
@@ -5481,7 +5481,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
 				g.pNoIndent("//")
 				for blockIdx, detached := range loc.LeadingDetachedComments {
-					if strings.TrimSpace(detached) != "" {
+					if strings.TrimRight(detached, "\n") != "" {
 						lines := strings.Split(detached, "\n")
 						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
 						endIdx := len(lines)
