@@ -167,10 +167,15 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 
 	// Generate files for each proto file to generate, tracking which produced output
 	generatedFiles := make(map[string]bool)
+	hasExtensionFiles := false
 	for _, fileName := range req.FileToGenerate {
 		file := findFile(req.ProtoFile, fileName)
 		if file == nil {
 			continue
+		}
+
+		if len(file.Extension) > 0 {
+			hasExtensionFiles = true
 		}
 
 		// A file is "imported by service files only" if:
@@ -211,8 +216,8 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	}
 	
 	// Also generate for google.protobuf well-known types if they're dependencies,
-	// but only if at least one FileToGenerate produced output
-	if len(generatedFiles) > 0 {
+	// but only if at least one FileToGenerate produced output or has extensions
+	if len(generatedFiles) > 0 || hasExtensionFiles {
 		for _, file := range req.ProtoFile {
 			fileName := file.GetName()
 			// Check if this is a well-known type
