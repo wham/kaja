@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package sub;
+
+// A simple item message.
+message Item {
+    string name = 1;
+    int32 quantity = 2;
+}

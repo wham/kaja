@@ -1004,3 +1004,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   3. `internalBinaryWrite` comment (uses `formatFieldOptionsAnnotation`)
 - **TS behavior (quirky):** `isFieldSet` + hardcoded `"deprecated = true"` means the annotation ALWAYS shows `deprecated = true` when the deprecated field is explicitly set, even if set to `false`. No `@deprecated` tag is added though (correctly checks actual value). Go plugin correctly omits both annotation and tag.
 - **Note:** Same pattern may apply to `packed = false` — but Go already checks `field.GetOptions().Packed != nil` which IS a presence check, so packed is handled correctly. Only `deprecated` uses value-based checking.
+
+### Run 125 — Cross-directory WireType import ordering (SUCCESS)
+- **Bug found:** When a message-only file in a subdirectory (e.g., `sub/types.proto`) is compiled together with a service file at root that imports it (e.g., `svc.proto`), the Go plugin moves the `WireType` import to the TOP of the import block (before `BinaryWriteOptions`, `IBinaryWriter`), while the TS plugin keeps it in its normal position (after `IBinaryWriter`).
+- **Test:** `206_cross_dir_wiretype_import` — `sub/types.proto` (message-only) imported by `svc.proto` (has service). Recursive test.
+- **Root cause:** Go plugin pre-scans all files (lines 130-190) to set `isImportedByService` flag. When true, `wireTypeEarly = true` at line 2046, which emits WireType FIRST (line 2084). The TS plugin generates each file's imports based solely on its own content — it has no concept of cross-file influence on import ordering.
+- **Condition:** File has no services AND is imported by a service file in a DIFFERENT directory AND is NOT imported by non-service files in the same directory.
+- **Note:** Also modified `protoc-gen-kaja/scripts/test` to add `206_cross_dir_wiretype_import` to the recursive test list (alongside `28_comprehensive`).

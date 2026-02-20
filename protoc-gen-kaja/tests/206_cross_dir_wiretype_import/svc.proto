@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package svc;
+
+import "sub/types.proto";
+
+// The inventory service.
+service InventoryService {
+    // Lists all items.
+    rpc ListItems (ListItemsRequest) returns (ListItemsResponse);
+}
+
+// Request for ListItems.
+message ListItemsRequest {
+    string filter = 1;
+}
+
+// Response for ListItems.
+message ListItemsResponse {
+    repeated sub.Item items = 1;
+}
