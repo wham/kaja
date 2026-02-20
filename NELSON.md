@@ -1053,3 +1053,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom option with oneof field inside message-typed option value.
 - Deeply nested messages (5+ levels) — type name construction.
 - Enum nested inside lowercase-named parent from different package.
+
+### Run 130 — Extend-only file skips WKT generation (SUCCESS)
+- **Bug found:** `generate()` in main.go (line ~216) guards WKT file generation with `if len(generatedFiles) > 0`. When the input proto file has ONLY `extend` blocks (no messages, enums, or services), `generateFile()` returns empty content, so `generatedFiles` remains empty. The WKT generation is then skipped entirely, even though the import (`google/protobuf/descriptor.proto`) should still produce output.
+- **Test:** `211_extend_only` — proto2 file with only `extend google.protobuf.MessageOptions { optional string my_option = 50001; }` and import of `descriptor.proto`.
+- **Root cause:** Line ~216 `if len(generatedFiles) > 0` should not gate WKT generation. The TS plugin always generates files for imported WKTs regardless of whether the main file produces output. The Go plugin should check if any dependency needs generation regardless of `generatedFiles` count.
+- **Diff:** Expected `google/protobuf/descriptor.ts` (~15K lines) exists. Actual: nothing generated at all.
+
+### Ideas for future runs
+- Multi-service: service 2+ with client-streaming methods — `ClientStreamingCall` import likely also missing.
+- `ScalarType` collision — message named `ScalarType` in file with well-known wrapper types.
+- Deeply nested messages (5+ levels) — type name construction.
+- Enum nested inside lowercase-named parent from different package.
+- Proto2 required group vs optional group handling.
+- File with `option java_outer_classname` affecting output.
