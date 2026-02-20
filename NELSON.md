@@ -981,3 +981,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Lines 3798-3800 escape `\` → `\\`, `"` → `\"`, `\t` → `\t`, but missing `\n` → `\n`. The fix for test 200 (run 119) only added tab escaping but not newline escaping.
 - **Affects:** Only the `jsonName: "..."` in field descriptor. The JSDoc annotation outputs the newline literally in both plugins (both agree there).
 - **Note:** `\r` (carriage return) is likely also unescaped — same pattern.
+
+### Run 122 — ServerStreamingCall message collision aliases wrong import direction (SUCCESS)
+- **Bug found:** When a proto message is named `ServerStreamingCall` (same as a runtime-rpc call type) and the service has server streaming methods (requiring the actual `ServerStreamingCall` call type), the Go plugin aliases the runtime-rpc call type (`ServerStreamingCall$` from `@protobuf-ts/runtime-rpc`), while the TS plugin aliases the proto message import (`ServerStreamingCall$` from `"./test"`). Same fundamental bug as run 120 (DuplexStreamingCall) but for a different call type.
+- **Test:** `203_three_way_collision` — message named `ServerStreamingCall` used as input/output to both a server streaming method and a unary method.
+- **Root cause:** Lines 5546-5550 in `generateClientFile`: when `actualCallTypeNames[tsName]` is true (proto type name matches a call type), the Go plugin sets `g.callTypeRefs[tsName] = tsName + "$"` (aliasing the call type ref) instead of aliasing the proto import via `g.importAliases`. The TS plugin keeps call types unaliased and aliases the proto import instead.
+- **Affects:** Import statements (wrong alias direction), method signatures (call type uses `$` suffix), `stackIntercept` generic type parameters.
+- **Note:** Run 120 found this for `DuplexStreamingCall`. This confirms `ServerStreamingCall` has the exact same bug. `ClientStreamingCall` and `UnaryCall` likely also affected but already proven by these two tests.
