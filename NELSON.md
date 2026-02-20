@@ -994,3 +994,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `204_double_trailing_blank` — message with comment ending in two blank `//` lines.
 - **Root cause:** `strings.TrimRight(comment, " \t\n")` at line 1143 strips ALL trailing whitespace instead of removing exactly one `\n`. Should preserve N-1 trailing newlines (where N is the count of trailing newlines) and add one more for the separator.
 - **Affects:** All JSDoc blocks that use `getLeadingComments` — messages, fields, enums, services, methods. Any comment with 2+ trailing blank lines will lose blank lines.
+
+### Run 124 — Field deprecated=false annotation missing (SUCCESS)
+- **Bug found:** `formatFieldOptionsAnnotation()` in main.go checks `field.GetOptions().GetDeprecated()` which returns the boolean VALUE. When `deprecated = false` is explicitly set in the proto file, the Go plugin sees `false` and skips the annotation. But the TS plugin's `getDeclarationString()` uses `isFieldSet(protoOptions, FieldOptionsSchema.field.deprecated)` which checks if the field was EXPLICITLY SET (proto2 presence tracking). When `deprecated = false` is explicitly set, `isFieldSet` returns `true`, and the TS plugin hardcodes `"deprecated = true"` text regardless of actual value.
+- **Test:** `205_deprecated_false` — message with field `[deprecated = false]`.
+- **Root cause:** Three affected code paths in main.go all check the deprecated VALUE instead of field presence:
+  1. `formatFieldOptionsAnnotation()` line ~4673: `field.GetOptions().GetDeprecated()` — annotation in `@generated from protobuf field:` JSDoc
+  2. `internalBinaryRead` case comment (uses `formatFieldOptionsAnnotation`)
+  3. `internalBinaryWrite` comment (uses `formatFieldOptionsAnnotation`)
+- **TS behavior (quirky):** `isFieldSet` + hardcoded `"deprecated = true"` means the annotation ALWAYS shows `deprecated = true` when the deprecated field is explicitly set, even if set to `false`. No `@deprecated` tag is added though (correctly checks actual value). Go plugin correctly omits both annotation and tag.
+- **Note:** Same pattern may apply to `packed = false` — but Go already checks `field.GetOptions().Packed != nil` which IS a presence check, so packed is handled correctly. Only `deprecated` uses value-based checking.
