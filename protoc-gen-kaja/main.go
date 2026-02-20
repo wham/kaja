@@ -5682,7 +5682,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		}
 	}
 	
-	// For services 2..N (in reverse order), output Service + all method types
+	// For services 2..N (in reverse order), output Service + all method types + streaming call types
+	seenCallTypes := make(map[string]bool)
 	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
 		service := file.Service[svcIdx]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
@@ -5699,6 +5700,22 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			reqTypeImport := g.formatTypeImport(method.GetInputType())
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
+			
+			// Emit streaming call type import before type imports (matches protobuf-ts prepend order)
+			if method.GetClientStreaming() || method.GetServerStreaming() {
+				var callTypeImport string
+				if method.GetClientStreaming() && method.GetServerStreaming() {
+					callTypeImport = "DuplexStreamingCall"
+				} else if method.GetServerStreaming() {
+					callTypeImport = "ServerStreamingCall"
+				} else {
+					callTypeImport = "ClientStreamingCall"
+				}
+				if callTypeImport != "" && !seenCallTypes[callTypeImport] {
+					g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause(callTypeImport))
+					seenCallTypes[callTypeImport] = true
+				}
+			}
 			
 			if !seen[resType] && !service1Types[resType] {
 				g.pNoIndent("import type { %s } from \"%s\";", resTypeImport, resTypePath)
@@ -5868,8 +5885,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					break
 				}
 			}
-			if hasUnaryInService {
+			if hasUnaryInService && !seenCallTypes["UnaryCall"] {
 				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
+				seenCallTypes["UnaryCall"] = true
 			}
 		}
 
@@ -5901,8 +5919,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					case "server":
 						callTypeImport = "ServerStreamingCall"
 					}
-					if callTypeImport != "" {
+					if callTypeImport != "" && !seenCallTypes[callTypeImport] {
 						g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause(callTypeImport))
+						seenCallTypes[callTypeImport] = true
 					}
 				} else {
 					// Type import entry
@@ -5972,16 +5991,18 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 			} else if method.GetClientStreaming() {
 				callTypeImport = "ClientStreamingCall"
 			}
-			if callTypeImport != "" {
+			if callTypeImport != "" && !seenCallTypes[callTypeImport] {
 				g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause(callTypeImport))
+				seenCallTypes[callTypeImport] = true
 			}
 		}
 	}
 	
 	// Emit UnaryCall (if method 0 is unary) and RpcOptions
 	if len(file.Service) > 0 {
-		if hasUnary && !method0IsStreaming {
+		if hasUnary && !method0IsStreaming && !seenCallTypes["UnaryCall"] {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
+			seenCallTypes["UnaryCall"] = true
 		}
 		if hasAnyMethod {
 			g.pNoIndent("import type { RpcOptions } from \"@protobuf-ts/runtime-rpc\";")
