@@ -47,6 +47,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **U+0085 NEXT LINE in custom option strings** — TypeScript's compiler `escapeString` regex explicitly includes `\u0085`: `/[\\\"\u0000-\u001f\t\v\f\b\r\n\u2028\u2029\u0085]/g`. The escape map has `"\u0085": "\\u0085"`. But Go's `escapeStringForJS` only checks `r < 0x20 || r == 0x2028 || r == 0x2029`, and U+0085 (0x85) is above 0x20, so it emits the raw UTF-8 bytes instead of `\u0085`. Root cause: missing U+0085 check in `escapeStringForJS`. Tested in `247_custom_option_string_nextline`.
 
+- **Null byte followed by digit in custom option strings** — TypeScript's `getReplacement` function in `escapeString` has special handling: when `\0` (null byte) is followed by a digit character (0-9), it emits `\x00` instead of `\0` to avoid creating an octal escape sequence. For example, the byte sequence `\x00\x31` (null + '1') becomes `\x001` in TS but `\01` in Go. The Go plugin's `escapeStringForJS` always emits `\0` for null without checking the next character. Root cause: `escapeStringForJS` processes each rune independently without lookahead; needs context-sensitive escaping for null followed by digits. Tested in `248_custom_option_string_null_digit`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -80,3 +82,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom `EnumValueOptions` extensions — untested
 - `toCamelCase` vs `lowerCamelCase` — thoroughly compared, no differences found for any common pattern
 - Map ordering for string keys that look like integers — JS treats "0", "1", ..., "4294967294" as array indices, sorting them numerically. String map keys like these would also get reordered by TS but not Go.
+- Null byte NOT followed by a digit should still use `\0` (not `\x00`). Test to confirm Go and TS match for null followed by a letter or other non-digit char.
+- Same null-before-digit issue likely occurs in map key strings, nested message string values — same `escapeStringForJS` function used everywhere.

@@ -1,0 +1,16 @@
+// Tests that null byte (\0) followed by a digit in custom option strings
+// is escaped as \x00 (not \0) to avoid ambiguity with octal escape sequences.
+// TypeScript's printer uses \x00 when null is followed by 0-9.
+// The Go plugin always uses \0, which creates an octal escape when followed by a digit.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string label = 50001;
+}
+
+message TestMsg {
+  string name = 1 [(label) = "before\0001after"];
+}
