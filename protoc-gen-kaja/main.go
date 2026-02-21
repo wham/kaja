@@ -294,6 +294,7 @@ type generator struct {
 	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	typeofJsonValueRef           string            // "typeofJsonValue" normally, "typeofJsonValue$" when local type collides
 	isJsonObjectRef              string            // "isJsonObject" normally, "isJsonObject$" when local type collides
+	jsonObjectRef                string            // "JsonObject" normally, "JsonObject$" when local type collides
 	jsonValueRef                 string            // "JsonValue" normally, "JsonValue$" when local type collides
 	jsonReadOptionsRef           string            // "JsonReadOptions" normally, "JsonReadOptions$" when local type collides
 	jsonWriteOptionsRef          string            // "jsonWriteOptions" normally, "jsonWriteOptions$" when local type collides
@@ -1438,6 +1439,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		pbLongRef:                   "PbLong",
 		typeofJsonValueRef:          "typeofJsonValue",
 		isJsonObjectRef:             "isJsonObject",
+		jsonObjectRef:               "JsonObject",
 		jsonValueRef:                "JsonValue",
 		jsonReadOptionsRef:          "JsonReadOptions",
 		jsonWriteOptionsRef:         "jsonWriteOptions",
@@ -2214,8 +2216,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
-			g.pNoIndent("import type { JsonObject } from \"@protobuf-ts/runtime\";")
-		}
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonObjectImport())		}
 		
 		// Add JSON imports for wrapper types
 		if isWrapper {
@@ -2397,6 +2398,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime isJsonObject collision
 	if g.localTypeNames["isJsonObject"] {
 		g.isJsonObjectRef = "isJsonObject$"
+	}
+	// Detect runtime JsonObject collision
+	if g.localTypeNames["JsonObject"] {
+		g.jsonObjectRef = "JsonObject$"
 	}
 	// Detect runtime jsonWriteOptions collision
 	if g.localTypeNames["jsonWriteOptions"] {
@@ -5231,6 +5236,13 @@ func (g *generator) isJsonObjectImport() string {
 	return "isJsonObject"
 }
 
+func (g *generator) jsonObjectImport() string {
+	if g.jsonObjectRef == "JsonObject$" {
+		return "JsonObject as JsonObject$"
+	}
+	return "JsonObject"
+}
+
 func (g *generator) jsonValueImport() string {
 	if g.jsonValueRef == "JsonValue$" {
 		return "JsonValue as JsonValue$"
@@ -7283,7 +7295,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p(" */")
 		g.p("internalJsonWrite(message: Struct, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 		g.indent = "        "
-		g.p("let json: JsonObject = {};")
+		g.p("let json: %s = {};", g.jsonObjectRef)
 		g.p("for (let [k, v] of Object.entries(message.fields)) {")
 		g.indent = "            "
 		g.p("json[k] = Value.toJson(v);")
