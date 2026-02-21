@@ -697,6 +697,32 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 	}
 	// Merge repeated fields with the same key into arrays
 	result = mergeRepeatedOptions(result)
+
+	// Ensure repeated (non-map) extension fields are always arrays, even with a single element.
+	repeatedExts := make(map[string]bool)
+	for _, ei := range extensionMap {
+		if ei.ext.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			if ei.ext.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				nestedMsg := g.findMessageType(ei.ext.GetTypeName())
+				if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+					continue
+				}
+			}
+			pkg := ei.pkg
+			if pkg != "" {
+				pkg += "."
+			}
+			repeatedExts[pkg+ei.msgPrefix+ei.ext.GetName()] = true
+		}
+	}
+	for i, opt := range result {
+		if repeatedExts[opt.key] {
+			if _, ok := opt.value.([]interface{}); !ok {
+				result[i].value = []interface{}{opt.value}
+			}
+		}
+	}
+
 	return result
 }
 
