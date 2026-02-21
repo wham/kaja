@@ -41,6 +41,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Added `sortMapEntriesJSOrder()` to sort `[]customOption` map entries after merging in `mergeRepeatedOptions`
   - Matches JavaScript Object.keys() enumeration: array-index keys (0..2^32-2) first in ascending numeric order, then non-integer keys in insertion order
   - Strips quotes from keys before checking `isArrayIndex()` since numeric map keys are stored pre-quoted (e.g. `"1"`, `"10"`)
+- [x] Fix single-element repeated fields in custom options (test 243_custom_option_repeated_single)
+  - After `mergeRepeatedOptions` in `parseMessageValue`, check `msgDesc.Field` for `LABEL_REPEATED` fields
+  - Wrap any non-array values in `[]interface{}` for repeated fields (skip map entries)
+  - Matches protobuf-ts `toJson()` which always emits arrays for repeated fields
+- [x] Fix U+2028/U+2029 escaping in JS string literals (test 244_custom_option_string_linesep)
+  - Added `r == 0x2028 || r == 0x2029` check in `escapeStringForJS()` to escape LINE SEPARATOR and PARAGRAPH SEPARATOR
+  - These chars are not valid unescaped in JS string literals (pre-ES2019), TypeScript's printer escapes them
 
 ## Notes
 
