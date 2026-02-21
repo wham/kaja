@@ -264,6 +264,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 228/228 tests passing — DONE
 - [x] Fix test 224_three_way_type_collision: Import alias for 3+ collisions uses numeric suffixes (`Item$`, `Item$2`, `Item$3`) instead of stacking dollar signs (`Item$`, `Item$$`). Fixed both `precomputeImportAliases` (message file) and cross-file collision detection (client file) to use `strconv.Itoa(counter)` suffix.
 - [x] All 229/229 tests passing — DONE
+- [x] Fix test 225_wkt_transitive_import: Changed WKT generation to use transitive dependency resolution (`collectTransitiveWKTDeps`) — WKTs imported by other WKTs (e.g., `any.proto` and `source_context.proto` imported by `type.proto`) are now generated alongside directly-imported WKTs
+- [x] All 230/230 tests passing — DONE
 
 ## Notes
 
@@ -271,6 +273,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Use `protoc-gen-kaja/scripts/diff <test_name>` to inspect specific failures.
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
 - The WKT generation logic (main.go ~line 209) must check `len(generatedFiles) > 0` before generating WKTs, but check ALL FileToGenerate (not just those with output) for dependency relationships. This handles both: (a) import-only files producing no output (test 79), and (b) transitive WKT deps through non-output files like `options.proto` (test 61).
+- Transitive WKT dependencies: `collectTransitiveWKTDeps` recursively walks the dependency graph from all FileToGenerate files and collects every `google/protobuf/` file reachable. This ensures WKTs imported by other WKTs (e.g., `type.proto` → `any.proto`, `source_context.proto`) are generated.
 - The `getMapValueWriter` function was simplified to reuse `getWireType` and `getWriterMethodName` instead of an incomplete switch statement. The old version only handled 4 types (int32, string, bool, enum) and fell back to string for everything else.
 - The `getMapKeyWriter` function had the same problem — it grouped fixed types with their non-fixed counterparts (e.g. SFIXED32 with INT32), using WireType.Varint instead of WireType.Bit32. Simplified it the same way to delegate to getWireType+getWriterMethodName.
 - The message-value map write path (line ~3456) had its own hardcoded key writer (Varint/int32 for all numeric keys) instead of reusing `getMapKeyWriter`. Fixed to use the same keyVar/valueAccessor logic as the scalar path, plus `getMapKeyWriter` for proper wire types.

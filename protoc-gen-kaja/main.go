@@ -289,6 +289,7 @@ type generator struct {
 	iBinaryReaderRef         string            // "IBinaryReader" normally, "IBinaryReader$" when local type collides
 	iBinaryWriterRef             string            // "IBinaryWriter" normally, "IBinaryWriter$" when local type collides
 	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
+	scalarTypeRef                string            // "ScalarType" normally, "ScalarType$" when local type collides with runtime ScalarType
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
@@ -1422,6 +1423,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		iBinaryReaderRef:         "IBinaryReader",
 		iBinaryWriterRef:             "IBinaryWriter",
 		reflectionMergePartialRef:    "reflectionMergePartial",
+		scalarTypeRef:               "ScalarType",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
 		serviceInfoRef:               "ServiceInfo",
@@ -2125,8 +2127,8 @@ func (g *generator) writeImports(imports map[string]bool) {
 		
 		// Skip method-related imports when optimize_for = CODE_SIZE
 		if !g.isOptimizeCodeSize() {
-		// Add ScalarType and LongType for wrappers - must come first
-		if wrapperNeedsScalarType {
+		// ScalarType/LongType for wrappers - at top when no collision, deferred when aliased
+		if wrapperNeedsScalarType && g.scalarTypeRef == "ScalarType" {
 			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { LongType } from \"@protobuf-ts/runtime\";")
 		}
@@ -2148,6 +2150,10 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.partialMessageImport())
 		g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.reflectionMergePartialImport())
+		}
+		// ScalarType for wrappers (after reflectionMergePartial, only when aliased)
+		if wrapperNeedsScalarType && g.scalarTypeRef == "ScalarType$" {
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.scalarTypeImport())
 		}
 		
 		// Add JSON imports for Timestamp
@@ -2197,6 +2203,10 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+		}
+		// LongType for wrappers (after wrapper JSON imports, only when ScalarType is aliased)
+		if wrapperNeedsScalarType && g.scalarTypeRef == "ScalarType$" {
+			g.pNoIndent("import { LongType } from \"@protobuf-ts/runtime\";")
 		}
 		
 		// Add JSON imports for Any
@@ -2344,6 +2354,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime reflectionMergePartial collision
 	if g.localTypeNames["reflectionMergePartial"] {
 		g.reflectionMergePartialRef = "reflectionMergePartial$"
+	}
+	// Detect runtime ScalarType collision
+	if g.localTypeNames["ScalarType"] {
+		g.scalarTypeRef = "ScalarType$"
 	}
 }
 
@@ -5123,6 +5137,13 @@ func (g *generator) reflectionMergePartialImport() string {
 	return "reflectionMergePartial"
 }
 
+func (g *generator) scalarTypeImport() string {
+	if g.scalarTypeRef == "ScalarType$" {
+		return "ScalarType as ScalarType$"
+	}
+	return "ScalarType"
+}
+
 func methodCallTypeName(method *descriptorpb.MethodDescriptorProto) string {
 	cs := method.GetClientStreaming()
 	ss := method.GetServerStreaming()
@@ -5535,6 +5556,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		importAliases:    make(map[string]string),
 		rawImportNames:   make(map[string]string),
 		wireTypeRef:      "WireType",
+		scalarTypeRef:   "ScalarType",
 	}
 	
 	// Header
@@ -7333,9 +7355,9 @@ func (g *generator) generateWrapperMethods(typeName string) {
 	case "FloatValue":
 		g.p("return this.refJsonWriter.scalar(1, message.value, \"value\", false, true);")
 	case "Int64Value":
-		g.p("return this.refJsonWriter.scalar(ScalarType.INT64, message.value, \"value\", false, true);")
+		g.p("return this.refJsonWriter.scalar(%s.INT64, message.value, \"value\", false, true);", g.scalarTypeRef)
 	case "UInt64Value":
-		g.p("return this.refJsonWriter.scalar(ScalarType.UINT64, message.value, \"value\", false, true);")
+		g.p("return this.refJsonWriter.scalar(%s.UINT64, message.value, \"value\", false, true);", g.scalarTypeRef)
 	case "Int32Value":
 		g.p("return this.refJsonWriter.scalar(5, message.value, \"value\", false, true);")
 	case "UInt32Value":
@@ -7388,9 +7410,9 @@ func (g *generator) generateWrapperMethods(typeName string) {
 	case "FloatValue":
 		g.p("target.value = this.refJsonReader.scalar(json, 1, undefined, \"value\") as number;")
 	case "Int64Value":
-		g.p("target.value = this.refJsonReader.scalar(json, ScalarType.INT64, LongType.STRING, \"value\") as any;")
+		g.p("target.value = this.refJsonReader.scalar(json, %s.INT64, LongType.STRING, \"value\") as any;", g.scalarTypeRef)
 	case "UInt64Value":
-		g.p("target.value = this.refJsonReader.scalar(json, ScalarType.UINT64, LongType.STRING, \"value\") as any;")
+		g.p("target.value = this.refJsonReader.scalar(json, %s.UINT64, LongType.STRING, \"value\") as any;", g.scalarTypeRef)
 	case "Int32Value":
 		g.p("target.value = this.refJsonReader.scalar(json, 5, undefined, \"value\") as number;")
 	case "UInt32Value":

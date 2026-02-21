@@ -1,0 +1,22 @@
+// First detached block line 1
+//
+// First detached block line 3
+
+// Second detached block
+
+// Leading syntax comment
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service TestService {
+  rpc GetItem (Request) returns (Response);
+}
