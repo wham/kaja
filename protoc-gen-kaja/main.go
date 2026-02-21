@@ -1062,7 +1062,30 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		}
 	}
-	return mergeRepeatedOptions(result)
+	merged := mergeRepeatedOptions(result)
+	// Ensure repeated (non-map) fields are always arrays, even with a single element.
+	// protobuf-ts toJson() always emits arrays for repeated fields.
+	repeatedFields := make(map[string]bool)
+	for _, fd := range msgDesc.Field {
+		if fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			// Skip map entries — they are handled as objects, not arrays
+			if fd.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				nestedMsg := g.findMessageType(fd.GetTypeName())
+				if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+					continue
+				}
+			}
+			repeatedFields[fd.GetJsonName()] = true
+		}
+	}
+	for i, opt := range merged {
+		if repeatedFields[opt.key] {
+			if _, ok := opt.value.([]interface{}); !ok {
+				merged[i].value = []interface{}{opt.value}
+			}
+		}
+	}
+	return merged
 }
 
 func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
