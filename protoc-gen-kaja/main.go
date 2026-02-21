@@ -293,6 +293,7 @@ type generator struct {
 	longTypeRef                  string            // "LongType" normally, "LongType$" when local type collides with runtime LongType
 	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	typeofJsonValueRef           string            // "typeofJsonValue" normally, "typeofJsonValue$" when local type collides
+	isJsonObjectRef              string            // "isJsonObject" normally, "isJsonObject$" when local type collides
 	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
@@ -1431,6 +1432,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		longTypeRef:                 "LongType",
 		pbLongRef:                   "PbLong",
 		typeofJsonValueRef:          "typeofJsonValue",
+		isJsonObjectRef:             "isJsonObject",
 		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
@@ -2197,7 +2199,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		
 		// Add JSON imports for Struct
 		if isStruct {
-			g.pNoIndent("import { isJsonObject } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.isJsonObjectImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
@@ -2218,7 +2220,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		
 		// Add JSON imports for Any
 		if isAny {
-			g.pNoIndent("import { isJsonObject } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.isJsonObjectImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { jsonWriteOptions } from \"@protobuf-ts/runtime\";")
@@ -2377,6 +2379,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime typeofJsonValue collision
 	if g.localTypeNames["typeofJsonValue"] {
 		g.typeofJsonValueRef = "typeofJsonValue$"
+	}
+	// Detect runtime isJsonObject collision
+	if g.localTypeNames["isJsonObject"] {
+		g.isJsonObjectRef = "isJsonObject$"
 	}
 	// Detect runtime lowerCamelCase collision
 	if g.localTypeNames["lowerCamelCase"] {
@@ -5188,6 +5194,13 @@ func (g *generator) typeofJsonValueImport() string {
 	return "typeofJsonValue"
 }
 
+func (g *generator) isJsonObjectImport() string {
+	if g.isJsonObjectRef == "isJsonObject$" {
+		return "isJsonObject as isJsonObject$"
+	}
+	return "isJsonObject"
+}
+
 func (g *generator) lowerCamelCaseImport() string {
 	if g.lowerCamelCaseRef == "lowerCamelCase$" {
 		return "lowerCamelCase as lowerCamelCase$"
@@ -7221,7 +7234,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p(" */")
 		g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Struct): Struct {")
 		g.indent = "        "
-		g.p("if (!isJsonObject(json))")
+		g.p("if (!%s(json))", g.isJsonObjectRef)
 		g.indent = "            "
 		g.p("throw new globalThis.Error(\"Unable to parse message \" + this.typeName + \" from JSON \" + %s(json) + \".\");", g.typeofJsonValueRef)
 		g.indent = "        "
@@ -7555,7 +7568,7 @@ func (g *generator) generateAnyMethods() {
 	g.indent = "        "
 	g.p("let value = type.fromBinary(any.value, { readUnknownField: false });")
 	g.p("let json = type.internalJsonWrite(value, opt);")
-	g.p("if (typeName.startsWith(\"google.protobuf.\") || !isJsonObject(json))")
+	g.p("if (typeName.startsWith(\"google.protobuf.\") || !%s(json))", g.isJsonObjectRef)
 	g.indent = "            "
 	g.p("json = { value: json };")
 	g.indent = "        "
@@ -7567,7 +7580,7 @@ func (g *generator) generateAnyMethods() {
 	// internalJsonRead() method
 	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Any): Any {")
 	g.indent = "        "
-	g.p("if (!isJsonObject(json))")
+	g.p("if (!%s(json))", g.isJsonObjectRef)
 	g.indent = "            "
 	g.p("throw new globalThis.Error(\"Unable to parse google.protobuf.Any from JSON \" + %s(json) + \".\");", g.typeofJsonValueRef)
 	g.indent = "        "
