@@ -250,6 +250,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 219/219 tests passing — DONE
 - [x] Fix test 215_multi_service_client_stream: Added `svcFirstMethodForType` map to N→1 service loop — types are only emitted at the method that first uses them (forward order), and always before call type imports. This matches protobuf-ts's prepend model where within each method: call type registered first (ends up lowest), then input, then output (ends up highest).
 - [x] All 220/220 tests passing — DONE
+- [x] Fix test 216_google_type_date: Added google.type.Date WKT special method generation (toJsDate/fromJsDate). Also added google.type.Color (toHex/fromHex), google.type.DateTime (now/toJsDate/fromJsDate), and google.type.TimeOfDay (fromJsDate) for completeness.
+- [x] All 221/221 tests passing — DONE
 
 ## Notes
 

@@ -1107,3 +1107,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's `generateMessageTypeClass()` (around line 4056) only checks for `google.protobuf.*` WKT types (`generateTimestampMethods`, `generateDurationMethods`, `generateFieldMaskMethods`, etc.) but has no equivalent of the TS plugin's `GoogleTypes.make()` which handles `google.type.*` types.
 - **Diff:** Expected output has `toJsDate()` and `fromJsDate()` methods in the `Date$Type` class. Actual output is missing them entirely.
 - **Note:** Same bug applies to `google.type.Color` (toHex/fromHex), `google.type.DateTime` (now/toJsDate/fromJsDate), and `google.type.TimeOfDay` (fromJsDate). Each could be a separate test.
+
+### Run 136 — google.type.Color method formatting differences (SUCCESS)
+- **Bug found:** The Go plugin's `generateGoogleTypeColorMethods()` hand-writes the `toHex()` and `fromHex()` methods as plain text. The TS plugin passes method source through `typescriptMethodFromText()` which parses it into a TypeScript AST and re-prints it. The AST printer reformats the code differently:
+  1. **Single quotes → double quotes**: Go outputs `'#'`, `'0'`, `''`; TS printer converts to `"#"`, `"0"`, `""`.
+  2. **Multi-line → collapsed**: Go puts each `red/green/blue` property on its own line; TS printer collapses short object literals to one line.
+  3. **Inline comments dropped**: Go includes `// #RGB`, `// #RRGGBB`, `// #RGBA`, `// #RRGGBBAA` inside `if` blocks; TS AST parsing strips these comments entirely.
+- **Test:** `217_google_type_color` — `package google.type; message Color { float red; float green; float blue; FloatValue alpha; }`.
+- **Root cause:** The Go plugin at lines ~7537-7644 manually formats output, but the TS plugin's `google-types.js` uses template strings that go through TypeScript's AST printer (`typescriptMethodFromText`), which normalizes quote style, collapses short expressions to single lines, and strips inline comments.
+- **Note:** Same formatting bugs likely affect `google.type.DateTime` and `google.type.TimeOfDay` methods too. The `google.type.Date` methods (test 216) happen to be simple enough that the formatting matches.
+
+### Ideas for future runs
+- `google.type.DateTime` — complex `toJsDate`/`fromJsDate` methods likely have same AST formatting differences.
+- `google.type.TimeOfDay` — `fromJsDate` method may have similar formatting diffs.
+- Proto2 extension declarations as standalone constants — does Go generate extension objects?
+- `findMessageType` import public bug for message field descriptors.
+- Deeply nested messages (5+ levels) with underscores in names.
+- Service method named `constructor` or `name` — TS escapes these, does Go?

@@ -7551,9 +7551,7 @@ func (g *generator) generateGoogleTypeColorMethods() {
 	g.indent = "        "
 	g.p("let hex = [")
 	g.indent = "            "
-	g.p("message.red.toString(16),")
-	g.p("message.green.toString(16),")
-	g.p("message.blue.toString(16),")
+	g.p("message.red.toString(16), message.green.toString(16), message.blue.toString(16),")
 	g.indent = "        "
 	g.p("];")
 	g.p("if (message.alpha) {")
@@ -7562,7 +7560,7 @@ func (g *generator) generateGoogleTypeColorMethods() {
 	g.p("hex.push(Math.round(alpha * 255).toString(16));")
 	g.indent = "        "
 	g.p("}")
-	g.p("return '#' + hex.map(i => i.length < 2 ? '0' + i : i).join('');")
+	g.p(`return "#" + hex.map(i => i.length < 2 ? "0" + i : i).join("");`)
 	g.indent = "    "
 	g.p("}")
 
@@ -7580,37 +7578,27 @@ func (g *generator) generateGoogleTypeColorMethods() {
 	g.indent = "        "
 	g.p("if (/^#(?:[0-9a-fA-F]{3}){1}$/.test(hex)) {")
 	g.indent = "            "
-	g.p("// #RGB")
 	g.p("return {")
 	g.indent = "                "
-	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16),")
-	g.p("green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16),")
-	g.p("blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16),")
+	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16), green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16), blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16),")
 	g.indent = "            "
 	g.p("};")
 	g.indent = "        "
 	g.p("}")
 	g.p("else if (/^#(?:[0-9a-fA-F]{3}){2}$/.test(hex)) {")
 	g.indent = "            "
-	g.p("// #RRGGBB")
 	g.p("return {")
 	g.indent = "                "
-	g.p("red: parseInt(hex.substring(1, 3), 16),")
-	g.p("green: parseInt(hex.substring(3, 5), 16),")
-	g.p("blue: parseInt(hex.substring(5, 7), 16),")
+	g.p("red: parseInt(hex.substring(1, 3), 16), green: parseInt(hex.substring(3, 5), 16), blue: parseInt(hex.substring(5, 7), 16),")
 	g.indent = "            "
 	g.p("};")
 	g.indent = "        "
 	g.p("}")
 	g.p("else if (/^#(?:[0-9a-fA-F]{4}){1}$/.test(hex)) {")
 	g.indent = "            "
-	g.p("// #RGBA")
 	g.p("return {")
 	g.indent = "                "
-	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16),")
-	g.p("green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16),")
-	g.p("blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16),")
-	g.p("alpha: {")
+	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16), green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16), blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16), alpha: {")
 	g.indent = "                    "
 	g.p("value: parseInt(hex.substring(4, 5) + hex.substring(4, 5), 16) / 255,")
 	g.indent = "                "
@@ -7621,13 +7609,9 @@ func (g *generator) generateGoogleTypeColorMethods() {
 	g.p("}")
 	g.p("else if (/^#(?:[0-9a-fA-F]{4}){2}$/.test(hex)) {")
 	g.indent = "            "
-	g.p("// #RRGGBBAA")
 	g.p("return {")
 	g.indent = "                "
-	g.p("red: parseInt(hex.substring(1, 3), 16),")
-	g.p("green: parseInt(hex.substring(3, 5), 16),")
-	g.p("blue: parseInt(hex.substring(5, 7), 16),")
-	g.p("alpha: {")
+	g.p("red: parseInt(hex.substring(1, 3), 16), green: parseInt(hex.substring(3, 5), 16), blue: parseInt(hex.substring(5, 7), 16), alpha: {")
 	g.indent = "                    "
 	g.p("value: parseInt(hex.substring(7, 9), 16) / 255,")
 	g.indent = "                "
@@ -7636,7 +7620,7 @@ func (g *generator) generateGoogleTypeColorMethods() {
 	g.p("};")
 	g.indent = "        "
 	g.p("}")
-	g.p("throw new Error('invalid hex color');")
+	g.p(`throw new Error("invalid hex color");`)
 	g.indent = "    "
 	g.p("}")
 }
