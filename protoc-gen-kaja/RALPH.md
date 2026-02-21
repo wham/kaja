@@ -59,6 +59,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Added `(r >= 0x7F && r <= 0x9F)` and `r == 0xFEFF` checks in `escapeStringForJS()`
   - U+0085 (NEXT LINE / NEL) is a C1 control character that TypeScript's printer escapes as `\u0085`
   - Also covers DEL (0x7F), other C1 chars, and BOM (0xFEFF) to match TypeScript's `escapeString`
+- [x] Fix null byte followed by digit escaping (test 248_custom_option_string_null_digit)
+  - When `\0` is followed by a digit (0-9), use `\x00` instead to avoid ambiguous octal escape
+  - Changed `escapeStringForJS()` to iterate over `[]rune` slice so we can peek at the next character
 
 ## Notes
 

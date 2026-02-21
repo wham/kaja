@@ -1245,7 +1245,8 @@ func isArrayIndex(s string) bool {
 func escapeStringForJS(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
-	for _, r := range s {
+	runes := []rune(s)
+	for i, r := range runes {
 		switch r {
 		case '\\':
 			b.WriteString(`\\`)
@@ -1264,7 +1265,12 @@ func escapeStringForJS(s string) string {
 		case '\b':
 			b.WriteString(`\b`)
 		case 0:
-			b.WriteString(`\0`)
+			// Use \x00 when followed by a digit to avoid ambiguous octal escapes
+			if i+1 < len(runes) && runes[i+1] >= '0' && runes[i+1] <= '9' {
+				b.WriteString(`\x00`)
+			} else {
+				b.WriteString(`\0`)
+			}
 		default:
 			if r < 0x20 || (r >= 0x7F && r <= 0x9F) || r == 0x2028 || r == 0x2029 || r == 0xFEFF {
 				fmt.Fprintf(&b, `\u%04x`, r)
