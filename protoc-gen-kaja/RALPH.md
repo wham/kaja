@@ -55,6 +55,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix string map key escaping in custom options (test 246_custom_map_string_key_escape)
   - Called `escapeStringForJS()` on map keys before quoting them in `formatCustomOptions`
   - Fixes backslash and double-quote characters in string map keys (e.g. `back\slash` → `"back\\slash"`)
+- [x] Fix C1 control character escaping in JS strings (test 247_custom_option_string_nextline)
+  - Added `(r >= 0x7F && r <= 0x9F)` and `r == 0xFEFF` checks in `escapeStringForJS()`
+  - U+0085 (NEXT LINE / NEL) is a C1 control character that TypeScript's printer escapes as `\u0085`
+  - Also covers DEL (0x7F), other C1 chars, and BOM (0xFEFF) to match TypeScript's `escapeString`
 
 ## Notes
 
