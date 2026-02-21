@@ -2811,10 +2811,10 @@ func (g *generator) generateMessageInterface(msg *descriptorpb.DescriptorProto, 
 				if !generatedOneofs[oneofIdx] {
 					generatedOneofs[oneofIdx] = true
 					
-					// Collect all fields for this oneof
+					// Collect all fields for this oneof (skip group fields)
 					var oneofFields []*descriptorpb.FieldDescriptorProto
 					for _, f := range msg.Field {
-						if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx {
+						if f.OneofIndex != nil && f.GetOneofIndex() == oneofIdx && f.GetType() != descriptorpb.FieldDescriptorProto_TYPE_GROUP {
 							oneofFields = append(oneofFields, f)
 						}
 					}
