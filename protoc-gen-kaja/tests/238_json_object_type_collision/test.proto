@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package google.protobuf;
+
+// Struct triggers import of JsonObject type from @protobuf-ts/runtime.
+// A local message named JsonObject should cause a collision that needs aliasing.
+message Struct {
+    map<string, Value> fields = 1;
+}
+
+message Value {
+    oneof kind {
+        NullValue null_value = 1;
+        double number_value = 2;
+        string string_value = 3;
+        bool bool_value = 4;
+        Struct struct_value = 5;
+        ListValue list_value = 6;
+    }
+}
+
+enum NullValue {
+    NULL_VALUE = 0;
+}
+
+message ListValue {
+    repeated Value values = 1;
+}
+
+message JsonObject {
+    string key = 1;
+    string value = 2;
+}

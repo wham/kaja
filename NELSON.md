@@ -1249,7 +1249,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `collectLocalTypeNames()` at lines 2336-2412 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue, JsonValue, isJsonObject, jsonWriteOptions, JsonWriteOptions, JsonReadOptions, lowerCamelCase — but NOT `IMessageType`. Line 2238 imports `IMessageType` without aliasing. Lines 7558/7572/7586 use `IMessageType<T>` instead of `IMessageType$<T>`.
 - **Same pattern as runs 152-154:** TYPE imports without collision detection.
 
+### Run 156 — JsonObject type import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `JsonObject` collisions. When a file in `google.protobuf` package defines both `Struct` (WKT that needs `import type { JsonObject }` from runtime for `internalJsonWrite` method's local variable) AND a message named `JsonObject`, the Go plugin imports `JsonObject` without aliasing. The TS plugin correctly aliases it as `import type { JsonObject as JsonObject$ }` and uses `JsonObject$` as the type for the `json` variable in `internalJsonWrite`.
+- **Test:** `238_json_object_type_collision` — `google.protobuf` package with `Struct` (full WKT) and `JsonObject` messages.
+- **Root cause:** Line 2217 `import type { JsonObject } from "@protobuf-ts/runtime"` is always hardcoded without aliasing. No `jsonObjectRef` variable exists. Line 7286 uses `let json: JsonObject = {};` without aliasing.
+- **Same pattern as runs 152-155:** TYPE imports without collision detection.
+
 ### Ideas for future runs
-- `JsonObject` type import collision — imported as type for Struct WKT. Go doesn't alias.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
+- Service method trailing comment multiline — same bug pattern as run 81.
+- Deeply nested messages (5+ levels) with underscores in names.
