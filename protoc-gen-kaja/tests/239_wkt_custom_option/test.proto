@@ -1,0 +1,10 @@
+syntax = "proto3";
+package test;
+
+import "options.proto";
+
+// Tests that custom field options with WKT message types
+// (like google.protobuf.Duration) are correctly emitted.
+message TestMsg {
+  string name = 1 [(timeout) = { seconds: 30 }];
+}

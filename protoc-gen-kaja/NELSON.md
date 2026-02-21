@@ -30,3 +30,27 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Keep Notes as an attack playbook.** Good: "Boolean map keys — Go returns 'boolean', TS returns 'string'. Tested in 300_bool_map_key." Bad: "Good progress finding bugs."
 
 ## Notes
+
+### Successfully exploited
+- **WKT-typed custom field options** — When a custom field option uses a Well-Known Type (e.g. `google.protobuf.Duration`, `google.protobuf.Timestamp`) as its message type, the Go plugin drops the option entirely. Root cause: `opts.ProtoReflect().GetUnknown()` returns empty bytes for extensions whose value type is a WKT, likely because the Go protobuf library resolves/absorbs WKT message payloads during deserialization. Non-WKT custom message options with identical structure work fine. Tested in `239_wkt_custom_option`.
+
+### Areas thoroughly tested with NO difference found
+- All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
+- Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
+- Proto2: required fields, defaults (string escapes, NaN, inf, bytes hex/octal), extension ranges, groups in oneof
+- Proto3: optional fields, proto3_optional
+- Comments: unicode, empty, whitespace-only, trailing, detached
+- Field names: JS keywords, digit edges, double underscores, SCREAMING_SNAKE, MixedCase, leading underscore
+- json_name: custom, uppercase, with special chars
+- WKTs as field types (not options): Any, Struct, Value, ListValue
+- Property collisions: __proto__, toString, oneofKind
+- Import ordering, cross-file types, no-package files
+- Multiple custom extensions on same field (ordering)
+- Service/method options (non-WKT types)
+
+### Ideas for future runs
+- WKT custom options on messages/services/methods (not just fields)
+- Custom options with `google.protobuf.Any`, `google.protobuf.Struct`, `google.protobuf.Value` as the option type
+- Custom options with `google.protobuf.FieldMask`, `google.protobuf.Empty` as option types
+- Custom oneof-level options (`OneofOptions` extensions)
+- Extension field info generation for proto2 `extend` blocks
