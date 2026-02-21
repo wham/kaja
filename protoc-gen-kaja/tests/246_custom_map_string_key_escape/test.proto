@@ -1,0 +1,25 @@
+// Tests that map<string, string> keys containing special characters
+// (backslash, quotes, newlines) are properly escaped when quoted as
+// JS object property keys. The Go plugin wraps keys in quotes via
+// needsQuoteAsPropertyKey but does not escape the content, so a key
+// like "a\b" becomes "a\b" (backspace escape) instead of "a\\b".
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Config {
+  map<string, string> meta = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  Config cfg = 50001;
+}
+
+message Widget {
+  option (cfg) = {
+    meta: { key: "back\\slash" value: "val1" }
+    meta: { key: "has\"quote" value: "val2" }
+  };
+  string name = 1;
+}
