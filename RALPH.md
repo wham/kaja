@@ -252,7 +252,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 220/220 tests passing — DONE
 - [x] Fix test 216_google_type_date: Added google.type.Date WKT special method generation (toJsDate/fromJsDate). Also added google.type.Color (toHex/fromHex), google.type.DateTime (now/toJsDate/fromJsDate), and google.type.TimeOfDay (fromJsDate) for completeness.
 - [x] Fix test 217_google_type_color: Fixed toHex/fromHex output to match protobuf-ts — single-line RGB properties, double quotes instead of single quotes, no `// #RGB` comments
-- [x] All 222/222 tests passing — DONE
+- [x] Fix test 218_google_type_datetime: Added `PbLong` import for google.type.DateTime files and changed `fromJsDate` to put scalar properties on same line with nested object openings (matching protobuf-ts TypeScript printer output)
+- [x] Fix test 219_google_type_timeofday: Put all 4 fromJsDate return properties (hours, minutes, seconds, nanos) on a single line, matching protobuf-ts TypeScript printer output
+- [x] All 224/224 tests passing — DONE
 
 ## Notes
 

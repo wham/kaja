@@ -7724,10 +7724,7 @@ func (g *generator) generateGoogleTypeTimeOfDayMethods() {
 	g.indent = "        "
 	g.p("return {")
 	g.indent = "            "
-	g.p("hours: date.getHours(),")
-	g.p("minutes: date.getMinutes(),")
-	g.p("seconds: date.getSeconds(),")
-	g.p("nanos: date.getMilliseconds() * 1000,")
+	g.p("hours: date.getHours(), minutes: date.getMinutes(), seconds: date.getSeconds(), nanos: date.getMilliseconds() * 1000,")
 	g.indent = "        "
 	g.p("};")
 	g.indent = "    "
