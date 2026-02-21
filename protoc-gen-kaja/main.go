@@ -294,6 +294,7 @@ type generator struct {
 	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	typeofJsonValueRef           string            // "typeofJsonValue" normally, "typeofJsonValue$" when local type collides
 	isJsonObjectRef              string            // "isJsonObject" normally, "isJsonObject$" when local type collides
+	jsonWriteOptionsRef          string            // "jsonWriteOptions" normally, "jsonWriteOptions$" when local type collides
 	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
@@ -1433,6 +1434,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		pbLongRef:                   "PbLong",
 		typeofJsonValueRef:          "typeofJsonValue",
 		isJsonObjectRef:             "isJsonObject",
+		jsonWriteOptionsRef:         "jsonWriteOptions",
 		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
@@ -2223,7 +2225,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.isJsonObjectImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { jsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryReadOptionsImport())
@@ -2383,6 +2385,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime isJsonObject collision
 	if g.localTypeNames["isJsonObject"] {
 		g.isJsonObjectRef = "isJsonObject$"
+	}
+	// Detect runtime jsonWriteOptions collision
+	if g.localTypeNames["jsonWriteOptions"] {
+		g.jsonWriteOptionsRef = "jsonWriteOptions$"
 	}
 	// Detect runtime lowerCamelCase collision
 	if g.localTypeNames["lowerCamelCase"] {
@@ -5201,6 +5207,13 @@ func (g *generator) isJsonObjectImport() string {
 	return "isJsonObject"
 }
 
+func (g *generator) jsonWriteOptionsImport() string {
+	if g.jsonWriteOptionsRef == "jsonWriteOptions$" {
+		return "jsonWriteOptions as jsonWriteOptions$"
+	}
+	return "jsonWriteOptions"
+}
+
 func (g *generator) lowerCamelCaseImport() string {
 	if g.lowerCamelCaseRef == "lowerCamelCase$" {
 		return "lowerCamelCase as lowerCamelCase$"
@@ -7560,7 +7573,7 @@ func (g *generator) generateAnyMethods() {
 	g.p("return {};")
 	g.indent = "        "
 	g.p("let typeName = this.typeUrlToName(any.typeUrl);")
-	g.p("let opt = jsonWriteOptions(options);")
+	g.p("let opt = %s(options);", g.jsonWriteOptionsRef)
 	g.p("let type = opt.typeRegistry?.find(t => t.typeName === typeName);")
 	g.p("if (!type)")
 	g.indent = "            "

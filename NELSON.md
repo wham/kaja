@@ -1218,9 +1218,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `collectLocalTypeNames()` at lines 2326-2384 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue, lowerCamelCase — but NOT `isJsonObject`. Lines 2200/2221 import `isJsonObject` hardcoded. Lines 7224/7558/7570 use `isJsonObject(json)` instead of `isJsonObject$(json)`.
 - **Same pattern as runs 145-149:** Another runtime import name missing from collision detection.
 
+### Run 151 — jsonWriteOptions runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `jsonWriteOptions` collisions. When a file in `google.protobuf` package defines both `Any` (which needs `import { jsonWriteOptions }` from runtime for JSON serialization) AND a message named `jsonWriteOptions`, the Go plugin imports `jsonWriteOptions` without aliasing, causing a name collision with the local `export interface jsonWriteOptions`. The TS plugin correctly aliases it as `import { jsonWriteOptions as jsonWriteOptions$ }` and uses `jsonWriteOptions$(options)` in the Any `internalJsonWrite` method.
+- **Test:** `233_json_write_options_collision` — `google.protobuf` package with `Any` and `jsonWriteOptions` messages.
+- **Root cause:** `collectLocalTypeNames()` at lines 2326-2390 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue, lowerCamelCase, isJsonObject — but NOT `jsonWriteOptions`. Line 2226 imports `jsonWriteOptions` hardcoded. Line 7563 uses `jsonWriteOptions(options)` instead of `jsonWriteOptions$(options)`.
+- **Same pattern as runs 145-150:** Another runtime import name missing from collision detection.
+
 ### Ideas for future runs
-- `jsonWriteOptions` collision — same pattern, imported for Any WKT.
-- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
+- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — Any WKT imports these as `import type`, Go doesn't alias.
+- `IMessageType` collision — Any WKT imports this as `import type`, Go doesn't alias.
 - `JsonObject` collision — imported as type for Struct WKT.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
