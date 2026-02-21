@@ -995,6 +995,17 @@ func formatCustomOptions(opts []customOption) string {
 
 // isArrayIndex returns true if s is a canonical JS array index (non-negative integer < 2^32-1).
 // These keys are enumerated first by Object.entries() in ascending numeric order.
+var wrapperTypeNames = map[string]bool{
+	"DoubleValue": true, "FloatValue": true,
+	"Int64Value": true, "UInt64Value": true,
+	"Int32Value": true, "UInt32Value": true,
+	"BoolValue": true, "StringValue": true, "BytesValue": true,
+}
+
+func isWrapperTypeName(name string) bool {
+	return wrapperTypeNames[name]
+}
+
 func isArrayIndex(s string) bool {
 	if len(s) == 0 || len(s) > 10 {
 		return false
@@ -2000,7 +2011,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 				isStruct = true
 			} else if name == "Any" {
 				isAny = true
-			} else if strings.HasSuffix(name, "Value") { // Int32Value, StringValue, etc.
+			} else if isWrapperTypeName(name) {
 				isWrapper = true
 			}
 		}
@@ -4068,7 +4079,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	isFieldMask := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "FieldMask"
 	isStruct := g.file.Package != nil && *g.file.Package == "google.protobuf" && (fullName == "Struct" || fullName == "Value" || fullName == "ListValue")
 	isAny := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Any"
-	isWrapper := g.file.Package != nil && *g.file.Package == "google.protobuf" && strings.HasSuffix(fullName, "Value") && fullName != "Value" && fullName != "ListValue"
+	isWrapper := g.file.Package != nil && *g.file.Package == "google.protobuf" && isWrapperTypeName(fullName)
 	isGoogleTypeDate := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "Date"
 	isGoogleTypeColor := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "Color"
 	isGoogleTypeDateTime := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "DateTime"

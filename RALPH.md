@@ -257,6 +257,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 224/224 tests passing — DONE
 - [x] Fix test 220_oneof_group_field: Group fields (TYPE_GROUP) inside oneofs must be skipped in the oneof member collection — protobuf-ts does not generate oneof alternatives for group fields
 - [x] All 225/225 tests passing — DONE
+- [x] Fix test 221_map_entry_name_collision: `findMessageType` used `HasSuffix` matching which falsely matched top-level `Entry` when looking for `Config.SettingsEntry`. Changed to exact match (`==`) with package prefix passed to `findMessageTypeInMessage`, same pattern as `findEnumTypeInMessage`.
+- [x] All 226/226 tests passing — DONE
 
 ## Notes
 
@@ -361,3 +363,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Multi-service UnaryCall positioning: In multi-service client files, UnaryCall must appear with the FIRST service (forward order) that has a unary method. Pre-scan `firstUnaryServiceIdx` determines which service K emits UnaryCall. If K=0, service 0's code section handles it. If K≥1, the N→1 loop emits it only when `svcIdx == firstUnaryServiceIdx`. This prevents duplicate emissions when multiple services have unary methods.
 - Import public transitive deps: `import public` in proto makes the imported file's types visible to all importers transitively. `FileDescriptorProto.PublicDependency` contains int32 indices into the `Dependency` array indicating which deps are `import public`. `collectTransitivePublicDeps` recursively follows these chains and returns all transitively reachable files. These are added to `depFiles` maps and searched by `getImportPathForType` alongside direct dependencies.
 - Multi-service streaming import ordering: For services 2..N, types and call types within each method must follow protobuf-ts prepend semantics. Call type is registered FIRST (ends up lowest), then input type (above call type), then output type (top). Added `svcFirstMethodForType` map (forward pass) so types are only emitted at the method that first uses them, preventing types shared between methods from appearing at the wrong method's position. Types are emitted BEFORE call type in the reverse loop. This applies to both `isFirstMethodService` and normal paths.
+- Map entry name collision: `findMessageTypeInMessage` used `strings.HasSuffix(typeName, fullName)` which falsely matched top-level messages whose name is a suffix of a nested map entry message name (e.g., `Entry` matching `Config.SettingsEntry`). Fixed by passing the package prefix to `findMessageTypeInMessage` (same as `findEnumTypeInMessage`) and using exact `==` match instead of `HasSuffix`.
