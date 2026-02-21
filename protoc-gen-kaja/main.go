@@ -1174,7 +1174,7 @@ func formatCustomOptions(opts []customOption) string {
 		}
 		keyStr := opt.key
 		if needsQuoteAsPropertyKey(opt.key) {
-			keyStr = fmt.Sprintf("\"%s\"", opt.key)
+			keyStr = fmt.Sprintf("\"%s\"", escapeStringForJS(opt.key))
 		}
 		parts = append(parts, fmt.Sprintf("%s: %s", keyStr, valueStr))
 	}

@@ -52,6 +52,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Added array-wrapping logic in `parseCustomOptions` (not just `parseMessageValue`) for top-level repeated extensions
   - Builds a `repeatedExts` set from `extensionMap` entries with `LABEL_REPEATED`, skipping map entries
   - After `mergeRepeatedOptions`, wraps non-array values in `[]interface{}` for repeated extensions
+- [x] Fix string map key escaping in custom options (test 246_custom_map_string_key_escape)
+  - Called `escapeStringForJS()` on map keys before quoting them in `formatCustomOptions`
+  - Fixes backslash and double-quote characters in string map keys (e.g. `back\slash` → `"back\\slash"`)
 
 ## Notes
 
