@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package dep;
+
+// Deeply nested message (4 levels)
+message Outer {
+  message Middle {
+    message Inner {
+      message Deep {
+        string value = 1;
+      }
+    }
+  }
+}

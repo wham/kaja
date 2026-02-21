@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package test;
+
+// Test that [jstype = JS_NORMAL] option is handled correctly.
+// JS_NORMAL means "use the normal representation" which for int64/uint64
+// with long_type_string should produce bigint type and L: 0 /*LongType.BIGINT*/
+// in the field descriptor.
+message JsTypeNormalTest {
+  // Explicit JS_NORMAL - should output [jstype = JS_NORMAL] annotation
+  // and L: 0 /*LongType.BIGINT*/ in field descriptor
+  int64 normal_int64 = 1 [jstype = JS_NORMAL];
+
+  // Regular field without jstype for comparison
+  int64 regular_int64 = 2;
+
+  // JS_NORMAL on uint64 too
+  uint64 normal_uint64 = 3 [jstype = JS_NORMAL];
+}

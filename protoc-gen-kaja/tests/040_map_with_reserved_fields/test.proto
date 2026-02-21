@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package test;
+
+message Value {
+  string constructor = 1;
+  int32 __proto__ = 2;
+}
+
+message Container {
+  map<string, Value> items = 1;
+  map<int32, Value> indexed = 2;
+}

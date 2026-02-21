@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+
+// First detached block line 1.
+//
+// First detached block line 3.
+
+// Second detached block.
+
+// Leading comment for MyMessage.
+message MyMessage {
+  string name = 1;
+}

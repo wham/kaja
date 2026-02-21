@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package test;
+
+// A real oneof whose name starts with underscore and has exactly one field.
+// The Go plugin may misidentify this as a proto3 optional field because:
+//   - oneof name starts with "_"
+//   - oneof has exactly 1 field
+//   - field name ("value") equals oneof name minus leading "_" ("_value"[1:] = "value")
+// But this is a legitimate oneof, not a proto3 optional. The TS plugin uses
+// field.proto.proto3Optional (which is false) to detect this correctly.
+message Container {
+  string name = 1;
+  oneof _value {
+    string value = 2;
+  }
+}

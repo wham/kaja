@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package test;
+
+// Test nested message with reserved keyword name
+message Outer {
+  message class {
+    string value = 1;
+  }
+  
+  message const {
+    int32 number = 1;
+  }
+  
+  class my_class = 1;
+  const my_const = 2;
+}
+
+// Test referencing nested keyword types from another message
+message Another {
+  Outer.class imported_class = 1;
+  Outer.const imported_const = 2;
+}
+
+// Test multiple levels of nesting with keywords
+message Level1 {
+  message interface {
+    message type {
+      string data = 1;
+    }
+    type nested = 1;
+  }
+  interface my_interface = 1;
+}

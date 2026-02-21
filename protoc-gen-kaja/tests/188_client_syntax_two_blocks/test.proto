@@ -1,0 +1,18 @@
+// First detached block
+
+// Second detached block
+
+syntax = "proto3";
+package test;
+
+message Request {
+    string id = 1;
+}
+
+message Response {
+    string result = 1;
+}
+
+service TestService {
+    rpc DoSomething(Request) returns (Response);
+}

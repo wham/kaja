@@ -1,0 +1,10 @@
+syntax = "proto3";
+package test;
+
+// Two fields that resolve to the same TypeScript property name "x123Y"
+// due to camelCase conversion rules.
+// The create() method should only initialize the property once.
+message DuplicateProperty {
+  string x123y = 1;
+  string x_123_y = 3;
+}

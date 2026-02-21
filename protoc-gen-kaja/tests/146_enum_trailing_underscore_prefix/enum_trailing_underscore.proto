@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+// Enum with a trailing underscore in the name.
+// The prefix detection algorithm should produce "MY_ENUM__" (double underscore)
+// because the enum name "MyEnum_" converts to "MY_ENUM_" + trailing "_" = "MY_ENUM__".
+enum MyEnum_ {
+    MY_ENUM__UNSPECIFIED = 0;
+    MY_ENUM__FOO = 1;
+    MY_ENUM__BAR = 2;
+}
+
+message TestMessage {
+    MyEnum_ status = 1;
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+message ItemRequest {
+  string item_id = 1;
+}
+message ItemResponse {
+  string title = 1;
+}

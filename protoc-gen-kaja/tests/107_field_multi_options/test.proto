@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+// Test field with multiple options to check annotation formatting
+message MultiOptions {
+    // Field with both packed and json_name options
+    repeated int32 my_values = 1 [packed = false, json_name = "vals"];
+}

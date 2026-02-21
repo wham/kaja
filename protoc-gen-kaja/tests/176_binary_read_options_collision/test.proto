@@ -1,0 +1,12 @@
+syntax = "proto3";
+package test;
+
+// A message that collides with the runtime import type BinaryReadOptions.
+message BinaryReadOptions {
+    string name = 1;
+    int32 level = 2;
+}
+
+message Container {
+    BinaryReadOptions opts = 1;
+}

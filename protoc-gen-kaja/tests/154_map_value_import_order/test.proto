@@ -1,0 +1,11 @@
+syntax = "proto3";
+package test;
+import "google/protobuf/struct.proto";
+
+// Map field referencing Value appears BEFORE a regular field referencing Struct.
+// Both types are from the same import file. The import order should follow
+// field order: Value first, then Struct.
+message Foo {
+    map<string, google.protobuf.Value> values = 1;
+    google.protobuf.Struct data = 2;
+}

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package test;
+import "common.proto";
+
+message Item {
+  string name = 1;
+}
+
+message Container {
+  Item local_item = 1;
+  common.Item remote_item = 2;
+}

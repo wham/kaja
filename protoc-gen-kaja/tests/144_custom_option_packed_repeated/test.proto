@@ -1,0 +1,25 @@
+// Tests that packed repeated scalar fields inside message-typed custom options
+// are correctly decoded. In proto3, repeated scalar fields use packed encoding
+// by default. The Go plugin's parseMessageValue() reads the packed length byte
+// as the first value instead of unpacking the LengthDelimited wire data.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message ResourceConfig {
+  string name = 1;
+  repeated int32 codes = 2;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceConfig resource_config = 50001;
+}
+
+message User {
+  option (resource_config).name = "users";
+  option (resource_config).codes = 10;
+  option (resource_config).codes = 20;
+  option (resource_config).codes = 30;
+  string display_name = 1;
+}

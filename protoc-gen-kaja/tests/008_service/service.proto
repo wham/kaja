@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package myservice;
+
+message SearchRequest {
+  string query = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message SearchResponse {
+  repeated Result results = 1;
+  int32 total_count = 2;
+}
+
+message Result {
+  string title = 1;
+  string url = 2;
+  string snippet = 3;
+}
+
+message GetRequest {
+  string id = 1;
+}
+
+message GetResponse {
+  Result result = 1;
+}
+
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+}

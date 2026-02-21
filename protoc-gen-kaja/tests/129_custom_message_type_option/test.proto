@@ -1,0 +1,21 @@
+// Tests custom options with message-typed extension values.
+// The TS plugin deserializes message values and outputs them as JSON objects.
+// The Go plugin silently drops TYPE_MESSAGE extension values in parseCustomOptions.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message ResourceInfo {
+  string name = 1;
+  bool readonly = 2;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceInfo resource = 51001;
+}
+
+message User {
+  option (resource) = { name: "users", readonly: true };
+  string id = 1;
+}

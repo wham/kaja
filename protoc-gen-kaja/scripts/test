@@ -1,0 +1,265 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$PROJECT_DIR/.." && pwd)"
+TESTS_DIR="$PROJECT_DIR/tests"
+RESULTS_DIR="$PROJECT_DIR/results"
+
+SERVER_BUILD_DIR="$ROOT_DIR/server/build"
+PROTOC_GEN_TS="$PROJECT_DIR/node_modules/.bin/protoc-gen-ts"
+PROTOC_GEN_KAJA="$SERVER_BUILD_DIR/protoc-gen-kaja"
+
+# Parse flags
+SUMMARY_ONLY=false
+for arg in "$@"; do
+  case "$arg" in
+    --summary) SUMMARY_ONLY=true ;;
+  esac
+done
+
+# -- setup ---------------------------------------------------------------
+
+PROTOC="$SERVER_BUILD_DIR/protoc"
+INCLUDE_DIR="$SERVER_BUILD_DIR/include"
+
+# Install protoc if needed
+source "$ROOT_DIR/scripts/common"
+install_protoc "$SERVER_BUILD_DIR"
+
+# Install protoc-gen-ts if needed
+if [ ! -x "$PROTOC_GEN_TS" ]; then
+  echo "Installing protoc-gen-ts..."
+  (cd "$PROJECT_DIR" && npm i)
+fi
+
+# Build protoc-gen-kaja into server/build
+echo "Building protoc-gen-kaja..."
+mkdir -p "$SERVER_BUILD_DIR"
+(cd "$PROJECT_DIR" && go build -o "$PROTOC_GEN_KAJA" .)
+
+# -- test loop ------------------------------------------------------------
+
+# Clean and create results directory
+rm -rf "$RESULTS_DIR"
+mkdir -p "$RESULTS_DIR"
+
+WORKSPACE_DIR="$ROOT_DIR/workspace"
+
+# Millisecond timer helper (uses perl for portability)
+now_ms() {
+  perl -MTime::HiRes=time -e 'printf "%d\n", time()*1000'
+}
+
+# Each test writes a result file: $RESULTS_DIR/$test_name/result.txt
+# Format: STATUS ts_ms kaja_ms
+# STATUS is PASS or FAIL
+# On failure, details go to $RESULTS_DIR/$test_name/failure.txt
+
+run_test() {
+  local test_name="$1"
+  local test_dir="${2%/}"  # Remove trailing slash if present
+  local recursive="$3"
+  local expected_dir="$RESULTS_DIR/$test_name/expected"
+  local actual_dir="$RESULTS_DIR/$test_name/actual"
+  local result_file="$RESULTS_DIR/$test_name/result.txt"
+  local failure_file="$RESULTS_DIR/$test_name/failure.txt"
+
+  mkdir -p "$expected_dir" "$actual_dir"
+
+  # Collect proto files
+  if [ "$recursive" = "true" ]; then
+    proto_files=$(find "$test_dir" -name "*.proto" | sort)
+  else
+    proto_files=$(find "$test_dir" -maxdepth 1 -name "*.proto" | sort)
+  fi
+
+  if [ -z "$proto_files" ]; then
+    echo "PASS 0 0" > "$result_file"
+    return
+  fi
+
+  # Convert to relative paths from test_dir
+  proto_basenames=""
+  for f in $proto_files; do
+    rel_path="${f#$test_dir/}"
+    proto_basenames="$proto_basenames $rel_path"
+  done
+
+  # Run protoc-gen-ts (expected output)
+  ts_error_file="$RESULTS_DIR/$test_name/ts_error.txt"
+  ts_ok=true
+  local ts_start=$(now_ms)
+  (cd "$test_dir" && "$PROTOC" \
+    --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
+    --ts_out="$expected_dir" \
+    --ts_opt=long_type_string \
+    -I"$INCLUDE_DIR" \
+    -I. \
+    $proto_basenames) 2>"$ts_error_file" || ts_ok=false
+  local ts_elapsed=$(( $(now_ms) - ts_start ))
+
+  # Run protoc-gen-kaja (actual output)
+  kaja_error_file="$RESULTS_DIR/$test_name/kaja_error.txt"
+  kaja_ok=true
+  local kaja_start=$(now_ms)
+  (cd "$test_dir" && "$PROTOC" \
+    --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
+    --kaja_out="$actual_dir" \
+    -I"$INCLUDE_DIR" \
+    -I. \
+    $proto_basenames) 2>"$kaja_error_file" || kaja_ok=false
+  local kaja_elapsed=$(( $(now_ms) - kaja_start ))
+
+  # If both failed, compare error messages
+  if [ "$ts_ok" = false ] && [ "$kaja_ok" = false ]; then
+    ts_err=$(cat "$ts_error_file" 2>/dev/null || echo "")
+    kaja_err=$(cat "$kaja_error_file" 2>/dev/null || echo "")
+
+    # Normalize whitespace and compare
+    ts_err_normalized=$(echo "$ts_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+    kaja_err_normalized=$(echo "$kaja_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+
+    if [ "$ts_err_normalized" = "$kaja_err_normalized" ]; then
+      echo "PASS $ts_elapsed $kaja_elapsed" > "$result_file"
+    else
+      echo "FAIL $ts_elapsed $kaja_elapsed" > "$result_file"
+      {
+        echo "error mismatch"
+        echo "--- protoc-gen-ts error"
+        echo "+++ protoc-gen-kaja error"
+        diff -u \
+          <(echo "$ts_err" | sed 's/[[:space:]]*$//') \
+          <(echo "$kaja_err" | sed 's/[[:space:]]*$//') \
+          2>&1 || true
+      } > "$failure_file"
+    fi
+    return
+  fi
+
+  # If one succeeded and the other failed, it's a failure
+  if [ "$ts_ok" != "$kaja_ok" ]; then
+    echo "FAIL $ts_elapsed $kaja_elapsed" > "$result_file"
+    if [ "$ts_ok" = true ]; then
+      {
+        echo "protoc-gen-kaja failed but protoc-gen-ts succeeded"
+        echo ""
+        echo "Kaja error:"
+        cat "$kaja_error_file" 2>/dev/null || echo "(no error output)"
+      } > "$failure_file"
+    else
+      {
+        echo "protoc-gen-ts failed but protoc-gen-kaja succeeded"
+        echo ""
+        echo "TS error:"
+        cat "$ts_error_file" 2>/dev/null || echo "(no error output)"
+      } > "$failure_file"
+    fi
+    return
+  fi
+
+  # Compare outputs
+  diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
+
+  if [ -z "$diff_output" ]; then
+    echo "PASS $ts_elapsed $kaja_elapsed" > "$result_file"
+  else
+    echo "FAIL $ts_elapsed $kaja_elapsed" > "$result_file"
+    echo "$diff_output" > "$failure_file"
+  fi
+}
+
+# Launch all tests in parallel
+PIDS=()
+TEST_NAMES=()
+
+for test_dir in "$TESTS_DIR"/*/; do
+  if [ -d "$test_dir" ]; then
+    test_name="$(basename "$test_dir")"
+    # Tests that need recursive scanning due to subdirectories
+    if [ "$test_name" = "000_big" ] || [ "$test_name" = "205_cross_dir_wiretype_import" ]; then
+      run_test "$test_name" "$test_dir" "true" &
+    else
+      run_test "$test_name" "$test_dir" "false" &
+    fi
+    PIDS+=($!)
+    TEST_NAMES+=("$test_name")
+  fi
+done
+
+for project in grpcbin quirks teams users; do
+  proto_dir="$WORKSPACE_DIR/$project/proto"
+  if [ -d "$proto_dir" ]; then
+    run_test "$project" "$proto_dir" "true" &
+    PIDS+=($!)
+    TEST_NAMES+=("$project")
+  fi
+done
+
+# Wait for all tests to finish
+wait "${PIDS[@]}"
+
+# -- collect results ------------------------------------------------------
+
+PASS=0
+FAIL=0
+ERRORS=""
+TS_TOTAL_MS=0
+KAJA_TOTAL_MS=0
+
+for test_name in "${TEST_NAMES[@]}"; do
+  result_file="$RESULTS_DIR/$test_name/result.txt"
+  failure_file="$RESULTS_DIR/$test_name/failure.txt"
+
+  if [ ! -f "$result_file" ]; then
+    continue
+  fi
+
+  read -r status ts_ms kaja_ms < "$result_file"
+  TS_TOTAL_MS=$(( TS_TOTAL_MS + ts_ms ))
+  KAJA_TOTAL_MS=$(( KAJA_TOTAL_MS + kaja_ms ))
+
+  if [ "$status" = "PASS" ]; then
+    PASS=$((PASS + 1))
+    if [ "$SUMMARY_ONLY" = false ]; then
+      echo "PASS $test_name"
+    fi
+  else
+    FAIL=$((FAIL + 1))
+    if [ "$SUMMARY_ONLY" = false ]; then
+      echo "FAIL $test_name"
+      if [ -f "$failure_file" ]; then
+        head -40 "$failure_file"
+        echo ""
+      fi
+    fi
+    if [ -f "$failure_file" ]; then
+      ERRORS="$ERRORS\n--- $test_name ---\n$(cat "$failure_file")"
+    fi
+  fi
+done
+
+# -- summary --------------------------------------------------------------
+
+TOTAL=$((PASS + FAIL))
+echo ""
+echo "Results: $PASS/$TOTAL passed, $FAIL/$TOTAL failed"
+
+TS_SEC=$(echo "scale=1; $TS_TOTAL_MS / 1000" | bc)
+KAJA_SEC=$(echo "scale=1; $KAJA_TOTAL_MS / 1000" | bc)
+if [ "$KAJA_TOTAL_MS" -gt 0 ]; then
+  SPEEDUP=$(echo "scale=1; $TS_TOTAL_MS / $KAJA_TOTAL_MS" | bc)
+else
+  SPEEDUP="N/A"
+fi
+echo "Performance: protoc-gen-ts ${TS_SEC}s, protoc-gen-kaja ${KAJA_SEC}s (${SPEEDUP}x faster)"
+
+if [ "$FAIL" -gt 0 ]; then
+  if [ "$SUMMARY_ONLY" = true ]; then
+    echo ""
+    echo "Failing tests:"
+    echo -e "$ERRORS" | grep "^--- " | sed 's/^--- /  /' | sed 's/ ---$//'
+  fi
+  exit 1
+fi

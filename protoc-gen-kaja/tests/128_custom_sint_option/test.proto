@@ -1,0 +1,16 @@
+// Tests custom options with sint32 typed value.
+// The TS plugin correctly serializes sint32 option values using zigzag decoding.
+// The Go plugin silently drops them (falls through to default branch).
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  sint32 priority = 51001;
+}
+
+message TaskItem {
+  option (priority) = -5;
+  string name = 1;
+}

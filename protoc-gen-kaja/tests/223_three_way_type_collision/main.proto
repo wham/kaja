@@ -1,0 +1,12 @@
+syntax = "proto3";
+package main;
+
+import "a.proto";
+import "b.proto";
+import "c.proto";
+
+message Container {
+  a.Item a_item = 1;
+  b.Item b_item = 2;
+  c.Item c_item = 3;
+}

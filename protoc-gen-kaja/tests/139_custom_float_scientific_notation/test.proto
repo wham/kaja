@@ -1,0 +1,17 @@
+// Tests that custom option float/double values use JavaScript-compatible
+// number formatting (scientific notation for very small numbers).
+// Go's strconv.FormatFloat with 'f' format always uses fixed-point notation,
+// but JavaScript uses scientific notation for numbers < 1e-6.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  double tiny_value = 51001;
+}
+
+message SmallFloat {
+  option (tiny_value) = 1e-20;
+  string name = 1;
+}

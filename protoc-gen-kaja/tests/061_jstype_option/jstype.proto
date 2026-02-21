@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package test;
+
+// Test that [jstype = JS_STRING] option overrides global long_type setting
+message JsTypeTest {
+    // Regular int64 field - should use global long_type (string by default)
+    int64 regular_int64 = 1;
+    
+    // Explicitly set to JS_STRING - should always be string
+    int64 string_int64 = 2 [jstype = JS_STRING];
+    
+    // Explicitly set to JS_NUMBER - should be number
+    int64 number_int64 = 3 [jstype = JS_NUMBER];
+    
+    // Same for uint64
+    uint64 regular_uint64 = 4;
+    uint64 string_uint64 = 5 [jstype = JS_STRING];
+    uint64 number_uint64 = 6 [jstype = JS_NUMBER];
+    
+    // Map with int64 key that has jstype option
+    map<int64, string> map_with_regular_key = 7;
+}
+
+// Test with fixed64 types too
+message FixedJsType {
+    fixed64 regular_fixed64 = 1;
+    fixed64 string_fixed64 = 2 [jstype = JS_STRING];
+    fixed64 number_fixed64 = 3 [jstype = JS_NUMBER];
+    
+    sfixed64 regular_sfixed64 = 4;
+    sfixed64 string_sfixed64 = 5 [jstype = JS_STRING];
+    sfixed64 number_sfixed64 = 6 [jstype = JS_NUMBER];
+}

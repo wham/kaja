@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+// Test jstype annotation on oneof fields with int64/uint64 types
+message OneofJsType {
+    oneof value {
+        // int64 field with jstype = JS_NUMBER in oneof
+        int64 number_val = 1 [jstype = JS_NUMBER];
+        // string field in same oneof for comparison
+        string string_val = 2;
+        // uint64 with jstype = JS_STRING in oneof
+        uint64 big_val = 3 [jstype = JS_STRING];
+    }
+}

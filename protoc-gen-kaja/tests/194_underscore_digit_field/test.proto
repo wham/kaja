@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  string name = 1;
+  int32 _123 = 2;
+  bool flag = 3;
+}

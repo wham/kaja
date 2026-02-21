@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message MyMessage {
+  // Choose one option.
+  //
+  oneof choice {
+    // The text value.
+    //
+    string text = 1;
+    // The number value.
+    int32 number = 2;
+  }
+}

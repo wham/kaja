@@ -1,0 +1,18 @@
+syntax = "proto3";
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service StreamService {
+  rpc Watch(Request) returns (stream Response);
+}
+
+service QueryService {
+  rpc Search(Request) returns (Response);
+}

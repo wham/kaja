@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package test;
+
+message MyMessage {
+  oneof choice {
+    string text = 1 [default = "hello"];
+    int32 number = 2 [default = 42];
+    bool flag = 3 [default = true];
+  }
+}

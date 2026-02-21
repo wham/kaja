@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package ecommerce.store;
+
+import "google/protobuf/timestamp.proto";
+import "common/types.proto";
+import "store/product.proto";
+
+// Order status enum
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_CONFIRMED = 2;
+  ORDER_STATUS_SHIPPED = 3;
+  ORDER_STATUS_DELIVERED = 4;
+  ORDER_STATUS_CANCELLED = 5;
+  ORDER_STATUS_REFUNDED = 6;
+}
+
+// Payment method with allow_alias
+enum PaymentMethod {
+  option allow_alias = true;
+
+  PAYMENT_METHOD_UNSPECIFIED = 0;
+  PAYMENT_METHOD_CREDIT_CARD = 1;
+  PAYMENT_METHOD_VISA = 1;
+  PAYMENT_METHOD_DEBIT_CARD = 2;
+  PAYMENT_METHOD_PAYPAL = 3;
+  PAYMENT_METHOD_CRYPTO = 4;
+  PAYMENT_METHOD_BITCOIN = 4;
+}
+
+// Order with 4-level deep nesting
+message Order {
+  string id = 1;
+  string user_id = 2;
+  OrderStatus status = 3;
+
+  message LineItem {
+    string product_id = 1;
+    string variant_id = 2;
+    int32 quantity = 3;
+    common.Money unit_price = 4;
+    common.Money total_price = 5;
+    Product product = 6;
+  }
+
+  repeated LineItem items = 4;
+  common.Money subtotal = 5;
+  common.Money tax = 6;
+  common.Money shipping = 7;
+  common.Money total = 8;
+
+  message ShippingInfo {
+    common.Address address = 1;
+    string carrier = 2;
+    string tracking_number = 3;
+    google.protobuf.Timestamp estimated_delivery = 4;
+  }
+
+  ShippingInfo shipping_info = 9;
+
+  message PaymentInfo {
+    PaymentMethod method = 1;
+    string transaction_id = 2;
+    common.Money amount = 3;
+    google.protobuf.Timestamp processed_at = 4;
+  }
+
+  PaymentInfo payment = 10;
+  common.AuditInfo audit = 11;
+
+  // 4-level deep nesting: Order > Fulfillment > Tracking > Checkpoint
+  message Fulfillment {
+    string fulfillment_id = 1;
+    repeated LineItem items = 2;
+
+    message Tracking {
+      string carrier = 1;
+      string tracking_number = 2;
+
+      message Checkpoint {
+        string location = 1;
+        string status = 2;
+        google.protobuf.Timestamp timestamp = 3;
+        string description = 4;
+      }
+
+      repeated Checkpoint checkpoints = 3;
+      Checkpoint latest = 4;
+    }
+
+    Tracking tracking = 3;
+    google.protobuf.Timestamp shipped_at = 4;
+  }
+
+  repeated Fulfillment fulfillments = 12;
+
+  // Multiple oneofs in one message
+  oneof payment_source {
+    string credit_card_id = 13;
+    string bank_account_id = 14;
+    string wallet_id = 15;
+  }
+
+  oneof discount {
+    string coupon_code = 16;
+    int32 loyalty_points = 17;
+    double percentage_off = 18;
+  }
+
+  // Proto3 optional fields
+  optional string notes = 19;
+  optional bool gift_wrap = 20;
+  optional int32 priority_level = 21;
+
+  // Bool map key
+  map<bool, string> flags = 22;
+
+  // Field named oneof_kind (discriminator collision)
+  string oneof_kind = 23;
+}
+
+// Self-referential message
+message OrderGroup {
+  string id = 1;
+  string name = 2;
+  repeated OrderGroup children = 3;
+  repeated Order orders = 4;
+}
+
+message CreateOrderRequest {
+  string user_id = 1;
+
+  message Item {
+    string product_id = 1;
+    string variant_id = 2;
+    int32 quantity = 3;
+  }
+
+  repeated Item items = 2;
+  common.Address shipping_address = 3;
+  PaymentMethod payment_method = 4;
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message UpdateOrderStatusRequest {
+  string id = 1;
+  OrderStatus status = 2;
+}
+
+message UpdateOrderStatusResponse {
+  Order order = 1;
+}
+
+// Order service
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+}

@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package google.type;
+
+import "google/protobuf/duration.proto";
+
+// Represents civil time.
+message DateTime {
+  // Year of date.
+  int32 year = 1;
+
+  // Month of year.
+  int32 month = 2;
+
+  // Day of month.
+  int32 day = 3;
+
+  // Hours of day in 24 hour format.
+  int32 hours = 4;
+
+  // Minutes of hour of day.
+  int32 minutes = 5;
+
+  // Seconds of minutes of the time.
+  int32 seconds = 6;
+
+  // Fractions of seconds in nanoseconds.
+  int32 nanos = 7;
+
+  // UTC offset or time zone.
+  oneof time_offset {
+    // UTC offset.
+    google.protobuf.Duration utc_offset = 8;
+
+    // Time zone.
+    TimeZone time_zone = 9;
+  }
+}
+
+// Represents a time zone from the IANA Time Zone Database.
+message TimeZone {
+  // IANA Time Zone Database time zone.
+  string id = 1;
+
+  // IANA Time Zone Database version number.
+  string version = 2;
+}

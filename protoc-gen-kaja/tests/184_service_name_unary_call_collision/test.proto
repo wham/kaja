@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// Service named UnaryCall - collides with runtime-rpc UnaryCall import in client file.
+service UnaryCall {
+  rpc Search(Request) returns (Response);
+}

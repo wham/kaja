@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package google.type;
+
+import "google/protobuf/wrappers.proto";
+
+// Represents a color in the RGBA color space.
+message Color {
+  // The amount of red in the color as a value in the interval [0, 1].
+  float red = 1;
+  // The amount of green in the color as a value in the interval [0, 1].
+  float green = 2;
+  // The amount of blue in the color as a value in the interval [0, 1].
+  float blue = 3;
+  // The fraction of this color that should be applied to the pixel.
+  google.protobuf.FloatValue alpha = 4;
+}

@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package idempotency.test;
+
+message GetRequest {
+  string id = 1;
+}
+
+message GetResponse {
+  string data = 1;
+}
+
+message UpdateRequest {
+  string id = 1;
+  string data = 2;
+}
+
+message UpdateResponse {
+  bool success = 1;
+}
+
+service IdempotentService {
+  // Method with NO_SIDE_EFFECTS idempotency level
+  rpc Get(GetRequest) returns (GetResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  
+  // Method with IDEMPOTENT idempotency level
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  
+  // Method with default (IDEMPOTENCY_UNKNOWN) - should not have idempotency field
+  rpc Delete(GetRequest) returns (UpdateResponse);
+}

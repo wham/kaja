@@ -87,22 +87,6 @@ func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	return bundle, nil
 }
 
-func BuildProtocGenTs() ([]byte, error) {
-	result := esbuild.Build(esbuild.BuildOptions{
-		EntryPoints: []string{"../ui/node_modules/.bin/protoc-gen-ts"},
-		Bundle:      true,
-		Format:      esbuild.FormatESModule,
-		Platform:    esbuild.PlatformNode,
-	})
-
-	if len(result.Errors) > 0 {
-		slog.Error("Failed to build protoc-gen-ts", "errors", result.Errors)
-		return nil, fmt.Errorf("failed to build protoc-gen-ts")
-	}
-
-	return result.OutputFiles[0].Contents, nil
-}
-
 func BuildStub(sourcesDir string) ([]byte, error) {
 	var stubContent strings.Builder
 	err := filepath.Walk(sourcesDir, func(path string, info os.FileInfo, err error) error {

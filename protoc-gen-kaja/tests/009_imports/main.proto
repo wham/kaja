@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package main;
+
+import "shared.proto";
+
+message Container {
+  string name = 1;
+  shared.Status status = 2;
+  repeated shared.Metadata metadata = 3;
+}

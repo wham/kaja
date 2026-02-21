@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+// A message named DuplexStreamingCall which collides with a runtime-rpc type
+// but only if duplex streaming is actually used.
+message DuplexStreamingCall {
+  string data = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// This service only has unary methods, so DuplexStreamingCall is NOT imported from runtime-rpc.
+service TestService {
+  rpc DoSomething(DuplexStreamingCall) returns (Response);
+}

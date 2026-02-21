@@ -1,0 +1,41 @@
+// Tests that custom option keys without package prefix are not
+// quoted in the generated TypeScript object literal.
+// The TS plugin only quotes keys containing dots (e.g., "pkg.name").
+// Keys without dots (no package) should be unquoted: api_path, not "api_path".
+syntax = "proto3";
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MethodOptions {
+  string api_path = 50001;
+  bool requires_auth = 50002;
+}
+
+extend google.protobuf.ServiceOptions {
+  string api_version = 50003;
+}
+
+extend google.protobuf.MessageOptions {
+  string table_name = 50004;
+}
+
+extend google.protobuf.FieldOptions {
+  string column_name = 50005;
+}
+
+message Req {
+  option (table_name) = "requests";
+  string query = 1 [(column_name) = "q"];
+}
+
+message Res {
+  string result = 1;
+}
+
+service MyAPI {
+  option (api_version) = "v2";
+  rpc Search(Req) returns (Res) {
+    option (api_path) = "/api/search";
+    option (requires_auth) = true;
+  }
+}

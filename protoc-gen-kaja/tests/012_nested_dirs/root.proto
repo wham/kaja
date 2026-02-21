@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+import "api/v1/service.proto";
+
+// Test message that uses types from nested directory
+message NestedTest {
+  api.v1.ApiInfo info = 1;
+  api.v1.HealthCheckResponse.Status status = 2;
+}

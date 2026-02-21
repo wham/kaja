@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package api;
+
+import "types.proto";
+
+// Service using nested reserved types from another package
+service NestedTypeService {
+  // Uses nested String from Container
+  rpc GetString(types.Container.String) returns (types.Container.String);
+  
+  // Uses nested Array from Container  
+  rpc GetArray(types.Container.Array) returns (types.Container.Array);
+  
+  // Uses nested Number from Container
+  rpc GetNumber(types.Container.Number) returns (types.Container.Number);
+  
+  // Uses top-level Boolean
+  rpc GetBoolean(types.Boolean) returns (types.Boolean);
+  
+  // Mix of nested and top-level
+  rpc Transform(types.Container.String) returns (types.Boolean);
+}

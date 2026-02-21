@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package test;
+
+// Test service with method names that clash with ServiceType interface properties
+// The TypeScript plugin escapes these because they conflict with the client class properties
+service TestService {
+  // "methods" is a property of ServiceType interface, should be escaped to "methods$"
+  rpc methods(Request) returns (Response);
+  
+  // "typeName" is a property of ServiceType interface, should be escaped to "typeName$"  
+  rpc typeName(Request) returns (Response);
+  
+  // "name" is a property of the client class, should be escaped to "name$"
+  rpc name(Request) returns (Response);
+  
+  // "constructor" is a reserved JavaScript class property, should be escaped to "constructor$"
+  rpc constructor(Request) returns (Response);
+  
+  // Normal method for comparison
+  rpc getData(Request) returns (Response);
+}
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}

@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package reserved_test;
+
+// Test reserved field numbers
+message ReservedNumbers {
+  string field1 = 1;
+  reserved 2, 3, 4;
+  string field5 = 5;
+  reserved 6 to 10;
+  string field11 = 11;
+  reserved 15 to max;
+}
+
+// Test reserved field names
+message ReservedNames {
+  string current_field = 1;
+  reserved "old_field", "deprecated_field";
+  string another_field = 2;
+  reserved "removed_field";
+}
+
+// Test both reserved numbers and names
+message ReservedBoth {
+  string active = 1;
+  reserved 2, 3;
+  reserved "old_name", "legacy_field";
+  string new_field = 4;
+  reserved 5 to 10;
+  reserved "deprecated";
+}
+
+// Test reserved in nested messages
+message Container {
+  string id = 1;
+  
+  message Nested {
+    string value = 1;
+    reserved 2 to 5;
+    reserved "old_value";
+    string new_value = 6;
+  }
+  
+  Nested nested = 2;
+  reserved 3, 4;
+}
+
+// Test reserved enum values
+enum StatusWithReserved {
+  STATUS_UNKNOWN = 0;
+  STATUS_ACTIVE = 1;
+  reserved 2, 3, 4;
+  reserved "STATUS_DELETED", "STATUS_ARCHIVED";
+  STATUS_PENDING = 5;
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// Service where the first method is streaming but a subsequent method is unary.
+// This tests that the UnaryCall import appears in the correct position
+// in the client file (before stackIntercept, not after streaming call types).
+service StreamFirst {
+  rpc Watch(Request) returns (stream Response);
+  rpc DoSomething(Request) returns (Response);
+}

@@ -1,0 +1,6 @@
+syntax = "proto3";
+package dep;
+
+message Result {
+  string value = 1;
+}

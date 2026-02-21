@@ -3,7 +3,7 @@ set -e
 
 # Post-build hook for wails desktop app
 # Called from desktop/build/bin directory with ${bin} as argument
-# Copies protoc, protoc-gen-ts, node, and include files into the app bundle
+# Copies protoc, protoc-gen-kaja, and include files into the app bundle
 
 BIN_PATH="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -25,19 +25,18 @@ if [ ! -d "$APP_BUNDLE" ]; then
     exit 1
 fi
 
-echo "Bundling protoc and node into $APP_BUNDLE..."
+echo "Bundling protoc and protoc-gen-kaja into $APP_BUNDLE..."
 
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 
 # Copy executables to MacOS directory
-rm -f "$MACOS_DIR/protoc" "$MACOS_DIR/protoc-gen-ts" "$MACOS_DIR/node"
+rm -f "$MACOS_DIR/protoc" "$MACOS_DIR/protoc-gen-kaja"
 cp "$SERVER_BUILD/protoc" "$MACOS_DIR/"
-cp "$SERVER_BUILD/protoc-gen-ts" "$MACOS_DIR/"
-cp "$SERVER_BUILD/node" "$MACOS_DIR/"
+cp "$SERVER_BUILD/protoc-gen-kaja" "$MACOS_DIR/"
 
 # Copy include files (well-known types) to Resources
 rm -rf "$RESOURCES_DIR/include"
 cp -r "$SERVER_BUILD/include" "$RESOURCES_DIR/"
 
-echo "Post-build complete: bundled protoc, protoc-gen-ts, node into $APP_BUNDLE"
+echo "Post-build complete: bundled protoc, protoc-gen-kaja into $APP_BUNDLE"

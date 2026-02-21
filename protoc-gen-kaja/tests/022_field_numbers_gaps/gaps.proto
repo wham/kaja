@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package gaps;
+
+// Test non-sequential field numbers
+message FieldNumberGaps {
+  string field1 = 1;
+  string field100 = 100;
+  string field50 = 50;
+  string field2 = 2;
+  string field1000 = 1000;
+  string field500 = 500;
+}
+
+// Test field numbers starting high
+message HighFieldNumbers {
+  string field536870911 = 536870911; // Max field number
+  string field1000 = 1000;
+  string field10000 = 10000;
+}
+
+// Test sparse field numbers
+message SparseFields {
+  string a = 1;
+  string b = 10;
+  string c = 20;
+  string d = 30;
+  string e = 100;
+  string f = 200;
+  string g = 300;
+  string h = 1000;
+  string i = 10000;
+  string j = 100000;
+}
+
+// Test reversed order field numbers (in proto definition)
+message ReversedOrder {
+  string last = 100;
+  string middle = 50;
+  string first = 1;
+  string another = 75;
+  string yet_another = 25;
+}
+
+// Test oneof with gaps
+message OneofWithGaps {
+  string id = 1;
+  
+  oneof value {
+    string text = 10;
+    int32 number = 50;
+    bool flag = 100;
+  }
+  
+  string name = 200;
+}
+
+// Test map with high field number
+message MapWithHighNumber {
+  string id = 1;
+  map<string, string> data = 500;
+}

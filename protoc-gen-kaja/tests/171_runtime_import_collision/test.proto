@@ -1,0 +1,11 @@
+syntax = "proto3";
+package test;
+
+message WireType {
+  int32 code = 1;
+}
+
+message Container {
+  WireType wire = 1;
+  string label = 2;
+}

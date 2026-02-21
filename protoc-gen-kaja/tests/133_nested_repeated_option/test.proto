@@ -1,0 +1,24 @@
+// Tests custom message option with a message type that has repeated fields.
+// The Go plugin's parseMessageValue() doesn't call mergeRepeatedOptions(),
+// so repeated fields inside nested message options produce duplicate keys
+// instead of arrays.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message ResourceInfo {
+  string name = 1;
+  repeated string tags = 2;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceInfo resource = 50001;
+}
+
+message UserProfile {
+  option (resource).name = "users";
+  option (resource).tags = "admin";
+  option (resource).tags = "internal";
+  string display_name = 1;
+}

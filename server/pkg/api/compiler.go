@@ -101,7 +101,7 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-// getBinDir returns the directory containing protoc and protoc-gen-ts binaries.
+// getBinDir returns the directory containing protoc and protoc-gen-kaja binaries.
 // For macOS .app bundles, it returns Contents/MacOS (same as main executable).
 // Otherwise, it returns the build directory relative to cwd.
 func getBinDir(cwd string) string {
@@ -145,7 +145,7 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error 
 	includeDir := getIncludeDir(cwd)
 	c.logger.debug("includeDir: " + includeDir)
 
-	protocCommand := "PATH=" + binDir + ":$PATH protoc --ts_out " + sourcesDir + " --ts_opt long_type_string -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 

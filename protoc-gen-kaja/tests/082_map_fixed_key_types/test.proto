@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package test;
+
+// Test map fields with fixed-width integer key types.
+// These use Bit32/Bit64 wire types and fixed32/fixed64/sfixed32/sfixed64 writer methods,
+// NOT Varint wire type with int32/uint32/int64/uint64 methods.
+message FixedKeyMaps {
+  map<fixed32, string> fixed32_key = 1;
+  map<fixed64, string> fixed64_key = 2;
+  map<sfixed32, string> sfixed32_key = 3;
+  map<sfixed64, string> sfixed64_key = 4;
+}

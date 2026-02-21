@@ -1,0 +1,12 @@
+syntax = "proto3";
+package google.protobuf;
+
+// When FieldMask is present, the plugin imports lowerCamelCase from runtime.
+// A local message named lowerCamelCase should cause a collision that needs aliasing.
+message FieldMask {
+    repeated string paths = 1;
+}
+
+message lowerCamelCase {
+    string value = 1;
+}

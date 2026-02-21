@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message Dummy {
+  int32 x = 1;
+}
+
+// This is a detached comment before the enum
+
+// This is the enum comment
+enum MyEnum {
+  MY_ENUM_ZERO = 0;
+  MY_ENUM_ONE = 1;
+}

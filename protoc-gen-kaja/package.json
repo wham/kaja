@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "devDependencies": {
+    "@protobuf-ts/plugin": "^2.11.1"
+  }
+}

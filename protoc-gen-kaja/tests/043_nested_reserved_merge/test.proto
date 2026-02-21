@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package test;
+
+// Test case: Nested types that merge to reserved TypeScript type names
+// When Outer.Array merges to "Outer_Array", it should NOT be escaped
+// But when just "Array" it becomes "Array" which IS a reserved type name
+
+// This nested message should produce "String_" type after merging
+message String {
+  message _ {
+    int32 value = 1;
+  }
+}
+
+// This should produce "Array_Value" after merging (not reserved)
+message Array {
+  message Value {
+    string data = 1;
+  }
+}
+
+// This creates "Number_" after merging (reserved!)
+message Number {
+  message _ {
+    int32 x = 1;
+  }
+}
+
+// Test with deeply nested: "Boolean_True_"
+message Boolean {
+  message True {
+    message _ {
+      bool flag = 1;
+    }
+  }
+}
+
+// Service names also go through createLocalTypeName
+service Object {
+  rpc DoSomething(String) returns (String);
+}

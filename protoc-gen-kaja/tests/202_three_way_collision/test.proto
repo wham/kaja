@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package test;
+
+// Message named after a call type
+message ServerStreamingCall {
+  string data = 1;
+}
+
+message Request {
+  string query = 1;
+}
+
+// Service that uses the message named ServerStreamingCall
+// AND also has a server streaming method (requiring the actual ServerStreamingCall type)
+service MyService {
+  rpc GetItems(Request) returns (stream ServerStreamingCall);
+  rpc SetItem(ServerStreamingCall) returns (ServerStreamingCall);
+}

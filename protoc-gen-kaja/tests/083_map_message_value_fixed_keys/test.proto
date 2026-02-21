@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package test;
+
+// Test map fields with message values and fixed-width integer key types.
+// The writer must use correct wire types and methods for keys even when
+// the value is a message type (not just scalars).
+message Inner {
+  string name = 1;
+}
+
+message FixedKeyMessageMaps {
+  map<fixed32, Inner> fixed32_key = 1;
+  map<fixed64, Inner> fixed64_key = 2;
+  map<sfixed32, Inner> sfixed32_key = 3;
+  map<sfixed64, Inner> sfixed64_key = 4;
+}

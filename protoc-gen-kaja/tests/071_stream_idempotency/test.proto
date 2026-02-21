@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service TestService {
+  // Server streaming with idempotency - is this allowed?
+  rpc StreamWithIdempotency(Request) returns (stream Response) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  
+  // Client streaming with idempotency  
+  rpc ClientStreamIdempotent(stream Request) returns (Response) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  
+  // Bidi streaming with idempotency
+  rpc BidiIdempotent(stream Request) returns (stream Response) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}

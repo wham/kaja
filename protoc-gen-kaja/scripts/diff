@@ -1,0 +1,155 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TESTS_DIR="$PROJECT_DIR/tests"
+RESULTS_DIR="$PROJECT_DIR/results"
+
+# Usage: scripts/diff [test_name]
+# Without arguments: shows diff for all failing tests
+# With argument: shows detailed diff for a specific test
+
+TARGET="$1"
+
+show_diff() {
+  local test_dir="$1"
+  local test_name="$(basename "$test_dir")"
+  local expected_dir="$RESULTS_DIR/$test_name/expected"
+  local actual_dir="$RESULTS_DIR/$test_name/actual"
+  local ts_error_file="$RESULTS_DIR/$test_name/ts_error.txt"
+  local kaja_error_file="$RESULTS_DIR/$test_name/kaja_error.txt"
+
+  if [ ! -d "$expected_dir" ] && [ ! -f "$ts_error_file" ]; then
+    echo "No results for $test_name. Run scripts/test first."
+    return
+  fi
+
+  echo "=== $test_name ==="
+  echo ""
+
+  # Check if both generators failed
+  if [ -f "$ts_error_file" ] && [ -f "$kaja_error_file" ]; then
+    ts_err=$(cat "$ts_error_file" 2>/dev/null)
+    kaja_err=$(cat "$kaja_error_file" 2>/dev/null)
+    
+    if [ -n "$ts_err" ] || [ -n "$kaja_err" ]; then
+      echo "Both generators failed:"
+      echo ""
+      
+      # Normalize and compare
+      ts_err_normalized=$(echo "$ts_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+      kaja_err_normalized=$(echo "$kaja_err" | sed 's/[[:space:]]*$//' | sed '/^$/d')
+      
+      if [ "$ts_err_normalized" = "$kaja_err_normalized" ]; then
+        echo "STATUS: PASS (both failed with identical error)"
+        echo ""
+        echo "Error message:"
+        echo "$ts_err"
+      else
+        echo "STATUS: FAIL (error messages differ)"
+        echo ""
+        diff_output=$(diff -u \
+          <(echo "$ts_err" | sed 's/[[:space:]]*$//') \
+          <(echo "$kaja_err" | sed 's/[[:space:]]*$//') \
+          2>&1) || true
+        echo "--- protoc-gen-ts error"
+        echo "+++ protoc-gen-kaja error"
+        echo "$diff_output"
+      fi
+      echo ""
+      return
+    fi
+  fi
+
+  # Check if only one failed
+  if [ -f "$ts_error_file" ] && [ -s "$ts_error_file" ]; then
+    echo "STATUS: FAIL (protoc-gen-ts failed but protoc-gen-kaja succeeded)"
+    echo ""
+    echo "TS error:"
+    cat "$ts_error_file"
+    echo ""
+    return
+  fi
+
+  if [ -f "$kaja_error_file" ] && [ -s "$kaja_error_file" ]; then
+    echo "STATUS: FAIL (protoc-gen-kaja failed but protoc-gen-ts succeeded)"
+    echo ""
+    echo "Kaja error:"
+    cat "$kaja_error_file"
+    echo ""
+    return
+  fi
+
+  # Both succeeded - compare generated files
+  if [ ! -d "$expected_dir" ]; then
+    echo "No generated files to compare."
+    echo ""
+    return
+  fi
+
+  # List expected files
+  expected_files=$(cd "$expected_dir" && find . -type f -name "*.ts" | sort)
+  actual_files=""
+  if [ -d "$actual_dir" ]; then
+    actual_files=$(cd "$actual_dir" && find . -type f -name "*.ts" | sort)
+  fi
+
+  for f in $expected_files; do
+    if [ ! -f "$actual_dir/$f" ]; then
+      lines=$(wc -l < "$expected_dir/$f")
+      echo "MISSING  $f ($lines lines)"
+    fi
+  done
+
+  # Files only in actual (extra)
+  for f in $actual_files; do
+    if [ ! -f "$expected_dir/$f" ]; then
+      echo "EXTRA    $f"
+    fi
+  done
+
+  # Files in both - show diff
+  for f in $expected_files; do
+    if [ -f "$actual_dir/$f" ]; then
+      file_diff=$(diff -u "$expected_dir/$f" "$actual_dir/$f" 2>&1) || true
+      if [ -z "$file_diff" ]; then
+        echo "MATCH    $f"
+      else
+        total_expected=$(wc -l < "$expected_dir/$f")
+        total_actual=$(wc -l < "$actual_dir/$f")
+        diff_lines=$(echo "$file_diff" | grep -c "^[-+]" || true)
+        echo "DIFF     $f (expected: $total_expected lines, actual: $total_actual lines, $diff_lines changed lines)"
+        echo "$file_diff"
+      fi
+    fi
+  done
+  echo ""
+}
+
+if [ -n "$TARGET" ]; then
+  test_dir="$TESTS_DIR/$TARGET"
+  if [ ! -d "$test_dir" ]; then
+    # Try matching by prefix
+    test_dir=$(find "$TESTS_DIR" -maxdepth 1 -type d -name "*$TARGET*" | head -1)
+  fi
+  if [ -z "$test_dir" ] || [ ! -d "$test_dir" ]; then
+    echo "Test not found: $TARGET"
+    echo "Available tests:"
+    ls -1 "$TESTS_DIR"
+    exit 1
+  fi
+  show_diff "$test_dir"
+else
+  for test_dir in "$TESTS_DIR"/*/; do
+    test_name="$(basename "$test_dir")"
+    expected_dir="$RESULTS_DIR/$test_name/expected"
+    actual_dir="$RESULTS_DIR/$test_name/actual"
+    if [ -d "$expected_dir" ]; then
+      diff_output=$(diff -ruN "$expected_dir" "$actual_dir" 2>&1) || true
+      if [ -n "$diff_output" ]; then
+        show_diff "$test_dir"
+      fi
+    fi
+  done
+fi

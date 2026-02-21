@@ -1,0 +1,27 @@
+// Tests custom service options. The TS plugin passes custom service
+// options as a third argument to the ServiceType constructor.
+// The Go plugin omits them entirely.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+// Define custom service options
+extend google.protobuf.ServiceOptions {
+  string api_version = 51001;
+  bool internal = 51002;
+}
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+service SearchService {
+  option (api_version) = "v2";
+  option (internal) = true;
+  rpc Search(Request) returns (Response);
+}

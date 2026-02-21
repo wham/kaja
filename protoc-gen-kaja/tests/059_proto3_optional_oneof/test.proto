@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+message Test {
+  // Proto3 optional scalar - should get opt: true
+  optional int32 optional_scalar = 1;
+  
+  // Proto3 optional enum - should get opt: true  
+  optional Status optional_enum = 2;
+  
+  // Oneof with scalar - should NOT get opt: true (in oneof already)
+  oneof choice {
+    int32 scalar_choice = 3;
+    Status enum_choice = 4;
+  }
+}
+
+enum Status {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+}

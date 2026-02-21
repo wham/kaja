@@ -1,0 +1,14 @@
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+    string description = 50001;
+}
+
+// A message with a backslash in the custom option value
+message Item {
+    option (description) = "path\\to\\file";
+    string name = 1;
+}

@@ -1,0 +1,12 @@
+// Tests that multiline trailing comments on oneof member fields
+// are properly split into separate // lines (not collapsed).
+syntax = "proto3";
+package test;
+
+message Result {
+  oneof outcome {
+    string value = 1; /* The success
+    value returned */
+    string error = 2;
+  }
+}

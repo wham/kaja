@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package google.protobuf;
+
+message UInt64Value {
+    uint64 value = 1;
+}
+
+message LongType {
+    string name = 1;
+    int32 code = 2;
+}

@@ -1,0 +1,12 @@
+// Tests that trailing comments on oneof member fields are preserved.
+// The TS plugin outputs trailing comments as inline // comments
+// after each oneof member's property in the interface.
+syntax = "proto3";
+package test;
+
+message Result {
+  oneof outcome {
+    string value = 1; // The success value
+    string error = 2; // The error message
+  }
+}

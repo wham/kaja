@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+package ecommerce.auth;
+
+import "common/options.proto";
+import "common/types.proto";
+
+// User role enum
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_CUSTOMER = 1;
+  ROLE_ADMIN = 2;
+  ROLE_SUPPORT = 3;
+}
+
+// Nested permission message
+message Permission {
+  string resource = 1;
+  repeated string actions = 2;
+
+  message Scope {
+    string type = 1;
+    repeated string ids = 2;
+  }
+
+  Scope scope = 3;
+}
+
+// User profile with nested messages
+message UserProfile {
+  option (common.resource) = {
+    type: "auth.googleapis.com/User"
+    pattern: "users/{user_id}"
+  };
+
+  string id = 1;
+  string username = 2;
+  string email = 3 [(common.sensitive) = true];
+  Role role = 4;
+  common.Address address = 5;
+  repeated Permission permissions = 6;
+  common.Metadata metadata = 7;
+  common.AuditInfo audit = 8;
+
+  // Nested preferences
+  message Preferences {
+    string language = 1;
+    string timezone = 2;
+    bool email_notifications = 3;
+    bool sms_notifications = 4;
+  }
+
+  Preferences preferences = 9;
+  // Field with json_name
+  string display_name = 10 [json_name = "displayName"];
+  // Reserved property name
+  bool __proto__ = 11;
+}
+
+// Authentication request with oneof
+message AuthRequest {
+  oneof credentials {
+    string password = 1;
+    string oauth_token = 2;
+    string api_key = 3;
+  }
+  string username = 4;
+  string device_id = 5;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  UserProfile profile = 3;
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3 [(common.sensitive) = true];
+  Role role = 4;
+  common.Address address = 5;
+}
+
+message CreateUserResponse {
+  UserProfile profile = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  UserProfile profile = 1;
+}
+
+// Request for listing users with server streaming
+message ListUsersRequest {
+  Role role = 1;
+  common.PageInfo page = 2;
+}
+
+// Response for listing users
+message ListUsersResponse {
+  UserProfile profile = 1;
+}
+
+// Request for bulk creating users with client streaming
+message BulkCreateUsersRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  Role role = 4;
+}
+
+// Response for bulk user creation
+message BulkCreateUsersResponse {
+  int32 created_count = 1;
+  repeated string user_ids = 2;
+}
+
+// Chat message for bidirectional streaming
+message UserChatMessage {
+  string user_id = 1;
+  string content = 2;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  UserProfile profile = 2;
+}
+
+message UpdateUserResponse {
+  UserProfile profile = 1;
+}
+
+// This is a detached comment about the AuthService.
+
+// It provides authentication and user management.
+
+// Auth service with all RPC types
+service AuthService {
+  // Unary RPC
+  rpc Authenticate(AuthRequest) returns (AuthResponse);
+
+  // Unary with custom method options
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (common.api_version) = "v2";
+    option (common.rate_limit) = 100;
+  }
+
+  // Unary with NO_SIDE_EFFECTS idempotency
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // Unary with IDEMPOTENT idempotency
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+
+  // Server-streaming RPC
+  rpc ListUsers(ListUsersRequest) returns (stream ListUsersResponse);
+
+  // Client-streaming RPC
+  rpc BulkCreateUsers(stream BulkCreateUsersRequest) returns (BulkCreateUsersResponse);
+
+  // Bidirectional streaming RPC
+  rpc UserChat(stream UserChatMessage) returns (stream UserChatMessage);
+}

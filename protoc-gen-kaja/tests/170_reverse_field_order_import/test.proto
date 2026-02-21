@@ -1,0 +1,11 @@
+syntax = "proto3";
+package test;
+
+import "dep.proto";
+
+// Fields declared in reverse field-number order.
+// Beta is field 2 (declared first), Alpha is field 1 (declared second).
+message Container {
+  dep.Beta b = 2;
+  dep.Alpha a = 1;
+}

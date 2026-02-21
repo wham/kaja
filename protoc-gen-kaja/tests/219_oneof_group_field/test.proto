@@ -1,0 +1,14 @@
+syntax = "proto2";
+package test;
+
+// Message with a group inside a oneof
+message Msg {
+  oneof data {
+    string text = 1;
+    int32 number = 2;
+    group MyGroup = 3 {
+      optional string title = 1;
+      optional int32 count = 2;
+    }
+  }
+}

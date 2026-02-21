@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package test;
+
+// Test field names that are reserved object properties
+message ReservedProps {
+  // __proto__ is a reserved object property
+  string __proto__ = 1;
+  
+  // toString is a reserved object property  
+  int32 to_string = 2;
+  
+  // Normal field for comparison
+  string normal = 3;
+}
+
+// Test in nested message too
+message Container {
+  message Inner {
+    string __proto__ = 1;
+    int32 to_string = 2;
+  }
+  
+  Inner data = 1;
+}

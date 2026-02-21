@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message MyMessage {
+  oneof choice {
+    string active_name = 1;
+    string old_name = 2 [deprecated = true];
+    int32 old_id = 3 [deprecated = true];
+  }
+}

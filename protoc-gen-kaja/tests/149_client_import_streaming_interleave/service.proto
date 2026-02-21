@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+import "user.proto";
+import "item.proto";
+
+// Service with methods from different files where the LAST method
+// is server-streaming. The streaming call type import should
+// appear BEFORE the non-streaming method's type imports from
+// different files (interleaved), not after them.
+service DataService {
+  rpc GetUser (UserRequest) returns (UserResponse);
+  rpc GetItem (ItemRequest) returns (ItemResponse);
+  rpc SearchUser (UserRequest) returns (stream UserResponse);
+}

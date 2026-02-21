@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package test;
+
+// Proto2 message with oneof - oneof fields should NOT have "optional" label
+// in the @generated comment, even though proto2 marks them as LABEL_OPTIONAL
+// in the descriptor.
+message Proto2WithOneof {
+  required string id = 1;
+  optional string name = 2;
+
+  oneof value {
+    string text = 3;
+    int32 number = 4;
+    bool flag = 5;
+  }
+}

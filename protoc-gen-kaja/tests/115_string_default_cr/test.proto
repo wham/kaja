@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package test;
+
+message CrDefaults {
+  optional string with_cr = 1 [default = "line1\rline2"];
+}

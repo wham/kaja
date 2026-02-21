@@ -1,0 +1,18 @@
+syntax = "proto3";
+package test;
+
+message Request {}
+message Response {}
+
+// Service names that are reserved TypeScript type names should be escaped
+service Array {
+  rpc Get(Request) returns (Response);
+}
+
+service String {
+  rpc Set(Request) returns (Response);
+}
+
+service Object {
+  rpc Create(Request) returns (Response);
+}

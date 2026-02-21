@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+// A status enum.
+enum Status {
+  STATUS_UNKNOWN = 0; /* This is a multiline
+  trailing comment
+  for unknown */
+  STATUS_ACTIVE = 1; /* single block trailing */
+}
+
+// A message using the enum.
+message Msg {
+  Status status = 1;
+}

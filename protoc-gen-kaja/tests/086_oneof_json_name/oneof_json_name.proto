@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package test;
+
+// Test that custom json_name on oneof scalar fields is preserved in reflection metadata
+message OneofWithJsonName {
+  oneof choice {
+    string first_option = 1 [json_name = "firstOpt"];
+    int32 second_option = 2 [json_name = "secondOpt"];
+    bool third_option = 3 [json_name = "thirdOpt"];
+  }
+}

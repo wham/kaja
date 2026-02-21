@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package camelcase;
+
+// Test fields that are already camelCase
+message CamelCaseFields {
+  string firstName = 1;
+  string lastName = 2;
+  string emailAddress = 3;
+  int32 userId = 4;
+  bool isActive = 5;
+  string fullName = 6;
+}
+
+// Test mixed snake_case and camelCase
+message MixedCase {
+  string snake_case = 1;
+  string camelCase = 2;
+  string PascalCase = 3;
+  string SCREAMING_SNAKE = 4;
+  string mixedWith_underscores = 5;
+}
+
+// Test edge cases in camelCase conversion
+message CamelCaseEdgeCases {
+  // Numbers after underscore
+  string field_1value = 1;  // Should be field1value
+  string field_2_value = 2; // Should be field2Value
+  
+  // Multiple consecutive underscores
+  string field__name = 3;
+  
+  // Leading/trailing underscores
+  string _private = 4;
+  string trailing_ = 5;
+  
+  // All caps with underscores
+  string HTTP_URL = 6;
+  string API_KEY = 7;
+  
+  // Mixed case combinations
+  string getHTTPResponseCode = 8;
+  string URLPath = 9;
+  string xmlHTTPRequest = 10;
+  
+  // Single character segments
+  string a_b_c = 11;
+  string x1_y2_z3 = 12;
+}
+
+// Test jsonName override
+message JsonNameOverride {
+  string weird_name = 1 [json_name = "WeirdName"];
+  string custom = 2 [json_name = "CUSTOM"];
+  string override_field = 3 [json_name = "overrideField"];
+}
+
+// Test service method names
+service CamelCaseService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc listItems(ListItemsRequest) returns (ListItemsResponse);
+  rpc CreateOrUpdate(CreateOrUpdateRequest) returns (CreateOrUpdateResponse);
+  rpc HTTPGet(HTTPGetRequest) returns (HTTPGetResponse);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string user_name = 1;
+}
+
+message ListItemsRequest {
+  int32 page_size = 1;
+}
+
+message ListItemsResponse {
+  repeated string items = 1;
+}
+
+message CreateOrUpdateRequest {
+  string id = 1;
+}
+
+message CreateOrUpdateResponse {
+  bool created = 1;
+}
+
+message HTTPGetRequest {
+  string url = 1;
+}
+
+message HTTPGetResponse {
+  string body = 1;
+}

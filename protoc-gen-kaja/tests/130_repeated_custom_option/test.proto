@@ -1,0 +1,17 @@
+// Tests custom options with repeated extension fields.
+// The TS plugin merges repeated extension values into arrays.
+// The Go plugin creates duplicate keys instead.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  repeated string tags = 51001;
+}
+
+message TaggedItem {
+  option (tags) = "alpha";
+  option (tags) = "beta";
+  string name = 1;
+}

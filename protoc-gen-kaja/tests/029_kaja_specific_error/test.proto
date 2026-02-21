@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+// This should work fine in both generators
+message SimpleMessage {
+  string id = 1;
+  string name = 2;
+}

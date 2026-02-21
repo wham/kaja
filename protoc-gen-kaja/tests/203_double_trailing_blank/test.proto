@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+// Message comment with two trailing blank lines.
+//
+//
+message Msg {
+    string name = 1;
+}

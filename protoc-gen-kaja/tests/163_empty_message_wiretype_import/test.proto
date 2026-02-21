@@ -1,0 +1,17 @@
+// Tests WireType import position when the first message is empty
+// and a service is present. The TS plugin places WireType early
+// (right after ServiceType), while the Go plugin places it late.
+syntax = "proto3";
+
+package test;
+
+message Empty {
+}
+
+message Request {
+    string query = 1;
+}
+
+service TestService {
+    rpc Search(Request) returns (Request);
+}

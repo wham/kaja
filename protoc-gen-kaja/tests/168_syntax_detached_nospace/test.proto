@@ -1,0 +1,9 @@
+//NoSpace detached comment before syntax
+//SecondLine also no space
+
+syntax = "proto3";
+package test;
+
+message Msg {
+    string value = 1;
+}

@@ -1,0 +1,21 @@
+// Tests custom enum-typed option in a no-package file.
+// The Go plugin's resolveEnumValueName constructs ".." + enumName
+// (double dot) for no-package files, but protoc uses "." + enumName.
+syntax = "proto3";
+
+import "google/protobuf/descriptor.proto";
+
+enum Visibility {
+    VISIBILITY_PUBLIC = 0;
+    VISIBILITY_PRIVATE = 1;
+    VISIBILITY_INTERNAL = 2;
+}
+
+extend google.protobuf.MessageOptions {
+    Visibility visibility = 50001;
+}
+
+message SecretDoc {
+    option (visibility) = VISIBILITY_INTERNAL;
+    string title = 1;
+}

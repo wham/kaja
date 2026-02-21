@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package nested;
+
+message Outer {
+  message Middle {
+    message Inner {
+      string value = 1;
+    }
+    Inner inner = 1;
+    string name = 2;
+  }
+
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_INACTIVE = 2;
+  }
+
+  Middle middle = 1;
+  Status status = 2;
+  string label = 3;
+}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message BoolMapTest {
+  // Map with boolean key - in TypeScript, boolean object keys become strings
+  // So the interface should use { [key: string]: string } not { [key: boolean]: string }
+  map<bool, string> bool_to_string = 1;
+  map<bool, int32> bool_to_int = 2;
+  map<bool, SubMessage> bool_to_message = 3;
+}
+
+message SubMessage {
+  string value = 1;
+}

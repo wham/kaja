@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package oneof;
+
+message Payload {
+  string text = 1;
+}
+
+message Event {
+  string id = 1;
+  oneof body {
+    string text = 2;
+    int32 number = 3;
+    bool flag = 4;
+    Payload payload = 5;
+  }
+}

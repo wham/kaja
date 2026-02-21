@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// Service named RpcOptions — collides with import type { RpcOptions } from runtime-rpc
+service RpcOptions {
+  rpc Search(Request) returns (Response);
+}

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package test;
+
+// Tests that enum value comments with trailing blank lines
+// are handled correctly (sentinel should not leak).
+enum Status {
+  // Unknown status.
+  //
+  // Use this when the status is not known.
+  //
+
+  STATUS_UNSPECIFIED = 0;
+
+  // Active and running.
+  //
+
+  STATUS_ACTIVE = 1;
+
+  // Stopped by user.
+  STATUS_STOPPED = 2;
+}
+
+message Container {
+  Status status = 1;
+}

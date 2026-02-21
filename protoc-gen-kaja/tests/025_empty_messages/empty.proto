@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package empty;
+
+// Empty message (no fields)
+message EmptyMessage {
+}
+
+// Message with only reserved fields
+message OnlyReserved {
+  reserved 1, 2, 3;
+  reserved "old_field";
+}
+
+// Service with empty messages
+service EmptyService {
+  rpc DoNothing(EmptyMessage) returns (EmptyMessage);
+  rpc SendEmpty(Request) returns (EmptyMessage);
+  rpc ReceiveEmpty(EmptyMessage) returns (Response);
+}
+
+message Request {
+  string query = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// Nested empty messages
+message Container {
+  message Empty {
+  }
+  
+  Empty empty = 1;
+  string value = 2;
+}
+
+// Map with empty message value
+message MapWithEmpty {
+  map<string, EmptyMessage> data = 1;
+}
+
+// Repeated empty messages
+message RepeatedEmpty {
+  repeated EmptyMessage items = 1;
+}
+
+// Oneof with empty message
+message OneofWithEmpty {
+  oneof value {
+    EmptyMessage empty = 1;
+    string text = 2;
+  }
+}

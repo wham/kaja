@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+message reflectionMergePartial {
+    string name = 1;
+}
+
+message User {
+    reflectionMergePartial data = 1;
+}

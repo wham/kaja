@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package test;
+
+// Outer message has field 1 with a specific comment
+message Outer {
+  // This is the outer name field
+  string name = 1;
+
+  // Nested message with a oneof
+  message Inner {
+    oneof choice {
+      // This is the inner string choice
+      string text = 1;
+      // This is the inner int choice
+      int32 number = 2;
+    }
+  }
+
+  Inner inner = 2;
+}
+
+// Second top-level message (needed so msgIndex=1 doesn't panic)
+message Other {
+  string value = 1;
+}

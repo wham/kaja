@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package test;
+
+message Container {
+  // Nested enum with reserved type name  
+  enum Array {
+    UNKNOWN = 0;
+    FIRST = 1;
+    SECOND = 2;
+  }
+  
+  // Map using the nested enum as value
+  map<string, Array> arrays = 1;
+}

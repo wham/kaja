@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package test;
+
+// Leading comment for Foo
+message Foo { // Trailing comment on Foo
+  string bar = 1;
+}
+
+message Empty { // Trailing on empty message
+}

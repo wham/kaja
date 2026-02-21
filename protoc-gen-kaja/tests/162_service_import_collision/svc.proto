@@ -1,0 +1,7 @@
+syntax = "proto3";
+package test;
+import "alpha.proto";
+import "beta.proto";
+service MyService {
+  rpc GetAlpha(alpha.Data) returns (beta.Data);
+}

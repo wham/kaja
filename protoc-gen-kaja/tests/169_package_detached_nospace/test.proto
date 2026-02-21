@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+//NoSpace package detached comment
+//AnotherLine
+
+package test;
+
+message Msg {
+    string value = 1;
+}

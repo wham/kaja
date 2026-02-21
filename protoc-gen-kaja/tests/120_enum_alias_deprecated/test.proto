@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package test;
+
+// Enum where alias is deprecated but original is not
+enum Status {
+  option allow_alias = true;
+
+  // Active status
+  STATUS_ACTIVE = 0;
+
+  // Running status
+  STATUS_RUNNING = 1;
+
+  // Alias for RUNNING, but deprecated
+  STATUS_STARTED = 1 [deprecated = true];
+
+  STATUS_STOPPED = 2;
+}
+
+message Task {
+  Status status = 1;
+}

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package test;
+
+// Service comment.
+service TestService {
+
+  // This detached comment before first method
+  // should appear as // style before first method JSDoc.
+
+  // First method comment.
+  rpc First(Request) returns (Response);
+
+  // Second method comment.
+  rpc Second(Request) returns (Response);
+}
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}

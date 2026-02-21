@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message MapConfig {
+    map<int32, string> int_map = 1;
+    map<bool, string> bool_map = 2;
+}
+
+extend google.protobuf.MessageOptions {
+    MapConfig map_config = 50001;
+}
+
+message MyMessage {
+    option (map_config) = {
+        int_map: { key: 1, value: "one" }
+        int_map: { key: 2, value: "two" }
+        bool_map: { key: true, value: "yes" }
+        bool_map: { key: false, value: "no" }
+    };
+    string name = 1;
+}

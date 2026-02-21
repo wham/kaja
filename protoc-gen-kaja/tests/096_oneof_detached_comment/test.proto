@@ -1,0 +1,14 @@
+syntax = "proto3";
+package test;
+
+message TestMessage {
+  string name = 1;
+
+  // This comment is detached from the oneof
+
+  // This is the oneof leading comment
+  oneof choice {
+    string text = 2;
+    int32 number = 3;
+  }
+}

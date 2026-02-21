@@ -1,0 +1,9 @@
+syntax = "proto3";
+package other;
+
+message lowercaseParent {
+  message Nested {
+    string value = 1;
+  }
+  Nested inner = 1;
+}

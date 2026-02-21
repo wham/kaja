@@ -1,0 +1,12 @@
+syntax = "proto3";
+package test;
+
+message UnknownFieldHandler {
+  string name = 1;
+  int32 code = 2;
+}
+
+message Container {
+  UnknownFieldHandler handler = 1;
+  string label = 2;
+}

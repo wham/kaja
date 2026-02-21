@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package api;
+
+import "options.proto";
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string name = 1;
+  string email = 2;
+}
+
+message DeleteUserRequest {
+  string user_id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+}
+
+service UserService {
+  // Method using imported custom options
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (custom.auth_level) = "admin";
+    option (custom.timeout_ms) = 5000;
+    option (custom.cache_enabled) = true;
+  }
+  
+  // Method with only some imported options
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option (custom.auth_level) = "superadmin";
+  }
+}

@@ -1,0 +1,21 @@
+syntax = "proto3";
+package test;
+
+// Tests that field-level detached comments with blank lines
+// use the correct formatting:
+// - blank line within a detached block should be "// " (with trailing space)
+// - separator between detached blocks should be an empty line (not "//")
+message MyMessage {
+
+  // First detached block about the field.
+  //
+  // It has a blank line inside.
+
+  // Second detached block.
+
+  // Name of the entity.
+  string name = 1;
+
+  // Regular field.
+  int32 age = 2;
+}

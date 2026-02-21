@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test;
+
+message Request {
+  string id = 1;
+}
+
+message Response {
+  string result = 1;
+}
+
+// This is a detached comment about the service.
+// It should appear as a line comment before the JSDoc.
+
+// The actual service comment.
+service TestService {
+  // First method
+  rpc DoSomething(Request) returns (Response);
+}

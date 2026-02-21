@@ -1,0 +1,17 @@
+// Tests that string values in custom options are properly escaped.
+// The Go plugin wraps strings with quotes but doesn't escape internal
+// double quotes, producing invalid JavaScript like "hello "world"".
+// The TS plugin correctly escapes them as "hello \"world\"".
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  string description = 51001;
+}
+
+message Item {
+  option (description) = "hello \"world\"";
+  string name = 1;
+}

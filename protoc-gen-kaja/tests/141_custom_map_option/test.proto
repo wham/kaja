@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+// Message type for the custom option
+message ResourceConfig {
+  map<string, string> labels = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceConfig resource_config = 50001;
+}
+
+// Message with a custom option that has a map field
+message User {
+  option (resource_config) = {
+    labels: { key: "env", value: "prod" }
+    labels: { key: "team", value: "backend" }
+  };
+  string name = 1;
+}

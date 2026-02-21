@@ -1,0 +1,126 @@
+// This file documents the product catalog.
+// It includes a JSDoc-breaking */ character in this comment.
+syntax = "proto3";
+
+package ecommerce.store;
+
+import "common/types.proto";
+
+// Product category enum
+enum Category {
+  CATEGORY_UNSPECIFIED = 0;
+  CATEGORY_ELECTRONICS = 1;
+  CATEGORY_CLOTHING = 2;
+  CATEGORY_BOOKS = 3;
+  CATEGORY_HOME = 4;
+  CATEGORY_SPORTS = 5;
+}
+
+// Product with nested variants
+message Product {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  Category category = 4;
+  common.Money price = 5;
+  repeated string tags = 6;
+  repeated string image_urls = 7;
+  common.Status status = 8;
+
+  // Nested variant message (also see top-level Product_Variant)
+  message Variant {
+    string id = 1;
+    string name = 2;
+    map<string, string> attributes = 3;
+    common.Money price = 4;
+    int32 stock_quantity = 5;
+    string sku = 6;
+  }
+
+  repeated Variant variants = 9;
+  common.Metadata metadata = 10;
+  common.AuditInfo audit = 11;
+  // jstype JS_STRING on int64 field
+  int64 view_count = 12 [jstype = JS_STRING];
+  // jstype JS_NUMBER on uint64 field
+  uint64 serial_number = 13 [jstype = JS_NUMBER];
+  // json_name with special characters
+  string internal_code = 14 [json_name = "@code"];
+  // TypeScript keywords as field names
+  string const = 15;
+  string class = 16;
+  string typeof = 17;
+  string delete = 18;
+}
+
+// Top-level message that collides with Product.Variant in generated code
+message Product_Variant {
+  string variant_id = 1;
+  string product_id = 2;
+  string label = 3;
+}
+
+// Review with nested rating breakdown
+message Review {
+  string id = 1;
+  string product_id = 2;
+  string user_id = 3;
+  int32 rating = 4;
+  string title = 5;
+  string comment = 6;
+  repeated string image_urls = 7;
+  bool verified_purchase = 8;
+  int32 helpful_count = 9;
+
+  message RatingBreakdown {
+    int32 quality = 1;
+    int32 value = 2;
+    int32 accuracy = 3;
+  }
+
+  RatingBreakdown breakdown = 10;
+  common.AuditInfo audit = 11;
+}
+
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  Category category = 3;
+  common.Money price = 4;
+  repeated string tags = 5;
+}
+
+message CreateProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  Category category = 1;
+  repeated string tags = 2;
+  common.PageInfo page = 3;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  common.PageInfo page = 2;
+}
+
+message GetProductRequest {
+  string id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+  repeated Review reviews = 2;
+}
+
+// Product service
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  // Deprecated method
+  rpc LegacySearch(ListProductsRequest) returns (ListProductsResponse) {
+    option deprecated = true;
+  }
+}

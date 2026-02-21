@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package test;
+
+// Detached comment with trailing spaces  
+
+// Leading comment with trailing spaces  
+message Foo {
+  // Field comment with trailing spaces  
+  string name = 1;
+}
+
+// Service detached with trailing spaces  
+
+// Service leading with trailing spaces  
+service MyService {
+  // Method comment with trailing spaces  
+  rpc DoStuff(Foo) returns (Foo);
+}

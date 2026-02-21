@@ -1,0 +1,21 @@
+// Tests that custom bytes-typed extension options are correctly output.
+// The TS plugin encodes bytes values as base64 strings in the options object.
+// The Go plugin drops bytes-typed custom options entirely.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  bytes field_metadata = 51001;
+}
+
+extend google.protobuf.MessageOptions {
+  bytes msg_tag = 51002;
+}
+
+message Item {
+  option (msg_tag) = "tag1";
+  string name = 1 [(field_metadata) = "hello"];
+  int32 count = 2 [(field_metadata) = "\x01\x02\x03"];
+}
