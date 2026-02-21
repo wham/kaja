@@ -1990,6 +1990,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 	isStruct := false
 	isAny := false
 	isWrapper := false // For Int32Value, StringValue, etc.
+	wrapperNeedsScalarType := false // Only Int64Value/UInt64Value need ScalarType+LongType
 	isGoogleTypeDateTime := false
 	if g.file.Package != nil && *g.file.Package == "google.type" {
 		for _, msg := range g.file.MessageType {
@@ -2013,6 +2014,9 @@ func (g *generator) writeImports(imports map[string]bool) {
 				isAny = true
 			} else if isWrapperTypeName(name) {
 				isWrapper = true
+				if name == "Int64Value" || name == "UInt64Value" {
+					wrapperNeedsScalarType = true
+				}
 			}
 		}
 	}
@@ -2112,7 +2116,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// Skip method-related imports when optimize_for = CODE_SIZE
 		if !g.isOptimizeCodeSize() {
 		// Add ScalarType and LongType for wrappers - must come first
-		if isWrapper {
+		if wrapperNeedsScalarType {
 			g.pNoIndent("import { ScalarType } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { LongType } from \"@protobuf-ts/runtime\";")
 		}
