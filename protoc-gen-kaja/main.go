@@ -297,6 +297,7 @@ type generator struct {
 	jsonValueRef                 string            // "JsonValue" normally, "JsonValue$" when local type collides
 	jsonReadOptionsRef           string            // "JsonReadOptions" normally, "JsonReadOptions$" when local type collides
 	jsonWriteOptionsRef          string            // "jsonWriteOptions" normally, "jsonWriteOptions$" when local type collides
+	jsonWriteOptionsTypeRef      string            // "JsonWriteOptions" normally, "JsonWriteOptions$" when local type collides (type import)
 	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
@@ -1439,6 +1440,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		jsonValueRef:                "JsonValue",
 		jsonReadOptionsRef:          "JsonReadOptions",
 		jsonWriteOptionsRef:         "jsonWriteOptions",
+		jsonWriteOptionsTypeRef:     "JsonWriteOptions",
 		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
@@ -2177,7 +2179,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
 		}
 		
@@ -2186,7 +2188,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
 		}
 		
@@ -2200,7 +2202,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.lowerCamelCaseImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 		}
 		
 		// Add JSON imports for Struct
@@ -2209,7 +2211,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 			g.pNoIndent("import type { JsonObject } from \"@protobuf-ts/runtime\";")
 		}
 		
@@ -2217,7 +2219,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if isWrapper {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 		}
 		// LongType for wrappers (after wrapper JSON imports, only when either ScalarType or LongType is aliased)
 		if wrapperNeedsScalarType && (g.scalarTypeRef == "ScalarType$" || g.longTypeRef == "LongType$") {
@@ -2231,7 +2233,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
-			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryReadOptionsImport())
 			g.pNoIndent("import type { IMessageType } from \"@protobuf-ts/runtime\";")
 		}
@@ -2397,6 +2399,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime jsonWriteOptions collision
 	if g.localTypeNames["jsonWriteOptions"] {
 		g.jsonWriteOptionsRef = "jsonWriteOptions$"
+	}
+	// Detect runtime JsonWriteOptions type collision
+	if g.localTypeNames["JsonWriteOptions"] {
+		g.jsonWriteOptionsTypeRef = "JsonWriteOptions$"
 	}
 	// Detect runtime JsonReadOptions collision
 	if g.localTypeNames["JsonReadOptions"] {
@@ -5233,6 +5239,13 @@ func (g *generator) jsonWriteOptionsImport() string {
 	return "jsonWriteOptions"
 }
 
+func (g *generator) jsonWriteOptionsTypeImport() string {
+	if g.jsonWriteOptionsTypeRef == "JsonWriteOptions$" {
+		return "JsonWriteOptions as JsonWriteOptions$"
+	}
+	return "JsonWriteOptions"
+}
+
 func (g *generator) jsonReadOptionsImport() string {
 	if g.jsonReadOptionsRef == "JsonReadOptions$" {
 		return "JsonReadOptions as JsonReadOptions$"
@@ -7044,7 +7057,7 @@ g.p("/**")
 g.p(" * In JSON format, the `Timestamp` type is encoded as a string")
 g.p(" * in the RFC 3339 format.")
 g.p(" */")
-g.p("internalJsonWrite(message: Timestamp, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+g.p("internalJsonWrite(message: Timestamp, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 g.indent = "        "
 g.p("let ms = PbLong.from(message.seconds).toNumber() * 1000;")
 g.p("if (ms < Date.parse(\"0001-01-01T00:00:00Z\") || ms > Date.parse(\"9999-12-31T23:59:59Z\"))")
@@ -7123,7 +7136,7 @@ g.indent = "    "
 g.p("/**")
 g.p(" * Encode `Duration` to JSON string like \"3.000001s\".")
 g.p(" */")
-g.p("internalJsonWrite(message: Duration, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+g.p("internalJsonWrite(message: Duration, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 g.indent = "        "
 g.p("let s = PbLong.from(message.seconds).toNumber();")
 g.p("if (s > 315576000000 || s < -315576000000)")
@@ -7198,7 +7211,7 @@ func (g *generator) generateFieldMaskMethods() {
 	g.p("/**")
 	g.p(" * Encode `FieldMask` to JSON object.")
 	g.p(" */")
-	g.p("internalJsonWrite(message: FieldMask, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+	g.p("internalJsonWrite(message: FieldMask, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 	g.indent = "        "
 	g.p("const invalidFieldMaskJsonRegex = /[A-Z]|(_([.0-9_]|$))/g;")
 	g.p("return message.paths.map(p => {")
@@ -7255,7 +7268,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `Struct` to JSON object.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: Struct, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+		g.p("internalJsonWrite(message: Struct, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("let json: JsonObject = {};")
 		g.p("for (let [k, v] of Object.entries(message.fields)) {")
@@ -7294,7 +7307,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `Value` to JSON value.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: Value, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+		g.p("internalJsonWrite(message: Value, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("if (message.kind.oneofKind === undefined)")
 		g.indent = "            "
@@ -7394,7 +7407,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `ListValue` to JSON array.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: ListValue, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+		g.p("internalJsonWrite(message: ListValue, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("return message.values.map(v => Value.toJson(v));")
 		g.indent = "    "
@@ -7448,7 +7461,7 @@ func (g *generator) generateWrapperMethods(typeName string) {
 		g.p(" * Encode `%s` to JSON string.", typeName)
 	}
 	g.p(" */")
-	g.p("internalJsonWrite(message: %s, options: JsonWriteOptions): " + g.jsonValueRef + " {", typeName)
+	g.p("internalJsonWrite(message: %s, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {", typeName)
 	g.indent = "        "
 	
 	// Handle write based on type
@@ -7592,7 +7605,7 @@ func (g *generator) generateAnyMethods() {
 	g.p(" * The `typeRegistry` option is also required to read")
 	g.p(" * `google.protobuf.Any` from JSON format.")
 	g.p(" */")
-	g.p("internalJsonWrite(any: Any, options: JsonWriteOptions): " + g.jsonValueRef + " {")
+	g.p("internalJsonWrite(any: Any, options: " + g.jsonWriteOptionsTypeRef + "): " + g.jsonValueRef + " {")
 	g.indent = "        "
 	g.p("if (any.typeUrl === \"\")")
 	g.indent = "            "
