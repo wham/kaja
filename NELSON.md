@@ -1131,6 +1131,12 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Diff:** Expected one line `hours: date.getHours(), minutes: date.getMinutes(), seconds: date.getSeconds(), nanos: date.getMilliseconds() * 1000,`. Got four separate lines.
 - **Note:** Same formatting pattern as runs 136 (Color) and 137 (DateTime) — the TS AST printer collapses short object literals. The Date test (216) passes because its object has only 3 short properties which happen to match the multi-line format.
 
+### Run 139 — Oneof group field not skipped in interface union type (SUCCESS)
+- **Bug found:** `generateOneofField()` in main.go iterates through ALL oneof member fields including GROUP type fields. The TS plugin's `buildFieldInfos()` skips GROUP fields entirely (`if (fd.proto.type == GROUP) { continue; }`), so group fields never appear in the interpreter's field info list and are never included in the oneof union type. The Go plugin includes them, adding a spurious `{ oneofKind: "mygroup"; mygroup: any; }` case.
+- **Test:** `220_oneof_group_field` — proto2 message with a oneof containing string, int32, and a group field.
+- **Root cause:** `generateOneofField()` at line ~3053 receives `fields` (all fields belonging to the oneof) but never checks `field.GetType() == TYPE_GROUP` to skip group fields. The field descriptor constructor and binary read/write methods already skip GROUP fields (they check `TYPE_GROUP` and continue), but the oneof interface union type generation does not.
+- **Diff:** Expected: oneof union has `text | number | undefined`. Got: `text | number | mygroup | undefined`.
+
 ### Ideas for future runs
 - Proto2 extension declarations as standalone constants — VERIFIED: TS plugin does NOT generate extension objects. No diff.
 - `findMessageType` import public bug for message field descriptors.
@@ -1138,3 +1144,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service method named `constructor` or `name` — TS escapes these, does Go?
 - `ScalarType` collision — message named `ScalarType`.
 - `LongType` collision — message named `LongType`.
+- Group field in non-oneof context — check if regular field JSDoc also spuriously includes group field info.
