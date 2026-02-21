@@ -1243,8 +1243,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** No `JsonWriteOptions` (uppercase TYPE) collision detection in `collectLocalTypeNames`. The existing `jsonWriteOptionsRef` only handles lowercase `jsonWriteOptions` (function import). Import line always `import type { JsonWriteOptions }` without aliasing. Uses `JsonWriteOptions` instead of `JsonWriteOptions$` as parameter type of `internalJsonWrite`.
 - **Same pattern as runs 152-153:** TYPE imports without collision detection.
 
+### Run 155 — IMessageType type import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `IMessageType` collisions. When a file in `google.protobuf` package defines both `Any` (WKT that needs `import type { IMessageType }` from runtime for `pack`, `unpack`, `contains` methods) AND a message named `IMessageType`, the Go plugin imports `IMessageType` without aliasing. The TS plugin correctly aliases it as `import type { IMessageType as IMessageType$ }` and uses `IMessageType$<T>` in method signatures.
+- **Test:** `237_imessage_type_collision` — `google.protobuf` package with `Any` and `IMessageType` messages.
+- **Root cause:** `collectLocalTypeNames()` at lines 2336-2412 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue, JsonValue, isJsonObject, jsonWriteOptions, JsonWriteOptions, JsonReadOptions, lowerCamelCase — but NOT `IMessageType`. Line 2238 imports `IMessageType` without aliasing. Lines 7558/7572/7586 use `IMessageType<T>` instead of `IMessageType$<T>`.
+- **Same pattern as runs 152-154:** TYPE imports without collision detection.
+
 ### Ideas for future runs
-- `IMessageType` type import collision — Any WKT imports this as `import type`, Go doesn't alias.
-- `JsonObject` type import collision — imported as type for Struct WKT.
+- `JsonObject` type import collision — imported as type for Struct WKT. Go doesn't alias.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.

@@ -298,6 +298,7 @@ type generator struct {
 	jsonReadOptionsRef           string            // "JsonReadOptions" normally, "JsonReadOptions$" when local type collides
 	jsonWriteOptionsRef          string            // "jsonWriteOptions" normally, "jsonWriteOptions$" when local type collides
 	jsonWriteOptionsTypeRef      string            // "JsonWriteOptions" normally, "JsonWriteOptions$" when local type collides (type import)
+	iMessageTypeRef              string            // "IMessageType" normally, "IMessageType$" when local type collides
 	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
@@ -1441,6 +1442,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		jsonReadOptionsRef:          "JsonReadOptions",
 		jsonWriteOptionsRef:         "jsonWriteOptions",
 		jsonWriteOptionsTypeRef:     "JsonWriteOptions",
+		iMessageTypeRef:             "IMessageType",
 		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
@@ -2235,7 +2237,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonReadOptionsImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsTypeImport())
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.binaryReadOptionsImport())
-			g.pNoIndent("import type { IMessageType } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.iMessageTypeImport())
 		}
 		if g.messageTypeRef == "MessageType$" {
 			g.pNoIndent("import { MessageType as MessageType$ } from \"@protobuf-ts/runtime\";")
@@ -2403,6 +2405,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime JsonWriteOptions type collision
 	if g.localTypeNames["JsonWriteOptions"] {
 		g.jsonWriteOptionsTypeRef = "JsonWriteOptions$"
+	}
+	// Detect runtime IMessageType collision
+	if g.localTypeNames["IMessageType"] {
+		g.iMessageTypeRef = "IMessageType$"
 	}
 	// Detect runtime JsonReadOptions collision
 	if g.localTypeNames["JsonReadOptions"] {
@@ -5246,6 +5252,13 @@ func (g *generator) jsonWriteOptionsTypeImport() string {
 	return "JsonWriteOptions"
 }
 
+func (g *generator) iMessageTypeImport() string {
+	if g.iMessageTypeRef == "IMessageType$" {
+		return "IMessageType as IMessageType$"
+	}
+	return "IMessageType"
+}
+
 func (g *generator) jsonReadOptionsImport() string {
 	if g.jsonReadOptionsRef == "JsonReadOptions$" {
 		return "JsonReadOptions as JsonReadOptions$"
@@ -7555,7 +7568,7 @@ func (g *generator) generateAnyMethods() {
 	g.p(" *")
 	g.p(" * Uses 'type.googleapis.com/full.type.name' as the type URL.")
 	g.p(" */")
-	g.p("pack<T extends object>(message: T, type: IMessageType<T>): Any {")
+	g.p("pack<T extends object>(message: T, type: %s<T>): Any {", g.iMessageTypeRef)
 	g.indent = "        "
 	g.p("return {")
 	g.indent = "            "
@@ -7569,7 +7582,7 @@ func (g *generator) generateAnyMethods() {
 	g.p("/**")
 	g.p(" * Unpack the message from the `Any`.")
 	g.p(" */")
-	g.p("unpack<T extends object>(any: Any, type: IMessageType<T>, options?: Partial<%s>): T {", g.binaryReadOptionsRef)
+	g.p("unpack<T extends object>(any: Any, type: %s<T>, options?: Partial<%s>): T {", g.iMessageTypeRef, g.binaryReadOptionsRef)
 	g.indent = "        "
 	g.p("if (!this.contains(any, type))")
 	g.indent = "            "
@@ -7583,7 +7596,7 @@ func (g *generator) generateAnyMethods() {
 	g.p("/**")
 	g.p(" * Does the given `Any` contain a packed message of the given type?")
 	g.p(" */")
-	g.p("contains(any: Any, type: IMessageType<any> | string): boolean {")
+	g.p("contains(any: Any, type: %s<any> | string): boolean {", g.iMessageTypeRef)
 	g.indent = "        "
 	g.p("if (!any.typeUrl.length)")
 	g.indent = "            "
