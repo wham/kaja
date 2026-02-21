@@ -1076,13 +1076,36 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = fmt.Sprintf("%v", val)
 		}
 		keyStr := opt.key
-		if strings.Contains(opt.key, ".") || (len(opt.key) > 0 && opt.key[0] >= '0' && opt.key[0] <= '9') {
+		if needsQuoteAsPropertyKey(opt.key) {
 			keyStr = fmt.Sprintf("\"%s\"", opt.key)
 		}
 		parts = append(parts, fmt.Sprintf("%s: %s", keyStr, valueStr))
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// needsQuoteAsPropertyKey returns true if the key needs to be quoted in a JS object literal.
+func needsQuoteAsPropertyKey(key string) bool {
+	if len(key) == 0 {
+		return true
+	}
+	// Already quoted (e.g. map keys with numeric types like "1")
+	if len(key) >= 2 && key[0] == '"' && key[len(key)-1] == '"' {
+		return false
+	}
+	for i, c := range key {
+		if i == 0 {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$') {
+				return true
+			}
+		} else {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$') {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isArrayIndex returns true if s is a canonical JS array index (non-negative integer < 2^32-1).

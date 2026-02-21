@@ -30,6 +30,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix custom options with WKT message types (test 239_wkt_custom_option)
   - Fixed `findMessageType` to search all files, not just direct deps (transitive deps like Duration used as option value types)
   - Added `isWKTFileUsed` filter to only generate WKT .ts files whose types are actually used as field types or service method types (matching protoc-gen-ts behavior)
+- [x] Fix custom option property keys with hyphens (test 240_custom_option_hyphen_json_name)
+  - Added `needsQuoteAsPropertyKey()` in `formatCustomOptions` to quote keys that aren't valid JS identifiers (e.g. `my-value` → `"my-value"`)
+  - Must skip already-quoted keys (numeric map keys like `"1"` are pre-quoted)
 
 ## Notes
 
