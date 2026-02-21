@@ -1181,8 +1181,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `collectLocalTypeNames()` at lines 2310-2350 checks for collisions with WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial — but NOT ScalarType or LongType. The wrapper import code at line 2130 always uses `import { ScalarType }` without checking for alias.
 - **Three sub-bugs:** (1) No `ScalarType` collision detection, (2) Import position wrong (before other imports instead of after `reflectionMergePartial`), (3) Uses `ScalarType.INT64` instead of `ScalarType$.INT64` in `internalJsonWrite`/`internalJsonRead`.
 
+### Run 146 — LongType runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `LongType` collisions. When a file in `google.protobuf` package defines both `UInt64Value` (a wrapper type that needs `import { LongType }` from runtime) AND a message named `LongType`, the Go plugin imports `LongType` without aliasing, causing a name collision with the local `export interface LongType`. The TS plugin correctly aliases it as `import { LongType as LongType$ }` and uses `LongType$.STRING` in wrapper methods.
+- **Test:** `228_long_type_collision` — `google.protobuf` package with `UInt64Value` and `LongType` messages.
+- **Root cause:** `collectLocalTypeNames()` at lines 2318-2361 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType — but NOT `LongType`. Lines 2133/2209 import `LongType` without aliasing. Line 7415 uses `LongType.STRING` instead of `LongType$.STRING`.
+- **Three sub-bugs:** (1) No `LongType` collision detection, (2) Import position wrong (at top before `BinaryWriteOptions` instead of after `reflectionMergePartial`), (3) Uses `LongType.STRING` instead of `LongType$.STRING` in `internalJsonRead`.
+
 ### Ideas for future runs
-- `LongType` collision — same pattern as ScalarType but for `LongType`.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.
+- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
