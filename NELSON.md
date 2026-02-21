@@ -1255,8 +1255,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 2217 `import type { JsonObject } from "@protobuf-ts/runtime"` is always hardcoded without aliasing. No `jsonObjectRef` variable exists. Line 7286 uses `let json: JsonObject = {};` without aliasing.
 - **Same pattern as runs 152-155:** TYPE imports without collision detection.
 
+### Run 157 — Empty leading comment (newline-only) dropped (SUCCESS)
+- **Bug found:** `getLeadingComments()` at line 1178 checks `strings.TrimRight(comment, "\n") == ""` and returns `("", false)` for comments that consist entirely of newlines. But protoc treats `//\n//\n` (two consecutive empty `//` lines) as a legitimate leading comment `"\n\n"`. The TS plugin preserves and outputs these as empty ` *` lines in JSDoc, but the Go plugin considers them "no comment" and skips them entirely.
+- **Test:** `239_empty_leading_comment` — enum with two `//` (empty comment) lines before it.
+- **Root cause:** Line 1178 `strings.TrimRight(comment, "\n") == ""` aggressively drops all newline-only leading comments. The TS plugin's `addCommentBlockAsJsDoc` does not have this filter and outputs whatever protobuf source code info provides.
+- **Affects:** All JSDoc consumers — messages, enums, fields, services, methods — anywhere `getLeadingComments()` is called. Same bug but only triggered by empty `//` lines without any text content.
+
 ### Ideas for future runs
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Service method trailing comment multiline — same bug pattern as run 81.
 - Deeply nested messages (5+ levels) with underscores in names.
+- Fields with comments containing only whitespace (e.g., `//   ` — only spaces).
