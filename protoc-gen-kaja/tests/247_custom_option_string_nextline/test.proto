@@ -1,0 +1,19 @@
+// Tests that U+0085 (NEXT LINE) in a custom option string is escaped as
+// \u0085 in the generated TypeScript. The TypeScript compiler's escapeString
+// explicitly includes U+0085 in its regex:
+//   /[\\\"\u0000-\u001f\t\v\f\b\r\n\u2028\u2029\u0085]/g
+// The Go plugin's escapeStringForJS only checks r < 0x20, 0x2028, 0x2029,
+// missing U+0085 which is 0x85 (above 0x20).
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  string note = 50001;
+}
+
+message Doc {
+  option (note) = "line1\302\205line2";
+  string id = 1;
+}

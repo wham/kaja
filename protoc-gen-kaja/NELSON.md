@@ -45,6 +45,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **String map key escaping in custom options** — When a `map<string, string>` custom option has keys containing special characters (backslash, double quotes), the Go plugin wraps the key in quotes via `needsQuoteAsPropertyKey` but does NOT escape the content. `formatCustomOptions` line 1177 does `fmt.Sprintf("\"%s\"", opt.key)` which inserts the raw string. So a key `back\slash` becomes `"back\slash"` (where `\s` is interpreted as an escape in JS) instead of `"back\\slash"`. Same issue with double quotes: key `has"quote` becomes `"has"quote"` (broken string literal) instead of `"has\"quote"`. Root cause: `formatCustomOptions` needs to call `escapeStringForJS` on map keys before quoting. Tested in `246_custom_map_string_key_escape`.
 
+- **U+0085 NEXT LINE in custom option strings** — TypeScript's compiler `escapeString` regex explicitly includes `\u0085`: `/[\\\"\u0000-\u001f\t\v\f\b\r\n\u2028\u2029\u0085]/g`. The escape map has `"\u0085": "\\u0085"`. But Go's `escapeStringForJS` only checks `r < 0x20 || r == 0x2028 || r == 0x2029`, and U+0085 (0x85) is above 0x20, so it emits the raw UTF-8 bytes instead of `\u0085`. Root cause: missing U+0085 check in `escapeStringForJS`. Tested in `247_custom_option_string_nextline`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -65,8 +67,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Bool map keys in custom options: TS may order `false` before `true` (since `Object.keys` on `{true: ..., false: ...}` preserves insertion order for non-integer keys). Check if wire order `true, false` matches TS order.
 - Other control chars in custom option strings: `\b` (backspace 0x08), `\f` (form feed 0x0C), `\0` (null 0x00) — same root cause as vtab, likely all broken
 - Control chars in nested message field string values (same escaping code path in `parseMessageValue`)
-- U+2029 PARAGRAPH SEPARATOR — same root cause as U+2028, same fix needed. Could test separately.
-- U+0085 NEXT LINE, U+00A0 NBSP, U+FEFF BOM — all escaped by TS printer but not by Go's `escapeStringForJS`. Each is a separate `\uXXXX` escape.
+- U+00A0 (NBSP) and U+FEFF (BOM) are NOT escaped by TS printer (verified: regex only has `\u0085`, not these). Don't test.
+- U+0085 NEXT LINE — confirmed different. TS escapes it via regex `\u0085` in `doubleQuoteEscapedCharsRegExp`. Go misses it because 0x85 > 0x20. Fix: add `r == 0x0085` check in `escapeStringForJS`.
 - Wrapper types (Int32Value, BoolValue, etc.) as custom option types — tested, NO difference (TS plugin uses generic MessageType not WKT-aware toJson for options)
 - Custom options with `google.protobuf.Any`, `google.protobuf.Struct`, `google.protobuf.Value` as the option type
 - Custom options with `google.protobuf.FieldMask`, `google.protobuf.Empty` as option types
