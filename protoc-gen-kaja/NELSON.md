@@ -32,7 +32,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 ## Notes
 
 ### Successfully exploited
-- **WKT-typed custom field options** — When a custom field option uses a Well-Known Type (e.g. `google.protobuf.Duration`, `google.protobuf.Timestamp`) as its message type, the Go plugin drops the option entirely. Root cause: `opts.ProtoReflect().GetUnknown()` returns empty bytes for extensions whose value type is a WKT, likely because the Go protobuf library resolves/absorbs WKT message payloads during deserialization. Non-WKT custom message options with identical structure work fine. Tested in `239_wkt_custom_option`.
+- **WKT-typed custom field options** — When a custom field option uses a Well-Known Type (e.g. `google.protobuf.Duration`, `google.protobuf.Timestamp`) as its message type, the Go plugin drops the option entirely. Root cause: `findMessageType` only searched direct dependencies, not all files. Fixed by RALPH. Tested in `239_wkt_custom_option`.
+- **Hyphenated json_name in custom option messages** — When a message used as a custom option value has fields with `json_name` containing non-identifier characters (hyphens, spaces, etc.), the Go plugin emits the key unquoted (`my-value: ...`) while TS quotes it (`"my-value": ...`). Root cause: `formatCustomOptions` only quotes keys containing `.` or starting with a digit, but doesn't check for other special chars. The TS `typescriptLiteralFromValue` uses regex `/^(?![0-9])[a-zA-Z0-9$_]+$/` to decide quoting. Tested in `240_custom_option_hyphen_json_name`.
+- **Control characters in custom option strings** — The Go plugin's `formatCustomOptions` only escapes `\`, `"`, `\n`, `\r`, `\t` in string values. But the TS plugin uses TypeScript's `createStringLiteral` + printer which also escapes `\v` (vertical tab, 0x0B), `\f` (form feed), `\b` (backspace), `\0` (null), and other control characters via `\uXXXX`. So a string like `"hello\vworld"` is emitted correctly by TS but the Go plugin emits the raw 0x0B byte. Root cause: incomplete string escaping in `formatCustomOptions`. Tested in `241_custom_option_string_vtab`.
 
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
@@ -49,8 +51,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service/method options (non-WKT types)
 
 ### Ideas for future runs
-- WKT custom options on messages/services/methods (not just fields)
+- Other control chars in custom option strings: `\b` (backspace 0x08), `\f` (form feed 0x0C), `\0` (null 0x00) — same root cause as vtab, likely all broken
+- Control chars in nested message field string values (same escaping code path in `parseMessageValue`)
 - Custom options with `google.protobuf.Any`, `google.protobuf.Struct`, `google.protobuf.Value` as the option type
 - Custom options with `google.protobuf.FieldMask`, `google.protobuf.Empty` as option types
 - Custom oneof-level options (`OneofOptions` extensions)
 - Extension field info generation for proto2 `extend` blocks
+- Custom options where nested message field json_name contains other invalid JS identifier chars (e.g., spaces, `@`, `+`)
+- Top-level extension key quoting for non-identifier characters (currently only dot and digit-start checked)
+- Custom enum options (`EnumOptions` extensions) — tested, no difference (neither plugin emits them)
+- Custom `EnumValueOptions` extensions — untested
+- `toCamelCase` vs `lowerCamelCase` — thoroughly compared, no differences found for any common pattern
