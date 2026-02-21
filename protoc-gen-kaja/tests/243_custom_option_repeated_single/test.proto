@@ -1,0 +1,24 @@
+// Tests that a repeated field with a single element in a custom option
+// is emitted as an array [42], not a bare scalar 42.
+// The TS plugin uses type.toJson() which always produces arrays for
+// repeated fields, even with one element. The Go plugin may not wrap
+// single repeated values in an array.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Metadata {
+  repeated string tags = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  Metadata meta = 50001;
+}
+
+message Item {
+  option (meta) = {
+    tags: "solo"
+  };
+  string name = 1;
+}
