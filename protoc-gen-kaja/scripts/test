@@ -8,7 +8,7 @@ TESTS_DIR="$PROJECT_DIR/tests"
 RESULTS_DIR="$PROJECT_DIR/results"
 
 SERVER_BUILD_DIR="$ROOT_DIR/server/build"
-PROTOC_GEN_TS="$ROOT_DIR/ui/node_modules/.bin/protoc-gen-ts"
+PROTOC_GEN_TS="$PROJECT_DIR/node_modules/.bin/protoc-gen-ts"
 PROTOC_GEN_KAJA="$SERVER_BUILD_DIR/protoc-gen-kaja"
 
 # Parse flags
@@ -28,10 +28,10 @@ INCLUDE_DIR="$SERVER_BUILD_DIR/include"
 source "$ROOT_DIR/scripts/common"
 install_protoc "$SERVER_BUILD_DIR"
 
-# Ensure protoc-gen-ts is available (from ui/node_modules)
+# Install protoc-gen-ts if needed
 if [ ! -x "$PROTOC_GEN_TS" ]; then
-  echo "protoc-gen-ts not found. Run 'npm i' in ui/ first."
-  exit 1
+  echo "Installing protoc-gen-ts..."
+  (cd "$PROJECT_DIR" && npm i)
 fi
 
 # Build protoc-gen-kaja into server/build
