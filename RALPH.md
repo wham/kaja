@@ -275,6 +275,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 235/235 tests passing — DONE
 - [x] Fix test 231_lower_camel_case_collision: When a proto message is named `lowerCamelCase`, the runtime `lowerCamelCase` import from `@protobuf-ts/runtime` (used by FieldMask) collides. Added `lowerCamelCaseRef` field, `lowerCamelCaseImport()` helper. Updated import line and `return lowerCamelCase(p)` usage in FieldMask's `internalJsonWrite`.
 - [x] All 236/236 tests passing — DONE
+- [x] Fix test 232_is_json_object_collision: When a proto message is named `isJsonObject`, the runtime `isJsonObject` import from `@protobuf-ts/runtime` collides. Added `isJsonObjectRef` field, `isJsonObjectImport()` helper. Updated 2 import sites (Struct, Any) and 3 usage sites to use the ref.
+- [x] All 237/237 tests passing — DONE
 
 ## Notes
 
@@ -389,3 +391,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Runtime PbLong import collision: When a proto message is named `PbLong`, the runtime `PbLong` import is aliased as `PbLong$`. However, only `now()` and `toDate()` methods of Timestamp use the aliased ref (`g.pbLongRef`). The `fromDate()`, `internalJsonWrite()`, and `internalJsonRead()` methods use hardcoded `PbLong` (NOT aliased) because protobuf-ts generates those with template strings that don't go through the import alias resolver. Duration and DateTime methods similarly use hardcoded `PbLong`.
 - Runtime typeofJsonValue import collision: When a proto message is named `typeofJsonValue`, the runtime import is aliased as `typeofJsonValue$`. Same pattern as PbLong — `typeofJsonValueRef` field, `typeofJsonValueImport()` helper. 5 import sites (Timestamp, Duration, FieldMask, Struct, Any) and 7 usage sites (throw error messages using `typeofJsonValue(json)`) all use the ref.
 - Runtime lowerCamelCase import collision: When a proto message is named `lowerCamelCase` and FieldMask is present (which imports `lowerCamelCase` from runtime), the import is aliased as `lowerCamelCase$`. Same pattern as all other runtime import collision refs. One import site and one usage site (`return lowerCamelCase$(p)` in FieldMask's internalJsonWrite).
+- Runtime isJsonObject import collision: When a proto message is named `isJsonObject`, the runtime import is aliased as `isJsonObject$`. Same pattern as typeofJsonValue — `isJsonObjectRef` field, `isJsonObjectImport()` helper. 2 import sites (Struct, Any) and 3 usage sites (Struct internalJsonRead, Any internalJsonWrite, Any internalJsonRead) all use the ref.
