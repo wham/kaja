@@ -1206,8 +1206,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Same pattern as runs 145-147:** Another runtime import name missing from collision detection.
 - **Note:** Same bug applies to `lowerCamelCase` (FieldMask), `isJsonObject` (Struct/Any), `jsonWriteOptions` (Any) — all lowercase runtime imports without collision detection.
 
+### Run 149 — lowerCamelCase runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `lowerCamelCase` collisions. When a file in `google.protobuf` package defines both `FieldMask` (which needs `import { lowerCamelCase }` from runtime for JSON encoding) AND a message named `lowerCamelCase`, the Go plugin imports `lowerCamelCase` without aliasing, causing a name collision with the local `export interface lowerCamelCase`. The TS plugin correctly aliases it as `import { lowerCamelCase as lowerCamelCase$ }` and uses `lowerCamelCase$(p)` in FieldMask methods.
+- **Test:** `231_lower_camel_case_collision` — `google.protobuf` package with `FieldMask` and `lowerCamelCase` messages.
+- **Root cause:** `collectLocalTypeNames()` at lines 2323-2378 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue — but NOT `lowerCamelCase`. Line 2191 imports `lowerCamelCase` without aliasing. Line 7145 uses `lowerCamelCase(p)` instead of `lowerCamelCase$(p)`.
+- **Same pattern as runs 145-148:** Another runtime import name missing from collision detection.
+
 ### Ideas for future runs
-- `lowerCamelCase` collision — same pattern, used in FieldMask WKT. Create `google.protobuf` file with FieldMask + message named `lowerCamelCase`.
 - `isJsonObject` collision — same pattern, imported for Struct/Any WKT.
 - `jsonWriteOptions` collision — same pattern, imported for Any WKT.
 - `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.

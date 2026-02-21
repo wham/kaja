@@ -293,6 +293,7 @@ type generator struct {
 	longTypeRef                  string            // "LongType" normally, "LongType$" when local type collides with runtime LongType
 	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	typeofJsonValueRef           string            // "typeofJsonValue" normally, "typeofJsonValue$" when local type collides
+	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
@@ -1430,6 +1431,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		longTypeRef:                 "LongType",
 		pbLongRef:                   "PbLong",
 		typeofJsonValueRef:          "typeofJsonValue",
+		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
 		serviceInfoRef:               "ServiceInfo",
@@ -2188,7 +2190,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if isFieldMask {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { lowerCamelCase } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.lowerCamelCaseImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 		}
@@ -2375,6 +2377,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime typeofJsonValue collision
 	if g.localTypeNames["typeofJsonValue"] {
 		g.typeofJsonValueRef = "typeofJsonValue$"
+	}
+	// Detect runtime lowerCamelCase collision
+	if g.localTypeNames["lowerCamelCase"] {
+		g.lowerCamelCaseRef = "lowerCamelCase$"
 	}
 }
 
@@ -5182,6 +5188,13 @@ func (g *generator) typeofJsonValueImport() string {
 	return "typeofJsonValue"
 }
 
+func (g *generator) lowerCamelCaseImport() string {
+	if g.lowerCamelCaseRef == "lowerCamelCase$" {
+		return "lowerCamelCase as lowerCamelCase$"
+	}
+	return "lowerCamelCase"
+}
+
 func methodCallTypeName(method *descriptorpb.MethodDescriptorProto) string {
 	cs := method.GetClientStreaming()
 	ss := method.GetServerStreaming()
@@ -7142,7 +7155,7 @@ func (g *generator) generateFieldMaskMethods() {
 	g.indent = "                "
 	g.p("%s", "throw new Error(\"Unable to encode FieldMask to JSON. lowerCamelCase of path name \\\"\" + p + \"\\\" is irreversible.\");")
 	g.indent = "            "
-	g.p("return lowerCamelCase(p);")
+	g.p("return %s(p);", g.lowerCamelCaseRef)
 	g.indent = "        "
 	g.p("}).join(\",\");")
 	g.indent = "    "
