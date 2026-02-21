@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package google.protobuf;
+
+// Timestamp triggers import of JsonReadOptions from @protobuf-ts/runtime.
+// A local message named JsonReadOptions should cause a collision that needs aliasing.
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+message JsonReadOptions {
+    string name = 1;
+}

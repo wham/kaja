@@ -1231,9 +1231,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Three sub-bugs:** (1) No `JsonValue` collision detection in `collectLocalTypeNames`, (2) Import line always `import type { JsonValue }` without aliasing, (3) Uses `JsonValue` instead of `JsonValue$` as return type of `internalJsonWrite` and parameter type of `internalJsonRead`.
 - **Same pattern applies to:** `JsonReadOptions`, `JsonWriteOptions`, `JsonObject`, `IMessageType` — all are TYPE imports without collision detection.
 
+### Run 153 — JsonReadOptions type import collision not aliased (SUCCESS)
+- **Bug found:** When a file in `google.protobuf` package defines both `Timestamp` (WKT that needs `import type { JsonReadOptions }` from runtime) AND a message named `JsonReadOptions`, the Go plugin imports `JsonReadOptions` without aliasing. The TS plugin correctly aliases it as `import type { JsonReadOptions as JsonReadOptions$ }` and uses `JsonReadOptions$` as parameter type in `internalJsonRead`.
+- **Test:** `235_json_read_options_collision` — `google.protobuf` package with `Timestamp` and `JsonReadOptions` messages.
+- **Root cause:** No `JsonReadOptions` collision detection in `collectLocalTypeNames`. Import line always `import type { JsonReadOptions }` without aliasing (line 2177). Uses `JsonReadOptions` instead of `JsonReadOptions$` as parameter type of `internalJsonRead` (line ~7071).
+- **Same pattern as runs 152:** TYPE imports without collision detection.
+
 ### Ideas for future runs
-- `JsonReadOptions` type import collision — same pattern as run 152.
-- `JsonWriteOptions` type import collision — same pattern as run 152.
+- `JsonWriteOptions` type import collision — same pattern as run 153.
 - `IMessageType` type import collision — Any WKT imports this as `import type`, Go doesn't alias.
 - `JsonObject` type import collision — imported as type for Struct WKT.
 - Four-way collision — `Item$3` vs `Item$$$`.
