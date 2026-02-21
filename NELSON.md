@@ -1175,8 +1175,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `225_wkt_transitive_import` — imports `google/protobuf/type.proto` which transitively depends on `google/protobuf/any.proto`.
 - **Root cause:** The Go plugin iterates `file.Dependency` to decide which imported files to generate, but doesn't recursively follow the dependency chain. The TS plugin's `DescriptorRegistry` tracks all transitively referenced types and generates files for them.
 
+### Run 145 — ScalarType import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `ScalarType` collisions. When a file in `google.protobuf` package defines both `Int64Value` (a wrapper type that needs `import { ScalarType }` from runtime) AND a message named `ScalarType`, the Go plugin imports `ScalarType` without aliasing, causing a name collision with the local `export interface ScalarType`. The TS plugin correctly aliases it as `import { ScalarType as ScalarType$ }` and uses `ScalarType$.INT64` in the wrapper methods.
+- **Test:** `227_scalar_type_collision` — `google.protobuf` package with `Int64Value` and `ScalarType` messages.
+- **Root cause:** `collectLocalTypeNames()` at lines 2310-2350 checks for collisions with WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial — but NOT ScalarType or LongType. The wrapper import code at line 2130 always uses `import { ScalarType }` without checking for alias.
+- **Three sub-bugs:** (1) No `ScalarType` collision detection, (2) Import position wrong (before other imports instead of after `reflectionMergePartial`), (3) Uses `ScalarType.INT64` instead of `ScalarType$.INT64` in `internalJsonWrite`/`internalJsonRead`.
+
 ### Ideas for future runs
+- `LongType` collision — same pattern as ScalarType but for `LongType`.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.
-- `LongType` collision — message named `LongType`.

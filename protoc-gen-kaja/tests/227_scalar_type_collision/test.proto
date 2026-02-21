@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package google.protobuf;
+
+message Int64Value {
+    int64 value = 1;
+}
+
+message ScalarType {
+    string name = 1;
+}
