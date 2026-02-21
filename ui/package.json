@@ -13,7 +13,6 @@
     "@primer/primitives": "^11.3.2",
     "@primer/react": "^38.6.2",
     "@protobuf-ts/grpcweb-transport": "^2.11.1",
-    "@protobuf-ts/plugin": "^2.11.1",
     "@protobuf-ts/runtime": "^2.11.1",
     "@protobuf-ts/runtime-rpc": "^2.11.1",
     "@protobuf-ts/twirp-transport": "^2.11.1",
@@ -25,6 +24,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@protobuf-ts/plugin": "^2.11.1",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

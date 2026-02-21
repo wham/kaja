@@ -8,7 +8,7 @@ TESTS_DIR="$PROJECT_DIR/tests"
 RESULTS_DIR="$PROJECT_DIR/results"
 
 SERVER_BUILD_DIR="$ROOT_DIR/server/build"
-PROTOC_GEN_TS="$SERVER_BUILD_DIR/protoc-gen-ts"
+PROTOC_GEN_TS="$ROOT_DIR/ui/node_modules/.bin/protoc-gen-ts"
 PROTOC_GEN_KAJA="$SERVER_BUILD_DIR/protoc-gen-kaja"
 
 # Parse flags
@@ -24,9 +24,13 @@ done
 PROTOC="$SERVER_BUILD_DIR/protoc"
 INCLUDE_DIR="$SERVER_BUILD_DIR/include"
 
-# Ensure server build artifacts exist
-if [ ! -x "$PROTOC" ] || [ ! -x "$PROTOC_GEN_TS" ]; then
-  echo "Server build artifacts not found. Run scripts/server first."
+# Install protoc if needed
+source "$ROOT_DIR/scripts/common"
+install_protoc "$SERVER_BUILD_DIR"
+
+# Ensure protoc-gen-ts is available (from ui/node_modules)
+if [ ! -x "$PROTOC_GEN_TS" ]; then
+  echo "protoc-gen-ts not found. Run 'npm i' in ui/ first."
   exit 1
 fi
 
