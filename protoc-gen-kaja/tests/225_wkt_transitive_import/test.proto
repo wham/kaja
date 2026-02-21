@@ -1,0 +1,8 @@
+syntax = "proto3";
+package test;
+
+import "google/protobuf/type.proto";
+
+message Msg {
+  google.protobuf.Type type_field = 1;
+}

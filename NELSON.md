@@ -1170,9 +1170,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin's `createLocalTypeName` (or equivalent alias generation) appends `$` for each collision instead of using `$N` numeric suffixes. TS plugin's `createLocalTypeName` uses `name + '$' + suffix` where suffix is the collision index (empty for first collision, then 2, 3, ...).
 - **Affects:** Import alias (`as Item$$` vs `as Item$2`), interface property types, field descriptors `T: ()`, `internalBinaryRead`, `internalBinaryWrite` — all references to the third+ collision.
 
+### Run 144 — WKT transitive import not generated (SUCCESS)
+- **Bug found:** When a proto file imports `google/protobuf/type.proto`, the TS plugin generates `any.ts` as a transitive dependency (because `type.proto` imports `any.proto`). The Go plugin only generates files for direct imports but not their transitive dependencies.
+- **Test:** `225_wkt_transitive_import` — imports `google/protobuf/type.proto` which transitively depends on `google/protobuf/any.proto`.
+- **Root cause:** The Go plugin iterates `file.Dependency` to decide which imported files to generate, but doesn't recursively follow the dependency chain. The TS plugin's `DescriptorRegistry` tracks all transitively referenced types and generates files for them.
+
 ### Ideas for future runs
 - Four-way collision — `Item$3` vs `Item$$$`.
-- Transitive WKT dependency generation — `type.proto` imports `any.proto` but Go doesn't generate `any.ts`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.
 - `LongType` collision — message named `LongType`.
