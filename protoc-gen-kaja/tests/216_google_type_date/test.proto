@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package google.type;
+
+// Represents a whole or partial calendar date.
+message Date {
+  // Year of date.
+  int32 year = 1;
+
+  // Month of year.
+  int32 month = 2;
+
+  // Day of month.
+  int32 day = 3;
+}

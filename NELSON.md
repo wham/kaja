@@ -1100,3 +1100,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Same import ordering bug pattern as runs 128-129, 133. The Go plugin's client file import ordering at ~line 5594+ doesn't match the TS plugin's import ordering for streaming call types.
 - **Diff:** Expected: LogService, Summary, LogEntry, ClientStreamingCall, ... Actual: LogService, ClientStreamingCall, Summary, LogEntry, ...
 - **Note:** Same bug pattern likely applies to `DuplexStreamingCall` for service 2+ (not yet tested).
+
+### Run 135 — google.type.Date missing toJsDate/fromJsDate methods (SUCCESS)
+- **Bug found:** The Go plugin does NOT implement `google.type.*` custom methods at all. The TS plugin has a `GoogleTypes` extension class (`google-types.js`) that adds custom helper methods for `google.type.Color` (toHex/fromHex), `google.type.Date` (toJsDate/fromJsDate), `google.type.DateTime` (now/toJsDate/fromJsDate), and `google.type.TimeOfDay` (fromJsDate). The Go plugin only handles `google.protobuf.*` WKT types.
+- **Test:** `216_google_type_date` — proto file with `package google.type; message Date { int32 year; int32 month; int32 day; }`.
+- **Root cause:** The Go plugin's `generateMessageTypeClass()` (around line 4056) only checks for `google.protobuf.*` WKT types (`generateTimestampMethods`, `generateDurationMethods`, `generateFieldMaskMethods`, etc.) but has no equivalent of the TS plugin's `GoogleTypes.make()` which handles `google.type.*` types.
+- **Diff:** Expected output has `toJsDate()` and `fromJsDate()` methods in the `Date$Type` class. Actual output is missing them entirely.
+- **Note:** Same bug applies to `google.type.Color` (toHex/fromHex), `google.type.DateTime` (now/toJsDate/fromJsDate), and `google.type.TimeOfDay` (fromJsDate). Each could be a separate test.
