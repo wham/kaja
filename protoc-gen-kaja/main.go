@@ -1979,6 +1979,14 @@ func (g *generator) writeImports(imports map[string]bool) {
 	isStruct := false
 	isAny := false
 	isWrapper := false // For Int32Value, StringValue, etc.
+	isGoogleTypeDateTime := false
+	if g.file.Package != nil && *g.file.Package == "google.type" {
+		for _, msg := range g.file.MessageType {
+			if msg.GetName() == "DateTime" {
+				isGoogleTypeDateTime = true
+			}
+		}
+	}
 	if g.file.Package != nil && *g.file.Package == "google.protobuf" {
 		for _, msg := range g.file.MessageType {
 			name := msg.GetName()
@@ -2132,6 +2140,11 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+		}
+		
+		// Add PbLong import for google.type.DateTime
+		if isGoogleTypeDateTime {
 			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
 		}
 		
@@ -7685,20 +7698,11 @@ func (g *generator) generateGoogleTypeDateTimeMethods() {
 	g.indent = "        "
 	g.p("return {")
 	g.indent = "            "
-	g.p("year: date.getFullYear(),")
-	g.p("month: date.getMonth() + 1,")
-	g.p("day: date.getDate(),")
-	g.p("hours: date.getHours(),")
-	g.p("minutes: date.getMinutes(),")
-	g.p("seconds: date.getSeconds(),")
-	g.p("nanos: date.getMilliseconds() * 1000,")
-	g.p("%s: {", timeOffsetField)
+	g.p("year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hours: date.getHours(), minutes: date.getMinutes(), seconds: date.getSeconds(), nanos: date.getMilliseconds() * 1000, %s: {", timeOffsetField)
 	g.indent = "                "
-	g.p("oneofKind: \"%s\",", utcOffsetField)
-	g.p("%s: {", utcOffsetField)
+	g.p("oneofKind: \"%s\", %s: {", utcOffsetField, utcOffsetField)
 	g.indent = "                    "
-	g.p("seconds: PbLong.from(date.getTimezoneOffset() * 60).toString(),")
-	g.p("nanos: 0,")
+	g.p("seconds: PbLong.from(date.getTimezoneOffset() * 60).toString(), nanos: 0,")
 	g.indent = "                "
 	g.p("}")
 	g.indent = "            "
