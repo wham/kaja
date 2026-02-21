@@ -294,6 +294,7 @@ type generator struct {
 	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	typeofJsonValueRef           string            // "typeofJsonValue" normally, "typeofJsonValue$" when local type collides
 	isJsonObjectRef              string            // "isJsonObject" normally, "isJsonObject$" when local type collides
+	jsonValueRef                 string            // "JsonValue" normally, "JsonValue$" when local type collides
 	jsonWriteOptionsRef          string            // "jsonWriteOptions" normally, "jsonWriteOptions$" when local type collides
 	lowerCamelCaseRef            string            // "lowerCamelCase" normally, "lowerCamelCase$" when local type collides
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
@@ -1434,6 +1435,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		pbLongRef:                   "PbLong",
 		typeofJsonValueRef:          "typeofJsonValue",
 		isJsonObjectRef:             "isJsonObject",
+		jsonValueRef:                "JsonValue",
 		jsonWriteOptionsRef:         "jsonWriteOptions",
 		lowerCamelCaseRef:           "lowerCamelCase",
 		stackInterceptRef:           "stackIntercept",
@@ -2171,7 +2173,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// Add JSON imports for Timestamp
 		if isTimestamp {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
@@ -2180,7 +2182,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// Add JSON imports for Duration
 		if isDuration {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
@@ -2193,7 +2195,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		// Add JSON imports for FieldMask
 		if isFieldMask {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.lowerCamelCaseImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
@@ -2203,7 +2205,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if isStruct {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.isJsonObjectImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonObject } from \"@protobuf-ts/runtime\";")
@@ -2211,7 +2213,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		
 		// Add JSON imports for wrapper types
 		if isWrapper {
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
 		}
@@ -2224,7 +2226,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 		if isAny {
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.isJsonObjectImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.typeofJsonValueImport())
-			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
 			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.jsonWriteOptionsImport())
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
@@ -2381,6 +2383,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime typeofJsonValue collision
 	if g.localTypeNames["typeofJsonValue"] {
 		g.typeofJsonValueRef = "typeofJsonValue$"
+	}
+	// Detect runtime JsonValue collision
+	if g.localTypeNames["JsonValue"] {
+		g.jsonValueRef = "JsonValue$"
 	}
 	// Detect runtime isJsonObject collision
 	if g.localTypeNames["isJsonObject"] {
@@ -5207,6 +5213,13 @@ func (g *generator) isJsonObjectImport() string {
 	return "isJsonObject"
 }
 
+func (g *generator) jsonValueImport() string {
+	if g.jsonValueRef == "JsonValue$" {
+		return "JsonValue as JsonValue$"
+	}
+	return "JsonValue"
+}
+
 func (g *generator) jsonWriteOptionsImport() string {
 	if g.jsonWriteOptionsRef == "jsonWriteOptions$" {
 		return "jsonWriteOptions as jsonWriteOptions$"
@@ -7018,7 +7031,7 @@ g.p("/**")
 g.p(" * In JSON format, the `Timestamp` type is encoded as a string")
 g.p(" * in the RFC 3339 format.")
 g.p(" */")
-g.p("internalJsonWrite(message: Timestamp, options: JsonWriteOptions): JsonValue {")
+g.p("internalJsonWrite(message: Timestamp, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 g.indent = "        "
 g.p("let ms = PbLong.from(message.seconds).toNumber() * 1000;")
 g.p("if (ms < Date.parse(\"0001-01-01T00:00:00Z\") || ms > Date.parse(\"9999-12-31T23:59:59Z\"))")
@@ -7055,7 +7068,7 @@ g.p("/**")
 g.p(" * In JSON format, the `Timestamp` type is encoded as a string")
 g.p(" * in the RFC 3339 format.")
 g.p(" */")
-g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Timestamp): Timestamp {")
+g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: Timestamp): Timestamp {")
 g.indent = "        "
 g.p("if (typeof json !== \"string\")")
 g.indent = "            "
@@ -7097,7 +7110,7 @@ g.indent = "    "
 g.p("/**")
 g.p(" * Encode `Duration` to JSON string like \"3.000001s\".")
 g.p(" */")
-g.p("internalJsonWrite(message: Duration, options: JsonWriteOptions): JsonValue {")
+g.p("internalJsonWrite(message: Duration, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 g.indent = "        "
 g.p("let s = PbLong.from(message.seconds).toNumber();")
 g.p("if (s > 315576000000 || s < -315576000000)")
@@ -7132,7 +7145,7 @@ g.p("}")
 g.p("/**")
 g.p(" * Decode `Duration` from JSON string like \"3.000001s\"")
 g.p(" */")
-g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Duration): Duration {")
+g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: Duration): Duration {")
 g.indent = "        "
 g.p("if (typeof json !== \"string\")")
 g.indent = "            "
@@ -7172,7 +7185,7 @@ func (g *generator) generateFieldMaskMethods() {
 	g.p("/**")
 	g.p(" * Encode `FieldMask` to JSON object.")
 	g.p(" */")
-	g.p("internalJsonWrite(message: FieldMask, options: JsonWriteOptions): JsonValue {")
+	g.p("internalJsonWrite(message: FieldMask, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 	g.indent = "        "
 	g.p("const invalidFieldMaskJsonRegex = /[A-Z]|(_([.0-9_]|$))/g;")
 	g.p("return message.paths.map(p => {")
@@ -7191,7 +7204,7 @@ func (g *generator) generateFieldMaskMethods() {
 	g.p("/**")
 	g.p(" * Decode `FieldMask` from JSON object.")
 	g.p(" */")
-	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: FieldMask): FieldMask {")
+	g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: FieldMask): FieldMask {")
 	g.indent = "        "
 	g.p("if (typeof json !== \"string\")")
 	g.indent = "            "
@@ -7229,7 +7242,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `Struct` to JSON object.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: Struct, options: JsonWriteOptions): JsonValue {")
+		g.p("internalJsonWrite(message: Struct, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("let json: JsonObject = {};")
 		g.p("for (let [k, v] of Object.entries(message.fields)) {")
@@ -7245,7 +7258,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Decode `Struct` from JSON object.")
 		g.p(" */")
-		g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Struct): Struct {")
+		g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: Struct): Struct {")
 		g.indent = "        "
 		g.p("if (!%s(json))", g.isJsonObjectRef)
 		g.indent = "            "
@@ -7268,7 +7281,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `Value` to JSON value.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: Value, options: JsonWriteOptions): JsonValue {")
+		g.p("internalJsonWrite(message: Value, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("if (message.kind.oneofKind === undefined)")
 		g.indent = "            "
@@ -7315,7 +7328,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Decode `Value` from JSON value.")
 		g.p(" */")
-		g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Value): Value {")
+		g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: Value): Value {")
 		g.indent = "        "
 		g.p("if (!target)")
 		g.indent = "            "
@@ -7368,7 +7381,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Encode `ListValue` to JSON array.")
 		g.p(" */")
-		g.p("internalJsonWrite(message: ListValue, options: JsonWriteOptions): JsonValue {")
+		g.p("internalJsonWrite(message: ListValue, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 		g.indent = "        "
 		g.p("return message.values.map(v => Value.toJson(v));")
 		g.indent = "    "
@@ -7378,7 +7391,7 @@ func (g *generator) generateStructMethods(typeName string) {
 		g.p("/**")
 		g.p(" * Decode `ListValue` from JSON array.")
 		g.p(" */")
-		g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: ListValue): ListValue {")
+		g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: ListValue): ListValue {")
 		g.indent = "        "
 		g.p("if (!globalThis.Array.isArray(json))")
 		g.indent = "            "
@@ -7422,7 +7435,7 @@ func (g *generator) generateWrapperMethods(typeName string) {
 		g.p(" * Encode `%s` to JSON string.", typeName)
 	}
 	g.p(" */")
-	g.p("internalJsonWrite(message: %s, options: JsonWriteOptions): JsonValue {", typeName)
+	g.p("internalJsonWrite(message: %s, options: JsonWriteOptions): " + g.jsonValueRef + " {", typeName)
 	g.indent = "        "
 	
 	// Handle write based on type
@@ -7473,7 +7486,7 @@ func (g *generator) generateWrapperMethods(typeName string) {
 		g.p(" * Decode `%s` from JSON string.", typeName)
 	}
 	g.p(" */")
-	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: %s): %s {", typeName, typeName)
+	g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: %s): %s {", typeName, typeName)
 	g.indent = "        "
 	g.p("if (!target)")
 	g.indent = "            "
@@ -7566,7 +7579,7 @@ func (g *generator) generateAnyMethods() {
 	g.p(" * The `typeRegistry` option is also required to read")
 	g.p(" * `google.protobuf.Any` from JSON format.")
 	g.p(" */")
-	g.p("internalJsonWrite(any: Any, options: JsonWriteOptions): JsonValue {")
+	g.p("internalJsonWrite(any: Any, options: JsonWriteOptions): " + g.jsonValueRef + " {")
 	g.indent = "        "
 	g.p("if (any.typeUrl === \"\")")
 	g.indent = "            "
@@ -7591,7 +7604,7 @@ func (g *generator) generateAnyMethods() {
 	g.p("}")
 	
 	// internalJsonRead() method
-	g.p("internalJsonRead(json: JsonValue, options: JsonReadOptions, target?: Any): Any {")
+	g.p("internalJsonRead(json: " + g.jsonValueRef + ", options: JsonReadOptions, target?: Any): Any {")
 	g.indent = "        "
 	g.p("if (!%s(json))", g.isJsonObjectRef)
 	g.indent = "            "
