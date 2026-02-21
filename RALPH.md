@@ -255,6 +255,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix test 218_google_type_datetime: Added `PbLong` import for google.type.DateTime files and changed `fromJsDate` to put scalar properties on same line with nested object openings (matching protobuf-ts TypeScript printer output)
 - [x] Fix test 219_google_type_timeofday: Put all 4 fromJsDate return properties (hours, minutes, seconds, nanos) on a single line, matching protobuf-ts TypeScript printer output
 - [x] All 224/224 tests passing — DONE
+- [x] Fix test 220_oneof_group_field: Group fields (TYPE_GROUP) inside oneofs must be skipped in the oneof member collection — protobuf-ts does not generate oneof alternatives for group fields
+- [x] All 225/225 tests passing — DONE
 
 ## Notes
 

@@ -3664,8 +3664,12 @@ func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorPro
 	typeName = strings.TrimPrefix(typeName, ".")
 	
 	// Search in current file
+	currentPkg := ""
+	if g.file.Package != nil && *g.file.Package != "" {
+		currentPkg = *g.file.Package
+	}
 	for _, msg := range g.file.MessageType {
-		if found := g.findMessageTypeInMessage(msg, typeName, ""); found != nil {
+		if found := g.findMessageTypeInMessage(msg, typeName, currentPkg); found != nil {
 			return found
 		}
 	}
@@ -3674,8 +3678,12 @@ func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorPro
 	for _, dep := range g.file.Dependency {
 		depFile := g.findFileByName(dep)
 		if depFile != nil {
+			depPkg := ""
+			if depFile.Package != nil && *depFile.Package != "" {
+				depPkg = *depFile.Package
+			}
 			for _, msg := range depFile.MessageType {
-				if found := g.findMessageTypeInMessage(msg, typeName, ""); found != nil {
+				if found := g.findMessageTypeInMessage(msg, typeName, depPkg); found != nil {
 					return found
 				}
 			}
@@ -3780,7 +3788,7 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 	fullName += msg.GetName()
 	
 	// Check if current message matches
-	if strings.HasSuffix(typeName, fullName) {
+	if typeName == fullName {
 		return msg
 	}
 	
