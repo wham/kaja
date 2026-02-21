@@ -1164,7 +1164,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The import generation adds `ScalarType` and `LongType` based on blanket `isWrapper` check without verifying which specific wrapper types are present. The TS plugin only imports what's actually used in the generated code.
 - **Diff:** Go output has two extra import lines (`ScalarType`, `LongType`) that don't appear in TS output.
 
+### Run 143 — Three-way type collision alias suffix bug (SUCCESS)
+- **Bug found:** When three different packages each define a type with the same name (e.g., `Item`), the Go plugin uses repeated `$` characters for aliases (`Item`, `Item$`, `Item$$`), while the TS plugin uses numeric suffixes (`Item`, `Item$`, `Item$2`). The third and subsequent collisions produce different alias names.
+- **Test:** `224_three_way_type_collision` — three packages (a, b, c) each with `message Item`, imported by a main file using all three.
+- **Root cause:** The Go plugin's `createLocalTypeName` (or equivalent alias generation) appends `$` for each collision instead of using `$N` numeric suffixes. TS plugin's `createLocalTypeName` uses `name + '$' + suffix` where suffix is the collision index (empty for first collision, then 2, 3, ...).
+- **Affects:** Import alias (`as Item$$` vs `as Item$2`), interface property types, field descriptors `T: ()`, `internalBinaryRead`, `internalBinaryWrite` — all references to the third+ collision.
+
 ### Ideas for future runs
+- Four-way collision — `Item$3` vs `Item$$$`.
 - Transitive WKT dependency generation — `type.proto` imports `any.proto` but Go doesn't generate `any.ts`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.

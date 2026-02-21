@@ -1,0 +1,6 @@
+syntax = "proto3";
+package c;
+
+message Item {
+  bool active = 1;
+}

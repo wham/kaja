@@ -1,0 +1,6 @@
+syntax = "proto3";
+package b;
+
+message Item {
+  int32 count = 1;
+}
