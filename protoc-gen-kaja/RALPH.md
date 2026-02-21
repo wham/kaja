@@ -48,6 +48,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix U+2028/U+2029 escaping in JS string literals (test 244_custom_option_string_linesep)
   - Added `r == 0x2028 || r == 0x2029` check in `escapeStringForJS()` to escape LINE SEPARATOR and PARAGRAPH SEPARATOR
   - These chars are not valid unescaped in JS string literals (pre-ES2019), TypeScript's printer escapes them
+- [x] Fix single-element repeated extension fields (test 245_repeated_extension_single)
+  - Added array-wrapping logic in `parseCustomOptions` (not just `parseMessageValue`) for top-level repeated extensions
+  - Builds a `repeatedExts` set from `extensionMap` entries with `LABEL_REPEATED`, skipping map entries
+  - After `mergeRepeatedOptions`, wraps non-array values in `[]interface{}` for repeated extensions
 
 ## Notes
 
