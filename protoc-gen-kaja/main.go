@@ -734,7 +734,60 @@ func mergeRepeatedOptions(opts []customOption) []customOption {
 			merged = append(merged, opt)
 		}
 	}
+	// Sort map entries to match JavaScript Object.keys() enumeration order:
+	// integer-index keys (0..2^32-2) come first in ascending numeric order,
+	// followed by non-integer keys in insertion order.
+	for i, opt := range merged {
+		if entries, ok := opt.value.([]customOption); ok {
+			merged[i].value = sortMapEntriesJSOrder(entries)
+		}
+	}
 	return merged
+}
+
+// sortMapEntriesJSOrder sorts []customOption entries the way JavaScript's
+// Object.keys() would enumerate them: array-index keys first (ascending
+// numeric), then everything else in insertion order.
+func sortMapEntriesJSOrder(entries []customOption) []customOption {
+	// Separate integer-index keys from non-integer keys
+	type indexedEntry struct {
+		idx   uint64
+		entry customOption
+	}
+	var intEntries []indexedEntry
+	var otherEntries []customOption
+
+	for _, e := range entries {
+		// Keys may be quoted like `"1"` — strip quotes for the check
+		raw := e.key
+		if len(raw) >= 2 && raw[0] == '"' && raw[len(raw)-1] == '"' {
+			raw = raw[1 : len(raw)-1]
+		}
+		if isArrayIndex(raw) {
+			v, _ := strconv.ParseUint(raw, 10, 64)
+			intEntries = append(intEntries, indexedEntry{idx: v, entry: e})
+		} else {
+			otherEntries = append(otherEntries, e)
+		}
+	}
+
+	if len(intEntries) <= 1 && len(otherEntries) == 0 {
+		return entries // nothing to reorder
+	}
+	if len(intEntries) == 0 {
+		return entries // nothing to reorder
+	}
+
+	sort.Slice(intEntries, func(i, j int) bool {
+		return intEntries[i].idx < intEntries[j].idx
+	})
+
+	result := make([]customOption, 0, len(entries))
+	for _, ie := range intEntries {
+		result = append(result, ie.entry)
+	}
+	result = append(result, otherEntries...)
+	return result
 }
 
 // parseMessageValue decodes a message's wire bytes into an ordered list of field name→value pairs

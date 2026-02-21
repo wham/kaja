@@ -37,6 +37,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Created `escapeStringForJS()` helper matching TypeScript compiler's `escapeString` behavior
   - Handles `\v`, `\f`, `\b`, `\0`, and other control chars via `\uXXXX`
   - Replaced duplicated escaping code in `formatCustomOptions`, `formatCustomOptionArray`, and jsonName escaping
+- [x] Fix integer map key ordering in custom options (test 242_custom_map_int_key_order)
+  - Added `sortMapEntriesJSOrder()` to sort `[]customOption` map entries after merging in `mergeRepeatedOptions`
+  - Matches JavaScript Object.keys() enumeration: array-index keys (0..2^32-2) first in ascending numeric order, then non-integer keys in insertion order
+  - Strips quotes from keys before checking `isArrayIndex()` since numeric map keys are stored pre-quoted (e.g. `"1"`, `"10"`)
 
 ## Notes
 
