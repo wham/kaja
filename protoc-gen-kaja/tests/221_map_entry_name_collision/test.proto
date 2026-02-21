@@ -1,0 +1,16 @@
+syntax = "proto3";
+package testpkg;
+
+// A message whose name "Entry" is a suffix of the synthetic map entry
+// type name "SettingsEntry". This triggers a bug in findMessageType
+// where HasSuffix matching finds this Entry instead of Config.SettingsEntry.
+message Entry {
+  string key = 1;
+  string value = 2;
+}
+
+message Config {
+  map<string, string> settings = 1;
+  map<int32, Entry> entries = 2;
+  string label = 3;
+}

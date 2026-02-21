@@ -1137,9 +1137,15 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `generateOneofField()` at line ~3053 receives `fields` (all fields belonging to the oneof) but never checks `field.GetType() == TYPE_GROUP` to skip group fields. The field descriptor constructor and binary read/write methods already skip GROUP fields (they check `TYPE_GROUP` and continue), but the oneof interface union type generation does not.
 - **Diff:** Expected: oneof union has `text | number | undefined`. Got: `text | number | mygroup | undefined`.
 
+### Run 140 — Map entry name collision breaks map detection (SUCCESS)
+- **Bug found:** `findMessageTypeInMessage()` at line 3783 uses `strings.HasSuffix(typeName, fullName)` to match types, which is too loose. When searching for `testpkg.Config.SettingsEntry` (a synthetic map entry message), the function finds a top-level message named `Entry` because `HasSuffix("testpkg.Config.SettingsEntry", "Entry")` is TRUE. Since `Entry` is NOT a map entry type, `GetMapEntry()` returns false, and the map field is incorrectly treated as a regular `repeated` message field.
+- **Test:** `221_map_entry_name_collision` — message `Entry` (whose name is a suffix of `SettingsEntry`) alongside `Config` with `map<string, string> settings` and `map<int32, Entry> entries`.
+- **Root cause:** `findMessageTypeInMessage` at line 3783 matches `Entry` when looking for `Config.SettingsEntry` because `HasSuffix` doesn't check for a proper boundary (e.g., `.` prefix). The function returns the WRONG message descriptor, and all downstream code (interface generation, field descriptors, binary read/write) falls back to treating the map field as `repeated Config_SettingsEntry`.
+- **Massive diff:** Interface (`{}` vs `[]`), field descriptors (`kind: "map"` vs `kind: "message"`), create() defaults (`{}` vs `[]`), binary read (map readers vs push), binary write (map iteration vs message array), plus spurious `Config_SettingsEntry` and `Config_EntriesEntry` type declarations in Go output.
+
 ### Ideas for future runs
+- The same `HasSuffix` bug may also cause incorrect type resolution for non-map fields when a shorter-named type shadows a nested type.
 - Proto2 extension declarations as standalone constants — VERIFIED: TS plugin does NOT generate extension objects. No diff.
-- `findMessageType` import public bug for message field descriptors.
 - Deeply nested messages (5+ levels) with underscores in names.
 - Service method named `constructor` or `name` — TS escapes these, does Go?
 - `ScalarType` collision — message named `ScalarType`.
