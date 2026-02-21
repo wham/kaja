@@ -1192,3 +1192,18 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.
 - `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
+
+### Run 147 — PbLong runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `PbLong` collisions. When a file in `google.protobuf` package defines both `Timestamp` (which needs `import { PbLong }` from runtime for `now()`, `toDate()`, `fromDate()` methods) AND a message named `PbLong`, the Go plugin imports `PbLong` without aliasing, causing a name collision with the local `export interface PbLong`. The TS plugin correctly aliases it as `import { PbLong as PbLong$ }` and uses `PbLong$.from(...)` in Timestamp methods.
+- **Test:** `229_pblong_collision` — `google.protobuf` package with `Timestamp` and `PbLong` messages.
+- **Root cause:** `collectLocalTypeNames()` checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType — but NOT `PbLong`. Lines 2167/2176/2181 import `PbLong` without aliasing. Lines 6922/6934/6946/6959/7018/7038 use `PbLong.from(...)` instead of `PbLong$.from(...)`.
+- **Same pattern as runs 145-146:** Another runtime import name missing from collision detection.
+
+### Ideas for future runs
+- `PbULong` collision — same pattern, used in unsigned 64-bit contexts.
+- Four-way collision — `Item$3` vs `Item$$$`.
+- `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
+- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
+- `typeofJsonValue` collision — starts lowercase, can't be a message but could be function name collision in some contexts.
+- `lowerCamelCase` collision — starts lowercase but IS a valid proto message name. Used in FieldMask WKT.
+- `isJsonObject` collision — starts lowercase, imported for Any/Struct WKT.
