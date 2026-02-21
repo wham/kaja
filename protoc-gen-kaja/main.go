@@ -115,6 +115,34 @@ func findFile(files []*descriptorpb.FileDescriptorProto, name string) *descripto
 	return nil
 }
 
+// collectTransitiveWKTDeps returns all google/protobuf/ files transitively
+// reachable from the given FileToGenerate files.
+func collectTransitiveWKTDeps(fileToGenerate []string, allFiles []*descriptorpb.FileDescriptorProto) map[string]bool {
+	result := map[string]bool{}
+	visited := map[string]bool{}
+	var visit func(fileName string)
+	visit = func(fileName string) {
+		if visited[fileName] {
+			return
+		}
+		visited[fileName] = true
+		f := findFile(allFiles, fileName)
+		if f == nil {
+			return
+		}
+		for _, dep := range f.Dependency {
+			if strings.HasPrefix(dep, "google/protobuf/") {
+				result[dep] = true
+			}
+			visit(dep)
+		}
+	}
+	for _, genFile := range fileToGenerate {
+		visit(genFile)
+	}
+	return result
+}
+
 func getOutputFileName(protoFile string) string {
 	base := strings.TrimSuffix(protoFile, ".proto")
 	return base + ".ts"
@@ -218,38 +246,20 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	// Also generate for google.protobuf well-known types if they're dependencies,
 	// but only if at least one FileToGenerate produced output or has extensions
 	if len(generatedFiles) > 0 || hasExtensionFiles {
+		// Collect all WKT files transitively reachable from FileToGenerate
+		neededWKTs := collectTransitiveWKTDeps(req.FileToGenerate, req.ProtoFile)
 		for _, file := range req.ProtoFile {
 			fileName := file.GetName()
-			// Check if this is a well-known type
-			if strings.HasPrefix(fileName, "google/protobuf/") {
-				// Check if any file to generate depends on this
-				needsGeneration := false
-				for _, genFileName := range req.FileToGenerate {
-					genFile := findFile(req.ProtoFile, genFileName)
-					if genFile == nil {
-						continue
-					}
-					for _, dep := range genFile.Dependency {
-						if dep == fileName {
-							needsGeneration = true
-							break
-						}
-					}
-					if needsGeneration {
-						break
-					}
-				}
-				
-				if needsGeneration {
-					content := generateFile(file, req.ProtoFile, params, false) // Well-known types are never imported by service files
-					if content != "" {
-						outputName := getOutputFileName(fileName)
-						resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
-							Name:    proto.String(outputName),
-							Content: proto.String(content),
-						})
-					}
-				}
+			if !neededWKTs[fileName] {
+				continue
+			}
+			content := generateFile(file, req.ProtoFile, params, false)
+			if content != "" {
+				outputName := getOutputFileName(fileName)
+				resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+					Name:    proto.String(outputName),
+					Content: proto.String(content),
+				})
 			}
 		}
 	}
