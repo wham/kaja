@@ -39,6 +39,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **Single-element repeated field in custom option** — When a custom option message has a `repeated string` field set with a single value, the TS plugin emits it as an array `["solo"]` (via `type.toJson()` which always wraps repeated fields in arrays). The Go plugin's `mergeRepeatedOptions` only creates arrays when there are MULTIPLE entries with the same key; a single entry is left unwrapped as `"solo"`. Root cause: Go doesn't distinguish between singular and repeated fields — it relies on merge count, not field cardinality. Tested in `243_custom_option_repeated_single`.
 
+- **U+2028/U+2029 LINE/PARAGRAPH SEPARATOR in custom option strings** — TypeScript's printer escapes U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) as `\u2028` and `\u2029` because they are not valid unescaped in JS string literals (pre-ES2019). The Go plugin's `escapeStringForJS` only escapes characters < U+0020, so it emits the raw UTF-8 bytes for these characters. Same issue applies to U+0085 (NEXT LINE), U+00A0 (NO-BREAK SPACE), and U+FEFF (BOM). Root cause: `escapeStringForJS` doesn't escape non-ASCII characters that TypeScript's printer escapes. Tested in `244_custom_option_string_linesep`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -58,6 +60,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Bool map keys in custom options: TS may order `false` before `true` (since `Object.keys` on `{true: ..., false: ...}` preserves insertion order for non-integer keys). Check if wire order `true, false` matches TS order.
 - Other control chars in custom option strings: `\b` (backspace 0x08), `\f` (form feed 0x0C), `\0` (null 0x00) — same root cause as vtab, likely all broken
 - Control chars in nested message field string values (same escaping code path in `parseMessageValue`)
+- U+2029 PARAGRAPH SEPARATOR — same root cause as U+2028, same fix needed. Could test separately.
+- U+0085 NEXT LINE, U+00A0 NBSP, U+FEFF BOM — all escaped by TS printer but not by Go's `escapeStringForJS`. Each is a separate `\uXXXX` escape.
+- Wrapper types (Int32Value, BoolValue, etc.) as custom option types — tested, NO difference (TS plugin uses generic MessageType not WKT-aware toJson for options)
 - Custom options with `google.protobuf.Any`, `google.protobuf.Struct`, `google.protobuf.Value` as the option type
 - Custom options with `google.protobuf.FieldMask`, `google.protobuf.Empty` as option types
 - Custom oneof-level options (`OneofOptions` extensions)
