@@ -262,6 +262,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 227/227 tests passing — DONE
 - [x] Fix test 223_wrapper_float_double_swap: ScalarType and LongType imports only needed for Int64Value/UInt64Value wrappers — added `wrapperNeedsScalarType` flag to conditionally emit these imports instead of emitting for all wrapper types
 - [x] All 228/228 tests passing — DONE
+- [x] Fix test 224_three_way_type_collision: Import alias for 3+ collisions uses numeric suffixes (`Item$`, `Item$2`, `Item$3`) instead of stacking dollar signs (`Item$`, `Item$$`). Fixed both `precomputeImportAliases` (message file) and cross-file collision detection (client file) to use `strconv.Itoa(counter)` suffix.
+- [x] All 229/229 tests passing — DONE
 
 ## Notes
 
@@ -369,3 +371,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Map entry name collision: `findMessageTypeInMessage` used `strings.HasSuffix(typeName, fullName)` which falsely matched top-level messages whose name is a suffix of a nested map entry message name (e.g., `Entry` matching `Config.SettingsEntry`). Fixed by passing the package prefix to `findMessageTypeInMessage` (same as `findEnumTypeInMessage`) and using exact `==` match instead of `HasSuffix`.
 - Wrapper type detection: DO NOT use `strings.HasSuffix(name, "Value")` to detect wrapper types — this matches non-wrapper types like `EnumValue` in the `google.protobuf` package. Use an explicit set: `DoubleValue`, `FloatValue`, `Int64Value`, `UInt64Value`, `Int32Value`, `UInt32Value`, `BoolValue`, `StringValue`, `BytesValue`. Both detection sites (import phase ~line 2003 and method generation ~line 4071) must use the same `isWrapperTypeName()` helper.
 - Wrapper ScalarType/LongType imports: Only `Int64Value` and `UInt64Value` use `ScalarType` and `LongType` symbols in their generated `internalJsonWrite`/`internalJsonRead` methods (e.g., `ScalarType.INT64`, `LongType.STRING`). Other wrapper types (`DoubleValue`, `FloatValue`, `Int32Value`, etc.) use literal numeric values (e.g., `2`, `1`, `5`) without referencing these imported symbols. Added `wrapperNeedsScalarType` bool alongside `isWrapper` to conditionally emit these imports.
+- Three-way import collision aliasing: When 3+ types share the same TS name, aliases use numeric suffixes: `Name$`, `Name$2`, `Name$3`, etc. (NOT `Name$`, `Name$$`, `Name$$$`). Both `precomputeImportAliases` (message file) and the client file cross-file collision detection use the same pattern: start with `Name$`, then try `Name$2`, `Name$3`, etc. until an untaken name is found.
