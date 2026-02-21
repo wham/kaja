@@ -27,8 +27,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 ## Plan
 
+- [x] Fix custom options with WKT message types (test 239_wkt_custom_option)
+  - Fixed `findMessageType` to search all files, not just direct deps (transitive deps like Duration used as option value types)
+  - Added `isWKTFileUsed` filter to only generate WKT .ts files whose types are actually used as field types or service method types (matching protoc-gen-ts behavior)
+
 ## Notes
 
 - Run tests with `protoc-gen-kaja/scripts/test --summary`. Full output without `--summary`.
 - Use `protoc-gen-kaja/scripts/diff <test_name>` to inspect specific failures.
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
+- `findMessageType` now searches `g.allFiles` (not just current file + direct deps). This is needed because option extension types can be defined in transitive dependencies (e.g., `google.protobuf.Duration` used as an option value type).
+- WKT file generation now matches protoc-gen-ts: only emit WKT files whose types are used as field types (message/enum) or service method input/output in ANY generated file (including self-references within the WKT file itself). This correctly filters out e.g. `duration.ts` when Duration is only used as a custom option value type.

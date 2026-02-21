@@ -131,6 +131,65 @@ func collectTransitiveWKTDeps(fileToGenerate []string, allFiles []*descriptorpb.
 	return result
 }
 
+// isWKTFileUsed checks if any type defined in wktFile is used as a field type
+// (message or enum) or service method input/output in any file in the generated set.
+// This includes self-references (types within the same file referencing each other).
+func isWKTFileUsed(wktFile *descriptorpb.FileDescriptorProto, allGenFiles []*descriptorpb.FileDescriptorProto) bool {
+	// Collect all type names defined in the WKT file
+	wktTypes := make(map[string]bool)
+	wktPkg := wktFile.GetPackage()
+	var collectTypes func(msg *descriptorpb.DescriptorProto, prefix string)
+	collectTypes = func(msg *descriptorpb.DescriptorProto, prefix string) {
+		fullName := "." + prefix + msg.GetName()
+		wktTypes[fullName] = true
+		for _, nested := range msg.NestedType {
+			collectTypes(nested, prefix+msg.GetName()+".")
+		}
+		for _, enum := range msg.EnumType {
+			wktTypes["."+prefix+enum.GetName()] = true
+		}
+	}
+	prefix := ""
+	if wktPkg != "" {
+		prefix = wktPkg + "."
+	}
+	for _, msg := range wktFile.MessageType {
+		collectTypes(msg, prefix)
+	}
+	for _, enum := range wktFile.EnumType {
+		wktTypes["."+prefix+enum.GetName()] = true
+	}
+
+	// Check if any type is used as a field type or service method type
+	for _, f := range allGenFiles {
+		var checkMessages func(msgs []*descriptorpb.DescriptorProto) bool
+		checkMessages = func(msgs []*descriptorpb.DescriptorProto) bool {
+			for _, msg := range msgs {
+				for _, field := range msg.Field {
+					if wktTypes[field.GetTypeName()] {
+						return true
+					}
+				}
+				if checkMessages(msg.NestedType) {
+					return true
+				}
+			}
+			return false
+		}
+		if checkMessages(f.MessageType) {
+			return true
+		}
+		for _, svc := range f.Service {
+			for _, method := range svc.Method {
+				if wktTypes[method.GetInputType()] || wktTypes[method.GetOutputType()] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func getOutputFileName(protoFile string) string {
 	base := strings.TrimSuffix(protoFile, ".proto")
 	return base + ".ts"
@@ -236,6 +295,12 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	if len(generatedFiles) > 0 || hasExtensionFiles {
 		// Collect all WKT files transitively reachable from FileToGenerate
 		neededWKTs := collectTransitiveWKTDeps(req.FileToGenerate, req.ProtoFile)
+		// Collect candidate WKT files and their generated content
+		type wktCandidate struct {
+			file    *descriptorpb.FileDescriptorProto
+			content string
+		}
+		var wktCandidates []wktCandidate
 		for _, file := range req.ProtoFile {
 			fileName := file.GetName()
 			if !neededWKTs[fileName] {
@@ -243,10 +308,27 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			}
 			content := generateFile(file, req.ProtoFile, params, false)
 			if content != "" {
-				outputName := getOutputFileName(fileName)
+				wktCandidates = append(wktCandidates, wktCandidate{file: file, content: content})
+			}
+		}
+		// Collect all files in the generated set (FileToGenerate + WKT candidates)
+		allGenFiles := make([]*descriptorpb.FileDescriptorProto, 0)
+		for _, fileName := range req.FileToGenerate {
+			if f := findFile(req.ProtoFile, fileName); f != nil {
+				allGenFiles = append(allGenFiles, f)
+			}
+		}
+		for _, wkt := range wktCandidates {
+			allGenFiles = append(allGenFiles, wkt.file)
+		}
+		// Filter: only emit WKT files whose types are used as field types or
+		// service method types in any file in the generated set (including itself)
+		for _, wkt := range wktCandidates {
+			if isWKTFileUsed(wkt.file, allGenFiles) {
+				outputName := getOutputFileName(wkt.file.GetName())
 				resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
 					Name:    proto.String(outputName),
-					Content: proto.String(content),
+					Content: proto.String(wkt.content),
 				})
 			}
 		}
@@ -3769,18 +3851,18 @@ func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorPro
 		}
 	}
 	
-	// Search in dependencies
-	for _, dep := range g.file.Dependency {
-		depFile := g.findFileByName(dep)
-		if depFile != nil {
-			depPkg := ""
-			if depFile.Package != nil && *depFile.Package != "" {
-				depPkg = *depFile.Package
-			}
-			for _, msg := range depFile.MessageType {
-				if found := g.findMessageTypeInMessage(msg, typeName, depPkg); found != nil {
-					return found
-				}
+	// Search in all files (needed for transitive deps, e.g. WKT types used as option values)
+	for _, f := range g.allFiles {
+		if f.GetName() == g.file.GetName() {
+			continue
+		}
+		depPkg := ""
+		if f.Package != nil && *f.Package != "" {
+			depPkg = *f.Package
+		}
+		for _, msg := range f.MessageType {
+			if found := g.findMessageTypeInMessage(msg, typeName, depPkg); found != nil {
+				return found
 			}
 		}
 	}
