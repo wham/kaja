@@ -41,6 +41,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **U+2028/U+2029 LINE/PARAGRAPH SEPARATOR in custom option strings** — TypeScript's printer escapes U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) as `\u2028` and `\u2029` because they are not valid unescaped in JS string literals (pre-ES2019). The Go plugin's `escapeStringForJS` only escapes characters < U+0020, so it emits the raw UTF-8 bytes for these characters. Same issue applies to U+0085 (NEXT LINE), U+00A0 (NO-BREAK SPACE), and U+FEFF (BOM). Root cause: `escapeStringForJS` doesn't escape non-ASCII characters that TypeScript's printer escapes. Tested in `244_custom_option_string_linesep`.
 
+- **Single-element repeated top-level extension** — When a `repeated string` top-level extension (extending e.g. `MessageOptions`) has a single value, the TS plugin emits `["solo"]` (array) but the Go plugin emits `"solo"` (bare string). Root cause: `parseCustomOptions` calls `mergeRepeatedOptions` which only creates arrays on duplicate keys, but unlike `parseMessageValue`, it has NO post-merge wrapping logic to force single repeated values into arrays. The fix in `parseMessageValue` (lines 1066-1084) checks `fd.GetLabel() == LABEL_REPEATED` and wraps, but `parseCustomOptions` doesn't have access to the field label or doesn't apply the same check. Tested in `245_repeated_extension_single`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -56,6 +58,7 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service/method options (non-WKT types)
 
 ### Ideas for future runs
+- Same repeated-extension-single bug likely applies to repeated enum, repeated int32, repeated bytes, repeated message top-level extensions with a single value — all go through `parseCustomOptions` which lacks wrapping.
 - Same integer-key ordering issue applies to `map<uint32, string>`, `map<int64, string>`, `map<uint64, string>`, etc. — all numeric map key types would have JS Object.keys() reordering. But RALPH will likely fix all at once.
 - Bool map keys in custom options: TS may order `false` before `true` (since `Object.keys` on `{true: ..., false: ...}` preserves insertion order for non-integer keys). Check if wire order `true, false` matches TS order.
 - Other control chars in custom option strings: `\b` (backspace 0x08), `\f` (form feed 0x0C), `\0` (null 0x00) — same root cause as vtab, likely all broken
