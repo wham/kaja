@@ -279,6 +279,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] All 237/237 tests passing — DONE
 - [x] Fix test 233_json_write_options_collision: When a proto message is named `jsonWriteOptions`, the runtime `jsonWriteOptions` import from `@protobuf-ts/runtime` collides. Added `jsonWriteOptionsRef` field, `jsonWriteOptionsImport()` helper. Updated import line and `let opt = jsonWriteOptions(options)` usage in Any's internalJsonWrite.
 - [x] All 238/238 tests passing — DONE
+- [x] Fix test 234_json_value_type_collision: When a proto message is named `JsonValue`, the runtime `JsonValue` type import from `@protobuf-ts/runtime` collides. Added `jsonValueRef` field, `jsonValueImport()` helper. Updated 6 import sites and 16 usage sites (internalJsonWrite return type + internalJsonRead parameter type across all WKT methods).
+- [x] All 239/239 tests passing — DONE
 
 ## Notes
 
@@ -395,3 +397,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Runtime lowerCamelCase import collision: When a proto message is named `lowerCamelCase` and FieldMask is present (which imports `lowerCamelCase` from runtime), the import is aliased as `lowerCamelCase$`. Same pattern as all other runtime import collision refs. One import site and one usage site (`return lowerCamelCase$(p)` in FieldMask's internalJsonWrite).
 - Runtime isJsonObject import collision: When a proto message is named `isJsonObject`, the runtime import is aliased as `isJsonObject$`. Same pattern as typeofJsonValue — `isJsonObjectRef` field, `isJsonObjectImport()` helper. 2 import sites (Struct, Any) and 3 usage sites (Struct internalJsonRead, Any internalJsonWrite, Any internalJsonRead) all use the ref.
 - Runtime jsonWriteOptions import collision: When a proto message is named `jsonWriteOptions`, the runtime import is aliased as `jsonWriteOptions$`. Same pattern as isJsonObject — `jsonWriteOptionsRef` field, `jsonWriteOptionsImport()` helper. 1 import site (Any) and 1 usage site (`let opt = jsonWriteOptions$(options)` in Any's internalJsonWrite) use the ref.
+- Runtime JsonValue type import collision: When a proto message is named `JsonValue`, the runtime `JsonValue` type import from `@protobuf-ts/runtime` is aliased as `JsonValue$`. Same pattern as all other runtime import collision refs — `jsonValueRef` field, `jsonValueImport()` helper. 6 import sites (Timestamp, Duration, FieldMask, Struct/Value/ListValue, Wrapper, Any) and 16 usage sites (internalJsonWrite return type + internalJsonRead parameter type across all WKT methods) all use the ref. Note: `JsonValue` is a `type` import (not value), so the import line uses `import type { JsonValue as JsonValue$ }`.
