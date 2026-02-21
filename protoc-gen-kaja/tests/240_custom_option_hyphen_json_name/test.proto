@@ -1,0 +1,21 @@
+// Tests custom message option where nested message has a
+// field with json_name containing a hyphen. The property key
+// must be quoted in the generated TypeScript.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message RuleConfig {
+  string value = 1 [json_name = "my-value"];
+  int32 count = 2 [json_name = "item-count"];
+}
+
+extend google.protobuf.MessageOptions {
+  optional RuleConfig rule = 50001;
+}
+
+message MyMessage {
+  option (rule) = { value: "hello", count: 5 };
+  string name = 1;
+}
