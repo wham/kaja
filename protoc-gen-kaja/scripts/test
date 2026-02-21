@@ -175,7 +175,7 @@ for test_dir in "$TESTS_DIR"/*/; do
   if [ -d "$test_dir" ]; then
     test_name="$(basename "$test_dir")"
     # Tests that need recursive scanning due to subdirectories
-    if [ "$test_name" = "00_big" ] || [ "$test_name" = "206_cross_dir_wiretype_import" ]; then
+    if [ "$test_name" = "000_big" ] || [ "$test_name" = "205_cross_dir_wiretype_import" ]; then
       run_test "$test_name" "$test_dir" "true" &
     else
       run_test "$test_name" "$test_dir" "false" &
