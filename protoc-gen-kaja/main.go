@@ -4048,6 +4048,10 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	isStruct := g.file.Package != nil && *g.file.Package == "google.protobuf" && (fullName == "Struct" || fullName == "Value" || fullName == "ListValue")
 	isAny := g.file.Package != nil && *g.file.Package == "google.protobuf" && fullName == "Any"
 	isWrapper := g.file.Package != nil && *g.file.Package == "google.protobuf" && strings.HasSuffix(fullName, "Value") && fullName != "Value" && fullName != "ListValue"
+	isGoogleTypeDate := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "Date"
+	isGoogleTypeColor := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "Color"
+	isGoogleTypeDateTime := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "DateTime"
+	isGoogleTypeTimeOfDay := g.file.Package != nil && *g.file.Package == "google.type" && fullName == "TimeOfDay"
 	
 	// Add special methods for well-known types BEFORE standard methods
 	if isTimestamp {
@@ -4062,6 +4066,14 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		g.generateWrapperMethods(fullName)
 	} else if isAny {
 		g.generateAnyMethods()
+	} else if isGoogleTypeDate {
+		g.generateGoogleTypeDateMethods()
+	} else if isGoogleTypeColor {
+		g.generateGoogleTypeColorMethods()
+	} else if isGoogleTypeDateTime {
+		g.generateGoogleTypeDateTimeMethods()
+	} else if isGoogleTypeTimeOfDay {
+		g.generateGoogleTypeTimeOfDayMethods()
 	}
 	
 	// Skip create, internalBinaryRead, internalBinaryWrite when optimize_for = CODE_SIZE
@@ -7486,6 +7498,250 @@ func (g *generator) generateAnyMethods() {
 	g.p("throw new Error(\"invalid type url: \" + url);")
 	g.indent = "        "
 	g.p("return name;")
+	g.indent = "    "
+	g.p("}")
+}
+
+func (g *generator) generateGoogleTypeDateMethods() {
+	g.indent = "    "
+
+	// toJsDate() method
+	g.p("/**")
+	g.p(" * Creates a javascript Date object from the message.")
+	g.p(" *")
+	g.p(" * If you do not provide the optional parameters for time,")
+	g.p(" * the current time is used.")
+	g.p(" */")
+	g.p("toJsDate(message: Date, hours?: number, minutes?: number, seconds?: number, ms?: number): globalThis.Date {")
+	g.indent = "        "
+	g.p("let now = new globalThis.Date();")
+	g.p("return new globalThis.Date(message.year, message.month - 1, message.day, hours ?? now.getHours(), minutes ?? now.getMinutes(), seconds ?? now.getSeconds(), ms ?? now.getMilliseconds());")
+	g.indent = "    "
+	g.p("}")
+
+	// fromJsDate() method
+	g.p("/**")
+	g.p(" * Creates a Date message from a javascript Date object.")
+	g.p(" */")
+	g.p("fromJsDate(date: globalThis.Date): Date {")
+	g.indent = "        "
+	g.p("return {")
+	g.indent = "            "
+	g.p("year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(),")
+	g.indent = "        "
+	g.p("};")
+	g.indent = "    "
+	g.p("}")
+}
+
+func (g *generator) generateGoogleTypeColorMethods() {
+	g.indent = "    "
+
+	// toHex() method
+	g.p("/**")
+	g.p(" * Returns hexadecimal notation of the color: #RRGGBB[AA]")
+	g.p(" *")
+	g.p(" * R (red), G (green), B (blue), and A (alpha) are hexadecimal characters")
+	g.p(" * (0–9, A–F). A is optional. For example, #ff0000 is equivalent to")
+	g.p(" * #ff0000ff.")
+	g.p(" *")
+	g.p(" * See https://developer.mozilla.org/en-US/docs/Web/CSS/color_value#RGB_colors")
+	g.p(" */")
+	g.p("toHex(message: Color): string {")
+	g.indent = "        "
+	g.p("let hex = [")
+	g.indent = "            "
+	g.p("message.red.toString(16),")
+	g.p("message.green.toString(16),")
+	g.p("message.blue.toString(16),")
+	g.indent = "        "
+	g.p("];")
+	g.p("if (message.alpha) {")
+	g.indent = "            "
+	g.p("let alpha = Math.max(Math.min(message.alpha.value, 1), 0);")
+	g.p("hex.push(Math.round(alpha * 255).toString(16));")
+	g.indent = "        "
+	g.p("}")
+	g.p("return '#' + hex.map(i => i.length < 2 ? '0' + i : i).join('');")
+	g.indent = "    "
+	g.p("}")
+
+	// fromHex() method
+	g.p("/**")
+	g.p(" * Parses a hexadecimal color notation.")
+	g.p(" *")
+	g.p(" * Recognizes the following forms:")
+	g.p(" * - three-digit  (#RGB)")
+	g.p(" * - six-digit (#RRGGBB)")
+	g.p(" * - four-digit  (#RGBA)")
+	g.p(" * - eight-digit (#RRGGBBAA)")
+	g.p(" */")
+	g.p("fromHex(hex: string): Color {")
+	g.indent = "        "
+	g.p("if (/^#(?:[0-9a-fA-F]{3}){1}$/.test(hex)) {")
+	g.indent = "            "
+	g.p("// #RGB")
+	g.p("return {")
+	g.indent = "                "
+	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16),")
+	g.p("green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16),")
+	g.p("blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16),")
+	g.indent = "            "
+	g.p("};")
+	g.indent = "        "
+	g.p("}")
+	g.p("else if (/^#(?:[0-9a-fA-F]{3}){2}$/.test(hex)) {")
+	g.indent = "            "
+	g.p("// #RRGGBB")
+	g.p("return {")
+	g.indent = "                "
+	g.p("red: parseInt(hex.substring(1, 3), 16),")
+	g.p("green: parseInt(hex.substring(3, 5), 16),")
+	g.p("blue: parseInt(hex.substring(5, 7), 16),")
+	g.indent = "            "
+	g.p("};")
+	g.indent = "        "
+	g.p("}")
+	g.p("else if (/^#(?:[0-9a-fA-F]{4}){1}$/.test(hex)) {")
+	g.indent = "            "
+	g.p("// #RGBA")
+	g.p("return {")
+	g.indent = "                "
+	g.p("red: parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16),")
+	g.p("green: parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16),")
+	g.p("blue: parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16),")
+	g.p("alpha: {")
+	g.indent = "                    "
+	g.p("value: parseInt(hex.substring(4, 5) + hex.substring(4, 5), 16) / 255,")
+	g.indent = "                "
+	g.p("}")
+	g.indent = "            "
+	g.p("};")
+	g.indent = "        "
+	g.p("}")
+	g.p("else if (/^#(?:[0-9a-fA-F]{4}){2}$/.test(hex)) {")
+	g.indent = "            "
+	g.p("// #RRGGBBAA")
+	g.p("return {")
+	g.indent = "                "
+	g.p("red: parseInt(hex.substring(1, 3), 16),")
+	g.p("green: parseInt(hex.substring(3, 5), 16),")
+	g.p("blue: parseInt(hex.substring(5, 7), 16),")
+	g.p("alpha: {")
+	g.indent = "                    "
+	g.p("value: parseInt(hex.substring(7, 9), 16) / 255,")
+	g.indent = "                "
+	g.p("}")
+	g.indent = "            "
+	g.p("};")
+	g.indent = "        "
+	g.p("}")
+	g.p("throw new Error('invalid hex color');")
+	g.indent = "    "
+	g.p("}")
+}
+
+func (g *generator) generateGoogleTypeDateTimeMethods() {
+	g.indent = "    "
+
+	utcOffsetField := "utcOffset"
+	timeOffsetField := "timeOffset"
+	timeZoneField := "timeZone"
+
+	// now() method
+	g.p("/**")
+	g.p(" * Creates `DateTime` for the current time.")
+	g.p(" */")
+	g.p("now(): DateTime {")
+	g.indent = "        "
+	g.p("return this.fromJsDate(new globalThis.Date());")
+	g.indent = "    "
+	g.p("}")
+
+	// toJsDate() method
+	g.p("/**")
+	g.p(" * Creates a javascript Date object from the message.")
+	g.p(" *")
+	g.p(" * If a the message has a UTC offset, the javascript Date is converted")
+	g.p(" * into your local time zone, because javascript Dates are always in the")
+	g.p(" * local time zone.")
+	g.p(" *")
+	g.p(" * If the message has an offset given as an IANA timezone id, an error is")
+	g.p(" * thrown, because javascript has no on-board support for IANA time zone")
+	g.p(" * ids.")
+	g.p(" */")
+	g.p("toJsDate(message: DateTime): globalThis.Date {")
+	g.indent = "        "
+	g.p("let dt = new globalThis.Date(message.year, message.month - 1, message.day, message.hours, message.minutes, message.seconds, message.nanos / 1000), to = message.%s;", timeOffsetField)
+	g.p("if (to) {")
+	g.indent = "            "
+	g.p("if (to.oneofKind === \"%s\")", timeZoneField)
+	g.indent = "                "
+	g.p("throw new globalThis.Error(\"IANA time zone not supported\");")
+	g.indent = "            "
+	g.p("if (to.oneofKind === \"%s\") {", utcOffsetField)
+	g.indent = "                "
+	g.p("let s = PbLong.from(to.%s.seconds).toNumber();", utcOffsetField)
+	g.p("dt = new globalThis.Date(dt.getTime() - (s * 1000));")
+	g.indent = "            "
+	g.p("}")
+	g.indent = "        "
+	g.p("}")
+	g.p("return dt;")
+	g.indent = "    "
+	g.p("}")
+
+	// fromJsDate() method
+	g.p("/**")
+	g.p(" * Creates a Date message from a javascript Date object.")
+	g.p(" *")
+	g.p(" * Values are in local time and a proper UTF offset is provided.")
+	g.p(" */")
+	g.p("fromJsDate(date: globalThis.Date): DateTime {")
+	g.indent = "        "
+	g.p("return {")
+	g.indent = "            "
+	g.p("year: date.getFullYear(),")
+	g.p("month: date.getMonth() + 1,")
+	g.p("day: date.getDate(),")
+	g.p("hours: date.getHours(),")
+	g.p("minutes: date.getMinutes(),")
+	g.p("seconds: date.getSeconds(),")
+	g.p("nanos: date.getMilliseconds() * 1000,")
+	g.p("%s: {", timeOffsetField)
+	g.indent = "                "
+	g.p("oneofKind: \"%s\",", utcOffsetField)
+	g.p("%s: {", utcOffsetField)
+	g.indent = "                    "
+	g.p("seconds: PbLong.from(date.getTimezoneOffset() * 60).toString(),")
+	g.p("nanos: 0,")
+	g.indent = "                "
+	g.p("}")
+	g.indent = "            "
+	g.p("}")
+	g.indent = "        "
+	g.p("};")
+	g.indent = "    "
+	g.p("}")
+}
+
+func (g *generator) generateGoogleTypeTimeOfDayMethods() {
+	g.indent = "    "
+
+	// fromJsDate() method
+	g.p("/**")
+	g.p(" * Creates a TimeOfDay message from a javascript Date object.")
+	g.p(" */")
+	g.p("fromJsDate(date: globalThis.Date): TimeOfDay {")
+	g.indent = "        "
+	g.p("return {")
+	g.indent = "            "
+	g.p("hours: date.getHours(),")
+	g.p("minutes: date.getMinutes(),")
+	g.p("seconds: date.getSeconds(),")
+	g.p("nanos: date.getMilliseconds() * 1000,")
+	g.indent = "        "
+	g.p("};")
 	g.indent = "    "
 	g.p("}")
 }
