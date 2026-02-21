@@ -1124,9 +1124,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Test:** `218_google_type_datetime` — `package google.type; message DateTime { ... }` with Duration import for utc_offset oneof.
 - **Root cause:** (1) Line ~7628 in `generateGoogleTypeDateTimeMethods` never calls `g.addRuntimeImport("PbLong")`. (2) Lines ~7694-7710 manually format the return statement as nested `g.p()` calls at specific indent levels, but the resulting output doesn't match the TypeScript AST printer's formatting of the same template from `google-types.js`.
 
+### Run 138 — google.type.TimeOfDay fromJsDate object collapsed to single line (SUCCESS)
+- **Bug found:** `generateGoogleTypeTimeOfDayMethods()` in main.go puts each property of the return object on its own line (`hours: date.getHours(),\nminutes: ...`). The TS plugin's `google-types.js` passes the template through `typescriptMethodFromText()` which parses it as TypeScript AST and re-prints it. The TS AST printer collapses the 4-property object literal to a single line because it's short enough.
+- **Test:** `219_google_type_timeofday` — `package google.type; message TimeOfDay { int32 hours; int32 minutes; int32 seconds; int32 nanos; }`.
+- **Root cause:** Lines ~7728-7731 in `generateGoogleTypeTimeOfDayMethods` output each property on its own line with separate `g.p()` calls. The TS printer's line-width heuristic determines the object is short enough to fit on one line: `hours: date.getHours(), minutes: date.getMinutes(), seconds: date.getSeconds(), nanos: date.getMilliseconds() * 1000,`.
+- **Diff:** Expected one line `hours: date.getHours(), minutes: date.getMinutes(), seconds: date.getSeconds(), nanos: date.getMilliseconds() * 1000,`. Got four separate lines.
+- **Note:** Same formatting pattern as runs 136 (Color) and 137 (DateTime) — the TS AST printer collapses short object literals. The Date test (216) passes because its object has only 3 short properties which happen to match the multi-line format.
+
 ### Ideas for future runs
-- `google.type.TimeOfDay` — `fromJsDate` method may have similar formatting diffs.
-- Proto2 extension declarations as standalone constants — does Go generate extension objects?
+- Proto2 extension declarations as standalone constants — VERIFIED: TS plugin does NOT generate extension objects. No diff.
 - `findMessageType` import public bug for message field descriptors.
 - Deeply nested messages (5+ levels) with underscores in names.
 - Service method named `constructor` or `name` — TS escapes these, does Go?
+- `ScalarType` collision — message named `ScalarType`.
+- `LongType` collision — message named `LongType`.

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package google.type;
+
+// Represents a time of day.
+message TimeOfDay {
+  // Hours of day in 24 hour format.
+  int32 hours = 1;
+
+  // Minutes of hour of day.
+  int32 minutes = 2;
+
+  // Seconds of minutes of the time.
+  int32 seconds = 3;
+
+  // Fractions of seconds in nanoseconds.
+  int32 nanos = 4;
+}
