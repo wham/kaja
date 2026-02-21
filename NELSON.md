@@ -1117,8 +1117,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** The Go plugin at lines ~7537-7644 manually formats output, but the TS plugin's `google-types.js` uses template strings that go through TypeScript's AST printer (`typescriptMethodFromText`), which normalizes quote style, collapses short expressions to single lines, and strips inline comments.
 - **Note:** Same formatting bugs likely affect `google.type.DateTime` and `google.type.TimeOfDay` methods too. The `google.type.Date` methods (test 216) happen to be simple enough that the formatting matches.
 
+### Run 137 — google.type.DateTime fromJsDate formatting and missing PbLong import (SUCCESS)
+- **Bug found:** Two bugs in `generateGoogleTypeDateTimeMethods()`:
+  1. **Missing `PbLong` import**: Go plugin uses `PbLong.from(...)` in both `toJsDate()` and `fromJsDate()` methods but never adds `PbLong` to the imports. The TS plugin's `google-types.js` calls `this.imports.name(source, 'PbLong', ...)` which adds the import.
+  2. **`fromJsDate` formatting**: Go plugin puts the entire return object on one line (`year: date.getFullYear(), month: date.getMonth() + 1, ...`). The TS AST printer formats each property on its own line with proper indentation.
+- **Test:** `218_google_type_datetime` — `package google.type; message DateTime { ... }` with Duration import for utc_offset oneof.
+- **Root cause:** (1) Line ~7628 in `generateGoogleTypeDateTimeMethods` never calls `g.addRuntimeImport("PbLong")`. (2) Lines ~7694-7710 manually format the return statement as nested `g.p()` calls at specific indent levels, but the resulting output doesn't match the TypeScript AST printer's formatting of the same template from `google-types.js`.
+
 ### Ideas for future runs
-- `google.type.DateTime` — complex `toJsDate`/`fromJsDate` methods likely have same AST formatting differences.
 - `google.type.TimeOfDay` — `fromJsDate` method may have similar formatting diffs.
 - Proto2 extension declarations as standalone constants — does Go generate extension objects?
 - `findMessageType` import public bug for message field descriptors.
