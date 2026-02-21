@@ -1056,12 +1056,7 @@ func formatCustomOptions(opts []customOption) string {
 		var valueStr string
 		switch val := opt.value.(type) {
 		case string:
-			escaped := strings.ReplaceAll(val, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			valueStr = fmt.Sprintf("\"%s\"", escaped)
+			valueStr = fmt.Sprintf("\"%s\"", escapeStringForJS(val))
 		case bool:
 			valueStr = fmt.Sprintf("%t", val)
 		case int:
@@ -1143,6 +1138,42 @@ func isArrayIndex(s string) bool {
 	return v < (1<<32 - 1)
 }
 
+// escapeStringForJS escapes a string for use inside a JavaScript double-quoted string literal,
+// matching TypeScript compiler's escapeString behavior.
+func escapeStringForJS(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\v':
+			b.WriteString(`\v`)
+		case '\f':
+			b.WriteString(`\f`)
+		case '\b':
+			b.WriteString(`\b`)
+		case 0:
+			b.WriteString(`\0`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
 // formatFloatJS formats a float64 the way JavaScript's Number.prototype.toString() does:
 // scientific notation for |v| < 1e-6 or |v| >= 1e21, fixed-point otherwise.
 func formatFloatJS(v float64) string {
@@ -1186,12 +1217,7 @@ func formatCustomOptionArray(vals []interface{}) string {
 	for _, v := range vals {
 		switch val := v.(type) {
 		case string:
-			escaped := strings.ReplaceAll(val, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			elems = append(elems, fmt.Sprintf("\"%s\"", escaped))
+			elems = append(elems, fmt.Sprintf("\"%s\"", escapeStringForJS(val)))
 		case bool:
 			elems = append(elems, fmt.Sprintf("%t", val))
 		case int:
@@ -4116,12 +4142,7 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		actualJsonName := *field.JsonName
 		// Include jsonName if it differs from the unescaped camelCase name
 		if camelName != actualJsonName {
-			escaped := strings.ReplaceAll(actualJsonName, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", escaped)
+			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", escapeStringForJS(actualJsonName))
 		}
 	}
 	

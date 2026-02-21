@@ -33,6 +33,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix custom option property keys with hyphens (test 240_custom_option_hyphen_json_name)
   - Added `needsQuoteAsPropertyKey()` in `formatCustomOptions` to quote keys that aren't valid JS identifiers (e.g. `my-value` → `"my-value"`)
   - Must skip already-quoted keys (numeric map keys like `"1"` are pre-quoted)
+- [x] Fix string escaping for control characters (test 241_custom_option_string_vtab)
+  - Created `escapeStringForJS()` helper matching TypeScript compiler's `escapeString` behavior
+  - Handles `\v`, `\f`, `\b`, `\0`, and other control chars via `\uXXXX`
+  - Replaced duplicated escaping code in `formatCustomOptions`, `formatCustomOptionArray`, and jsonName escaping
 
 ## Notes
 
@@ -41,3 +45,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
 - `findMessageType` now searches `g.allFiles` (not just current file + direct deps). This is needed because option extension types can be defined in transitive dependencies (e.g., `google.protobuf.Duration` used as an option value type).
 - WKT file generation now matches protoc-gen-ts: only emit WKT files whose types are used as field types (message/enum) or service method input/output in ANY generated file (including self-references within the WKT file itself). This correctly filters out e.g. `duration.ts` when Duration is only used as a custom option value type.
+- String escaping: use `escapeStringForJS()` helper for all JS string literals. It handles `\v`, `\f`, `\b`, `\0`, other control chars via `\uXXXX`, plus the standard `\\`, `\"`, `\n`, `\r`, `\t`.
