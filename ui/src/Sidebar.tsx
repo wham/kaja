@@ -465,7 +465,7 @@ export function Sidebar({
                             <TreeView.LeadingVisual>
                               <PackageIcon size={16} />
                             </TreeView.LeadingVisual>
-                            <span style={{ fontWeight: "normal" }}>{packageName}</span>
+                            <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>{packageName}</span>
                             <TreeView.SubTree>
                               {services.map(renderServiceItem)}
                             </TreeView.SubTree>
