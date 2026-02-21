@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package ecommerce.common;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+// Common status enum used across services
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_INACTIVE = 2;
+  STATUS_PENDING = 3;
+  STATUS_DELETED = 4;
+}
+
+// Enum with deprecated values
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_LOW = 1;
+  PRIORITY_MEDIUM = 2;
+  PRIORITY_HIGH = 3;
+  // Deprecated: use PRIORITY_HIGH instead
+  PRIORITY_CRITICAL = 4 [deprecated = true];
+}
+
+// Enum with allow_alias - multiple names for the same value
+enum Region {
+  option allow_alias = true;
+
+  REGION_UNSPECIFIED = 0;
+  REGION_US_EAST = 1;
+  REGION_US_WEST = 2;
+  REGION_EU = 3;
+  REGION_EUROPE = 3;
+  REGION_ASIA = 4;
+  REGION_AP = 4;
+}
+
+// Message containing all 15 proto3 scalar types
+message AllScalars {
+  double double_field = 1;
+  float float_field = 2;
+  int32 int32_field = 3;
+  int64 int64_field = 4;
+  uint32 uint32_field = 5;
+  uint64 uint64_field = 6;
+  sint32 sint32_field = 7;
+  sint64 sint64_field = 8;
+  fixed32 fixed32_field = 9;
+  fixed64 fixed64_field = 10;
+  sfixed32 sfixed32_field = 11;
+  sfixed64 sfixed64_field = 12;
+  bool bool_field = 13;
+  string string_field = 14;
+  bytes bytes_field = 15;
+  // Repeated bytes field
+  repeated bytes repeated_bytes = 16;
+}
+
+// Message containing all well-known types
+message AllWellKnownTypes {
+  google.protobuf.Any any_field = 1;
+  google.protobuf.Duration duration_field = 2;
+  google.protobuf.Empty empty_field = 3;
+  google.protobuf.FieldMask mask_field = 4;
+  google.protobuf.Struct struct_field = 5;
+  google.protobuf.Timestamp timestamp_field = 6;
+  google.protobuf.DoubleValue double_value = 7;
+  google.protobuf.FloatValue float_value = 8;
+  google.protobuf.Int64Value int64_value = 9;
+  google.protobuf.UInt64Value uint64_value = 10;
+  google.protobuf.Int32Value int32_value = 11;
+  google.protobuf.UInt32Value uint32_value = 12;
+  google.protobuf.BoolValue bool_value = 13;
+  google.protobuf.StringValue string_value = 14;
+  google.protobuf.BytesValue bytes_value = 15;
+}
+
+// Address with scalar types.
+// Contains location data with latitude/longitude.
+//
+// Special chars in comment: <html> & "quotes" and backslash-n \n
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip_code = 4;
+  string country = 5;
+  double latitude = 6; // trailing: latitude in degrees
+  double longitude = 7; // trailing: longitude in degrees
+  bool is_primary = 8;
+}
+
+// Metadata with various map key types
+message Metadata {
+  map<string, string> labels = 1;
+  map<string, int32> counters = 2;
+  map<string, bool> flags = 3;
+  map<int32, string> indexed_data = 4;
+  // Bool map key
+  map<bool, string> bool_map = 5;
+  // Int64 map key
+  map<int64, string> long_map = 6;
+  // Map with message values
+  map<string, Money> price_map = 7;
+}
+
+// Audit info with timestamps
+message AuditInfo {
+  google.protobuf.Timestamp created_at = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  string created_by = 3;
+  string updated_by = 4;
+  int32 version = 5;
+}
+
+// Money representation
+message Money {
+  string currency = 1;
+  int64 amount_cents = 2;
+}
+
+// Pagination
+message PageInfo {
+  int32 page = 1;
+  int32 page_size = 2;
+  int32 total_count = 3;
+  bool has_next = 4;
+  bool has_prev = 5;
+}
+
+// This is a detached comment about reserved fields
+
+// Message with reserved field numbers and names
+message ReservedExample {
+  string active_field = 1;
+  reserved 2, 3, 4;
+  reserved 15 to 20;
+  reserved "old_field", "deprecated_field", "removed_field";
+  string current_field = 5;
+}
+
+// Deprecated: use FeatureFlags instead
+message LegacyConfig {
+  option deprecated = true;
+  string key = 1;
+  string value = 2;
+}
+
+// Message with deprecated fields
+message FeatureFlags {
+  string name = 1;
+  bool enabled = 2;
+  // Deprecated: use enabled instead
+  bool active = 3 [deprecated = true];
+  string description = 4;
+  // Deprecated: use description instead
+  string info = 5 [deprecated = true];
+}

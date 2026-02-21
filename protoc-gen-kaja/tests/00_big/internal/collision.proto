@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package ecommerce.internal;
+
+import "common/types.proto";
+
+// Message named WireType - collides with protobuf-ts runtime import
+message WireType {
+  string name = 1;
+  int32 id = 2;
+}
+
+// Message named MessageType - collides with protobuf-ts runtime import
+message MessageType {
+  string name = 1;
+  string description = 2;
+}
+
+// Same-name type as common.Metadata to test cross-package collision
+message Metadata {
+  string internal_id = 1;
+  string source = 2;
+}
+
+// Container with nested messages referencing collision types
+message Container {
+  WireType wire = 1;
+  MessageType msg = 2;
+  Metadata meta = 3;
+  common.Metadata common_meta = 4;
+
+  message Inner {
+    string value = 1;
+    WireType wire_ref = 2;
+  }
+
+  Inner inner = 5;
+}

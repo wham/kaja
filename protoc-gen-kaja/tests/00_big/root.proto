@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package ecommerce;
+
+// Re-export common types via import public
+import public "common/types.proto";
+import "common/options.proto";
+import "auth/user.proto";
+import "store/product.proto";
+import "store/order.proto";
+import "analytics/events.proto";
+import "internal/collision.proto";
+
+// Aggregated response combining data from multiple services
+message Dashboard {
+  auth.UserProfile user = 1;
+  repeated store.Product featured_products = 2;
+  repeated store.Order recent_orders = 3;
+  repeated analytics.Event recent_events = 4;
+  common.Metadata metadata = 5;
+  // Circular self-reference via optional
+  optional Dashboard parent = 6;
+  // Proto3 optional scalar fields
+  optional string title = 7;
+  optional int32 refresh_interval_seconds = 8;
+  optional bool is_public = 9;
+  // Reference to internal collision types
+  internal.Container internal_data = 10;
+}
+
+// Top-level message named Entry to coexist with map entry types
+message Entry {
+  string key = 1;
+  string value = 2;
+}
+
+// Settings with a map field (generates SettingsEntry internally)
+message Settings {
+  map<string, string> properties = 1;
+  map<string, Entry> entries = 2;
+}

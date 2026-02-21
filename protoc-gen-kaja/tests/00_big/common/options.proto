@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package ecommerce.common;
+
+import "google/protobuf/descriptor.proto";
+
+// Resource information for message-level option
+message ResourceInfo {
+  string type = 1;
+  string pattern = 2;
+}
+
+// Custom method options
+extend google.protobuf.MethodOptions {
+  string api_version = 51001;
+  int32 rate_limit = 51002;
+  bool deprecated_api = 51003;
+}
+
+// Custom message option with message-typed value
+extend google.protobuf.MessageOptions {
+  ResourceInfo resource = 51004;
+}
+
+// Custom field option
+extend google.protobuf.FieldOptions {
+  bool sensitive = 51005;
+}

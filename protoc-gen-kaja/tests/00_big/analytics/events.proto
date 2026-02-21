@@ -5,7 +5,7 @@ package ecommerce.analytics;
 import "google/protobuf/timestamp.proto";
 import "common/types.proto";
 
-// Event type enum
+// Event type enum with reserved values
 enum EventType {
   EVENT_TYPE_UNSPECIFIED = 0;
   EVENT_TYPE_PAGE_VIEW = 1;
@@ -13,25 +13,38 @@ enum EventType {
   EVENT_TYPE_SEARCH = 3;
   EVENT_TYPE_PURCHASE = 4;
   EVENT_TYPE_ADD_TO_CART = 5;
+  reserved 6, 7;
+  reserved "EVENT_TYPE_REMOVED", "EVENT_TYPE_LEGACY";
 }
 
-// Event with oneof payload
+// Same-name type as common.Status to test cross-package name collision
+enum Status {
+  ANALYTICS_STATUS_UNSPECIFIED = 0;
+  ANALYTICS_STATUS_PROCESSED = 1;
+  ANALYTICS_STATUS_FAILED = 2;
+}
+
+// Event with oneof payload including reserved name member
 message Event {
   string id = 1;
   string user_id = 2;
   string session_id = 3;
   EventType type = 4;
   google.protobuf.Timestamp timestamp = 5;
-  
+
   oneof payload {
     PageViewEvent page_view = 6;
     ClickEvent click = 7;
     SearchEvent search = 8;
     PurchaseEvent purchase = 9;
+    // Oneof member with JS reserved name
+    int32 constructor = 12;
   }
-  
+
   map<string, string> properties = 10;
   common.Metadata metadata = 11;
+  // Local status vs common.Status
+  Status analytics_status = 13;
 }
 
 message PageViewEvent {
@@ -66,6 +79,24 @@ message TrackEventResponse {
   bool success = 1;
 }
 
+// Streaming request for real-time event feed
+message StreamEventsRequest {
+  string user_id = 1;
+  repeated EventType types = 2;
+}
+
+// Request for batch event ingestion
+message BatchEvent {
+  Event event = 1;
+  string source = 2;
+}
+
+// Response for batch event ingestion
+message BatchEventResponse {
+  int32 processed_count = 1;
+  int32 failed_count = 2;
+}
+
 message GetEventsRequest {
   string user_id = 1;
   EventType type = 2;
@@ -79,8 +110,20 @@ message GetEventsResponse {
   common.PageInfo page = 2;
 }
 
-// Analytics service
+// Analytics service with all 4 streaming types
 service AnalyticsService {
+  // Unary
   rpc TrackEvent(TrackEventRequest) returns (TrackEventResponse);
+  // Unary
   rpc GetEvents(GetEventsRequest) returns (GetEventsResponse);
+  // Server-streaming
+  rpc StreamEvents(StreamEventsRequest) returns (stream Event);
+  // Client-streaming
+  rpc BatchIngest(stream BatchEvent) returns (BatchEventResponse);
+  // Bidirectional streaming
+  rpc LiveAnalytics(stream TrackEventRequest) returns (stream GetEventsResponse);
+}
+
+// Empty service with no methods
+service DebugService {
 }

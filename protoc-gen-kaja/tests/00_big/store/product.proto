@@ -1,3 +1,5 @@
+// This file documents the product catalog.
+// It includes a JSDoc-breaking */ character in this comment.
 syntax = "proto3";
 
 package ecommerce.store;
@@ -24,8 +26,8 @@ message Product {
   repeated string tags = 6;
   repeated string image_urls = 7;
   common.Status status = 8;
-  
-  // Nested variant message
+
+  // Nested variant message (also see top-level Product_Variant)
   message Variant {
     string id = 1;
     string name = 2;
@@ -34,10 +36,28 @@ message Product {
     int32 stock_quantity = 5;
     string sku = 6;
   }
-  
+
   repeated Variant variants = 9;
   common.Metadata metadata = 10;
   common.AuditInfo audit = 11;
+  // jstype JS_STRING on int64 field
+  int64 view_count = 12 [jstype = JS_STRING];
+  // jstype JS_NUMBER on uint64 field
+  uint64 serial_number = 13 [jstype = JS_NUMBER];
+  // json_name with special characters
+  string internal_code = 14 [json_name = "@code"];
+  // TypeScript keywords as field names
+  string const = 15;
+  string class = 16;
+  string typeof = 17;
+  string delete = 18;
+}
+
+// Top-level message that collides with Product.Variant in generated code
+message Product_Variant {
+  string variant_id = 1;
+  string product_id = 2;
+  string label = 3;
 }
 
 // Review with nested rating breakdown
@@ -51,13 +71,13 @@ message Review {
   repeated string image_urls = 7;
   bool verified_purchase = 8;
   int32 helpful_count = 9;
-  
+
   message RatingBreakdown {
     int32 quality = 1;
     int32 value = 2;
     int32 accuracy = 3;
   }
-  
+
   RatingBreakdown breakdown = 10;
   common.AuditInfo audit = 11;
 }
@@ -99,4 +119,8 @@ service ProductService {
   rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
   rpc GetProduct(GetProductRequest) returns (GetProductResponse);
   rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  // Deprecated method
+  rpc LegacySearch(ListProductsRequest) returns (ListProductsResponse) {
+    option deprecated = true;
+  }
 }
