@@ -291,6 +291,7 @@ type generator struct {
 	reflectionMergePartialRef    string            // "reflectionMergePartial" normally, "reflectionMergePartial$" when local type collides
 	scalarTypeRef                string            // "ScalarType" normally, "ScalarType$" when local type collides with runtime ScalarType
 	longTypeRef                  string            // "LongType" normally, "LongType$" when local type collides with runtime LongType
+	pbLongRef                    string            // "PbLong" normally, "PbLong$" when local type collides with runtime PbLong
 	stackInterceptRef            string            // "stackIntercept" normally, "stackIntercept$" when message name collides
 	rpcTransportRef              string            // "RpcTransport" normally, "RpcTransport$" when service name collides
 	serviceInfoRef               string            // "ServiceInfo" normally, "ServiceInfo$" when service name collides
@@ -1426,6 +1427,7 @@ func generateFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptor
 		reflectionMergePartialRef:    "reflectionMergePartial",
 		scalarTypeRef:               "ScalarType",
 		longTypeRef:                 "LongType",
+		pbLongRef:                   "PbLong",
 		stackInterceptRef:           "stackIntercept",
 		rpcTransportRef:              "RpcTransport",
 		serviceInfoRef:               "ServiceInfo",
@@ -2164,7 +2166,7 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
 		}
 		
 		// Add JSON imports for Duration
@@ -2173,13 +2175,12 @@ func (g *generator) writeImports(imports map[string]bool) {
 			g.pNoIndent("import type { JsonValue } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonReadOptions } from \"@protobuf-ts/runtime\";")
 			g.pNoIndent("import type { JsonWriteOptions } from \"@protobuf-ts/runtime\";")
-			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())
 		}
 		
 		// Add PbLong import for google.type.DateTime
 		if isGoogleTypeDateTime {
-			g.pNoIndent("import { PbLong } from \"@protobuf-ts/runtime\";")
-		}
+			g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.pbLongImport())}
 		
 		// Add JSON imports for FieldMask
 		if isFieldMask {
@@ -2364,6 +2365,10 @@ func (g *generator) collectLocalTypeNames() {
 	// Detect runtime LongType collision
 	if g.localTypeNames["LongType"] {
 		g.longTypeRef = "LongType$"
+	}
+	// Detect runtime PbLong collision
+	if g.localTypeNames["PbLong"] {
+		g.pbLongRef = "PbLong$"
 	}
 }
 
@@ -5157,6 +5162,13 @@ func (g *generator) longTypeImport() string {
 	return "LongType"
 }
 
+func (g *generator) pbLongImport() string {
+	if g.pbLongRef == "PbLong$" {
+		return "PbLong as PbLong$"
+	}
+	return "PbLong"
+}
+
 func methodCallTypeName(method *descriptorpb.MethodDescriptorProto) string {
 	cs := method.GetClientStreaming()
 	ss := method.GetServerStreaming()
@@ -6919,7 +6931,7 @@ g.p("now(): Timestamp {")
 g.indent = "        "
 g.p("const msg = this.create();")
 g.p("const ms = Date.now();")
-g.p("msg.seconds = PbLong.from(Math.floor(ms / 1000)).toString();")
+g.p("msg.seconds = %s.from(Math.floor(ms / 1000)).toString();", g.pbLongRef)
 g.p("msg.nanos = (ms %% 1000) * 1000000;")
 g.p("return msg;")
 g.indent = "    "
@@ -6931,7 +6943,7 @@ g.p(" * Converts a `Timestamp` to a JavaScript Date.")
 g.p(" */")
 g.p("toDate(message: Timestamp): Date {")
 g.indent = "        "
-g.p("return new Date(PbLong.from(message.seconds).toNumber() * 1000 + Math.ceil(message.nanos / 1000000));")
+g.p("return new Date(%s.from(message.seconds).toNumber() * 1000 + Math.ceil(message.nanos / 1000000));", g.pbLongRef)
 g.indent = "    "
 g.p("}")
 
