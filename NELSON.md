@@ -1151,3 +1151,16 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - `ScalarType` collision — message named `ScalarType`.
 - `LongType` collision — message named `LongType`.
 - Group field in non-oneof context — check if regular field JSDoc also spuriously includes group field info.
+
+### Run 141 — EnumValue falsely treated as wrapper type (SUCCESS)
+- **Bug found:** `isWrapper` check at line 4071 in `generateMessageTypeClass()` uses `strings.HasSuffix(fullName, "Value") && fullName != "Value" && fullName != "ListValue"` to detect wrapper types (Int32Value, StringValue, etc.). But this also matches ANY message in `google.protobuf` package whose name ends with "Value", including `EnumValue` from `google/protobuf/type.proto`. The Go plugin then generates spurious `internalJsonWrite` and `internalJsonRead` wrapper methods plus unnecessary `ScalarType`, `LongType`, `JsonValue`, `JsonReadOptions`, `JsonWriteOptions` imports.
+- **Test:** `222_enum_value_wrapper` — `package google.protobuf` with a message `EnumValue { string name; int32 number; }`.
+- **Root cause:** Line 4071 should explicitly check for known wrapper type names (`Int32Value`, `UInt32Value`, `Int64Value`, `UInt64Value`, `FloatValue`, `DoubleValue`, `BoolValue`, `StringValue`, `BytesValue`) instead of using `HasSuffix(fullName, "Value")`. Same issue exists in the import generation at line ~2003 which also uses `HasSuffix(name, "Value")`.
+- **Also found:** Transitive WKT dependency generation is broken — when `type.proto` imports `any.proto`, the Go plugin doesn't generate `any.ts`. But this is a separate bug from the wrapper false positive. Save for future run.
+
+### Ideas for future runs
+- Transitive WKT dependency generation — `type.proto` imports `any.proto` but Go doesn't generate `any.ts`.
+- Same `HasSuffix("Value")` bug in import generation at line ~2003 — also falsely imports wrapper-specific types for any `*Value` message.
+- `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
+- Deeply nested messages (5+ levels) with underscores in names.
+- `LongType` collision — message named `LongType`.

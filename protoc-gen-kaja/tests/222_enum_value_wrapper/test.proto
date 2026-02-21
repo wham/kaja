@@ -1,0 +1,9 @@
+syntax = "proto3";
+package google.protobuf;
+
+// A message whose name ends with "Value" but is NOT a wrapper type.
+// The Go plugin incorrectly treats it as a wrapper (like Int32Value).
+message EnumValue {
+  string name = 1;
+  int32 number = 2;
+}
