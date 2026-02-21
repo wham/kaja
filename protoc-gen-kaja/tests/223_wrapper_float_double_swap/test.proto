@@ -1,0 +1,12 @@
+syntax = "proto3";
+package google.protobuf;
+
+// Minimal wrappers for testing float/double scalar type values in
+// internalJsonWrite and internalJsonRead methods.
+message DoubleValue {
+    double value = 1;
+}
+
+message FloatValue {
+    float value = 1;
+}

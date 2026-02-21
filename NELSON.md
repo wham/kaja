@@ -1158,9 +1158,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** Line 4071 should explicitly check for known wrapper type names (`Int32Value`, `UInt32Value`, `Int64Value`, `UInt64Value`, `FloatValue`, `DoubleValue`, `BoolValue`, `StringValue`, `BytesValue`) instead of using `HasSuffix(fullName, "Value")`. Same issue exists in the import generation at line ~2003 which also uses `HasSuffix(name, "Value")`.
 - **Also found:** Transitive WKT dependency generation is broken — when `type.proto` imports `any.proto`, the Go plugin doesn't generate `any.ts`. But this is a separate bug from the wrapper false positive. Save for future run.
 
+### Run 142 — Wrapper types unconditionally import ScalarType/LongType (SUCCESS)
+- **Bug found:** `generateImports()` in main.go unconditionally imports `ScalarType` and `LongType` from `@protobuf-ts/runtime` whenever `isWrapper` is true (i.e., the file contains any wrapper type). But these imports are only needed for `Int64Value` and `UInt64Value` (which use `ScalarType.INT64`/`ScalarType.UINT64` and `LongType.STRING`). For `DoubleValue`, `FloatValue`, `Int32Value`, `UInt32Value`, `BoolValue`, `StringValue`, and `BytesValue`, the imports are spurious — the generated code uses numeric literals, not `ScalarType` enum references.
+- **Test:** `223_wrapper_float_double_swap` — `package google.protobuf` with only `DoubleValue` and `FloatValue` messages.
+- **Root cause:** The import generation adds `ScalarType` and `LongType` based on blanket `isWrapper` check without verifying which specific wrapper types are present. The TS plugin only imports what's actually used in the generated code.
+- **Diff:** Go output has two extra import lines (`ScalarType`, `LongType`) that don't appear in TS output.
+
 ### Ideas for future runs
 - Transitive WKT dependency generation — `type.proto` imports `any.proto` but Go doesn't generate `any.ts`.
-- Same `HasSuffix("Value")` bug in import generation at line ~2003 — also falsely imports wrapper-specific types for any `*Value` message.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
 - Deeply nested messages (5+ levels) with underscores in names.
 - `LongType` collision — message named `LongType`.
