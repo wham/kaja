@@ -1199,11 +1199,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `collectLocalTypeNames()` checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType — but NOT `PbLong`. Lines 2167/2176/2181 import `PbLong` without aliasing. Lines 6922/6934/6946/6959/7018/7038 use `PbLong.from(...)` instead of `PbLong$.from(...)`.
 - **Same pattern as runs 145-146:** Another runtime import name missing from collision detection.
 
+### Run 148 — typeofJsonValue runtime import collision not aliased (SUCCESS)
+- **Bug found:** `collectLocalTypeNames()` in main.go does NOT detect `typeofJsonValue` collisions. When a file in `google.protobuf` package defines both `Timestamp` (which needs `import { typeofJsonValue }` from runtime for JSON parsing error messages) AND a message named `typeofJsonValue`, the Go plugin imports `typeofJsonValue` without aliasing, causing a name collision with the local `export interface typeofJsonValue`. The TS plugin correctly aliases it as `import { typeofJsonValue as typeofJsonValue$ }`.
+- **Test:** `230_typeof_json_value_collision` — `google.protobuf` package with `Timestamp` and `typeofJsonValue` messages.
+- **Root cause:** `collectLocalTypeNames()` checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong — but NOT `typeofJsonValue`. Lines 2165/2174/2187/7010/7087 etc. use hardcoded `typeofJsonValue` without aliasing.
+- **Same pattern as runs 145-147:** Another runtime import name missing from collision detection.
+- **Note:** Same bug applies to `lowerCamelCase` (FieldMask), `isJsonObject` (Struct/Any), `jsonWriteOptions` (Any) — all lowercase runtime imports without collision detection.
+
 ### Ideas for future runs
-- `PbULong` collision — same pattern, used in unsigned 64-bit contexts.
+- `lowerCamelCase` collision — same pattern, used in FieldMask WKT. Create `google.protobuf` file with FieldMask + message named `lowerCamelCase`.
+- `isJsonObject` collision — same pattern, imported for Struct/Any WKT.
+- `jsonWriteOptions` collision — same pattern, imported for Any WKT.
+- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
-- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — wrapper types import these as `import type`, Go doesn't alias.
-- `typeofJsonValue` collision — starts lowercase, can't be a message but could be function name collision in some contexts.
-- `lowerCamelCase` collision — starts lowercase but IS a valid proto message name. Used in FieldMask WKT.
-- `isJsonObject` collision — starts lowercase, imported for Any/Struct WKT.

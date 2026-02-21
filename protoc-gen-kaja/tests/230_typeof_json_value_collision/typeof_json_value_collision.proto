@@ -1,0 +1,16 @@
+// Test: typeofJsonValue collision with runtime import
+// When a message is named "typeofJsonValue" in the google.protobuf package
+// alongside Timestamp, the runtime import should be aliased.
+syntax = "proto3";
+package google.protobuf;
+
+// Timestamp triggers WKT code that imports typeofJsonValue from runtime
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+// This message name collides with the runtime's typeofJsonValue import
+message typeofJsonValue {
+    string value = 1;
+}
