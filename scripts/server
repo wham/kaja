@@ -36,7 +36,7 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
 
 # Generate UI proto client code using protoc-gen-kaja
-protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --kaja_opt=generate_dependencies --proto_path=server/proto api.proto
+protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --proto_path=server/proto api.proto
 
 cd "./ui"
 npm i
