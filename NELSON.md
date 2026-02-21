@@ -1224,9 +1224,17 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - **Root cause:** `collectLocalTypeNames()` at lines 2326-2390 checks WireType, MessageType, ServiceType, UnknownFieldHandler, PartialMessage, BinaryReadOptions, BinaryWriteOptions, IBinaryReader, IBinaryWriter, reflectionMergePartial, ScalarType, LongType, PbLong, typeofJsonValue, lowerCamelCase, isJsonObject — but NOT `jsonWriteOptions`. Line 2226 imports `jsonWriteOptions` hardcoded. Line 7563 uses `jsonWriteOptions(options)` instead of `jsonWriteOptions$(options)`.
 - **Same pattern as runs 145-150:** Another runtime import name missing from collision detection.
 
+### Run 152 — JsonValue type import collision not aliased (SUCCESS)
+- **Bug found:** When a file in `google.protobuf` package defines both `Timestamp` (WKT that needs `import type { JsonValue }` from runtime) AND a message named `JsonValue`, the Go plugin imports `JsonValue` without aliasing. The TS plugin correctly aliases it as `import type { JsonValue as JsonValue$ }` and uses `JsonValue$` as return/parameter type in `internalJsonWrite`/`internalJsonRead`.
+- **Test:** `234_json_value_type_collision` — `google.protobuf` package with `Timestamp` and `JsonValue` messages.
+- **Root cause:** The Go plugin has NO collision detection for TYPE imports (`import type { ... }`). All previous collision detection (runs 145-151) was for VALUE imports (`import { ... }`). The `JsonValue` type import at lines 2174/2183/2196/2206/2214 is always hardcoded as `JsonValue` without checking if a local type with that name exists.
+- **Three sub-bugs:** (1) No `JsonValue` collision detection in `collectLocalTypeNames`, (2) Import line always `import type { JsonValue }` without aliasing, (3) Uses `JsonValue` instead of `JsonValue$` as return type of `internalJsonWrite` and parameter type of `internalJsonRead`.
+- **Same pattern applies to:** `JsonReadOptions`, `JsonWriteOptions`, `JsonObject`, `IMessageType` — all are TYPE imports without collision detection.
+
 ### Ideas for future runs
-- `JsonValue`/`JsonReadOptions`/`JsonWriteOptions` collision — Any WKT imports these as `import type`, Go doesn't alias.
-- `IMessageType` collision — Any WKT imports this as `import type`, Go doesn't alias.
-- `JsonObject` collision — imported as type for Struct WKT.
+- `JsonReadOptions` type import collision — same pattern as run 152.
+- `JsonWriteOptions` type import collision — same pattern as run 152.
+- `IMessageType` type import collision — Any WKT imports this as `import type`, Go doesn't alias.
+- `JsonObject` type import collision — imported as type for Struct WKT.
 - Four-way collision — `Item$3` vs `Item$$$`.
 - `NullValue` from `struct.proto` — another message ending with "Value" in google.protobuf.
