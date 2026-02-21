@@ -1,6 +1,6 @@
 /desktop/build/bin
 /desktop/frontend/dist
 /protoc-gen-kaja/results
-/status.txt
+/protoc-gen-kaja/status.txt
 /server/build
 /ui/node_modules
