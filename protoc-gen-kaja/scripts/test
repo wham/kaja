@@ -107,7 +107,6 @@ run_test() {
   (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
     --kaja_out="$actual_dir" \
-    --kaja_opt=long_type_string \
     -I"$INCLUDE_DIR" \
     -I. \
     $proto_basenames) 2>"$kaja_error_file" || kaja_ok=false

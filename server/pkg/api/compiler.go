@@ -145,7 +145,7 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error 
 	includeDir := getIncludeDir(cwd)
 	c.logger.debug("includeDir: " + includeDir)
 
-	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " --kaja_opt long_type_string -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 

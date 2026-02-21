@@ -103,7 +103,7 @@ function valueToExpression(value: any): ts.Expression {
 }
 
 function defaultScalar(value: ScalarType): ts.Expression {
-  // 64-bit integer types are represented as strings (with long_type_string option)
+  // 64-bit integer types are represented as strings
   switch (value) {
     case ScalarType.INT64:
     case ScalarType.UINT64:
