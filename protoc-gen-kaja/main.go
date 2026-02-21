@@ -2437,8 +2437,8 @@ func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.Fi
 				taken[v] = true
 			}
 			alias := info.tsName + "$"
-			for taken[alias] {
-				alias = alias + "$"
+			for counter := 2; taken[alias]; counter++ {
+				alias = info.tsName + "$" + strconv.Itoa(counter)
 			}
 			g.importAliases[info.protoName] = alias
 			g.rawImportNames[info.protoName] = info.tsName
@@ -2455,8 +2455,8 @@ func (g *generator) precomputeImportAliases(depFiles map[string]*descriptorpb.Fi
 				taken[v] = true
 			}
 			alias := info.tsName + "$"
-			for taken[alias] {
-				alias = alias + "$"
+			for counter := 2; taken[alias]; counter++ {
+				alias = info.tsName + "$" + strconv.Itoa(counter)
 			}
 			g.importAliases[info.protoName] = alias
 			g.rawImportNames[info.protoName] = info.tsName
@@ -5657,7 +5657,18 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 					}
 					tsName := g.stripPackage(typeName)
 					if existing, ok := claimed[tsName]; ok && existing != typeName {
-						g.importAliases[typeName] = tsName + "$"
+						taken := make(map[string]bool)
+						for _, v := range claimed {
+							taken[v] = true
+						}
+						for _, v := range g.importAliases {
+							taken[v] = true
+						}
+						alias := tsName + "$"
+						for counter := 2; taken[alias]; counter++ {
+							alias = tsName + "$" + strconv.Itoa(counter)
+						}
+						g.importAliases[typeName] = alias
 						g.rawImportNames[typeName] = tsName
 					} else if !ok {
 						claimed[tsName] = typeName
