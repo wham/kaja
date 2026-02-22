@@ -9172,7 +9172,8 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 	}
 	g.precomputeImportAliases(depFiles)
 
-	// Collect service value imports and message type imports in reverse method order
+	// Collect service value imports and message type imports using prepend-as-encountered
+	// (matching TS plugin behavior: forward method iteration, prepend imports as types are encountered)
 	seen := make(map[string]bool)
 	type importEntry struct {
 		importClause string
@@ -9180,6 +9181,10 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 	}
 	var serviceImports []importEntry
 	var typeImports []importEntry
+
+	prepend := func(entry importEntry) {
+		typeImports = append([]importEntry{entry}, typeImports...)
+	}
 
 	for _, service := range file.Service {
 		if !serviceNeedsGrpc1Client(service) {
@@ -9190,8 +9195,7 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 			serviceImports = append(serviceImports, importEntry{serviceName, "./" + baseFileName})
 			seen["svc:"+serviceName] = true
 		}
-		for i := len(service.Method) - 1; i >= 0; i-- {
-			method := service.Method[i]
+		for _, method := range service.Method {
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			resTypeImport := g.formatTypeImport(method.GetOutputType())
@@ -9202,24 +9206,26 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 			cs := method.GetClientStreaming()
 			ss := method.GetServerStreaming()
 			if cs && !ss {
-				// Client streaming: callback (O) is encountered before return type (I) in TS AST,
-				// so with prepend behavior, I ends up before O in the import list.
-				if !seen[reqType] {
-					typeImports = append(typeImports, importEntry{reqTypeImport, reqTypePath})
-					seen[reqType] = true
-				}
+				// Client streaming: TS encounters output (callback) before input (stream type),
+				// so with prepend, input ends up above output.
 				if !seen[resType] {
-					typeImports = append(typeImports, importEntry{resTypeImport, resTypePath})
+					prepend(importEntry{resTypeImport, resTypePath})
 					seen[resType] = true
+				}
+				if !seen[reqType] {
+					prepend(importEntry{reqTypeImport, reqTypePath})
+					seen[reqType] = true
 				}
 			} else {
-				if !seen[resType] {
-					typeImports = append(typeImports, importEntry{resTypeImport, resTypePath})
-					seen[resType] = true
-				}
+				// Unary/server-stream/bidi: TS encounters input (parameter) before output (callback),
+				// so with prepend, output ends up above input.
 				if !seen[reqType] {
-					typeImports = append(typeImports, importEntry{reqTypeImport, reqTypePath})
+					prepend(importEntry{reqTypeImport, reqTypePath})
 					seen[reqType] = true
+				}
+				if !seen[resType] {
+					prepend(importEntry{resTypeImport, resTypePath})
+					seen[resType] = true
 				}
 			}
 		}

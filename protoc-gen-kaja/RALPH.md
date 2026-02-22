@@ -178,6 +178,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix gRPC client bidi streaming method signatures (test 277_grpc1_client_bidi)
   - Same two bugs as server streaming: `metadata` should be optional (`?:`) not `| undefined`, `options` passed directly not `(options as any)`
   - Applied same fix to the `cs && ss` (bidi) code path in `generateGrpcClientFile`
+- [x] Fix generic server method @deprecated inheriting from service deprecation (test 281_generic_server_deprecated_service)
+  - Removed `service.GetOptions().GetDeprecated()` check from method deprecation in `generateGenericServerFile`
+  - Service-level deprecation should NOT propagate to individual methods in the server interface
+  - Only method-level `deprecated = true` and file-level deprecation should add `@deprecated` to methods
 
 ## Notes
 
