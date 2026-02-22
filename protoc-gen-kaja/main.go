@@ -9200,13 +9200,28 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 			resTypePath := g.getImportPathForType(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
 
-			if !seen[resType] {
-				typeImports = append(typeImports, importEntry{resTypeImport, resTypePath})
-				seen[resType] = true
-			}
-			if !seen[reqType] {
-				typeImports = append(typeImports, importEntry{reqTypeImport, reqTypePath})
-				seen[reqType] = true
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+			if cs && !ss {
+				// Client streaming: callback (O) is encountered before return type (I) in TS AST,
+				// so with prepend behavior, I ends up before O in the import list.
+				if !seen[reqType] {
+					typeImports = append(typeImports, importEntry{reqTypeImport, reqTypePath})
+					seen[reqType] = true
+				}
+				if !seen[resType] {
+					typeImports = append(typeImports, importEntry{resTypeImport, resTypePath})
+					seen[resType] = true
+				}
+			} else {
+				if !seen[resType] {
+					typeImports = append(typeImports, importEntry{resTypeImport, resTypePath})
+					seen[resType] = true
+				}
+				if !seen[reqType] {
+					typeImports = append(typeImports, importEntry{reqTypeImport, reqTypePath})
+					seen[reqType] = true
+				}
 			}
 		}
 	}
