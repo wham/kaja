@@ -1289,30 +1289,42 @@ func (g *generator) getExcludeOptions() []string {
 }
 
 // filterExcludedOptions removes custom options whose keys match any exclude pattern.
-// Matches protobuf-ts behavior: patterns are converted to regex (dots escaped, * → .*)
-// and matched as substrings via String.match() (not anchored).
+// Matches protobuf-ts behavior: literal patterns (no *) use exact match (key === pattern),
+// wildcard patterns are converted to regex (dots escaped, * → .*) and matched as substrings.
 func filterExcludedOptions(opts []customOption, excludePatterns []string) []customOption {
 	if len(excludePatterns) == 0 {
 		return opts
 	}
+	var literals []string
 	var regexes []*regexp.Regexp
 	for _, pattern := range excludePatterns {
-		// Convert pattern to regex: escape dots, convert * to .*
-		escaped := strings.ReplaceAll(pattern, ".", "\\.")
-		escaped = strings.ReplaceAll(escaped, "*", ".*")
-		re, err := regexp.Compile(escaped)
-		if err != nil {
-			continue
+		if strings.Contains(pattern, "*") {
+			escaped := strings.ReplaceAll(pattern, ".", "\\.")
+			escaped = strings.ReplaceAll(escaped, "*", ".*")
+			re, err := regexp.Compile(escaped)
+			if err != nil {
+				continue
+			}
+			regexes = append(regexes, re)
+		} else {
+			literals = append(literals, pattern)
 		}
-		regexes = append(regexes, re)
 	}
 	var filtered []customOption
 	for _, opt := range opts {
 		excluded := false
-		for _, re := range regexes {
-			if re.MatchString(opt.key) {
+		for _, lit := range literals {
+			if opt.key == lit {
 				excluded = true
 				break
+			}
+		}
+		if !excluded {
+			for _, re := range regexes {
+				if re.MatchString(opt.key) {
+					excluded = true
+					break
+				}
 			}
 		}
 		if !excluded {
