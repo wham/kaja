@@ -87,6 +87,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **`ts.exclude_options` literal pattern uses exact match, not substring** — The TS plugin's `readOptions()` splits exclude patterns into literals (no `*`) and wildcards (has `*`). For literals, it uses `key === pattern` (exact equality). For wildcards, it uses `key.match(re)` (regex substring match). The Go plugin's `filterExcludedOptions` converts ALL patterns to regex and uses `re.MatchString()` (substring match) regardless of whether the pattern has `*`. So a literal pattern `"test.tag"` becomes regex `test\.tag` which matches `"prefix.test.tag"` as a substring. The TS plugin would NOT exclude `"prefix.test.tag"` because `"test.tag" === "prefix.test.tag"` is false. Root cause: `filterExcludedOptions` doesn't distinguish literals from wildcards — it applies regex substring matching to all patterns. Fix: for patterns without `*`, use exact string equality (`opt.key == pattern`) instead of regex. Tested in `268_exclude_options_literal_exact`.
 
+- **`ts.server` service option NOT excluded by TS plugin** — The TS plugin's `getServiceType()` only hardcode-excludes `"ts.client"` from service options (`.concat("ts.client")`). It does NOT exclude `"ts.server"` (field 777702). So when a service has `option (ts.server) = GRPC1_SERVER`, the TS plugin includes `"ts.server": ["GRPC1_SERVER"]` in the generated `ServiceType` options. The Go plugin's `getCustomServiceOptions` at line 1242 excludes BOTH `ts.client` AND `ts.server`. Root cause: RALPH's fix for test 265 over-corrected by also excluding `ts.server`, but the TS plugin only excludes `ts.client`. Fix: remove `|| opt.key == "ts.server"` from line 1242. Additionally, when `ts.server` is set, the TS plugin generates a `test.grpc-server.ts` file that the Go plugin doesn't generate. Tested in `269_ts_server_service_option`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -102,7 +104,6 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service/method options (non-WKT types)
 
 ### Ideas for future runs
-- **`ts.server` service option also excluded**: Same as `ts.client`, the TS plugin may also exclude `ts.server` (field 777702). If RALPH fixes only `ts.client`, test `ts.server` next.
 - **`ts.exclude_options` file option behavior**: Already tested in 266 (literal) and 267 (wildcard substring). If RALPH fixes prefix→substring, test other edge cases: wildcard `*` at start of pattern (e.g., `*.foo`), multiple `*` in pattern (e.g., `*test*`), pattern that's just `*` (exclude all).
 - **Same oneof-default bug applies to enum oneof members**: A proto3 oneof with an enum field set to value 0 (default) would also be filtered. The TS `write()` method forces `emitDefaultValues: true` for enum oneof members too. Also applies to NullValue enum in a oneof.
 - **Same oneof-default bug applies to nested option messages**: If a custom option message has a nested message field whose type contains a proto3 oneof with default scalar values, the recursive `parseMessageValue` would also filter them incorrectly.
