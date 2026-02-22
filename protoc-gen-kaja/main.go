@@ -2458,7 +2458,7 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 	// prepend semantics: later methods appear first, but within each method
 	// output stays above input. Collect per-method type pairs, reverse the pairs,
 	// then flatten. For files with messages, keep forward order (output, input).
-	if len(g.file.MessageType) == 0 && len(serviceTypes) > 0 {
+	if len(serviceTypes) > 0 {
 		// Re-collect as per-method pairs so we can reverse method order
 		var methodPairs [][]string
 		usedInServices2 := make(map[string]bool)

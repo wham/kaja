@@ -187,6 +187,14 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - TS plugin processes methods forward, prepending imports as types are encountered
   - For unary/server-stream/bidi: prepend input first, then output (output ends up above input)
   - For client-stream: prepend output first, then input (input ends up above output)
+- [x] Fix gRPC server import ordering (test 283_grpc_server_import_order)
+  - Same forward-iterate+prepend fix as generic server and gRPC client
+  - For each method: prepend input first, then output (output ends up above input)
+  - Previous reverse-iterate+append approach failed when two methods share types in swapped positions
+- [x] Fix service-only import ordering when file has messages (test 284_grpc_server_alias_import)
+  - Removed `len(g.file.MessageType) == 0` guard from per-method-pair reversal of serviceTypes
+  - Service-only external imports always need prepend ordering (last method's types first), regardless of whether the file has messages
+  - The guard was incorrect: it caused service-only imports to be emitted in forward order when messages existed
 
 ## Notes
 
