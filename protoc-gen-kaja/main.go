@@ -4177,7 +4177,7 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 
 // generateFieldDescriptor generates a single field descriptor in the MessageType constructor
 // oneofName is the proto snake_case name - it will be converted to camelCase for the descriptor
-func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string) {
+func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string, customOptionsSource *descriptorpb.FieldOptions) {
 	kind := "scalar"
 	t := g.getScalarTypeEnum(field)
 	extraFields := ""
@@ -4318,9 +4318,9 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		}
 	}
 	
-	// Custom field options
+	// Custom field options (use customOptionsSource for bug-compatibility with protobuf-ts group field index shift)
 	customFieldOptsStr := ""
-	customFieldOpts := g.getCustomFieldOptions(field.Options)
+	customFieldOpts := g.getCustomFieldOptions(customOptionsSource)
 	if len(customFieldOpts) > 0 {
 		customFieldOptsStr = ", options: " + formatCustomOptions(customFieldOpts)
 	}
@@ -4366,6 +4366,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		field      *descriptorpb.FieldDescriptorProto
 		isProto3Optional bool
 		oneofName  string // Proto snake_case oneof name (for real oneofs only)
+		customOptionsSource *descriptorpb.FieldOptions // Bug-compatible: options source shifted by group fields
 	}
 	
 	var allFields []fieldInfo
@@ -4394,6 +4395,16 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		
 		allFields = append(allFields, info)
 	}
+
+	// Bug-compatible with protobuf-ts: when reading custom options, protobuf-ts
+	// uses array index alignment between the original descriptor fields (includes
+	// groups) and the filtered fields (no groups). This causes custom options to
+	// shift by the number of preceding group fields. We replicate this bug.
+	for i := range allFields {
+		if i < len(msg.Field) {
+			allFields[i].customOptionsSource = msg.Field[i].Options
+		}
+	}
 	
 	// Keep fields in proto file order (don't sort)
 	// The order in msg.Field is the order they appear in the .proto file
@@ -4421,7 +4432,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 			
 			// Generate field descriptor
-			g.generateFieldDescriptor(field, info.oneofName, comma)
+			g.generateFieldDescriptor(field, info.oneofName, comma, info.customOptionsSource)
 		}
 		
 		g.indent = "        "
