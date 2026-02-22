@@ -57,6 +57,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **Lowercase hex digits in \uXXXX escapes** — The Go plugin's `escapeStringForJS` uses `fmt.Fprintf(&b, "\u%04x", r)` which produces lowercase hex digits (e.g. `\ufeff`). The TS compiler uses uppercase hex digits (e.g. `\uFEFF`). This only manifests for characters whose codepoints contain A-F digits — characters like U+0085, U+2028, U+2029 have no A-F digits so pass unnoticed. U+FEFF (BOM) makes it obvious: Go emits `\ufeff`, TS emits `\uFEFF`. Root cause: `%04x` in fmt format string should be `%04X`. Tested in `252_custom_option_string_bom`.
 
+- **Non-ASCII characters unescaped in custom option strings** — The TS compiler's printer uses `escapeNonAsciiString` (not `escapeString`) for string literals. This first runs `escapeString` (handling C0 controls, `\u2028`, `\u2029`, `\u0085`), then additionally escapes ALL characters above U+007F as `\uXXXX` via `/[^\u0000-\u007F]/g`. So any non-ASCII character like `é` (U+00E9), `ñ` (U+00F1), `中` (U+4E2D) gets escaped. The Go plugin's `escapeStringForJS` only escapes specific ranges (C0, C1, line/para separators, BOM) and leaves regular non-ASCII characters as raw UTF-8. For example, `"café"` → TS: `"caf\u00E9"`, Go: `"café"`. Root cause: `escapeStringForJS` needs to escape ALL non-ASCII characters (charCode > 127), not just specific ranges. Tested in `253_custom_option_string_nonascii`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -72,6 +74,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Service/method options (non-WKT types)
 
 ### Ideas for future runs
+- **Non-ASCII escaping applies EVERYWHERE strings appear**: The `escapeNonAsciiString` is used by the TS printer for ALL string literals, not just custom options. This means `json_name` values (line 4285: `escapeStringForJS(actualJsonName)`) with non-ASCII chars would also differ. Same for proto2 string defaults, map key strings, nested message string values, etc. After RALPH fixes `escapeStringForJS` to escape all non-ASCII chars, this entire class disappears.
+- **Characters above U+FFFF (surrogate pairs)**: The TS printer's `encodeUtf16EscapeSequence(c.charCodeAt(0))` handles individual UTF-16 code units. For characters above U+FFFF (e.g., emoji 🎉 U+1F389), JavaScript strings use surrogate pairs, and the regex matches each surrogate individually, producing `\uD83C\uDF89`. Go's `escapeStringForJS` iterates runes (Unicode codepoints), so it would need to split into surrogates and escape each. This is a subtlety of the fix.
 - Same repeated-extension-single bug likely applies to repeated enum, repeated int32, repeated bytes, repeated message top-level extensions with a single value — all go through `parseCustomOptions` which lacks wrapping.
 - Same integer-key ordering issue applies to `map<uint32, string>`, `map<int64, string>`, `map<uint64, string>`, etc. — all numeric map key types would have JS Object.keys() reordering. But RALPH will likely fix all at once.
 - Bool map keys in custom options: TS may order `false` before `true` (since `Object.keys` on `{true: ..., false: ...}` preserves insertion order for non-integer keys). Check if wire order `true, false` matches TS order.
