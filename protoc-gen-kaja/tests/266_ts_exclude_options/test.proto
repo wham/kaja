@@ -1,0 +1,23 @@
+// Tests that the ts.exclude_options file option causes the named
+// custom options to be excluded from generated reflection data.
+// The TS plugin reads this option and filters matching extensions;
+// the Go plugin has no knowledge of ts.exclude_options and includes
+// the options in its output.
+syntax = "proto3";
+package test;
+
+import "protobuf-ts.proto";
+import "google/protobuf/descriptor.proto";
+
+// Exclude the "test.my_tag" field option from generated reflection data.
+// The TS plugin reads ts.exclude_options and filters matching keys;
+// the Go plugin does not implement this filtering.
+option (ts.exclude_options) = "test.my_tag";
+
+extend google.protobuf.FieldOptions {
+  string my_tag = 50001;
+}
+
+message Item {
+  string name = 1 [(my_tag) = "important"];
+}
