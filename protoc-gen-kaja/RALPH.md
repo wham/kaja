@@ -69,6 +69,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix custom option field order within message values (test 250_custom_option_field_order)
   - Added `sort.SliceStable` in `parseMessageValue` after merging to reorder fields by message descriptor declaration order
   - protoc serializes by field number, but protobuf-ts `toJson()` emits in declaration order (order fields appear in the .proto file)
+- [x] Fix DEL character escaping in JS strings (test 251_custom_option_string_del)
+  - Changed C1 range from `r >= 0x7F` to `r >= 0x80` — DEL (0x7F) is NOT escaped by TypeScript's printer
+  - C1 control characters are 0x80–0x9F; DEL is technically a control char but TS passes it through literally
 
 ## Notes
 
