@@ -122,6 +122,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Added `getExcludeOptions()` to read field 777701 (ts.exclude_options) from FileOptions unknown fields
   - Added `filterExcludedOptions()` helper supporting exact match and trailing wildcard patterns
   - Applied filtering in all four `getCustom*Options` methods (field, message, method, service)
+- [x] Fix ts.exclude_options wildcard substring matching (test 267_exclude_options_wildcard_substring)
+  - TS plugin converts patterns to regex (dots escaped, `*` → `.*`) and uses `String.match()` (substring, not anchored)
+  - Changed `filterExcludedOptions` from prefix-based matching to regex substring matching
+  - Pattern `test.*` now correctly matches `other.test.foo` (finds "test.foo" as substring)
 
 ## Notes
 

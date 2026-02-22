@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 	"sort"
 	"path/filepath"
 	"strconv"
@@ -1288,27 +1289,28 @@ func (g *generator) getExcludeOptions() []string {
 }
 
 // filterExcludedOptions removes custom options whose keys match any exclude pattern.
-// Patterns support trailing wildcard: "foo.*" matches "foo.bar", "foo.baz", etc.
-// "*" matches everything.
+// Matches protobuf-ts behavior: patterns are converted to regex (dots escaped, * → .*)
+// and matched as substrings via String.match() (not anchored).
 func filterExcludedOptions(opts []customOption, excludePatterns []string) []customOption {
 	if len(excludePatterns) == 0 {
 		return opts
 	}
+	var regexes []*regexp.Regexp
+	for _, pattern := range excludePatterns {
+		// Convert pattern to regex: escape dots, convert * to .*
+		escaped := strings.ReplaceAll(pattern, ".", "\\.")
+		escaped = strings.ReplaceAll(escaped, "*", ".*")
+		re, err := regexp.Compile(escaped)
+		if err != nil {
+			continue
+		}
+		regexes = append(regexes, re)
+	}
 	var filtered []customOption
 	for _, opt := range opts {
 		excluded := false
-		for _, pattern := range excludePatterns {
-			if pattern == "*" {
-				excluded = true
-				break
-			}
-			if strings.HasSuffix(pattern, "*") {
-				prefix := pattern[:len(pattern)-1]
-				if strings.HasPrefix(opt.key, prefix) {
-					excluded = true
-					break
-				}
-			} else if opt.key == pattern {
+		for _, re := range regexes {
+			if re.MatchString(opt.key) {
 				excluded = true
 				break
 			}
