@@ -195,6 +195,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Removed `len(g.file.MessageType) == 0` guard from per-method-pair reversal of serviceTypes
   - Service-only external imports always need prepend ordering (last method's types first), regardless of whether the file has messages
   - The guard was incorrect: it caused service-only imports to be emitted in forward order when messages existed
+- [x] Filter non-generic-client services from .client.ts generation (test 285_client_service_filtering)
+  - Added `serviceNeedsGenericClient()` function: returns true if service has no ts.client option (default) or GENERIC_CLIENT (1)
+  - Built `clientServices` filtered slice in `generateClientFile`, used throughout all service loops
+  - Replaced all `file.Service` references in import collection, collision detection, and client generation with `clientServices`
+  - Services with GRPC1_CLIENT only appear in .grpc-client.ts, not in .client.ts
 
 ## Notes
 
