@@ -1,0 +1,17 @@
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message MyOption {
+  required int32 count = 1;
+  required string label = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  optional MyOption my_opt = 50000;
+}
+
+message Foo {
+  required string name = 1 [(my_opt) = { count: 0, label: "" }];
+}
