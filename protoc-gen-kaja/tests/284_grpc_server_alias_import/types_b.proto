@@ -1,0 +1,6 @@
+syntax = "proto3";
+package beta;
+
+message Response {
+  string info = 1;
+}
