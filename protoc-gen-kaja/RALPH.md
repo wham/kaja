@@ -80,6 +80,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix supplementary character escaping to use surrogate pairs (test 254_custom_option_string_emoji)
   - Changed `\u{X}` format to surrogate pair `\uHHHH\uHHHH` for chars > U+FFFF
   - TypeScript's `escapeString` uses `\uHHHH\uHHHH` surrogate pairs, not ES6 `\u{X}` syntax
+- [x] Fix group field custom options index-shift bug (test 255_group_field_options)
+  - protobuf-ts has a bug in `getMessageType()`: it reads custom options using array index alignment between original descriptor fields (includes groups) and filtered fields (no groups), causing options to shift
+  - Added `customOptionsSource` field to `fieldInfo` struct; for filtered field at index `i`, use `msg.Field[i].Options`
+  - This replicates the bug where fields after a group get the wrong (or no) custom options
 
 ## Notes
 

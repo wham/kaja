@@ -509,10 +509,15 @@ func (g *generator) resolveEnumValueName(typeName string, number int32) string {
 				fqn = "." + f.GetPackage() + "." + enum.GetName()
 			}
 			if fqn == typeName {
+				// Use the LAST value with matching number (JS object overwrite behavior for allow_alias)
+				result := ""
 				for _, val := range enum.Value {
 					if val.GetNumber() == number {
-						return val.GetName()
+						result = val.GetName()
 					}
+				}
+				if result != "" {
+					return result
 				}
 			}
 		}
@@ -540,10 +545,15 @@ func (g *generator) findEnumInMessageWithPrefix(prefix string, msg *descriptorpb
 	for _, enum := range msg.EnumType {
 		fqn := prefix + "." + enum.GetName()
 		if fqn == typeName {
+			// Use the LAST value with matching number (JS object overwrite behavior for allow_alias)
+			result := ""
 			for _, val := range enum.Value {
 				if val.GetNumber() == number {
-					return val.GetName()
+					result = val.GetName()
 				}
+			}
+			if result != "" {
+				return result
 			}
 		}
 	}
