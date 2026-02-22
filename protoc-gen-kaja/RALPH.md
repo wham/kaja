@@ -87,6 +87,22 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix enum alias resolution in custom options (test 256_custom_option_enum_alias)
   - When enum has `allow_alias`, use the LAST value with matching number (JS object overwrite behavior)
   - Changed `resolveEnumValueName` and `findEnumInMessageWithPrefix` to iterate all values and keep last match
+- [x] Fix default value omission in custom option messages (test 257_required_default_option)
+  - Added `isDefaultValue()` helper to check if a field value equals its proto3 JSON default (0, "", false, "0", etc.)
+  - Added filtering step in `parseMessageValue` after merge: removes fields with default values (matching protobuf-ts `toJson()` behavior)
+  - Skips map entry messages — key/value fields are always meaningful even when they equal defaults (e.g., bool key `false`)
+- [x] Fix proto2 optional fields keeping defaults in custom options (test 258_optional_default_option)
+  - Added `findFileSyntaxForMessageType()` to look up file syntax for a message type
+  - Changed `parseMessageValue` to accept `msgTypeName` parameter for syntax lookup
+  - Proto2 optional fields have explicit presence (opt=true in protobuf-ts) → defaults are NOT filtered
+  - Proto3 explicit optional fields also have presence → defaults kept
+  - Only proto2 required and proto3 implicit fields have defaults filtered
+  - Note: `GetSyntax()` returns "" for proto2 files (not "proto2"), so check `syntax == "proto2" || syntax == ""`
+- [x] Fix google.protobuf.NullValue rendering as `null` in custom options (test 259_custom_option_null_value)
+  - protobuf-ts `ReflectionJsonWriter.enum()` special-cases NullValue to emit JSON `null` instead of enum name
+  - At all 3 enum resolution sites in custom options, check if typeName is `.google.protobuf.NullValue` → store `nil` instead of enum name string
+  - Added `nil` case in `formatCustomOptions` and `formatCustomOptionArray` → outputs `"null"` literal
+  - Updated `isDefaultValue` to handle NullValue: `nil` is the default value (NullValue only has value 0)
 
 ## Notes
 
