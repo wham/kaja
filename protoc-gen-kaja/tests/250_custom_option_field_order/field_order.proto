@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package fieldorder;
+
+import "google/protobuf/descriptor.proto";
+
+// Message with fields declared in REVERSE field-number order.
+// protoc serializes by field number (alpha=1 first, beta=2 second),
+// but the TS plugin emits JSON keys in declaration order (beta first, alpha second).
+message StyleOption {
+  string beta = 2;
+  string alpha = 1;
+}
+
+extend google.protobuf.FieldOptions {
+  StyleOption style = 50001;
+}
+
+message StyledMessage {
+  string value = 1 [(style) = { beta: "round", alpha: "bold" }];
+}
