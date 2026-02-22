@@ -211,6 +211,77 @@ func getGenericServerOutputFileName(protoFile string) string {
 	return base + ".server.ts"
 }
 
+// getServiceClientStyles reads the ts.client option (field 777701) from ServiceOptions.
+// Returns the list of ClientStyle enum values (as int32).
+// ClientStyle: NO_CLIENT=0, GENERIC_CLIENT=1, GRPC1_CLIENT=4
+func getServiceClientStyles(svc *descriptorpb.ServiceDescriptorProto) []int32 {
+	if svc.Options == nil {
+		return nil
+	}
+	unknown := svc.Options.ProtoReflect().GetUnknown()
+	var styles []int32
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		switch typ {
+		case protowire.VarintType:
+			val, n := protowire.ConsumeVarint(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				styles = append(styles, int32(val))
+			}
+		case protowire.BytesType:
+			val, n := protowire.ConsumeBytes(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				packed := val
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeVarint(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					styles = append(styles, int32(v))
+				}
+			}
+		case protowire.Fixed32Type:
+			unknown = unknown[4:]
+		case protowire.Fixed64Type:
+			unknown = unknown[8:]
+		default:
+			return styles
+		}
+	}
+	return styles
+}
+
+// fileNeedsClient checks if any service in a file needs a client file generated.
+// Default (no ts.client option) is GENERIC_CLIENT. NO_CLIENT (0) suppresses generation.
+func fileNeedsClient(file *descriptorpb.FileDescriptorProto) bool {
+	for _, svc := range file.Service {
+		styles := getServiceClientStyles(svc)
+		if len(styles) == 0 {
+			// No ts.client option → default is GENERIC_CLIENT
+			return true
+		}
+		for _, style := range styles {
+			if style != 0 { // Any non-NO_CLIENT style means we need a client file
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // getServiceServerStyles reads the ts.server option (field 777702) from ServiceOptions.
 // Returns the list of ServerStyle enum values (as int32).
 // ServerStyle: NO_SERVER=0, GENERIC_SERVER=1, GRPC1_SERVER=2
@@ -384,8 +455,8 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			Content: proto.String(content),
 		})
 
-		// Generate client file if there are services
-		if len(file.Service) > 0 {
+		// Generate client file if any service needs a client
+		if len(file.Service) > 0 && fileNeedsClient(file) {
 			clientContent := generateClientFile(file, req.ProtoFile, params)
 			clientName := getClientOutputFileName(fileName)
 			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
