@@ -182,6 +182,11 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Removed `service.GetOptions().GetDeprecated()` check from method deprecation in `generateGenericServerFile`
   - Service-level deprecation should NOT propagate to individual methods in the server interface
   - Only method-level `deprecated = true` and file-level deprecation should add `@deprecated` to methods
+- [x] Fix gRPC client import ordering (test 282_grpc_client_import_order)
+  - Switched from backward-iterate+append to forward-iterate+prepend strategy (matching TS plugin behavior)
+  - TS plugin processes methods forward, prepending imports as types are encountered
+  - For unary/server-stream/bidi: prepend input first, then output (output ends up above input)
+  - For client-stream: prepend output first, then input (input ends up above output)
 
 ## Notes
 

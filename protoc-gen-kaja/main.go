@@ -8874,7 +8874,8 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 	}
 	g.precomputeImportAliases(depFiles)
 
-	// Collect message types needed by GRPC1_SERVER services, in reverse method order
+	// Collect message types needed by GRPC1_SERVER services using forward-iterate+prepend
+	// (matching TS plugin behavior: processes methods forward, prepending imports as encountered)
 	seen := make(map[string]bool)
 	type importEntry struct {
 		importClause string
@@ -8885,22 +8886,22 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		if !serviceNeedsGrpc1Server(service) {
 			continue
 		}
-		for i := len(service.Method) - 1; i >= 0; i-- {
-			method := service.Method[i]
-			resType := g.stripPackage(method.GetOutputType())
+		for _, method := range service.Method {
 			reqType := g.stripPackage(method.GetInputType())
-			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			resType := g.stripPackage(method.GetOutputType())
 			reqTypeImport := g.formatTypeImport(method.GetInputType())
-			resTypePath := g.getImportPathForType(method.GetOutputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
 			reqTypePath := g.getImportPathForType(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
 
-			if !seen[resType] {
-				imports = append(imports, importEntry{resTypeImport, resTypePath})
-				seen[resType] = true
-			}
+			// Prepend input first, then output (output ends up above input)
 			if !seen[reqType] {
-				imports = append(imports, importEntry{reqTypeImport, reqTypePath})
+				imports = append([]importEntry{{reqTypeImport, reqTypePath}}, imports...)
 				seen[reqType] = true
+			}
+			if !seen[resType] {
+				imports = append([]importEntry{{resTypeImport, resTypePath}}, imports...)
+				seen[resType] = true
 			}
 		}
 	}
