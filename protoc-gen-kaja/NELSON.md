@@ -55,6 +55,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **DEL and C1 control codes over-escaped in custom option strings** — The Go plugin's `escapeStringForJS` escapes characters in range `0x7F-0x9F` (DEL + C1 control codes) and `U+FEFF` (BOM) as `\uXXXX`. But the TS compiler's `escapeString` regex only covers `\u0000-\u001F`, `\u2028`, `\u2029`, and `\u0085`. It does NOT cover DEL (0x7F), C1 codes 0x80-0x84, 0x86-0x9F, or U+FEFF. So the TS plugin leaves these as raw UTF-8 bytes while the Go plugin escapes them. Root cause: `escapeStringForJS` condition `r >= 0x7F && r <= 0x9F` is too broad — should only match `r == 0x0085`. And `r == 0xFEFF` should be removed entirely. Tested in `251_custom_option_string_del`.
 
+- **Lowercase hex digits in \uXXXX escapes** — The Go plugin's `escapeStringForJS` uses `fmt.Fprintf(&b, "\u%04x", r)` which produces lowercase hex digits (e.g. `\ufeff`). The TS compiler uses uppercase hex digits (e.g. `\uFEFF`). This only manifests for characters whose codepoints contain A-F digits — characters like U+0085, U+2028, U+2029 have no A-F digits so pass unnoticed. U+FEFF (BOM) makes it obvious: Go emits `\ufeff`, TS emits `\uFEFF`. Root cause: `%04x` in fmt format string should be `%04X`. Tested in `252_custom_option_string_bom`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -75,8 +77,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Bool map keys in custom options: TS may order `false` before `true` (since `Object.keys` on `{true: ..., false: ...}` preserves insertion order for non-integer keys). Check if wire order `true, false` matches TS order.
 - Other control chars in custom option strings: `\b` (backspace 0x08), `\f` (form feed 0x0C), `\0` (null 0x00) — same root cause as vtab, likely all broken
 - Control chars in nested message field string values (same escaping code path in `parseMessageValue`)
-- U+00A0 (NBSP) and U+FEFF (BOM) are NOT escaped by TS printer (verified: regex only has `\u0085`, not these). Don't test.
+- U+00A0 (NBSP) and U+FEFF (BOM) ARE escaped by TS printer (contrary to earlier notes). Tested U+0090 — both plugins escape it as `\u0090`. Tested U+FEFF — both escape it, but TS uses `\uFEFF` (uppercase) and Go uses `\ufeff` (lowercase). The earlier "don't test" advice was wrong.
 - U+0085 NEXT LINE — confirmed different. TS escapes it via regex `\u0085` in `doubleQuoteEscapedCharsRegExp`. Go misses it because 0x85 > 0x20. Fix: add `r == 0x0085` check in `escapeStringForJS`.
+- **Hex digit casing in \uXXXX escapes applies broadly**: ANY character escaped via the `default` case in `escapeStringForJS` that has A-F hex digits will have lowercase vs uppercase mismatch. This includes: 0x80-0x9F range (C1 codes), 0xFEFF (BOM), and potentially any future additions. After RALPH fixes `%04x` → `%04X`, this class of bugs goes away. But also check `\x00` — does Go use `\x00` (lowercase) while TS uses `\x00` (also lowercase)? Verified: both use lowercase for `\x` escapes, so no issue there.
 - Wrapper types (Int32Value, BoolValue, etc.) as custom option types — tested, NO difference (TS plugin uses generic MessageType not WKT-aware toJson for options)
 - Custom options with `google.protobuf.Any`, `google.protobuf.Struct`, `google.protobuf.Value` as the option type
 - Custom options with `google.protobuf.FieldMask`, `google.protobuf.Empty` as option types
@@ -95,5 +98,5 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Same null-before-digit issue likely occurs in map key strings, nested message string values — same `escapeStringForJS` function used everywhere.
 - Same declaration-order vs field-number-order issue applies to NESTED messages within option messages — if a deeply nested message has out-of-order fields, Go would emit them by field number while TS by declaration order. Also applies to map value messages.
 - Oneof fields within option messages — the TS plugin's `toJson()` emits the selected oneof field at its declaration position. Go reads it at its wire position (field number). If the oneof field has a high field number but is declared early, order differs.
-- DEL/C1 over-escaping also applies to U+FEFF (BOM) — Go escapes it as `\ufeff` but TS leaves it raw. Same root cause in `escapeStringForJS`. Could add more tests for 0x80, 0x90, 0x9F etc. but all same bug.
+- DEL/C1 codes 0x80-0x9F ARE escaped by TS (contrary to earlier notes — tested U+0090, both plugins produce `\u0090`). The over-escaping bug in test 251 was specifically about 0x7F (DEL) which TS does NOT escape. C1 range escaping is correct in Go, but the hex CASING is wrong (lowercase vs uppercase). BOM (0xFEFF) same issue — Go correctly escapes it but uses wrong case.
 - The over-escaping of 0x7F-0x9F characters likely also affects `json_name` values (line 4285: `escapeStringForJS(actualJsonName)`) if a json_name contains these characters.
