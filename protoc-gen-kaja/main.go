@@ -9308,7 +9308,7 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 				g.p("%s(options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s>;", methodName, reqType, resType)
 			} else if ss {
 				// Server streaming: input + optional metadata/options, returns ClientReadableStream
-				g.p("%s(input: %s, metadata: grpc.Metadata, options?: grpc.CallOptions): grpc.ClientReadableStream<%s>;", methodName, reqType, resType)
+				g.p("%s(input: %s, metadata?: grpc.Metadata, options?: grpc.CallOptions): grpc.ClientReadableStream<%s>;", methodName, reqType, resType)
 				g.p("%s(input: %s, options?: grpc.CallOptions): grpc.ClientReadableStream<%s>;", methodName, reqType, resType)
 			} else if cs {
 				// Client streaming: callback + optional metadata/options, returns ClientWritableStream
@@ -9413,10 +9413,10 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 				g.p("}")
 			} else if ss {
 				// Server streaming implementation
-				g.p("%s(input: %s, metadata: grpc.Metadata | grpc.CallOptions | undefined, options?: grpc.CallOptions): grpc.ClientReadableStream<%s> {", methodName, reqType, resType)
+				g.p("%s(input: %s, metadata?: grpc.Metadata | grpc.CallOptions, options?: grpc.CallOptions): grpc.ClientReadableStream<%s> {", methodName, reqType, resType)
 				g.indent = "        "
 				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
-				g.p("return this.makeServerStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, input, (metadata as any), (options as any));", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.p("return this.makeServerStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, input, (metadata as any), options);", reqType, resType, serviceName, serializeReq, deserializeRes)
 				g.indent = "    "
 				g.p("}")
 			} else if cs {
