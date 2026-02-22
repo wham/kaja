@@ -686,7 +686,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			v, n := protowire.ConsumeBytes(unknown)
 			msgDesc := g.findMessageType(ext.GetTypeName())
 			if msgDesc != nil {
-				nested := g.parseMessageValue(v, msgDesc)
+				nested := g.parseMessageValue(v, msgDesc, ext.GetTypeName())
 				result = append(result, customOption{key: extName, value: nested})
 			}
 			unknown = unknown[n:]
@@ -845,7 +845,7 @@ func sortMapEntriesJSOrder(entries []customOption) []customOption {
 }
 
 // parseMessageValue decodes a message's wire bytes into an ordered list of field name→value pairs
-func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.DescriptorProto) []customOption {
+func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.DescriptorProto, msgTypeName string) []customOption {
 	// Build field number → field descriptor map
 	fieldMap := make(map[int32]*descriptorpb.FieldDescriptorProto)
 	for _, f := range msgDesc.Field {
@@ -1063,7 +1063,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			if nestedMsg != nil {
 				if nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
 					// Map entry: parse key/value and store as mapEntryValue
-					nested := g.parseMessageValue(v, nestedMsg)
+					nested := g.parseMessageValue(v, nestedMsg, fd.GetTypeName())
 					var mapKey string
 					var mapVal interface{}
 					// Determine if map key is numeric (needs quoting in JSON)
@@ -1097,7 +1097,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 					}
 					result = append(result, customOption{key: fieldName, value: mapEntryValue{key: mapKey, value: mapVal}})
 				} else {
-					nested := g.parseMessageValue(v, nestedMsg)
+					nested := g.parseMessageValue(v, nestedMsg, fd.GetTypeName())
 					result = append(result, customOption{key: fieldName, value: nested})
 				}
 			}
@@ -1141,7 +1141,11 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 	}
 	// Filter out fields with default values (protobuf-ts toJson() omits defaults).
 	// Skip for map entry messages — key/value fields are always meaningful.
+	// Skip for fields with explicit presence (proto2 optional, proto3 explicit optional) —
+	// protobuf-ts sets field.opt=true for these, so toJson() always emits them.
 	if !(msgDesc.Options != nil && msgDesc.GetOptions().GetMapEntry()) {
+		syntax := g.findFileSyntaxForMessageType(msgTypeName)
+		isProto2 := syntax == "proto2" || syntax == ""
 		jsonNameToField := make(map[string]*descriptorpb.FieldDescriptorProto)
 		for _, fd := range msgDesc.Field {
 			jsonNameToField[fd.GetJsonName()] = fd
@@ -1149,7 +1153,17 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 		var filtered []customOption
 		for _, opt := range merged {
 			if fd, ok := jsonNameToField[opt.key]; ok && g.isDefaultValue(fd, opt.value) {
-				continue
+				// In proto2, optional fields have presence → keep defaults
+				// In proto3, explicit optional fields have presence → keep defaults
+				hasPresence := false
+				if isProto2 {
+					hasPresence = fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+				} else {
+					hasPresence = fd.GetProto3Optional()
+				}
+				if !hasPresence {
+					continue
+				}
 			}
 			filtered = append(filtered, opt)
 		}
@@ -4101,6 +4115,21 @@ func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {
 		return true
 	}
 	return false
+}
+
+// findFileSyntaxForMessageType returns the syntax ("proto2" or "proto3") of the file
+// that defines the given message type. Returns "proto3" if not found (the default).
+func (g *generator) findFileSyntaxForMessageType(typeName string) string {
+	typeName = strings.TrimPrefix(typeName, ".")
+	for _, f := range g.allFiles {
+		pkg := f.GetPackage()
+		for _, msg := range f.MessageType {
+			if g.findMessageTypeInMessage(msg, typeName, pkg) != nil {
+				return f.GetSyntax()
+			}
+		}
+	}
+	return "proto3"
 }
 
 func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorProto {
