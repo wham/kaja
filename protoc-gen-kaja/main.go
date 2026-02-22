@@ -9104,13 +9104,13 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 				prepend(importEntry{resTypeImport, resTypePath})
 				seen[resType] = true
 			}
-			if ss && !seen["RpcInputStream"] {
-				prepend(importEntry{"RpcInputStream", "@protobuf-ts/runtime-rpc"})
-				seen["RpcInputStream"] = true
-			}
 			if cs && !seen["RpcOutputStream"] {
 				prepend(importEntry{"RpcOutputStream", "@protobuf-ts/runtime-rpc"})
 				seen["RpcOutputStream"] = true
+			}
+			if ss && !seen["RpcInputStream"] {
+				prepend(importEntry{"RpcInputStream", "@protobuf-ts/runtime-rpc"})
+				seen["RpcInputStream"] = true
 			}
 		}
 	}
