@@ -1,0 +1,20 @@
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+// Proto2 optional fields set to their default values.
+// protobuf-ts toJson() INCLUDES these because field.opt=true → ed=true.
+// The Go plugin's isDefaultValue filters them out incorrectly.
+message OptionalOption {
+  optional int32 count = 1;
+  optional string label = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  optional OptionalOption opt_info = 50000;
+}
+
+message Bar {
+  required string name = 1 [(opt_info) = { count: 0, label: "" }];
+}
