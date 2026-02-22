@@ -1231,7 +1231,16 @@ func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) [
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.ServiceOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	// protobuf-ts excludes its own internal service options (ts.client, ts.server)
+	var filtered []customOption
+	for _, opt := range allOpts {
+		if opt.key == "ts.client" || opt.key == "ts.server" {
+			continue
+		}
+		filtered = append(filtered, opt)
+	}
+	return filtered
 }
 
 // formatCustomOptions formats custom options as a TypeScript object literal

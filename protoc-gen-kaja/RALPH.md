@@ -115,6 +115,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix create() property collision ordering (test 264_create_property_collision)
   - When two fields collide on localName (e.g. `x_1_y` and `x1y` both → `x1Y`), the property must appear at the position of the FIRST occurrence (JS Object.entries semantics) but with the LAST occurrence's value
   - Changed dedup in create() from reverse-iterate to forward-iterate with index tracking: first occurrence sets position, later occurrences overwrite value in-place
+- [x] Fix ts.client service option not excluded (test 265_ts_client_service_option)
+  - protobuf-ts hardcodes exclusion of `ts.client` and `ts.server` from service options output
+  - Added filtering in `getCustomServiceOptions` to skip options with key `ts.client` or `ts.server`
 
 ## Notes
 
