@@ -3477,7 +3477,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 			// Map field - multiline format
 			keyField := msgType.Field[0]
-			valueField := msgType.Field[1]
+			valueField := mapValueWithJstype(field, msgType.Field[1])
 			keyType := g.getTypescriptTypeForMapKey(keyField)
 			valueType := g.getBaseTypescriptType(valueField)
 			g.p("%s: {", fieldName)
@@ -4030,7 +4030,7 @@ func (g *generator) getTypescriptType(field *descriptorpb.FieldDescriptorProto) 
 			if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 				// It's a map entry
 				keyField := msgType.Field[0]
-				valueField := msgType.Field[1]
+				valueField := mapValueWithJstype(field, msgType.Field[1])
 				keyType := g.getBaseTypescriptType(keyField)
 				valueType := g.getBaseTypescriptType(valueField)
 				return fmt.Sprintf("{\n        [key: %s]: %s;\n    }", keyType, valueType)
@@ -4134,6 +4134,25 @@ func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {
 		return true
 	}
 	return false
+}
+
+// mapValueWithJstype returns a copy of valueField with the jstype from outerField
+// propagated, if the value field is a 64-bit int type. Needed because protobuf puts
+// jstype on the outer map field, but the synthetic map entry value field doesn't carry it.
+func mapValueWithJstype(outerField, valueField *descriptorpb.FieldDescriptorProto) *descriptorpb.FieldDescriptorProto {
+	if outerField.Options == nil || outerField.GetOptions().Jstype == nil || !is64BitIntType(valueField) {
+		return valueField
+	}
+	vf := *valueField
+	if vf.Options == nil {
+		vf.Options = &descriptorpb.FieldOptions{}
+	} else {
+		optsCopy := *vf.Options
+		vf.Options = &optsCopy
+	}
+	jstype := outerField.GetOptions().GetJstype()
+	vf.Options.Jstype = &jstype
+	return &vf
 }
 
 // findFileSyntaxForMessageType returns the syntax ("proto2" or "proto3") of the file
@@ -4338,7 +4357,15 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 			} else {
 				valueT := g.getScalarTypeEnum(valueField)
 				valueTypeName := g.getScalarTypeName(valueField)
-				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/ }", keyT, keyTypeName, valueT, valueTypeName)
+				mapValueLongType := ""
+				if field.Options != nil && field.GetOptions().Jstype != nil && is64BitIntType(valueField) {
+					if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+						mapValueLongType = ", L: 2 /*LongType.NUMBER*/"
+					} else if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+						mapValueLongType = ", L: 0 /*LongType.BIGINT*/"
+					}
+				}
+				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/%s }", keyT, keyTypeName, valueT, valueTypeName, mapValueLongType)
 			}
 		} else {
 			// Message field
@@ -4871,7 +4898,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			msgType := g.findMessageType(field.GetTypeName())
 			if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 				keyField := msgType.Field[0]
-				valueField := msgType.Field[1]
+				valueField := mapValueWithJstype(field, msgType.Field[1])
 				
 				fieldName := g.propertyName(field)
 				g.p("private binaryReadMap%d(map: %s[\"%s\"], reader: %s, options: %s): void {",
@@ -7323,6 +7350,14 @@ func (g *generator) getMapValueDefault(field *descriptorpb.FieldDescriptorProto)
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "0"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "0n"
+			}
+		}
 		return "\"0\""
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 		return "false"
