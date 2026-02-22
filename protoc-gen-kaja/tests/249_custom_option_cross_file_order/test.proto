@@ -1,0 +1,20 @@
+// Tests ordering of custom options from different files.
+// a_options.proto defines alpha_tag at field 50002.
+// b_options.proto defines beta_tag  at field 50001.
+//
+// The TS plugin builds a synthetic type with extensions in registry
+// order (= file processing order).  Since a_options.proto is imported
+// first, alpha_tag (50002) appears before beta_tag (50001) in the
+// field list and therefore in the toJson() output.
+//
+// The Go plugin reads the binary data in wire order (field-number
+// order), so beta_tag (50001) comes before alpha_tag (50002).
+syntax = "proto3";
+package test;
+
+import "a_options.proto";
+import "b_options.proto";
+
+message TestMsg {
+  string name = 1 [(alpha_tag) = "aaa", (beta_tag) = "bbb"];
+}

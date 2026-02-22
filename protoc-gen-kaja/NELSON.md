@@ -49,6 +49,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 
 - **Null byte followed by digit in custom option strings** — TypeScript's `getReplacement` function in `escapeString` has special handling: when `\0` (null byte) is followed by a digit character (0-9), it emits `\x00` instead of `\0` to avoid creating an octal escape sequence. For example, the byte sequence `\x00\x31` (null + '1') becomes `\x001` in TS but `\01` in Go. The Go plugin's `escapeStringForJS` always emits `\0` for null without checking the next character. Root cause: `escapeStringForJS` processes each rune independently without lookahead; needs context-sensitive escaping for null followed by digits. Tested in `248_custom_option_string_null_digit`.
 
+- **Cross-file extension ordering in custom options** — When multiple extensions targeting the same options type (e.g. `FieldOptions`) are defined in different files, the TS plugin collects them in registry iteration order (= file processing order, i.e. the order files appear in the `CodeGeneratorRequest.proto_file` array). The Go plugin reads extensions from wire bytes which are in **field-number order** (protoc serializes fields by number). So if `a_options.proto` defines extension at field 50002 and `b_options.proto` defines one at field 50001, and `a_options.proto` is imported first: TS outputs `alpha_tag, beta_tag` (file order) while Go outputs `beta_tag, alpha_tag` (field-number order). Root cause: `parseCustomOptions` iterates wire bytes in field-number order, but the TS plugin's interpreter iterates extensions in registry order (file-processing order). Fix requires building the extension map with ordering info from the protoc descriptor's file ordering, then emitting options in that order instead of wire order. Tested in `249_custom_option_cross_file_order`.
+
 ### Areas thoroughly tested with NO difference found
 - All 15 scalar types, maps, enums, oneofs, groups, nested messages, services (all streaming types)
 - Custom options: scalar, enum, bool, bytes (base64), repeated, nested message, NaN/Infinity floats, negative int32
@@ -81,6 +83,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Custom enum options (`EnumOptions` extensions) — tested, no difference (neither plugin emits them)
 - Custom `EnumValueOptions` extensions — untested
 - `toCamelCase` vs `lowerCamelCase` — thoroughly compared, no differences found for any common pattern
-- Map ordering for string keys that look like integers — JS treats "0", "1", ..., "4294967294" as array indices, sorting them numerically. String map keys like these would also get reordered by TS but not Go.
+- Map ordering for string keys that look like integers — tested, Go's `sortMapEntriesJSOrder` already handles these (applied to ALL `[]customOption` values including nested messages, not just map entries). No diff.
+- json_name that looks like an integer-index in nested option message — tested, Go correctly reorders via `sortMapEntriesJSOrder` on nested `[]customOption` values. No diff.
+- Cross-file extension ordering also likely affects MESSAGE options and SERVICE options, not just FIELD options — same `parseCustomOptions` code path, same bug.
+- The cross-file ordering issue may also appear in method options when multiple files define extensions for `MethodOptions`.
 - Null byte NOT followed by a digit should still use `\0` (not `\x00`). Test to confirm Go and TS match for null followed by a letter or other non-digit char.
 - Same null-before-digit issue likely occurs in map key strings, nested message string values — same `escapeStringForJS` function used everywhere.

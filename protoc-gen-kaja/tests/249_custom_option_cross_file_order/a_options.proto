@@ -1,0 +1,9 @@
+// Extension with higher field number, in a file sorted first alphabetically.
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  optional string alpha_tag = 50002;
+}
