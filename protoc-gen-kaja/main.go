@@ -9699,7 +9699,6 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 				}
 			}
 			if (method.Options != nil && method.GetOptions().GetDeprecated()) ||
-				(service.Options != nil && service.GetOptions().GetDeprecated()) ||
 				g.isFileDeprecated() {
 				g.p(" * @deprecated")
 			}
