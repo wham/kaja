@@ -1171,7 +1171,11 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 				if isProto2 {
 					hasPresence = fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
 				} else {
+					// proto3 explicit optional or oneof member (non-synthetic)
 					hasPresence = fd.GetProto3Optional()
+					if !hasPresence && fd.OneofIndex != nil {
+						hasPresence = true
+					}
 				}
 				if !hasPresence {
 					continue

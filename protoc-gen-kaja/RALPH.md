@@ -108,6 +108,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Applied at 4 locations: interface type, createDefault type, binary read method, map value default
   - Added jstype-aware L parameter in field info V part for map scalar values
   - Added jstype checks in `getMapValueDefault` for `0n` (BIGINT) and `0` (NUMBER) defaults
+- [x] Fix proto3 oneof scalar fields keeping defaults in custom options (test 261_custom_option_oneof_default)
+  - TS plugin's `ReflectionJsonWriter.write()` forces `emitDefaultValues=true` for scalar/enum oneof members
+  - Added `fd.OneofIndex != nil` check to `hasPresence` in proto3 branch of default-value filtering
+  - Oneof members always have presence semantics, so their default values should not be filtered
 
 ## Notes
 
