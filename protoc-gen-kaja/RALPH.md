@@ -84,6 +84,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - protobuf-ts has a bug in `getMessageType()`: it reads custom options using array index alignment between original descriptor fields (includes groups) and filtered fields (no groups), causing options to shift
   - Added `customOptionsSource` field to `fieldInfo` struct; for filtered field at index `i`, use `msg.Field[i].Options`
   - This replicates the bug where fields after a group get the wrong (or no) custom options
+- [x] Fix enum alias resolution in custom options (test 256_custom_option_enum_alias)
+  - When enum has `allow_alias`, use the LAST value with matching number (JS object overwrite behavior)
+  - Changed `resolveEnumValueName` and `findEnumInMessageWithPrefix` to iterate all values and keep last match
 
 ## Notes
 
