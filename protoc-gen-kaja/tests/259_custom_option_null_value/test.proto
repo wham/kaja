@@ -1,0 +1,26 @@
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/struct.proto";
+
+// Custom option message with a google.protobuf.NullValue enum field.
+// The TS runtime's ReflectionJsonWriter.enum() has special handling for NullValue:
+// it returns JSON `null` instead of the enum value name string.
+// The Go plugin has no special NullValue handling and outputs the enum name
+// as a quoted string: "NULL_VALUE".
+message NullOption {
+  optional string label = 1;
+  optional google.protobuf.NullValue null_field = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  optional NullOption null_opt = 50001;
+}
+
+message Foo {
+  // Set null_field to NULL_VALUE (enum value 0).
+  // TS outputs: { label: "hello", nullField: null }
+  // Go outputs: { label: "hello", nullField: "NULL_VALUE" }
+  required string name = 1 [(null_opt) = { label: "hello", null_field: NULL_VALUE }];
+}
