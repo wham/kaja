@@ -1,0 +1,35 @@
+// Tests that when a custom option uses an enum with allow_alias,
+// the correct alias name is used for the value.
+// The TS plugin uses the LAST alias name (JS object overwrite behavior),
+// while the Go plugin may use the FIRST alias name.
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+// Enum with allow_alias: two names map to the same numeric value.
+enum Priority {
+  option allow_alias = true;
+
+  PRIORITY_LOW = 0;
+  PRIORITY_DEFAULT = 0;  // alias for LOW
+  PRIORITY_MEDIUM = 1;
+  PRIORITY_NORMAL = 1;   // alias for MEDIUM
+  PRIORITY_HIGH = 2;
+}
+
+message MyOptions {
+  Priority priority = 1;
+}
+
+extend google.protobuf.FieldOptions {
+  MyOptions my_opts = 50001;
+}
+
+message TestMessage {
+  // Use value 0, which maps to both PRIORITY_LOW and PRIORITY_DEFAULT
+  string name = 1 [(my_opts) = { priority: PRIORITY_LOW }];
+  // Use value 1, which maps to both PRIORITY_MEDIUM and PRIORITY_NORMAL
+  string description = 2 [(my_opts) = { priority: PRIORITY_MEDIUM }];
+}
