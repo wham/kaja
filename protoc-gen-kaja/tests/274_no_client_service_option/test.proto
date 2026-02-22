@@ -1,0 +1,16 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+service MySvc {
+  option (ts.client) = NO_CLIENT;
+  rpc DoIt(Req) returns (Resp);
+}
