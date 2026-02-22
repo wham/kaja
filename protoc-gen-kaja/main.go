@@ -1305,7 +1305,7 @@ func escapeStringForJS(s string) string {
 			}
 		default:
 			if r < 0x20 || (r >= 0x80 && r <= 0x9F) || r == 0x2028 || r == 0x2029 || r == 0xFEFF {
-				fmt.Fprintf(&b, `\u%04x`, r)
+				fmt.Fprintf(&b, `\u%04X`, r)
 			} else {
 				b.WriteRune(r)
 			}
