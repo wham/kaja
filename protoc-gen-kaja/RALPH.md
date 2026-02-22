@@ -118,6 +118,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix ts.client service option not excluded (test 265_ts_client_service_option)
   - protobuf-ts hardcodes exclusion of `ts.client` and `ts.server` from service options output
   - Added filtering in `getCustomServiceOptions` to skip options with key `ts.client` or `ts.server`
+- [x] Implement ts.exclude_options file option (test 266_ts_exclude_options)
+  - Added `getExcludeOptions()` to read field 777701 (ts.exclude_options) from FileOptions unknown fields
+  - Added `filterExcludedOptions()` helper supporting exact match and trailing wildcard patterns
+  - Applied filtering in all four `getCustom*Options` methods (field, message, method, service)
 
 ## Notes
 

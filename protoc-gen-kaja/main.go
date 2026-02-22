@@ -1207,7 +1207,8 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.MethodOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) []customOption {
@@ -1215,7 +1216,8 @@ func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) [
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.MessageOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []customOption {
@@ -1223,7 +1225,8 @@ func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []cus
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.FieldOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) []customOption {
@@ -1239,6 +1242,80 @@ func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) [
 			continue
 		}
 		filtered = append(filtered, opt)
+	}
+	return filterExcludedOptions(filtered, g.getExcludeOptions())
+}
+
+// getExcludeOptions reads ts.exclude_options from the current file's FileOptions.
+// Field 777701 in google.protobuf.FileOptions from package ts, repeated string.
+func (g *generator) getExcludeOptions() []string {
+	if g.file.Options == nil {
+		return nil
+	}
+	unknown := g.file.Options.ProtoReflect().GetUnknown()
+	var patterns []string
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		switch typ {
+		case protowire.BytesType:
+			val, n := protowire.ConsumeBytes(unknown)
+			if n < 0 {
+				return patterns
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				patterns = append(patterns, string(val))
+			}
+		case protowire.VarintType:
+			_, n := protowire.ConsumeVarint(unknown)
+			if n < 0 {
+				return patterns
+			}
+			unknown = unknown[n:]
+		case protowire.Fixed32Type:
+			unknown = unknown[4:]
+		case protowire.Fixed64Type:
+			unknown = unknown[8:]
+		default:
+			return patterns
+		}
+	}
+	return patterns
+}
+
+// filterExcludedOptions removes custom options whose keys match any exclude pattern.
+// Patterns support trailing wildcard: "foo.*" matches "foo.bar", "foo.baz", etc.
+// "*" matches everything.
+func filterExcludedOptions(opts []customOption, excludePatterns []string) []customOption {
+	if len(excludePatterns) == 0 {
+		return opts
+	}
+	var filtered []customOption
+	for _, opt := range opts {
+		excluded := false
+		for _, pattern := range excludePatterns {
+			if pattern == "*" {
+				excluded = true
+				break
+			}
+			if strings.HasSuffix(pattern, "*") {
+				prefix := pattern[:len(pattern)-1]
+				if strings.HasPrefix(opt.key, prefix) {
+					excluded = true
+					break
+				}
+			} else if opt.key == pattern {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, opt)
+		}
 	}
 	return filtered
 }
