@@ -1,0 +1,18 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+// The TS plugin generates a .server.ts file for GENERIC_SERVER.
+// The Go plugin has no GENERIC_SERVER support and won't generate it.
+service MySvc {
+  option (ts.server) = GENERIC_SERVER;
+  rpc DoIt(Req) returns (Resp);
+}
