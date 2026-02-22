@@ -1,0 +1,30 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Alpha {
+  string a = 1;
+}
+
+message Beta {
+  string b = 1;
+}
+
+message Gamma {
+  string g = 1;
+}
+
+message Delta {
+  string d = 1;
+}
+
+// GENERIC_SERVER with two server-streaming methods using different types.
+// The TS plugin prepends each import as it's encountered during code
+// generation. RpcInputStream is first encountered during StreamA, so it
+// sits between Gamma/Delta and Beta/Alpha imports. The Go plugin always
+// emits RpcInputStream at the top before all message types.
+service MySvc {
+  option (ts.server) = GENERIC_SERVER;
+  rpc StreamA(Alpha) returns (stream Beta);
+  rpc StreamB(Gamma) returns (stream Delta);
+}
