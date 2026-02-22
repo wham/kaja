@@ -9112,17 +9112,16 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 		}
 	}
 
-	// Emit value imports for message types
-	for _, imp := range imports {
-		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
-	}
-
-	// Emit runtime-rpc imports
+	// Emit imports in TS plugin prepend order (last encountered → top):
+	// streaming RPC types, then message types, then ServerCallContext
 	if needsRpcOutputStream {
 		g.pNoIndent("import { RpcOutputStream } from \"@protobuf-ts/runtime-rpc\";")
 	}
 	if needsRpcInputStream {
 		g.pNoIndent("import { RpcInputStream } from \"@protobuf-ts/runtime-rpc\";")
+	}
+	for _, imp := range imports {
+		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
 	}
 	g.pNoIndent("import { ServerCallContext } from \"@protobuf-ts/runtime-rpc\";")
 
