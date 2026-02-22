@@ -9405,10 +9405,10 @@ func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 
 			if cs && ss {
 				// Bidi streaming implementation
-				g.p("%s(metadata: grpc.Metadata | grpc.CallOptions | undefined, options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s> {", methodName, reqType, resType)
+				g.p("%s(metadata?: grpc.Metadata | grpc.CallOptions, options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s> {", methodName, reqType, resType)
 				g.indent = "        "
 				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
-				g.p("return this.makeBidiStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, (metadata as any), (options as any));", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.p("return this.makeBidiStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, (metadata as any), options);", reqType, resType, serviceName, serializeReq, deserializeRes)
 				g.indent = "    "
 				g.p("}")
 			} else if ss {

@@ -175,6 +175,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - Interface: metadata is optional (`metadata?: grpc.Metadata`), not required
   - Implementation: metadata is optional union (`metadata?: grpc.Metadata | grpc.CallOptions`), not `metadata: ... | undefined`
   - Implementation body: `options` passed directly (no `(options as any)` cast) for server streaming
+- [x] Fix gRPC client bidi streaming method signatures (test 277_grpc1_client_bidi)
+  - Same two bugs as server streaming: `metadata` should be optional (`?:`) not `| undefined`, `options` passed directly not `(options as any)`
+  - Applied same fix to the `cs && ss` (bidi) code path in `generateGrpcClientFile`
 
 ## Notes
 
