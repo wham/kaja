@@ -171,6 +171,10 @@ You are running inside an automated loop. **Each invocation is stateless** — y
     - Uses `makeUnaryRequest`, `makeServerStreamRequest`, `makeClientStreamRequest`, `makeBidiStreamRequest`
     - Callback types wrapped in parens `((...) => void)` in union positions in implementation signatures
   - Imports: service value, BinaryWriteOptions/BinaryReadOptions type, message types, `import * as grpc`
+- [x] Fix gRPC client server streaming method signatures (test 276_grpc1_client_streaming)
+  - Interface: metadata is optional (`metadata?: grpc.Metadata`), not required
+  - Implementation: metadata is optional union (`metadata?: grpc.Metadata | grpc.CallOptions`), not `metadata: ... | undefined`
+  - Implementation body: `options` passed directly (no `(options as any)` cast) for server streaming
 
 ## Notes
 
