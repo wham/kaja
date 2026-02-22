@@ -448,14 +448,16 @@ type mapEntryValue struct {
 }
 
 type extInfo struct {
-	ext       *descriptorpb.FieldDescriptorProto
-	pkg       string
-	msgPrefix string // parent message name(s) for nested extensions, e.g. "Extensions."
+	ext           *descriptorpb.FieldDescriptorProto
+	pkg           string
+	msgPrefix     string // parent message name(s) for nested extensions, e.g. "Extensions."
+	registryOrder int    // order this extension was discovered (for matching TS plugin output order)
 }
 
 // buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
 func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 	extensionMap := make(map[int32]extInfo)
+	order := 0
 
 	collectFromFile := func(f *descriptorpb.FileDescriptorProto) {
 		pkg := ""
@@ -465,7 +467,8 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 		// Top-level extensions
 		for _, ext := range f.Extension {
 			if ext.GetExtendee() == extendeeName {
-				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
+				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, registryOrder: order}
+				order++
 			}
 		}
 		// Extensions nested in messages (recursively)
@@ -474,7 +477,8 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 			msgPrefix := prefix + msg.GetName() + "."
 			for _, ext := range msg.Extension {
 				if ext.GetExtendee() == extendeeName {
-					extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, msgPrefix: msgPrefix}
+					extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, msgPrefix: msgPrefix, registryOrder: order}
+					order++
 				}
 			}
 			for _, nested := range msg.NestedType {
@@ -722,6 +726,20 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			}
 		}
 	}
+
+	// Sort by registry order (the order extensions were discovered across files)
+	// to match the TS plugin's output order, which uses registration order not field number order.
+	extOrder := make(map[string]int, len(extensionMap))
+	for _, ei := range extensionMap {
+		pkg := ei.pkg
+		if pkg != "" {
+			pkg += "."
+		}
+		extOrder[pkg+ei.msgPrefix+ei.ext.GetName()] = ei.registryOrder
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return extOrder[result[i].key] < extOrder[result[j].key]
+	})
 
 	return result
 }
