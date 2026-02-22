@@ -112,6 +112,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - TS plugin's `ReflectionJsonWriter.write()` forces `emitDefaultValues=true` for scalar/enum oneof members
   - Added `fd.OneofIndex != nil` check to `hasPresence` in proto3 branch of default-value filtering
   - Oneof members always have presence semantics, so their default values should not be filtered
+- [x] Fix create() property collision ordering (test 264_create_property_collision)
+  - When two fields collide on localName (e.g. `x_1_y` and `x1y` both → `x1Y`), the property must appear at the position of the FIRST occurrence (JS Object.entries semantics) but with the LAST occurrence's value
+  - Changed dedup in create() from reverse-iterate to forward-iterate with index tracking: first occurrence sets position, later occurrences overwrite value in-place
 
 ## Notes
 
