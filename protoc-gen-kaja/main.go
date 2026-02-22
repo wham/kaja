@@ -1139,6 +1139,22 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			}
 		}
 	}
+	// Filter out fields with default values (protobuf-ts toJson() omits defaults).
+	// Skip for map entry messages — key/value fields are always meaningful.
+	if !(msgDesc.Options != nil && msgDesc.GetOptions().GetMapEntry()) {
+		jsonNameToField := make(map[string]*descriptorpb.FieldDescriptorProto)
+		for _, fd := range msgDesc.Field {
+			jsonNameToField[fd.GetJsonName()] = fd
+		}
+		var filtered []customOption
+		for _, opt := range merged {
+			if fd, ok := jsonNameToField[opt.key]; ok && g.isDefaultValue(fd, opt.value) {
+				continue
+			}
+			filtered = append(filtered, opt)
+		}
+		merged = filtered
+	}
 	// Reorder fields to match the message descriptor's declaration order.
 	// protoc serializes by field number, but protobuf-ts toJson() emits in declaration order.
 	fieldOrder := make(map[string]int)
@@ -1366,6 +1382,50 @@ func formatFloatJS(v float64) string {
 		return s
 	}
 	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+// isDefaultValue returns true if the value equals the proto3 JSON default for the field type.
+// protobuf-ts toJson() omits fields with default values.
+func (g *generator) isDefaultValue(fd *descriptorpb.FieldDescriptorProto, value interface{}) bool {
+	// Repeated/map fields: present means non-default
+	if fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+		return false
+	}
+	switch fd.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+		v, ok := value.(int)
+		return ok && v == 0
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		v, ok := value.(string)
+		return ok && v == "0"
+	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
+		descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+		v, ok := value.(float64)
+		return ok && v == 0
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+		v, ok := value.(bool)
+		return ok && !v
+	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+		v, ok := value.(string)
+		return ok && v == ""
+	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+		v, ok := value.(string)
+		return ok && v == ""
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		// Default enum value has number 0; resolve its name and compare
+		defaultName := g.resolveEnumValueName(fd.GetTypeName(), 0)
+		v, ok := value.(string)
+		return ok && v == defaultName
+	}
+	return false
 }
 
 // formatCustomOptionArray formats a []interface{} as a TypeScript array literal
