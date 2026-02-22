@@ -1,0 +1,40 @@
+// Tests that proto3 oneof scalar fields set to default values in custom options
+// are emitted, not filtered.
+//
+// The TS plugin's ReflectionJsonWriter.write() forces emitDefaultValues=true
+// for the selected scalar/enum oneof member:
+//   const opt = field.kind == 'scalar' || field.kind == 'enum'
+//       ? { ...options, emitDefaultValues: true } : options;
+//
+// The Go plugin's isDefaultValue filtering treats proto3 oneof fields as
+// non-presence fields (hasPresence = fd.GetProto3Optional() = false), so it
+// incorrectly filters default-valued oneof scalars.
+//
+// TS: { text: "" }     Go: {}
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message ChoiceOption {
+  oneof choice {
+    string text = 1;
+    int32 number = 2;
+    bool flag = 3;
+  }
+}
+
+extend google.protobuf.FieldOptions {
+  optional ChoiceOption choice_opt = 50001;
+}
+
+message Foo {
+  // Non-default oneof value (control case — both plugins should include it)
+  string alpha = 1 [(choice_opt) = { text: "hello" }];
+  // Oneof string set to empty string (default for string)
+  string beta = 2 [(choice_opt) = { text: "" }];
+  // Oneof int32 set to 0 (default for int32)
+  string gamma = 3 [(choice_opt) = { number: 0 }];
+  // Oneof bool set to false (default for bool)
+  string delta = 4 [(choice_opt) = { flag: false }];
+}
