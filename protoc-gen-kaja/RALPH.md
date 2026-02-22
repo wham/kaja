@@ -116,8 +116,8 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - When two fields collide on localName (e.g. `x_1_y` and `x1y` both → `x1Y`), the property must appear at the position of the FIRST occurrence (JS Object.entries semantics) but with the LAST occurrence's value
   - Changed dedup in create() from reverse-iterate to forward-iterate with index tracking: first occurrence sets position, later occurrences overwrite value in-place
 - [x] Fix ts.client service option not excluded (test 265_ts_client_service_option)
-  - protobuf-ts hardcodes exclusion of `ts.client` and `ts.server` from service options output
-  - Added filtering in `getCustomServiceOptions` to skip options with key `ts.client` or `ts.server`
+  - protobuf-ts hardcodes exclusion of only `ts.client` from service options output (NOT `ts.server`)
+  - Added filtering in `getCustomServiceOptions` to skip options with key `ts.client`
 - [x] Implement ts.exclude_options file option (test 266_ts_exclude_options)
   - Added `getExcludeOptions()` to read field 777701 (ts.exclude_options) from FileOptions unknown fields
   - Added `filterExcludedOptions()` helper supporting exact match and trailing wildcard patterns
@@ -126,6 +126,20 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - TS plugin converts patterns to regex (dots escaped, `*` → `.*`) and uses `String.match()` (substring, not anchored)
   - Changed `filterExcludedOptions` from prefix-based matching to regex substring matching
   - Pattern `test.*` now correctly matches `other.test.foo` (finds "test.foo" as substring)
+- [x] Fix ts.exclude_options literal exact match (test 268_exclude_options_literal_exact)
+  - Literal patterns (no `*`) must use exact match (`key === pattern`), not regex substring
+  - Split `filterExcludedOptions` into two paths: literals use `==`, wildcards use regex substring match
+  - Pattern `test.tag` now only excludes key `test.tag`, not `prefix.test.tag`
+- [x] Implement gRPC server file generation (test 269_ts_server_service_option)
+  - Only `ts.client` is excluded from service options (NOT `ts.server` — fixed previous incorrect exclusion)
+  - Added `getServiceServerStyles()` to read `ts.server` (field 777702) from ServiceOptions unknown fields
+  - Handles packed repeated encoding: protoc sends repeated enums as BytesType containing packed varints
+  - Added `isVarintFieldType()` and `parseVarintValue()` helpers for packed repeated support in `parseCustomOptions`
+  - Implemented `generateGrpcServerFile()` producing `.grpc-server.ts` with:
+    - Interface `I{ServiceName}` extending `grpc.UntypedServiceImplementation`
+    - Service definition const `{camelServiceName}Definition: grpc.ServiceDefinition<I{ServiceName}>`
+    - Method entries with path, originalName, stream flags, and serialize/deserialize functions
+  - Triggered when any service has `ts.server = GRPC1_SERVER` (value 2)
 
 ## Notes
 
