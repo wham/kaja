@@ -1306,7 +1306,10 @@ func escapeStringForJS(s string) string {
 		default:
 			if r < 0x20 || r >= 0x80 {
 				if r > 0xFFFF {
-					fmt.Fprintf(&b, `\u{%X}`, r)
+					// Encode as surrogate pair to match TypeScript's escapeString
+					hi := 0xD800 + ((r-0x10000)>>10)&0x3FF
+					lo := 0xDC00 + (r-0x10000)&0x3FF
+					fmt.Fprintf(&b, `\u%04X\u%04X`, hi, lo)
 				} else {
 					fmt.Fprintf(&b, `\u%04X`, r)
 				}

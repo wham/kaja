@@ -77,6 +77,9 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - TypeScript's printer uses `escapeNonAsciiString` which escapes ALL chars outside 0x0000-0x007F range
   - Regex `/[^\u0000-\u007F]/g` means 0x7F (DEL) is NOT escaped but 0x80+ ALL are
   - Added `\u{X}` format for supplementary chars (> U+FFFF) to match TS behavior
+- [x] Fix supplementary character escaping to use surrogate pairs (test 254_custom_option_string_emoji)
+  - Changed `\u{X}` format to surrogate pair `\uHHHH\uHHHH` for chars > U+FFFF
+  - TypeScript's `escapeString` uses `\uHHHH\uHHHH` surrogate pairs, not ES6 `\u{X}` syntax
 
 ## Notes
 
@@ -85,4 +88,4 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - Results are in `protoc-gen-kaja/results/<test_name>/`. Each has `expected/`, `actual/`, `result.txt`, and optionally `failure.txt`.
 - `findMessageType` now searches `g.allFiles` (not just current file + direct deps). This is needed because option extension types can be defined in transitive dependencies (e.g., `google.protobuf.Duration` used as an option value type).
 - WKT file generation now matches protoc-gen-ts: only emit WKT files whose types are used as field types (message/enum) or service method input/output in ANY generated file (including self-references within the WKT file itself). This correctly filters out e.g. `duration.ts` when Duration is only used as a custom option value type.
-- String escaping: use `escapeStringForJS()` helper for all JS string literals. It handles `\v`, `\f`, `\b`, `\0`, other control chars via `\uXXXX`, plus the standard `\\`, `\"`, `\n`, `\r`, `\t`. ALL non-ASCII chars (>= 0x80) are escaped as `\uXXXX` (or `\u{X}` for supplementary), matching TypeScript's `escapeNonAsciiString`. DEL (0x7F) is NOT escaped.
+- String escaping: use `escapeStringForJS()` helper for all JS string literals. It handles `\v`, `\f`, `\b`, `\0`, other control chars via `\uXXXX`, plus the standard `\\`, `\"`, `\n`, `\r`, `\t`. ALL non-ASCII chars (>= 0x80) are escaped as `\uXXXX` (or surrogate pairs `\uHHHH\uHHHH` for supplementary chars > U+FFFF), matching TypeScript's `escapeNonAsciiString`. DEL (0x7F) is NOT escaped.
