@@ -1,0 +1,16 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Alpha { string a = 1; }
+message Beta { string b = 1; }
+
+// Bidi streaming: the TS plugin's createBidi() encounters RpcOutputStream
+// (for requests param) BEFORE RpcInputStream (for responses param).
+// Since imports are prepended, RpcInputStream ends up above RpcOutputStream.
+// The Go plugin checks ss before cs in the import loop, so RpcInputStream
+// is prepended first, then RpcOutputStream goes on top — reversed order.
+service MySvc {
+  option (ts.server) = GENERIC_SERVER;
+  rpc Chat(stream Alpha) returns (stream Beta);
+}

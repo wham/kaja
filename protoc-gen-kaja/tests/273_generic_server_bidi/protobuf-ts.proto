@@ -1,0 +1,14 @@
+syntax = "proto3";
+package ts;
+import "google/protobuf/descriptor.proto";
+enum ServerStyle {
+  NO_SERVER = 0;
+  GENERIC_SERVER = 1;
+  GRPC1_SERVER = 2;
+}
+extend google.protobuf.ServiceOptions {
+  repeated ServerStyle server = 777702;
+}
+extend google.protobuf.ServiceOptions {
+  repeated string client = 777701;
+}
