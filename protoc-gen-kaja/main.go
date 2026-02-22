@@ -8924,7 +8924,7 @@ func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*
 		baseName := service.GetName()
 		serviceName := escapeTypescriptKeyword(baseName)
 		interfaceName := "I" + serviceName
-		definitionName := g.toCamelCase(baseName) + "Definition"
+		definitionName := strings.ToLower(baseName[:1]) + baseName[1:] + "Definition"
 		fullServiceName := pkgPrefix + baseName
 
 		// Interface JSDoc with service comments
