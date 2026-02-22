@@ -153,6 +153,24 @@ You are running inside an automated loop. **Each invocation is stateless** — y
   - TS plugin prepends imports as encountered per-method, so RpcInputStream/RpcOutputStream are interleaved with message imports
   - Changed from collecting all message imports + emitting streaming at top, to simulating prepend-as-encountered per method
   - For each method (forward order): prepend input type, output type, then RpcInputStream/RpcOutputStream if needed
+- [x] Fix bidi streaming import order (test 273_generic_server_bidi)
+  - For bidi, TS plugin's createBidi() encounters RpcOutputStream (requests) before RpcInputStream (responses)
+  - Since imports are prepended, must prepend RpcOutputStream first, then RpcInputStream goes on top
+  - Swapped cs/ss check order in the import loop
+- [x] Suppress client file when ts.client = NO_CLIENT (test 274_no_client_service_option)
+  - Added `getServiceClientStyles()` to read field 777701 from ServiceOptions unknown fields (same pattern as server styles)
+  - Added `fileNeedsClient()`: returns false only if ALL services explicitly set NO_CLIENT (0); default (no option) is GENERIC_CLIENT
+  - Changed client file generation guard from `len(file.Service) > 0` to also check `fileNeedsClient(file)`
+- [x] Implement gRPC client file generation (test 275_grpc1_client_option)
+  - Added `serviceNeedsGrpc1Client()`, `fileNeedsGrpc1Client()`, `getGrpcClientOutputFileName()` helpers
+  - Changed `fileNeedsClient()` to only return true for GENERIC_CLIENT (1), not GRPC1_CLIENT (4)
+  - Implemented `generateGrpcClientFile()` producing `.grpc-client.ts` with:
+    - Interface `I{ServiceName}Client` with method overloads for each streaming type
+    - Class `{ServiceName}Client` extending `grpc.Client` with `_binaryOptions`, constructor, and method implementations
+    - Unary: 4 overloads (metadata+options+callback, metadata+callback, options+callback, callback)
+    - Uses `makeUnaryRequest`, `makeServerStreamRequest`, `makeClientStreamRequest`, `makeBidiStreamRequest`
+    - Callback types wrapped in parens `((...) => void)` in union positions in implementation signatures
+  - Imports: service value, BinaryWriteOptions/BinaryReadOptions type, message types, `import * as grpc`
 
 ## Notes
 
