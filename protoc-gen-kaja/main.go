@@ -9067,7 +9067,9 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 	}
 	g.precomputeImportAliases(depFiles)
 
-	// Collect message types needed by GENERIC_SERVER services, in reverse method order
+	// Build imports by simulating the TS plugin's prepend-as-encountered behavior.
+	// For each method (forward order), prepend input type, output type, then streaming
+	// types. This interleaves RpcInputStream/RpcOutputStream with message type imports.
 	seen := make(map[string]bool)
 	type importEntry struct {
 		importClause string
@@ -9075,16 +9077,15 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 	}
 	var imports []importEntry
 
-	// Track which streaming RPC types are needed
-	needsRpcInputStream := false
-	needsRpcOutputStream := false
+	prepend := func(entry importEntry) {
+		imports = append([]importEntry{entry}, imports...)
+	}
 
 	for _, service := range file.Service {
 		if !serviceNeedsGenericServer(service) {
 			continue
 		}
-		for i := len(service.Method) - 1; i >= 0; i-- {
-			method := service.Method[i]
+		for _, method := range service.Method {
 			resType := g.stripPackage(method.GetOutputType())
 			reqType := g.stripPackage(method.GetInputType())
 			resTypeImport := g.formatTypeImport(method.GetOutputType())
@@ -9094,32 +9095,26 @@ func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles 
 
 			cs := method.GetClientStreaming()
 			ss := method.GetServerStreaming()
-			if ss {
-				needsRpcInputStream = true
-			}
-			if cs {
-				needsRpcOutputStream = true
-			}
 
+			if !seen[reqType] {
+				prepend(importEntry{reqTypeImport, reqTypePath})
+				seen[reqType] = true
+			}
 			if !seen[resType] {
-				imports = append(imports, importEntry{resTypeImport, resTypePath})
+				prepend(importEntry{resTypeImport, resTypePath})
 				seen[resType] = true
 			}
-			if !seen[reqType] {
-				imports = append(imports, importEntry{reqTypeImport, reqTypePath})
-				seen[reqType] = true
+			if ss && !seen["RpcInputStream"] {
+				prepend(importEntry{"RpcInputStream", "@protobuf-ts/runtime-rpc"})
+				seen["RpcInputStream"] = true
+			}
+			if cs && !seen["RpcOutputStream"] {
+				prepend(importEntry{"RpcOutputStream", "@protobuf-ts/runtime-rpc"})
+				seen["RpcOutputStream"] = true
 			}
 		}
 	}
 
-	// Emit imports in TS plugin prepend order (last encountered → top):
-	// streaming RPC types, then message types, then ServerCallContext
-	if needsRpcOutputStream {
-		g.pNoIndent("import { RpcOutputStream } from \"@protobuf-ts/runtime-rpc\";")
-	}
-	if needsRpcInputStream {
-		g.pNoIndent("import { RpcInputStream } from \"@protobuf-ts/runtime-rpc\";")
-	}
 	for _, imp := range imports {
 		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
 	}

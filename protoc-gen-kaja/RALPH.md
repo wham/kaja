@@ -140,6 +140,19 @@ You are running inside an automated loop. **Each invocation is stateless** — y
     - Service definition const `{camelServiceName}Definition: grpc.ServiceDefinition<I{ServiceName}>`
     - Method entries with path, originalName, stream flags, and serialize/deserialize functions
   - Triggered when any service has `ts.server = GRPC1_SERVER` (value 2)
+- [x] Implement generic server file generation (test 270_generic_server_option)
+  - Added `generateGenericServerFile()` producing `.server.ts` with:
+    - Interface `I{ServiceName}<T = ServerCallContext>` with method signatures
+    - Unary: `method(request: I, context: T): Promise<O>`
+    - Server streaming: `method(request: I, responses: RpcInputStream<O>, context: T): Promise<void>`
+    - Client streaming: `method(requests: RpcOutputStream<I>, context: T): Promise<O>`
+    - Bidi: `method(requests: RpcOutputStream<I>, responses: RpcInputStream<O>, context: T): Promise<void>`
+  - Triggered when any service has `ts.server = GENERIC_SERVER` (value 1)
+  - Imports: message types (value imports, reverse method order) then ServerCallContext from runtime-rpc
+- [x] Fix generic server import interleaving (test 272_generic_server_import_interleave)
+  - TS plugin prepends imports as encountered per-method, so RpcInputStream/RpcOutputStream are interleaved with message imports
+  - Changed from collecting all message imports + emitting streaming at top, to simulating prepend-as-encountered per method
+  - For each method (forward order): prepend input type, output type, then RpcInputStream/RpcOutputStream if needed
 
 ## Notes
 
