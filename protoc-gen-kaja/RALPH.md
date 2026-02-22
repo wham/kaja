@@ -62,6 +62,13 @@ You are running inside an automated loop. **Each invocation is stateless** — y
 - [x] Fix null byte followed by digit escaping (test 248_custom_option_string_null_digit)
   - When `\0` is followed by a digit (0-9), use `\x00` instead to avoid ambiguous octal escape
   - Changed `escapeStringForJS()` to iterate over `[]rune` slice so we can peek at the next character
+- [x] Fix custom option cross-file ordering (test 249_custom_option_cross_file_order)
+  - Added `registryOrder` field to `extInfo` to track discovery order of extensions across files
+  - After merging, sort custom options by registry order (file processing order) instead of wire order (field number)
+  - TS plugin uses registration order (order extensions are encountered during file processing), not field number order
+- [x] Fix custom option field order within message values (test 250_custom_option_field_order)
+  - Added `sort.SliceStable` in `parseMessageValue` after merging to reorder fields by message descriptor declaration order
+  - protoc serializes by field number, but protobuf-ts `toJson()` emits in declaration order (order fields appear in the .proto file)
 
 ## Notes
 

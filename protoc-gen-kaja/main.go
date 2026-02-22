@@ -1129,6 +1129,20 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			}
 		}
 	}
+	// Reorder fields to match the message descriptor's declaration order.
+	// protoc serializes by field number, but protobuf-ts toJson() emits in declaration order.
+	fieldOrder := make(map[string]int)
+	for i, fd := range msgDesc.Field {
+		fieldOrder[fd.GetJsonName()] = i
+	}
+	sort.SliceStable(merged, func(i, j int) bool {
+		oi, oki := fieldOrder[merged[i].key]
+		oj, okj := fieldOrder[merged[j].key]
+		if oki && okj {
+			return oi < oj
+		}
+		return false
+	})
 	return merged
 }
 
