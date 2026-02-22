@@ -612,8 +612,12 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 			v, n := protowire.ConsumeVarint(unknown)
-			enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
-			result = append(result, customOption{key: extName, value: enumName})
+			if ext.GetTypeName() == ".google.protobuf.NullValue" {
+				result = append(result, customOption{key: extName, value: nil})
+			} else {
+				enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
+				result = append(result, customOption{key: extName, value: enumName})
+			}
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
@@ -910,8 +914,12 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 					case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 						result = append(result, customOption{key: fieldName, value: v != 0})
 					case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
-						enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
-						result = append(result, customOption{key: fieldName, value: enumName})
+						if fd.GetTypeName() == ".google.protobuf.NullValue" {
+							result = append(result, customOption{key: fieldName, value: nil})
+						} else {
+							enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+							result = append(result, customOption{key: fieldName, value: enumName})
+						}
 					}
 				}
 				continue
@@ -987,8 +995,12 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 			v, n := protowire.ConsumeVarint(data)
-			enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
-			result = append(result, customOption{key: fieldName, value: enumName})
+			if fd.GetTypeName() == ".google.protobuf.NullValue" {
+				result = append(result, customOption{key: fieldName, value: nil})
+			} else {
+				enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+				result = append(result, customOption{key: fieldName, value: enumName})
+			}
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
@@ -1229,6 +1241,8 @@ func formatCustomOptions(opts []customOption) string {
 	for _, opt := range opts {
 		var valueStr string
 		switch val := opt.value.(type) {
+		case nil:
+			valueStr = "null"
 		case string:
 			valueStr = fmt.Sprintf("\"%s\"", escapeStringForJS(val))
 		case bool:
@@ -1434,6 +1448,9 @@ func (g *generator) isDefaultValue(fd *descriptorpb.FieldDescriptorProto, value 
 		v, ok := value.(string)
 		return ok && v == ""
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		if fd.GetTypeName() == ".google.protobuf.NullValue" {
+			return value == nil
+		}
 		// Default enum value has number 0; resolve its name and compare
 		defaultName := g.resolveEnumValueName(fd.GetTypeName(), 0)
 		v, ok := value.(string)
@@ -1447,6 +1464,8 @@ func formatCustomOptionArray(vals []interface{}) string {
 	var elems []string
 	for _, v := range vals {
 		switch val := v.(type) {
+		case nil:
+			elems = append(elems, "null")
 		case string:
 			elems = append(elems, fmt.Sprintf("\"%s\"", escapeStringForJS(val)))
 		case bool:
