@@ -288,6 +288,21 @@ func fileNeedsClient(file *descriptorpb.FileDescriptorProto) bool {
 	return false
 }
 
+// serviceNeedsGenericClient checks if a service needs a generic client (GENERIC_CLIENT).
+// Default (no ts.client option) is GENERIC_CLIENT. Returns false for NO_CLIENT or GRPC1_CLIENT only.
+func serviceNeedsGenericClient(svc *descriptorpb.ServiceDescriptorProto) bool {
+	styles := getServiceClientStyles(svc)
+	if len(styles) == 0 {
+		return true // default is GENERIC_CLIENT
+	}
+	for _, style := range styles {
+		if style == 1 { // GENERIC_CLIENT
+			return true
+		}
+	}
+	return false
+}
+
 // serviceNeedsGrpc1Client checks if a service has ts.client = GRPC1_CLIENT (4)
 func serviceNeedsGrpc1Client(svc *descriptorpb.ServiceDescriptorProto) bool {
 	for _, style := range getServiceClientStyles(svc) {
@@ -6623,6 +6638,14 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	g.precomputeImportAliases(depFiles)
 
+	// Build filtered list of services that need a generic client
+	var clientServices []*descriptorpb.ServiceDescriptorProto
+	for _, svc := range file.Service {
+		if serviceNeedsGenericClient(svc) {
+			clientServices = append(clientServices, svc)
+		}
+	}
+
 	// Detect cross-file type name collisions in client imports.
 	// In the client file, local types (from current file) are also imported,
 	// so they can collide with external imports that have the same TS name.
@@ -6631,6 +6654,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		claimed := make(map[string]string) // raw tsName → first proto type
 		seenProto := make(map[string]bool)
 		for _, service := range file.Service {
+			if !serviceNeedsGenericClient(service) {
+				continue
+			}
 			for _, method := range service.Method {
 				for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
 					if seenProto[typeName] {
@@ -6667,6 +6693,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	usedCallTypes := make(map[string]bool)
 	hasAnyMethod := false
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			hasAnyMethod = true
 			cs := method.GetClientStreaming()
@@ -6705,6 +6734,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	runtimeClaimed := make(map[string]bool) // call type names registered so far
 	protoClaimed := make(map[string]bool)   // proto types that claimed a call type name first
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			// Step 1: Register call type (registered before input/output in protobuf-ts)
 			callType := methodCallTypeName(method)
@@ -6751,6 +6783,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.serviceInfoRef = "ServiceInfo"
 	g.serviceImportAliases = make(map[string]string)
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		svcName := escapeTypescriptKeyword(service.GetName())
 		if service.GetName() == "RpcTransport" {
 			g.rpcTransportRef = "RpcTransport$"
@@ -6765,6 +6800,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Also check if any proto message type used in service methods collides with
 	// RpcTransport, ServiceInfo, or stackIntercept runtime-rpc imports.
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
 				tsName := g.stripPackage(typeName)
@@ -6786,9 +6824,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Find the first service with methods (the "primary" service whose types get special positioning)
 	primaryServiceIdx := 0
-	if len(file.Service) > 0 {
-		for si := 0; si < len(file.Service); si++ {
-			if len(file.Service[si].Method) > 0 {
+	if len(clientServices) > 0 {
+		for si := 0; si < len(clientServices); si++ {
+			if len(clientServices[si].Method) > 0 {
 				primaryServiceIdx = si
 				break
 			}
@@ -6797,8 +6835,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Collect all types used in primary service to avoid importing them early
 	service1Types := make(map[string]bool)
-	if len(file.Service) > 0 {
-		for _, method := range file.Service[primaryServiceIdx].Method {
+	if len(clientServices) > 0 {
+		for _, method := range clientServices[primaryServiceIdx].Method {
 			service1Types[g.stripPackage(method.GetOutputType())] = true
 			service1Types[g.stripPackage(method.GetInputType())] = true
 		}
@@ -6806,8 +6844,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Find first service (forward order) with a unary method — determines where UnaryCall import goes
 	firstUnaryServiceIdx := -1
-	for si := 0; si < len(file.Service); si++ {
-		for _, m := range file.Service[si].Method {
+	for si := 0; si < len(clientServices); si++ {
+		for _, m := range clientServices[si].Method {
 			if !m.GetClientStreaming() && !m.GetServerStreaming() {
 				firstUnaryServiceIdx = si
 				break
@@ -6820,8 +6858,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// For services 2..N (in reverse order), output Service + all method types + streaming call types
 	seenCallTypes := make(map[string]bool)
-	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
-		service := file.Service[svcIdx]
+	for svcIdx := len(clientServices) - 1; svcIdx >= 1; svcIdx-- {
+		service := clientServices[svcIdx]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
 		svcImportClause := escapedServiceName
 		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
@@ -6944,8 +6982,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// First service + methods types with special ordering
-	if len(file.Service) > 0 {
-		service := file.Service[0]
+	if len(clientServices) > 0 {
+		service := clientServices[0]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
 		svcImportClause := escapedServiceName
 		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
@@ -7138,7 +7176,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// 4. Check if we need stackIntercept (for any method - unary or streaming)
 	hasUnary := false
-	for _, service := range file.Service {
+	for _, service := range clientServices {
 		for _, method := range service.Method {
 			if !method.GetClientStreaming() && !method.GetServerStreaming() {
 				hasUnary = true
@@ -7152,8 +7190,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Compute method0IsStreaming for later use
 	method0IsStreaming := false
-	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
-		m0 := file.Service[0].Method[0]
+	if len(clientServices) > 0 && len(clientServices[0].Method) > 0 {
+		m0 := clientServices[0].Method[0]
 		method0IsStreaming = m0.GetClientStreaming() || m0.GetServerStreaming()
 	}
 	
@@ -7166,8 +7204,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// 5. Emit method 0 types (output first, then input)
-	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
-		method := file.Service[0].Method[0]
+	if len(clientServices) > 0 && len(clientServices[0].Method) > 0 {
+		method := clientServices[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
 		reqType := g.stripPackage(method.GetInputType())
 		resTypeImport := g.formatTypeImport(method.GetOutputType())
@@ -7204,7 +7242,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// Emit UnaryCall (if method 0 is unary) and RpcOptions
-	if len(file.Service) > 0 && primaryServiceIdx == 0 {
+	if len(clientServices) > 0 && primaryServiceIdx == 0 {
 		if hasUnary && !method0IsStreaming && !seenCallTypes["UnaryCall"] {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
 			seenCallTypes["UnaryCall"] = true
@@ -7215,7 +7253,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// Generate service clients
-	for _, service := range file.Service {
+	for _, service := range clientServices {
 		g.generateServiceClient(service)
 	}
 	
