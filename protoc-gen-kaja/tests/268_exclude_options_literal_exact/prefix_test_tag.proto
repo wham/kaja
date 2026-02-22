@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package prefix.test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  optional string tag = 50002;
+}

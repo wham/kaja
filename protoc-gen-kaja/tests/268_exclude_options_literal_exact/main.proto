@@ -1,0 +1,20 @@
+// Tests that ts.exclude_options with a literal pattern (no wildcard)
+// uses exact match. The TS plugin uses `key === pattern` for literals,
+// so "test.tag" only excludes key "test.tag", NOT "prefix.test.tag".
+// The Go plugin converts all patterns to regex and uses substring match,
+// so "test.tag" as regex /test\.tag/ also matches "prefix.test.tag".
+syntax = "proto3";
+
+package myapp;
+
+import "protobuf-ts.proto";
+import "test_tag.proto";
+import "prefix_test_tag.proto";
+
+// Literal pattern "test.tag" should exclude only the exact key "test.tag",
+// not "prefix.test.tag" which merely contains "test.tag" as a substring.
+option (ts.exclude_options) = "test.tag";
+
+message Item {
+  string name = 1 [(test.tag) = "hello", (prefix.test.tag) = "world"];
+}
