@@ -1,0 +1,17 @@
+// Tests that U+2028 LINE SEPARATOR in a custom option string value is
+// escaped as \u2028. TypeScript's printer escapes U+2028 and U+2029
+// because they are not valid unescaped inside JS string literals
+// (pre-ES2019). The Go plugin only escapes characters < U+0020,
+// so it emits the raw byte sequence instead of \u2028.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string separator = 50001;
+}
+
+message Document {
+  string content = 1 [(separator) = "line\xe2\x80\xa8sep"];
+}

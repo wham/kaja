@@ -1,0 +1,19 @@
+// Tests that ts.exclude_options wildcard pattern "test.*" excludes
+// option keys containing "test." anywhere in the string (substring match),
+// not just as a prefix. The TS plugin uses regex String.match() which
+// finds matches anywhere; the Go plugin uses strings.HasPrefix which
+// only matches at the start.
+syntax = "proto3";
+
+package myapp;
+
+import "protobuf-ts.proto";
+import "options.proto";
+
+// Pattern "test.*" should exclude "other.test.foo" because the TS plugin's
+// regex /test\..*/ matches the substring "test.foo" within "other.test.foo".
+option (ts.exclude_options) = "test.*";
+
+message Item {
+  string name = 1 [(other.test.foo) = "tagged"];
+}

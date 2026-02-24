@@ -1,0 +1,16 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+service MySvc {
+  option (ts.client) = GRPC1_CLIENT;
+  rpc BidiStream(stream Req) returns (stream Resp);
+}

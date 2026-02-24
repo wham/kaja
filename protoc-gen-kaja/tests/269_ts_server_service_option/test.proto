@@ -1,0 +1,18 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+// The TS plugin only hardcode-excludes "ts.client" from service options,
+// NOT "ts.server". So ts.server should appear in the generated output.
+service MySvc {
+  option (ts.server) = GRPC1_SERVER;
+  rpc DoIt(Req) returns (Resp);
+}

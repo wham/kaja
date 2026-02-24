@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 	"sort"
 	"path/filepath"
 	"strconv"
@@ -131,6 +132,65 @@ func collectTransitiveWKTDeps(fileToGenerate []string, allFiles []*descriptorpb.
 	return result
 }
 
+// isWKTFileUsed checks if any type defined in wktFile is used as a field type
+// (message or enum) or service method input/output in any file in the generated set.
+// This includes self-references (types within the same file referencing each other).
+func isWKTFileUsed(wktFile *descriptorpb.FileDescriptorProto, allGenFiles []*descriptorpb.FileDescriptorProto) bool {
+	// Collect all type names defined in the WKT file
+	wktTypes := make(map[string]bool)
+	wktPkg := wktFile.GetPackage()
+	var collectTypes func(msg *descriptorpb.DescriptorProto, prefix string)
+	collectTypes = func(msg *descriptorpb.DescriptorProto, prefix string) {
+		fullName := "." + prefix + msg.GetName()
+		wktTypes[fullName] = true
+		for _, nested := range msg.NestedType {
+			collectTypes(nested, prefix+msg.GetName()+".")
+		}
+		for _, enum := range msg.EnumType {
+			wktTypes["."+prefix+enum.GetName()] = true
+		}
+	}
+	prefix := ""
+	if wktPkg != "" {
+		prefix = wktPkg + "."
+	}
+	for _, msg := range wktFile.MessageType {
+		collectTypes(msg, prefix)
+	}
+	for _, enum := range wktFile.EnumType {
+		wktTypes["."+prefix+enum.GetName()] = true
+	}
+
+	// Check if any type is used as a field type or service method type
+	for _, f := range allGenFiles {
+		var checkMessages func(msgs []*descriptorpb.DescriptorProto) bool
+		checkMessages = func(msgs []*descriptorpb.DescriptorProto) bool {
+			for _, msg := range msgs {
+				for _, field := range msg.Field {
+					if wktTypes[field.GetTypeName()] {
+						return true
+					}
+				}
+				if checkMessages(msg.NestedType) {
+					return true
+				}
+			}
+			return false
+		}
+		if checkMessages(f.MessageType) {
+			return true
+		}
+		for _, svc := range f.Service {
+			for _, method := range svc.Method {
+				if wktTypes[method.GetInputType()] || wktTypes[method.GetOutputType()] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func getOutputFileName(protoFile string) string {
 	base := strings.TrimSuffix(protoFile, ".proto")
 	return base + ".ts"
@@ -139,6 +199,222 @@ func getOutputFileName(protoFile string) string {
 func getClientOutputFileName(protoFile string) string {
 	base := strings.TrimSuffix(protoFile, ".proto")
 	return base + ".client.ts"
+}
+
+func getServerOutputFileName(protoFile string) string {
+	base := strings.TrimSuffix(protoFile, ".proto")
+	return base + ".grpc-server.ts"
+}
+
+func getGenericServerOutputFileName(protoFile string) string {
+	base := strings.TrimSuffix(protoFile, ".proto")
+	return base + ".server.ts"
+}
+
+func getGrpcClientOutputFileName(protoFile string) string {
+	base := strings.TrimSuffix(protoFile, ".proto")
+	return base + ".grpc-client.ts"
+}
+
+// getServiceClientStyles reads the ts.client option (field 777701) from ServiceOptions.
+// Returns the list of ClientStyle enum values (as int32).
+// ClientStyle: NO_CLIENT=0, GENERIC_CLIENT=1, GRPC1_CLIENT=4
+func getServiceClientStyles(svc *descriptorpb.ServiceDescriptorProto) []int32 {
+	if svc.Options == nil {
+		return nil
+	}
+	unknown := svc.Options.ProtoReflect().GetUnknown()
+	var styles []int32
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		switch typ {
+		case protowire.VarintType:
+			val, n := protowire.ConsumeVarint(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				styles = append(styles, int32(val))
+			}
+		case protowire.BytesType:
+			val, n := protowire.ConsumeBytes(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				packed := val
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeVarint(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					styles = append(styles, int32(v))
+				}
+			}
+		case protowire.Fixed32Type:
+			unknown = unknown[4:]
+		case protowire.Fixed64Type:
+			unknown = unknown[8:]
+		default:
+			return styles
+		}
+	}
+	return styles
+}
+
+// fileNeedsClient checks if any service in a file needs a generic client file generated.
+// Default (no ts.client option) is GENERIC_CLIENT. NO_CLIENT (0) suppresses generation.
+// GRPC1_CLIENT (4) generates a separate .grpc-client.ts, not .client.ts.
+func fileNeedsClient(file *descriptorpb.FileDescriptorProto) bool {
+	for _, svc := range file.Service {
+		styles := getServiceClientStyles(svc)
+		if len(styles) == 0 {
+			// No ts.client option → default is GENERIC_CLIENT
+			return true
+		}
+		for _, style := range styles {
+			if style == 1 { // GENERIC_CLIENT
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// serviceNeedsGenericClient checks if a service needs a generic client (GENERIC_CLIENT).
+// Default (no ts.client option) is GENERIC_CLIENT. Returns false for NO_CLIENT or GRPC1_CLIENT only.
+func serviceNeedsGenericClient(svc *descriptorpb.ServiceDescriptorProto) bool {
+	styles := getServiceClientStyles(svc)
+	if len(styles) == 0 {
+		return true // default is GENERIC_CLIENT
+	}
+	for _, style := range styles {
+		if style == 1 { // GENERIC_CLIENT
+			return true
+		}
+	}
+	return false
+}
+
+// serviceNeedsGrpc1Client checks if a service has ts.client = GRPC1_CLIENT (4)
+func serviceNeedsGrpc1Client(svc *descriptorpb.ServiceDescriptorProto) bool {
+	for _, style := range getServiceClientStyles(svc) {
+		if style == 4 { // GRPC1_CLIENT
+			return true
+		}
+	}
+	return false
+}
+
+// fileNeedsGrpc1Client checks if any service in a file needs GRPC1_CLIENT generation
+func fileNeedsGrpc1Client(file *descriptorpb.FileDescriptorProto) bool {
+	for _, svc := range file.Service {
+		if serviceNeedsGrpc1Client(svc) {
+			return true
+		}
+	}
+	return false
+}
+
+// getServiceServerStyles reads the ts.server option (field 777702) from ServiceOptions.
+// Returns the list of ServerStyle enum values (as int32).
+// ServerStyle: NO_SERVER=0, GENERIC_SERVER=1, GRPC1_SERVER=2
+func getServiceServerStyles(svc *descriptorpb.ServiceDescriptorProto) []int32 {
+	if svc.Options == nil {
+		return nil
+	}
+	unknown := svc.Options.ProtoReflect().GetUnknown()
+	var styles []int32
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		switch typ {
+		case protowire.VarintType:
+			val, n := protowire.ConsumeVarint(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			if num == 777702 {
+				styles = append(styles, int32(val))
+			}
+		case protowire.BytesType:
+			val, n := protowire.ConsumeBytes(unknown)
+			if n < 0 {
+				return styles
+			}
+			unknown = unknown[n:]
+			// Repeated enum fields may be packed: bytes contain sequence of varints
+			if num == 777702 {
+				packed := val
+				for len(packed) > 0 {
+					v, vn := protowire.ConsumeVarint(packed)
+					if vn < 0 {
+						break
+					}
+					packed = packed[vn:]
+					styles = append(styles, int32(v))
+				}
+			}
+		case protowire.Fixed32Type:
+			unknown = unknown[4:]
+		case protowire.Fixed64Type:
+			unknown = unknown[8:]
+		default:
+			return styles
+		}
+	}
+	return styles
+}
+
+// serviceNeedsGrpc1Server checks if any service in the file has ts.server = GRPC1_SERVER (2)
+func serviceNeedsGrpc1Server(svc *descriptorpb.ServiceDescriptorProto) bool {
+	for _, style := range getServiceServerStyles(svc) {
+		if style == 2 { // GRPC1_SERVER
+			return true
+		}
+	}
+	return false
+}
+
+// fileNeedsGrpc1Server checks if any service in a file needs GRPC1_SERVER generation
+func fileNeedsGrpc1Server(file *descriptorpb.FileDescriptorProto) bool {
+	for _, svc := range file.Service {
+		if serviceNeedsGrpc1Server(svc) {
+			return true
+		}
+	}
+	return false
+}
+
+// serviceNeedsGenericServer checks if a service has ts.server = GENERIC_SERVER (1)
+func serviceNeedsGenericServer(svc *descriptorpb.ServiceDescriptorProto) bool {
+	for _, style := range getServiceServerStyles(svc) {
+		if style == 1 { // GENERIC_SERVER
+			return true
+		}
+	}
+	return false
+}
+
+// fileNeedsGenericServer checks if any service in a file needs GENERIC_SERVER generation
+func fileNeedsGenericServer(file *descriptorpb.FileDescriptorProto) bool {
+	for _, svc := range file.Service {
+		if serviceNeedsGenericServer(svc) {
+			return true
+		}
+	}
+	return false
 }
 
 func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorResponse {
@@ -220,13 +496,43 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			Content: proto.String(content),
 		})
 
-		// Generate client file if there are services
-		if len(file.Service) > 0 {
+		// Generate client file if any service needs a client
+		if len(file.Service) > 0 && fileNeedsClient(file) {
 			clientContent := generateClientFile(file, req.ProtoFile, params)
 			clientName := getClientOutputFileName(fileName)
 			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
 				Name:    proto.String(clientName),
 				Content: proto.String(clientContent),
+			})
+		}
+
+		// Generate gRPC server file if any service has ts.server = GRPC1_SERVER
+		if fileNeedsGrpc1Server(file) {
+			serverContent := generateGrpcServerFile(file, req.ProtoFile, params)
+			serverName := getServerOutputFileName(fileName)
+			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+				Name:    proto.String(serverName),
+				Content: proto.String(serverContent),
+			})
+		}
+
+		// Generate gRPC client file if any service has ts.client = GRPC1_CLIENT
+		if fileNeedsGrpc1Client(file) {
+			clientContent := generateGrpcClientFile(file, req.ProtoFile, params)
+			clientName := getGrpcClientOutputFileName(fileName)
+			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+				Name:    proto.String(clientName),
+				Content: proto.String(clientContent),
+			})
+		}
+
+		// Generate generic server file if any service has ts.server = GENERIC_SERVER
+		if fileNeedsGenericServer(file) {
+			serverContent := generateGenericServerFile(file, req.ProtoFile, params)
+			serverName := getGenericServerOutputFileName(fileName)
+			resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
+				Name:    proto.String(serverName),
+				Content: proto.String(serverContent),
 			})
 		}
 	}
@@ -236,6 +542,12 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 	if len(generatedFiles) > 0 || hasExtensionFiles {
 		// Collect all WKT files transitively reachable from FileToGenerate
 		neededWKTs := collectTransitiveWKTDeps(req.FileToGenerate, req.ProtoFile)
+		// Collect candidate WKT files and their generated content
+		type wktCandidate struct {
+			file    *descriptorpb.FileDescriptorProto
+			content string
+		}
+		var wktCandidates []wktCandidate
 		for _, file := range req.ProtoFile {
 			fileName := file.GetName()
 			if !neededWKTs[fileName] {
@@ -243,10 +555,27 @@ func generate(req *pluginpb.CodeGeneratorRequest) *pluginpb.CodeGeneratorRespons
 			}
 			content := generateFile(file, req.ProtoFile, params, false)
 			if content != "" {
-				outputName := getOutputFileName(fileName)
+				wktCandidates = append(wktCandidates, wktCandidate{file: file, content: content})
+			}
+		}
+		// Collect all files in the generated set (FileToGenerate + WKT candidates)
+		allGenFiles := make([]*descriptorpb.FileDescriptorProto, 0)
+		for _, fileName := range req.FileToGenerate {
+			if f := findFile(req.ProtoFile, fileName); f != nil {
+				allGenFiles = append(allGenFiles, f)
+			}
+		}
+		for _, wkt := range wktCandidates {
+			allGenFiles = append(allGenFiles, wkt.file)
+		}
+		// Filter: only emit WKT files whose types are used as field types or
+		// service method types in any file in the generated set (including itself)
+		for _, wkt := range wktCandidates {
+			if isWKTFileUsed(wkt.file, allGenFiles) {
+				outputName := getOutputFileName(wkt.file.GetName())
 				resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
 					Name:    proto.String(outputName),
-					Content: proto.String(content),
+					Content: proto.String(wkt.content),
 				})
 			}
 		}
@@ -366,14 +695,16 @@ type mapEntryValue struct {
 }
 
 type extInfo struct {
-	ext       *descriptorpb.FieldDescriptorProto
-	pkg       string
-	msgPrefix string // parent message name(s) for nested extensions, e.g. "Extensions."
+	ext           *descriptorpb.FieldDescriptorProto
+	pkg           string
+	msgPrefix     string // parent message name(s) for nested extensions, e.g. "Extensions."
+	registryOrder int    // order this extension was discovered (for matching TS plugin output order)
 }
 
 // buildExtensionMap builds a map of extension field number -> extension info for a given extendee type
 func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 	extensionMap := make(map[int32]extInfo)
+	order := 0
 
 	collectFromFile := func(f *descriptorpb.FileDescriptorProto) {
 		pkg := ""
@@ -383,7 +714,8 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 		// Top-level extensions
 		for _, ext := range f.Extension {
 			if ext.GetExtendee() == extendeeName {
-				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg}
+				extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, registryOrder: order}
+				order++
 			}
 		}
 		// Extensions nested in messages (recursively)
@@ -392,7 +724,8 @@ func (g *generator) buildExtensionMap(extendeeName string) map[int32]extInfo {
 			msgPrefix := prefix + msg.GetName() + "."
 			for _, ext := range msg.Extension {
 				if ext.GetExtendee() == extendeeName {
-					extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, msgPrefix: msgPrefix}
+					extensionMap[ext.GetNumber()] = extInfo{ext: ext, pkg: pkg, msgPrefix: msgPrefix, registryOrder: order}
+					order++
 				}
 			}
 			for _, nested := range msg.NestedType {
@@ -423,10 +756,15 @@ func (g *generator) resolveEnumValueName(typeName string, number int32) string {
 				fqn = "." + f.GetPackage() + "." + enum.GetName()
 			}
 			if fqn == typeName {
+				// Use the LAST value with matching number (JS object overwrite behavior for allow_alias)
+				result := ""
 				for _, val := range enum.Value {
 					if val.GetNumber() == number {
-						return val.GetName()
+						result = val.GetName()
 					}
+				}
+				if result != "" {
+					return result
 				}
 			}
 		}
@@ -454,10 +792,15 @@ func (g *generator) findEnumInMessageWithPrefix(prefix string, msg *descriptorpb
 	for _, enum := range msg.EnumType {
 		fqn := prefix + "." + enum.GetName()
 		if fqn == typeName {
+			// Use the LAST value with matching number (JS object overwrite behavior for allow_alias)
+			result := ""
 			for _, val := range enum.Value {
 				if val.GetNumber() == number {
-					return val.GetName()
+					result = val.GetName()
 				}
+			}
+			if result != "" {
+				return result
 			}
 		}
 	}
@@ -504,7 +847,24 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			pkg += "."
 		}
 		extName := pkg + extInf.msgPrefix + ext.GetName()
-		
+
+		// Handle packed repeated encoding: when wire type is BytesType but field type
+		// is a varint-based scalar (enum, bool, int32, etc.), protoc sends packed encoding
+		if typ == protowire.BytesType && isVarintFieldType(ext.GetType()) {
+			packedData, n := protowire.ConsumeBytes(unknown)
+			unknown = unknown[n:]
+			for len(packedData) > 0 {
+				v, vn := protowire.ConsumeVarint(packedData)
+				if vn < 0 {
+					break
+				}
+				packedData = packedData[vn:]
+				opt := g.parseVarintValue(ext, extName, v)
+				result = append(result, opt)
+			}
+			continue
+		}
+
 		switch ext.GetType() {
 		case descriptorpb.FieldDescriptorProto_TYPE_STRING:
 			v, n := protowire.ConsumeBytes(unknown)
@@ -516,8 +876,12 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 			v, n := protowire.ConsumeVarint(unknown)
-			enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
-			result = append(result, customOption{key: extName, value: enumName})
+			if ext.GetTypeName() == ".google.protobuf.NullValue" {
+				result = append(result, customOption{key: extName, value: nil})
+			} else {
+				enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
+				result = append(result, customOption{key: extName, value: enumName})
+			}
 			unknown = unknown[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
@@ -590,7 +954,7 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 			v, n := protowire.ConsumeBytes(unknown)
 			msgDesc := g.findMessageType(ext.GetTypeName())
 			if msgDesc != nil {
-				nested := g.parseMessageValue(v, msgDesc)
+				nested := g.parseMessageValue(v, msgDesc, ext.GetTypeName())
 				result = append(result, customOption{key: extName, value: nested})
 			}
 			unknown = unknown[n:]
@@ -615,7 +979,90 @@ func (g *generator) parseCustomOptions(unknown []byte, extensionMap map[int32]ex
 	}
 	// Merge repeated fields with the same key into arrays
 	result = mergeRepeatedOptions(result)
+
+	// Ensure repeated (non-map) extension fields are always arrays, even with a single element.
+	repeatedExts := make(map[string]bool)
+	for _, ei := range extensionMap {
+		if ei.ext.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			if ei.ext.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				nestedMsg := g.findMessageType(ei.ext.GetTypeName())
+				if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+					continue
+				}
+			}
+			pkg := ei.pkg
+			if pkg != "" {
+				pkg += "."
+			}
+			repeatedExts[pkg+ei.msgPrefix+ei.ext.GetName()] = true
+		}
+	}
+	for i, opt := range result {
+		if repeatedExts[opt.key] {
+			if _, ok := opt.value.([]interface{}); !ok {
+				result[i].value = []interface{}{opt.value}
+			}
+		}
+	}
+
+	// Sort by registry order (the order extensions were discovered across files)
+	// to match the TS plugin's output order, which uses registration order not field number order.
+	extOrder := make(map[string]int, len(extensionMap))
+	for _, ei := range extensionMap {
+		pkg := ei.pkg
+		if pkg != "" {
+			pkg += "."
+		}
+		extOrder[pkg+ei.msgPrefix+ei.ext.GetName()] = ei.registryOrder
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return extOrder[result[i].key] < extOrder[result[j].key]
+	})
+
 	return result
+}
+
+// isVarintFieldType returns true if the proto field type uses varint wire encoding
+func isVarintFieldType(t descriptorpb.FieldDescriptorProto_Type) bool {
+	switch t {
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL,
+		descriptorpb.FieldDescriptorProto_TYPE_ENUM,
+		descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		return true
+	}
+	return false
+}
+
+// parseVarintValue interprets a varint value according to the extension's field type
+func (g *generator) parseVarintValue(ext *descriptorpb.FieldDescriptorProto, extName string, v uint64) customOption {
+	switch ext.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+		return customOption{key: extName, value: v != 0}
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		if ext.GetTypeName() == ".google.protobuf.NullValue" {
+			return customOption{key: extName, value: nil}
+		}
+		enumName := g.resolveEnumValueName(ext.GetTypeName(), int32(v))
+		return customOption{key: extName, value: enumName}
+	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT32:
+		return customOption{key: extName, value: int(v)}
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64:
+		return customOption{key: extName, value: fmt.Sprintf("%d", int64(v))}
+	case descriptorpb.FieldDescriptorProto_TYPE_UINT64:
+		return customOption{key: extName, value: fmt.Sprintf("%d", v)}
+	case descriptorpb.FieldDescriptorProto_TYPE_SINT32:
+		return customOption{key: extName, value: int(protowire.DecodeZigZag(v))}
+	case descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+		return customOption{key: extName, value: fmt.Sprintf("%d", protowire.DecodeZigZag(v))}
+	default:
+		return customOption{key: extName, value: int(v)}
+	}
 }
 
 // mergeRepeatedOptions merges customOption entries with the same key into array values.
@@ -652,11 +1099,64 @@ func mergeRepeatedOptions(opts []customOption) []customOption {
 			merged = append(merged, opt)
 		}
 	}
+	// Sort map entries to match JavaScript Object.keys() enumeration order:
+	// integer-index keys (0..2^32-2) come first in ascending numeric order,
+	// followed by non-integer keys in insertion order.
+	for i, opt := range merged {
+		if entries, ok := opt.value.([]customOption); ok {
+			merged[i].value = sortMapEntriesJSOrder(entries)
+		}
+	}
 	return merged
 }
 
+// sortMapEntriesJSOrder sorts []customOption entries the way JavaScript's
+// Object.keys() would enumerate them: array-index keys first (ascending
+// numeric), then everything else in insertion order.
+func sortMapEntriesJSOrder(entries []customOption) []customOption {
+	// Separate integer-index keys from non-integer keys
+	type indexedEntry struct {
+		idx   uint64
+		entry customOption
+	}
+	var intEntries []indexedEntry
+	var otherEntries []customOption
+
+	for _, e := range entries {
+		// Keys may be quoted like `"1"` — strip quotes for the check
+		raw := e.key
+		if len(raw) >= 2 && raw[0] == '"' && raw[len(raw)-1] == '"' {
+			raw = raw[1 : len(raw)-1]
+		}
+		if isArrayIndex(raw) {
+			v, _ := strconv.ParseUint(raw, 10, 64)
+			intEntries = append(intEntries, indexedEntry{idx: v, entry: e})
+		} else {
+			otherEntries = append(otherEntries, e)
+		}
+	}
+
+	if len(intEntries) <= 1 && len(otherEntries) == 0 {
+		return entries // nothing to reorder
+	}
+	if len(intEntries) == 0 {
+		return entries // nothing to reorder
+	}
+
+	sort.Slice(intEntries, func(i, j int) bool {
+		return intEntries[i].idx < intEntries[j].idx
+	})
+
+	result := make([]customOption, 0, len(entries))
+	for _, ie := range intEntries {
+		result = append(result, ie.entry)
+	}
+	result = append(result, otherEntries...)
+	return result
+}
+
 // parseMessageValue decodes a message's wire bytes into an ordered list of field name→value pairs
-func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.DescriptorProto) []customOption {
+func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.DescriptorProto, msgTypeName string) []customOption {
 	// Build field number → field descriptor map
 	fieldMap := make(map[int32]*descriptorpb.FieldDescriptorProto)
 	for _, f := range msgDesc.Field {
@@ -721,8 +1221,12 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 					case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 						result = append(result, customOption{key: fieldName, value: v != 0})
 					case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
-						enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
-						result = append(result, customOption{key: fieldName, value: enumName})
+						if fd.GetTypeName() == ".google.protobuf.NullValue" {
+							result = append(result, customOption{key: fieldName, value: nil})
+						} else {
+							enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+							result = append(result, customOption{key: fieldName, value: enumName})
+						}
 					}
 				}
 				continue
@@ -798,8 +1302,12 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 			v, n := protowire.ConsumeVarint(data)
-			enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
-			result = append(result, customOption{key: fieldName, value: enumName})
+			if fd.GetTypeName() == ".google.protobuf.NullValue" {
+				result = append(result, customOption{key: fieldName, value: nil})
+			} else {
+				enumName := g.resolveEnumValueName(fd.GetTypeName(), int32(v))
+				result = append(result, customOption{key: fieldName, value: enumName})
+			}
 			data = data[n:]
 		case descriptorpb.FieldDescriptorProto_TYPE_INT32,
 		     descriptorpb.FieldDescriptorProto_TYPE_UINT32:
@@ -874,7 +1382,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			if nestedMsg != nil {
 				if nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
 					// Map entry: parse key/value and store as mapEntryValue
-					nested := g.parseMessageValue(v, nestedMsg)
+					nested := g.parseMessageValue(v, nestedMsg, fd.GetTypeName())
 					var mapKey string
 					var mapVal interface{}
 					// Determine if map key is numeric (needs quoting in JSON)
@@ -908,7 +1416,7 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 					}
 					result = append(result, customOption{key: fieldName, value: mapEntryValue{key: mapKey, value: mapVal}})
 				} else {
-					nested := g.parseMessageValue(v, nestedMsg)
+					nested := g.parseMessageValue(v, nestedMsg, fd.GetTypeName())
 					result = append(result, customOption{key: fieldName, value: nested})
 				}
 			}
@@ -927,7 +1435,78 @@ func (g *generator) parseMessageValue(data []byte, msgDesc *descriptorpb.Descrip
 			data = data[n:]
 		}
 	}
-	return mergeRepeatedOptions(result)
+	merged := mergeRepeatedOptions(result)
+	// Ensure repeated (non-map) fields are always arrays, even with a single element.
+	// protobuf-ts toJson() always emits arrays for repeated fields.
+	repeatedFields := make(map[string]bool)
+	for _, fd := range msgDesc.Field {
+		if fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			// Skip map entries — they are handled as objects, not arrays
+			if fd.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				nestedMsg := g.findMessageType(fd.GetTypeName())
+				if nestedMsg != nil && nestedMsg.Options != nil && nestedMsg.GetOptions().GetMapEntry() {
+					continue
+				}
+			}
+			repeatedFields[fd.GetJsonName()] = true
+		}
+	}
+	for i, opt := range merged {
+		if repeatedFields[opt.key] {
+			if _, ok := opt.value.([]interface{}); !ok {
+				merged[i].value = []interface{}{opt.value}
+			}
+		}
+	}
+	// Filter out fields with default values (protobuf-ts toJson() omits defaults).
+	// Skip for map entry messages — key/value fields are always meaningful.
+	// Skip for fields with explicit presence (proto2 optional, proto3 explicit optional) —
+	// protobuf-ts sets field.opt=true for these, so toJson() always emits them.
+	if !(msgDesc.Options != nil && msgDesc.GetOptions().GetMapEntry()) {
+		syntax := g.findFileSyntaxForMessageType(msgTypeName)
+		isProto2 := syntax == "proto2" || syntax == ""
+		jsonNameToField := make(map[string]*descriptorpb.FieldDescriptorProto)
+		for _, fd := range msgDesc.Field {
+			jsonNameToField[fd.GetJsonName()] = fd
+		}
+		var filtered []customOption
+		for _, opt := range merged {
+			if fd, ok := jsonNameToField[opt.key]; ok && g.isDefaultValue(fd, opt.value) {
+				// In proto2, optional fields have presence → keep defaults
+				// In proto3, explicit optional fields have presence → keep defaults
+				hasPresence := false
+				if isProto2 {
+					hasPresence = fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+				} else {
+					// proto3 explicit optional or oneof member (non-synthetic)
+					hasPresence = fd.GetProto3Optional()
+					if !hasPresence && fd.OneofIndex != nil {
+						hasPresence = true
+					}
+				}
+				if !hasPresence {
+					continue
+				}
+			}
+			filtered = append(filtered, opt)
+		}
+		merged = filtered
+	}
+	// Reorder fields to match the message descriptor's declaration order.
+	// protoc serializes by field number, but protobuf-ts toJson() emits in declaration order.
+	fieldOrder := make(map[string]int)
+	for i, fd := range msgDesc.Field {
+		fieldOrder[fd.GetJsonName()] = i
+	}
+	sort.SliceStable(merged, func(i, j int) bool {
+		oi, oki := fieldOrder[merged[i].key]
+		oj, okj := fieldOrder[merged[j].key]
+		if oki && okj {
+			return oi < oj
+		}
+		return false
+	})
+	return merged
 }
 
 func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []customOption {
@@ -935,7 +1514,8 @@ func (g *generator) getCustomMethodOptions(opts *descriptorpb.MethodOptions) []c
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.MethodOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) []customOption {
@@ -943,7 +1523,8 @@ func (g *generator) getCustomMessageOptions(opts *descriptorpb.MessageOptions) [
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.MessageOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []customOption {
@@ -951,7 +1532,8 @@ func (g *generator) getCustomFieldOptions(opts *descriptorpb.FieldOptions) []cus
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.FieldOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	return filterExcludedOptions(allOpts, g.getExcludeOptions())
 }
 
 func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) []customOption {
@@ -959,7 +1541,103 @@ func (g *generator) getCustomServiceOptions(opts *descriptorpb.ServiceOptions) [
 		return nil
 	}
 	extensionMap := g.buildExtensionMap(".google.protobuf.ServiceOptions")
-	return g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	allOpts := g.parseCustomOptions(opts.ProtoReflect().GetUnknown(), extensionMap)
+	// protobuf-ts only excludes ts.client from service options (not ts.server)
+	var filtered []customOption
+	for _, opt := range allOpts {
+		if opt.key == "ts.client" {
+			continue
+		}
+		filtered = append(filtered, opt)
+	}
+	return filterExcludedOptions(filtered, g.getExcludeOptions())
+}
+
+// getExcludeOptions reads ts.exclude_options from the current file's FileOptions.
+// Field 777701 in google.protobuf.FileOptions from package ts, repeated string.
+func (g *generator) getExcludeOptions() []string {
+	if g.file.Options == nil {
+		return nil
+	}
+	unknown := g.file.Options.ProtoReflect().GetUnknown()
+	var patterns []string
+	for len(unknown) > 0 {
+		num, typ, n := protowire.ConsumeTag(unknown)
+		if n < 0 {
+			break
+		}
+		unknown = unknown[n:]
+		switch typ {
+		case protowire.BytesType:
+			val, n := protowire.ConsumeBytes(unknown)
+			if n < 0 {
+				return patterns
+			}
+			unknown = unknown[n:]
+			if num == 777701 {
+				patterns = append(patterns, string(val))
+			}
+		case protowire.VarintType:
+			_, n := protowire.ConsumeVarint(unknown)
+			if n < 0 {
+				return patterns
+			}
+			unknown = unknown[n:]
+		case protowire.Fixed32Type:
+			unknown = unknown[4:]
+		case protowire.Fixed64Type:
+			unknown = unknown[8:]
+		default:
+			return patterns
+		}
+	}
+	return patterns
+}
+
+// filterExcludedOptions removes custom options whose keys match any exclude pattern.
+// Matches protobuf-ts behavior: literal patterns (no *) use exact match (key === pattern),
+// wildcard patterns are converted to regex (dots escaped, * → .*) and matched as substrings.
+func filterExcludedOptions(opts []customOption, excludePatterns []string) []customOption {
+	if len(excludePatterns) == 0 {
+		return opts
+	}
+	var literals []string
+	var regexes []*regexp.Regexp
+	for _, pattern := range excludePatterns {
+		if strings.Contains(pattern, "*") {
+			escaped := strings.ReplaceAll(pattern, ".", "\\.")
+			escaped = strings.ReplaceAll(escaped, "*", ".*")
+			re, err := regexp.Compile(escaped)
+			if err != nil {
+				continue
+			}
+			regexes = append(regexes, re)
+		} else {
+			literals = append(literals, pattern)
+		}
+	}
+	var filtered []customOption
+	for _, opt := range opts {
+		excluded := false
+		for _, lit := range literals {
+			if opt.key == lit {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			for _, re := range regexes {
+				if re.MatchString(opt.key) {
+					excluded = true
+					break
+				}
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, opt)
+		}
+	}
+	return filtered
 }
 
 // formatCustomOptions formats custom options as a TypeScript object literal
@@ -973,13 +1651,10 @@ func formatCustomOptions(opts []customOption) string {
 	for _, opt := range opts {
 		var valueStr string
 		switch val := opt.value.(type) {
+		case nil:
+			valueStr = "null"
 		case string:
-			escaped := strings.ReplaceAll(val, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			valueStr = fmt.Sprintf("\"%s\"", escaped)
+			valueStr = fmt.Sprintf("\"%s\"", escapeStringForJS(val))
 		case bool:
 			valueStr = fmt.Sprintf("%t", val)
 		case int:
@@ -994,13 +1669,36 @@ func formatCustomOptions(opts []customOption) string {
 			valueStr = fmt.Sprintf("%v", val)
 		}
 		keyStr := opt.key
-		if strings.Contains(opt.key, ".") || (len(opt.key) > 0 && opt.key[0] >= '0' && opt.key[0] <= '9') {
-			keyStr = fmt.Sprintf("\"%s\"", opt.key)
+		if needsQuoteAsPropertyKey(opt.key) {
+			keyStr = fmt.Sprintf("\"%s\"", escapeStringForJS(opt.key))
 		}
 		parts = append(parts, fmt.Sprintf("%s: %s", keyStr, valueStr))
 	}
 	
 	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// needsQuoteAsPropertyKey returns true if the key needs to be quoted in a JS object literal.
+func needsQuoteAsPropertyKey(key string) bool {
+	if len(key) == 0 {
+		return true
+	}
+	// Already quoted (e.g. map keys with numeric types like "1")
+	if len(key) >= 2 && key[0] == '"' && key[len(key)-1] == '"' {
+		return false
+	}
+	for i, c := range key {
+		if i == 0 {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$') {
+				return true
+			}
+		} else {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$') {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isArrayIndex returns true if s is a canonical JS array index (non-negative integer < 2^32-1).
@@ -1036,6 +1734,55 @@ func isArrayIndex(s string) bool {
 		return false
 	}
 	return v < (1<<32 - 1)
+}
+
+// escapeStringForJS escapes a string for use inside a JavaScript double-quoted string literal,
+// matching TypeScript compiler's escapeString behavior.
+func escapeStringForJS(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	runes := []rune(s)
+	for i, r := range runes {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\v':
+			b.WriteString(`\v`)
+		case '\f':
+			b.WriteString(`\f`)
+		case '\b':
+			b.WriteString(`\b`)
+		case 0:
+			// Use \x00 when followed by a digit to avoid ambiguous octal escapes
+			if i+1 < len(runes) && runes[i+1] >= '0' && runes[i+1] <= '9' {
+				b.WriteString(`\x00`)
+			} else {
+				b.WriteString(`\0`)
+			}
+		default:
+			if r < 0x20 || r >= 0x80 {
+				if r > 0xFFFF {
+					// Encode as surrogate pair to match TypeScript's escapeString
+					hi := 0xD800 + ((r-0x10000)>>10)&0x3FF
+					lo := 0xDC00 + (r-0x10000)&0x3FF
+					fmt.Fprintf(&b, `\u%04X\u%04X`, hi, lo)
+				} else {
+					fmt.Fprintf(&b, `\u%04X`, r)
+				}
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
 }
 
 // formatFloatJS formats a float64 the way JavaScript's Number.prototype.toString() does:
@@ -1075,18 +1822,62 @@ func formatFloatJS(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
+// isDefaultValue returns true if the value equals the proto3 JSON default for the field type.
+// protobuf-ts toJson() omits fields with default values.
+func (g *generator) isDefaultValue(fd *descriptorpb.FieldDescriptorProto, value interface{}) bool {
+	// Repeated/map fields: present means non-default
+	if fd.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+		return false
+	}
+	switch fd.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_INT32,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32:
+		v, ok := value.(int)
+		return ok && v == 0
+	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
+		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
+		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
+		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		v, ok := value.(string)
+		return ok && v == "0"
+	case descriptorpb.FieldDescriptorProto_TYPE_FLOAT,
+		descriptorpb.FieldDescriptorProto_TYPE_DOUBLE:
+		v, ok := value.(float64)
+		return ok && v == 0
+	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+		v, ok := value.(bool)
+		return ok && !v
+	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+		v, ok := value.(string)
+		return ok && v == ""
+	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+		v, ok := value.(string)
+		return ok && v == ""
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		if fd.GetTypeName() == ".google.protobuf.NullValue" {
+			return value == nil
+		}
+		// Default enum value has number 0; resolve its name and compare
+		defaultName := g.resolveEnumValueName(fd.GetTypeName(), 0)
+		v, ok := value.(string)
+		return ok && v == defaultName
+	}
+	return false
+}
+
 // formatCustomOptionArray formats a []interface{} as a TypeScript array literal
 func formatCustomOptionArray(vals []interface{}) string {
 	var elems []string
 	for _, v := range vals {
 		switch val := v.(type) {
+		case nil:
+			elems = append(elems, "null")
 		case string:
-			escaped := strings.ReplaceAll(val, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			elems = append(elems, fmt.Sprintf("\"%s\"", escaped))
+			elems = append(elems, fmt.Sprintf("\"%s\"", escapeStringForJS(val)))
 		case bool:
 			elems = append(elems, fmt.Sprintf("%t", val))
 		case int:
@@ -1682,7 +2473,7 @@ func (g *generator) collectUsedTypes() (map[string]bool, []string) {
 	// prepend semantics: later methods appear first, but within each method
 	// output stays above input. Collect per-method type pairs, reverse the pairs,
 	// then flatten. For files with messages, keep forward order (output, input).
-	if len(g.file.MessageType) == 0 && len(serviceTypes) > 0 {
+	if len(serviceTypes) > 0 {
 		// Re-collect as per-method pairs so we can reverse method order
 		var methodPairs [][]string
 		usedInServices2 := make(map[string]bool)
@@ -3096,7 +3887,7 @@ func (g *generator) generateField(field *descriptorpb.FieldDescriptorProto, msgN
 		if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 			// Map field - multiline format
 			keyField := msgType.Field[0]
-			valueField := msgType.Field[1]
+			valueField := mapValueWithJstype(field, msgType.Field[1])
 			keyType := g.getTypescriptTypeForMapKey(keyField)
 			valueType := g.getBaseTypescriptType(valueField)
 			g.p("%s: {", fieldName)
@@ -3649,7 +4440,7 @@ func (g *generator) getTypescriptType(field *descriptorpb.FieldDescriptorProto) 
 			if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 				// It's a map entry
 				keyField := msgType.Field[0]
-				valueField := msgType.Field[1]
+				valueField := mapValueWithJstype(field, msgType.Field[1])
 				keyType := g.getBaseTypescriptType(keyField)
 				valueType := g.getBaseTypescriptType(valueField)
 				return fmt.Sprintf("{\n        [key: %s]: %s;\n    }", keyType, valueType)
@@ -3755,6 +4546,40 @@ func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {
 	return false
 }
 
+// mapValueWithJstype returns a copy of valueField with the jstype from outerField
+// propagated, if the value field is a 64-bit int type. Needed because protobuf puts
+// jstype on the outer map field, but the synthetic map entry value field doesn't carry it.
+func mapValueWithJstype(outerField, valueField *descriptorpb.FieldDescriptorProto) *descriptorpb.FieldDescriptorProto {
+	if outerField.Options == nil || outerField.GetOptions().Jstype == nil || !is64BitIntType(valueField) {
+		return valueField
+	}
+	vf := *valueField
+	if vf.Options == nil {
+		vf.Options = &descriptorpb.FieldOptions{}
+	} else {
+		optsCopy := *vf.Options
+		vf.Options = &optsCopy
+	}
+	jstype := outerField.GetOptions().GetJstype()
+	vf.Options.Jstype = &jstype
+	return &vf
+}
+
+// findFileSyntaxForMessageType returns the syntax ("proto2" or "proto3") of the file
+// that defines the given message type. Returns "proto3" if not found (the default).
+func (g *generator) findFileSyntaxForMessageType(typeName string) string {
+	typeName = strings.TrimPrefix(typeName, ".")
+	for _, f := range g.allFiles {
+		pkg := f.GetPackage()
+		for _, msg := range f.MessageType {
+			if g.findMessageTypeInMessage(msg, typeName, pkg) != nil {
+				return f.GetSyntax()
+			}
+		}
+	}
+	return "proto3"
+}
+
 func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorProto {
 	typeName = strings.TrimPrefix(typeName, ".")
 	
@@ -3769,18 +4594,18 @@ func (g *generator) findMessageType(typeName string) *descriptorpb.DescriptorPro
 		}
 	}
 	
-	// Search in dependencies
-	for _, dep := range g.file.Dependency {
-		depFile := g.findFileByName(dep)
-		if depFile != nil {
-			depPkg := ""
-			if depFile.Package != nil && *depFile.Package != "" {
-				depPkg = *depFile.Package
-			}
-			for _, msg := range depFile.MessageType {
-				if found := g.findMessageTypeInMessage(msg, typeName, depPkg); found != nil {
-					return found
-				}
+	// Search in all files (needed for transitive deps, e.g. WKT types used as option values)
+	for _, f := range g.allFiles {
+		if f.GetName() == g.file.GetName() {
+			continue
+		}
+		depPkg := ""
+		if f.Package != nil && *f.Package != "" {
+			depPkg = *f.Package
+		}
+		for _, msg := range f.MessageType {
+			if found := g.findMessageTypeInMessage(msg, typeName, depPkg); found != nil {
+				return found
 			}
 		}
 	}
@@ -3899,7 +4724,7 @@ func (g *generator) findMessageTypeInMessage(msg *descriptorpb.DescriptorProto, 
 
 // generateFieldDescriptor generates a single field descriptor in the MessageType constructor
 // oneofName is the proto snake_case name - it will be converted to camelCase for the descriptor
-func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string) {
+func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorProto, oneofName string, comma string, customOptionsSource *descriptorpb.FieldOptions) {
 	kind := "scalar"
 	t := g.getScalarTypeEnum(field)
 	extraFields := ""
@@ -3942,7 +4767,15 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 			} else {
 				valueT := g.getScalarTypeEnum(valueField)
 				valueTypeName := g.getScalarTypeName(valueField)
-				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/ }", keyT, keyTypeName, valueT, valueTypeName)
+				mapValueLongType := ""
+				if field.Options != nil && field.GetOptions().Jstype != nil && is64BitIntType(valueField) {
+					if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+						mapValueLongType = ", L: 2 /*LongType.NUMBER*/"
+					} else if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+						mapValueLongType = ", L: 0 /*LongType.BIGINT*/"
+					}
+				}
+				extraFields = fmt.Sprintf(", K: %s /*ScalarType.%s*/, V: { kind: \"scalar\", T: %s /*ScalarType.%s*/%s }", keyT, keyTypeName, valueT, valueTypeName, mapValueLongType)
 			}
 		} else {
 			// Message field
@@ -4011,12 +4844,7 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		actualJsonName := *field.JsonName
 		// Include jsonName if it differs from the unescaped camelCase name
 		if camelName != actualJsonName {
-			escaped := strings.ReplaceAll(actualJsonName, `\`, `\\`)
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", escaped)
+			jsonNameField = fmt.Sprintf(", jsonName: \"%s\"", escapeStringForJS(actualJsonName))
 		}
 	}
 	
@@ -4045,9 +4873,9 @@ func (g *generator) generateFieldDescriptor(field *descriptorpb.FieldDescriptorP
 		}
 	}
 	
-	// Custom field options
+	// Custom field options (use customOptionsSource for bug-compatibility with protobuf-ts group field index shift)
 	customFieldOptsStr := ""
-	customFieldOpts := g.getCustomFieldOptions(field.Options)
+	customFieldOpts := g.getCustomFieldOptions(customOptionsSource)
 	if len(customFieldOpts) > 0 {
 		customFieldOptsStr = ", options: " + formatCustomOptions(customFieldOpts)
 	}
@@ -4093,6 +4921,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		field      *descriptorpb.FieldDescriptorProto
 		isProto3Optional bool
 		oneofName  string // Proto snake_case oneof name (for real oneofs only)
+		customOptionsSource *descriptorpb.FieldOptions // Bug-compatible: options source shifted by group fields
 	}
 	
 	var allFields []fieldInfo
@@ -4121,6 +4950,16 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 		
 		allFields = append(allFields, info)
 	}
+
+	// Bug-compatible with protobuf-ts: when reading custom options, protobuf-ts
+	// uses array index alignment between the original descriptor fields (includes
+	// groups) and the filtered fields (no groups). This causes custom options to
+	// shift by the number of preceding group fields. We replicate this bug.
+	for i := range allFields {
+		if i < len(msg.Field) {
+			allFields[i].customOptionsSource = msg.Field[i].Options
+		}
+	}
 	
 	// Keep fields in proto file order (don't sort)
 	// The order in msg.Field is the order they appear in the .proto file
@@ -4148,7 +4987,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			}
 			
 			// Generate field descriptor
-			g.generateFieldDescriptor(field, info.oneofName, comma)
+			g.generateFieldDescriptor(field, info.oneofName, comma, info.customOptionsSource)
 		}
 		
 		g.indent = "        "
@@ -4258,21 +5097,20 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 	}
 	
 	// Deduplicate fields with the same property name (e.g. x123y and x_123_y both → x123Y)
-	// Last-write-wins: keep the LAST occurrence (matches JS Object.entries behavior)
-	fieldNameSeen := make(map[string]bool)
+	// JS Object.entries semantics: property position is where it was FIRST created,
+	// but value comes from the LAST assignment (overwrite).
+	fieldNameIdx := make(map[string]int) // fieldName → index in dedupItems
 	dedupItems := make([]initItem, 0, len(initItems))
-	for i := len(initItems) - 1; i >= 0; i-- {
-		item := initItems[i]
-		if item.isOneof || !fieldNameSeen[item.fieldName] {
-			if !item.isOneof {
-				fieldNameSeen[item.fieldName] = true
-			}
+	for _, item := range initItems {
+		if item.isOneof {
+			dedupItems = append(dedupItems, item)
+		} else if idx, exists := fieldNameIdx[item.fieldName]; exists {
+			// Update existing entry's value (last-write-wins) at first-seen position
+			dedupItems[idx] = item
+		} else {
+			fieldNameIdx[item.fieldName] = len(dedupItems)
 			dedupItems = append(dedupItems, item)
 		}
-	}
-	// Reverse to restore original order
-	for i, j := 0, len(dedupItems)-1; i < j; i, j = i+1, j-1 {
-		dedupItems[i], dedupItems[j] = dedupItems[j], dedupItems[i]
 	}
 	initItems = dedupItems
 	
@@ -4469,7 +5307,7 @@ func (g *generator) generateMessageTypeClass(msg *descriptorpb.DescriptorProto, 
 			msgType := g.findMessageType(field.GetTypeName())
 			if msgType != nil && msgType.Options != nil && msgType.GetOptions().GetMapEntry() {
 				keyField := msgType.Field[0]
-				valueField := msgType.Field[1]
+				valueField := mapValueWithJstype(field, msgType.Field[1])
 				
 				fieldName := g.propertyName(field)
 				g.p("private binaryReadMap%d(map: %s[\"%s\"], reader: %s, options: %s): void {",
@@ -5800,6 +6638,14 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	g.precomputeImportAliases(depFiles)
 
+	// Build filtered list of services that need a generic client
+	var clientServices []*descriptorpb.ServiceDescriptorProto
+	for _, svc := range file.Service {
+		if serviceNeedsGenericClient(svc) {
+			clientServices = append(clientServices, svc)
+		}
+	}
+
 	// Detect cross-file type name collisions in client imports.
 	// In the client file, local types (from current file) are also imported,
 	// so they can collide with external imports that have the same TS name.
@@ -5808,6 +6654,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 		claimed := make(map[string]string) // raw tsName → first proto type
 		seenProto := make(map[string]bool)
 		for _, service := range file.Service {
+			if !serviceNeedsGenericClient(service) {
+				continue
+			}
 			for _, method := range service.Method {
 				for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
 					if seenProto[typeName] {
@@ -5844,6 +6693,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	usedCallTypes := make(map[string]bool)
 	hasAnyMethod := false
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			hasAnyMethod = true
 			cs := method.GetClientStreaming()
@@ -5882,6 +6734,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	runtimeClaimed := make(map[string]bool) // call type names registered so far
 	protoClaimed := make(map[string]bool)   // proto types that claimed a call type name first
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			// Step 1: Register call type (registered before input/output in protobuf-ts)
 			callType := methodCallTypeName(method)
@@ -5928,6 +6783,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	g.serviceInfoRef = "ServiceInfo"
 	g.serviceImportAliases = make(map[string]string)
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		svcName := escapeTypescriptKeyword(service.GetName())
 		if service.GetName() == "RpcTransport" {
 			g.rpcTransportRef = "RpcTransport$"
@@ -5942,6 +6800,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	// Also check if any proto message type used in service methods collides with
 	// RpcTransport, ServiceInfo, or stackIntercept runtime-rpc imports.
 	for _, service := range file.Service {
+		if !serviceNeedsGenericClient(service) {
+			continue
+		}
 		for _, method := range service.Method {
 			for _, typeName := range []string{method.GetInputType(), method.GetOutputType()} {
 				tsName := g.stripPackage(typeName)
@@ -5963,9 +6824,9 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Find the first service with methods (the "primary" service whose types get special positioning)
 	primaryServiceIdx := 0
-	if len(file.Service) > 0 {
-		for si := 0; si < len(file.Service); si++ {
-			if len(file.Service[si].Method) > 0 {
+	if len(clientServices) > 0 {
+		for si := 0; si < len(clientServices); si++ {
+			if len(clientServices[si].Method) > 0 {
 				primaryServiceIdx = si
 				break
 			}
@@ -5974,8 +6835,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Collect all types used in primary service to avoid importing them early
 	service1Types := make(map[string]bool)
-	if len(file.Service) > 0 {
-		for _, method := range file.Service[primaryServiceIdx].Method {
+	if len(clientServices) > 0 {
+		for _, method := range clientServices[primaryServiceIdx].Method {
 			service1Types[g.stripPackage(method.GetOutputType())] = true
 			service1Types[g.stripPackage(method.GetInputType())] = true
 		}
@@ -5983,8 +6844,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Find first service (forward order) with a unary method — determines where UnaryCall import goes
 	firstUnaryServiceIdx := -1
-	for si := 0; si < len(file.Service); si++ {
-		for _, m := range file.Service[si].Method {
+	for si := 0; si < len(clientServices); si++ {
+		for _, m := range clientServices[si].Method {
 			if !m.GetClientStreaming() && !m.GetServerStreaming() {
 				firstUnaryServiceIdx = si
 				break
@@ -5997,8 +6858,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// For services 2..N (in reverse order), output Service + all method types + streaming call types
 	seenCallTypes := make(map[string]bool)
-	for svcIdx := len(file.Service) - 1; svcIdx >= 1; svcIdx-- {
-		service := file.Service[svcIdx]
+	for svcIdx := len(clientServices) - 1; svcIdx >= 1; svcIdx-- {
+		service := clientServices[svcIdx]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
 		svcImportClause := escapedServiceName
 		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
@@ -6121,8 +6982,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// First service + methods types with special ordering
-	if len(file.Service) > 0 {
-		service := file.Service[0]
+	if len(clientServices) > 0 {
+		service := clientServices[0]
 		escapedServiceName := escapeTypescriptKeyword(service.GetName())
 		svcImportClause := escapedServiceName
 		if alias, ok := g.serviceImportAliases[escapedServiceName]; ok {
@@ -6315,7 +7176,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// 4. Check if we need stackIntercept (for any method - unary or streaming)
 	hasUnary := false
-	for _, service := range file.Service {
+	for _, service := range clientServices {
 		for _, method := range service.Method {
 			if !method.GetClientStreaming() && !method.GetServerStreaming() {
 				hasUnary = true
@@ -6329,8 +7190,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	
 	// Compute method0IsStreaming for later use
 	method0IsStreaming := false
-	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
-		m0 := file.Service[0].Method[0]
+	if len(clientServices) > 0 && len(clientServices[0].Method) > 0 {
+		m0 := clientServices[0].Method[0]
 		method0IsStreaming = m0.GetClientStreaming() || m0.GetServerStreaming()
 	}
 	
@@ -6343,8 +7204,8 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// 5. Emit method 0 types (output first, then input)
-	if len(file.Service) > 0 && len(file.Service[0].Method) > 0 {
-		method := file.Service[0].Method[0]
+	if len(clientServices) > 0 && len(clientServices[0].Method) > 0 {
+		method := clientServices[0].Method[0]
 		resType := g.stripPackage(method.GetOutputType())
 		reqType := g.stripPackage(method.GetInputType())
 		resTypeImport := g.formatTypeImport(method.GetOutputType())
@@ -6381,7 +7242,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// Emit UnaryCall (if method 0 is unary) and RpcOptions
-	if len(file.Service) > 0 && primaryServiceIdx == 0 {
+	if len(clientServices) > 0 && primaryServiceIdx == 0 {
 		if hasUnary && !method0IsStreaming && !seenCallTypes["UnaryCall"] {
 			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime-rpc\";", g.callTypeImportClause("UnaryCall"))
 			seenCallTypes["UnaryCall"] = true
@@ -6392,7 +7253,7 @@ func generateClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*desc
 	}
 	
 	// Generate service clients
-	for _, service := range file.Service {
+	for _, service := range clientServices {
 		g.generateServiceClient(service)
 	}
 	
@@ -6921,6 +7782,14 @@ func (g *generator) getMapValueDefault(field *descriptorpb.FieldDescriptorProto)
 		descriptorpb.FieldDescriptorProto_TYPE_SINT64,
 		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
 		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64:
+		if field.Options != nil && field.GetOptions().Jstype != nil {
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NUMBER {
+				return "0"
+			}
+			if field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL {
+				return "0n"
+			}
+		}
 		return "\"0\""
 	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
 		return "false"
@@ -7922,4 +8791,1069 @@ func (g *generator) generateGoogleTypeTimeOfDayMethods() {
 	g.p("};")
 	g.indent = "    "
 	g.p("}")
+}
+
+// generateGrpcServerFile generates the .grpc-server.ts file for services with ts.server = GRPC1_SERVER.
+func generateGrpcServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+	g := &generator{
+		params:            params,
+		file:              file,
+		allFiles:          allFiles,
+		importedTypeNames: make(map[string]bool),
+		localTypeNames:    make(map[string]bool),
+		importAliases:     make(map[string]string),
+		rawImportNames:    make(map[string]string),
+		wireTypeRef:       "WireType",
+		scalarTypeRef:     "ScalarType",
+	}
+
+	// Header
+	g.pNoIndent("// @generated by protobuf-ts 2.11.1 with parameter long_type_string")
+	pkgComment := ""
+	syntax := file.GetSyntax()
+	if syntax == "" {
+		syntax = "proto2"
+	}
+	if file.Package != nil && *file.Package != "" {
+		pkgComment = fmt.Sprintf(" (package \"%s\", syntax %s)", *file.Package, syntax)
+	} else {
+		pkgComment = fmt.Sprintf(" (syntax %s)", syntax)
+	}
+	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
+	g.pNoIndent("// tslint:disable")
+	if g.isFileDeprecated() {
+		g.pNoIndent("// @deprecated")
+	}
+
+	// Detached comments (same as client file)
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
+	_ = baseFileName
+
+	// Build depFiles and pre-compute import aliases
+	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	currentFileDir := filepath.Dir(file.GetName())
+	for _, dep := range file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile != nil {
+			depPath := strings.TrimSuffix(dep, ".proto")
+			relPath := g.getRelativeImportPath(currentFileDir, depPath)
+			depFiles[relPath] = depFile
+		}
+	}
+	for _, pubFile := range g.collectTransitivePublicDeps(file) {
+		depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+		relPath := g.getRelativeImportPath(currentFileDir, depPath)
+		if _, exists := depFiles[relPath]; !exists {
+			depFiles[relPath] = pubFile
+		}
+	}
+	g.precomputeImportAliases(depFiles)
+
+	// Collect message types needed by GRPC1_SERVER services using forward-iterate+prepend
+	// (matching TS plugin behavior: processes methods forward, prepending imports as encountered)
+	seen := make(map[string]bool)
+	type importEntry struct {
+		importClause string
+		importPath   string
+	}
+	var imports []importEntry
+	for _, service := range file.Service {
+		if !serviceNeedsGrpc1Server(service) {
+			continue
+		}
+		for _, method := range service.Method {
+			reqType := g.stripPackage(method.GetInputType())
+			resType := g.stripPackage(method.GetOutputType())
+			reqTypeImport := g.formatTypeImport(method.GetInputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			reqTypePath := g.getImportPathForType(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
+
+			// Prepend input first, then output (output ends up above input)
+			if !seen[reqType] {
+				imports = append([]importEntry{{reqTypeImport, reqTypePath}}, imports...)
+				seen[reqType] = true
+			}
+			if !seen[resType] {
+				imports = append([]importEntry{{resTypeImport, resTypePath}}, imports...)
+				seen[resType] = true
+			}
+		}
+	}
+
+	// Emit value imports (not type imports)
+	for _, imp := range imports {
+		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
+	}
+	g.pNoIndent("import type * as grpc from \"@grpc/grpc-js\";")
+
+	// Generate interface and definition for each service with GRPC1_SERVER
+	pkgPrefix := ""
+	if file.Package != nil && *file.Package != "" {
+		pkgPrefix = *file.Package + "."
+	}
+
+	for svcIdx, service := range file.Service {
+		if !serviceNeedsGrpc1Server(service) {
+			continue
+		}
+		baseName := service.GetName()
+		serviceName := escapeTypescriptKeyword(baseName)
+		interfaceName := "I" + serviceName
+		definitionName := strings.ToLower(baseName[:1]) + baseName[1:] + "Definition"
+		fullServiceName := pkgPrefix + baseName
+
+		// Interface JSDoc with service comments
+		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		g.pNoIndent("export interface %s extends grpc.UntypedServiceImplementation {", interfaceName)
+		g.indent = "    "
+
+		// Methods
+		for methodIdx, method := range service.Method {
+			methodName := escapeMethodName(g.toCamelCase(method.GetName()))
+			reqType := g.resolveTypeRef(method.GetInputType())
+			resType := g.resolveTypeRef(method.GetOutputType())
+
+			// Method detached comments
+			methodPath := []int32{6, int32(svcIdx), 2, int32(methodIdx)}
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				for idx, detached := range detachedComments {
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						if line == "" {
+							g.p("// ")
+						} else {
+							g.p("// %s", line)
+						}
+					}
+					if idx < len(detachedComments)-1 {
+						g.pNoIndent("")
+					}
+				}
+				g.pNoIndent("")
+			}
+
+			// Method JSDoc
+			g.p("/**")
+			leadingComments, hasLeading := g.getLeadingComments(methodPath)
+			if hasLeading {
+				hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+				if hasTrailingBlank {
+					leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+				}
+				lines := strings.Split(leadingComments, "\n")
+				for _, line := range lines {
+					if line == "" {
+						g.p(" *")
+					} else {
+						g.p(" * %s", escapeJSDocComment(line))
+					}
+				}
+				if hasTrailingBlank {
+					g.p(" *")
+					g.p(" *")
+				} else {
+					g.p(" *")
+				}
+			}
+			if (method.Options != nil && method.GetOptions().GetDeprecated()) ||
+				g.isFileDeprecated() {
+				g.p(" * @deprecated")
+			}
+			g.p(" * @generated from protobuf rpc: %s", method.GetName())
+			g.p(" */")
+
+			// Method signature
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+			var grpcHandler string
+			if cs && ss {
+				grpcHandler = "grpc.handleBidiStreamingCall"
+			} else if ss {
+				grpcHandler = "grpc.handleServerStreamingCall"
+			} else if cs {
+				grpcHandler = "grpc.handleClientStreamingCall"
+			} else {
+				grpcHandler = "grpc.handleUnaryCall"
+			}
+			g.p("%s: %s<%s, %s>;", methodName, grpcHandler, reqType, resType)
+		}
+
+		g.indent = ""
+		g.pNoIndent("}")
+
+		// Service definition const
+		g.pNoIndent("/**")
+		g.pNoIndent(" * @grpc/grpc-js definition for the protobuf service %s.", fullServiceName)
+		g.pNoIndent(" *")
+		g.pNoIndent(" * Usage: Implement the interface %s and add to a grpc server.", interfaceName)
+		g.pNoIndent(" *")
+		g.pNoIndent(" * ```typescript")
+		g.pNoIndent(" * const server = new grpc.Server();")
+		g.pNoIndent(" * const service: %s = ...", interfaceName)
+		g.pNoIndent(" * server.addService(%s, service);", definitionName)
+		g.pNoIndent(" * ```")
+		g.pNoIndent(" */")
+		g.pNoIndent("export const %s: grpc.ServiceDefinition<%s> = {", definitionName, interfaceName)
+		g.indent = "    "
+
+		for i, method := range service.Method {
+			methodName := escapeMethodName(g.toCamelCase(method.GetName()))
+			reqType := g.resolveTypeRef(method.GetInputType())
+			resType := g.resolveTypeRef(method.GetOutputType())
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+
+			g.p("%s: {", methodName)
+			g.indent = "        "
+			g.p("path: \"/%s/%s\",", fullServiceName, method.GetName())
+			g.p("originalName: \"%s\",", method.GetName())
+			g.p("requestStream: %v,", cs)
+			g.p("responseStream: %v,", ss)
+			g.p("responseDeserialize: bytes => %s.fromBinary(bytes),", resType)
+			g.p("requestDeserialize: bytes => %s.fromBinary(bytes),", reqType)
+			g.p("responseSerialize: value => Buffer.from(%s.toBinary(value)),", resType)
+			g.p("requestSerialize: value => Buffer.from(%s.toBinary(value))", reqType)
+			g.indent = "    "
+			if i < len(service.Method)-1 {
+				g.p("},")
+			} else {
+				g.p("}")
+			}
+		}
+
+		g.indent = ""
+		g.pNoIndent("};")
+	}
+
+	return g.b.String()
+}
+
+// generateGrpcClientFile generates the .grpc-client.ts file for services with ts.client = GRPC1_CLIENT.
+func generateGrpcClientFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+	g := &generator{
+		params:            params,
+		file:              file,
+		allFiles:          allFiles,
+		importedTypeNames: make(map[string]bool),
+		localTypeNames:    make(map[string]bool),
+		importAliases:     make(map[string]string),
+		rawImportNames:    make(map[string]string),
+		wireTypeRef:       "WireType",
+		scalarTypeRef:     "ScalarType",
+	}
+
+	// Header
+	g.pNoIndent("// @generated by protobuf-ts 2.11.1 with parameter long_type_string")
+	pkgComment := ""
+	syntax := file.GetSyntax()
+	if syntax == "" {
+		syntax = "proto2"
+	}
+	if file.Package != nil && *file.Package != "" {
+		pkgComment = fmt.Sprintf(" (package \"%s\", syntax %s)", *file.Package, syntax)
+	} else {
+		pkgComment = fmt.Sprintf(" (syntax %s)", syntax)
+	}
+	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
+	g.pNoIndent("// tslint:disable")
+	if g.isFileDeprecated() {
+		g.pNoIndent("// @deprecated")
+	}
+
+	// Detached comments
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
+
+	// Build depFiles and pre-compute import aliases
+	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	currentFileDir := filepath.Dir(file.GetName())
+	for _, dep := range file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile != nil {
+			depPath := strings.TrimSuffix(dep, ".proto")
+			relPath := g.getRelativeImportPath(currentFileDir, depPath)
+			depFiles[relPath] = depFile
+		}
+	}
+	for _, pubFile := range g.collectTransitivePublicDeps(file) {
+		depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+		relPath := g.getRelativeImportPath(currentFileDir, depPath)
+		if _, exists := depFiles[relPath]; !exists {
+			depFiles[relPath] = pubFile
+		}
+	}
+	g.precomputeImportAliases(depFiles)
+
+	// Collect service value imports and message type imports using prepend-as-encountered
+	// (matching TS plugin behavior: forward method iteration, prepend imports as types are encountered)
+	seen := make(map[string]bool)
+	type importEntry struct {
+		importClause string
+		importPath   string
+	}
+	var serviceImports []importEntry
+	var typeImports []importEntry
+
+	prepend := func(entry importEntry) {
+		typeImports = append([]importEntry{entry}, typeImports...)
+	}
+
+	for _, service := range file.Service {
+		if !serviceNeedsGrpc1Client(service) {
+			continue
+		}
+		serviceName := escapeTypescriptKeyword(service.GetName())
+		if !seen["svc:"+serviceName] {
+			serviceImports = append(serviceImports, importEntry{serviceName, "./" + baseFileName})
+			seen["svc:"+serviceName] = true
+		}
+		for _, method := range service.Method {
+			resType := g.stripPackage(method.GetOutputType())
+			reqType := g.stripPackage(method.GetInputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			reqTypeImport := g.formatTypeImport(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
+			reqTypePath := g.getImportPathForType(method.GetInputType())
+
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+			if cs && !ss {
+				// Client streaming: TS encounters output (callback) before input (stream type),
+				// so with prepend, input ends up above output.
+				if !seen[resType] {
+					prepend(importEntry{resTypeImport, resTypePath})
+					seen[resType] = true
+				}
+				if !seen[reqType] {
+					prepend(importEntry{reqTypeImport, reqTypePath})
+					seen[reqType] = true
+				}
+			} else {
+				// Unary/server-stream/bidi: TS encounters input (parameter) before output (callback),
+				// so with prepend, output ends up above input.
+				if !seen[reqType] {
+					prepend(importEntry{reqTypeImport, reqTypePath})
+					seen[reqType] = true
+				}
+				if !seen[resType] {
+					prepend(importEntry{resTypeImport, resTypePath})
+					seen[resType] = true
+				}
+			}
+		}
+	}
+
+	// Emit imports: service value imports, then BinaryWriteOptions/BinaryReadOptions, then type imports, then grpc
+	for _, imp := range serviceImports {
+		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
+	}
+	g.pNoIndent("import type { BinaryWriteOptions } from \"@protobuf-ts/runtime\";")
+	g.pNoIndent("import type { BinaryReadOptions } from \"@protobuf-ts/runtime\";")
+	for _, imp := range typeImports {
+		g.pNoIndent("import type { %s } from \"%s\";", imp.importClause, imp.importPath)
+	}
+	g.pNoIndent("import * as grpc from \"@grpc/grpc-js\";")
+
+	// Generate interface and class for each service with GRPC1_CLIENT
+	pkgPrefix := ""
+	if file.Package != nil && *file.Package != "" {
+		pkgPrefix = *file.Package + "."
+	}
+
+	for svcIdx, service := range file.Service {
+		if !serviceNeedsGrpc1Client(service) {
+			continue
+		}
+		baseName := service.GetName()
+		serviceName := escapeTypescriptKeyword(baseName)
+		interfaceName := "I" + serviceName + "Client"
+		className := serviceName + "Client"
+		fullServiceName := pkgPrefix + baseName
+
+		// Interface
+		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		g.pNoIndent("export interface %s {", interfaceName)
+		g.indent = "    "
+
+		for methodIdx, method := range service.Method {
+			methodName := escapeMethodName(g.toCamelCase(method.GetName()))
+			reqType := g.resolveTypeRef(method.GetInputType())
+			resType := g.resolveTypeRef(method.GetOutputType())
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+
+			// Method comments
+			methodPath := []int32{6, int32(svcIdx), 2, int32(methodIdx)}
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				for idx, detached := range detachedComments {
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						if line == "" {
+							g.p("// ")
+						} else {
+							g.p("// %s", line)
+						}
+					}
+					if idx < len(detachedComments)-1 {
+						g.pNoIndent("")
+					}
+				}
+				g.pNoIndent("")
+			}
+
+			g.p("/**")
+			leadingComments, hasLeading := g.getLeadingComments(methodPath)
+			if hasLeading {
+				hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+				if hasTrailingBlank {
+					leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+				}
+				lines := strings.Split(leadingComments, "\n")
+				for _, line := range lines {
+					if line == "" {
+						g.p(" *")
+					} else {
+						g.p(" * %s", escapeJSDocComment(line))
+					}
+				}
+				if hasTrailingBlank {
+					g.p(" *")
+					g.p(" *")
+				} else {
+					g.p(" *")
+				}
+			}
+			if (method.Options != nil && method.GetOptions().GetDeprecated()) ||
+				g.isFileDeprecated() {
+				g.p(" * @deprecated")
+			}
+			g.p(" * @generated from protobuf rpc: %s", method.GetName())
+			g.p(" */")
+
+			callbackType := fmt.Sprintf("(err: grpc.ServiceError | null, value?: %s) => void", resType)
+
+			if cs && ss {
+				// Bidi streaming: no overloads, returns ClientDuplexStream
+				g.p("%s(metadata: grpc.Metadata, options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s>;", methodName, reqType, resType)
+				g.p("%s(options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s>;", methodName, reqType, resType)
+			} else if ss {
+				// Server streaming: input + optional metadata/options, returns ClientReadableStream
+				g.p("%s(input: %s, metadata?: grpc.Metadata, options?: grpc.CallOptions): grpc.ClientReadableStream<%s>;", methodName, reqType, resType)
+				g.p("%s(input: %s, options?: grpc.CallOptions): grpc.ClientReadableStream<%s>;", methodName, reqType, resType)
+			} else if cs {
+				// Client streaming: callback + optional metadata/options, returns ClientWritableStream
+				g.p("%s(metadata: grpc.Metadata, options: grpc.CallOptions, callback: %s): grpc.ClientWritableStream<%s>;", methodName, callbackType, reqType)
+				g.p("%s(metadata: grpc.Metadata, callback: %s): grpc.ClientWritableStream<%s>;", methodName, callbackType, reqType)
+				g.p("%s(options: grpc.CallOptions, callback: %s): grpc.ClientWritableStream<%s>;", methodName, callbackType, reqType)
+				g.p("%s(callback: %s): grpc.ClientWritableStream<%s>;", methodName, callbackType, reqType)
+			} else {
+				// Unary: 4 overloads
+				g.p("%s(input: %s, metadata: grpc.Metadata, options: grpc.CallOptions, callback: %s): grpc.ClientUnaryCall;", methodName, reqType, callbackType)
+				g.p("%s(input: %s, metadata: grpc.Metadata, callback: %s): grpc.ClientUnaryCall;", methodName, reqType, callbackType)
+				g.p("%s(input: %s, options: grpc.CallOptions, callback: %s): grpc.ClientUnaryCall;", methodName, reqType, callbackType)
+				g.p("%s(input: %s, callback: %s): grpc.ClientUnaryCall;", methodName, reqType, callbackType)
+			}
+		}
+
+		g.indent = ""
+		g.pNoIndent("}")
+
+		// Class
+		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		g.pNoIndent("export class %s extends grpc.Client implements %s {", className, interfaceName)
+		g.indent = "    "
+		g.p("private readonly _binaryOptions: Partial<BinaryReadOptions & BinaryWriteOptions>;")
+		g.p("constructor(address: string, credentials: grpc.ChannelCredentials, options: grpc.ClientOptions = {}, binaryOptions: Partial<BinaryReadOptions & BinaryWriteOptions> = {}) {")
+		g.indent = "        "
+		g.p("super(address, credentials, options);")
+		g.p("this._binaryOptions = binaryOptions;")
+		g.indent = "    "
+		g.p("}")
+
+		// Track method index within the service for methods[N] reference
+		for methodIdx, method := range service.Method {
+			methodName := escapeMethodName(g.toCamelCase(method.GetName()))
+			reqType := g.resolveTypeRef(method.GetInputType())
+			resType := g.resolveTypeRef(method.GetOutputType())
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+
+			// Method comments
+			methodPath := []int32{6, int32(svcIdx), 2, int32(methodIdx)}
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				for idx, detached := range detachedComments {
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						if line == "" {
+							g.p("// ")
+						} else {
+							g.p("// %s", line)
+						}
+					}
+					if idx < len(detachedComments)-1 {
+						g.pNoIndent("")
+					}
+				}
+				g.pNoIndent("")
+			}
+
+			g.p("/**")
+			leadingComments, hasLeading := g.getLeadingComments(methodPath)
+			if hasLeading {
+				hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+				if hasTrailingBlank {
+					leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+				}
+				lines := strings.Split(leadingComments, "\n")
+				for _, line := range lines {
+					if line == "" {
+						g.p(" *")
+					} else {
+						g.p(" * %s", escapeJSDocComment(line))
+					}
+				}
+				if hasTrailingBlank {
+					g.p(" *")
+					g.p(" *")
+				} else {
+					g.p(" *")
+				}
+			}
+			if (method.Options != nil && method.GetOptions().GetDeprecated()) ||
+				g.isFileDeprecated() {
+				g.p(" * @deprecated")
+			}
+			g.p(" * @generated from protobuf rpc: %s", method.GetName())
+			g.p(" */")
+
+			callbackType := fmt.Sprintf("(err: grpc.ServiceError | null, value?: %s) => void", resType)
+			callbackTypeParen := fmt.Sprintf("(%s)", callbackType)
+			serializeReq := fmt.Sprintf("(value: %s): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions))", reqType)
+			deserializeRes := fmt.Sprintf("(value: Buffer): %s => method.O.fromBinary(value, this._binaryOptions)", resType)
+
+			if cs && ss {
+				// Bidi streaming implementation
+				g.p("%s(metadata?: grpc.Metadata | grpc.CallOptions, options?: grpc.CallOptions): grpc.ClientDuplexStream<%s, %s> {", methodName, reqType, resType)
+				g.indent = "        "
+				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
+				g.p("return this.makeBidiStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, (metadata as any), options);", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.indent = "    "
+				g.p("}")
+			} else if ss {
+				// Server streaming implementation
+				g.p("%s(input: %s, metadata?: grpc.Metadata | grpc.CallOptions, options?: grpc.CallOptions): grpc.ClientReadableStream<%s> {", methodName, reqType, resType)
+				g.indent = "        "
+				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
+				g.p("return this.makeServerStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, input, (metadata as any), options);", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.indent = "    "
+				g.p("}")
+			} else if cs {
+				// Client streaming implementation
+				g.p("%s(metadata: grpc.Metadata | grpc.CallOptions | %s, options?: grpc.CallOptions | %s, callback?: %s): grpc.ClientWritableStream<%s> {", methodName, callbackTypeParen, callbackTypeParen, callbackTypeParen, reqType)
+				g.indent = "        "
+				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
+				g.p("return this.makeClientStreamRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, (metadata as any), (options as any), (callback as any));", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.indent = "    "
+				g.p("}")
+			} else {
+				// Unary implementation
+				g.p("%s(input: %s, metadata: grpc.Metadata | grpc.CallOptions | %s, options?: grpc.CallOptions | %s, callback?: %s): grpc.ClientUnaryCall {", methodName, reqType, callbackTypeParen, callbackTypeParen, callbackTypeParen)
+				g.indent = "        "
+				g.p("const method = %s.methods[%d];", serviceName, methodIdx)
+				g.p("return this.makeUnaryRequest<%s, %s>(`/${%s.typeName}/${method.name}`, %s, %s, input, (metadata as any), (options as any), (callback as any));", reqType, resType, serviceName, serializeReq, deserializeRes)
+				g.indent = "    "
+				g.p("}")
+			}
+		}
+
+		g.indent = ""
+		g.pNoIndent("}")
+	}
+
+	return g.b.String()
+}
+
+// generateGenericServerFile generates the .server.ts file for services with ts.server = GENERIC_SERVER.
+func generateGenericServerFile(file *descriptorpb.FileDescriptorProto, allFiles []*descriptorpb.FileDescriptorProto, params params) string {
+	g := &generator{
+		params:            params,
+		file:              file,
+		allFiles:          allFiles,
+		importedTypeNames: make(map[string]bool),
+		localTypeNames:    make(map[string]bool),
+		importAliases:     make(map[string]string),
+		rawImportNames:    make(map[string]string),
+		wireTypeRef:       "WireType",
+		scalarTypeRef:     "ScalarType",
+	}
+
+	// Header
+	g.pNoIndent("// @generated by protobuf-ts 2.11.1 with parameter long_type_string")
+	pkgComment := ""
+	syntax := file.GetSyntax()
+	if syntax == "" {
+		syntax = "proto2"
+	}
+	if file.Package != nil && *file.Package != "" {
+		pkgComment = fmt.Sprintf(" (package \"%s\", syntax %s)", *file.Package, syntax)
+	} else {
+		pkgComment = fmt.Sprintf(" (syntax %s)", syntax)
+	}
+	g.pNoIndent("// @generated from protobuf file \"%s\"%s", file.GetName(), pkgComment)
+	g.pNoIndent("// tslint:disable")
+	if g.isFileDeprecated() {
+		g.pNoIndent("// @deprecated")
+	}
+
+	// Detached comments (same as other server files)
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 12 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+	if file.SourceCodeInfo != nil {
+		for _, loc := range file.SourceCodeInfo.Location {
+			if len(loc.Path) == 1 && loc.Path[0] == 2 && len(loc.LeadingDetachedComments) > 0 {
+				g.pNoIndent("//")
+				for blockIdx, detached := range loc.LeadingDetachedComments {
+					if strings.TrimRight(detached, "\n") != "" {
+						lines := strings.Split(detached, "\n")
+						hasTrailingNewline := len(lines) > 0 && lines[len(lines)-1] == ""
+						endIdx := len(lines)
+						if hasTrailingNewline {
+							endIdx = len(lines) - 1
+						}
+						for i := 0; i < endIdx; i++ {
+							line := lines[i]
+							if line == "" {
+								g.pNoIndent("//")
+							} else {
+								g.pNoIndent("//%s", line)
+							}
+						}
+						if hasTrailingNewline {
+							g.pNoIndent("//")
+						}
+						if blockIdx < len(loc.LeadingDetachedComments)-1 {
+							g.pNoIndent("//")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	baseFileName := strings.TrimSuffix(filepath.Base(file.GetName()), ".proto")
+	_ = baseFileName
+
+	// Build depFiles and pre-compute import aliases
+	depFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	currentFileDir := filepath.Dir(file.GetName())
+	for _, dep := range file.Dependency {
+		depFile := g.findFileByName(dep)
+		if depFile != nil {
+			depPath := strings.TrimSuffix(dep, ".proto")
+			relPath := g.getRelativeImportPath(currentFileDir, depPath)
+			depFiles[relPath] = depFile
+		}
+	}
+	for _, pubFile := range g.collectTransitivePublicDeps(file) {
+		depPath := strings.TrimSuffix(pubFile.GetName(), ".proto")
+		relPath := g.getRelativeImportPath(currentFileDir, depPath)
+		if _, exists := depFiles[relPath]; !exists {
+			depFiles[relPath] = pubFile
+		}
+	}
+	g.precomputeImportAliases(depFiles)
+
+	// Build imports by simulating the TS plugin's prepend-as-encountered behavior.
+	// For each method (forward order), prepend input type, output type, then streaming
+	// types. This interleaves RpcInputStream/RpcOutputStream with message type imports.
+	seen := make(map[string]bool)
+	type importEntry struct {
+		importClause string
+		importPath   string
+	}
+	var imports []importEntry
+
+	prepend := func(entry importEntry) {
+		imports = append([]importEntry{entry}, imports...)
+	}
+
+	for _, service := range file.Service {
+		if !serviceNeedsGenericServer(service) {
+			continue
+		}
+		for _, method := range service.Method {
+			resType := g.stripPackage(method.GetOutputType())
+			reqType := g.stripPackage(method.GetInputType())
+			resTypeImport := g.formatTypeImport(method.GetOutputType())
+			reqTypeImport := g.formatTypeImport(method.GetInputType())
+			resTypePath := g.getImportPathForType(method.GetOutputType())
+			reqTypePath := g.getImportPathForType(method.GetInputType())
+
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+
+			if !seen[reqType] {
+				prepend(importEntry{reqTypeImport, reqTypePath})
+				seen[reqType] = true
+			}
+			if !seen[resType] {
+				prepend(importEntry{resTypeImport, resTypePath})
+				seen[resType] = true
+			}
+			if cs && !seen["RpcOutputStream"] {
+				prepend(importEntry{"RpcOutputStream", "@protobuf-ts/runtime-rpc"})
+				seen["RpcOutputStream"] = true
+			}
+			if ss && !seen["RpcInputStream"] {
+				prepend(importEntry{"RpcInputStream", "@protobuf-ts/runtime-rpc"})
+				seen["RpcInputStream"] = true
+			}
+		}
+	}
+
+	for _, imp := range imports {
+		g.pNoIndent("import { %s } from \"%s\";", imp.importClause, imp.importPath)
+	}
+	g.pNoIndent("import { ServerCallContext } from \"@protobuf-ts/runtime-rpc\";")
+
+	// Generate interface for each service with GENERIC_SERVER
+	pkgPrefix := ""
+	if file.Package != nil && *file.Package != "" {
+		pkgPrefix = *file.Package + "."
+	}
+
+	for svcIdx, service := range file.Service {
+		if !serviceNeedsGenericServer(service) {
+			continue
+		}
+		baseName := service.GetName()
+		serviceName := escapeTypescriptKeyword(baseName)
+		interfaceName := "I" + serviceName
+		fullServiceName := pkgPrefix + baseName
+
+		// Interface JSDoc with service comments
+		g.generateGrpcServerServiceComment(service, svcIdx, fullServiceName)
+		g.pNoIndent("export interface %s<T = ServerCallContext> {", interfaceName)
+		g.indent = "    "
+
+		// Methods
+		for methodIdx, method := range service.Method {
+			methodName := escapeMethodName(g.toCamelCase(method.GetName()))
+			reqType := g.resolveTypeRef(method.GetInputType())
+			resType := g.resolveTypeRef(method.GetOutputType())
+
+			// Method detached comments
+			methodPath := []int32{6, int32(svcIdx), 2, int32(methodIdx)}
+			detachedComments := g.getLeadingDetachedComments(methodPath)
+			if len(detachedComments) > 0 {
+				for idx, detached := range detachedComments {
+					detached = strings.TrimRight(detached, "\n")
+					for _, line := range strings.Split(detached, "\n") {
+						if line == "" {
+							g.p("// ")
+						} else {
+							g.p("// %s", line)
+						}
+					}
+					if idx < len(detachedComments)-1 {
+						g.pNoIndent("")
+					}
+				}
+				g.pNoIndent("")
+			}
+
+			// Method JSDoc
+			g.p("/**")
+			leadingComments, hasLeading := g.getLeadingComments(methodPath)
+			if hasLeading {
+				hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+				if hasTrailingBlank {
+					leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+				}
+				lines := strings.Split(leadingComments, "\n")
+				for _, line := range lines {
+					if line == "" {
+						g.p(" *")
+					} else {
+						g.p(" * %s", escapeJSDocComment(line))
+					}
+				}
+				if hasTrailingBlank {
+					g.p(" *")
+					g.p(" *")
+				} else {
+					g.p(" *")
+				}
+			}
+			if (method.Options != nil && method.GetOptions().GetDeprecated()) ||
+				g.isFileDeprecated() {
+				g.p(" * @deprecated")
+			}
+			g.p(" * @generated from protobuf rpc: %s", method.GetName())
+			g.p(" */")
+
+			// Method signature
+			cs := method.GetClientStreaming()
+			ss := method.GetServerStreaming()
+			if cs && ss {
+				// Bidi streaming
+				g.p("%s(requests: RpcOutputStream<%s>, responses: RpcInputStream<%s>, context: T): Promise<void>;", methodName, reqType, resType)
+			} else if ss {
+				// Server streaming
+				g.p("%s(request: %s, responses: RpcInputStream<%s>, context: T): Promise<void>;", methodName, reqType, resType)
+			} else if cs {
+				// Client streaming
+				g.p("%s(requests: RpcOutputStream<%s>, context: T): Promise<%s>;", methodName, reqType, resType)
+			} else {
+				// Unary
+				g.p("%s(request: %s, context: T): Promise<%s>;", methodName, reqType, resType)
+			}
+		}
+
+		g.indent = ""
+		g.pNoIndent("}")
+	}
+
+	return g.b.String()
+}
+
+func (g *generator) resolveTypeRef(protoTypeName string) string {
+	if alias, ok := g.importAliases[protoTypeName]; ok {
+		return alias
+	}
+	return g.stripPackage(protoTypeName)
+}
+
+func (g *generator) generateGrpcServerServiceComment(service *descriptorpb.ServiceDescriptorProto, svcIndex int, fullServiceName string) {
+	// Detached comments
+	detachedComments := g.getLeadingDetachedComments([]int32{6, int32(svcIndex)})
+	if len(detachedComments) > 0 {
+		for idx, detached := range detachedComments {
+			detached = strings.TrimRight(detached, "\n")
+			for _, line := range strings.Split(detached, "\n") {
+				if line == "" {
+					g.pNoIndent("// ")
+				} else {
+					g.pNoIndent("// %s", line)
+				}
+			}
+			if idx < len(detachedComments)-1 {
+				g.pNoIndent("")
+			}
+		}
+		g.pNoIndent("")
+	}
+
+	g.pNoIndent("/**")
+
+	// Leading comments
+	leadingComments, hasLeading := g.getLeadingComments([]int32{6, int32(svcIndex)})
+	if hasLeading {
+		hasTrailingBlank := strings.HasSuffix(leadingComments, "__HAS_TRAILING_BLANK__")
+		if hasTrailingBlank {
+			leadingComments = strings.TrimSuffix(leadingComments, "\n__HAS_TRAILING_BLANK__")
+		}
+		lines := strings.Split(leadingComments, "\n")
+		for _, line := range lines {
+			if line == "" {
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" * %s", escapeJSDocComment(line))
+			}
+		}
+		if hasTrailingBlank {
+			g.pNoIndent(" *")
+			g.pNoIndent(" *")
+		} else {
+			g.pNoIndent(" *")
+		}
+	}
+
+	// Trailing comments
+	trailingComments := g.getEnumTrailingComments([]int32{6, int32(svcIndex)})
+	if trailingComments != "" {
+		hasTrailingBlank := strings.HasSuffix(trailingComments, "__HAS_TRAILING_BLANK__")
+		if hasTrailingBlank {
+			trailingComments = strings.TrimSuffix(trailingComments, "\n__HAS_TRAILING_BLANK__")
+		}
+		lines := strings.Split(trailingComments, "\n")
+		for _, line := range lines {
+			if line == "" {
+				g.pNoIndent(" *")
+			} else {
+				g.pNoIndent(" * %s", escapeJSDocComment(line))
+			}
+		}
+		if hasTrailingBlank {
+			g.pNoIndent(" *")
+			g.pNoIndent(" *")
+		} else {
+			g.pNoIndent(" *")
+		}
+	}
+
+	if (service.Options != nil && service.GetOptions().GetDeprecated()) || g.isFileDeprecated() {
+		g.pNoIndent(" * @deprecated")
+	}
+
+	g.pNoIndent(" * @generated from protobuf service %s", fullServiceName)
+	g.pNoIndent(" */")
 }

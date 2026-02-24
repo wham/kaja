@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+// Test map field with int64 value and explicit jstype option.
+// The jstype should propagate to the V (value) part of the field info.
+message TestMsg {
+  map<string, int64> normal_data = 1;
+  map<string, int64> bigint_data = 2 [jstype = JS_NORMAL];
+}

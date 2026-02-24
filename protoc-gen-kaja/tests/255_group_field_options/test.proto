@@ -1,0 +1,16 @@
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  optional int32 my_tag = 50000;
+}
+
+message Foo {
+  optional int32 before = 1 [(my_tag) = 111];
+  optional group MyGroup = 2 {
+    optional int32 inner = 3;
+  }
+  optional int32 after = 4 [(my_tag) = 444];
+}

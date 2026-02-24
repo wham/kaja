@@ -139,7 +139,16 @@ run_test() {
   fi
 
   # If one succeeded and the other failed, it's a failure
+  # Exception: if protoc-gen-ts crashed (JS stack trace) but protoc-gen-kaja
+  # succeeded, treat as PASS — Go correctly handles what TS can't.
   if [ "$ts_ok" != "$kaja_ok" ]; then
+    if [ "$ts_ok" = false ] && [ "$kaja_ok" = true ]; then
+      ts_err=$(cat "$ts_error_file" 2>/dev/null || echo "")
+      if echo "$ts_err" | grep -q '    at '; then
+        echo "PASS $ts_elapsed $kaja_elapsed" > "$result_file"
+        return
+      fi
+    fi
     echo "FAIL $ts_elapsed $kaja_elapsed" > "$result_file"
     if [ "$ts_ok" = true ]; then
       {

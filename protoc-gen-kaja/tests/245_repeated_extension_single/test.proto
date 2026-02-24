@@ -1,0 +1,19 @@
+// Tests that a repeated top-level extension field with a single value
+// is emitted as an array ["solo"], not a bare scalar "solo".
+// The TS plugin uses type.toJson() which always wraps repeated fields
+// in arrays. The Go plugin's parseCustomOptions only wraps repeated
+// values when mergeRepeatedOptions finds multiple entries; a single
+// repeated entry is left unwrapped.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  repeated string labels = 50001;
+}
+
+message Item {
+  option (labels) = "solo";
+  string name = 1;
+}

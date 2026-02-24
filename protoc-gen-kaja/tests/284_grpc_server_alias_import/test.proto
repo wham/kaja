@@ -1,0 +1,15 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+import "types_a.proto";
+import "types_b.proto";
+
+message Req {
+  string query = 1;
+}
+
+service MySvc {
+  option (ts.server) = GRPC1_SERVER;
+  rpc GetAlpha(Req) returns (alpha.Response);
+  rpc GetBeta(Req) returns (beta.Response);
+}

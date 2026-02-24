@@ -1,0 +1,16 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+service my_svc {
+  option (ts.server) = GRPC1_SERVER;
+  rpc DoIt(Req) returns (Resp);
+}

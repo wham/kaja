@@ -1,0 +1,24 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+// GENERIC_SERVER with all four streaming types.
+// The TS plugin adds imports as they are encountered during code generation
+// (each prepended at the top of the file). The Go plugin emits message type
+// imports first, then runtime-rpc streaming imports, then ServerCallContext.
+// This causes the import order to differ.
+service MySvc {
+  option (ts.server) = GENERIC_SERVER;
+  rpc Unary(Req) returns (Resp);
+  rpc ServerStream(Req) returns (stream Resp);
+  rpc ClientStream(stream Req) returns (Resp);
+  rpc BidiStream(stream Req) returns (stream Resp);
+}

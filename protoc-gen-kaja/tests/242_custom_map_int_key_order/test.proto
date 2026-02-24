@@ -1,0 +1,25 @@
+// Tests that map<int32, string> entries in custom options are ordered by
+// ascending numeric key, matching JavaScript's Object.keys() enumeration
+// (integer indices come first in numeric order). The Go plugin preserves
+// wire order instead of re-sorting, so keys 10,1 stay as {"10","1"}
+// while the TS plugin outputs {"1","10"}.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+message Limits {
+  map<int32, string> thresholds = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  Limits limits = 50001;
+}
+
+message Alert {
+  option (limits) = {
+    thresholds: { key: 10, value: "high" }
+    thresholds: { key: 1, value: "low" }
+  };
+  string name = 1;
+}

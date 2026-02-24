@@ -1,0 +1,25 @@
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message Req {
+  string q = 1;
+}
+
+message Resp {
+  string r = 1;
+}
+
+// A deprecated service with a generic server.
+service MySvc {
+  option deprecated = true;
+  option (ts.server) = GENERIC_SERVER;
+
+  // This method is explicitly deprecated.
+  rpc DoIt(Req) returns (Resp) {
+    option deprecated = true;
+  }
+
+  // This method is NOT deprecated itself.
+  rpc OtherMethod(Req) returns (Resp);
+}

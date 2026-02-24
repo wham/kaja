@@ -1,0 +1,16 @@
+// Tests that custom string option values containing vertical tab (\v, 0x0B)
+// are properly escaped in the generated TypeScript output.
+// The TS plugin escapes \v via TypeScript's string literal printer.
+// The Go plugin only escapes \, ", \n, \r, \t — missing \v.
+syntax = "proto3";
+package test;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string label = 50001;
+}
+
+message TestMsg {
+  string name = 1 [(label) = "hello\013world"];
+}

@@ -1,0 +1,37 @@
+// Tests that .client.ts only includes services with GENERIC_CLIENT style.
+//
+// When a file has two services — one with ts.client = GRPC1_CLIENT and one
+// with default (GENERIC_CLIENT) — the .client.ts file should only contain
+// the generic client for the second service. The first service should only
+// appear in .grpc-client.ts.
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+
+message AlphaReq {
+  string query = 1;
+}
+
+message AlphaResp {
+  string result = 1;
+}
+
+message BetaReq {
+  int32 id = 1;
+}
+
+message BetaResp {
+  string name = 1;
+}
+
+// This service should only appear in .grpc-client.ts, NOT in .client.ts.
+service AlphaSvc {
+  option (ts.client) = GRPC1_CLIENT;
+  rpc GetAlpha(AlphaReq) returns (AlphaResp);
+}
+
+// This service has default client style (GENERIC_CLIENT),
+// so it should appear in .client.ts.
+service BetaSvc {
+  rpc GetBeta(BetaReq) returns (BetaResp);
+}

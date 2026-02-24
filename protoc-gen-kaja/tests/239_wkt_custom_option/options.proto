@@ -1,0 +1,9 @@
+syntax = "proto2";
+package test;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/duration.proto";
+
+extend google.protobuf.FieldOptions {
+  optional google.protobuf.Duration timeout = 50001;
+}

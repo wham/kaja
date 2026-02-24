@@ -1,0 +1,26 @@
+// Tests that grpc-server type imports match TS plugin order when two methods
+// use the same cross-package types in swapped input/output positions.
+//
+// Method GetTime has input=Empty, output=Timestamp.
+// Method SetTime has input=Timestamp, output=Empty.
+//
+// The TS plugin processes methods forward with prepend-as-encountered.
+// The Go plugin iterates methods in reverse and appends resType before reqType.
+// When two methods share types in swapped positions, the ordering diverges.
+syntax = "proto3";
+package test;
+import "protobuf-ts.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+message Req {
+  string q = 1;
+}
+
+service MySvc {
+  option (ts.server) = GRPC1_SERVER;
+
+  rpc GetTime(google.protobuf.Empty) returns (google.protobuf.Timestamp);
+  rpc SetTime(google.protobuf.Timestamp) returns (google.protobuf.Empty);
+  rpc DoIt(Req) returns (Req);
+}
