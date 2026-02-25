@@ -1,5 +1,5 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { MethodCall } from "./kaja";
 import { Client, ProjectRef, Service, serviceId } from "./project";
@@ -64,6 +64,8 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
   };
 
   for (const method of service.methods) {
+    const isServerStreaming = method.serverStreaming && !method.clientStreaming;
+
     client.methods[method.name] = async (input: any) => {
       // Capture request headers from projectRef at request time
       const requestHeaders: { [key: string]: string } = { ...(projectRef.configuration.headers || {}) };
@@ -81,26 +83,57 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
 
       try {
         const call = clientStub[lcfirst(method.name)](input, options);
-        const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
-        methodCall.output = response;
-        methodCall.inputTypeName = call.method?.I?.typeName;
-        methodCall.inputType = call.method?.I;
-        methodCall.outputTypeName = call.method?.O?.typeName;
-        methodCall.outputType = call.method?.O;
 
-        // Capture response headers and trailers
-        const responseHeaders: { [key: string]: string } = {};
-        if (headers) {
-          for (const [key, value] of Object.entries(headers)) {
-            responseHeaders[key] = String(value);
+        if (isServerStreaming) {
+          const streamCall = call as ServerStreamingCall<any, any>;
+          methodCall.inputTypeName = streamCall.method?.I?.typeName;
+          methodCall.inputType = streamCall.method?.I;
+          methodCall.outputTypeName = streamCall.method?.O?.typeName;
+          methodCall.outputType = streamCall.method?.O;
+          methodCall.streamOutputs = [];
+
+          for await (const message of streamCall.responses) {
+            methodCall.streamOutputs.push(message);
+            methodCall.output = message;
+            client.kaja?._internal.methodCallUpdate(methodCall);
           }
-        }
-        if (trailers) {
-          for (const [key, value] of Object.entries(trailers)) {
-            responseHeaders[key] = String(value);
+          methodCall.streamComplete = true;
+
+          const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
+          const responseHeaders: { [key: string]: string } = {};
+          if (headers) {
+            for (const [key, value] of Object.entries(headers)) {
+              responseHeaders[key] = String(value);
+            }
           }
+          if (trailers) {
+            for (const [key, value] of Object.entries(trailers)) {
+              responseHeaders[key] = String(value);
+            }
+          }
+          methodCall.responseHeaders = responseHeaders;
+        } else {
+          const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
+          methodCall.output = response;
+          methodCall.inputTypeName = call.method?.I?.typeName;
+          methodCall.inputType = call.method?.I;
+          methodCall.outputTypeName = call.method?.O?.typeName;
+          methodCall.outputType = call.method?.O;
+
+          // Capture response headers and trailers
+          const responseHeaders: { [key: string]: string } = {};
+          if (headers) {
+            for (const [key, value] of Object.entries(headers)) {
+              responseHeaders[key] = String(value);
+            }
+          }
+          if (trailers) {
+            for (const [key, value] of Object.entries(trailers)) {
+              responseHeaders[key] = String(value);
+            }
+          }
+          methodCall.responseHeaders = responseHeaders;
         }
-        methodCall.responseHeaders = responseHeaders;
       } catch (error: any) {
         methodCall.error = serializeError(error);
       }

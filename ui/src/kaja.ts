@@ -24,6 +24,8 @@ export interface MethodCall {
   output?: any;
   outputTypeName?: string;
   outputType?: IMessageType<any>;
+  streamOutputs?: any[];
+  streamComplete?: boolean;
   error?: any;
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;

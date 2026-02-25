@@ -47,6 +47,8 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
       serviceInfo.methods.forEach((methodInfo) => {
         methods.push({
           name: methodInfo.name,
+          serverStreaming: methodInfo.serverStreaming,
+          clientStreaming: methodInfo.clientStreaming,
         });
       });
       // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")

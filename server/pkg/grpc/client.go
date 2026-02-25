@@ -4,7 +4,9 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -166,4 +168,80 @@ func (c *Client) InvokeWithTimeout(method string, request []byte, timeout time.D
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return c.Invoke(ctx, method, request, headers)
+}
+
+// ServerStream opens a server-streaming gRPC call.
+// It sends a single request and returns a channel that yields response messages.
+// The channel is closed when the stream ends. Errors are sent on the error channel.
+func (c *Client) ServerStream(ctx context.Context, method string, request []byte, headers map[string]string) (<-chan []byte, <-chan error) {
+	messages := make(chan []byte, 16)
+	errc := make(chan error, 1)
+
+	go func() {
+		defer close(messages)
+		defer close(errc)
+
+		if !strings.HasPrefix(method, "/") {
+			method = "/" + method
+		}
+
+		var creds credentials.TransportCredentials
+		if c.useTLS {
+			creds = credentials.NewTLS(&tls.Config{})
+		} else {
+			creds = insecure.NewCredentials()
+		}
+
+		codec := &grpcCodec{}
+		conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+		if err != nil {
+			errc <- fmt.Errorf("failed to create gRPC client: %w", err)
+			return
+		}
+		defer conn.Close()
+
+		if len(headers) > 0 {
+			md := metadata.New(headers)
+			ctx = metadata.NewOutgoingContext(ctx, md)
+		}
+
+		streamDesc := &grpc.StreamDesc{
+			ServerStreams: true,
+		}
+
+		stream, err := conn.NewStream(ctx, streamDesc, method)
+		if err != nil {
+			errc <- fmt.Errorf("failed to open stream: %w", err)
+			return
+		}
+
+		if err := stream.SendMsg(request); err != nil {
+			errc <- fmt.Errorf("failed to send request: %w", err)
+			return
+		}
+
+		if err := stream.CloseSend(); err != nil {
+			errc <- fmt.Errorf("failed to close send: %w", err)
+			return
+		}
+
+		for {
+			var response []byte
+			err := stream.RecvMsg(&response)
+			if err != nil {
+				if errors.Is(err, io.EOF) || ctx.Err() != nil {
+					return
+				}
+				errc <- fmt.Errorf("stream receive failed: %w", err)
+				return
+			}
+			select {
+			case messages <- response:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return messages, errc
 }

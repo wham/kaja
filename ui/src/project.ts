@@ -48,6 +48,8 @@ export interface Service {
 
 export interface Method {
   name: string;
+  serverStreaming?: boolean;
+  clientStreaming?: boolean;
 }
 
 export interface Clients {
