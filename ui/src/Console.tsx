@@ -22,7 +22,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
+
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
   useEffect(() => {
@@ -49,23 +49,22 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   // Get selected method call
   const selectedMethodCall = selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
 
-  // Auto-scroll to bottom when new items arrive
+  // Auto-scroll and auto-select when the last item is selected (or nothing is)
   useEffect(() => {
-    if (autoScrollRef.current && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [items]);
-
-  // Auto-select latest method call
-  useEffect(() => {
-    if (methodCalls.length > 0) {
-      const latest = methodCalls[methodCalls.length - 1];
-      setSelectedIndex(latest.index);
+    if (items.length === 0) return;
+    const lastIndex = items.length - 1;
+    const prevLastIndex = items.length - 2;
+    if (selectedIndex === null || selectedIndex === prevLastIndex || selectedIndex === lastIndex) {
+      setSelectedIndex(lastIndex);
+      requestAnimationFrame(() => {
+        if (listRef.current) {
+          listRef.current.scrollTop = listRef.current.scrollHeight;
+        }
+      });
     }
   }, [items.length]);
 
   const handleRowClick = (index: number) => {
-    autoScrollRef.current = false;
     setSelectedIndex(index);
   };
 
@@ -187,6 +186,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         {/* Left panel - Call list */}
         <div
           ref={listRef}
+
           style={{
             width: callListWidth,
             overflowY: "auto",
