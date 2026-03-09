@@ -64,8 +64,14 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
     }
   }, [items.length]);
 
+  const handleScroll = () => {
+    if (listRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 10;
+    }
+  };
+
   const handleRowClick = (index: number) => {
-    autoScrollRef.current = false;
     setSelectedIndex(index);
   };
 
@@ -187,6 +193,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         {/* Left panel - Call list */}
         <div
           ref={listRef}
+          onScroll={handleScroll}
           style={{
             width: callListWidth,
             overflowY: "auto",
