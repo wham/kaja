@@ -6,11 +6,16 @@ import type {
   RpcOptions,
   RpcStatus,
   RpcTransport,
-  ServerStreamingCall,
   UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
-import { UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
-import { Twirp, Target } from "../wailsjs/go/main/App";
+import {
+  Deferred,
+  RpcOutputStreamController,
+  ServerStreamingCall,
+  UnaryCall as UnaryCallImpl,
+} from "@protobuf-ts/runtime-rpc";
+import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import { RpcProtocol } from "./api";
 import { ProjectRef } from "../project";
 
@@ -57,7 +62,92 @@ export class WailsTransport implements RpcTransport {
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
-    throw new Error(`Server streaming not supported in Wails ${this.mode} transport`);
+    if (this.mode !== "target" || this.protocol !== RpcProtocol.GRPC) {
+      throw new Error(`Server streaming only supported for gRPC targets in Wails transport`);
+    }
+
+    const streamID = crypto.randomUUID();
+    const responseStream = new RpcOutputStreamController<O>();
+    const headersDeferred = new Deferred<RpcMetadata>();
+    const statusDeferred = new Deferred<RpcStatus>();
+    const trailersDeferred = new Deferred<RpcMetadata>();
+
+    // Resolve headers immediately (gRPC headers arrive before messages, but we don't capture them yet)
+    headersDeferred.resolve({});
+
+    const unsubscribers: (() => void)[] = [];
+
+    const cleanup = () => {
+      for (const unsub of unsubscribers) {
+        unsub();
+      }
+    };
+
+    // Listen for streamed response messages
+    unsubscribers.push(
+      EventsOn("stream:" + streamID, (base64Data: string) => {
+        try {
+          const responseBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+          const message = method.O.fromBinary(responseBytes);
+          responseStream.notifyMessage(message);
+        } catch (err) {
+          responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
+          cleanup();
+        }
+      }),
+    );
+
+    // Listen for stream end
+    unsubscribers.push(
+      EventsOn("stream:" + streamID + ":end", () => {
+        responseStream.notifyComplete();
+        statusDeferred.resolve({ code: "OK", detail: "" });
+        trailersDeferred.resolve({});
+        cleanup();
+      }),
+    );
+
+    // Listen for stream error
+    unsubscribers.push(
+      EventsOn("stream:" + streamID + ":error", (errorMessage: string) => {
+        const err = new Error(errorMessage);
+        responseStream.notifyError(err);
+        statusDeferred.reject(err);
+        trailersDeferred.reject(err);
+        cleanup();
+      }),
+    );
+
+    // Start the stream
+    const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
+    const inputArray = Array.from(inputBytes);
+    const fullMethodPath = `${method.service.typeName}/${method.name}`;
+    const headersJson = JSON.stringify(this.projectRef!.configuration.headers || {});
+
+    TargetServerStream(this.projectRef!.configuration.url, fullMethodPath, inputArray, headersJson, streamID).catch((err) => {
+      responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
+      statusDeferred.reject(err);
+      trailersDeferred.reject(err);
+      cleanup();
+    });
+
+    // Handle abort signal
+    if (options.abort) {
+      options.abort.addEventListener("abort", () => {
+        CancelStream(streamID).catch(() => {});
+        cleanup();
+      });
+    }
+
+    return new ServerStreamingCall<I, O>(
+      method,
+      options.meta || {},
+      input,
+      headersDeferred.promise,
+      responseStream,
+      statusDeferred.promise,
+      trailersDeferred.promise,
+    );
   }
 
   clientStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, options: RpcOptions): ClientStreamingCall<I, O> {
