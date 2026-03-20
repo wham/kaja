@@ -1,5 +1,5 @@
 import { MessageType } from "@protobuf-ts/runtime";
-import { test } from "vitest";
+import { test } from "bun:test";
 
 test("defaultInput", () => {
   const I = new MessageType("quirks.v1.MapRequest", [

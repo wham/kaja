@@ -10,6 +10,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Build Docker image
         run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true --build-arg GIT_REF=${{ github.sha }}
 
@@ -32,10 +35,10 @@ jobs:
       - name: Take demo video and screenshots
         id: demo
         run: |
-          npm install playwright
-          npx playwright install chromium --with-deps
+          bun add playwright
+          bunx playwright install chromium --with-deps
           mkdir -p .github/demo
-          node .github/scripts/take-demo.js
+          bun .github/scripts/take-demo.js
 
       - name: Convert video to GIF
         run: |
