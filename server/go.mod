@@ -7,7 +7,7 @@ toolchain go1.24.7
 require (
 	github.com/evanw/esbuild v0.27.2
 	github.com/twitchtv/twirp v8.1.3+incompatible
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
 
