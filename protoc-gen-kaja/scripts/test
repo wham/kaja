@@ -31,7 +31,7 @@ install_protoc "$SERVER_BUILD_DIR"
 # Install protoc-gen-ts if needed
 if [ ! -x "$PROTOC_GEN_TS" ]; then
   echo "Installing protoc-gen-ts..."
-  (cd "$PROJECT_DIR" && npm i)
+  (cd "$PROJECT_DIR" && bun i)
 fi
 
 # Build protoc-gen-kaja into server/build
