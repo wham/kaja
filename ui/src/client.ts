@@ -29,16 +29,19 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       protocol: projectRef.configuration.protocol,
     });
   } else {
-    transport = isTwirp
-      ? new TwirpFetchTransport({
-          baseUrl: getBaseUrlForTarget(),
-        })
-      : new GrpcWebFetchTransport({
-          baseUrl: getBaseUrlForTarget(),
-        });
+    if (isTwirp) {
+      transport = new TwirpFetchTransport({
+        baseUrl: getBaseUrlForTarget(),
+      });
+    } else {
+      transport = new GrpcWebFetchTransport({
+        baseUrl: getBaseUrlForTarget(),
+      });
+    }
   }
 
-  const ClientClass = stub[service.clientStubModuleId]?.[service.name + "Client"];
+  const stubModule = stub[service.clientStubModuleId];
+  const ClientClass = stubModule[service.name + "Client"];
   const clientStub = new ClientClass(transport);
   const options: RpcOptions = {
     interceptors: [
