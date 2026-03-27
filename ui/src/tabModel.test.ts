@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { getTabLabel, serializeTabs, TabModel } from "./tabModel";
 
 describe("getTabLabel", () => {

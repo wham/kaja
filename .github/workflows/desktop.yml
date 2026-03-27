@@ -17,10 +17,8 @@ jobs:
             server/go.sum
             desktop/go.sum
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Build desktop app and create DMG
         run: scripts/desktop --build=development

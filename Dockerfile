@@ -3,16 +3,17 @@
 FROM alpine:latest AS builder
 ARG RUN_TESTS=false
 ARG GIT_REF=""
-RUN apk add --update nodejs npm
+RUN apk add --no-cache libgcc libstdc++
+COPY --from=oven/bun:alpine /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=golang:1.22.4-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY ui /ui
 WORKDIR /ui
-RUN npm ci
+RUN bun i
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
-  npm run tsc; \
-  npm test -- run; \
+  bun run tsc; \
+  bun test; \
   fi
 
 COPY protoc-gen-kaja /protoc-gen-kaja

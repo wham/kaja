@@ -66,7 +66,7 @@ install_protoc
 go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
 
 cd "./ui"
-npm i
+bun i
 
 cd ../server
 go run cmd/build-ui/main.go
