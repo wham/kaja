@@ -1,8 +1,8 @@
 module github.com/wham/kaja/desktop
 
-go 1.25.0
+go 1.24.0
 
-toolchain go1.25.5
+toolchain go1.24.2
 
 require (
 	github.com/wailsapp/wails/v2 v2.11.0

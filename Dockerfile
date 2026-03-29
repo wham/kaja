@@ -3,9 +3,9 @@
 FROM alpine:latest AS builder
 ARG RUN_TESTS=false
 ARG GIT_REF=""
-RUN apk add --no-cache libgcc libstdc++ git
+RUN apk add --no-cache libgcc libstdc++
 COPY --from=oven/bun:alpine /usr/local/bin/bun /usr/local/bin/bun
-COPY --from=golang:1.25-alpine /usr/local/go/ /usr/local/go/
+COPY --from=golang:1.24-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY ui /ui
@@ -21,7 +21,7 @@ COPY server /server
 WORKDIR /server
 RUN go run cmd/build-ui/main.go
 RUN go build -C /protoc-gen-kaja -o /server/build/protoc-gen-kaja .
-RUN GOPROXY=direct GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest
+RUN GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi
