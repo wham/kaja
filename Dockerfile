@@ -21,7 +21,7 @@ COPY server /server
 WORKDIR /server
 RUN go run cmd/build-ui/main.go
 RUN go build -C /protoc-gen-kaja -o /server/build/protoc-gen-kaja .
-RUN GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest
+RUN GOPROXY=direct GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi

@@ -14,7 +14,7 @@ install_protoc() {
     # Install protoc-go binary via go install (GOBIN must be set by caller)
     if [ ! -x "$BUILD_DIR/protoc-go" ]; then
         echo "Installing protoc-go..."
-        go install github.com/wham/protoc-go/cmd/protoc-go@latest
+        GOPROXY=direct go install github.com/wham/protoc-go/cmd/protoc-go@latest
     else
         echo "protoc-go already installed in $BUILD_DIR"
     fi
