@@ -3,7 +3,7 @@
 FROM alpine:latest AS builder
 ARG RUN_TESTS=false
 ARG GIT_REF=""
-RUN apk add --no-cache libgcc libstdc++
+RUN apk add --no-cache libgcc libstdc++ git
 COPY --from=oven/bun:alpine /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=golang:1.25-alpine /usr/local/go/ /usr/local/go/
 ENV PATH="/usr/local/go/bin:${PATH}"
