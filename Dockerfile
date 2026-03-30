@@ -21,7 +21,7 @@ COPY server /server
 WORKDIR /server
 RUN go run cmd/build-ui/main.go
 RUN go build -C /protoc-gen-kaja -o /server/build/protoc-gen-kaja .
-RUN GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest
+RUN GOBIN=/server/build go install github.com/wham/protoc-go/cmd/protoc-go@latest && mv /server/build/protoc-go /server/build/protoc
 RUN if [ "$RUN_TESTS" = "true" ] ; then \
   go test ./... -v; \
   fi
@@ -30,7 +30,7 @@ RUN go build -ldflags "-X main.GitRef=$GIT_REF" -o /build/server ./cmd/server
 FROM alpine:latest AS runner
 COPY --from=builder /build/server /server/
 COPY --from=builder /server/build/protoc-gen-kaja /server/build/
-COPY --from=builder /server/build/protoc-go /server/build/
+COPY --from=builder /server/build/protoc /server/build/
 RUN apk update && apk add --no-cache make protobuf-dev
 RUN mkdir -p /server/build/include && cp -r /usr/include/google /server/build/include/
 WORKDIR /server

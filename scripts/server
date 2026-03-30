@@ -27,7 +27,7 @@ lsof -ti:41520 | xargs kill 2>/dev/null || true
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-# Install protoc-go to server/build
+# Install protoc to server/build
 install_protoc
 go install github.com/twitchtv/twirp/protoc-gen-twirp@latest
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -36,14 +36,14 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
 
 # Generate UI proto client code using protoc-gen-kaja
-protoc-go --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --proto_path=server/proto api.proto
+protoc --plugin=protoc-gen-kaja=server/build/protoc-gen-kaja --kaja_out=ui/src/server --proto_path=server/proto api.proto
 
 cd "./ui"
 bun i
 
 cd ../server
 go run cmd/build-ui/main.go
-protoc-go --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find proto -iname "*.proto")
+protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --plugin=protoc-gen-twirp=./build/protoc-gen-twirp --twirp_out=. -Iproto/ $(find proto -iname "*.proto")
 mkdir -p /tmp/kaja
 GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
 go build -tags development -ldflags "-X main.GitRef=$GIT_REF" -o /tmp/kaja/kaja ./cmd/server

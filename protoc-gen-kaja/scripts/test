@@ -21,10 +21,10 @@ done
 
 # -- setup ---------------------------------------------------------------
 
-PROTOC="$SERVER_BUILD_DIR/protoc-go"
+PROTOC="$SERVER_BUILD_DIR/protoc"
 INCLUDE_DIR="$SERVER_BUILD_DIR/include"
 
-# Install protoc-go if needed
+# Install protoc if needed
 source "$ROOT_DIR/scripts/common"
 install_protoc "$SERVER_BUILD_DIR"
 

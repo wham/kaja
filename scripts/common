@@ -11,12 +11,13 @@ install_protoc() {
 
     mkdir -p "$BUILD_DIR"
 
-    # Install protoc-go binary via go install (GOBIN must be set by caller)
-    if [ ! -x "$BUILD_DIR/protoc-go" ]; then
+    # Install protoc-go binary as 'protoc' (GOBIN must be set by caller)
+    if [ ! -x "$BUILD_DIR/protoc" ]; then
         echo "Installing protoc-go..."
         GOPROXY=direct go install github.com/wham/protoc-go/cmd/protoc-go@latest
+        mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
     else
-        echo "protoc-go already installed in $BUILD_DIR"
+        echo "protoc already installed in $BUILD_DIR"
     fi
 
     # Download well-known type includes from the official protobuf release

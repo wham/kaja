@@ -101,7 +101,7 @@ Both share the same backend code but differ in how they're packaged:
 - Currently a drop-in replacement for `@protobuf-ts/plugin` (`protoc-gen-ts`), producing identical output. Will eventually diverge and do things differently.
 - Ships as a single native Go binary — no Node.js dependency
 - Has its own `go.mod` (separate Go module from `/server/`)
-- Built by `scripts/server` into `server/build/protoc-gen-kaja`; shipped alongside `protoc-go` in production and desktop builds
+- Built by `scripts/server` into `server/build/protoc-gen-kaja`; shipped alongside `protoc` in production and desktop builds
 - Used for all TypeScript proto codegen: both Kaja's own API (`server/proto/api.proto` → `ui/src/server/`) and user workspace protos (compiled at runtime)
 - Tests in `protoc-gen-kaja/tests/` compare output against `protoc-gen-ts` to ensure identical codegen; run with `protoc-gen-kaja/scripts/test`
 - `protoc-gen-kaja/tests/000_big` is a comprehensive multi-file integration test (8 proto files across 6 directories) using an e-commerce theme. It covers: all 15 scalar types, all WKTs, all map key types (bool, int64, string, int32), map with message values, all 4 streaming RPC types, custom options (method/message/field extensions), `import public`, proto3 optional, `allow_alias` enums, reserved fields/names, deprecated messages/fields/enums/methods, `jstype` (JS_STRING, JS_NUMBER), `json_name`, TypeScript keyword field names, `__proto__` field, `oneof_kind` field, `constructor` oneof member, 4-level deep nesting, self-referential messages, nested collision (Product_Variant vs Product.Variant), runtime import collision (WireType, MessageType), cross-package name collision (Status, Metadata), empty service, idempotency levels, detached comments, and comments with special chars (`*/`, `<html>`, `\n`). When adding new codegen features, expand this test to cover them.
@@ -126,9 +126,9 @@ Both share the same backend code but differ in how they're packaged:
 ```
 /server/proto/api.proto
          │
-         ├──→ [protoc-go + protoc-gen-go/twirp] → /server/pkg/api/*.go
+         ├──→ [protoc-go + protoc-gen-go/twirp]  → /server/pkg/api/*.go
          │
-         └──→ [protoc-go + protoc-gen-kaja]     → /ui/src/server/*.ts
+         └──→ [protoc-go + protoc-gen-kaja]      → /ui/src/server/*.ts
                                                       │
                                                       v
                                     go run cmd/build-ui/main.go (esbuild)
