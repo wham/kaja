@@ -13,7 +13,7 @@ install_protoc() {
 
     if [ ! -x "$BUILD_DIR/protoc" ]; then
         echo "Installing protoc-go..."
-        GOPROXY=direct go install github.com/wham/protoc-go/cmd/protoc-go@latest
+        go install github.com/wham/protoc-go/cmd/protoc-go@latest
         mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
     else
         echo "protoc already installed in $BUILD_DIR"
