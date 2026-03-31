@@ -31,8 +31,7 @@ FROM alpine:latest AS runner
 COPY --from=builder /build/server /server/
 COPY --from=builder /server/build/protoc-gen-kaja /server/build/
 COPY --from=builder /server/build/protoc /server/build/
-RUN apk update && apk add --no-cache make protobuf-dev
-RUN mkdir -p /server/build/include && cp -r /usr/include/google /server/build/include/
+RUN apk update && apk add --no-cache make
 WORKDIR /server
 EXPOSE 41520
 #CMD ["sh", "-c", "sleep 10000000 && ./server"]

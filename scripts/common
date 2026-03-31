@@ -1,55 +1,22 @@
 #!/bin/bash
 set -e
 
-# Install protoc-go (Go port of protoc) and well-known type includes to a target directory.
+# Install protoc-go (Go port of protoc) to a target directory.
+# The binary is named 'protoc' for compatibility.
 #
 # Usage: install_protoc [target_dir]
 #   target_dir: Directory to install to (defaults to $PWD/server/build)
 install_protoc() {
-    local PROTOC_VERSION="30.2"
     local BUILD_DIR="${1:-$PWD/server/build}"
 
     mkdir -p "$BUILD_DIR"
 
-    # Install protoc-go binary as 'protoc' (GOBIN must be set by caller)
     if [ ! -x "$BUILD_DIR/protoc" ]; then
         echo "Installing protoc-go..."
         GOPROXY=direct go install github.com/wham/protoc-go/cmd/protoc-go@latest
         mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
     else
         echo "protoc already installed in $BUILD_DIR"
-    fi
-
-    # Download well-known type includes from the official protobuf release
-    if [ ! -d "$BUILD_DIR/include" ]; then
-        echo "Downloading well-known type includes..."
-
-        local OS=""
-        case "$(uname -s)" in
-            Linux*)  OS="linux";;
-            Darwin*) OS="osx";;
-            *)       echo "Unsupported OS: $(uname -s)"; exit 1;;
-        esac
-
-        local ARCH=""
-        case "$(uname -m)" in
-            x86_64)  ARCH="x86_64";;
-            aarch64) ARCH="aarch_64";;
-            arm64)   ARCH="aarch_64";;
-            *)       echo "Unsupported architecture: $(uname -m)"; exit 1;;
-        esac
-
-        local PROTOC_ZIP="protoc-${PROTOC_VERSION}-${OS}-${ARCH}.zip"
-        local DOWNLOAD_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
-
-        local TMP_DIR=$(mktemp -d)
-        echo "Downloading $DOWNLOAD_URL..."
-        curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/$PROTOC_ZIP"
-        unzip -q "$TMP_DIR/$PROTOC_ZIP" "include/*" -d "$TMP_DIR/protoc"
-        cp -r "$TMP_DIR/protoc/include" "$BUILD_DIR/"
-        rm -rf "$TMP_DIR"
-
-        echo "Well-known type includes installed to $BUILD_DIR/include"
     fi
 }
 

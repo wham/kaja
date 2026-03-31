@@ -116,23 +116,6 @@ func getBinDir(cwd string) string {
 	return filepath.Join(cwd, "./build")
 }
 
-// getIncludeDir returns the directory containing protobuf well-known types.
-// For macOS .app bundles, it returns Contents/Resources/include.
-// Otherwise, it returns the build/include directory relative to cwd.
-func getIncludeDir(cwd string) string {
-	execPath, err := os.Executable()
-	if err == nil {
-		// Check if running from a macOS .app bundle
-		if strings.Contains(execPath, ".app/Contents/MacOS") {
-			appIndex := strings.Index(execPath, ".app/Contents/MacOS")
-			bundlePath := execPath[:appIndex+4]
-			return filepath.Join(bundlePath, "Contents", "Resources", "include")
-		}
-	}
-	// Default: use build/include directory relative to cwd
-	return filepath.Join(cwd, "./build/include")
-}
-
 func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
 	if !filepath.IsAbs(protoDir) {
 		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
@@ -142,10 +125,7 @@ func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error 
 	binDir := getBinDir(cwd)
 	c.logger.debug("binDir: " + binDir)
 
-	includeDir := getIncludeDir(cwd)
-	c.logger.debug("includeDir: " + includeDir)
-
-	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " -I" + includeDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
+	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
 	c.logger.debug("Running protoc")
 	c.logger.debug(protocCommand)
 
