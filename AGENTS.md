@@ -126,9 +126,9 @@ Both share the same backend code but differ in how they're packaged:
 ```
 /server/proto/api.proto
          │
-         ├──→ [protoc + protoc-gen-go/twirp] → /server/pkg/api/*.go
+         ├──→ [protoc-go + protoc-gen-go/twirp]  → /server/pkg/api/*.go
          │
-         └──→ [protoc + protoc-gen-kaja]     → /ui/src/server/*.ts
+         └──→ [protoc-go + protoc-gen-kaja]      → /ui/src/server/*.ts
                                                       │
                                                       v
                                     go run cmd/build-ui/main.go (esbuild)

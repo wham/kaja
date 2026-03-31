@@ -22,7 +22,6 @@ done
 # -- setup ---------------------------------------------------------------
 
 PROTOC="$SERVER_BUILD_DIR/protoc"
-INCLUDE_DIR="$SERVER_BUILD_DIR/include"
 
 # Install protoc if needed
 source "$ROOT_DIR/scripts/common"
@@ -95,7 +94,6 @@ run_test() {
     --plugin="protoc-gen-ts=$PROTOC_GEN_TS" \
     --ts_out="$expected_dir" \
     --ts_opt=long_type_string \
-    -I"$INCLUDE_DIR" \
     -I. \
     $proto_basenames) 2>"$ts_error_file" || ts_ok=false
   local ts_elapsed=$(( $(now_ms) - ts_start ))
@@ -107,7 +105,6 @@ run_test() {
   (cd "$test_dir" && "$PROTOC" \
     --plugin="protoc-gen-kaja=$PROTOC_GEN_KAJA" \
     --kaja_out="$actual_dir" \
-    -I"$INCLUDE_DIR" \
     -I. \
     $proto_basenames) 2>"$kaja_error_file" || kaja_ok=false
   local kaja_elapsed=$(( $(now_ms) - kaja_start ))
