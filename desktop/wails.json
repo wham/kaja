@@ -3,9 +3,6 @@
   "name": "Kaja",
   "outputfilename": "Kaja",
   "wailsjsdir": "../ui/src",
-  "postBuildHooks": {
-    "*/*": "../../../scripts/desktop-post-build ${bin}"
-  },
   "info": {
     "productName": "Kaja",
     "productVersion": "main",
