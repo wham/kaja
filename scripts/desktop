@@ -60,11 +60,6 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-install_protoc
-
-# Build protoc-gen-kaja
-go build -C protoc-gen-kaja -o $PWD/server/build/protoc-gen-kaja .
-
 cd "./ui"
 bun i
 

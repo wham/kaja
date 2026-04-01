@@ -9,6 +9,7 @@ import (
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
 )
 
@@ -101,19 +102,6 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-// getPluginPath returns the path to the protoc-gen-kaja binary.
-// For macOS .app bundles, it returns Contents/MacOS/protoc-gen-kaja.
-// Otherwise, it returns the build directory relative to cwd.
-func getPluginPath(cwd string) string {
-	execPath, err := os.Executable()
-	if err == nil {
-		if strings.Contains(execPath, ".app/Contents/MacOS") {
-			return filepath.Join(filepath.Dir(execPath), "protoc-gen-kaja")
-		}
-	}
-	return filepath.Join(cwd, "build", "protoc-gen-kaja")
-}
-
 func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error {
 	if !filepath.IsAbs(protoDir) {
 		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
@@ -137,11 +125,8 @@ func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error
 		return fmt.Errorf("protoc compile: %v", err)
 	}
 
-	pluginPath := getPluginPath(cwd)
-	c.logger.debug("pluginPath: " + pluginPath)
-
 	c.logger.debug("Running protoc-gen-kaja")
-	generated, err := result.RunPlugin(pluginPath, "")
+	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), "")
 	if err != nil {
 		return fmt.Errorf("protoc-gen-kaja: %v", err)
 	}

@@ -7,9 +7,13 @@ toolchain go1.24.2
 require (
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/wham/kaja/v2 v2.0.0-20240101000000-000000000000
+	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
 )
 
-replace github.com/wham/kaja/v2 => ../server
+replace (
+	github.com/wham/kaja/v2 => ../server
+	github.com/wham/kaja/v2/protoc-gen-kaja => ../protoc-gen-kaja
+)
 
 require (
 	github.com/bep/debounce v1.2.1 // indirect
@@ -33,6 +37,7 @@ require (
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
+	github.com/wham/protoc-go v0.0.0-20260331235429-b6d7f6efe0e3 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
