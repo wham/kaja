@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
-	"github.com/wham/protoc-go/compiler/wellknown"
 	"github.com/wham/protoc-go/protoc"
 )
 
@@ -119,10 +117,7 @@ func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error
 	}
 	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
 
-	compiler := protoc.New(
-		protoc.WithProtoPaths(protoDir),
-		protoc.WithOverlay(wellKnownOverlay()),
-	)
+	compiler := protoc.New(protoc.WithProtoPaths(protoDir))
 
 	c.logger.debug("Compiling proto files")
 	result, err := compiler.Compile(protoFiles...)
@@ -148,22 +143,6 @@ func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error
 
 	c.logger.debug("Compilation completed successfully")
 	return nil
-}
-
-func wellKnownOverlay() map[string]string {
-	overlay := make(map[string]string)
-	fs.WalkDir(wellknown.ProtoFiles, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		data, err := fs.ReadFile(wellknown.ProtoFiles, path)
-		if err != nil {
-			return err
-		}
-		overlay[path] = string(data)
-		return nil
-	})
-	return overlay
 }
 
 func findProtoFiles(dir string) ([]string, error) {
