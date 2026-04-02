@@ -92,8 +92,7 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
     # For distribution builds, create a git tag and update wails.json
     if [ "$BUILD_MODE" = "distribution" ]; then
         if [ -z "$VERSION_BUMP" ]; then
-            echo "Error: --version=minor|major is required for distribution builds"
-            exit 1
+            VERSION_BUMP="minor"
         fi
 
         # Get the latest version tag
