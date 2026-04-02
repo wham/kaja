@@ -5,6 +5,7 @@ source "$(dirname "$0")/common"
 
 # Parse arguments
 BUILD_MODE=""
+VERSION_BUMP=""
 for arg in "$@"; do
     case $arg in
         --build=development)
@@ -13,6 +14,14 @@ for arg in "$@"; do
             ;;
         --build=distribution)
             BUILD_MODE="distribution"
+            shift
+            ;;
+        --version=minor)
+            VERSION_BUMP="minor"
+            shift
+            ;;
+        --version=major)
+            VERSION_BUMP="major"
             shift
             ;;
     esac
@@ -80,25 +89,49 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 cd ./desktop
 
 if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
-    # For distribution builds, update wails.json with git tag version
+    # For distribution builds, create a git tag and update wails.json
     if [ "$BUILD_MODE" = "distribution" ]; then
-        GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-        if [ -n "$GIT_TAG" ]; then
-            echo "Setting productVersion to git tag: $GIT_TAG"
-            # Update productVersion in wails.json using jq
-            jq --arg version "$GIT_TAG" '.info.productVersion = $version' wails.json > wails.json.tmp && mv wails.json.tmp wails.json
-
-            # Commit and push the version update
-            git add wails.json
-            git commit -m "Update productVersion to $GIT_TAG"
-            git push origin "$GIT_TAG"
-
-            # Use tag as GitRef for distribution
-            GIT_REF="$GIT_TAG"
-        else
-            echo "Warning: No git tag found, using default version from wails.json"
-            GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
+        if [ -z "$VERSION_BUMP" ]; then
+            echo "Error: --version=minor|major is required for distribution builds"
+            exit 1
         fi
+
+        # Get the latest version tag
+        LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -1)
+        if [ -n "$LATEST_TAG" ]; then
+            # Strip the 'v' prefix and parse major.minor
+            VERSION="${LATEST_TAG#v}"
+            CURRENT_MAJOR="${VERSION%%.*}"
+            CURRENT_MINOR="${VERSION#*.}"
+            # Remove any extra segments (e.g., v1.2.3 -> minor=2)
+            CURRENT_MINOR="${CURRENT_MINOR%%.*}"
+        else
+            CURRENT_MAJOR=0
+            CURRENT_MINOR=0
+        fi
+
+        if [ "$VERSION_BUMP" = "major" ]; then
+            NEW_MAJOR=$((CURRENT_MAJOR + 1))
+            NEW_MINOR=0
+        else
+            NEW_MAJOR=$CURRENT_MAJOR
+            NEW_MINOR=$((CURRENT_MINOR + 1))
+        fi
+
+        GIT_TAG="v${NEW_MAJOR}.${NEW_MINOR}"
+        echo "Bumping version: ${LATEST_TAG:-none} -> $GIT_TAG"
+
+        # Update productVersion in wails.json
+        jq --arg version "$GIT_TAG" '.info.productVersion = $version' wails.json > wails.json.tmp && mv wails.json.tmp wails.json
+        echo "Set productVersion to $GIT_TAG"
+
+        # Commit version update, create tag, and push
+        git add wails.json
+        git commit -m "Updated productVersion to $GIT_TAG"
+        git tag "$GIT_TAG"
+        git push origin HEAD "$GIT_TAG"
+
+        GIT_REF="$GIT_TAG"
     else
         # Development build mode - use git hash
         GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
