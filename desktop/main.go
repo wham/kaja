@@ -58,13 +58,15 @@ type App struct {
 	ctx                  context.Context
 	twirpHandler         api.TwirpServer
 	configurationWatcher *api.ConfigurationWatcher
+	bookmarkStore        *BookmarkStore
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher) *App {
+func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore) *App {
 	return &App{
 		twirpHandler:         twirpHandler,
 		configurationWatcher: configurationWatcher,
+		bookmarkStore:        bookmarkStore,
 	}
 }
 
@@ -81,11 +83,24 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-// OpenDirectoryDialog opens a native directory picker dialog
+// OpenDirectoryDialog opens a native directory picker dialog.
+// On macOS, it saves a security-scoped bookmark so the sandbox remembers
+// access across app restarts.
 func (a *App) OpenDirectoryDialog() (string, error) {
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Workspace Directory",
 	})
+	if err != nil || dir == "" {
+		return dir, err
+	}
+
+	if a.bookmarkStore != nil {
+		if err := a.bookmarkStore.Save(dir, dir); err != nil {
+			slog.Warn("Failed to save bookmark", "path", dir, "error", err)
+		}
+	}
+
+	return dir, nil
 }
 
 // UpdateInfo contains information about available updates
@@ -308,24 +323,47 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 	}, nil
 }
 
-func main() {
-	// Get user's home directory and use ~/.kaja for config
+// restoreBookmarks resolves saved security-scoped bookmarks for all directories
+// referenced in the configuration, re-granting sandbox access on app restart.
+func restoreBookmarks(store *BookmarkStore, configurationPath string) {
+	entries, err := store.loadEntries()
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		path, err := store.Restore(e.Key)
+		if err != nil {
+			slog.Warn("Failed to restore bookmark", "key", e.Key, "error", err)
+			continue
+		}
+		slog.Info("Restored sandbox access", "path", path)
+	}
+}
+
+// appSupportDir returns the app's sandboxed Application Support directory.
+// Under App Sandbox this resolves to ~/Library/Containers/<bundle-id>/Data/Library/Application Support/kaja.
+// Outside sandbox it resolves to ~/Library/Application Support/kaja.
+func appSupportDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		slog.Error("Failed to get user home directory", "error", err)
+		return "", err
+	}
+	dir := filepath.Join(homeDir, "Library", "Application Support", "kaja")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func main() {
+	kajaDir, err := appSupportDir()
+	if err != nil {
+		slog.Error("Failed to get application support directory", "error", err)
 		println("Error:", err.Error())
 		return
 	}
 
-	kajaDir := filepath.Join(homeDir, ".kaja")
 	configurationPath := filepath.Join(kajaDir, "kaja.json")
-
-	// Create ~/.kaja directory if it doesn't exist
-	if err := os.MkdirAll(kajaDir, 0755); err != nil {
-		slog.Error("Failed to create kaja directory", "path", kajaDir, "error", err)
-		println("Error:", err.Error())
-		return
-	}
 
 	// Create empty kaja.json if it doesn't exist
 	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
@@ -336,7 +374,11 @@ func main() {
 		}
 	}
 
-	// Create API service without embedded binaries
+	// Restore sandbox bookmarks for directories referenced in the configuration
+	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
+	restoreBookmarks(bookmarkStore, configurationPath)
+
+	// Create API service
 	apiService := api.NewApiService(configurationPath, true, GitRef)
 	twirpHandler := api.NewApiServer(apiService)
 
@@ -347,7 +389,7 @@ func main() {
 	}
 
 	// Create application with options
-	app := NewApp(twirpHandler, configurationWatcher)
+	app := NewApp(twirpHandler, configurationWatcher, bookmarkStore)
 
 	appMenu := menu.NewMenu()
 	appMenu.Append(menu.AppMenu())
