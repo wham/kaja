@@ -3,13 +3,14 @@ package api
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
+	"github.com/wham/protoc-go/protoc"
 )
 
 type Compiler struct {
@@ -46,7 +47,7 @@ func (c *Compiler) start(id string, protoDir string) error {
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
 	c.logger.debug("Starting compilation")
-	err = c.protoc(cwd, sourcesDir, protoDir)
+	err = c.compile(cwd, sourcesDir, protoDir)
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Compilation failed", err)
@@ -101,46 +102,63 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-// getBinDir returns the directory containing protoc and protoc-gen-kaja binaries.
-// For macOS .app bundles, it returns Contents/MacOS (same as main executable).
-// Otherwise, it returns the build directory relative to cwd.
-func getBinDir(cwd string) string {
-	execPath, err := os.Executable()
-	if err == nil {
-		// Check if running from a macOS .app bundle
-		if strings.Contains(execPath, ".app/Contents/MacOS") {
-			return filepath.Dir(execPath)
-		}
-	}
-	// Default: use build directory relative to cwd
-	return filepath.Join(cwd, "./build")
-}
-
-func (c *Compiler) protoc(cwd string, sourcesDir string, protoDir string) error {
+func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error {
 	if !filepath.IsAbs(protoDir) {
 		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
 	}
 	c.logger.debug("protoDir: " + protoDir)
 
-	binDir := getBinDir(cwd)
-	c.logger.debug("binDir: " + binDir)
-
-	protocCommand := "PATH=" + binDir + ":$PATH protoc --kaja_out " + sourcesDir + " -I" + protoDir + " $(find " + protoDir + " -iname \"*.proto\")"
-	c.logger.debug("Running protoc")
-	c.logger.debug(protocCommand)
-
-	cmd := exec.Command("sh", "-c", protocCommand)
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
+	protoFiles, err := findProtoFiles(protoDir)
 	if err != nil {
-		c.logger.error("Failed to run protoc", err)
-		c.logger.error(stderr.String(), err)
-		fmt.Printf("Failed to run protoc: %v\nStderr: %s\n", err, stderr.String())
-		return fmt.Errorf("protoc failed: %v", err)
+		return fmt.Errorf("finding proto files: %v", err)
+	}
+	if len(protoFiles) == 0 {
+		return fmt.Errorf("no .proto files found in %s", protoDir)
+	}
+	c.logger.debug(fmt.Sprintf("Found %d proto files", len(protoFiles)))
+
+	compiler := protoc.New(protoc.WithProtoPaths(protoDir))
+
+	c.logger.debug("Compiling proto files")
+	result, err := compiler.Compile(protoFiles...)
+	if err != nil {
+		return fmt.Errorf("protoc compile: %v", err)
 	}
 
-	c.logger.debug("Protoc completed successfully")
+	c.logger.debug("Running protoc-gen-kaja")
+	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), "")
+	if err != nil {
+		return fmt.Errorf("protoc-gen-kaja: %v", err)
+	}
+
+	for _, f := range generated {
+		outPath := filepath.Join(sourcesDir, f.Name)
+		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+			return fmt.Errorf("creating directory for %s: %v", f.Name, err)
+		}
+		if err := os.WriteFile(outPath, []byte(f.Content), 0o644); err != nil {
+			return fmt.Errorf("writing %s: %v", f.Name, err)
+		}
+	}
+
+	c.logger.debug("Compilation completed successfully")
 	return nil
+}
+
+func findProtoFiles(dir string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.EqualFold(filepath.Ext(path), ".proto") {
+			rel, err := filepath.Rel(dir, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, rel)
+		}
+		return nil
+	})
+	return files, err
 }

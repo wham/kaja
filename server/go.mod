@@ -7,9 +7,13 @@ toolchain go1.24.7
 require (
 	github.com/evanw/esbuild v0.27.2
 	github.com/twitchtv/twirp v8.1.3+incompatible
+	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0
+	github.com/wham/protoc-go v0.0.0-20260402000707-0fe2080a0038
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
+
+replace github.com/wham/kaja/v2/protoc-gen-kaja => ../protoc-gen-kaja
 
 require (
 	golang.org/x/net v0.48.0 // indirect
