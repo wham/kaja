@@ -16,6 +16,30 @@ const (
 
 var cleanupOnce sync.Once
 
+// baseDir is the override for the temp base directory.
+// When empty, os.TempDir() is used (works outside sandbox).
+// Set via SetBaseDir before calling NewSourcesDir.
+var baseDir string
+var baseDirMu sync.Mutex
+
+// SetBaseDir overrides the temp base directory. Under macOS App Sandbox,
+// os.TempDir() returns the system-wide path which is not writable;
+// call SetBaseDir with NSTemporaryDirectory() to use the sandbox-scoped path.
+func SetBaseDir(dir string) {
+	baseDirMu.Lock()
+	defer baseDirMu.Unlock()
+	baseDir = dir
+}
+
+func getBaseDir() string {
+	baseDirMu.Lock()
+	defer baseDirMu.Unlock()
+	if baseDir != "" {
+		return filepath.Join(baseDir, kajaSubdir)
+	}
+	return filepath.Join(os.TempDir(), kajaSubdir)
+}
+
 func StartCleanup() {
 	cleanupOnce.Do(func() {
 		go cleanupLoop()
@@ -23,13 +47,13 @@ func StartCleanup() {
 }
 
 func NewSourcesDir() (string, error) {
-	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
+	dir := getBaseDir()
 
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
 
-	sourcesDir, err := os.MkdirTemp(baseDir, "sources-*")
+	sourcesDir, err := os.MkdirTemp(dir, "sources-*")
 	if err != nil {
 		return "", err
 	}
@@ -50,9 +74,9 @@ func cleanupLoop() {
 }
 
 func cleanupOldFolders() {
-	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
+	dir := getBaseDir()
 
-	entries, err := os.ReadDir(baseDir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
@@ -75,7 +99,7 @@ func cleanupOldFolders() {
 
 		age := now.Sub(info.ModTime())
 		if age > maxAge {
-			path := filepath.Join(baseDir, entry.Name())
+			path := filepath.Join(dir, entry.Name())
 			if err := os.RemoveAll(path); err != nil {
 				slog.Error("Failed to remove old temp folder", "path", path, "error", err)
 			} else {
