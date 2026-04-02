@@ -95,15 +95,12 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
             VERSION_BUMP="minor"
         fi
 
-        # Get the latest version tag
-        LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -1)
+        # Get the latest version tag (format: major.minor.0)
+        LATEST_TAG=$(git tag --list '[0-9]*' --sort=-v:refname | head -1)
         if [ -n "$LATEST_TAG" ]; then
-            # Strip the 'v' prefix and parse major.minor
-            VERSION="${LATEST_TAG#v}"
-            CURRENT_MAJOR="${VERSION%%.*}"
-            CURRENT_MINOR="${VERSION#*.}"
-            # Remove any extra segments (e.g., v1.2.3 -> minor=2)
-            CURRENT_MINOR="${CURRENT_MINOR%%.*}"
+            CURRENT_MAJOR="${LATEST_TAG%%.*}"
+            REMAINDER="${LATEST_TAG#*.}"
+            CURRENT_MINOR="${REMAINDER%%.*}"
         else
             CURRENT_MAJOR=0
             CURRENT_MINOR=0
@@ -117,7 +114,7 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
             NEW_MINOR=$((CURRENT_MINOR + 1))
         fi
 
-        GIT_TAG="v${NEW_MAJOR}.${NEW_MINOR}"
+        GIT_TAG="${NEW_MAJOR}.${NEW_MINOR}.0"
         echo "Bumping version: ${LATEST_TAG:-none} -> $GIT_TAG"
 
         # Update productVersion in wails.json
