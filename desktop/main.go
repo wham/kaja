@@ -23,7 +23,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
@@ -374,9 +373,6 @@ func main() {
 			return
 		}
 	}
-
-	// Use sandbox-scoped temp directory (on macOS, NSTemporaryDirectory)
-	tempdir.SetBaseDir(SandboxTempDir())
 
 	// Restore sandbox bookmarks for directories referenced in the configuration
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))

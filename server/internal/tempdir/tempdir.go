@@ -16,38 +16,29 @@ const (
 
 var cleanupOnce sync.Once
 
-// baseDir is the override for the temp base directory.
-// When empty, os.TempDir() is used (works outside sandbox).
-// Set via SetBaseDir before calling NewSourcesDir.
-var baseDir string
-var baseDirMu sync.Mutex
-
-// SetBaseDir overrides the temp base directory. Under macOS App Sandbox,
-// os.TempDir() returns the system-wide path which is not writable;
-// call SetBaseDir with NSTemporaryDirectory() to use the sandbox-scoped path.
-func SetBaseDir(dir string) {
-	baseDirMu.Lock()
-	defer baseDirMu.Unlock()
-	baseDir = dir
-}
-
-func getBaseDir() string {
-	baseDirMu.Lock()
-	defer baseDirMu.Unlock()
-	if baseDir != "" {
-		return filepath.Join(baseDir, kajaSubdir)
-	}
-	return filepath.Join(os.TempDir(), kajaSubdir)
-}
-
 func StartCleanup() {
 	cleanupOnce.Do(func() {
 		go cleanupLoop()
 	})
 }
 
+func tempBase() string {
+	// Use a cache directory under the user's home. Under App Sandbox,
+	// os.UserHomeDir() returns the container path, so this works in
+	// both sandboxed and non-sandboxed environments without CGo.
+	home, err := os.UserHomeDir()
+	if err == nil {
+		dir := filepath.Join(home, "Library", "Caches", kajaSubdir, "tmp")
+		if err := os.MkdirAll(dir, 0755); err == nil {
+			return dir
+		}
+	}
+	// Fallback for non-macOS or if home dir lookup fails
+	return filepath.Join(os.TempDir(), kajaSubdir)
+}
+
 func NewSourcesDir() (string, error) {
-	dir := getBaseDir()
+	dir := tempBase()
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
@@ -74,7 +65,7 @@ func cleanupLoop() {
 }
 
 func cleanupOldFolders() {
-	dir := getBaseDir()
+	dir := tempBase()
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
