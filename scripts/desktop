@@ -297,7 +297,7 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
 
         echo ""
         echo "Build complete: $APP_BUNDLE"
-        if [ -t 0 ]; then
+        if [ -t 0 ] && [ "$BUILD_MODE" != "store" ]; then
             open "$APP_BUNDLE"
         fi
     fi
