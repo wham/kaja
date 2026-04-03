@@ -142,9 +142,9 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
 
         # Commit version update, create tag, and push
         git add wails.json
-        git commit -m "Updated productVersion to $GIT_TAG"
-        git tag "$GIT_TAG"
-        git push origin HEAD "$GIT_TAG"
+        git diff --cached --quiet || git commit -m "Updated productVersion to $GIT_TAG"
+        git tag -f "$GIT_TAG"
+        git push origin HEAD "$GIT_TAG" --force
 
         GIT_REF="$GIT_TAG"
     else
