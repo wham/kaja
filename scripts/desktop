@@ -38,7 +38,7 @@ done
 # Hardcoded signing profiles
 DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
 DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
-STORE_APP_PROFILE="3rd Party Mac Developer Application: Tomas Vesely (U5DMD247UW)"
+STORE_APP_PROFILE="Apple Distribution: Tomas Vesely (U5DMD247UW)"
 STORE_INSTALLER_PROFILE="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
 NOTARY_PROFILE="kaja-notary"
 
@@ -187,7 +187,14 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
         fi
 
         ENTITLEMENTS="./build/darwin/entitlements.plist"
-        if codesign --force --options runtime --deep \
+        if [ "$BUILD_MODE" = "store" ]; then
+            # Store builds must sign with the real identity — no ad-hoc fallback
+            codesign --force --options runtime --deep \
+                --sign "$CODESIGN_IDENTITY" \
+                --entitlements "$ENTITLEMENTS" \
+                "$APP_BUNDLE"
+            echo "App signed with: $CODESIGN_IDENTITY"
+        elif codesign --force --options runtime --deep \
             --sign "$CODESIGN_IDENTITY" \
             --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE" 2>/dev/null; then
