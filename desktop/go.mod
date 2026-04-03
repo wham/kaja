@@ -37,7 +37,7 @@ require (
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
-	github.com/wham/protoc-go v0.0.0-20260331235429-b6d7f6efe0e3 // indirect
+	github.com/wham/protoc-go v0.0.0-20260402000707-0fe2080a0038 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect

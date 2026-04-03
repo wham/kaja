@@ -22,14 +22,29 @@ func StartCleanup() {
 	})
 }
 
-func NewSourcesDir() (string, error) {
-	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
+func tempBase() string {
+	// Use a cache directory under the user's home. Under App Sandbox,
+	// os.UserHomeDir() returns the container path, so this works in
+	// both sandboxed and non-sandboxed environments without CGo.
+	home, err := os.UserHomeDir()
+	if err == nil {
+		dir := filepath.Join(home, "Library", "Caches", kajaSubdir, "tmp")
+		if err := os.MkdirAll(dir, 0755); err == nil {
+			return dir
+		}
+	}
+	// Fallback for non-macOS or if home dir lookup fails
+	return filepath.Join(os.TempDir(), kajaSubdir)
+}
 
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+func NewSourcesDir() (string, error) {
+	dir := tempBase()
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
 
-	sourcesDir, err := os.MkdirTemp(baseDir, "sources-*")
+	sourcesDir, err := os.MkdirTemp(dir, "sources-*")
 	if err != nil {
 		return "", err
 	}
@@ -50,9 +65,9 @@ func cleanupLoop() {
 }
 
 func cleanupOldFolders() {
-	baseDir := filepath.Join(os.TempDir(), kajaSubdir)
+	dir := tempBase()
 
-	entries, err := os.ReadDir(baseDir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
@@ -75,7 +90,7 @@ func cleanupOldFolders() {
 
 		age := now.Sub(info.ModTime())
 		if age > maxAge {
-			path := filepath.Join(baseDir, entry.Name())
+			path := filepath.Join(dir, entry.Name())
 			if err := os.RemoveAll(path); err != nil {
 				slog.Error("Failed to remove old temp folder", "path", path, "error", err)
 			} else {
