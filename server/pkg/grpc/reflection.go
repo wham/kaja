@@ -34,7 +34,7 @@ type ReflectionResult struct {
 // NewReflectionClient creates a new reflection client for the given target URL.
 func NewReflectionClient(target *url.URL) *ReflectionClient {
 	return &ReflectionClient{
-		target: target.String(),
+		target: ToGRPCTarget(target),
 		useTLS: ShouldUseTLS(target),
 	}
 }
