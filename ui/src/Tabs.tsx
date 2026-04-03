@@ -226,7 +226,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           />
         )}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow, WebkitOverflowScrolling: isNarrow ? "touch" : undefined }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow, WebkitOverflowScrolling: isNarrow ? "touch" : undefined, position: "relative", zIndex: 1 }}>
         {React.Children.map(children, (child, index) => (
           <div
             key={child.props.tabId}
