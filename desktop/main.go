@@ -30,6 +30,10 @@ import (
 // GitRef is the git commit hash or tag, set at build time via ldflags
 var GitRef string
 
+// AppStore is set to "true" at build time for App Store builds.
+// When true, the in-app update checker is disabled (App Store handles updates).
+var AppStore string
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
@@ -112,11 +116,16 @@ type UpdateInfo struct {
 	Error           string `json:"error"`
 }
 
-// CheckForUpdate checks GitHub releases for a newer version
+// CheckForUpdate checks GitHub releases for a newer version.
+// Disabled for App Store builds where updates are handled by the store.
 func (a *App) CheckForUpdate() *UpdateInfo {
 	currentVersion := GitRef
 	result := &UpdateInfo{
 		CurrentVersion: currentVersion,
+	}
+
+	if AppStore == "true" {
+		return result
 	}
 
 	if currentVersion == "" {

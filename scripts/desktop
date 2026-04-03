@@ -16,6 +16,10 @@ for arg in "$@"; do
             BUILD_MODE="distribution"
             shift
             ;;
+        --build=store)
+            BUILD_MODE="store"
+            shift
+            ;;
         --version=patch)
             VERSION_BUMP="patch"
             shift
@@ -34,6 +38,8 @@ done
 # Hardcoded signing profiles
 DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
 DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
+STORE_APP_PROFILE="Apple Distribution: Tomas Vesely (U5DMD247UW)"
+STORE_INSTALLER_PROFILE="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
 NOTARY_PROFILE="kaja-notary"
 
 # Check if Wails is installed
@@ -92,9 +98,9 @@ mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
 
 cd ./desktop
 
-if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
-    # For distribution builds, create a git tag and update wails.json
-    if [ "$BUILD_MODE" = "distribution" ]; then
+if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ "$BUILD_MODE" = "store" ]; then
+    # For distribution/store builds, create a git tag and update wails.json
+    if [ "$BUILD_MODE" = "distribution" ] || [ "$BUILD_MODE" = "store" ]; then
         if [ -z "$VERSION_BUMP" ]; then
             VERSION_BUMP="minor"
         fi
@@ -136,9 +142,9 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
 
         # Commit version update, create tag, and push
         git add wails.json
-        git commit -m "Updated productVersion to $GIT_TAG"
-        git tag "$GIT_TAG"
-        git push origin HEAD "$GIT_TAG"
+        git diff --cached --quiet || git commit -m "Updated productVersion to $GIT_TAG"
+        git tag -f "$GIT_TAG"
+        git push origin HEAD "$GIT_TAG" --force
 
         GIT_REF="$GIT_TAG"
     else
@@ -147,19 +153,48 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
     fi
 
     echo "Building desktop app ($BUILD_MODE)..."
-    wails build -ldflags "-X main.GitRef=$GIT_REF"
+    LDFLAGS="-X main.GitRef=$GIT_REF"
+    if [ "$BUILD_MODE" = "store" ]; then
+        LDFLAGS="$LDFLAGS -X main.AppStore=true"
+        export MACOSX_DEPLOYMENT_TARGET=12.0
+        export CGO_LDFLAGS="-mmacosx-version-min=12.0"
+        export CGO_CFLAGS="-mmacosx-version-min=12.0"
+    fi
+    wails build -ldflags "$LDFLAGS"
 
     APP_BUNDLE="./build/bin/Kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
+        # Embed provisioning profile for App Store builds
+        if [ "$BUILD_MODE" = "store" ]; then
+            PROVISION_PROFILE="./build/darwin/embedded.provisionprofile"
+            if [ ! -f "$PROVISION_PROFILE" ]; then
+                echo "Error: $PROVISION_PROFILE not found."
+                echo "Download your Mac App Store provisioning profile from Apple Developer portal"
+                echo "and save it as $PROVISION_PROFILE"
+                exit 1
+            fi
+            cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+            echo "Embedded provisioning profile"
+        fi
+
         # Select signing profile based on build mode
-        if [ "$BUILD_MODE" = "distribution" ]; then
+        if [ "$BUILD_MODE" = "store" ]; then
+            CODESIGN_IDENTITY="$STORE_APP_PROFILE"
+        elif [ "$BUILD_MODE" = "distribution" ]; then
             CODESIGN_IDENTITY="$DISTRIBUTION_PROFILE"
         else
             CODESIGN_IDENTITY="$DEVELOPMENT_PROFILE"
         fi
 
         ENTITLEMENTS="./build/darwin/entitlements.plist"
-        if codesign --force --options runtime --deep \
+        if [ "$BUILD_MODE" = "store" ]; then
+            # Store builds must sign with the real identity — no ad-hoc fallback
+            codesign --force --options runtime --deep \
+                --sign "$CODESIGN_IDENTITY" \
+                --entitlements "$ENTITLEMENTS" \
+                "$APP_BUNDLE"
+            echo "App signed with: $CODESIGN_IDENTITY"
+        elif codesign --force --options runtime --deep \
             --sign "$CODESIGN_IDENTITY" \
             --entitlements "$ENTITLEMENTS" \
             "$APP_BUNDLE" 2>/dev/null; then
@@ -169,7 +204,23 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
             echo "App signed with ad-hoc identity"
         fi
 
-        if [ "$BUILD_MODE" = "distribution" ]; then
+        if [ "$BUILD_MODE" = "store" ]; then
+            # Build .pkg for App Store submission
+            echo ""
+            echo "Creating App Store package..."
+            PKG_PATH="./build/bin/Kaja.pkg"
+            rm -f "$PKG_PATH"
+
+            productbuild \
+                --component "$APP_BUNDLE" /Applications \
+                --sign "$STORE_INSTALLER_PROFILE" \
+                "$PKG_PATH"
+
+            echo ""
+            echo "App Store package complete: $PKG_PATH"
+            echo "Upload with Transporter or: xcrun altool --upload-app -f $PKG_PATH -t macos"
+
+        elif [ "$BUILD_MODE" = "distribution" ]; then
             echo ""
             echo "Notarizing app..."
             APP_ZIP="./build/bin/Kaja.zip"
@@ -192,59 +243,61 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ]; then
             echo "App notarization complete"
         fi
 
-        # Create DMG
-        echo ""
-        echo "Creating DMG..."
-        DMG_PATH="./build/bin/Kaja.dmg"
-        rm -f "$DMG_PATH"
-
-        if [ "$BUILD_MODE" = "distribution" ]; then
-            create-dmg \
-                --volname "Kaja" \
-                --volicon "./build/appicon.png" \
-                --window-size 600 400 \
-                --icon-size 100 \
-                --icon "Kaja.app" 150 200 \
-                --app-drop-link 450 200 \
-                "$DMG_PATH" \
-                "$APP_BUNDLE"
-
-            # Notarize DMG
+        if [ "$BUILD_MODE" != "store" ]; then
+            # Create DMG (not needed for App Store)
             echo ""
-            echo "Notarizing DMG..."
-            xcrun notarytool submit "$DMG_PATH" \
-                --keychain-profile "$NOTARY_PROFILE" \
-                --wait
+            echo "Creating DMG..."
+            DMG_PATH="./build/bin/Kaja.dmg"
+            rm -f "$DMG_PATH"
 
-            # Staple DMG
-            echo "Stapling DMG..."
-            xcrun stapler staple "$DMG_PATH"
+            if [ "$BUILD_MODE" = "distribution" ]; then
+                create-dmg \
+                    --volname "Kaja" \
+                    --volicon "./build/appicon.png" \
+                    --window-size 600 400 \
+                    --icon-size 100 \
+                    --icon "Kaja.app" 150 200 \
+                    --app-drop-link 450 200 \
+                    "$DMG_PATH" \
+                    "$APP_BUNDLE"
 
-            echo ""
-            echo "Distribution complete: $DMG_PATH"
-        else
-            # create-dmg returns exit code 1 when it can't sign (expected without certificates)
-            create-dmg \
-                --volname "Kaja" \
-                --window-size 600 400 \
-                --icon-size 100 \
-                --icon "Kaja.app" 150 200 \
-                --app-drop-link 450 200 \
-                "$DMG_PATH" \
-                "$APP_BUNDLE" \
-                || true
+                # Notarize DMG
+                echo ""
+                echo "Notarizing DMG..."
+                xcrun notarytool submit "$DMG_PATH" \
+                    --keychain-profile "$NOTARY_PROFILE" \
+                    --wait
 
-            if [ -f "$DMG_PATH" ]; then
-                echo "DMG created: $DMG_PATH"
+                # Staple DMG
+                echo "Stapling DMG..."
+                xcrun stapler staple "$DMG_PATH"
+
+                echo ""
+                echo "Distribution complete: $DMG_PATH"
             else
-                echo "Failed to create DMG"
-                exit 1
+                # create-dmg returns exit code 1 when it can't sign (expected without certificates)
+                create-dmg \
+                    --volname "Kaja" \
+                    --window-size 600 400 \
+                    --icon-size 100 \
+                    --icon "Kaja.app" 150 200 \
+                    --app-drop-link 450 200 \
+                    "$DMG_PATH" \
+                    "$APP_BUNDLE" \
+                    || true
+
+                if [ -f "$DMG_PATH" ]; then
+                    echo "DMG created: $DMG_PATH"
+                else
+                    echo "Failed to create DMG"
+                    exit 1
+                fi
             fi
         fi
 
         echo ""
         echo "Build complete: $APP_BUNDLE"
-        if [ -t 0 ]; then
+        if [ -t 0 ] && [ "$BUILD_MODE" != "store" ]; then
             open "$APP_BUNDLE"
         fi
     fi

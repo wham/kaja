@@ -12,9 +12,12 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionpb "google.golang.org/grpc/reflection/grpc_reflection_v1"
+	reflectionv1alphapb "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -34,7 +37,7 @@ type ReflectionResult struct {
 // NewReflectionClient creates a new reflection client for the given target URL.
 func NewReflectionClient(target *url.URL) *ReflectionClient {
 	return &ReflectionClient{
-		target: target.String(),
+		target: ToGRPCTarget(target),
 		useTLS: ShouldUseTLS(target),
 	}
 }
@@ -48,9 +51,84 @@ func NewReflectionClientFromString(target string) (*ReflectionClient, error) {
 	return NewReflectionClient(parsed), nil
 }
 
+// reflectionStream abstracts over v1 and v1alpha reflection streams.
+type reflectionStream interface {
+	sendListServices() error
+	sendFileContainingSymbol(symbol string) error
+	sendFileByFilename(filename string) error
+	recv() (*reflectionpb.ServerReflectionResponse, error)
+}
+
+// v1Stream wraps the v1 reflection stream.
+type v1Stream struct {
+	stream reflectionpb.ServerReflection_ServerReflectionInfoClient
+}
+
+func (s *v1Stream) sendListServices() error {
+	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: ""},
+	})
+}
+
+func (s *v1Stream) sendFileContainingSymbol(symbol string) error {
+	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+		MessageRequest: &reflectionpb.ServerReflectionRequest_FileContainingSymbol{FileContainingSymbol: symbol},
+	})
+}
+
+func (s *v1Stream) sendFileByFilename(filename string) error {
+	return s.stream.Send(&reflectionpb.ServerReflectionRequest{
+		MessageRequest: &reflectionpb.ServerReflectionRequest_FileByFilename{FileByFilename: filename},
+	})
+}
+
+func (s *v1Stream) recv() (*reflectionpb.ServerReflectionResponse, error) {
+	return s.stream.Recv()
+}
+
+// v1alphaStream wraps the v1alpha reflection stream, converting responses to v1 types.
+type v1alphaStream struct {
+	stream reflectionv1alphapb.ServerReflection_ServerReflectionInfoClient
+}
+
+func (s *v1alphaStream) sendListServices() error {
+	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_ListServices{ListServices: ""},
+	})
+}
+
+func (s *v1alphaStream) sendFileContainingSymbol(symbol string) error {
+	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_FileContainingSymbol{FileContainingSymbol: symbol},
+	})
+}
+
+func (s *v1alphaStream) sendFileByFilename(filename string) error {
+	return s.stream.Send(&reflectionv1alphapb.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alphapb.ServerReflectionRequest_FileByFilename{FileByFilename: filename},
+	})
+}
+
+func (s *v1alphaStream) recv() (*reflectionpb.ServerReflectionResponse, error) {
+	resp, err := s.stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	// v1alpha and v1 have identical wire format — marshal and unmarshal to convert
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	v1Resp := &reflectionpb.ServerReflectionResponse{}
+	if err := proto.Unmarshal(data, v1Resp); err != nil {
+		return nil, err
+	}
+	return v1Resp, nil
+}
+
 // Discover queries the target server's reflection service and returns all file descriptors.
+// Tries the v1 reflection API first, falls back to v1alpha for older servers.
 func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, error) {
-	// Choose transport credentials based on TLS setting
 	var creds credentials.TransportCredentials
 	if c.useTLS {
 		creds = credentials.NewTLS(&tls.Config{})
@@ -64,27 +142,64 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 	}
 	defer conn.Close()
 
-	client := reflectionpb.NewServerReflectionClient(conn)
-
-	// Create a bidirectional stream for reflection requests
-	stream, err := client.ServerReflectionInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reflection stream (target=%s, TLS=%v): %w - ensure the server has gRPC reflection enabled", c.target, c.useTLS, err)
+	// Try v1 first
+	stream, v1Err := c.openV1Stream(ctx, conn)
+	if v1Err != nil {
+		// Fall back to v1alpha
+		stream, err = c.openV1AlphaStream(ctx, conn)
+		if err != nil {
+			return nil, fmt.Errorf("reflection not available (tried v1 and v1alpha): v1: %w; v1alpha: %v", v1Err, err)
+		}
 	}
 
-	// List all services
-	err = stream.Send(&reflectionpb.ServerReflectionRequest{
-		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{
-			ListServices: "",
-		},
-	})
+	return c.discover(stream)
+}
+
+func (c *ReflectionClient) openV1Stream(ctx context.Context, conn *grpc.ClientConn) (reflectionStream, error) {
+	client := reflectionpb.NewServerReflectionClient(conn)
+	stream, err := client.ServerReflectionInfo(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	// Send a probe request to detect Unimplemented before committing
+	if err := stream.Send(&reflectionpb.ServerReflectionRequest{
+		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: ""},
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := stream.Recv(); err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.Unimplemented {
+			return nil, err
+		}
+		return nil, err
+	}
+
+	// v1 works — open a fresh stream (the probe consumed the first response)
+	stream, err = client.ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &v1Stream{stream: stream}, nil
+}
+
+func (c *ReflectionClient) openV1AlphaStream(ctx context.Context, conn *grpc.ClientConn) (reflectionStream, error) {
+	client := reflectionv1alphapb.NewServerReflectionClient(conn)
+	stream, err := client.ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &v1alphaStream{stream: stream}, nil
+}
+
+func (c *ReflectionClient) discover(stream reflectionStream) (*ReflectionResult, error) {
+	if err := stream.sendListServices(); err != nil {
 		return nil, fmt.Errorf("failed to send list services request: %w", err)
 	}
 
-	resp, err := stream.Recv()
+	resp, err := stream.recv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive list services response: %w (the server may not have gRPC reflection enabled)", err)
+		return nil, fmt.Errorf("failed to receive list services response: %w", err)
 	}
 
 	listResp := resp.GetListServicesResponse()
@@ -95,7 +210,6 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 		return nil, fmt.Errorf("unexpected response type")
 	}
 
-	// Collect all service names (excluding reflection service itself)
 	var services []string
 	for _, svc := range listResp.GetService() {
 		name := svc.GetName()
@@ -104,16 +218,13 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 		}
 	}
 
-	// Get file descriptors for all services
 	fileDescriptorMap := make(map[string]*descriptorpb.FileDescriptorProto)
 	for _, svcName := range services {
-		err = c.getFileDescriptorsForSymbol(stream, svcName, fileDescriptorMap)
-		if err != nil {
+		if err := c.getFileDescriptorsForSymbol(stream, svcName, fileDescriptorMap); err != nil {
 			return nil, fmt.Errorf("failed to get file descriptors for %s: %w", svcName, err)
 		}
 	}
 
-	// Convert map to slice
 	var fileDescriptors []*descriptorpb.FileDescriptorProto
 	for _, fd := range fileDescriptorMap {
 		fileDescriptors = append(fileDescriptors, fd)
@@ -127,20 +238,15 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 
 // getFileDescriptorsForSymbol retrieves file descriptors for a given symbol and its dependencies.
 func (c *ReflectionClient) getFileDescriptorsForSymbol(
-	stream reflectionpb.ServerReflection_ServerReflectionInfoClient,
+	stream reflectionStream,
 	symbol string,
 	collected map[string]*descriptorpb.FileDescriptorProto,
 ) error {
-	err := stream.Send(&reflectionpb.ServerReflectionRequest{
-		MessageRequest: &reflectionpb.ServerReflectionRequest_FileContainingSymbol{
-			FileContainingSymbol: symbol,
-		},
-	})
-	if err != nil {
+	if err := stream.sendFileContainingSymbol(symbol); err != nil {
 		return fmt.Errorf("failed to send file containing symbol request: %w", err)
 	}
 
-	resp, err := stream.Recv()
+	resp, err := stream.recv()
 	if err != nil {
 		return fmt.Errorf("failed to receive file descriptor response: %w", err)
 	}
@@ -182,20 +288,15 @@ func (c *ReflectionClient) getFileDescriptorsForSymbol(
 
 // getFileDescriptorByName retrieves a file descriptor by its filename.
 func (c *ReflectionClient) getFileDescriptorByName(
-	stream reflectionpb.ServerReflection_ServerReflectionInfoClient,
+	stream reflectionStream,
 	fileName string,
 	collected map[string]*descriptorpb.FileDescriptorProto,
 ) error {
-	err := stream.Send(&reflectionpb.ServerReflectionRequest{
-		MessageRequest: &reflectionpb.ServerReflectionRequest_FileByFilename{
-			FileByFilename: fileName,
-		},
-	})
-	if err != nil {
+	if err := stream.sendFileByFilename(fileName); err != nil {
 		return fmt.Errorf("failed to send file by filename request: %w", err)
 	}
 
-	resp, err := stream.Recv()
+	resp, err := stream.recv()
 	if err != nil {
 		return fmt.Errorf("failed to receive file descriptor response: %w", err)
 	}
