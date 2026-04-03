@@ -161,6 +161,19 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
 
     APP_BUNDLE="./build/bin/Kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
+        # Embed provisioning profile for App Store builds
+        if [ "$BUILD_MODE" = "store" ]; then
+            PROVISION_PROFILE="./build/darwin/embedded.provisionprofile"
+            if [ ! -f "$PROVISION_PROFILE" ]; then
+                echo "Error: $PROVISION_PROFILE not found."
+                echo "Download your Mac App Store provisioning profile from Apple Developer portal"
+                echo "and save it as $PROVISION_PROFILE"
+                exit 1
+            fi
+            cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+            echo "Embedded provisioning profile"
+        fi
+
         # Select signing profile based on build mode
         if [ "$BUILD_MODE" = "store" ]; then
             CODESIGN_IDENTITY="$STORE_APP_PROFILE"
