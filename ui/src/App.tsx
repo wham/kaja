@@ -261,8 +261,9 @@ export function App() {
         const prev = existingProject.configuration;
         const protoDirChanged = prev.protoDir !== newConfig.protoDir;
         const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
+        const reflectionUrlChanged = newConfig.useReflection && prev.url !== newConfig.url;
 
-        if (protoDirChanged || useReflectionChanged) {
+        if (protoDirChanged || useReflectionChanged || reflectionUrlChanged) {
           // Needs recompilation
           disposeMonacoModelsForProject(existingProject.configuration.name);
           updatedProjects.push(createPendingProject(newConfig));
