@@ -146,6 +146,7 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
           enabled: false,
         },
         readOnly,
+        fixedOverflowWidgets: true,
         renderLineHighlight: "none",
         formatOnPaste: true,
         formatOnType: true,
