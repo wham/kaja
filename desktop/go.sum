@@ -72,8 +72,8 @@ github.com/wailsapp/mimetype v1.4.1 h1:pQN9ycO7uo4vsUUuPeHEYoUkLVkaRntMnHJxVwYhw
 github.com/wailsapp/mimetype v1.4.1/go.mod h1:9aV5k31bBOv5z6u+QP8TltzvNGJPmNJD4XlAL3U+j3o=
 github.com/wailsapp/wails/v2 v2.11.0 h1:seLacV8pqupq32IjS4Y7V8ucab0WZwtK6VvUVxSBtqQ=
 github.com/wailsapp/wails/v2 v2.11.0/go.mod h1:jrf0ZaM6+GBc1wRmXsM8cIvzlg0karYin3erahI4+0k=
-github.com/wham/protoc-go v0.0.0-20260402000707-0fe2080a0038 h1:CqLQKbdXPnN59YEO9ThZrJfCrhGG/lIFqG9uuo4uepM=
-github.com/wham/protoc-go v0.0.0-20260402000707-0fe2080a0038/go.mod h1:X+cjaeMbBlhWPs1huMPwDLV5sPn56DUadkqrRj+ErDA=
+github.com/wham/protoc-go v0.0.0-20260410000912-cb20922cf784 h1:lzw9qAHTOyTxnfDCURB7KWDb81iyMCC4ZMYkiRp5Bmo=
+github.com/wham/protoc-go v0.0.0-20260410000912-cb20922cf784/go.mod h1:X+cjaeMbBlhWPs1huMPwDLV5sPn56DUadkqrRj+ErDA=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/otel v1.39.0 h1:8yPrr/S0ND9QEfTfdP9V+SiwT4E0G7Y5MO7p85nis48=

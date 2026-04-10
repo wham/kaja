@@ -41,7 +41,7 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
-	github.com/wham/protoc-go v0.0.0-20260402000707-0fe2080a0038 // indirect
+	github.com/wham/protoc-go v0.0.0-20260410000912-cb20922cf784 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
