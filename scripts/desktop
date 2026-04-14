@@ -155,7 +155,6 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
     echo "Building desktop app ($BUILD_MODE)..."
     LDFLAGS="-X main.GitRef=$GIT_REF"
     if [ "$BUILD_MODE" = "store" ]; then
-        LDFLAGS="$LDFLAGS -X main.AppStore=true"
         export MACOSX_DEPLOYMENT_TARGET=12.0
         export CGO_LDFLAGS="-mmacosx-version-min=12.0"
         export CGO_CFLAGS="-mmacosx-version-min=12.0"
