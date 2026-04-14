@@ -11,9 +11,18 @@
 </p>
 
 <p align="center">
+  <a href="https://apps.apple.com/us/app/kaja-for-grpc-and-twirp/id6761604205?mt=12">
+    <img src="https://toolbox.marketingtools.apple.com/api/badges/download-on-the-mac-app-store/black/en-us?size=250x83" alt="Download on the Mac App Store" height="54" />
+  </a>
+  &nbsp;
+  <a href="https://hub.docker.com/r/kajatools/kaja">
+    <img src="https://img.shields.io/badge/Pull_from-Docker_Hub-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Pull from Docker Hub" height="40" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://kaja.tools/demo/"><strong>Live Demo</strong></a> ·
-  <a href="https://kaja.tools"><strong>Website</strong></a> ·
-  <a href="https://hub.docker.com/r/kajatools/kaja"><strong>Docker Hub</strong></a>
+  <a href="https://kaja.tools"><strong>Website</strong></a>
 </p>
 
 <p align="center">
@@ -32,11 +41,9 @@
 
 - **Code-based** — Write TypeScript to call your APIs. Full autocomplete for services, methods, and message fields.
 - **gRPC & Twirp** — Native support for both protocols. Reads your `.proto` files or uses [gRPC server reflection](https://grpc.io/docs/guides/reflection/).
-- **macOS & Docker** — Available as a [macOS desktop app](https://github.com/wham/kaja/releases/latest/download/Kaja.dmg) or a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
+- **macOS & Docker** — Available on the [Mac App Store](https://apps.apple.com/us/app/kaja-for-grpc-and-twirp/id6761604205?mt=12) or as a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
 
-## Quick Start
-
-### Docker
+## Run with Docker
 
 ```
 docker run --pull always --name kaja -d -p 41520:41520 \
@@ -46,10 +53,6 @@ docker run --pull always --name kaja -d -p 41520:41520 \
 ```
 
 Then open [http://localhost:41520](http://localhost:41520).
-
-### macOS
-
-Download the latest [Kaja.dmg](https://github.com/wham/kaja/releases/latest/download/Kaja.dmg) from GitHub Releases.
 
 ## Configuration
 

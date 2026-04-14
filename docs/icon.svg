@@ -7,9 +7,12 @@
     </linearGradient>
   </defs>
 
-  <path d="M8 50 H34 L44 18 L54 50 L64 82 L74 50 H74"
-        fill="none" stroke="url(#kajaGrad)" stroke-width="8.5"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="10" y="10" width="80" height="80" rx="18" ry="18" fill="#FFFFFF"/>
 
-  <circle cx="88" cy="42" r="8" fill="#8A3ACA"/>
+  <g transform="translate(17.6 17.5) scale(0.65)">
+    <path d="M8 50 H34 L44 18 L54 50 L64 82 L74 50 H74"
+          fill="none" stroke="url(#kajaGrad)" stroke-width="8.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="88" cy="42" r="8" fill="#8A3ACA"/>
+  </g>
 </svg>
