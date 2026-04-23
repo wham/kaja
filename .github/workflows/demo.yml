@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   demo:
     runs-on: ubuntu-latest
