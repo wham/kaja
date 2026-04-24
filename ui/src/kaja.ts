@@ -15,6 +15,7 @@ export interface MethodCallHeaders {
 }
 
 export interface MethodCall {
+  id: string;
   projectName: string;
   service: Service;
   method: Method;

@@ -102,11 +102,11 @@ export function App() {
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
-      const index = consoleItems.findIndex((item) => item === methodCall);
+      const index = consoleItems.findIndex((item) => "id" in item && item.id === methodCall.id);
       if (index > -1) {
         return consoleItems.map((item, i) => (i === index ? { ...methodCall } : item));
       } else {
-        return [...consoleItems, methodCall];
+        return [...consoleItems, { ...methodCall }];
       }
     });
   }, []);

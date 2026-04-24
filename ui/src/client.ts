@@ -74,6 +74,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       const requestHeaders: { [key: string]: string } = { ...(projectRef.configuration.headers || {}) };
 
       const methodCall: MethodCall = {
+        id: crypto.randomUUID(),
         projectName: projectRef.configuration.name,
         service,
         method,
