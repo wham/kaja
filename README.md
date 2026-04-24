@@ -5,7 +5,7 @@
 <h3 align="center">Explore and call your APIs with code</h3>
 
 <p align="center">
-  A code-based UI for <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs with full autocomplete.
+  A code-based UI for exploring and calling <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs.
   <br/>
   Write TypeScript to construct requests, call services, and inspect responses — no forms, no clicking through fields.
 </p>
