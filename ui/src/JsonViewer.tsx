@@ -4,6 +4,7 @@ import { formatJson } from "./formatter";
 
 interface JsonViewerProps {
   value: any;
+  rawText?: string;
   colorMode?: "day" | "night";
 }
 
@@ -13,7 +14,7 @@ export interface JsonViewerHandle {
   copyToClipboard: () => void;
 }
 
-export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, colorMode = "night" }, ref) {
+export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText, colorMode = "night" }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [jsonText, setJsonText] = useState("");
@@ -38,11 +39,16 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
   // Format JSON and update editor
   useEffect(() => {
     async function updateContent() {
-      let text = JSON.stringify(value);
-      if (text === undefined || text === null) {
-        text = "";
+      let text: string;
+      if (rawText !== undefined) {
+        text = rawText;
+      } else {
+        let stringified = JSON.stringify(value);
+        if (stringified === undefined || stringified === null) {
+          stringified = "";
+        }
+        text = await formatJson(stringified);
       }
-      text = await formatJson(text);
       setJsonText(text);
 
       if (editorRef.current) {
@@ -50,7 +56,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       }
     }
     updateContent();
-  }, [value]);
+  }, [value, rawText]);
 
   // Create editor
   useEffect(() => {

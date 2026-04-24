@@ -97,7 +97,7 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
           methodCall.streamOutputs = [];
 
           for await (const message of streamCall.responses) {
-            methodCall.streamOutputs.push(message);
+            methodCall.streamOutputs = [...methodCall.streamOutputs, message];
             methodCall.output = message;
             client.kaja?._internal.methodCallUpdate(methodCall);
           }

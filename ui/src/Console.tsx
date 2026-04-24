@@ -384,12 +384,13 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
   }
 
   let content;
+  let rawText: string | undefined;
   if (activeTab === "request") {
     content = methodCall.input;
   } else if (hasError) {
     content = methodCall.error;
   } else if (isStreaming) {
-    content = methodCall.streamOutputs;
+    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(msg, null, 2)).join("\n\n");
   } else {
     content = methodCall.output;
   }
@@ -447,7 +448,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
                 : `Streaming - ${methodCall.streamOutputs!.length} message${methodCall.streamOutputs!.length !== 1 ? "s" : ""} received...`}
             </div>
           )}
-          <JsonViewer ref={jsonViewerRef} value={content} colorMode={colorMode} />
+          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} colorMode={colorMode} />
         </>
       )}
     </div>
