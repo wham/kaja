@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log/slog"
 	"os"
 	"path"
@@ -9,12 +10,40 @@ import (
 )
 
 func main() {
-	if err := build(); err != nil {
-		os.Exit(1)
+	var watch bool
+	var outDir string
+	flag.BoolVar(&watch, "watch", false, "watch source files and re-bundle main.{js,css}+codicon on every change")
+	flag.StringVar(&outDir, "out", "build", "output directory")
+	flag.Parse()
+
+	if watch {
+		if err := watchMain(outDir); err != nil {
+			os.Exit(1)
+		}
+	} else {
+		if err := build(outDir); err != nil {
+			os.Exit(1)
+		}
 	}
 }
 
-func build() error {
+// watchMain re-bundles the main entry point on every source change. Monaco
+// workers and static files are not watched - they're written by build() and
+// don't change between rebuilds.
+func watchMain(outDir string) error {
+	if err := os.MkdirAll(outDir, os.ModePerm); err != nil {
+		slog.Error("Failed to create output directory", "error", err)
+		return err
+	}
+	slog.Info("Watching UI source for changes...", "out", outDir)
+	if _, err := ui.WatchForDevelopment(outDir); err != nil {
+		slog.Error("Failed to start watcher", "error", err)
+		return err
+	}
+	select {}
+}
+
+func build(outputDirectory string) error {
 	slog.Info("Building UI for production...")
 
 	data, err := ui.BuildForProduction()
@@ -22,7 +51,6 @@ func build() error {
 		return err
 	}
 
-	outputDirectory := "build"
 	if err := os.MkdirAll(outputDirectory, os.ModePerm); err != nil {
 		slog.Error("Failed to create output directory", "error", err)
 		return err
