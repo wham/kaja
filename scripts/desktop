@@ -302,7 +302,12 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
     fi
 
 else
-    # Dev mode - use git hash
+    # Dev mode - use git hash. Build with -tags development so the asset server
+    # re-runs esbuild on every request (cmd+R picks up UI source changes).
+    # Watch ../server too so edits to shared Go code restart the binary.
     GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-    wails dev -ldflags "-X main.GitRef=$GIT_REF"
+    wails dev \
+        -tags development \
+        -reloaddirs ../server \
+        -ldflags "-X main.GitRef=$GIT_REF"
 fi
