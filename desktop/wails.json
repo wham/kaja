@@ -3,6 +3,12 @@
   "name": "Kaja",
   "outputfilename": "Kaja",
   "wailsjsdir": "../ui/src",
+  "frontend:dir": "../ui",
+  "frontend:install": "bun install",
+  "frontend:build": "go -C ../server run ./cmd/build-ui -out ../desktop/frontend/dist -static static",
+  "frontend:dev:watcher": "go -C ../server run ./cmd/build-ui -watch -out ../desktop/frontend/dist",
+  "assetdir": "frontend/dist",
+  "reloaddirs": "../server",
   "info": {
     "productName": "Kaja",
     "productVersion": "0.10.0",

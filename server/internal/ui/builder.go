@@ -11,9 +11,9 @@ import (
 )
 
 type UiBundle struct {
-	MainJs        []byte
-	MainCss       []byte
-	CodiconTtf    []byte
+	MainJs         []byte
+	MainCss        []byte
+	CodiconTtf     []byte
 	CodiconTtfName string
 }
 
@@ -34,6 +34,32 @@ func BuildForDevelopment() *UiBundle {
 	bundle, _ := buildResultToUiBundle(result)
 
 	return bundle
+}
+
+// WatchForDevelopment starts an esbuild watcher that re-bundles the UI into outDir
+// whenever a source file changes. Used by scripts/desktop with `wails dev -assetdir`
+// so Wails' built-in fsnotify watcher picks up the changes and reloads the window.
+// Blocks forever; the returned context is for cancellation by callers.
+func WatchForDevelopment(outDir string) (esbuild.BuildContext, error) {
+	ctx, ctxErr := esbuild.Context(esbuild.BuildOptions{
+		EntryPoints: []string{"../ui/src/main.tsx"},
+		Bundle:      true,
+		Format:      esbuild.FormatESModule,
+		Sourcemap:   esbuild.SourceMapInline,
+		Outdir:      outDir,
+		Write:       true,
+		Loader: map[string]esbuild.Loader{
+			".ttf": esbuild.LoaderFile,
+		},
+	})
+	if ctxErr != nil {
+		return nil, fmt.Errorf("failed to create esbuild context: %s", ctxErr.Error())
+	}
+	if err := ctx.Watch(esbuild.WatchOptions{}); err != nil {
+		ctx.Dispose()
+		return nil, err
+	}
+	return ctx, nil
 }
 
 func BuildForProduction() (*UiBundle, error) {
