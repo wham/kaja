@@ -5,3 +5,4 @@
 /protoc-gen-kaja/status.txt
 /server/build
 /ui/node_modules
+/ui/package.json.md5
