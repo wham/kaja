@@ -1,7 +1,4 @@
 {
-  "enabledPlugins": {
-    "chrome-devtools-mcp@chrome-devtools-plugins": true
-  },
   "hooks": {
     "PostToolUse": [
       {
@@ -14,5 +11,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "chrome-devtools-mcp@chrome-devtools-plugins": true,
+    "skill-creator@claude-plugins-official": true
   }
 }
