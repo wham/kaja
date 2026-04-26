@@ -79,22 +79,10 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
-cd "./ui"
-bun i
-
-cd ../server
-go run cmd/build-ui/main.go
-
-cd ..
-
-# Prepare desktop frontend assets
-rm -rf desktop/frontend/dist || true
-mkdir -p desktop/frontend/dist
-cp server/build/main.css desktop/frontend/dist/main.css
-cp server/build/main.js desktop/frontend/dist/main.js
-cp server/build/monaco.*.worker.js desktop/frontend/dist/
-cp -r server/static desktop/frontend/dist/
-mv desktop/frontend/dist/static/index.html desktop/frontend/dist/index.html
+# Frontend prep (bun install + bundle UI + copy static assets) is now driven
+# by Wails via the frontend:install / frontend:build / frontend:dev:watcher
+# hooks declared in desktop/wails.json. `wails dev` and `wails build` invoke
+# them automatically with cwd = ../ui.
 
 cd ./desktop
 
@@ -302,22 +290,12 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
     fi
 
 else
-    # Dev mode. The initial build above populated desktop/frontend/dist so the
-    # //go:embed in main.go compiles. Now keep the dist dir live by running
-    # esbuild in watch mode in the background, and point `wails dev` at it via
-    # -assetdir. Wails' built-in fsnotify watcher detects writes to that dir
-    # and triggers WindowReload automatically. -reloaddirs ../server picks up
-    # edits to shared Go code (server/ is replaced into desktop's go.mod).
+    # Dev mode. wails.json handles the entire frontend pipeline:
+    #   - frontend:install runs `bun install` in ../ui
+    #   - frontend:build performs the initial bundle into frontend/dist
+    #   - frontend:dev:watcher keeps that dir live via esbuild's watch mode
+    #   - assetdir + reloaddirs make Wails reload on UI changes and rebuild on
+    #     shared Go edits
     GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-
-    ABSOLUTE_DIST=$(cd ./frontend/dist && pwd)
-    ( cd ../server && exec go run cmd/build-ui/main.go -watch -out "$ABSOLUTE_DIST" ) &
-    WATCH_PID=$!
-    # `go run` execs the compiled binary as a child; kill descendants too.
-    trap "pkill -TERM -P $WATCH_PID 2>/dev/null; kill $WATCH_PID 2>/dev/null" EXIT
-
-    wails dev \
-        -assetdir frontend/dist \
-        -reloaddirs ../server \
-        -ldflags "-X main.GitRef=$GIT_REF"
+    wails dev -ldflags "-X main.GitRef=$GIT_REF"
 fi

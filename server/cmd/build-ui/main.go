@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log/slog"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/wham/kaja/v2/internal/ui"
 )
@@ -12,8 +14,10 @@ import (
 func main() {
 	var watch bool
 	var outDir string
+	var staticSrc string
 	flag.BoolVar(&watch, "watch", false, "watch source files and re-bundle main.{js,css}+codicon on every change")
 	flag.StringVar(&outDir, "out", "build", "output directory")
+	flag.StringVar(&staticSrc, "static", "", "directory to copy alongside the bundle (index.html lifted to root, rest under static/)")
 	flag.Parse()
 
 	if watch {
@@ -21,7 +25,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		if err := build(outDir); err != nil {
+		if err := build(outDir, staticSrc); err != nil {
 			os.Exit(1)
 		}
 	}
@@ -43,7 +47,7 @@ func watchMain(outDir string) error {
 	select {}
 }
 
-func build(outputDirectory string) error {
+func build(outputDirectory string, staticSrc string) error {
 	slog.Info("Building UI for production...")
 
 	data, err := ui.BuildForProduction()
@@ -87,7 +91,56 @@ func build(outputDirectory string) error {
 		slog.Info("Monaco worker built", "file", outputFile)
 	}
 
+	if staticSrc != "" {
+		if err := copyStatic(staticSrc, outputDirectory); err != nil {
+			slog.Error("Failed to copy static files", "error", err)
+			return err
+		}
+	}
+
 	slog.Info("UI built successfully")
 
 	return nil
+}
+
+// copyStatic mirrors the layout produced by the legacy `cp -r server/static
+// .../dist && mv dist/static/index.html dist/index.html` step in scripts/desktop:
+// index.html lands at outDir/, everything else under outDir/static/.
+func copyStatic(srcDir, outDir string) error {
+	staticOut := filepath.Join(outDir, "static")
+	if err := os.MkdirAll(staticOut, 0755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		dst := filepath.Join(staticOut, entry.Name())
+		if entry.Name() == "index.html" {
+			dst = filepath.Join(outDir, entry.Name())
+		}
+		if err := copyFile(filepath.Join(srcDir, entry.Name()), dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
 }
