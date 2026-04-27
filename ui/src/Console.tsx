@@ -267,16 +267,21 @@ interface MethodCallRowProps {
 }
 
 Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: MethodCallRowProps) {
-  const status = methodCall.error ? "error" : methodCall.output ? "success" : "pending";
+  const isStreaming = methodCall.streamOutputs !== undefined;
+  const isStreamActive = isStreaming && !methodCall.streamComplete && !methodCall.error;
+
+  const status = methodCall.error ? "error" : isStreamActive ? "streaming" : methodCall.output ? "success" : "pending";
 
   const statusColor = {
     pending: "var(--fgColor-muted)",
+    streaming: "var(--fgColor-accent)",
     success: "var(--fgColor-success)",
     error: "var(--fgColor-danger)",
   }[status];
 
   const statusIcon = {
     pending: "○",
+    streaming: "◉",
     success: "●",
     error: "●",
   }[status];
@@ -318,6 +323,9 @@ interface DetailTabsProps {
 }
 
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
+  const isStreaming = methodCall.streamOutputs !== undefined;
+  const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
+
   return (
     <div style={{ display: "flex" }}>
       <div className={`console-tab ${activeTab === "request" ? "active" : ""}`} onClick={() => onTabChange("request")}>
@@ -330,7 +338,7 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
           color: methodCall.error ? "var(--fgColor-danger)" : activeTab === "response" ? "var(--fgColor-default)" : "var(--fgColor-muted)",
         }}
       >
-        Response
+        Response{isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}
       </div>
       <div className={`console-tab ${activeTab === "headers" ? "active" : ""}`} onClick={() => onTabChange("headers")}>
         Headers
@@ -348,7 +356,8 @@ interface DetailContentProps {
 }
 
 Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night", jsonViewerRef }: DetailContentProps) {
-  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined;
+  const isStreaming = methodCall.streamOutputs !== undefined;
+  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
   const hasError = methodCall.error !== undefined;
 
   // Switch to response tab when response arrives
@@ -362,7 +371,17 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
     return <Console.HeadersContent methodCall={methodCall} />;
   }
 
-  const content = activeTab === "request" ? methodCall.input : methodCall.error || methodCall.output;
+  let content;
+  let rawText: string | undefined;
+  if (activeTab === "request") {
+    content = methodCall.input;
+  } else if (hasError) {
+    content = methodCall.error;
+  } else if (isStreaming) {
+    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(msg, null, 2)).join("\n\n");
+  } else {
+    content = methodCall.output;
+  }
 
   return (
     <div
@@ -402,7 +421,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
               POST {methodCall.url}
             </div>
           )}
-          <JsonViewer ref={jsonViewerRef} value={content} colorMode={colorMode} />
+          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} colorMode={colorMode} />
         </>
       )}
     </div>
