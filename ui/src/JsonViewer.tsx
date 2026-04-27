@@ -36,29 +36,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     },
   }));
 
-  // Format JSON and update editor
-  useEffect(() => {
-    async function updateContent() {
-      let text: string;
-      if (rawText !== undefined) {
-        text = rawText;
-      } else {
-        let stringified = JSON.stringify(value);
-        if (stringified === undefined || stringified === null) {
-          stringified = "";
-        }
-        text = await formatJson(stringified);
-      }
-      setJsonText(text);
-
-      if (editorRef.current) {
-        editorRef.current.setValue(text);
-      }
-    }
-    updateContent();
-  }, [value, rawText]);
-
-  // Create editor
+  // Create editor (must run before the value-setting effect so editorRef.current is set when it runs)
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -114,6 +92,28 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       editorRef.current = null;
     };
   }, []);
+
+  // Format JSON and update editor
+  useEffect(() => {
+    async function updateContent() {
+      let text: string;
+      if (rawText !== undefined) {
+        text = rawText;
+      } else {
+        let stringified = JSON.stringify(value);
+        if (stringified === undefined || stringified === null) {
+          stringified = "";
+        }
+        text = await formatJson(stringified);
+      }
+      setJsonText(text);
+
+      if (editorRef.current) {
+        editorRef.current.setValue(text);
+      }
+    }
+    updateContent();
+  }, [value, rawText]);
 
   return (
     <div style={{ position: "relative", height: "100%" }}>

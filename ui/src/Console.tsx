@@ -300,18 +300,6 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: Meth
       >
         {methodId(methodCall.service, methodCall.method)}
       </span>
-      {isStreaming && methodCall.streamOutputs!.length > 0 && (
-        <span
-          style={{
-            color: "var(--fgColor-muted)",
-            fontSize: 10,
-            marginLeft: 6,
-            flexShrink: 0,
-          }}
-        >
-          {methodCall.streamOutputs!.length}
-        </span>
-      )}
       <span
         style={{
           color: "var(--fgColor-muted)",
@@ -431,21 +419,6 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
               }}
             >
               POST {methodCall.url}
-            </div>
-          )}
-          {activeTab === "response" && isStreaming && !hasError && (
-            <div
-              style={{
-                padding: "4px 12px",
-                fontFamily: "monospace",
-                fontSize: 11,
-                color: methodCall.streamComplete ? "var(--fgColor-muted)" : "var(--fgColor-accent)",
-                borderBottom: "1px solid var(--borderColor-muted)",
-              }}
-            >
-              {methodCall.streamComplete
-                ? `Stream complete - ${methodCall.streamOutputs!.length} message${methodCall.streamOutputs!.length !== 1 ? "s" : ""}`
-                : `Streaming - ${methodCall.streamOutputs!.length} message${methodCall.streamOutputs!.length !== 1 ? "s" : ""} received...`}
             </div>
           )}
           <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} colorMode={colorMode} />
