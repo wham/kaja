@@ -19,6 +19,22 @@ then
     fi
 fi
 
+# Check if Bun is installed, if not ask for user confirmation to install it using Homebrew
+if ! command -v bun &> /dev/null
+then
+    echo "Bun is not installed."
+    read -p "Would you like to install Bun using Homebrew? (y/n) " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing Bun using Homebrew..."
+        brew install oven-sh/bun/bun
+    else
+        echo "Bun installation skipped. Exiting script."
+        exit 1
+    fi
+fi
+
 cd "$(dirname "$0")/.."
 
 # Kill any existing server on port 41520

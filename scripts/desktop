@@ -74,6 +74,22 @@ then
     brew install create-dmg
 fi
 
+# Check if Bun is installed (wails dev/build invokes it via frontend:install)
+if ! command -v bun &> /dev/null
+then
+    if [ -t 0 ]; then
+        echo "Bun is not installed."
+        read -p "Would you like to install Bun using Homebrew? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Bun installation skipped. Exiting script."
+            exit 1
+        fi
+    fi
+    echo "Installing Bun using Homebrew..."
+    brew install oven-sh/bun/bun
+fi
+
 cd "$(dirname "$0")/.."
 
 export GOBIN=$PWD/server/build
