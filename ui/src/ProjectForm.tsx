@@ -1,5 +1,5 @@
-import { FileDirectoryIcon } from "@primer/octicons-react";
-import { Button, FormControl, Radio, RadioGroup, SegmentedControl, Select, Stack, TextInput } from "@primer/react";
+import { FileDirectoryIcon, LightBulbIcon } from "@primer/octicons-react";
+import { Button, FormControl, Link, Radio, RadioGroup, SegmentedControl, Select, Stack, TextInput } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ConfigurationProject as ConfigurationProjectType, ConfigurationProject, RpcProtocol } from "./server/api";
@@ -278,6 +278,16 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
     }
   };
 
+  const grpcbinDemoUrl = "https://grpcb.in:9001";
+
+  const fillGrpcbinDemo = () => {
+    setName("grpcb.in");
+    setUrl(grpcbinDemoUrl);
+    setProtocol(RpcProtocol.GRPC);
+    setProtoDir("");
+    setProtoSourceType("reflection");
+  };
+
   return (
     <div className="project-form" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
       <style>{`
@@ -296,18 +306,31 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
           borderBottom: "1px solid var(--borderColor-default)",
         }}
       >
-        <Select value={selectedProjectValue} onChange={handleProjectChange} style={{ minWidth: 200 }}>
-          <Select.Option value={NEW_PROJECT_VALUE}>+ New Project</Select.Option>
-          {allProjects.length > 0 && (
-            <Select.OptGroup label="Edit existing">
-              {allProjects.map((p) => (
-                <Select.Option key={p.name} value={p.name}>
-                  {p.name}
-                </Select.Option>
-              ))}
-            </Select.OptGroup>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Select value={selectedProjectValue} onChange={handleProjectChange} style={{ minWidth: 200 }}>
+            <Select.Option value={NEW_PROJECT_VALUE}>+ New Project</Select.Option>
+            {allProjects.length > 0 && (
+              <Select.OptGroup label="Edit existing">
+                {allProjects.map((p) => (
+                  <Select.Option key={p.name} value={p.name}>
+                    {p.name}
+                  </Select.Option>
+                ))}
+              </Select.OptGroup>
+            )}
+          </Select>
+          {allProjects.length === 0 && mode === "create" && !readOnly && editMode === "form" && (
+            <Link
+              as="button"
+              type="button"
+              onClick={fillGrpcbinDemo}
+              style={{ fontSize: 12, lineHeight: "18px", display: "inline-flex", alignItems: "center", gap: 4 }}
+            >
+              <LightBulbIcon size={12} />
+              Try the grpcb.in demo server
+            </Link>
           )}
-        </Select>
+        </div>
         <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
           <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
           <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
