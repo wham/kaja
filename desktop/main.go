@@ -61,15 +61,17 @@ type App struct {
 	twirpHandler         api.TwirpServer
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
+	workspaceDir         string   // base for resolving relative protoDir / scriptsDir
 	activeStreams        sync.Map // streamID -> context.CancelFunc
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore) *App {
+func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
 		twirpHandler:         twirpHandler,
 		configurationWatcher: configurationWatcher,
 		bookmarkStore:        bookmarkStore,
+		workspaceDir:         workspaceDir,
 	}
 }
 
@@ -84,6 +86,71 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "configuration:changed")
 		})
 	}
+}
+
+// ScriptFile is the on-disk representation of a Kaja script.
+// For ListProjectScripts only Path and Name are populated; Content is fetched
+// on demand via ReadScriptFile.
+type ScriptFile struct {
+	Path    string `json:"path"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+func (a *App) resolveWorkspacePath(rel string) string {
+	if filepath.IsAbs(rel) {
+		return rel
+	}
+	return filepath.Join(a.workspaceDir, rel)
+}
+
+// ListProjectScripts returns *.kaja.ts files in the given scripts directory.
+// scriptsDir is interpreted as workspace-relative unless absolute. An empty
+// scriptsDir returns no scripts.
+func (a *App) ListProjectScripts(scriptsDir string) ([]ScriptFile, error) {
+	if scriptsDir == "" {
+		return []ScriptFile{}, nil
+	}
+	abs := a.resolveWorkspacePath(scriptsDir)
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []ScriptFile{}, nil
+		}
+		return nil, err
+	}
+	scripts := make([]ScriptFile, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".kaja.ts") {
+			continue
+		}
+		scripts = append(scripts, ScriptFile{
+			Path: filepath.Join(abs, e.Name()),
+			Name: e.Name(),
+		})
+	}
+	return scripts, nil
+}
+
+// ReadScriptFile reads the contents of a script file by absolute path.
+func (a *App) ReadScriptFile(path string) (*ScriptFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &ScriptFile{
+		Path:    path,
+		Name:    filepath.Base(path),
+		Content: string(data),
+	}, nil
+}
+
+// WriteScriptFile writes content back to a known script path.
+func (a *App) WriteScriptFile(path string, content string) error {
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // OpenDirectoryDialog opens a native directory picker dialog.
@@ -382,10 +449,16 @@ func main() {
 	}
 
 	// Create application with options
-	app := NewApp(twirpHandler, configurationWatcher, bookmarkStore)
+	app := NewApp(twirpHandler, configurationWatcher, bookmarkStore, kajaDir)
 
 	appMenu := menu.NewMenu()
 	appMenu.Append(menu.AppMenu())
+
+	fileMenu := appMenu.AddSubmenu("File")
+	fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "menu:saveScript")
+	})
+
 	appMenu.Append(menu.EditMenu())
 	viewMenu := appMenu.AddSubmenu("View")
 	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {

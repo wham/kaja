@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
-import { Method, Project, Service, methodId } from "./project";
+import { CpuIcon, FileCodeIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
+import { Method, Project, ProjectScript, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -51,21 +51,33 @@ interface ScrollToMethod {
 interface SidebarProps {
   projects: Project[];
   currentMethod?: Method;
+  currentScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteProjects?: boolean;
   onSelect: (method: Method, service: Service, project: Project) => void;
+  onScriptSelect?: (script: ProjectScript, project: Project) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
 }
 
+function getScriptsElementId(projectName: string): string {
+  return `${projectName}-_scripts`;
+}
+
+function getScriptElementId(projectName: string, path: string): string {
+  return `${projectName}-_scripts-${path}`;
+}
+
 export function Sidebar({
   projects,
   currentMethod,
+  currentScriptPath,
   scrollToMethod,
   canDeleteProjects = true,
   onSelect,
+  onScriptSelect,
   onCompilerClick,
   onNewProjectClick,
   onEditProject,
@@ -166,6 +178,9 @@ export function Sidebar({
       }
       for (const service of project.services) {
         validServices.add(getServiceElementId(project.configuration.name, service));
+      }
+      if (project.scripts && project.scripts.length > 0) {
+        validServices.add(getScriptsElementId(project.configuration.name));
       }
     }
 
@@ -383,6 +398,55 @@ export function Sidebar({
                     (() => {
                       const multiplePackages = hasMultiplePackages(project.services);
 
+                      const renderScriptsNode = () => {
+                        if (!project.scripts || project.scripts.length === 0) return null;
+                        const scriptsId = getScriptsElementId(projectName);
+                        const isScriptsExpanded = expandedServices.has(scriptsId);
+                        return (
+                          <TreeView.Item
+                            id={scriptsId}
+                            key={scriptsId}
+                            ref={(el: HTMLElement | null) => {
+                              if (el) elementRefs.current.set(scriptsId, el);
+                              else elementRefs.current.delete(scriptsId);
+                            }}
+                            expanded={isScriptsExpanded}
+                            onExpandedChange={(expanded) => {
+                              setExpandedServices((prev) => {
+                                const next = new Set(prev);
+                                if (expanded) {
+                                  next.add(scriptsId);
+                                } else {
+                                  next.delete(scriptsId);
+                                }
+                                return next;
+                              });
+                              if (expanded) scrollIntoView(scriptsId);
+                            }}
+                          >
+                            <TreeView.LeadingVisual>
+                              <FileCodeIcon size={16} />
+                            </TreeView.LeadingVisual>
+                            <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>scripts</span>
+                            <TreeView.SubTree>
+                              {project.scripts.map((script) => {
+                                const elId = getScriptElementId(projectName, script.path);
+                                return (
+                                  <TreeView.Item
+                                    id={elId}
+                                    key={script.path}
+                                    onSelect={() => onScriptSelect?.(script, project)}
+                                    current={currentScriptPath === script.path}
+                                  >
+                                    {script.name.replace(/\.kaja\.ts$/, "")}
+                                  </TreeView.Item>
+                                );
+                              })}
+                            </TreeView.SubTree>
+                          </TreeView.Item>
+                        );
+                      };
+
                       const renderServiceItem = (service: Service) => {
                         const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
                         const svcId = `${projectName}-${serviceKey}`;
@@ -434,10 +498,15 @@ export function Sidebar({
                       };
 
                       if (!multiplePackages) {
-                        return project.services.map(renderServiceItem);
+                        return (
+                          <>
+                            {project.services.map(renderServiceItem)}
+                            {renderScriptsNode()}
+                          </>
+                        );
                       }
 
-                      return groupServicesByPackage(project.services).map(([packageName, services]) => {
+                      const packageNodes = groupServicesByPackage(project.services).map(([packageName, services]) => {
                         const packageId = getPackageElementId(projectName, packageName);
                         const isPackageExpanded = expandedServices.has(packageId);
                         return (
@@ -472,6 +541,12 @@ export function Sidebar({
                           </TreeView.Item>
                         );
                       });
+                      return (
+                        <>
+                          {packageNodes}
+                          {renderScriptsNode()}
+                        </>
+                      );
                     })()
                   )}
                 </TreeView>

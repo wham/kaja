@@ -1,5 +1,5 @@
 import * as monaco from "monaco-editor";
-import { createProjectRef, Method, Project, Service } from "./project";
+import { createProjectRef, Method, Project, ProjectScript, Service } from "./project";
 import { generateMethodEditorCode } from "./projectLoader";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 
@@ -35,7 +35,18 @@ interface ProjectFormTab {
   initialData?: ConfigurationProject;
 }
 
-export type TabModel = CompilerTab | TaskTab | DefinitionTab | ProjectFormTab;
+export interface ScriptTab {
+  type: "script";
+  id: string;
+  project: Project;
+  script: ProjectScript;
+  model: monaco.editor.ITextModel;
+  // Bytes last persisted to disk; the tab is "dirty" when model.getValue() differs.
+  savedContent: string;
+  viewState?: monaco.editor.ICodeEditorViewState;
+}
+
+export type TabModel = CompilerTab | TaskTab | DefinitionTab | ProjectFormTab | ScriptTab;
 
 let idGenerator = 0;
 
@@ -129,6 +140,62 @@ export function getTabLabel(path: string): string {
   return path.split("/").pop() || path;
 }
 
+export function getScriptTabLabel(tab: ScriptTab): string {
+  return tab.script.name.replace(/\.kaja\.ts$/, "");
+}
+
+export function isScriptTabDirty(tab: ScriptTab): boolean {
+  return tab.model.getValue() !== tab.savedContent;
+}
+
+export function addScriptTab(tabs: TabModel[], script: ProjectScript, project: Project, content: string): { tabs: TabModel[]; activeIndex: number } {
+  // Reuse an existing tab for the same file.
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    if (tab.type === "script" && tab.script.path === script.path) {
+      // Refresh contents in case the file changed on disk.
+      tab.model.setValue(content);
+      tab.savedContent = content;
+      tab.project = project;
+      tab.script = script;
+      return { tabs: [...tabs], activeIndex: i };
+    }
+  }
+
+  const id = generateId("script");
+  const model = monaco.editor.createModel(content, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+  const newTab: ScriptTab = {
+    type: "script",
+    id,
+    project,
+    script,
+    model,
+    savedContent: content,
+  };
+
+  // Replace a trailing ephemeral task tab the same way addTaskTab does.
+  const last = tabs[tabs.length - 1];
+  const replaceLast = last && ((last.type === "task" && !last.hasInteraction) || last.type === "definition");
+  if (replaceLast) {
+    const newTabs = [...tabs.slice(0, -1), newTab];
+    return { tabs: newTabs, activeIndex: newTabs.length - 1 };
+  }
+  const newTabs = [...tabs, newTab];
+  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
+}
+
+export function markScriptTabSaved(tabs: TabModel[], tabId: string, savedContent: string): TabModel[] {
+  let changed = false;
+  const next = tabs.map((tab) => {
+    if (tab.type === "script" && tab.id === tabId) {
+      changed = true;
+      return { ...tab, savedContent };
+    }
+    return tab;
+  });
+  return changed ? next : tabs;
+}
+
 export function addProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
   // Check if there's already a project form tab open
   const existingIndex = tabs.findIndex((tab) => tab.type === "projectForm");
@@ -200,7 +267,17 @@ interface PersistedCompilerTab {
   type: "compiler";
 }
 
-type PersistedTab = PersistedTaskTab | PersistedCompilerTab;
+interface PersistedScriptTab {
+  type: "script";
+  projectName: string;
+  scriptPath: string;
+  scriptName: string;
+  code: string;
+  savedContent: string;
+  viewState?: object;
+}
+
+type PersistedTab = PersistedTaskTab | PersistedCompilerTab | PersistedScriptTab;
 
 export interface PersistedTabState {
   activeIndex: number;
@@ -232,6 +309,17 @@ export function serializeTabs(
         hasInteraction: tab.hasInteraction,
         viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
       });
+    } else if (tab.type === "script") {
+      indexMap.push(serializedTabs.length);
+      serializedTabs.push({
+        type: "script",
+        projectName: tab.project.configuration.name,
+        scriptPath: tab.script.path,
+        scriptName: tab.script.name,
+        code: tab.model.getValue(),
+        savedContent: tab.savedContent,
+        viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
+      });
     }
   }
 
@@ -247,6 +335,38 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
   for (const persisted of state.tabs) {
     if (persisted.type === "compiler") {
       tabs.push({ type: "compiler" });
+      continue;
+    }
+
+    if (persisted.type === "script") {
+      const sid = generateId("script");
+      const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + sid + ".ts"));
+      const configuration: ConfigurationProject = {
+        name: persisted.projectName,
+        protocol: RpcProtocol.UNSPECIFIED,
+        url: "",
+        protoDir: "",
+        useReflection: false,
+        headers: {},
+        scriptsDir: "",
+      };
+      tabs.push({
+        type: "script",
+        id: sid,
+        project: {
+          configuration,
+          projectRef: createProjectRef(configuration),
+          compilation: { status: "pending", logs: [] },
+          services: [],
+          clients: {},
+          sources: [],
+          stub: { serviceInfos: {} },
+        },
+        script: { path: persisted.scriptPath, name: persisted.scriptName },
+        model,
+        savedContent: persisted.savedContent,
+        viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
+      });
       continue;
     }
 
@@ -267,6 +387,7 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
       protoDir: "",
       useReflection: false,
       headers: {},
+      scriptsDir: "",
     };
 
     tabs.push({
@@ -298,17 +419,20 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
 
 export function linkTabsToProjects(tabs: TabModel[], projects: Project[]): void {
   for (const tab of tabs) {
-    if (tab.type !== "task") continue;
+    if (tab.type === "task") {
+      const project = projects.find((p) => p.configuration.name === tab.originProject.configuration.name);
+      if (!project) continue;
+      const service = project.services.find((s) => s.name === tab.originService.name);
+      if (!service) continue;
+      const method = service.methods.find((m) => m.name === tab.originMethod.name);
+      if (!method) continue;
 
-    const project = projects.find((p) => p.configuration.name === tab.originProject.configuration.name);
-    if (!project) continue;
-    const service = project.services.find((s) => s.name === tab.originService.name);
-    if (!service) continue;
-    const method = service.methods.find((m) => m.name === tab.originMethod.name);
-    if (!method) continue;
-
-    tab.originProject = project;
-    tab.originService = service;
-    tab.originMethod = method;
+      tab.originProject = project;
+      tab.originService = service;
+      tab.originMethod = method;
+    } else if (tab.type === "script") {
+      const project = projects.find((p) => p.configuration.name === tab.project.configuration.name);
+      if (project) tab.project = project;
+    }
   }
 }

@@ -1,6 +1,6 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, Button, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { BaseStyles, Button, Flash, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
 import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
-import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
+import { createProjectRef, getDefaultMethod, Method, Project, ProjectScript, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -21,12 +21,16 @@ import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
   addProjectFormTab,
+  addScriptTab,
   addTaskTab,
   getProjectFormTabIndex,
   getProjectFormTabLabel,
+  getScriptTabLabel,
   getTabLabel,
+  isScriptTabDirty,
   linkTabsToProjects,
   markInteraction,
+  markScriptTabSaved,
   PersistedTabState,
   restoreTabs,
   serializeTabs,
@@ -41,7 +45,8 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { BrowserOpenURL, WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { ListProjectScripts, ReadScriptFile, WriteScriptFile } from "./wailsjs/go/main/App";
 
 // Helper: Create a new project in pending compilation state
 function createPendingProject(config: ConfigurationProject): Project {
@@ -99,6 +104,8 @@ export function App() {
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
   const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
+  const [, setScriptDirtyTick] = useState(0);
+  const [fileError, setFileError] = useState<string | undefined>();
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
@@ -262,6 +269,7 @@ export function App() {
         const protoDirChanged = prev.protoDir !== newConfig.protoDir;
         const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
         const reflectionUrlChanged = newConfig.useReflection && prev.url !== newConfig.url;
+        const scriptsDirChanged = (prev.scriptsDir ?? "") !== (newConfig.scriptsDir ?? "");
 
         if (protoDirChanged || useReflectionChanged || reflectionUrlChanged) {
           // Needs recompilation
@@ -270,7 +278,9 @@ export function App() {
         } else {
           // Update the projectRef in place - clients will pick up new URL/headers dynamically
           updateProjectRef(existingProject.projectRef, newConfig);
-          updatedProjects.push({ ...existingProject, configuration: newConfig });
+          const updated: Project = { ...existingProject, configuration: newConfig };
+          if (scriptsDirChanged) updated.scripts = undefined;
+          updatedProjects.push(updated);
         }
       }
 
@@ -349,16 +359,44 @@ export function App() {
   }, [colorMode]);
 
   useEffect(() => {
-    const activeTab = tabs[activeTabIndex];
+    const active = tabs[activeTabIndex];
     let title = "Kaja";
-    if (activeTab?.type === "task" && activeTab.originProject) {
-      title = `${activeTab.originProject.configuration.name} - Kaja`;
+    if (active?.type === "task" && active.originProject) {
+      title = `${active.originProject.configuration.name} - Kaja`;
+    } else if (active?.type === "script") {
+      title = `${active.script.name} - Kaja`;
     }
     document.title = title;
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
   }, [tabs, activeTabIndex]);
+
+  // Fetch the scripts list for any compiled project that hasn't been queried yet.
+  // The guard on `scripts === undefined` keeps this from looping when setProjects
+  // creates a new array reference.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    for (const project of projects) {
+      if (project.compilation.status !== "success") continue;
+      if (project.scripts !== undefined) continue;
+      const projectName = project.configuration.name;
+      const scriptsDir = project.configuration.scriptsDir;
+      const assign = (scripts: { path: string; name: string }[]) => {
+        setProjects((prev) => prev.map((p) => (p.configuration.name === projectName ? { ...p, scripts } : p)));
+      };
+      if (!scriptsDir) {
+        assign([]);
+        continue;
+      }
+      ListProjectScripts(scriptsDir)
+        .then((scripts) => assign((scripts ?? []).map((s) => ({ path: s.path, name: s.name }))))
+        .catch((err) => {
+          console.error("Failed to list scripts for project", projectName, err);
+          assign([]);
+        });
+    }
+  }, [projects]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -476,6 +514,71 @@ export function App() {
     persistTabs();
   };
 
+  const showFileError = useCallback((message: string) => {
+    setFileError(message);
+    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
+  }, []);
+
+  const onScriptSelect = useCallback(
+    async (script: ProjectScript, project: Project) => {
+      if (!isWailsEnvironment()) return;
+      try {
+        const file = await ReadScriptFile(script.path);
+        if (!file) return;
+        captureActiveViewState();
+        setTabs((prevTabs) => {
+          const result = addScriptTab(prevTabs, { path: file.path, name: file.name }, project, file.content);
+          setActiveTabIndex(result.activeIndex);
+          return result.tabs;
+        });
+        persistTabs();
+      } catch (err) {
+        showFileError(`Open failed: ${err}`);
+      }
+    },
+    [captureActiveViewState, persistTabs, showFileError],
+  );
+
+  const onSaveActiveScript = useCallback(async () => {
+    if (!isWailsEnvironment()) return;
+    const currentTabs = tabsRef.current;
+    const idx = activeTabIndexRef.current;
+    const tab = currentTabs[idx];
+    if (!tab || tab.type !== "script") return;
+    const content = tab.model.getValue();
+    if (content === tab.savedContent) return; // nothing to write
+    try {
+      await WriteScriptFile(tab.script.path, content);
+      setTabs((prev) => markScriptTabSaved(prev, tab.id, content));
+      persistTabs();
+    } catch (err) {
+      showFileError(`Save failed: ${err}`);
+    }
+  }, [persistTabs, showFileError]);
+
+  // Ref so the menu listener captures the latest callback without re-binding.
+  const onSaveActiveScriptRef = useRef(onSaveActiveScript);
+  onSaveActiveScriptRef.current = onSaveActiveScript;
+
+  // Wire the native File → Save menu item.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const unsub = EventsOn("menu:saveScript", () => onSaveActiveScriptRef.current());
+    return () => unsub();
+  }, []);
+
+  // Re-render tab labels when a script tab's content changes so the ● dirty
+  // marker stays accurate.
+  useEffect(() => {
+    const disposables: monaco.IDisposable[] = [];
+    for (const tab of tabs) {
+      if (tab.type === "script") {
+        disposables.push(tab.model.onDidChangeContent(() => setScriptDirtyTick((n) => n + 1)));
+      }
+    }
+    return () => disposables.forEach((d) => d.dispose());
+  }, [tabs]);
+
   const onSearchMethodSelect = (method: Method, service: Service, project: Project) => {
     onMethodSelect(method, service, project);
     setScrollToMethod({ method, service, project });
@@ -517,13 +620,17 @@ export function App() {
     persistTabs();
   };
 
+  const disposeTabEditor = (tab: TabModel) => {
+    if (tab.type === "task" || tab.type === "script") {
+      editorRegistryRef.current.delete(tab.id);
+      tab.model.dispose();
+    }
+  };
+
   const onCloseTab = (index: number) => {
     setTabs((prevTabs) => {
       const tab = prevTabs[index];
-      if (tab?.type === "task") {
-        editorRegistryRef.current.delete(tab.id);
-        tab.model.dispose();
-      }
+      if (tab) disposeTabEditor(tab);
       const newTabs = prevTabs.filter((_, i) => i !== index);
       const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
       setActiveTabIndex(newActiveIndex);
@@ -534,12 +641,7 @@ export function App() {
 
   const onCloseAll = () => {
     setTabs((prevTabs) => {
-      prevTabs.forEach((tab) => {
-        if (tab.type === "task") {
-          editorRegistryRef.current.delete(tab.id);
-          tab.model.dispose();
-        }
-      });
+      prevTabs.forEach(disposeTabEditor);
       setActiveTabIndex(0);
       return [];
     });
@@ -549,10 +651,7 @@ export function App() {
   const onCloseOthers = (keepIndex: number) => {
     setTabs((prevTabs) => {
       prevTabs.forEach((tab, i) => {
-        if (i !== keepIndex && tab.type === "task") {
-          editorRegistryRef.current.delete(tab.id);
-          tab.model.dispose();
-        }
+        if (i !== keepIndex) disposeTabEditor(tab);
       });
       setActiveTabIndex(0);
       return prevTabs.filter((_, i) => i === keepIndex);
@@ -681,8 +780,10 @@ export function App() {
     }
   };
 
-  const isActiveTaskTab = tabs[activeTabIndex]?.type === "task";
+  const activeTab = tabs[activeTabIndex];
+  const isActiveTaskTab = activeTab?.type === "task" || activeTab?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
+  const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
 
   return (
     <ThemeProvider colorMode={colorMode}>
@@ -717,7 +818,9 @@ export function App() {
                   projects={projects}
                   canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
                   onSelect={onMethodSelect}
+                  onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                   currentMethod={selectedMethod}
+                  currentScriptPath={activeScriptPath}
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
                   onNewProjectClick={onNewProjectClick}
@@ -867,6 +970,24 @@ export function App() {
                           );
                         }
 
+                        if (tab.type === "script") {
+                          const baseLabel = getScriptTabLabel(tab);
+                          const label = isScriptTabDirty(tab) ? `● ${baseLabel}` : baseLabel;
+                          return (
+                            <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                              <Task
+                                model={tab.model}
+                                projects={projects}
+                                kaja={kajaRef.current!}
+                                onInteraction={() => {}}
+                                onGoToDefinition={onGoToDefinition}
+                                onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                                viewState={tab.viewState}
+                              />
+                            </Tab>
+                          );
+                        }
+
                         if (tab.type === "definition") {
                           return (
                             <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
@@ -927,6 +1048,11 @@ export function App() {
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
         </div>
         <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
+        {fileError && (
+          <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
+            <Flash variant="danger">{fileError}</Flash>
+          </div>
+        )}
       </BaseStyles>
     </ThemeProvider>
   );

@@ -6,8 +6,16 @@ export function CancelStream(arg1) {
   return window['go']['main']['App']['CancelStream'](arg1);
 }
 
+export function ListProjectScripts(arg1) {
+  return window['go']['main']['App']['ListProjectScripts'](arg1);
+}
+
 export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
+}
+
+export function ReadScriptFile(arg1) {
+  return window['go']['main']['App']['ReadScriptFile'](arg1);
 }
 
 export function Target(arg1, arg2, arg3, arg4, arg5) {
@@ -20,4 +28,8 @@ export function TargetServerStream(arg1, arg2, arg3, arg4, arg5) {
 
 export function Twirp(arg1, arg2) {
   return window['go']['main']['App']['Twirp'](arg1, arg2);
+}
+
+export function WriteScriptFile(arg1, arg2) {
+  return window['go']['main']['App']['WriteScriptFile'](arg1, arg2);
 }

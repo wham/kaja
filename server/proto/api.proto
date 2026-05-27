@@ -100,6 +100,9 @@ message ConfigurationProject {
   string proto_dir = 4;
   bool use_reflection = 5;
   map<string, string> headers = 6;
+  // Directory holding *.kaja.ts scripts for this project. Resolved relative to
+  // the workspace (kaja.json's directory). Independent of proto_dir.
+  string scripts_dir = 7;
 }
 
 message UpdateConfigurationRequest {
