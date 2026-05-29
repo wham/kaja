@@ -1,0 +1,59 @@
+## Project scripts
+
+Each project can set `scriptsDir` (workspace-relative or absolute). Wails `ListProjectScripts` reads `*.kaja.ts` files there; the sidebar shows them under the project as a "scripts" pseudo-package with `FileCodeIcon`. Clicking opens a `ScriptTab` (own tab type, file-backed). ⌘S writes via Wails `WriteScriptFile`; `●` marks dirty.
+
+## Resources
+
+```json
+{
+  "projects": [
+    {
+      "name": "grpc-quirks",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "dns:kaja.tools:443",
+      "protoDir": "quirks/proto",
+      "headers": {
+        "X-Yolo": "kaja123",
+        "Authorization": "Bear brown"
+      }
+    },
+    {
+      "name": "twirp-quirks",
+      "protocol": "RPC_PROTOCOL_TWIRP",
+      "url": "https://kaja.tools/twirp-quirks",
+      "protoDir": "quirks/proto",
+      "headers": {
+        "X-Yolo": "kaja123",
+        "Authorization": "Bear brown"
+      }
+    },
+    {
+      "name": "grpcb.in",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "grpc://grpcb.in:9000",
+      "protoDir": "grpcbin/proto",
+      "scriptsDir": "grpcbin/scripts"
+    },
+    {
+      "name": "teams",
+      "protocol": "RPC_PROTOCOL_GRPC",
+      "url": "dns:kaja.tools:443",
+      "protoDir": "teams/proto",
+      "useReflection": true
+    },
+    {
+      "name": "users",
+      "protocol": "RPC_PROTOCOL_TWIRP",
+      "url": "https://kaja.tools/users",
+      "protoDir": "users/proto"
+    }
+  ],
+  "system": {
+    "canUpdateConfiguration": true
+  }
+}
+```
+
+`open ~/Library/Application\ Support/kaja/`
+
+https://www.opencollection.com
