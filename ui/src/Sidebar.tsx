@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { TreeView, IconButton } from "@primer/react";
-import { CpuIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
-import { Method, Project, Service, methodId } from "./project";
+import { ActionList, ActionMenu, TreeView, IconButton } from "@primer/react";
+import { CpuIcon, FileCodeIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
+import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -42,6 +42,24 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   );
 }
 
+function BetaPill() {
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: "bold",
+        padding: "1px 5px",
+        borderRadius: 4,
+        marginLeft: 6,
+        backgroundColor: "var(--bgColor-accent-muted)",
+        color: "var(--fgColor-accent)",
+      }}
+    >
+      Beta
+    </span>
+  );
+}
+
 interface ScrollToMethod {
   method: Method;
   service: Service;
@@ -50,10 +68,15 @@ interface ScrollToMethod {
 
 interface SidebarProps {
   projects: Project[];
+  scripts?: Script[];
   currentMethod?: Method;
+  currentScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteProjects?: boolean;
   onSelect: (method: Method, service: Service, project: Project) => void;
+  onScriptSelect?: (script: Script) => void;
+  onRenameScript?: (script: Script) => void;
+  onDeleteScript?: (script: Script) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onEditProject: (projectName: string) => void;
@@ -62,15 +85,28 @@ interface SidebarProps {
 
 export function Sidebar({
   projects,
+  scripts,
   currentMethod,
+  currentScriptPath,
   scrollToMethod,
   canDeleteProjects = true,
   onSelect,
+  onScriptSelect,
+  onRenameScript,
+  onDeleteScript,
   onCompilerClick,
   onNewProjectClick,
   onEditProject,
   onDeleteProject,
 }: SidebarProps) {
+  const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
+  // Right-click context menu for a script, anchored at the cursor.
+  const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
+  const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setPersistedValue("scriptsExpanded", scriptsExpanded);
+  }, [scriptsExpanded]);
   const hadPersistedState = useRef(getPersistedValue<string[]>("expandedProjects") !== undefined);
 
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
@@ -301,10 +337,68 @@ export function Sidebar({
         <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
+        {scripts && scripts.length > 0 && (
+          <nav aria-label="Scripts">
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: "bold",
+                marginLeft: -12,
+                paddingLeft: 4,
+                color: "var(--fgColor-muted)",
+                display: "flex",
+                alignItems: "center",
+                cursor: "pointer",
+                userSelect: "none",
+                height: 28,
+                gap: 2,
+              }}
+              onClick={() => setScriptsExpanded((v) => !v)}
+            >
+              <span
+                style={{
+                  display: "inline-flex",
+                  transform: scriptsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  transition: "transform 0.12s ease",
+                  color: "var(--fgColor-muted)",
+                }}
+              >
+                <ChevronRightIcon size={16} />
+              </span>
+              <FileCodeIcon size={16} />
+              <span style={{ marginLeft: 4 }}>Scripts</span>
+              <BetaPill />
+            </div>
+            {scriptsExpanded && (
+              <TreeView aria-label="Scripts">
+                {scripts.map((script) => (
+                  <TreeView.Item
+                    id={`script-${script.path}`}
+                    key={script.path}
+                    ref={(el: HTMLElement | null) => {
+                      // TreeView.Item doesn't forward onContextMenu, so attach it to the DOM node.
+                      if (el) {
+                        el.oncontextmenu = (e) => {
+                          e.preventDefault();
+                          setScriptMenu({ script, top: e.clientY, left: e.clientX });
+                        };
+                      }
+                    }}
+                    onSelect={() => onScriptSelect?.(script)}
+                    current={currentScriptPath === script.path}
+                  >
+                    {script.name}
+                  </TreeView.Item>
+                ))}
+              </TreeView>
+            )}
+          </nav>
+        )}
         {projects.map((project, projectIndex) => {
           const projectName = project.configuration.name;
           const isExpanded = expandedProjects.has(projectName);
           const showProjectHeader = true;
+          const showTopMargin = projectIndex > 0 || (scripts && scripts.length > 0);
 
           return (
             <nav
@@ -314,7 +408,7 @@ export function Sidebar({
                 else elementRefs.current.delete(projectName);
               }}
               aria-label="Services and methods"
-              style={{ marginTop: projectIndex > 0 ? 12 : 0 }}
+              style={{ marginTop: showTopMargin ? 12 : 0 }}
             >
               {showProjectHeader && (
                 <div
@@ -434,10 +528,10 @@ export function Sidebar({
                       };
 
                       if (!multiplePackages) {
-                        return project.services.map(renderServiceItem);
+                        return <>{project.services.map(renderServiceItem)}</>;
                       }
 
-                      return groupServicesByPackage(project.services).map(([packageName, services]) => {
+                      const packageNodes = groupServicesByPackage(project.services).map(([packageName, services]) => {
                         const packageId = getPackageElementId(projectName, packageName);
                         const isPackageExpanded = expandedServices.has(packageId);
                         return (
@@ -472,6 +566,11 @@ export function Sidebar({
                           </TreeView.Item>
                         );
                       });
+                      return (
+                        <>
+                          {packageNodes}
+                        </>
+                      );
                     })()
                   )}
                 </TreeView>
@@ -480,6 +579,37 @@ export function Sidebar({
           );
         })}
       </div>
+      {/* Invisible anchor positioned at the cursor for the script context menu. */}
+      <div ref={scriptMenuAnchorRef} style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <ActionMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)} anchorRef={scriptMenuAnchorRef}>
+        <ActionMenu.Overlay width="small">
+          <ActionList>
+            <ActionList.Item
+              onSelect={() => {
+                const script = scriptMenu?.script;
+                if (script) onRenameScript?.(script);
+              }}
+            >
+              <ActionList.LeadingVisual>
+                <PencilIcon />
+              </ActionList.LeadingVisual>
+              Rename
+            </ActionList.Item>
+            <ActionList.Item
+              variant="danger"
+              onSelect={() => {
+                const script = scriptMenu?.script;
+                if (script) onDeleteScript?.(script);
+              }}
+            >
+              <ActionList.LeadingVisual>
+                <TrashIcon />
+              </ActionList.LeadingVisual>
+              Delete
+            </ActionList.Item>
+          </ActionList>
+        </ActionMenu.Overlay>
+      </ActionMenu>
     </div>
   );
 }

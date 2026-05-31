@@ -17,6 +17,14 @@ export function updateProjectRef(projectRef: ProjectRef, configuration: Configur
   projectRef.configuration = { ...configuration, headers: { ...(configuration.headers || {}) } };
 }
 
+// A script file in the global, flat scripts directory (desktop only).
+export interface Script {
+  // Absolute on-disk path of the script file.
+  path: string;
+  // Filename (basename), e.g. "ping.ts".
+  name: string;
+}
+
 export interface Project {
   configuration: ConfigurationProject;
   projectRef: ProjectRef;

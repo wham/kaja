@@ -1,6 +1,6 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, Button, IconButton, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import { BaseStyles, Button, ConfirmationDialog, Dialog, Flash, FormControl, IconButton, TextInput, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
 import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
-import { createProjectRef, getDefaultMethod, Method, Project, Service, updateProjectRef } from "./project";
+import { createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -21,9 +21,11 @@ import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
   addProjectFormTab,
+  addScriptTab,
   addTaskTab,
   getProjectFormTabIndex,
   getProjectFormTabLabel,
+  getScriptTabLabel,
   getTabLabel,
   linkTabsToProjects,
   markInteraction,
@@ -41,7 +43,13 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { BrowserOpenURL, WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
+
+// Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
+function lowerFirst(s: string): string {
+  return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
 
 // Helper: Create a new project in pending compilation state
 function createPendingProject(config: ConfigurationProject): Project {
@@ -99,6 +107,17 @@ export function App() {
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
   const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
+  const [scripts, setScripts] = useState<Script[]>();
+  const [fileError, setFileError] = useState<string | undefined>();
+  // Save-as dialog state for ⌘S; null when closed.
+  const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
+  const [saveAsError, setSaveAsError] = useState<string>();
+  // Rename dialog and delete confirmation for scripts (right-click menu).
+  const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
+  const [renameError, setRenameError] = useState<string>();
+  const [deleteScript, setDeleteScript] = useState<Script | null>(null);
+  // Pending debounced disk writes for open script tabs, keyed by tab id.
+  const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     setConsoleItems((consoleItems) => {
@@ -349,16 +368,34 @@ export function App() {
   }, [colorMode]);
 
   useEffect(() => {
-    const activeTab = tabs[activeTabIndex];
+    const active = tabs[activeTabIndex];
     let title = "Kaja";
-    if (activeTab?.type === "task" && activeTab.originProject) {
-      title = `${activeTab.originProject.configuration.name} - Kaja`;
+    if (active?.type === "task" && active.originProject) {
+      title = `${active.originProject.configuration.name} - Kaja`;
+    } else if (active?.type === "script") {
+      title = `${active.script.name} - Kaja`;
     }
     document.title = title;
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
   }, [tabs, activeTabIndex]);
+
+  // Load the global scripts directory (desktop only). Scripts are independent
+  // of projects; they bind to a project at run time via their import paths.
+  const refreshScripts = useCallback(() => {
+    if (!isWailsEnvironment()) return;
+    ListScripts()
+      .then((list) => setScripts((list ?? []).map((s) => ({ path: s.path, name: s.name })).sort((a, b) => a.name.localeCompare(b.name))))
+      .catch((err) => {
+        console.error("Failed to list scripts", err);
+        setScripts([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    refreshScripts();
+  }, [refreshScripts]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -380,6 +417,14 @@ export function App() {
 
   useEffect(() => {
     const handler = () => {
+      // Flush any pending debounced script auto-saves before the page goes away.
+      for (const tab of tabsRef.current) {
+        if (tab.type === "script" && scriptSaveTimers.current.has(tab.id)) {
+          clearTimeout(scriptSaveTimers.current.get(tab.id)!);
+          WriteScriptFile(tab.script.path, tab.model.getValue()).catch(() => {});
+        }
+      }
+      scriptSaveTimers.current.clear();
       persistTabs();
       flushPersistedWrites();
     };
@@ -476,6 +521,188 @@ export function App() {
     persistTabs();
   };
 
+  const showFileError = useCallback((message: string) => {
+    setFileError(message);
+    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
+  }, []);
+
+  const onScriptSelect = useCallback(
+    async (script: Script) => {
+      if (!isWailsEnvironment()) return;
+      try {
+        const file = await ReadScriptFile(script.path);
+        if (!file) return;
+        captureActiveViewState();
+        setTabs((prevTabs) => {
+          const result = addScriptTab(prevTabs, { path: file.path, name: file.name }, file.content);
+          setActiveTabIndex(result.activeIndex);
+          return result.tabs;
+        });
+        persistTabs();
+      } catch (err) {
+        showFileError(`Open failed: ${err}`);
+      }
+    },
+    [captureActiveViewState, persistTabs, showFileError],
+  );
+
+  // Flush any pending debounced write for a script tab immediately (e.g. before
+  // its model is disposed). No-op if nothing is pending.
+  const flushScriptTab = useCallback(
+    (tab: TabModel) => {
+      if (tab.type !== "script") return;
+      const timer = scriptSaveTimers.current.get(tab.id);
+      if (!timer) return;
+      clearTimeout(timer);
+      scriptSaveTimers.current.delete(tab.id);
+      WriteScriptFile(tab.script.path, tab.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+    },
+    [showFileError],
+  );
+
+  // Auto-save: open script tabs persist to disk on edit (debounced). No ⌘S, no
+  // dirty indicator.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const disposables: monaco.IDisposable[] = [];
+    for (const tab of tabs) {
+      if (tab.type !== "script") continue;
+      const { id, model } = tab;
+      const path = tab.script.path;
+      disposables.push(
+        model.onDidChangeContent(() => {
+          const existing = scriptSaveTimers.current.get(id);
+          if (existing) clearTimeout(existing);
+          scriptSaveTimers.current.set(
+            id,
+            setTimeout(() => {
+              scriptSaveTimers.current.delete(id);
+              WriteScriptFile(path, model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+            }, 500),
+          );
+        }),
+      );
+    }
+    return () => disposables.forEach((d) => d.dispose());
+  }, [tabs, showFileError]);
+
+  // ⌘S saves the active editor (a method or a script) as a new named script.
+  const onRequestSaveAsScript = useCallback(() => {
+    if (!isWailsEnvironment()) return;
+    const tab = tabsRef.current[activeTabIndexRef.current];
+    if (!tab || (tab.type !== "task" && tab.type !== "script")) return;
+    const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : getScriptTabLabel(tab);
+    setSaveAsError(undefined);
+    setSaveAs({ name: defaultName, content: tab.model.getValue() });
+  }, []);
+
+  const onRequestSaveAsScriptRef = useRef(onRequestSaveAsScript);
+  onRequestSaveAsScriptRef.current = onRequestSaveAsScript;
+
+  // Wire the native File → Save menu item (⌘S).
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const unsub = EventsOn("menu:saveScript", () => onRequestSaveAsScriptRef.current());
+    return () => unsub();
+  }, []);
+
+  const onConfirmSaveAsScript = useCallback(async () => {
+    if (!saveAs) return;
+    const name = saveAs.name.trim();
+    if (!name) {
+      setSaveAsError("Enter a name.");
+      return;
+    }
+    try {
+      const file = await CreateScript(name, saveAs.content);
+      if (!file) return;
+      const script: Script = { path: file.path, name: file.name };
+      setScripts((prev) => [...(prev ?? []), script].sort((a, b) => a.name.localeCompare(b.name)));
+      captureActiveViewState();
+      setTabs((prevTabs) => {
+        const result = addScriptTab(prevTabs, script, file.content);
+        setActiveTabIndex(result.activeIndex);
+        return result.tabs;
+      });
+      persistTabs();
+      setSaveAs(null);
+      setSaveAsError(undefined);
+    } catch (err) {
+      setSaveAsError(String(err));
+    }
+  }, [saveAs, captureActiveViewState, persistTabs]);
+
+  // Right-click → Rename: open a dialog prefilled with the current name.
+  const onRenameScript = useCallback((script: Script) => {
+    setRenameError(undefined);
+    setRenameScript({ script, name: script.name.replace(/\.ts$/, "") });
+  }, []);
+
+  const onConfirmRenameScript = useCallback(async () => {
+    if (!renameScript) return;
+    const name = renameScript.name.trim();
+    if (!name) {
+      setRenameError("Enter a name.");
+      return;
+    }
+    const original = renameScript.script;
+    try {
+      // Flush any pending auto-save to the current path so the rename moves fresh content.
+      const openTab = tabsRef.current.find((t) => t.type === "script" && t.script.path === original.path);
+      if (openTab?.type === "script") {
+        const timer = scriptSaveTimers.current.get(openTab.id);
+        if (timer) {
+          clearTimeout(timer);
+          scriptSaveTimers.current.delete(openTab.id);
+          await WriteScriptFile(original.path, openTab.model.getValue());
+        }
+      }
+      const file = await RenameScript(original.path, name);
+      if (!file) return;
+      const renamed: Script = { path: file.path, name: file.name };
+      setScripts((prev) => (prev ?? []).map((s) => (s.path === original.path ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
+      // Re-point any open tab for this script at the new path/name.
+      setTabs((prev) => prev.map((t) => (t.type === "script" && t.script.path === original.path ? { ...t, script: renamed } : t)));
+      persistTabs();
+      setRenameScript(null);
+      setRenameError(undefined);
+    } catch (err) {
+      setRenameError(String(err));
+    }
+  }, [renameScript, persistTabs]);
+
+  // Right-click → Delete: confirm, then remove the file and close its tab.
+  const onConfirmDeleteScript = useCallback(
+    async (script: Script) => {
+      try {
+        await DeleteScript(script.path);
+      } catch (err) {
+        showFileError(`Delete failed: ${err}`);
+        return;
+      }
+      setScripts((prev) => (prev ?? []).filter((s) => s.path !== script.path));
+      setTabs((prevTabs) => {
+        const idx = prevTabs.findIndex((t) => t.type === "script" && t.script.path === script.path);
+        if (idx === -1) return prevTabs;
+        const tab = prevTabs[idx];
+        if (tab.type !== "script") return prevTabs;
+        // Cancel any pending auto-save so we don't recreate the deleted file.
+        const timer = scriptSaveTimers.current.get(tab.id);
+        if (timer) {
+          clearTimeout(timer);
+          scriptSaveTimers.current.delete(tab.id);
+        }
+        editorRegistryRef.current.delete(tab.id);
+        tab.model.dispose();
+        const newTabs = prevTabs.filter((_, i) => i !== idx);
+        setActiveTabIndex((cur) => (idx === cur ? Math.max(0, newTabs.length - 1) : idx < cur ? cur - 1 : cur));
+        return newTabs;
+      });
+      persistTabs();
+    },
+    [showFileError, persistTabs],
+  );
+
   const onSearchMethodSelect = (method: Method, service: Service, project: Project) => {
     onMethodSelect(method, service, project);
     setScrollToMethod({ method, service, project });
@@ -517,13 +744,18 @@ export function App() {
     persistTabs();
   };
 
+  const disposeTabEditor = (tab: TabModel) => {
+    if (tab.type === "task" || tab.type === "script") {
+      flushScriptTab(tab);
+      editorRegistryRef.current.delete(tab.id);
+      tab.model.dispose();
+    }
+  };
+
   const onCloseTab = (index: number) => {
     setTabs((prevTabs) => {
       const tab = prevTabs[index];
-      if (tab?.type === "task") {
-        editorRegistryRef.current.delete(tab.id);
-        tab.model.dispose();
-      }
+      if (tab) disposeTabEditor(tab);
       const newTabs = prevTabs.filter((_, i) => i !== index);
       const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
       setActiveTabIndex(newActiveIndex);
@@ -534,12 +766,7 @@ export function App() {
 
   const onCloseAll = () => {
     setTabs((prevTabs) => {
-      prevTabs.forEach((tab) => {
-        if (tab.type === "task") {
-          editorRegistryRef.current.delete(tab.id);
-          tab.model.dispose();
-        }
-      });
+      prevTabs.forEach(disposeTabEditor);
       setActiveTabIndex(0);
       return [];
     });
@@ -549,10 +776,7 @@ export function App() {
   const onCloseOthers = (keepIndex: number) => {
     setTabs((prevTabs) => {
       prevTabs.forEach((tab, i) => {
-        if (i !== keepIndex && tab.type === "task") {
-          editorRegistryRef.current.delete(tab.id);
-          tab.model.dispose();
-        }
+        if (i !== keepIndex) disposeTabEditor(tab);
       });
       setActiveTabIndex(0);
       return prevTabs.filter((_, i) => i === keepIndex);
@@ -681,8 +905,10 @@ export function App() {
     }
   };
 
-  const isActiveTaskTab = tabs[activeTabIndex]?.type === "task";
+  const activeTab = tabs[activeTabIndex];
+  const isActiveTaskTab = activeTab?.type === "task" || activeTab?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
+  const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
 
   return (
     <ThemeProvider colorMode={colorMode}>
@@ -715,9 +941,14 @@ export function App() {
                 {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
                 <Sidebar
                   projects={projects}
+                  scripts={scripts}
                   canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
                   onSelect={onMethodSelect}
+                  onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
+                  onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
+                  onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
                   currentMethod={selectedMethod}
+                  currentScriptPath={activeScriptPath}
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
                   onNewProjectClick={onNewProjectClick}
@@ -867,6 +1098,22 @@ export function App() {
                           );
                         }
 
+                        if (tab.type === "script") {
+                          return (
+                            <Tab tabId={tab.id} tabLabel={tab.script.name} key={tab.id}>
+                              <Task
+                                model={tab.model}
+                                projects={projects}
+                                kaja={kajaRef.current!}
+                                onInteraction={() => {}}
+                                onGoToDefinition={onGoToDefinition}
+                                onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                                viewState={tab.viewState}
+                              />
+                            </Tab>
+                          );
+                        }
+
                         if (tab.type === "definition") {
                           return (
                             <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
@@ -927,6 +1174,89 @@ export function App() {
           <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
         </div>
         <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
+        {saveAs && (
+          <Dialog
+            title="Save as script"
+            width="medium"
+            onClose={() => {
+              setSaveAs(null);
+              setSaveAsError(undefined);
+            }}
+            footerButtons={[
+              { content: "Cancel", onClick: () => setSaveAs(null) },
+              { content: "Save", buttonType: "primary", onClick: onConfirmSaveAsScript },
+            ]}
+          >
+            <FormControl>
+              <FormControl.Label>Name</FormControl.Label>
+              <TextInput
+                block
+                autoFocus
+                trailingVisual=".ts"
+                value={saveAs.name}
+                onChange={(e) => setSaveAs((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmSaveAsScript();
+                  }
+                }}
+              />
+              {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
+            </FormControl>
+          </Dialog>
+        )}
+        {renameScript && (
+          <Dialog
+            title="Rename script"
+            width="medium"
+            onClose={() => {
+              setRenameScript(null);
+              setRenameError(undefined);
+            }}
+            footerButtons={[
+              { content: "Cancel", onClick: () => setRenameScript(null) },
+              { content: "Rename", buttonType: "primary", onClick: onConfirmRenameScript },
+            ]}
+          >
+            <FormControl>
+              <FormControl.Label>Name</FormControl.Label>
+              <TextInput
+                block
+                autoFocus
+                trailingVisual=".ts"
+                value={renameScript.name}
+                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmRenameScript();
+                  }
+                }}
+              />
+              {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
+            </FormControl>
+          </Dialog>
+        )}
+        {deleteScript && (
+          <ConfirmationDialog
+            title="Delete script?"
+            confirmButtonContent="Delete"
+            confirmButtonType="danger"
+            onClose={(gesture) => {
+              const script = deleteScript;
+              setDeleteScript(null);
+              if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+            }}
+          >
+            Permanently delete <strong>{deleteScript.name}</strong>?
+          </ConfirmationDialog>
+        )}
+        {fileError && (
+          <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
+            <Flash variant="danger">{fileError}</Flash>
+          </div>
+        )}
       </BaseStyles>
     </ThemeProvider>
   );
