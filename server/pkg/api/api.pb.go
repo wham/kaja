@@ -774,9 +774,6 @@ type ConfigurationProject struct {
 	ProtoDir      string                 `protobuf:"bytes,4,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
 	UseReflection bool                   `protobuf:"varint,5,opt,name=use_reflection,json=useReflection,proto3" json:"use_reflection,omitempty"`
 	Headers       map[string]string      `protobuf:"bytes,6,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Directory holding *.kaja.ts scripts for this project. Resolved relative to
-	// the workspace (kaja.json's directory). Independent of proto_dir.
-	ScriptsDir    string `protobuf:"bytes,7,opt,name=scripts_dir,json=scriptsDir,proto3" json:"scripts_dir,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -851,13 +848,6 @@ func (x *ConfigurationProject) GetHeaders() map[string]string {
 		return x.Headers
 	}
 	return nil
-}
-
-func (x *ConfigurationProject) GetScriptsDir() string {
-	if x != nil {
-		return x.ScriptsDir
-	}
-	return ""
 }
 
 type UpdateConfigurationRequest struct {
@@ -986,16 +976,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\"h\n" +
 	"\x13ConfigurationSystem\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
-	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\"\xc5\x02\n" +
+	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\"\xa4\x02\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1b\n" +
 	"\tproto_dir\x18\x04 \x01(\tR\bprotoDir\x12%\n" +
 	"\x0euse_reflection\x18\x05 \x01(\bR\ruseReflection\x12<\n" +
-	"\aheaders\x18\x06 \x03(\v2\".ConfigurationProject.HeadersEntryR\aheaders\x12\x1f\n" +
-	"\vscripts_dir\x18\a \x01(\tR\n" +
-	"scriptsDir\x1a:\n" +
+	"\aheaders\x18\x06 \x03(\v2\".ConfigurationProject.HeadersEntryR\aheaders\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"R\n" +

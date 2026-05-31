@@ -1,5 +1,5 @@
 import * as monaco from "monaco-editor";
-import { createProjectRef, Method, Project, ProjectScript, Service } from "./project";
+import { createProjectRef, Method, Project, Script, Service } from "./project";
 import { generateMethodEditorCode } from "./projectLoader";
 import { ConfigurationProject, RpcProtocol } from "./server/api";
 
@@ -38,11 +38,9 @@ interface ProjectFormTab {
 export interface ScriptTab {
   type: "script";
   id: string;
-  project: Project;
-  script: ProjectScript;
+  // File-backed script in the global scripts directory; content auto-saves to disk.
+  script: Script;
   model: monaco.editor.ITextModel;
-  // Bytes last persisted to disk; the tab is "dirty" when model.getValue() differs.
-  savedContent: string;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
@@ -141,22 +139,16 @@ export function getTabLabel(path: string): string {
 }
 
 export function getScriptTabLabel(tab: ScriptTab): string {
-  return tab.script.name.replace(/\.kaja\.ts$/, "");
+  return tab.script.name.replace(/\.ts$/, "");
 }
 
-export function isScriptTabDirty(tab: ScriptTab): boolean {
-  return tab.model.getValue() !== tab.savedContent;
-}
-
-export function addScriptTab(tabs: TabModel[], script: ProjectScript, project: Project, content: string): { tabs: TabModel[]; activeIndex: number } {
+export function addScriptTab(tabs: TabModel[], script: Script, content: string): { tabs: TabModel[]; activeIndex: number } {
   // Reuse an existing tab for the same file.
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
     if (tab.type === "script" && tab.script.path === script.path) {
       // Refresh contents in case the file changed on disk.
       tab.model.setValue(content);
-      tab.savedContent = content;
-      tab.project = project;
       tab.script = script;
       return { tabs: [...tabs], activeIndex: i };
     }
@@ -167,10 +159,8 @@ export function addScriptTab(tabs: TabModel[], script: ProjectScript, project: P
   const newTab: ScriptTab = {
     type: "script",
     id,
-    project,
     script,
     model,
-    savedContent: content,
   };
 
   // Replace a trailing ephemeral task tab the same way addTaskTab does.
@@ -182,18 +172,6 @@ export function addScriptTab(tabs: TabModel[], script: ProjectScript, project: P
   }
   const newTabs = [...tabs, newTab];
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-}
-
-export function markScriptTabSaved(tabs: TabModel[], tabId: string, savedContent: string): TabModel[] {
-  let changed = false;
-  const next = tabs.map((tab) => {
-    if (tab.type === "script" && tab.id === tabId) {
-      changed = true;
-      return { ...tab, savedContent };
-    }
-    return tab;
-  });
-  return changed ? next : tabs;
 }
 
 export function addProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
@@ -269,11 +247,9 @@ interface PersistedCompilerTab {
 
 interface PersistedScriptTab {
   type: "script";
-  projectName: string;
   scriptPath: string;
   scriptName: string;
   code: string;
-  savedContent: string;
   viewState?: object;
 }
 
@@ -313,11 +289,9 @@ export function serializeTabs(
       indexMap.push(serializedTabs.length);
       serializedTabs.push({
         type: "script",
-        projectName: tab.project.configuration.name,
         scriptPath: tab.script.path,
         scriptName: tab.script.name,
         code: tab.model.getValue(),
-        savedContent: tab.savedContent,
         viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
       });
     }
@@ -341,30 +315,11 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
     if (persisted.type === "script") {
       const sid = generateId("script");
       const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + sid + ".ts"));
-      const configuration: ConfigurationProject = {
-        name: persisted.projectName,
-        protocol: RpcProtocol.UNSPECIFIED,
-        url: "",
-        protoDir: "",
-        useReflection: false,
-        headers: {},
-        scriptsDir: "",
-      };
       tabs.push({
         type: "script",
         id: sid,
-        project: {
-          configuration,
-          projectRef: createProjectRef(configuration),
-          compilation: { status: "pending", logs: [] },
-          services: [],
-          clients: {},
-          sources: [],
-          stub: { serviceInfos: {} },
-        },
         script: { path: persisted.scriptPath, name: persisted.scriptName },
         model,
-        savedContent: persisted.savedContent,
         viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
       });
       continue;
@@ -387,7 +342,6 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
       protoDir: "",
       useReflection: false,
       headers: {},
-      scriptsDir: "",
     };
 
     tabs.push({
@@ -430,9 +384,6 @@ export function linkTabsToProjects(tabs: TabModel[], projects: Project[]): void 
       tab.originProject = project;
       tab.originService = service;
       tab.originMethod = method;
-    } else if (tab.type === "script") {
-      const project = projects.find((p) => p.configuration.name === tab.project.configuration.name);
-      if (project) tab.project = project;
     }
   }
 }

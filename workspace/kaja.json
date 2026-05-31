@@ -24,8 +24,7 @@
       "name": "grpcb.in",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "grpc://grpcb.in:9000",
-      "protoDir": "grpcbin/proto",
-      "scriptsDir": "grpcbin/scripts"
+      "protoDir": "grpcbin/proto"
     },
     {
       "name": "teams",

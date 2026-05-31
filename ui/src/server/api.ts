@@ -190,13 +190,6 @@ export interface ConfigurationProject {
     headers: {
         [key: string]: string;
     };
-    /**
-     * Directory holding *.kaja.ts scripts for this project. Resolved relative to
-     * the workspace (kaja.json's directory). Independent of proto_dir.
-     *
-     * @generated from protobuf field: string scripts_dir = 7
-     */
-    scriptsDir: string;
 }
 /**
  * @generated from protobuf message UpdateConfigurationRequest
@@ -864,8 +857,7 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
             { no: 3, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "use_reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 6, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 7, name: "scripts_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
     create(value?: PartialMessage<ConfigurationProject>): ConfigurationProject {
@@ -876,7 +868,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         message.protoDir = "";
         message.useReflection = false;
         message.headers = {};
-        message.scriptsDir = "";
         if (value !== undefined)
             reflectionMergePartial<ConfigurationProject>(this, message, value);
         return message;
@@ -903,9 +894,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
                     break;
                 case /* map<string, string> headers */ 6:
                     this.binaryReadMap6(message.headers, reader, options);
-                    break;
-                case /* string scripts_dir */ 7:
-                    message.scriptsDir = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -953,9 +941,6 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
         /* map<string, string> headers = 6; */
         for (let k of globalThis.Object.keys(message.headers))
             writer.tag(6, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
-        /* string scripts_dir = 7; */
-        if (message.scriptsDir !== "")
-            writer.tag(7, WireType.LengthDelimited).string(message.scriptsDir);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

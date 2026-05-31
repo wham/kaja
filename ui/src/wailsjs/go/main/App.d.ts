@@ -4,11 +4,17 @@ import {main} from '../models';
 
 export function CancelStream(arg1:string):Promise<void>;
 
-export function ListProjectScripts(arg1:string):Promise<Array<main.ScriptFile>>;
+export function CreateScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
+
+export function DeleteScript(arg1:string):Promise<void>;
+
+export function ListScripts():Promise<Array<main.ScriptFile>>;
 
 export function OpenDirectoryDialog():Promise<string>;
 
 export function ReadScriptFile(arg1:string):Promise<main.ScriptFile>;
+
+export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 
 export function Target(arg1:string,arg2:string,arg3:Array<number>,arg4:number,arg5:string):Promise<main.TargetResult>;
 

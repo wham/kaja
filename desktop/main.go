@@ -61,7 +61,7 @@ type App struct {
 	twirpHandler         api.TwirpServer
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
-	workspaceDir         string   // base for resolving relative protoDir / scriptsDir
+	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
 	activeStreams        sync.Map // streamID -> context.CancelFunc
 }
 
@@ -89,7 +89,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // ScriptFile is the on-disk representation of a Kaja script.
-// For ListProjectScripts only Path and Name are populated; Content is fetched
+// For ListScripts only Path and Name are populated; Content is fetched
 // on demand via ReadScriptFile.
 type ScriptFile struct {
 	Path    string `json:"path"`
@@ -97,22 +97,14 @@ type ScriptFile struct {
 	Content string `json:"content"`
 }
 
-func (a *App) resolveWorkspacePath(rel string) string {
-	if filepath.IsAbs(rel) {
-		return rel
-	}
-	return filepath.Join(a.workspaceDir, rel)
+// scriptsDir is the single global, flat scripts folder living next to kaja.json.
+func (a *App) scriptsDir() string {
+	return filepath.Join(a.workspaceDir, "scripts")
 }
 
-// ListProjectScripts returns *.kaja.ts files in the given scripts directory.
-// scriptsDir is interpreted as workspace-relative unless absolute. An empty
-// scriptsDir returns no scripts.
-func (a *App) ListProjectScripts(scriptsDir string) ([]ScriptFile, error) {
-	if scriptsDir == "" {
-		return []ScriptFile{}, nil
-	}
-	abs := a.resolveWorkspacePath(scriptsDir)
-	entries, err := os.ReadDir(abs)
+// ListScripts returns the *.ts files in the global scripts directory.
+func (a *App) ListScripts() ([]ScriptFile, error) {
+	entries, err := os.ReadDir(a.scriptsDir())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []ScriptFile{}, nil
@@ -121,11 +113,11 @@ func (a *App) ListProjectScripts(scriptsDir string) ([]ScriptFile, error) {
 	}
 	scripts := make([]ScriptFile, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".kaja.ts") {
+		if e.IsDir() || strings.HasPrefix(e.Name(), ".") || !strings.HasSuffix(e.Name(), ".ts") {
 			continue
 		}
 		scripts = append(scripts, ScriptFile{
-			Path: filepath.Join(abs, e.Name()),
+			Path: filepath.Join(a.scriptsDir(), e.Name()),
 			Name: e.Name(),
 		})
 	}
@@ -151,6 +143,66 @@ func (a *App) WriteScriptFile(path string, content string) error {
 		return fmt.Errorf("empty path")
 	}
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// CreateScript writes a new script into the global scripts directory and
+// returns it. The name is reduced to a bare filename with a .ts extension;
+// it fails if a script with that name already exists.
+func (a *App) CreateScript(name string, content string) (*ScriptFile, error) {
+	name = filepath.Base(strings.TrimSpace(name))
+	if name == "" || name == "." {
+		return nil, fmt.Errorf("invalid script name")
+	}
+	if !strings.HasSuffix(name, ".ts") {
+		name += ".ts"
+	}
+	dir := a.scriptsDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, name)
+	if _, err := os.Stat(path); err == nil {
+		return nil, fmt.Errorf("a script named %q already exists", name)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return nil, err
+	}
+	return &ScriptFile{Path: path, Name: name, Content: content}, nil
+}
+
+// DeleteScript removes a script from the global scripts directory.
+func (a *App) DeleteScript(path string) error {
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	return os.Remove(path)
+}
+
+// RenameScript renames a script within the global scripts directory and
+// returns the renamed file. newName is reduced to a bare filename with a .ts
+// extension; it fails if a different script with that name already exists.
+func (a *App) RenameScript(path string, newName string) (*ScriptFile, error) {
+	newName = filepath.Base(strings.TrimSpace(newName))
+	if newName == "" || newName == "." {
+		return nil, fmt.Errorf("invalid script name")
+	}
+	if !strings.HasSuffix(newName, ".ts") {
+		newName += ".ts"
+	}
+	newPath := filepath.Join(a.scriptsDir(), newName)
+	if newPath != path {
+		if _, err := os.Stat(newPath); err == nil {
+			return nil, fmt.Errorf("a script named %q already exists", newName)
+		}
+		if err := os.Rename(path, newPath); err != nil {
+			return nil, err
+		}
+	}
+	data, err := os.ReadFile(newPath)
+	if err != nil {
+		return nil, err
+	}
+	return &ScriptFile{Path: newPath, Name: newName, Content: string(data)}, nil
 }
 
 // OpenDirectoryDialog opens a native directory picker dialog.
@@ -425,6 +477,11 @@ func main() {
 
 	configurationPath := filepath.Join(kajaDir, "kaja.json")
 
+	// Ensure the global scripts directory exists so it's discoverable.
+	if err := os.MkdirAll(filepath.Join(kajaDir, "scripts"), 0755); err != nil {
+		slog.Warn("Failed to create scripts directory", "error", err)
+	}
+
 	// Create empty kaja.json if it doesn't exist
 	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
 		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
@@ -455,7 +512,7 @@ func main() {
 	appMenu.Append(menu.AppMenu())
 
 	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+	fileMenu.AddText("Save as script", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
 		runtime.EventsEmit(app.ctx, "menu:saveScript")
 	})
 

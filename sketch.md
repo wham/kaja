@@ -1,6 +1,6 @@
-## Project scripts
+## Scripts
 
-Each project can set `scriptsDir` (workspace-relative or absolute). Wails `ListProjectScripts` reads `*.kaja.ts` files there; the sidebar shows them under the project as a "scripts" pseudo-package with `FileCodeIcon`. Clicking opens a `ScriptTab` (own tab type, file-backed). ⌘S writes via Wails `WriteScriptFile`; `●` marks dirty.
+One global, flat scripts directory next to `kaja.json` (`<kajaHome>/scripts/`, desktop only). Wails `ListScripts` reads its `*.ts` files; the sidebar shows them in a top-level "Scripts" section with `FileCodeIcon`. Clicking opens a `ScriptTab` (own tab type, file-backed). Open scripts auto-save to disk (debounced via `WriteScriptFile`) — no ⌘S, no dirty marker. Scripts bind to a project at run time via their import paths, so they aren't tied to a project. ⌘S on any editor (a method or a script) prompts for a name and saves the current contents as a new script via `CreateScript`.
 
 ## Resources
 
@@ -31,8 +31,7 @@ Each project can set `scriptsDir` (workspace-relative or absolute). Wails `ListP
       "name": "grpcb.in",
       "protocol": "RPC_PROTOCOL_GRPC",
       "url": "grpc://grpcb.in:9000",
-      "protoDir": "grpcbin/proto",
-      "scriptsDir": "grpcbin/scripts"
+      "protoDir": "grpcbin/proto"
     },
     {
       "name": "teams",

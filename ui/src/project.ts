@@ -17,10 +17,11 @@ export function updateProjectRef(projectRef: ProjectRef, configuration: Configur
   projectRef.configuration = { ...configuration, headers: { ...(configuration.headers || {}) } };
 }
 
-export interface ProjectScript {
+// A script file in the global, flat scripts directory (desktop only).
+export interface Script {
   // Absolute on-disk path of the script file.
   path: string;
-  // Filename (basename), e.g. "ping.kaja.ts".
+  // Filename (basename), e.g. "ping.ts".
   name: string;
 }
 
@@ -32,10 +33,6 @@ export interface Project {
   clients: Clients;
   sources: Sources;
   stub: Stub;
-  // Undefined while we haven't tried to list scripts for this project yet
-  // (or in web mode where the feature is unavailable). An empty array means
-  // "we looked and there were none".
-  scripts?: ProjectScript[];
 }
 
 export type CompilationStatus = "pending" | "running" | "success" | "error";

@@ -54,7 +54,6 @@ function createEmptyProject(): ConfigurationProject {
     protoDir: "",
     useReflection: false,
     headers: {},
-    scriptsDir: "",
   };
 }
 
@@ -67,7 +66,6 @@ function projectToJson(project: ConfigurationProject): object {
     protoDir: project.protoDir,
     useReflection: project.useReflection,
     headers: project.headers,
-    scriptsDir: project.scriptsDir,
   };
 }
 
@@ -88,7 +86,6 @@ function jsonToProject(json: any): ConfigurationProject {
     protoDir: json.protoDir || "",
     useReflection: json.useReflection ?? false,
     headers: json.headers || {},
-    scriptsDir: json.scriptsDir || "",
   };
 }
 
@@ -98,7 +95,6 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
   const [url, setUrl] = useState("");
   const [protocol, setProtocol] = useState<RpcProtocol>(RpcProtocol.GRPC);
   const [protoDir, setProtoDir] = useState("");
-  const [scriptsDir, setScriptsDir] = useState("");
   const [protoSourceType, setProtoSourceType] = useState<ProtoSourceType>("protoDir");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -114,16 +110,14 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
       protoDir: protoSourceType === "protoDir" ? protoDir : "",
       useReflection: protoSourceType === "reflection",
       headers: initialData?.headers ?? {},
-      scriptsDir,
     };
-  }, [name, url, protocol, protoDir, protoSourceType, initialData?.headers, scriptsDir]);
+  }, [name, url, protocol, protoDir, protoSourceType, initialData?.headers]);
 
   const updateFormFromProject = useCallback((project: ConfigurationProject) => {
     setName(project.name);
     setUrl(project.url);
     setProtocol(project.protocol);
     setProtoDir(project.protoDir);
-    setScriptsDir(project.scriptsDir ?? "");
     setProtoSourceType(getProtoSourceType(project));
   }, []);
 
@@ -291,7 +285,6 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
     setUrl(grpcbinDemoUrl);
     setProtocol(RpcProtocol.GRPC);
     setProtoDir("");
-    setScriptsDir("");
     setProtoSourceType("reflection");
   };
 
@@ -437,31 +430,6 @@ export function ProjectForm({ mode, initialData, allProjects, readOnly = false, 
                       icon={FileDirectoryIcon}
                       aria-label="Select directory"
                       disabled={readOnly || protoSourceType === "reflection"}
-                    />
-                  }
-                />
-              </FormControl>
-
-              <FormControl disabled={readOnly}>
-                <FormControl.Label>Scripts Directory</FormControl.Label>
-                <FormControl.Caption>Optional. Folder of *.kaja.ts files to surface under this project.</FormControl.Caption>
-                <TextInput
-                  value={scriptsDir}
-                  onChange={(e) => setScriptsDir(e.target.value)}
-                  placeholder="Path to scripts directory"
-                  block
-                  disabled={readOnly}
-                  trailingAction={
-                    <TextInput.Action
-                      onClick={async () => {
-                        const path = await OpenDirectoryDialog();
-                        if (path) {
-                          setScriptsDir(path);
-                        }
-                      }}
-                      icon={FileDirectoryIcon}
-                      aria-label="Select scripts directory"
-                      disabled={readOnly}
                     />
                   }
                 />
