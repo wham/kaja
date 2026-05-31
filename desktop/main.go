@@ -80,6 +80,9 @@ func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.Configuratio
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// Register the macOS "Run Kaja Script" text service (no-op on other platforms).
+	registerServices(ctx)
+
 	// Subscribe to configuration changes and emit Wails events
 	if a.configurationWatcher != nil {
 		a.configurationWatcher.Subscribe(func() {

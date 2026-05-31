@@ -4,6 +4,9 @@ import { captureValues } from "./typeMemory";
 
 export class Kaja {
   readonly _internal: KajaInternal;
+  // Text passed in when a script is run from the macOS "Run Kaja Script" text
+  // service. Scripts can read it as `kaja.input`.
+  input?: string;
 
   constructor(onMethodCallUpdate: MethodCallUpdate) {
     this._internal = new KajaInternal(onMethodCallUpdate);

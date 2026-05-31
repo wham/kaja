@@ -25,6 +25,25 @@
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
+        <key>NSServices</key>
+        <array>
+            <dict>
+                <key>NSMenuItem</key>
+                <dict>
+                    <key>default</key>
+                    <string>Run Kaja Script</string>
+                </dict>
+                <key>NSMessage</key>
+                <string>runScript</string>
+                <key>NSPortName</key>
+                <string>Kaja</string>
+                <key>NSSendTypes</key>
+                <array>
+                    <string>public.utf8-plain-text</string>
+                    <string>NSStringPboardType</string>
+                </array>
+            </dict>
+        </array>
         {{if .Info.FileAssociations}}
         <key>CFBundleDocumentTypes</key>
         <array>
