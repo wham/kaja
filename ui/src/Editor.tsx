@@ -32,6 +32,23 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   module: monaco.typescript.ModuleKind.ESNext,
 });
 
+// The `kaja` object is injected into every script as a global (see taskRunner),
+// so declare it here for editor autocomplete and type checking.
+monaco.typescript.typescriptDefaults.addExtraLib(
+  `
+/** The global Kaja object, available in every script — no import needed. */
+declare const kaja: {
+  /**
+   * The selected text passed in when the script is launched from the macOS
+   * "Run Kaja Script" text service. Undefined when the script is run manually
+   * from the editor, so guard with a fallback (e.g. kaja.input ?? "").
+   */
+  input?: string;
+};
+`,
+  "ts:kaja-globals.d.ts",
+);
+
 const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
 let timestampCommandRegistered = false;
 let activeTimestampWidget: TimestampPickerContentWidget | null = null;
