@@ -27,11 +27,15 @@ func goServiceRunScript(text *C.char) {
 		return
 	}
 	selected := C.GoString(text)
-	// Bring the app to the front so the user sees the script run, then hand the
-	// selected text to the UI to run against the pinned script.
-	runtime.WindowUnminimise(serviceContext)
-	runtime.WindowShow(serviceContext)
-	runtime.EventsEmit(serviceContext, "service:runScript", selected)
+	// macOS calls this on the main thread inside the synchronous service handler.
+	// Wails runtime calls dispatch to the main thread internally, so invoking them
+	// here would block it against itself. Run them from a goroutine instead, which
+	// also lets the service handler return immediately.
+	go func() {
+		runtime.WindowUnminimise(serviceContext)
+		runtime.WindowShow(serviceContext)
+		runtime.EventsEmit(serviceContext, "service:runScript", selected)
+	}()
 }
 
 // registerServices wires up the macOS "Run Kaja Script" text service. It is a
