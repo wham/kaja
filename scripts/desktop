@@ -6,18 +6,15 @@ source "$(dirname "$0")/common"
 # Parse arguments
 BUILD_MODE=""
 VERSION_BUMP=""
+NO_BUMP=""
 for arg in "$@"; do
     case $arg in
-        --build=development)
-            BUILD_MODE="development"
-            shift
-            ;;
-        --build=distribution)
-            BUILD_MODE="distribution"
-            shift
-            ;;
         --build=store)
             BUILD_MODE="store"
+            shift
+            ;;
+        --no-bump)
+            NO_BUMP="1"
             shift
             ;;
         --version=patch)
@@ -36,11 +33,8 @@ for arg in "$@"; do
 done
 
 # Hardcoded signing profiles
-DEVELOPMENT_PROFILE="Apple Development: Tomas Vesely (6C7UYVXQK7)"
-DISTRIBUTION_PROFILE="Developer ID Application: Tomas Vesely (U5DMD247UW)"
 STORE_APP_PROFILE="Apple Distribution: Tomas Vesely (U5DMD247UW)"
 STORE_INSTALLER_PROFILE="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
-NOTARY_PROFILE="kaja-notary"
 
 # Check if Wails is installed
 if ! command -v wails &> /dev/null
@@ -56,22 +50,6 @@ then
     fi
     echo "Installing Wails using Homebrew..."
     brew install wails
-fi
-
-# Check if create-dmg is installed
-if ! command -v create-dmg &> /dev/null
-then
-    if [ -t 0 ]; then
-        echo "create-dmg is not installed."
-        read -p "Would you like to install create-dmg using Homebrew? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "create-dmg installation skipped. Exiting script."
-            exit 1
-        fi
-    fi
-    echo "Installing create-dmg using Homebrew..."
-    brew install create-dmg
 fi
 
 # Check if Bun is installed (wails dev/build invokes it via frontend:install)
@@ -102,9 +80,13 @@ export PATH=$GOBIN:$PATH
 
 cd ./desktop
 
-if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ "$BUILD_MODE" = "store" ]; then
-    # For distribution/store builds, create a git tag and update wails.json
-    if [ "$BUILD_MODE" = "distribution" ] || [ "$BUILD_MODE" = "store" ]; then
+if [ "$BUILD_MODE" = "store" ]; then
+    if [ -n "$NO_BUMP" ]; then
+        # Reuse the current release tag without bumping, committing, or pushing
+        GIT_TAG=$(git tag --list '[0-9]*' --sort=-v:refname | head -1)
+        echo "Reusing current version: ${GIT_TAG:-none} (no bump)"
+    else
+        # Bump the version, update wails.json, and create a git tag
         if [ -z "$VERSION_BUMP" ]; then
             VERSION_BUMP="minor"
         fi
@@ -149,160 +131,55 @@ if [ "$BUILD_MODE" = "development" ] || [ "$BUILD_MODE" = "distribution" ] || [ 
         git diff --cached --quiet || git commit -m "Updated productVersion to $GIT_TAG"
         git tag -f "$GIT_TAG"
         git push origin HEAD "$GIT_TAG" --force
-
-        GIT_REF="$GIT_TAG"
-    else
-        # Development build mode - use git hash
-        GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
     fi
 
-    echo "Building desktop app ($BUILD_MODE)..."
-    LDFLAGS="-X main.GitRef=$GIT_REF"
-    if [ "$BUILD_MODE" = "store" ]; then
-        export MACOSX_DEPLOYMENT_TARGET=12.0
-        export CGO_LDFLAGS="-mmacosx-version-min=12.0"
-        export CGO_CFLAGS="-mmacosx-version-min=12.0"
-    fi
-    wails build -ldflags "$LDFLAGS"
+    echo "Building desktop app (store)..."
+    export MACOSX_DEPLOYMENT_TARGET=12.0
+    export CGO_LDFLAGS="-mmacosx-version-min=12.0"
+    export CGO_CFLAGS="-mmacosx-version-min=12.0"
+    wails build -ldflags "-X main.GitRef=$GIT_TAG"
 
     APP_BUNDLE="./build/bin/Kaja.app"
     if [ -d "$APP_BUNDLE" ]; then
         # Embed provisioning profile for App Store builds
-        if [ "$BUILD_MODE" = "store" ]; then
-            PROVISION_PROFILE="./build/darwin/embedded.provisionprofile"
-            if [ ! -f "$PROVISION_PROFILE" ]; then
-                echo "Error: $PROVISION_PROFILE not found."
-                echo "Download your Mac App Store provisioning profile from Apple Developer portal"
-                echo "and save it as $PROVISION_PROFILE"
-                exit 1
-            fi
-            cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
-            echo "Embedded provisioning profile"
+        PROVISION_PROFILE="./build/darwin/embedded.provisionprofile"
+        if [ ! -f "$PROVISION_PROFILE" ]; then
+            echo "Error: $PROVISION_PROFILE not found."
+            echo "Download your Mac App Store provisioning profile from Apple Developer portal"
+            echo "and save it as $PROVISION_PROFILE"
+            exit 1
         fi
+        cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+        echo "Embedded provisioning profile"
 
-        # Select signing profile based on build mode
-        if [ "$BUILD_MODE" = "store" ]; then
-            CODESIGN_IDENTITY="$STORE_APP_PROFILE"
-        elif [ "$BUILD_MODE" = "distribution" ]; then
-            CODESIGN_IDENTITY="$DISTRIBUTION_PROFILE"
-        else
-            CODESIGN_IDENTITY="$DEVELOPMENT_PROFILE"
-        fi
+        # Strip com.apple.quarantine (and any other xattrs) the downloaded
+        # profile carries — the App Store rejects packages whose files have
+        # quarantine attributes. Must run before signing so it's sealed in.
+        xattr -cr "$APP_BUNDLE"
 
-        ENTITLEMENTS="./build/darwin/entitlements.plist"
-        if [ "$BUILD_MODE" = "store" ]; then
-            # Store builds must sign with the real identity — no ad-hoc fallback
-            codesign --force --options runtime --deep \
-                --sign "$CODESIGN_IDENTITY" \
-                --entitlements "$ENTITLEMENTS" \
-                "$APP_BUNDLE"
-            echo "App signed with: $CODESIGN_IDENTITY"
-        elif codesign --force --options runtime --deep \
-            --sign "$CODESIGN_IDENTITY" \
-            --entitlements "$ENTITLEMENTS" \
-            "$APP_BUNDLE" 2>/dev/null; then
-            echo "App signed with: $CODESIGN_IDENTITY"
-        else
-            codesign --force --deep --sign - "$APP_BUNDLE"
-            echo "App signed with ad-hoc identity"
-        fi
+        # Store builds must sign with the real identity — no ad-hoc fallback
+        codesign --force --options runtime --deep \
+            --sign "$STORE_APP_PROFILE" \
+            --entitlements "./build/darwin/entitlements.plist" \
+            "$APP_BUNDLE"
+        echo "App signed with: $STORE_APP_PROFILE"
 
-        if [ "$BUILD_MODE" = "store" ]; then
-            # Build .pkg for App Store submission
-            echo ""
-            echo "Creating App Store package..."
-            PKG_PATH="./build/bin/Kaja.pkg"
-            rm -f "$PKG_PATH"
+        # Build .pkg for App Store submission
+        echo ""
+        echo "Creating App Store package..."
+        PKG_PATH="./build/bin/Kaja.pkg"
+        rm -f "$PKG_PATH"
 
-            productbuild \
-                --component "$APP_BUNDLE" /Applications \
-                --sign "$STORE_INSTALLER_PROFILE" \
-                "$PKG_PATH"
-
-            echo ""
-            echo "App Store package complete: $PKG_PATH"
-            echo "Upload with Transporter or: xcrun altool --upload-app -f $PKG_PATH -t macos"
-
-        elif [ "$BUILD_MODE" = "distribution" ]; then
-            echo ""
-            echo "Notarizing app..."
-            APP_ZIP="./build/bin/Kaja.zip"
-
-            # Create zip for notarization
-            ditto -c -k --keepParent "$APP_BUNDLE" "$APP_ZIP"
-
-            # Submit for notarization and wait
-            xcrun notarytool submit "$APP_ZIP" \
-                --keychain-profile "$NOTARY_PROFILE" \
-                --wait
-
-            # Staple the notarization ticket
-            echo "Stapling notarization ticket..."
-            xcrun stapler staple "$APP_BUNDLE"
-
-            # Clean up
-            rm "$APP_ZIP"
-
-            echo "App notarization complete"
-        fi
-
-        if [ "$BUILD_MODE" != "store" ]; then
-            # Create DMG (not needed for App Store)
-            echo ""
-            echo "Creating DMG..."
-            DMG_PATH="./build/bin/Kaja.dmg"
-            rm -f "$DMG_PATH"
-
-            if [ "$BUILD_MODE" = "distribution" ]; then
-                create-dmg \
-                    --volname "Kaja" \
-                    --volicon "./build/appicon.png" \
-                    --window-size 600 400 \
-                    --icon-size 100 \
-                    --icon "Kaja.app" 150 200 \
-                    --app-drop-link 450 200 \
-                    "$DMG_PATH" \
-                    "$APP_BUNDLE"
-
-                # Notarize DMG
-                echo ""
-                echo "Notarizing DMG..."
-                xcrun notarytool submit "$DMG_PATH" \
-                    --keychain-profile "$NOTARY_PROFILE" \
-                    --wait
-
-                # Staple DMG
-                echo "Stapling DMG..."
-                xcrun stapler staple "$DMG_PATH"
-
-                echo ""
-                echo "Distribution complete: $DMG_PATH"
-            else
-                # create-dmg returns exit code 1 when it can't sign (expected without certificates)
-                create-dmg \
-                    --volname "Kaja" \
-                    --window-size 600 400 \
-                    --icon-size 100 \
-                    --icon "Kaja.app" 150 200 \
-                    --app-drop-link 450 200 \
-                    "$DMG_PATH" \
-                    "$APP_BUNDLE" \
-                    || true
-
-                if [ -f "$DMG_PATH" ]; then
-                    echo "DMG created: $DMG_PATH"
-                else
-                    echo "Failed to create DMG"
-                    exit 1
-                fi
-            fi
-        fi
+        productbuild \
+            --component "$APP_BUNDLE" /Applications \
+            --sign "$STORE_INSTALLER_PROFILE" \
+            "$PKG_PATH"
 
         echo ""
+        echo "App Store package complete: $PKG_PATH"
+        echo "Upload with Transporter or: xcrun altool --upload-app -f $PKG_PATH -t macos"
+        echo ""
         echo "Build complete: $APP_BUNDLE"
-        if [ -t 0 ] && [ "$BUILD_MODE" != "store" ]; then
-            open "$APP_BUNDLE"
-        fi
     fi
 
 else
