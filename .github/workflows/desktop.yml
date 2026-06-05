@@ -23,11 +23,9 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Build desktop app and create DMG
-        run: scripts/desktop --build=development
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kaja.dmg
-          path: desktop/build/bin/Kaja.dmg
+      - name: Build desktop app
+        run: wails build
+        working-directory: desktop
