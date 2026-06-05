@@ -17,6 +17,13 @@
 - Ask me before creating custom UI components; prefer direct use of Primer components.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
 
+## Experimental (Beta)
+
+Two features are still experimental and marked "Beta" in the UI:
+
+- **Scripts** — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts (desktop only) that bind to projects through their import paths and run from their own tabs.
+- **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
+
 ## Directory Structure
 
 ```

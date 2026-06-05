@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ActionList, ActionMenu, TreeView, IconButton } from "@primer/react";
-import { CpuIcon, FileCodeIcon, FoldIcon, PencilIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
+import { CpuIcon, FileCodeIcon, FoldIcon, PencilIcon, PinIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
 import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -71,12 +71,15 @@ interface SidebarProps {
   scripts?: Script[];
   currentMethod?: Method;
   currentScriptPath?: string;
+  // Path of the script pinned to the macOS "Run Kaja Script" text service.
+  pinnedScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteProjects?: boolean;
   onSelect: (method: Method, service: Service, project: Project) => void;
   onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
+  onPinScript?: (script: Script) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onEditProject: (projectName: string) => void;
@@ -88,12 +91,14 @@ export function Sidebar({
   scripts,
   currentMethod,
   currentScriptPath,
+  pinnedScriptPath,
   scrollToMethod,
   canDeleteProjects = true,
   onSelect,
   onScriptSelect,
   onRenameScript,
   onDeleteScript,
+  onPinScript,
   onCompilerClick,
   onNewProjectClick,
   onEditProject,
@@ -388,6 +393,11 @@ export function Sidebar({
                     current={currentScriptPath === script.path}
                   >
                     {script.name}
+                    {pinnedScriptPath === script.path && (
+                      <TreeView.TrailingVisual label="Pinned to context menu">
+                        <PinIcon size={12} />
+                      </TreeView.TrailingVisual>
+                    )}
                   </TreeView.Item>
                 ))}
               </TreeView>
@@ -584,6 +594,19 @@ export function Sidebar({
       <ActionMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)} anchorRef={scriptMenuAnchorRef}>
         <ActionMenu.Overlay width="small">
           <ActionList>
+            {onPinScript && (
+              <ActionList.Item
+                onSelect={() => {
+                  const script = scriptMenu?.script;
+                  if (script) onPinScript(script);
+                }}
+              >
+                <ActionList.LeadingVisual>
+                  <PinIcon />
+                </ActionList.LeadingVisual>
+                {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
+              </ActionList.Item>
+            )}
             <ActionList.Item
               onSelect={() => {
                 const script = scriptMenu?.script;

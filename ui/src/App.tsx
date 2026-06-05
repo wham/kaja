@@ -45,6 +45,7 @@ import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
+import { runTask } from "./taskRunner";
 
 // Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
 function lowerFirst(s: string): string {
@@ -116,6 +117,8 @@ export function App() {
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
   const [deleteScript, setDeleteScript] = useState<Script | null>(null);
+  // Path of the script pinned to the macOS "Run Kaja Script" text service.
+  const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
   // Pending debounced disk writes for open script tabs, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -546,6 +549,51 @@ export function App() {
     [captureActiveViewState, persistTabs, showFileError],
   );
 
+  // Persist the pinned script path so the macOS text service keeps targeting it
+  // across restarts.
+  useEffect(() => {
+    setPersistedValue("contextMenuScriptPath", pinnedScriptPath);
+  }, [pinnedScriptPath]);
+
+  // Right-click → toggle which script the macOS "Run Kaja Script" service runs.
+  const onPinScript = useCallback((script: Script) => {
+    setPinnedScriptPath((current) => (current === script.path ? undefined : script.path));
+  }, []);
+
+  // Run the pinned script with text handed over by the macOS text service,
+  // exposing it to the script as `kaja.input`.
+  const runContextMenuScript = useCallback(
+    async (text: string) => {
+      if (!isWailsEnvironment()) return;
+      if (!pinnedScriptPath) {
+        showFileError("Pin a script to the context menu first.");
+        return;
+      }
+      try {
+        const file = await ReadScriptFile(pinnedScriptPath);
+        if (!file) return;
+        // Open the script so the run is visible, then run it.
+        await onScriptSelect({ path: file.path, name: file.name });
+        const kaja = kajaRef.current!;
+        kaja.input = text;
+        runTask(file.content, kaja, projects);
+      } catch (err) {
+        showFileError(`Run failed: ${err}`);
+      }
+    },
+    [pinnedScriptPath, onScriptSelect, projects, showFileError],
+  );
+
+  const runContextMenuScriptRef = useRef(runContextMenuScript);
+  runContextMenuScriptRef.current = runContextMenuScript;
+
+  // Wire the native macOS "Run Kaja Script" text service.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const unsub = EventsOn("service:runScript", (text: string) => runContextMenuScriptRef.current(text));
+    return () => unsub();
+  }, []);
+
   // Flush any pending debounced write for a script tab immediately (e.g. before
   // its model is disposed). No-op if nothing is pending.
   const flushScriptTab = useCallback(
@@ -663,6 +711,8 @@ export function App() {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === original.path ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
       // Re-point any open tab for this script at the new path/name.
       setTabs((prev) => prev.map((t) => (t.type === "script" && t.script.path === original.path ? { ...t, script: renamed } : t)));
+      // Keep the context-menu pin pointing at the renamed file.
+      setPinnedScriptPath((current) => (current === original.path ? renamed.path : current));
       persistTabs();
       setRenameScript(null);
       setRenameError(undefined);
@@ -681,6 +731,8 @@ export function App() {
         return;
       }
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== script.path));
+      // Drop the context-menu pin if it pointed at the deleted script.
+      setPinnedScriptPath((current) => (current === script.path ? undefined : current));
       setTabs((prevTabs) => {
         const idx = prevTabs.findIndex((t) => t.type === "script" && t.script.path === script.path);
         if (idx === -1) return prevTabs;
@@ -947,6 +999,8 @@ export function App() {
                   onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                   onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
                   onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
+                  onPinScript={isDesktopMac ? onPinScript : undefined}
+                  pinnedScriptPath={pinnedScriptPath}
                   currentMethod={selectedMethod}
                   currentScriptPath={activeScriptPath}
                   scrollToMethod={scrollToMethod}
