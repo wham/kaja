@@ -1,5 +1,5 @@
-import { EllipsisIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, ActionMenu, IconButton, useResponsiveValue } from "@primer/react";
+import { EllipsisIcon, PlayIcon, XIcon } from "@primer/octicons-react";
+import { ActionList, ActionMenu, Button, IconButton, Tooltip, useResponsiveValue } from "@primer/react";
 
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 
@@ -17,17 +17,25 @@ interface TabsProps {
   onCloseTab?: (index: number) => void;
   onCloseAll?: () => void;
   onCloseOthers?: (index: number) => void;
+  // When set, a compact Run button is docked into the tab-strip control cluster.
+  onRun?: () => void;
 }
 
 export function Tab({ children }: TabProps) {
   return <>{children}</>;
 }
 
-export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers }: TabsProps) {
+export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers, onRun }: TabsProps) {
   const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
   const overflow = isNarrow ? "auto" : "hidden";
   const tabsHeaderRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  // Width of the right-hand control cluster (Run + Tab options), measured so tabs
+  // reserve room for it and scrolling keeps them clear of it.
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const controlsWidthRef = useRef(0);
+  const [controlsWidth, setControlsWidth] = useState(0);
+  controlsWidthRef.current = controlsWidth;
   const prevTabCount = useRef(React.Children.count(children));
   const [contextMenu, setContextMenu] = useState<{ open: boolean; tabIndex: number; anchorPoint: { x: number; y: number } }>({
     open: false,
@@ -57,24 +65,21 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     };
   }, [children, updateScrollMetrics]);
 
-  const scrollToTab = useCallback(
-    (index: number) => {
-      const tabElement = tabRefs.current.get(index);
-      const container = tabsHeaderRef.current;
-      if (tabElement && container) {
-        const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
-        const visibleRight = container.scrollLeft + container.clientWidth;
-        const menuButtonWidth = onCloseAll ? 40 : 0;
-        if (tabRight > visibleRight - menuButtonWidth) {
-          container.scrollTo({
-            left: tabRight - container.clientWidth + menuButtonWidth + 8,
-            behavior: "smooth",
-          });
-        }
+  const scrollToTab = useCallback((index: number) => {
+    const tabElement = tabRefs.current.get(index);
+    const container = tabsHeaderRef.current;
+    if (tabElement && container) {
+      const tabRight = tabElement.offsetLeft + tabElement.offsetWidth;
+      const visibleRight = container.scrollLeft + container.clientWidth;
+      const controlsWidth = controlsWidthRef.current;
+      if (tabRight > visibleRight - controlsWidth) {
+        container.scrollTo({
+          left: tabRight - container.clientWidth + controlsWidth + 8,
+          behavior: "smooth",
+        });
       }
-    },
-    [onCloseAll],
-  );
+    }
+  }, []);
 
   useEffect(() => {
     const currentTabCount = React.Children.count(children);
@@ -83,6 +88,19 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     }
     prevTabCount.current = currentTabCount;
   }, [children, scrollToTab]);
+
+  useEffect(() => {
+    const el = controlsRef.current;
+    if (!el) {
+      setControlsWidth(0);
+      return;
+    }
+    const update = () => setControlsWidth(el.offsetWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onRun, onCloseAll, children]);
 
   const handleContextMenu = useCallback((event: React.MouseEvent, index: number) => {
     event.preventDefault();
@@ -132,7 +150,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         onMouseEnter={() => setShowScrollbar(true)}
         onMouseLeave={() => setShowScrollbar(false)}
       >
-        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: onCloseAll && tabCount > 0 ? 36 : 0 }}>
+        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: tabCount > 0 ? controlsWidth : 0 }}>
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
             const isActive = index === activeTabIndex;
@@ -183,8 +201,9 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           })}
           <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-muted)" }} />
         </div>
-        {onCloseAll && tabCount > 0 && (
+        {tabCount > 0 && (onRun || onCloseAll) && (
           <div
+            ref={controlsRef}
             style={{
               position: "absolute",
               right: 0,
@@ -192,22 +211,48 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               bottom: 0,
               display: "flex",
               alignItems: "center",
+              gap: 6,
               paddingLeft: 4,
               paddingRight: 8,
               background: "var(--bgColor-default)",
               borderBottom: "1px solid var(--borderColor-muted)",
             }}
           >
-            <ActionMenu>
-              <ActionMenu.Anchor>
-                <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" />
-              </ActionMenu.Anchor>
-              <ActionMenu.Overlay>
-                <ActionList>
-                  <ActionList.Item onSelect={onCloseAll}>Close All</ActionList.Item>
-                </ActionList>
-              </ActionMenu.Overlay>
-            </ActionMenu>
+            {onRun && (
+              <Tooltip text="Run (F5)" direction="s">
+                <Button
+                  leadingVisual={() => <PlayIcon size={14} />}
+                  onClick={onRun}
+                  variant="primary"
+                  size="small"
+                  style={
+                    {
+                      "--control-small-gap": "5px",
+                      height: "22px",
+                      paddingLeft: "7px",
+                      paddingRight: "9px",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      borderRadius: "6px",
+                    } as React.CSSProperties
+                  }
+                >
+                  Run
+                </Button>
+              </Tooltip>
+            )}
+            {onCloseAll && (
+              <ActionMenu>
+                <ActionMenu.Anchor>
+                  <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" />
+                </ActionMenu.Anchor>
+                <ActionMenu.Overlay>
+                  <ActionList>
+                    <ActionList.Item onSelect={onCloseAll}>Close All</ActionList.Item>
+                  </ActionList>
+                </ActionMenu.Overlay>
+              </ActionMenu>
+            )}
           </div>
         )}
         {showScrollbar && scrollMetrics.width > scrollMetrics.clientWidth && (

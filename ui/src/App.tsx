@@ -836,6 +836,36 @@ export function App() {
     persistTabs();
   };
 
+  // Run the active task/script tab's editor contents. Triggered by the docked
+  // Run button in the tab strip and by F5.
+  const onRunActiveTab = useCallback(() => {
+    const index = activeTabIndexRef.current;
+    const tab = tabsRef.current[index];
+    if (!tab || (tab.type !== "task" && tab.type !== "script")) {
+      return;
+    }
+    const editor = editorRegistryRef.current.get(tab.id);
+    if (!editor) {
+      return;
+    }
+    runTask(editor.getValue(), kajaRef.current!, projects);
+    if (tab.type === "task") {
+      setTabs((tabs) => markInteraction(tabs, index));
+      persistTabs();
+    }
+  }, [projects, persistTabs]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "F5") {
+        event.preventDefault();
+        onRunActiveTab();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onRunActiveTab]);
+
   const onCompilerClick = () => {
     setTabs((tabs) => {
       const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
@@ -1119,16 +1149,13 @@ export function App() {
                       onCloseTab={onCloseTab}
                       onCloseAll={onCloseAll}
                       onCloseOthers={onCloseOthers}
+                      onRun={isActiveTaskTab ? onRunActiveTab : undefined}
                     >
                       {tabs.map((tab, index) => {
                         if (tab.type === "compiler") {
                           return (
                             <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler
-                                projects={projects}
-                                configurationLoaded={configurationLoaded}
-                                onNewProjectClick={onNewProjectClick}
-                              />
+                              <Compiler projects={projects} configurationLoaded={configurationLoaded} onNewProjectClick={onNewProjectClick} />
                             </Tab>
                           );
                         }
@@ -1138,12 +1165,6 @@ export function App() {
                             <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
                               <Task
                                 model={tab.model}
-                                projects={projects}
-                                kaja={kajaRef.current!}
-                                onInteraction={() => {
-                                  setTabs((tabs) => markInteraction(tabs, index));
-                                  persistTabs();
-                                }}
                                 onGoToDefinition={onGoToDefinition}
                                 onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
                                 viewState={tab.viewState}
@@ -1157,9 +1178,6 @@ export function App() {
                             <Tab tabId={tab.id} tabLabel={tab.script.name} key={tab.id}>
                               <Task
                                 model={tab.model}
-                                projects={projects}
-                                kaja={kajaRef.current!}
-                                onInteraction={() => {}}
                                 onGoToDefinition={onGoToDefinition}
                                 onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
                                 viewState={tab.viewState}
