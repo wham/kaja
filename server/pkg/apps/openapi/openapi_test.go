@@ -9,7 +9,44 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
+
+// encodeRequest builds the protobuf request bytes for a method from a JSON object.
+func encodeRequest(t *testing.T, inst *instance, method, requestJSON string) []byte {
+	t.Helper()
+	m := inst.lookup(method)
+	if m == nil {
+		t.Fatalf("method %q not found", method)
+	}
+	msg := dynamicpb.NewMessage(m.input)
+	if err := protojson.Unmarshal([]byte(requestJSON), msg); err != nil {
+		t.Fatalf("build request for %q: %v", method, err)
+	}
+	b, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	return b
+}
+
+// decodeResponse turns a method's protobuf response bytes back into JSON.
+func decodeResponse(t *testing.T, inst *instance, method string, response []byte) []byte {
+	t.Helper()
+	m := inst.lookup(method)
+	msg := dynamicpb.NewMessage(m.output)
+	if err := proto.Unmarshal(response, msg); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	j, err := protojson.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal response json: %v", err)
+	}
+	return j
+}
 
 const petstoreSpec = `
 openapi: 3.0.0
@@ -177,10 +214,11 @@ func TestOpenAndInvoke(t *testing.T) {
 
 	dir := t.TempDir()
 	app := New()
-	inst, err := app.Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, dir, func(string) {})
+	opened, err := app.Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, dir, func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	inst := opened.(*instance)
 
 	if _, err := os.Stat(filepath.Join(dir, "service.proto")); err != nil {
 		t.Errorf("expected service.proto written: %v", err)
@@ -189,34 +227,34 @@ func TestOpenAndInvoke(t *testing.T) {
 	const svc = "openapi.swagger_petstore.SwaggerPetstore"
 
 	// GET /pets/{petId} -> object pass-through
-	out, err := inst.Invoke(svc+"/GetPetById", []byte(`{"petId":1}`), nil)
+	out, err := inst.Invoke(svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
 	if err != nil {
 		t.Fatalf("GetPetById: %v", err)
 	}
-	assertJSONEq(t, out, `{"id":1,"name":"Rex","tag":"dog"}`)
+	assertJSONEq(t, decodeResponse(t, inst, svc+"/GetPetById", out), `{"id":1,"name":"Rex","tag":"dog"}`)
 
 	// GET /pets?limit=5 -> array wrapped under "items"
-	out, err = inst.Invoke(svc+"/ListPets", []byte(`{"limit":5}`), nil)
+	out, err = inst.Invoke(svc+"/ListPets", encodeRequest(t, inst, svc+"/ListPets", `{"limit":5}`), nil)
 	if err != nil {
 		t.Fatalf("ListPets: %v", err)
 	}
 	var listResp struct {
 		Items []map[string]any `json:"items"`
 	}
-	if err := json.Unmarshal(out, &listResp); err != nil {
-		t.Fatalf("ListPets response unmarshal: %v (%s)", err, out)
+	if err := json.Unmarshal(decodeResponse(t, inst, svc+"/ListPets", out), &listResp); err != nil {
+		t.Fatalf("ListPets response unmarshal: %v", err)
 	}
 	if len(listResp.Items) != 2 {
-		t.Errorf("ListPets items = %d, want 2 (%s)", len(listResp.Items), out)
+		t.Errorf("ListPets items = %d, want 2", len(listResp.Items))
 	}
 
 	// POST /pets with body
-	out, err = inst.Invoke(svc+"/CreatePet", []byte(`{"body":{"name":"Milo","tag":"cat"}}`), nil)
+	out, err = inst.Invoke(svc+"/CreatePet", encodeRequest(t, inst, svc+"/CreatePet", `{"body":{"name":"Milo","tag":"cat"}}`), nil)
 	if err != nil {
 		t.Fatalf("CreatePet: %v", err)
 	}
 	assertJSONEq(t, []byte(lastBody), `{"name":"Milo","tag":"cat"}`)
-	assertJSONEq(t, out, `{"id":7,"name":"Milo"}`)
+	assertJSONEq(t, decodeResponse(t, inst, svc+"/CreatePet", out), `{"id":7,"name":"Milo"}`)
 }
 
 func TestInvokeUpstreamError(t *testing.T) {
@@ -228,12 +266,67 @@ func TestInvokeUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	inst, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := inst.Invoke("openapi.swagger_petstore.SwaggerPetstore/GetPetById", []byte(`{"petId":1}`), nil); err == nil {
+	inst := opened.(*instance)
+	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
+	if _, err := inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil); err == nil {
 		t.Fatal("expected error for 500 upstream, got nil")
+	}
+}
+
+// TestInt64Format locks in that integer fields with format int64 map to int64,
+// so large IDs (e.g. the petstore's) don't overflow int32 during transcoding.
+func TestInt64Format(t *testing.T) {
+	const spec = `
+openapi: 3.0.0
+info:
+  title: Big
+paths:
+  /things/{id}:
+    get:
+      operationId: getThing
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thing"
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        count:
+          type: integer
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	for _, frag := range []string{
+		`int32 count = 1 [json_name = "count"];`, // plain integer -> int32 (fields sorted)
+		`int64 id = 2 [json_name = "id"];`,       // format int64 -> int64
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
 	}
 }
 

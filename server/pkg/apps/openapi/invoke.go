@@ -8,23 +8,66 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// instance is a live opened OpenAPI app. It transcodes proto3-JSON method calls
-// into HTTP requests against the upstream REST API and shapes the responses back
-// into the method's proto response.
+// boundMethod pairs a method's HTTP binding with the protobuf descriptors used to
+// decode the request and encode the response.
+type boundMethod struct {
+	binding *methodBinding
+	input   protoreflect.MessageDescriptor
+	output  protoreflect.MessageDescriptor
+}
+
+// instance is a live opened OpenAPI app. It is a gRPC app: method calls arrive as
+// protobuf, are transcoded into HTTP requests against the upstream REST API, and
+// the responses are shaped back into the method's protobuf response.
 type instance struct {
-	baseURL  string
-	bindings map[string]*methodBinding
-	client   *http.Client
+	baseURL string
+	methods map[string]*boundMethod
+	client  *http.Client
 }
 
 func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
-	binding := in.lookup(methodPath)
-	if binding == nil {
+	method := in.lookup(methodPath)
+	if method == nil {
 		return nil, fmt.Errorf("unknown method %q", methodPath)
 	}
 
+	// Decode the protobuf request into the proto3-JSON shape the transcoder reads.
+	// Field json_names match the OpenAPI parameter/property names by construction.
+	reqMsg := dynamicpb.NewMessage(method.input)
+	if len(request) > 0 {
+		if err := proto.Unmarshal(request, reqMsg); err != nil {
+			return nil, fmt.Errorf("decoding request: %w", err)
+		}
+	}
+	reqJSON, err := protojson.Marshal(reqMsg)
+	if err != nil {
+		return nil, fmt.Errorf("encoding request to JSON: %w", err)
+	}
+
+	respJSON, err := in.transcode(method.binding, reqJSON, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encode the JSON response back into the method's protobuf response, ignoring
+	// any extra REST fields not modeled in the proto.
+	respMsg := dynamicpb.NewMessage(method.output)
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(respJSON, respMsg); err != nil {
+		return nil, fmt.Errorf("decoding response JSON: %w", err)
+	}
+	return proto.Marshal(respMsg)
+}
+
+// transcode runs the upstream REST call for a method given the proto3-JSON
+// request, returning the proto3-JSON response.
+func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) ([]byte, error) {
 	req := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(request)) > 0 {
 		if err := json.Unmarshal(request, &req); err != nil {
@@ -88,16 +131,16 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	return wrapResponse(binding.responseWrap, respBody), nil
 }
 
-// lookup finds a binding by exact Twirp method path, falling back to a
-// case-insensitive match on the method-name segment.
-func (in *instance) lookup(methodPath string) *methodBinding {
-	if b, ok := in.bindings[methodPath]; ok {
-		return b
+// lookup finds a method by exact gRPC path, falling back to a case-insensitive
+// match on the method-name segment.
+func (in *instance) lookup(methodPath string) *boundMethod {
+	if m, ok := in.methods[methodPath]; ok {
+		return m
 	}
 	want := lastSegment(methodPath)
-	for k, b := range in.bindings {
+	for k, m := range in.methods {
 		if strings.EqualFold(lastSegment(k), want) {
-			return b
+			return m
 		}
 	}
 	return nil

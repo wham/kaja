@@ -253,6 +253,9 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		g.addMessage(&messageDef{name: name, fields: g.fieldsFromProperties(name, s)})
 		return name, false
 	case "integer":
+		if s.Format == "int64" {
+			return "int64", false
+		}
 		return "int32", false
 	case "number":
 		if s.Format == "float" {

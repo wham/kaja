@@ -16,19 +16,10 @@ import { ProjectRef } from "../project";
 
 export type WailsTransportMode = "api" | "target";
 
-// Decode a Twirp JSON response body into a JsonValue, tolerating an empty body.
-function decodeJsonBody(bytes: Uint8Array): any {
-  const text = new TextDecoder().decode(bytes).trim();
-  return text === "" ? {} : JSON.parse(text);
-}
-
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   projectRef?: ProjectRef; // Dynamic project reference for "target" mode
   protocol: RpcProtocol;
-  // When true, request/response bodies are Twirp JSON instead of protobuf binary.
-  // Used for app targets (kaja-app://), which the backend transcodes to/from REST.
-  sendJson?: boolean;
 }
 
 /**
@@ -39,13 +30,11 @@ export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
   private projectRef?: ProjectRef;
   private protocol: number;
-  private sendJson: boolean;
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
     this.projectRef = options.projectRef;
     this.protocol = options.protocol;
-    this.sendJson = options.sendJson ?? false;
 
     if (this.mode === "target" && !this.projectRef) {
       throw new Error("projectRef is required when mode is 'target'");
@@ -197,10 +186,8 @@ export class WailsTransport implements RpcTransport {
       }
       console.log("Input object:", input);
 
-      // Serialize input. Apps use Twirp JSON; everything else uses protobuf binary.
-      const inputBytes = this.sendJson
-        ? new TextEncoder().encode(JSON.stringify(method.I.toJson(input)))
-        : method.I.toBinary(input, { writeUnknownFields: false });
+      // Serialize input using protobuf-ts
+      const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
       console.log("Serialized inputBytes length:", inputBytes.length);
 
       // Empty serialization is valid for methods with no parameters
@@ -254,7 +241,7 @@ export class WailsTransport implements RpcTransport {
       // Both API and Target modes use the same response handling (base64 decoding)
       const responseBytes = Uint8Array.from(atob(responseBase64 as string), (c) => c.charCodeAt(0));
 
-      const output = this.sendJson ? method.O.fromJson(decodeJsonBody(responseBytes), { ignoreUnknownFields: true }) : method.O.fromBinary(responseBytes);
+      const output = method.O.fromBinary(responseBytes);
       console.log(`Wails ${this.mode} output:`, output);
       return output;
     } catch (error) {

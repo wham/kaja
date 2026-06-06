@@ -2,7 +2,7 @@ import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import type { RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { MethodCall } from "./kaja";
-import { Client, isAppTarget, ProjectRef, Service, serviceId } from "./project";
+import { Client, ProjectRef, Service, serviceId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -17,10 +17,6 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
   }
 
   const isTwirp = projectRef.configuration.protocol === RpcProtocol.TWIRP;
-  // Apps (kaja-app:// targets) speak Twirp in JSON mode: the server transcodes
-  // the JSON request/response to/from the upstream REST API, so unknown fields in
-  // the response (extra REST fields not modeled in the proto) must be tolerated.
-  const isApp = isAppTarget(projectRef.configuration.url);
 
   let transport;
   if (isWailsEnvironment()) {
@@ -31,14 +27,11 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
       mode: "target",
       projectRef,
       protocol: projectRef.configuration.protocol,
-      sendJson: isApp,
     });
   } else {
     if (isTwirp) {
       transport = new TwirpFetchTransport({
         baseUrl: getBaseUrlForTarget(),
-        sendJson: isApp,
-        jsonOptions: isApp ? { ignoreUnknownFields: true } : undefined,
       });
     } else {
       transport = new GrpcWebFetchTransport({

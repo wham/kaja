@@ -40,23 +40,18 @@ export interface Project {
 }
 
 // appConfiguration synthesizes the ConfigurationProject that an app is rendered
-// and invoked through. The URL is filled in with the app's invocation target
+// and invoked through. Apps are gRPC apps: calls go out as gRPC-Web and the
+// server transcodes them. The URL is filled in with the app's invocation target
 // (kaja-app://<id>) once the app is opened during compilation.
 export function appConfiguration(app: ConfigurationApp): ConfigurationProject {
   return {
     name: app.name,
-    protocol: RpcProtocol.TWIRP,
+    protocol: RpcProtocol.GRPC,
     url: "",
     protoDir: "",
     useReflection: false,
     headers: { ...(app.headers || {}) },
   };
-}
-
-// True for an opened app's invocation target. App method calls are routed back
-// into kaja's app manager rather than proxied to an external host.
-export function isAppTarget(url: string): boolean {
-  return url.startsWith("kaja-app://");
 }
 
 export type CompilationStatus = "pending" | "running" | "success" | "error";

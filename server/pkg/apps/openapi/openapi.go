@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/protoc-go/protoc"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // App is the openapi app factory. Register it with the apps.Manager.
@@ -46,6 +49,13 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, fmt.Errorf("writing proto: %w", err)
 	}
 
+	// Compile the generated proto to descriptors so invocations can decode the
+	// protobuf request and encode the protobuf response (the app is a gRPC app).
+	methods, err := compileMethods(protoDir, gen)
+	if err != nil {
+		return nil, err
+	}
+
 	baseURL, err := resolveBaseURL(specURL, s)
 	if err != nil {
 		return nil, err
@@ -56,10 +66,43 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	log("Upstream base URL: " + baseURL)
 
 	return &instance{
-		baseURL:  baseURL,
-		bindings: gen.bindings,
-		client:   &http.Client{Timeout: 30 * time.Second},
+		baseURL: baseURL,
+		methods: methods,
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}, nil
+}
+
+// compileMethods compiles the generated proto and resolves each method's input
+// and output message descriptors, keyed by the gRPC method path.
+func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir)).Compile("service.proto")
+	if err != nil {
+		return nil, fmt.Errorf("compiling generated proto: %w", err)
+	}
+	files, err := protodesc.NewFiles(result.AsFileDescriptorSet())
+	if err != nil {
+		return nil, fmt.Errorf("building descriptors: %w", err)
+	}
+
+	descriptor, err := files.FindDescriptorByName(protoreflect.FullName(gen.serviceTypeName))
+	if err != nil {
+		return nil, fmt.Errorf("finding service %s: %w", gen.serviceTypeName, err)
+	}
+	service, ok := descriptor.(protoreflect.ServiceDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a service", gen.serviceTypeName)
+	}
+
+	methods := make(map[string]*boundMethod, len(gen.bindings))
+	for key, binding := range gen.bindings {
+		name := lastSegment(key)
+		method := service.Methods().ByName(protoreflect.Name(name))
+		if method == nil {
+			return nil, fmt.Errorf("method %s missing from compiled descriptors", name)
+		}
+		methods[key] = &boundMethod{binding: binding, input: method.Input(), output: method.Output()}
+	}
+	return methods, nil
 }
 
 // requireHTTPScheme rejects URLs that are not plain HTTP(S), so a spec can't make
