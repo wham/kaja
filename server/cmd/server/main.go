@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -14,7 +16,35 @@ import (
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/apps"
 )
+
+// handleAppInvoke routes a Twirp(JSON) method call to an opened app instance and
+// writes the result back in the shape @protobuf-ts's TwirpFetchTransport expects:
+// a JSON body on success, or a Twirp error envelope on failure.
+func handleAppInvoke(w http.ResponseWriter, r *http.Request, manager *apps.Manager, target, method string, headers map[string]string) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 16<<20))
+	if err != nil {
+		writeTwirpError(w, http.StatusBadRequest, "malformed_body", err.Error())
+		return
+	}
+
+	response, err := manager.Invoke(target, method, body, headers)
+	if err != nil {
+		slog.Error("App invocation failed", "method", method, "error", err)
+		writeTwirpError(w, http.StatusInternalServerError, "internal", err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(response)
+}
+
+func writeTwirpError(w http.ResponseWriter, status int, code, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"code": code, "msg": msg})
+}
 
 // GitRef is the git commit hash or tag, set at build time via ldflags
 var GitRef string
@@ -40,7 +70,8 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := api.NewApiServer(api.NewApiService(configurationPath, false, GitRef))
+	apiService := api.NewApiService(configurationPath, false, GitRef)
+	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +89,7 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 
@@ -142,13 +173,7 @@ func main() {
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
-		target, err := url.Parse(r.Header.Get("X-Target"))
-		if err != nil {
-			slog.Warn("Failed to parse X-Target header", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Invalid X-Target header"))
-			return
-		}
+		targetHeader := r.Header.Get("X-Target")
 
 		// Extract headers with X-Header- prefix to forward to target
 		forwardHeaders := make(map[string]string)
@@ -157,6 +182,21 @@ func main() {
 				headerName := strings.TrimPrefix(name, "X-Header-")
 				forwardHeaders[headerName] = values[0]
 			}
+		}
+
+		// App targets (kaja-app://<id>) are invoked in-process by the app manager
+		// instead of being proxied to an external host.
+		if apps.IsAppTarget(targetHeader) {
+			handleAppInvoke(w, r, apiService.Apps(), targetHeader, r.PathValue("method"), forwardHeaders)
+			return
+		}
+
+		target, err := url.Parse(targetHeader)
+		if err != nil {
+			slog.Warn("Failed to parse X-Target header", "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid X-Target header"))
+			return
 		}
 
 		if strings.HasPrefix(contentType, "application/grpc-web") ||

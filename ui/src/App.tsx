@@ -1,6 +1,18 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, Button, ConfirmationDialog, Dialog, Flash, FormControl, IconButton, TextInput, ThemeProvider, Tooltip, useResponsiveValue } from "@primer/react";
+import {
+  BaseStyles,
+  Button,
+  ConfirmationDialog,
+  Dialog,
+  Flash,
+  FormControl,
+  IconButton,
+  TextInput,
+  ThemeProvider,
+  Tooltip,
+  useResponsiveValue,
+} from "@primer/react";
 import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,14 +22,14 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
-import { createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
+import { appConfiguration, createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationProject } from "./server/api";
+import { Configuration, ConfigurationApp, ConfigurationProject } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
@@ -54,7 +66,7 @@ function lowerFirst(s: string): string {
 }
 
 // Helper: Create a new project in pending compilation state
-function createPendingProject(config: ConfigurationProject): Project {
+function createPendingProject(config: ConfigurationProject, app?: ConfigurationApp): Project {
   return {
     configuration: config,
     projectRef: createProjectRef(config),
@@ -63,7 +75,13 @@ function createPendingProject(config: ConfigurationProject): Project {
     clients: {},
     sources: [],
     stub: { serviceInfos: {} },
+    app,
   };
+}
+
+// Compare the parts of an app's configuration that require recompilation when changed.
+function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
+  return a.type !== b.type || JSON.stringify(a.parameters || {}) !== JSON.stringify(b.parameters || {});
 }
 
 // Helper: Apply rename to a project (remap sources and services)
@@ -118,6 +136,9 @@ export function App() {
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
+  // New App dialog state (currently only the built-in OpenAPI app); null when closed.
+  const [newApp, setNewApp] = useState<{ name: string; specUrl: string } | null>(null);
+  const [newAppError, setNewAppError] = useState<string>();
   // Rename dialog and delete confirmation for scripts (right-click menu).
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
@@ -251,11 +272,15 @@ export function App() {
   const syncProjectsFromConfiguration = useCallback(
     (newConfiguration: Configuration, prevProjects: Project[]): { updatedProjects: Project[]; removedNames: Set<string>; renames: Map<string, string> } => {
       const updatedProjects: Project[] = [];
+      // Apps reconcile separately (against newConfiguration.apps), so keep them
+      // out of the project-vs-project rename/orphan matching below.
+      const regularPrev = prevProjects.filter((p) => !p.app);
+      const appPrev = prevProjects.filter((p) => p.app);
       const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
-      const prevByName = new Map(prevProjects.map((p) => [p.configuration.name, p]));
+      const prevByName = new Map(regularPrev.map((p) => [p.configuration.name, p]));
 
       // Find orphans (removed) and newcomers (added)
-      const orphans = prevProjects.filter((p) => !newConfigByName.has(p.configuration.name));
+      const orphans = regularPrev.filter((p) => !newConfigByName.has(p.configuration.name));
       const newcomerConfigs = newConfiguration.projects.filter((p) => !prevByName.has(p.name));
 
       // Detect renames: match orphans to newcomers by protoDir/url
@@ -310,9 +335,30 @@ export function App() {
         }
       }
 
-      // Clean up removed projects
-      const removedNames = new Set(orphans.map((p) => p.configuration.name));
-      for (const orphan of orphans) {
+      // Reconcile apps (newConfiguration.apps) against previously loaded apps.
+      const newApps = newConfiguration.apps || [];
+      const newAppByName = new Map(newApps.map((a) => [a.name, a]));
+      const appPrevByName = new Map(appPrev.map((p) => [p.configuration.name, p]));
+      for (const app of newApps) {
+        const existing = appPrevByName.get(app.name);
+        if (!existing || !existing.app || appNeedsRecompile(existing.app, app)) {
+          if (existing) {
+            disposeMonacoModelsForProject(existing.configuration.name);
+          }
+          updatedProjects.push(createPendingProject(appConfiguration(app), app));
+        } else {
+          // Unchanged app: keep the loaded project (and its kaja-app:// target),
+          // refreshing forwarded headers in place.
+          const configuration = { ...existing.configuration, headers: { ...(app.headers || {}) } };
+          updateProjectRef(existing.projectRef, configuration);
+          updatedProjects.push({ ...existing, configuration, app });
+        }
+      }
+      const appOrphans = appPrev.filter((p) => !newAppByName.has(p.configuration.name));
+
+      // Clean up removed projects and apps
+      const removedNames = new Set([...orphans, ...appOrphans].map((p) => p.configuration.name));
+      for (const orphan of [...orphans, ...appOrphans]) {
         disposeMonacoModelsForProject(orphan.configuration.name);
       }
 
@@ -913,6 +959,43 @@ export function App() {
     });
   };
 
+  const onNewAppClick = () => {
+    setNewAppError(undefined);
+    setNewApp({ name: "", specUrl: "" });
+  };
+
+  const onConfirmNewApp = async () => {
+    if (!newApp || !configuration) return;
+    const name = newApp.name.trim();
+    const specUrl = newApp.specUrl.trim();
+    if (!name) {
+      setNewAppError("Name is required");
+      return;
+    }
+    if (!specUrl) {
+      setNewAppError("OpenAPI spec URL is required");
+      return;
+    }
+    if (configuration.projects.some((p) => p.name === name) || (configuration.apps || []).some((a) => a.name === name)) {
+      setNewAppError("A project or app with this name already exists");
+      return;
+    }
+
+    const app: ConfigurationApp = { name, type: "openapi", parameters: { spec_url: specUrl }, headers: {} };
+    const updatedConfiguration: Configuration = {
+      ...configuration,
+      apps: [...(configuration.apps || []), app],
+    };
+
+    const client = getApiClient();
+    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
+    if (response.configuration) {
+      applyConfiguration(response.configuration);
+    }
+    setNewApp(null);
+    onCompilerClick();
+  };
+
   const onEditProject = (projectName: string) => {
     const project = projects.find((p) => p.configuration.name === projectName);
     if (project) {
@@ -1059,6 +1142,7 @@ export function App() {
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
                   onNewProjectClick={onNewProjectClick}
+                  onNewAppClick={onNewAppClick}
                   onEditProject={onEditProject}
                   onDeleteProject={onDeleteProject}
                 />
@@ -1129,7 +1213,14 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  <Tooltip text={sidebarCollapsed ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)` : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`} direction="s">
+                  <Tooltip
+                    text={
+                      sidebarCollapsed
+                        ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                        : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                    }
+                    direction="s"
+                  >
                     <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
                       aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
@@ -1305,6 +1396,54 @@ export function App() {
               />
               {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
             </FormControl>
+          </Dialog>
+        )}
+        {newApp && (
+          <Dialog
+            title="New App"
+            width="medium"
+            onClose={() => {
+              setNewApp(null);
+              setNewAppError(undefined);
+            }}
+            footerButtons={[
+              { content: "Cancel", onClick: () => setNewApp(null) },
+              { content: "Create", buttonType: "primary", onClick: onConfirmNewApp },
+            ]}
+          >
+            <FormControl>
+              <FormControl.Label>Name</FormControl.Label>
+              <TextInput
+                block
+                autoFocus
+                placeholder="Petstore"
+                value={newApp.name}
+                onChange={(e) => setNewApp((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+              />
+            </FormControl>
+            <div style={{ marginTop: 16 }}>
+              <FormControl>
+                <FormControl.Label>OpenAPI spec URL</FormControl.Label>
+                <TextInput
+                  block
+                  placeholder="https://petstore3.swagger.io/api/v3/openapi.json"
+                  value={newApp.specUrl}
+                  onChange={(e) => setNewApp((prev) => (prev ? { ...prev, specUrl: e.target.value } : prev))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onConfirmNewApp();
+                    }
+                  }}
+                />
+                <FormControl.Caption>The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp project.</FormControl.Caption>
+              </FormControl>
+            </div>
+            {newAppError && (
+              <div style={{ marginTop: 16 }}>
+                <Flash variant="danger">{newAppError}</Flash>
+              </div>
+            )}
           </Dialog>
         )}
         {renameScript && (

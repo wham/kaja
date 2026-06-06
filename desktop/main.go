@@ -26,6 +26,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
@@ -59,6 +60,7 @@ func init() {
 type App struct {
 	ctx                  context.Context
 	twirpHandler         api.TwirpServer
+	apps                 *apps.Manager
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
 	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
@@ -66,9 +68,10 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(twirpHandler api.TwirpServer, appManager *apps.Manager, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
 		twirpHandler:         twirpHandler,
+		apps:                 appManager,
 		configurationWatcher: configurationWatcher,
 		bookmarkStore:        bookmarkStore,
 		workspaceDir:         workspaceDir,
@@ -328,6 +331,15 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		}
 	}
 
+	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
+	if apps.IsAppTarget(target) {
+		response, err := a.apps.Invoke(target, method, req, headers)
+		if err != nil {
+			return nil, err
+		}
+		return &TargetResult{Body: response}, nil
+	}
+
 	// Use protocol enum to determine which handler to use
 	switch protocol {
 	case 1: // RPC_PROTOCOL_GRPC
@@ -545,7 +557,7 @@ func main() {
 	}
 
 	// Create application with options
-	app := NewApp(twirpHandler, configurationWatcher, bookmarkStore, kajaDir)
+	app := NewApp(twirpHandler, apiService.Apps(), configurationWatcher, bookmarkStore, kajaDir)
 
 	// The File menu starts hidden; the UI enables it once it reports the Scripts
 	// feature preview as on (see startup).

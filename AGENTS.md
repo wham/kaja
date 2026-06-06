@@ -27,6 +27,15 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 
 - **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to projects through their import paths and run from their own tabs.
 - **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
+- **Apps** — alongside projects, an _app_ is a built-in integration that exposes a proto surface kaja renders and invokes just like a gRPC/Twirp project. The "+" menu in the sidebar offers "New Project" vs "New App". Apps live in `kaja.json` under `apps` (`ConfigurationApp`: `name`, `type`, `parameters`, `headers`). The first built-in app type is **openapi**: given an OpenAPI 3.x spec URL (`parameters.spec_url`), it converts operations into proto services/methods and transcodes method calls into HTTP REST requests against the upstream API.
+
+### Apps architecture
+
+- **Contract** — `server/pkg/apps` defines the `App` (factory) and `Instance` (live, invocable) interfaces plus a `Manager` (type registry + live instances). The interfaces are intentionally shaped like a future generic gRPC "App" service so remote apps can be added later; today built-ins are in-process Go.
+- **OpenAPI app** — `server/pkg/apps/openapi` fetches+parses the spec (`sigs.k8s.io/yaml`, handles JSON and YAML), generates a single `.proto` file plus a per-method HTTP "binding" manifest, and transcodes invocations. Every generated proto field carries `[json_name = "<openApiName>"]` so the proto3-JSON wire keys match the REST shape, making transcoding near pass-through (only path/query extraction and array/scalar response wrapping).
+- **Open + compile** — the `OpenApp` RPC (`server/proto/api.proto`) opens an app instance: it writes the generated protos to a temp dir (returned as `proto_dir`, then fed into the existing `Compile` pipeline, exactly like reflection) and returns an invocation `target` (`kaja-app://<id>`) used as the project URL.
+- **Invoke** — app method calls go through the normal Twirp client but in JSON mode (`sendJson`). The web `/target/{method}` handler (and the desktop Wails `Target`) detect `kaja-app://` targets and dispatch to `Manager.Invoke` instead of proxying to an external host.
+- **UI** — apps are loaded as `Project`s carrying an `app` field (`ui/src/project.ts`); `useCompilation` calls `OpenApp` instead of `Reflect`, and `client.ts` switches the Twirp transport to JSON for `kaja-app://` targets.
 
 ## Directory Structure
 

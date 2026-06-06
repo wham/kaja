@@ -1,6 +1,6 @@
 import { Kaja } from "./kaja";
 import { Sources, Stub } from "./sources";
-import { ConfigurationProject, Log } from "./server/api";
+import { ConfigurationApp, ConfigurationProject, Log, RpcProtocol } from "./server/api";
 
 // Mutable reference that clients read at request time for dynamic access to project properties
 export interface ProjectRef {
@@ -33,6 +33,30 @@ export interface Project {
   clients: Clients;
   sources: Sources;
   stub: Stub;
+  // Set when this project is backed by an app (e.g. the OpenAPI app) instead of a
+  // plain gRPC/Twirp service. Drives the OpenApp compilation path and app-style
+  // invocation. Undefined for regular projects.
+  app?: ConfigurationApp;
+}
+
+// appConfiguration synthesizes the ConfigurationProject that an app is rendered
+// and invoked through. The URL is filled in with the app's invocation target
+// (kaja-app://<id>) once the app is opened during compilation.
+export function appConfiguration(app: ConfigurationApp): ConfigurationProject {
+  return {
+    name: app.name,
+    protocol: RpcProtocol.TWIRP,
+    url: "",
+    protoDir: "",
+    useReflection: false,
+    headers: { ...(app.headers || {}) },
+  };
+}
+
+// True for an opened app's invocation target. App method calls are routed back
+// into kaja's app manager rather than proxied to an external host.
+export function isAppTarget(url: string): boolean {
+  return url.startsWith("kaja-app://");
 }
 
 export type CompilationStatus = "pending" | "running" | "success" | "error";

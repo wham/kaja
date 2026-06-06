@@ -55,6 +55,48 @@ export interface ReflectResponse {
     protoDir: string; // Temp directory containing discovered proto files (only set on success)
 }
 /**
+ * OpenApp instantiates a built-in app (e.g. the OpenAPI app) from its creation
+ * parameters. The app generates proto files describing its services/methods and
+ * returns the temp directory they live in, ready to feed into Compile - the same
+ * way Reflect works for gRPC reflection. The returned target is used as the
+ * project URL so method calls are routed back to the app for invocation.
+ *
+ * @generated from protobuf message OpenAppRequest
+ */
+export interface OpenAppRequest {
+    /**
+     * @generated from protobuf field: string type = 1
+     */
+    type: string; // Built-in app type, e.g. "openapi"
+    /**
+     * @generated from protobuf field: map<string, string> parameters = 2
+     */
+    parameters: {
+        [key: string]: string;
+    }; // App-specific creation parameters, e.g. {"spec_url": "..."}
+}
+/**
+ * @generated from protobuf message OpenAppResponse
+ */
+export interface OpenAppResponse {
+    /**
+     * @generated from protobuf field: ReflectStatus status = 1
+     */
+    status: ReflectStatus;
+    /**
+     * @generated from protobuf field: repeated Log logs = 2
+     */
+    logs: Log[];
+    /**
+     * @generated from protobuf field: string proto_dir = 3
+     */
+    protoDir: string; // Temp directory containing generated proto files (only set on success)
+    /**
+     * @generated from protobuf field: string target = 4
+     */
+    target: string; // Invocation target for the app instance, e.g. "kaja-app://<id>" (only set on success)
+}
+/**
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
@@ -142,6 +184,14 @@ export interface Configuration {
      * @generated from protobuf field: ConfigurationSystem system = 4
      */
     system?: ConfigurationSystem;
+    /**
+     * Apps are an alternative to projects: instead of pointing at a gRPC/Twirp
+     * service, an app is a built-in (or, later, remote) integration that exposes
+     * a proto surface kaja renders and invokes the same way as a project.
+     *
+     * @generated from protobuf field: repeated ConfigurationApp apps = 5
+     */
+    apps: ConfigurationApp[];
 }
 /**
  * @generated from protobuf message ConfigurationSystem
@@ -186,6 +236,37 @@ export interface ConfigurationProject {
     useReflection: boolean;
     /**
      * @generated from protobuf field: map<string, string> headers = 6
+     */
+    headers: {
+        [key: string]: string;
+    };
+}
+/**
+ * @generated from protobuf message ConfigurationApp
+ */
+export interface ConfigurationApp {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * Built-in app type. Currently only "openapi" is supported.
+     *
+     * @generated from protobuf field: string type = 2
+     */
+    type: string;
+    /**
+     * App-specific creation parameters. For "openapi": {"spec_url": "<url>"}.
+     *
+     * @generated from protobuf field: map<string, string> parameters = 3
+     */
+    parameters: {
+        [key: string]: string;
+    };
+    /**
+     * Headers sent with each request the app makes to the upstream service.
+     *
+     * @generated from protobuf field: map<string, string> headers = 4
      */
     headers: {
         [key: string]: string;
@@ -458,6 +539,148 @@ class ReflectResponse$Type extends MessageType<ReflectResponse> {
  * @generated MessageType for protobuf message ReflectResponse
  */
 export const ReflectResponse = new ReflectResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenAppRequest$Type extends MessageType<OpenAppRequest> {
+    constructor() {
+        super("OpenAppRequest", [
+            { no: 1, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "parameters", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+        ]);
+    }
+    create(value?: PartialMessage<OpenAppRequest>): OpenAppRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.type = "";
+        message.parameters = {};
+        if (value !== undefined)
+            reflectionMergePartial<OpenAppRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenAppRequest): OpenAppRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string type */ 1:
+                    message.type = reader.string();
+                    break;
+                case /* map<string, string> parameters */ 2:
+                    this.binaryReadMap2(message.parameters, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap2(map: OpenAppRequest["parameters"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof OpenAppRequest["parameters"] | undefined, val: OpenAppRequest["parameters"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for OpenAppRequest.parameters");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
+    internalBinaryWrite(message: OpenAppRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string type = 1; */
+        if (message.type !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.type);
+        /* map<string, string> parameters = 2; */
+        for (let k of globalThis.Object.keys(message.parameters))
+            writer.tag(2, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.parameters[k]).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenAppRequest
+ */
+export const OpenAppRequest = new OpenAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
+    constructor() {
+        super("OpenAppResponse", [
+            { no: 1, name: "status", kind: "enum", T: () => ["ReflectStatus", ReflectStatus, "REFLECT_STATUS_"] },
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
+            { no: 3, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<OpenAppResponse>): OpenAppResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = 0;
+        message.logs = [];
+        message.protoDir = "";
+        message.target = "";
+        if (value !== undefined)
+            reflectionMergePartial<OpenAppResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenAppResponse): OpenAppResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* ReflectStatus status */ 1:
+                    message.status = reader.int32();
+                    break;
+                case /* repeated Log logs */ 2:
+                    message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string proto_dir */ 3:
+                    message.protoDir = reader.string();
+                    break;
+                case /* string target */ 4:
+                    message.target = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenAppResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* ReflectStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
+        /* repeated Log logs = 2; */
+        for (let i = 0; i < message.logs.length; i++)
+            Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string proto_dir = 3; */
+        if (message.protoDir !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.protoDir);
+        /* string target = 4; */
+        if (message.target !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.target);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenAppResponse
+ */
+export const OpenAppResponse = new OpenAppResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
@@ -737,13 +960,15 @@ class Configuration$Type extends MessageType<Configuration> {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "projects", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationProject },
-            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem }
+            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
+            { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp }
         ]);
     }
     create(value?: PartialMessage<Configuration>): Configuration {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pathPrefix = "";
         message.projects = [];
+        message.apps = [];
         if (value !== undefined)
             reflectionMergePartial<Configuration>(this, message, value);
         return message;
@@ -761,6 +986,9 @@ class Configuration$Type extends MessageType<Configuration> {
                     break;
                 case /* ConfigurationSystem system */ 4:
                     message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
+                    break;
+                case /* repeated ConfigurationApp apps */ 5:
+                    message.apps.push(ConfigurationApp.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -783,6 +1011,9 @@ class Configuration$Type extends MessageType<Configuration> {
         /* ConfigurationSystem system = 4; */
         if (message.system)
             ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* repeated ConfigurationApp apps = 5; */
+        for (let i = 0; i < message.apps.length; i++)
+            ConfigurationApp.internalBinaryWrite(message.apps[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -952,6 +1183,109 @@ class ConfigurationProject$Type extends MessageType<ConfigurationProject> {
  */
 export const ConfigurationProject = new ConfigurationProject$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
+    constructor() {
+        super("ConfigurationApp", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "parameters", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 4, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+        ]);
+    }
+    create(value?: PartialMessage<ConfigurationApp>): ConfigurationApp {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.type = "";
+        message.parameters = {};
+        message.headers = {};
+        if (value !== undefined)
+            reflectionMergePartial<ConfigurationApp>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationApp): ConfigurationApp {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string type */ 2:
+                    message.type = reader.string();
+                    break;
+                case /* map<string, string> parameters */ 3:
+                    this.binaryReadMap3(message.parameters, reader, options);
+                    break;
+                case /* map<string, string> headers */ 4:
+                    this.binaryReadMap4(message.headers, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap3(map: ConfigurationApp["parameters"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof ConfigurationApp["parameters"] | undefined, val: ConfigurationApp["parameters"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for ConfigurationApp.parameters");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
+    private binaryReadMap4(map: ConfigurationApp["headers"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof ConfigurationApp["headers"] | undefined, val: ConfigurationApp["headers"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for ConfigurationApp.headers");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
+    internalBinaryWrite(message: ConfigurationApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string type = 2; */
+        if (message.type !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.type);
+        /* map<string, string> parameters = 3; */
+        for (let k of globalThis.Object.keys(message.parameters))
+            writer.tag(3, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.parameters[k]).join();
+        /* map<string, string> headers = 4; */
+        for (let k of globalThis.Object.keys(message.headers))
+            writer.tag(4, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ConfigurationApp
+ */
+export const ConfigurationApp = new ConfigurationApp$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
     constructor() {
         super("UpdateConfigurationRequest", [
@@ -1049,6 +1383,7 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
 export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
     { name: "Reflect", options: {}, I: ReflectRequest, O: ReflectResponse },
+    { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);

@@ -89,6 +89,7 @@ func validateProjects(configuration *Configuration, logger *Logger) {
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
 	configurationToSave := &Configuration{
 		Projects: configuration.Projects,
+		Apps:     configuration.Apps,
 		System:   configuration.System,
 	}
 

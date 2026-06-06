@@ -5,6 +5,7 @@ option go_package = "pkg/api";
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc Reflect(ReflectRequest) returns (ReflectResponse);
+  rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
 }
@@ -29,6 +30,23 @@ enum ReflectStatus {
   REFLECT_STATUS_UNKNOWN = 0;
   REFLECT_STATUS_OK = 1;
   REFLECT_STATUS_ERROR = 2;
+}
+
+// OpenApp instantiates a built-in app (e.g. the OpenAPI app) from its creation
+// parameters. The app generates proto files describing its services/methods and
+// returns the temp directory they live in, ready to feed into Compile - the same
+// way Reflect works for gRPC reflection. The returned target is used as the
+// project URL so method calls are routed back to the app for invocation.
+message OpenAppRequest {
+  string type = 1;  // Built-in app type, e.g. "openapi"
+  map<string, string> parameters = 2;  // App-specific creation parameters, e.g. {"spec_url": "..."}
+}
+
+message OpenAppResponse {
+  ReflectStatus status = 1;
+  repeated Log logs = 2;
+  string proto_dir = 3;  // Temp directory containing generated proto files (only set on success)
+  string target = 4;  // Invocation target for the app instance, e.g. "kaja-app://<id>" (only set on success)
 }
 
 message CompileResponse {
@@ -84,6 +102,10 @@ message Configuration {
   repeated ConfigurationProject projects = 2;
   // System-level settings (read-only, ignored in UpdateConfiguration)
   ConfigurationSystem system = 4;
+  // Apps are an alternative to projects: instead of pointing at a gRPC/Twirp
+  // service, an app is a built-in (or, later, remote) integration that exposes
+  // a proto surface kaja renders and invokes the same way as a project.
+  repeated ConfigurationApp apps = 5;
 }
 
 message ConfigurationSystem {
@@ -100,6 +122,16 @@ message ConfigurationProject {
   string proto_dir = 4;
   bool use_reflection = 5;
   map<string, string> headers = 6;
+}
+
+message ConfigurationApp {
+  string name = 1;
+  // Built-in app type. Currently only "openapi" is supported.
+  string type = 2;
+  // App-specific creation parameters. For "openapi": {"spec_url": "<url>"}.
+  map<string, string> parameters = 3;
+  // Headers sent with each request the app makes to the upstream service.
+  map<string, string> headers = 4;
 }
 
 message UpdateConfigurationRequest {

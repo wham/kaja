@@ -43,6 +43,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
 	github.com/wham/protoc-go v0.0.0-20260410000912-cb20922cf784 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
@@ -50,4 +51,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )
