@@ -25,6 +25,9 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	if specURL == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "spec_url")
 	}
+	if err := requireHTTPScheme(specURL); err != nil {
+		return nil, err
+	}
 
 	log("Fetching OpenAPI spec from " + specURL)
 	s, err := loadSpec(specURL)
@@ -47,6 +50,9 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	if err != nil {
 		return nil, err
 	}
+	if err := requireHTTPScheme(baseURL); err != nil {
+		return nil, err
+	}
 	log("Upstream base URL: " + baseURL)
 
 	return &instance{
@@ -54,6 +60,20 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		bindings: gen.bindings,
 		client:   &http.Client{Timeout: 30 * time.Second},
 	}, nil
+}
+
+// requireHTTPScheme rejects URLs that are not plain HTTP(S), so a spec can't make
+// the app issue requests over other schemes (file://, etc.). Hosts are still
+// user-controlled by design - the same as a regular project's target.
+func requireHTTPScheme(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme %q in %q (only http and https are allowed)", u.Scheme, rawURL)
+	}
+	return nil
 }
 
 // resolveBaseURL determines the upstream base URL from the spec's servers list,

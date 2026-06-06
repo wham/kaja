@@ -237,6 +237,14 @@ func TestInvokeUpstreamError(t *testing.T) {
 	}
 }
 
+func TestOpenRejectsNonHTTPScheme(t *testing.T) {
+	for _, specURL := range []string{"file:///etc/passwd", "gopher://example.com/", "ftp://example.com/spec.yaml"} {
+		if _, err := New().Open(map[string]string{"spec_url": specURL}, t.TempDir(), func(string) {}); err == nil {
+			t.Errorf("expected error opening spec_url %q, got nil", specURL)
+		}
+	}
+}
+
 func assertJSONEq(t *testing.T, got []byte, want string) {
 	t.Helper()
 	var g, w any
