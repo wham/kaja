@@ -8,12 +8,13 @@ import {
   Flash,
   FormControl,
   IconButton,
+  Link,
   TextInput,
   ThemeProvider,
   Tooltip,
   useResponsiveValue,
 } from "@primer/react";
-import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { ColumnsIcon, CommentDiscussionIcon, LightBulbIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -1438,6 +1439,20 @@ export function App() {
                 />
                 <FormControl.Caption>The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp project.</FormControl.Caption>
               </FormControl>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <Link
+                as="button"
+                type="button"
+                onClick={() => {
+                  setNewAppError(undefined);
+                  setNewApp({ name: "Petstore", specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" });
+                }}
+                style={{ fontSize: 12, lineHeight: "18px", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <LightBulbIcon size={12} />
+                Try the Swagger Petstore demo
+              </Link>
             </div>
             {newAppError && (
               <div style={{ marginTop: 16 }}>
