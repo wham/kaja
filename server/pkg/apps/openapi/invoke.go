@@ -82,8 +82,10 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 
 	query := url.Values{}
 	for _, name := range binding.queryParams {
-		if raw, ok := req[name]; ok && len(raw) > 0 && string(raw) != "null" {
-			query.Set(name, jsonScalar(raw))
+		if raw, ok := req[name]; ok {
+			for _, v := range jsonQueryValues(raw) {
+				query.Add(name, v)
+			}
 		}
 	}
 
@@ -163,6 +165,27 @@ func jsonScalar(raw json.RawMessage) string {
 		return s
 	}
 	return strings.TrimSpace(string(raw))
+}
+
+// jsonQueryValues renders a JSON value as one or more query-string values.
+// Arrays are expanded into repeated values (OpenAPI form/explode style), so
+// {"tags":["a","b"]} becomes tags=a&tags=b instead of a single tags=["a","b"].
+func jsonQueryValues(raw json.RawMessage) []string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil
+	}
+	if trimmed[0] == '[' {
+		var arr []json.RawMessage
+		if err := json.Unmarshal(trimmed, &arr); err == nil {
+			values := make([]string, 0, len(arr))
+			for _, e := range arr {
+				values = append(values, jsonScalar(e))
+			}
+			return values
+		}
+	}
+	return []string{jsonScalar(trimmed)}
 }
 
 // wrapResponse shapes the upstream HTTP body into the proto3-JSON the client's

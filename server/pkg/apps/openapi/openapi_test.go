@@ -330,6 +330,28 @@ components:
 	}
 }
 
+// TestTranscodeArrayQuery checks that an array-typed query parameter is expanded
+// into repeated query values (tags=a&tags=b) rather than a single JSON literal.
+func TestTranscodeArrayQuery(t *testing.T) {
+	var gotRawQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `[]`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client()}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []string{"tags"}, responseWrap: "array"}
+
+	if _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
+		t.Fatalf("transcode: %v", err)
+	}
+	if gotRawQuery != "tags=foo&tags=bar" {
+		t.Errorf("query = %q, want %q", gotRawQuery, "tags=foo&tags=bar")
+	}
+}
+
 func TestOpenRejectsNonHTTPScheme(t *testing.T) {
 	for _, specURL := range []string{"file:///etc/passwd", "gopher://example.com/", "ftp://example.com/spec.yaml"} {
 		if _, err := New().Open(map[string]string{"spec_url": specURL}, t.TempDir(), func(string) {}); err == nil {
