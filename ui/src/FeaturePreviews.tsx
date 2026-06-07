@@ -14,6 +14,10 @@ interface FeaturePreviewsProps {
 }
 
 export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
+  if (features.length === 0) {
+    return null;
+  }
+
   return (
     <ActionMenu>
       <ActionMenu.Anchor>
@@ -21,15 +25,11 @@ export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
       </ActionMenu.Anchor>
       <ActionMenu.Overlay width="small">
         <ActionList selectionVariant="multiple">
-          {features.length === 0 ? (
-            <ActionList.Item disabled>No feature previews available</ActionList.Item>
-          ) : (
-            features.map((feature) => (
-              <ActionList.Item key={feature.key} selected={feature.enabled} onSelect={() => onToggle(feature.key)}>
-                {feature.label}
-              </ActionList.Item>
-            ))
-          )}
+          {features.map((feature) => (
+            <ActionList.Item key={feature.key} selected={feature.enabled} onSelect={() => onToggle(feature.key)}>
+              {feature.label}
+            </ActionList.Item>
+          ))}
         </ActionList>
       </ActionMenu.Overlay>
     </ActionMenu>
