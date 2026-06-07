@@ -36,7 +36,7 @@ export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
               <span id={labelId} style={{ fontSize: 12, color: "var(--fgColor-default)" }}>
                 {feature.label}
               </span>
-              <ToggleSwitch size="small" checked={feature.enabled} aria-labelledby={labelId} onChange={() => onToggle(feature.key)} />
+              <ToggleSwitch size="small" checked={feature.enabled} aria-labelledby={labelId} onClick={() => onToggle(feature.key)} />
             </div>
           );
         })}
