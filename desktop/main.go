@@ -266,12 +266,12 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	slog.Info("Twirp called", "method", method, "req_length", len(req))
-	
+
 	if req == nil {
 		slog.Error("Received nil request")
 		return nil, fmt.Errorf("nil request")
 	}
-	
+
 	// Empty requests are valid for methods with no parameters (like GetConfiguration)
 	if len(req) == 0 {
 		slog.Info("Received empty request - this is valid for methods with no parameters")
