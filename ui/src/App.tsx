@@ -44,7 +44,7 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { BrowserOpenURL, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
 import { runTask } from "./taskRunner";
 
@@ -112,6 +112,8 @@ export function App() {
   const [scripts, setScripts] = useState<Script[]>();
   // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
+  const previewScriptsRef = useRef(previewScripts);
+  previewScriptsRef.current = previewScripts;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
@@ -651,7 +653,7 @@ export function App() {
 
   // ⌘S saves the active editor (a method or a script) as a new named script.
   const onRequestSaveAsScript = useCallback(() => {
-    if (!isWailsEnvironment()) return;
+    if (!isWailsEnvironment() || !previewScriptsRef.current) return;
     const tab = tabsRef.current[activeTabIndexRef.current];
     if (!tab || (tab.type !== "task" && tab.type !== "script")) return;
     const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : getScriptTabLabel(tab);
@@ -668,6 +670,12 @@ export function App() {
     const unsub = EventsOn("menu:saveScript", () => onRequestSaveAsScriptRef.current());
     return () => unsub();
   }, []);
+
+  // Show/hide the native File menu in step with the Scripts feature preview.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    EventsEmit("scripts:previewEnabled", previewScripts);
+  }, [previewScripts]);
 
   const onConfirmSaveAsScript = useCallback(async () => {
     if (!saveAs) return;
