@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { BeakerIcon } from "@primer/octicons-react";
-import { ActionList, ActionMenu } from "@primer/react";
+import { AnchoredOverlay, ToggleSwitch } from "@primer/react";
 import { IconButtonXSmall } from "./IconButtonXSmall";
 
 export interface FeaturePreview {
@@ -14,24 +15,32 @@ interface FeaturePreviewsProps {
 }
 
 export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
+  const [open, setOpen] = useState(false);
+
   if (features.length === 0) {
     return null;
   }
 
   return (
-    <ActionMenu>
-      <ActionMenu.Anchor>
-        <IconButtonXSmall icon={BeakerIcon} aria-label="Feature previews" />
-      </ActionMenu.Anchor>
-      <ActionMenu.Overlay width="small">
-        <ActionList selectionVariant="multiple">
-          {features.map((feature) => (
-            <ActionList.Item key={feature.key} selected={feature.enabled} onSelect={() => onToggle(feature.key)}>
-              {feature.label}
-            </ActionList.Item>
-          ))}
-        </ActionList>
-      </ActionMenu.Overlay>
-    </ActionMenu>
+    <AnchoredOverlay
+      open={open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
+      renderAnchor={(anchorProps) => <IconButtonXSmall icon={BeakerIcon} aria-label="Feature previews" {...anchorProps} />}
+    >
+      <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8, minWidth: 180 }}>
+        {features.map((feature) => {
+          const labelId = `feature-preview-${feature.key}`;
+          return (
+            <div key={feature.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
+              <span id={labelId} style={{ fontSize: 12, color: "var(--fgColor-default)" }}>
+                {feature.label}
+              </span>
+              <ToggleSwitch size="small" checked={feature.enabled} aria-labelledby={labelId} onChange={() => onToggle(feature.key)} />
+            </div>
+          );
+        })}
+      </div>
+    </AnchoredOverlay>
   );
 }
