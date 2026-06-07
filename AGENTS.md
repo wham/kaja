@@ -17,11 +17,15 @@
 - Ask me before creating custom UI components; prefer direct use of Primer components.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
 
-## Experimental (Beta)
+## Experimental (Preview)
 
-Two features are still experimental and marked "Beta" in the UI:
+Experimental features are opt-in through the **feature previews** menu — a beaker
+button in the footer next to the theme selector (`FeaturePreviews.tsx`) that opens a
+small popup with a toggle per experimental feature. Enabled features are marked with a
+"Preview" pill in the UI (`PreviewPill` in `Sidebar.tsx`). Toggle state persists via
+`usePersistedState` under `featurePreview:<key>` keys.
 
-- **Scripts** — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts (desktop only) that bind to projects through their import paths and run from their own tabs.
+- **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to projects through their import paths and run from their own tabs.
 - **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
 
 ## Directory Structure

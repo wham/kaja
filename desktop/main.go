@@ -89,6 +89,42 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "configuration:changed")
 		})
 	}
+
+	// Toggle the File → "Save as script" menu item with the Scripts feature
+	// preview. The UI reports the current state on load and whenever it changes.
+	runtime.EventsOn(ctx, "scripts:previewEnabled", func(optionalData ...interface{}) {
+		enabled := false
+		if len(optionalData) > 0 {
+			if b, ok := optionalData[0].(bool); ok {
+				enabled = b
+			}
+		}
+		runtime.MenuSetApplicationMenu(ctx, a.buildAppMenu(enabled))
+		runtime.MenuUpdateApplicationMenu(ctx)
+	})
+}
+
+// buildAppMenu assembles the native application menu. The File menu holds only
+// the experimental "Save as script" action, so it is included only when the
+// Scripts feature preview is enabled.
+func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
+	appMenu := menu.NewMenu()
+	appMenu.Append(menu.AppMenu())
+
+	if scriptsEnabled {
+		fileMenu := appMenu.AddSubmenu("File")
+		fileMenu.AddText("Save as script", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+			runtime.EventsEmit(a.ctx, "menu:saveScript")
+		})
+	}
+
+	appMenu.Append(menu.EditMenu())
+	viewMenu := appMenu.AddSubmenu("View")
+	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
+		runtime.WindowReloadApp(a.ctx)
+	})
+	appMenu.Append(menu.WindowMenu())
+	return appMenu
 }
 
 // ScriptFile is the on-disk representation of a Kaja script.
@@ -230,12 +266,12 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	slog.Info("Twirp called", "method", method, "req_length", len(req))
-	
+
 	if req == nil {
 		slog.Error("Received nil request")
 		return nil, fmt.Errorf("nil request")
 	}
-	
+
 	// Empty requests are valid for methods with no parameters (like GetConfiguration)
 	if len(req) == 0 {
 		slog.Info("Received empty request - this is valid for methods with no parameters")
@@ -511,20 +547,9 @@ func main() {
 	// Create application with options
 	app := NewApp(twirpHandler, configurationWatcher, bookmarkStore, kajaDir)
 
-	appMenu := menu.NewMenu()
-	appMenu.Append(menu.AppMenu())
-
-	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Save as script", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
-		runtime.EventsEmit(app.ctx, "menu:saveScript")
-	})
-
-	appMenu.Append(menu.EditMenu())
-	viewMenu := appMenu.AddSubmenu("View")
-	viewMenu.AddText("Reload", keys.CmdOrCtrl("r"), func(_ *menu.CallbackData) {
-		runtime.WindowReloadApp(app.ctx)
-	})
-	appMenu.Append(menu.WindowMenu())
+	// The File menu starts hidden; the UI enables it once it reports the Scripts
+	// feature preview as on (see startup).
+	appMenu := app.buildAppMenu(false)
 
 	err = wails.Run(&options.App{
 		Title:  "Kaja",

@@ -42,7 +42,7 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   );
 }
 
-function BetaPill() {
+function PreviewPill() {
   return (
     <span
       style={{
@@ -55,7 +55,7 @@ function BetaPill() {
         color: "var(--fgColor-accent)",
       }}
     >
-      Beta
+      Preview
     </span>
   );
 }
@@ -372,7 +372,7 @@ export function Sidebar({
               </span>
               <FileCodeIcon size={16} />
               <span style={{ marginLeft: 4 }}>Scripts</span>
-              <BetaPill />
+              <PreviewPill />
             </div>
             {scriptsExpanded && (
               <TreeView aria-label="Scripts">

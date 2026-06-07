@@ -2,6 +2,7 @@ import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { IconButtonXSmall } from "./IconButtonXSmall";
+import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 
 export type ColorMode = "day" | "night";
 
@@ -9,9 +10,11 @@ interface StatusBarProps {
   colorMode: ColorMode;
   onToggleColorMode: () => void;
   gitRef?: string;
+  featurePreviews: FeaturePreview[];
+  onToggleFeaturePreview: (key: string) => void;
 }
 
-export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarProps) {
+export function StatusBar({ colorMode, onToggleColorMode, gitRef, featurePreviews, onToggleFeaturePreview }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
@@ -59,11 +62,14 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef }: StatusBarPro
           <div />
         )}
       </div>
-      <IconButtonXSmall
-        icon={colorMode === "night" ? SunIcon : MoonIcon}
-        aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
-        onClick={onToggleColorMode}
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />
+        <IconButtonXSmall
+          icon={colorMode === "night" ? SunIcon : MoonIcon}
+          aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
+          onClick={onToggleColorMode}
+        />
+      </div>
     </div>
   );
 }

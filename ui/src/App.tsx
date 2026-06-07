@@ -14,6 +14,7 @@ import { createProjectRef, getDefaultMethod, Method, Project, Script, Service, u
 import { Sidebar } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
+import { FeaturePreview } from "./FeaturePreviews";
 import { ProjectForm } from "./ProjectForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationProject } from "./server/api";
@@ -43,7 +44,7 @@ import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { BrowserOpenURL, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
 import { runTask } from "./taskRunner";
 
@@ -109,6 +110,10 @@ export function App() {
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
   const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
   const [scripts, setScripts] = useState<Script[]>();
+  // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
+  const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
+  const previewScriptsRef = useRef(previewScripts);
+  previewScriptsRef.current = previewScripts;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
@@ -156,6 +161,15 @@ export function App() {
 
   const onToggleColorMode = useCallback(() => {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
+  }, []);
+
+  // Scripts are desktop-only, so the toggle is only offered in the Wails environment.
+  const featurePreviews: FeaturePreview[] = isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : [];
+
+  const onToggleFeaturePreview = useCallback((key: string) => {
+    if (key === "scripts") {
+      setPreviewScripts((enabled) => !enabled);
+    }
   }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
@@ -387,14 +401,17 @@ export function App() {
   // Load the global scripts directory (desktop only). Scripts are independent
   // of projects; they bind to a project at run time via their import paths.
   const refreshScripts = useCallback(() => {
-    if (!isWailsEnvironment()) return;
+    if (!isWailsEnvironment() || !previewScripts) {
+      setScripts(undefined);
+      return;
+    }
     ListScripts()
       .then((list) => setScripts((list ?? []).map((s) => ({ path: s.path, name: s.name })).sort((a, b) => a.name.localeCompare(b.name))))
       .catch((err) => {
         console.error("Failed to list scripts", err);
         setScripts([]);
       });
-  }, []);
+  }, [previewScripts]);
 
   useEffect(() => {
     refreshScripts();
@@ -636,7 +653,7 @@ export function App() {
 
   // ⌘S saves the active editor (a method or a script) as a new named script.
   const onRequestSaveAsScript = useCallback(() => {
-    if (!isWailsEnvironment()) return;
+    if (!isWailsEnvironment() || !previewScriptsRef.current) return;
     const tab = tabsRef.current[activeTabIndexRef.current];
     if (!tab || (tab.type !== "task" && tab.type !== "script")) return;
     const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : getScriptTabLabel(tab);
@@ -653,6 +670,12 @@ export function App() {
     const unsub = EventsOn("menu:saveScript", () => onRequestSaveAsScriptRef.current());
     return () => unsub();
   }, []);
+
+  // Show/hide the native File menu in step with the Scripts feature preview.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    EventsEmit("scripts:previewEnabled", previewScripts);
+  }, [previewScripts]);
 
   const onConfirmSaveAsScript = useCallback(async () => {
     if (!saveAs) return;
@@ -1243,7 +1266,13 @@ export function App() {
               )}
             </div>
           </div>
-          <StatusBar colorMode={colorMode} onToggleColorMode={onToggleColorMode} gitRef={configuration?.system?.gitRef} />
+          <StatusBar
+            colorMode={colorMode}
+            onToggleColorMode={onToggleColorMode}
+            gitRef={configuration?.system?.gitRef}
+            featurePreviews={featurePreviews}
+            onToggleFeaturePreview={onToggleFeaturePreview}
+          />
         </div>
         <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
         {saveAs && (
