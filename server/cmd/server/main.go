@@ -14,6 +14,7 @@ import (
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/pkg/api"
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // GitRef is the git commit hash or tag, set at build time via ldflags
@@ -40,7 +41,8 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	twirpHandler := api.NewApiServer(api.NewApiService(configurationPath, false, GitRef))
+	apiService := api.NewApiService(configurationPath, false, GitRef)
+	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +60,7 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		http.ServeFileFS(w, r, assets.StaticFS, "static/"+r.PathValue("name"))
 	})
 
@@ -142,13 +144,7 @@ func main() {
 	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a gRPC-Web request
 		contentType := r.Header.Get("Content-Type")
-		target, err := url.Parse(r.Header.Get("X-Target"))
-		if err != nil {
-			slog.Warn("Failed to parse X-Target header", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Invalid X-Target header"))
-			return
-		}
+		targetHeader := r.Header.Get("X-Target")
 
 		// Extract headers with X-Header- prefix to forward to target
 		forwardHeaders := make(map[string]string)
@@ -157,6 +153,25 @@ func main() {
 				headerName := strings.TrimPrefix(name, "X-Header-")
 				forwardHeaders[headerName] = values[0]
 			}
+		}
+
+		// App targets (kaja-app://<id>) are invoked in-process by the app manager
+		// instead of being proxied to an external host. Apps are gRPC apps, so the
+		// request arrives as gRPC-Web like a regular gRPC project.
+		if apps.IsAppTarget(targetHeader) {
+			manager := apiService.Apps()
+			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) ([]byte, error) {
+				return manager.Invoke(targetHeader, method, message, headers)
+			}, forwardHeaders)
+			return
+		}
+
+		target, err := url.Parse(targetHeader)
+		if err != nil {
+			slog.Warn("Failed to parse X-Target header", "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Invalid X-Target header"))
+			return
 		}
 
 		if strings.HasPrefix(contentType, "application/grpc-web") ||

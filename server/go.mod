@@ -23,5 +23,7 @@ require (
 
 require (
 	github.com/pkg/errors v0.9.1 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/sys v0.39.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )

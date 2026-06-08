@@ -84,6 +84,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request, method string,
 }
 
 func (p *Proxy) readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
+	return readGRPCWebMessage(r, isText)
+}
+
+func readGRPCWebMessage(r io.Reader, isText bool) ([]byte, error) {
 	if isText {
 		data, err := io.ReadAll(r)
 		if err != nil {

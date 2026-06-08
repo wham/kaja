@@ -8,12 +8,7 @@ import type {
   RpcTransport,
   UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
-import {
-  Deferred,
-  RpcOutputStreamController,
-  ServerStreamingCall,
-  UnaryCall as UnaryCallImpl,
-} from "@protobuf-ts/runtime-rpc";
+import { Deferred, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { RpcProtocol } from "./api";

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createProjectRef, Project } from "./project";
+import { appConfiguration, createProjectRef, Project, updateProjectRef } from "./project";
 import { loadProject } from "./projectLoader";
 import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -15,6 +15,7 @@ export function useCompilation(
   projects: Project[],
   onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void,
   onConfigurationLoaded: (configuration: Configuration) => void,
+  appsPreviewEnabled: boolean,
 ): { configurationLoaded: boolean } {
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
@@ -62,7 +63,54 @@ export function useCompilation(
         return updatedProjects;
       });
 
-      if (project.configuration.useReflection) {
+      if (project.app) {
+        // Open the app: it generates proto files (returned as a temp protoDir,
+        // just like reflection) and an invocation target used as the project URL.
+        const { response: openResponse } = await client.openApp({
+          type: project.app.type,
+          parameters: project.app.parameters,
+        });
+
+        onUpdate((prevProjects) => {
+          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+          if (index === -1) return prevProjects;
+
+          const updatedProjects = [...prevProjects];
+          const configuration = { ...prevProjects[index].configuration, url: openResponse.target };
+          updateProjectRef(prevProjects[index].projectRef, configuration);
+          updatedProjects[index] = {
+            ...prevProjects[index],
+            configuration,
+            compilation: {
+              ...prevProjects[index].compilation,
+              logs: openResponse.logs,
+            },
+          };
+          return updatedProjects;
+        });
+
+        if (openResponse.status === ReflectStatus.ERROR) {
+          const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
+          const duration = formatDuration(Date.now() - (finalProject?.compilation.startTime || 0));
+
+          onUpdate((prevProjects) => {
+            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
+            if (index === -1) return prevProjects;
+
+            const updatedProjects = [...prevProjects];
+            updatedProjects[index] = {
+              ...prevProjects[index],
+              compilation: { status: "error", logs: openResponse.logs, duration },
+            };
+            return updatedProjects;
+          });
+
+          delete abortControllers.current[projectName];
+          return;
+        }
+
+        protoDir = openResponse.protoDir;
+      } else if (project.configuration.useReflection) {
         const { response: reflectResponse } = await client.reflect({
           url: project.configuration.url,
         });
@@ -219,6 +267,8 @@ export function useCompilation(
       if (projects.length === 0 && !configurationLoaded) {
         const { response } = await client.getConfiguration({});
         const configProjects = response.configuration?.projects || [];
+        // Apps are gated behind their feature preview; skip loading them when it's off.
+        const configApps = appsPreviewEnabled ? response.configuration?.apps || [] : [];
 
         if (response.configuration) {
           onConfigurationLoaded(response.configuration);
@@ -226,20 +276,32 @@ export function useCompilation(
 
         setConfigurationLoaded(true);
 
-        if (configProjects.length === 0) return;
+        if (configProjects.length === 0 && configApps.length === 0) return;
 
-        const initialProjects: Project[] = configProjects.map((configProject) => ({
-          configuration: configProject,
-          projectRef: createProjectRef(configProject),
-          compilation: {
-            status: "pending" as const,
-            logs: response.logs || [],
-          },
-          services: [],
-          clients: {},
-          sources: [],
-          stub: { serviceInfos: {} },
-        }));
+        const initialProjects: Project[] = [
+          ...configProjects.map((configProject) => ({
+            configuration: configProject,
+            projectRef: createProjectRef(configProject),
+            compilation: { status: "pending" as const, logs: response.logs || [] },
+            services: [],
+            clients: {},
+            sources: [],
+            stub: { serviceInfos: {} },
+          })),
+          ...configApps.map((app) => {
+            const configuration = appConfiguration(app);
+            return {
+              configuration,
+              projectRef: createProjectRef(configuration),
+              compilation: { status: "pending" as const, logs: response.logs || [] },
+              services: [],
+              clients: {},
+              sources: [],
+              stub: { serviceInfos: {} },
+              app,
+            };
+          }),
+        ];
 
         onUpdate(initialProjects);
       }

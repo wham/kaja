@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { ActionList, ActionMenu, TreeView, IconButton } from "@primer/react";
-import { CpuIcon, FileCodeIcon, FoldIcon, PencilIcon, PinIcon, PlusIcon, TrashIcon, UnfoldIcon, ChevronRightIcon, PackageIcon } from "@primer/octicons-react";
+import {
+  CpuIcon,
+  FileCodeIcon,
+  FoldIcon,
+  GlobeIcon,
+  PencilIcon,
+  PinIcon,
+  PlusIcon,
+  TrashIcon,
+  UnfoldIcon,
+  ChevronRightIcon,
+  PackageIcon,
+} from "@primer/octicons-react";
 import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -42,7 +54,25 @@ function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
   );
 }
 
-function PreviewPill() {
+function AppPill({ type }: { type: string }) {
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: "bold",
+        padding: "1px 5px",
+        borderRadius: 4,
+        marginLeft: 6,
+        backgroundColor: "var(--bgColor-accent-muted)",
+        color: "var(--fgColor-accent)",
+      }}
+    >
+      {type === "openapi" ? "OpenAPI" : type}
+    </span>
+  );
+}
+
+export function PreviewPill() {
   return (
     <span
       style={{
@@ -82,6 +112,9 @@ interface SidebarProps {
   onPinScript?: (script: Script) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
+  onNewAppClick: () => void;
+  // Experimental "Apps" feature preview; gates the New App entry in the "+" menu.
+  appsPreviewEnabled?: boolean;
   onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
 }
@@ -101,6 +134,8 @@ export function Sidebar({
   onPinScript,
   onCompilerClick,
   onNewProjectClick,
+  onNewAppClick,
+  appsPreviewEnabled = false,
   onEditProject,
   onDeleteProject,
 }: SidebarProps) {
@@ -217,9 +252,7 @@ export function Sidebar({
     });
 
     setExpandedServices((prev) => {
-      const pruned = new Set(
-        [...prev].filter((s) => validServices.has(s) || compilingPrefixes.some((prefix) => s.startsWith(prefix))),
-      );
+      const pruned = new Set([...prev].filter((s) => validServices.has(s) || compilingPrefixes.some((prefix) => s.startsWith(prefix))));
       if (pruned.size !== prev.size) return pruned;
       return prev;
     });
@@ -335,7 +368,32 @@ export function Sidebar({
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }}>
-        <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New Project" onClick={onNewProjectClick} />
+        <ActionMenu>
+          <ActionMenu.Anchor>
+            <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New" />
+          </ActionMenu.Anchor>
+          <ActionMenu.Overlay width="small">
+            <ActionList>
+              <ActionList.Item onSelect={onNewProjectClick}>
+                <ActionList.LeadingVisual>
+                  <PackageIcon />
+                </ActionList.LeadingVisual>
+                New Project
+              </ActionList.Item>
+              {appsPreviewEnabled && (
+                <ActionList.Item onSelect={onNewAppClick}>
+                  <ActionList.LeadingVisual>
+                    <GlobeIcon />
+                  </ActionList.LeadingVisual>
+                  New App
+                  <ActionList.TrailingVisual>
+                    <PreviewPill />
+                  </ActionList.TrailingVisual>
+                </ActionList.Item>
+              )}
+            </ActionList>
+          </ActionMenu.Overlay>
+        </ActionMenu>
         <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
         <div style={{ flex: 1 }} />
         <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
@@ -449,7 +507,7 @@ export function Sidebar({
                       <ChevronRightIcon size={16} />
                     </span>
                     {projectName}
-                    <ProtocolPill protocol={project.configuration.protocol} />
+                    {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
                   </span>
                   {isExpanded && (
                     <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -570,17 +628,11 @@ export function Sidebar({
                               <PackageIcon size={16} />
                             </TreeView.LeadingVisual>
                             <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>{packageName}</span>
-                            <TreeView.SubTree>
-                              {services.map(renderServiceItem)}
-                            </TreeView.SubTree>
+                            <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
                           </TreeView.Item>
                         );
                       });
-                      return (
-                        <>
-                          {packageNodes}
-                        </>
-                      );
+                      return <>{packageNodes}</>;
                     })()
                   )}
                 </TreeView>
@@ -590,7 +642,10 @@ export function Sidebar({
         })}
       </div>
       {/* Invisible anchor positioned at the cursor for the script context menu. */}
-      <div ref={scriptMenuAnchorRef} style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+      <div
+        ref={scriptMenuAnchorRef}
+        style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+      />
       <ActionMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)} anchorRef={scriptMenuAnchorRef}>
         <ActionMenu.Overlay width="small">
           <ActionList>

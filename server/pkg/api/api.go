@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
+	"github.com/wham/kaja/v2/pkg/apps"
+	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
@@ -16,6 +18,7 @@ type ApiService struct {
 	configurationPath      string
 	canUpdateConfiguration bool
 	gitRef                 string
+	apps                   *apps.Manager
 }
 
 func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string) *ApiService {
@@ -25,7 +28,16 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
 		gitRef:                 gitRef,
+		apps: apps.NewManager(map[string]apps.App{
+			"openapi": openapi.New(),
+		}),
 	}
+}
+
+// Apps returns the app manager, used by the request router to invoke methods on
+// opened app instances.
+func (s *ApiService) Apps() *apps.Manager {
+	return s.apps
 }
 
 func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
@@ -137,6 +149,38 @@ func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*Reflect
 	}, nil
 }
 
+func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenAppResponse, error) {
+	if req.Type == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+
+	logger := NewLogger()
+	logger.info("Opening app: " + req.Type)
+
+	protoDir, err := tempdir.NewSourcesDir()
+	if err != nil {
+		logger.error("Failed to create temp directory", err)
+		return &OpenAppResponse{Status: ReflectStatus_REFLECT_STATUS_ERROR, Logs: logger.logs}, nil
+	}
+
+	target, err := s.apps.Open(req.Type, req.Parameters, protoDir, func(message string) {
+		logger.info(message)
+	})
+	if err != nil {
+		logger.error("Failed to open app", err)
+		return &OpenAppResponse{Status: ReflectStatus_REFLECT_STATUS_ERROR, Logs: logger.logs}, nil
+	}
+
+	logger.info("Proto files written to " + protoDir)
+
+	return &OpenAppResponse{
+		Status:   ReflectStatus_REFLECT_STATUS_OK,
+		Logs:     logger.logs,
+		ProtoDir: protoDir,
+		Target:   target,
+	}, nil
+}
+
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
@@ -151,6 +195,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Projects:   response.Configuration.Projects,
+		Apps:       response.Configuration.Apps,
 		System:     system,
 	}
 
