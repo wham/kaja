@@ -989,9 +989,10 @@ func (x *ConfigurationProject) GetHeaders() map[string]string {
 type ConfigurationApp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Built-in app type. Currently only "openapi" is supported.
+	// Built-in app type, e.g. "openapi" or "markdown".
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	// App-specific creation parameters. For "openapi": {"spec_url": "<url>"}.
+	// App-specific creation parameters. For "openapi": {"spec_url": "<url>"};
+	// for "markdown": {"path": "<file>"}.
 	Parameters map[string]string `protobuf:"bytes,3,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Headers sent with each request the app makes to the upstream service.
 	Headers       map[string]string `protobuf:"bytes,4,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`

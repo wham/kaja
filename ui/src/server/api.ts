@@ -250,13 +250,14 @@ export interface ConfigurationApp {
      */
     name: string;
     /**
-     * Built-in app type. Currently only "openapi" is supported.
+     * Built-in app type, e.g. "openapi" or "markdown".
      *
      * @generated from protobuf field: string type = 2
      */
     type: string;
     /**
-     * App-specific creation parameters. For "openapi": {"spec_url": "<url>"}.
+     * App-specific creation parameters. For "openapi": {"spec_url": "<url>"};
+     * for "markdown": {"path": "<file>"}.
      *
      * @generated from protobuf field: map<string, string> parameters = 3
      */

@@ -13,6 +13,7 @@ import {
   ChevronRightIcon,
   PackageIcon,
 } from "@primer/octicons-react";
+import { appTypeLabel } from "./appTypes";
 import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -67,7 +68,7 @@ function AppPill({ type }: { type: string }) {
         color: "var(--fgColor-accent)",
       }}
     >
-      {type === "openapi" ? "OpenAPI" : type}
+      {appTypeLabel(type)}
     </span>
   );
 }

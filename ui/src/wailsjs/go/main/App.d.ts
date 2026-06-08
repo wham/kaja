@@ -12,6 +12,8 @@ export function ListScripts():Promise<Array<main.ScriptFile>>;
 
 export function OpenDirectoryDialog():Promise<string>;
 
+export function OpenFileDialog():Promise<string>;
+
 export function ReadScriptFile(arg1:string):Promise<main.ScriptFile>;
 
 export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;

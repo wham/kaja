@@ -8,13 +8,12 @@ import {
   Flash,
   FormControl,
   IconButton,
-  Link,
   TextInput,
   ThemeProvider,
   Tooltip,
   useResponsiveValue,
 } from "@primer/react";
-import { ColumnsIcon, CommentDiscussionIcon, LightBulbIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -24,7 +23,8 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { appConfiguration, createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
-import { Sidebar, PreviewPill } from "./Sidebar";
+import { Sidebar } from "./Sidebar";
+import { NewAppDialog } from "./NewAppDialog";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
@@ -143,9 +143,8 @@ export function App() {
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
-  // New App dialog state (currently only the built-in OpenAPI app); null when closed.
-  const [newApp, setNewApp] = useState<{ name: string; specUrl: string } | null>(null);
-  const [newAppError, setNewAppError] = useState<string>();
+  // Whether the New App dialog is open.
+  const [newAppOpen, setNewAppOpen] = useState(false);
   // Rename dialog and delete confirmation for scripts (right-click menu).
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
@@ -982,28 +981,11 @@ export function App() {
   };
 
   const onNewAppClick = () => {
-    setNewAppError(undefined);
-    setNewApp({ name: "", specUrl: "" });
+    setNewAppOpen(true);
   };
 
-  const onConfirmNewApp = async () => {
-    if (!newApp || !configuration) return;
-    const name = newApp.name.trim();
-    const specUrl = newApp.specUrl.trim();
-    if (!name) {
-      setNewAppError("Name is required");
-      return;
-    }
-    if (!specUrl) {
-      setNewAppError("OpenAPI spec URL is required");
-      return;
-    }
-    if (configuration.projects.some((p) => p.name === name) || (configuration.apps || []).some((a) => a.name === name)) {
-      setNewAppError("A project or app with this name already exists");
-      return;
-    }
-
-    const app: ConfigurationApp = { name, type: "openapi", parameters: { spec_url: specUrl }, headers: {} };
+  const onCreateApp = async (app: ConfigurationApp) => {
+    if (!configuration) return;
     const updatedConfiguration: Configuration = {
       ...configuration,
       apps: [...(configuration.apps || []), app],
@@ -1014,7 +996,7 @@ export function App() {
     if (response.configuration) {
       applyConfiguration(response.configuration);
     }
-    setNewApp(null);
+    setNewAppOpen(false);
     onCompilerClick();
   };
 
@@ -1421,72 +1403,12 @@ export function App() {
             </FormControl>
           </Dialog>
         )}
-        {newApp && (
-          <Dialog
-            title={
-              <>
-                New App
-                <PreviewPill />
-              </>
-            }
-            width="medium"
-            onClose={() => {
-              setNewApp(null);
-              setNewAppError(undefined);
-            }}
-            footerButtons={[
-              { content: "Cancel", onClick: () => setNewApp(null) },
-              { content: "Create", buttonType: "primary", onClick: onConfirmNewApp },
-            ]}
-          >
-            <FormControl>
-              <FormControl.Label>Name</FormControl.Label>
-              <TextInput
-                block
-                autoFocus
-                placeholder="Petstore"
-                value={newApp.name}
-                onChange={(e) => setNewApp((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-              />
-            </FormControl>
-            <div style={{ marginTop: 16 }}>
-              <FormControl>
-                <FormControl.Label>OpenAPI spec URL</FormControl.Label>
-                <TextInput
-                  block
-                  placeholder="https://petstore3.swagger.io/api/v3/openapi.json"
-                  value={newApp.specUrl}
-                  onChange={(e) => setNewApp((prev) => (prev ? { ...prev, specUrl: e.target.value } : prev))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      onConfirmNewApp();
-                    }
-                  }}
-                />
-                <FormControl.Caption>The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp project.</FormControl.Caption>
-              </FormControl>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <Link
-                as="button"
-                type="button"
-                onClick={() => {
-                  setNewAppError(undefined);
-                  setNewApp({ name: "Petstore", specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" });
-                }}
-                style={{ fontSize: 12, lineHeight: "18px", display: "inline-flex", alignItems: "center", gap: 4 }}
-              >
-                <LightBulbIcon size={12} />
-                Try the Swagger Petstore demo
-              </Link>
-            </div>
-            {newAppError && (
-              <div style={{ marginTop: 16 }}>
-                <Flash variant="danger">{newAppError}</Flash>
-              </div>
-            )}
-          </Dialog>
+        {newAppOpen && (
+          <NewAppDialog
+            existingNames={configuration ? [...configuration.projects.map((p) => p.name), ...(configuration.apps || []).map((a) => a.name)] : []}
+            onClose={() => setNewAppOpen(false)}
+            onCreate={onCreateApp}
+          />
         )}
         {renameScript && (
           <Dialog
