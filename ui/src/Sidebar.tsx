@@ -72,7 +72,7 @@ function AppPill({ type }: { type: string }) {
   );
 }
 
-function PreviewPill() {
+export function PreviewPill() {
   return (
     <span
       style={{
@@ -113,6 +113,8 @@ interface SidebarProps {
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onNewAppClick: () => void;
+  // Experimental "Apps" feature preview; gates the New App entry in the "+" menu.
+  appsPreviewEnabled?: boolean;
   onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
 }
@@ -133,6 +135,7 @@ export function Sidebar({
   onCompilerClick,
   onNewProjectClick,
   onNewAppClick,
+  appsPreviewEnabled = false,
   onEditProject,
   onDeleteProject,
 }: SidebarProps) {
@@ -377,12 +380,17 @@ export function Sidebar({
                 </ActionList.LeadingVisual>
                 New Project
               </ActionList.Item>
-              <ActionList.Item onSelect={onNewAppClick}>
-                <ActionList.LeadingVisual>
-                  <GlobeIcon />
-                </ActionList.LeadingVisual>
-                New App
-              </ActionList.Item>
+              {appsPreviewEnabled && (
+                <ActionList.Item onSelect={onNewAppClick}>
+                  <ActionList.LeadingVisual>
+                    <GlobeIcon />
+                  </ActionList.LeadingVisual>
+                  New App
+                  <ActionList.TrailingVisual>
+                    <PreviewPill />
+                  </ActionList.TrailingVisual>
+                </ActionList.Item>
+              )}
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>

@@ -15,6 +15,7 @@ export function useCompilation(
   projects: Project[],
   onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void,
   onConfigurationLoaded: (configuration: Configuration) => void,
+  appsPreviewEnabled: boolean,
 ): { configurationLoaded: boolean } {
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
@@ -266,7 +267,8 @@ export function useCompilation(
       if (projects.length === 0 && !configurationLoaded) {
         const { response } = await client.getConfiguration({});
         const configProjects = response.configuration?.projects || [];
-        const configApps = response.configuration?.apps || [];
+        // Apps are gated behind their feature preview; skip loading them when it's off.
+        const configApps = appsPreviewEnabled ? response.configuration?.apps || [] : [];
 
         if (response.configuration) {
           onConfigurationLoaded(response.configuration);

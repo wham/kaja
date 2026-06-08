@@ -24,7 +24,7 @@ import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { Kaja, MethodCall } from "./kaja";
 import { appConfiguration, createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, PreviewPill } from "./Sidebar";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
@@ -105,6 +105,8 @@ function applyProjectRename(project: Project, newConfig: ConfigurationProject): 
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
+  const configurationRef = useRef(configuration);
+  configurationRef.current = configuration;
   const [projects, setProjects] = useState<Project[]>([]);
   const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
   const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
@@ -133,6 +135,10 @@ export function App() {
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
   const previewScriptsRef = useRef(previewScripts);
   previewScriptsRef.current = previewScripts;
+  // Experimental "Apps" feature, toggled from the feature previews menu in the footer.
+  const [previewApps, setPreviewApps] = usePersistedState("featurePreview:apps", false);
+  const previewAppsRef = useRef(previewApps);
+  previewAppsRef.current = previewApps;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
@@ -185,12 +191,17 @@ export function App() {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
-  // Scripts are desktop-only, so the toggle is only offered in the Wails environment.
-  const featurePreviews: FeaturePreview[] = isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : [];
+  // Scripts are desktop-only, so that toggle is only offered in the Wails environment; Apps work everywhere.
+  const featurePreviews: FeaturePreview[] = [
+    ...(isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : []),
+    { key: "apps", label: "Apps", enabled: previewApps },
+  ];
 
   const onToggleFeaturePreview = useCallback((key: string) => {
     if (key === "scripts") {
       setPreviewScripts((enabled) => !enabled);
+    } else if (key === "apps") {
+      setPreviewApps((enabled) => !enabled);
     }
   }, []);
 
@@ -337,7 +348,8 @@ export function App() {
       }
 
       // Reconcile apps (newConfiguration.apps) against previously loaded apps.
-      const newApps = newConfiguration.apps || [];
+      // When the Apps preview is off, treat the set as empty so loaded apps are removed.
+      const newApps = previewAppsRef.current ? newConfiguration.apps || [] : [];
       const newAppByName = new Map(newApps.map((a) => [a.name, a]));
       const appPrevByName = new Map(appPrev.map((p) => [p.configuration.name, p]));
       for (const app of newApps) {
@@ -414,6 +426,15 @@ export function App() {
     },
     [syncProjectsFromConfiguration, disposeTaskTabsForProjects],
   );
+
+  // Toggling the Apps preview adds or removes the configured apps from the sidebar
+  // immediately by re-reconciling the current configuration.
+  useEffect(() => {
+    if (configurationRef.current) {
+      applyConfiguration(configurationRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewApps]);
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {
@@ -575,7 +596,7 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(projects, onCompilationUpdate, setConfiguration);
+  const { configurationLoaded } = useCompilation(projects, onCompilationUpdate, setConfiguration, previewApps);
 
   const onMethodSelect = (method: Method, service: Service, project: Project) => {
     captureActiveViewState();
@@ -1144,6 +1165,7 @@ export function App() {
                   onCompilerClick={onCompilerClick}
                   onNewProjectClick={onNewProjectClick}
                   onNewAppClick={onNewAppClick}
+                  appsPreviewEnabled={previewApps}
                   onEditProject={onEditProject}
                   onDeleteProject={onDeleteProject}
                 />
@@ -1401,7 +1423,12 @@ export function App() {
         )}
         {newApp && (
           <Dialog
-            title="New App"
+            title={
+              <>
+                New App
+                <PreviewPill />
+              </>
+            }
             width="medium"
             onClose={() => {
               setNewApp(null);
