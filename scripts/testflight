@@ -1,0 +1,189 @@
+#!/bin/bash
+# Build the Mac App Store version of Kaja and upload it to TestFlight.
+#
+# Usage:
+#   # Local (signing identities from the login keychain, loads .env if present):
+#   BUILD_NUMBER=42 scripts/testflight
+#
+#   # CI (secrets are passed as env vars by .github/workflows/testflight.yml):
+#   scripts/testflight
+#
+# Environment variables (same names as GitHub Actions secrets):
+#   APPLE_API_KEY_ID              - App Store Connect API key ID
+#   APPLE_API_ISSUER_ID           - App Store Connect API issuer ID
+#   APPLE_API_KEY_BASE64          - Base64-encoded .p8 private key
+#   DISTRIBUTION_CERT_P12_BASE64  - Base64 "Apple Distribution" certificate (.p12)
+#   DISTRIBUTION_CERT_PASSWORD    - Password for the distribution .p12
+#   INSTALLER_CERT_P12_BASE64     - Base64 "3rd Party Mac Developer Installer" certificate (.p12)
+#   INSTALLER_CERT_PASSWORD       - Password for the installer .p12
+#   BUILD_NUMBER                  - CFBundleVersion to stamp on the build (required)
+#   SKIP_UPLOAD                   - Set to "true" to build and package only, skip upload
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+ENV_FILE="$REPO_ROOT/.env"
+if [ -f "$ENV_FILE" ]; then
+    echo "Loading environment from $ENV_FILE"
+    set -a
+    # shellcheck source=/dev/null
+    source "$ENV_FILE"
+    set +a
+fi
+
+APP_SIGNING_IDENTITY="Apple Distribution: Tomas Vesely (U5DMD247UW)"
+INSTALLER_SIGNING_IDENTITY="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
+
+DESKTOP_DIR="$REPO_ROOT/desktop"
+APP_BUNDLE="$DESKTOP_DIR/build/bin/Kaja.app"
+PKG_PATH="$DESKTOP_DIR/build/bin/Kaja.pkg"
+KEYCHAIN_NAME="build-$(uuidgen).keychain-db"
+KEYCHAIN_PASSWORD="$(uuidgen)"
+CREATED_KEYCHAIN=false
+CREATED_API_KEY=false
+
+cleanup() {
+    echo "--- Cleaning up"
+    if [ "$CREATED_KEYCHAIN" = true ]; then
+        security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true
+    fi
+    if [ "$CREATED_API_KEY" = true ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+        rm -f "$APPLE_API_KEY_PATH"
+    fi
+}
+trap cleanup EXIT
+
+if ! command -v wails &>/dev/null; then
+    echo "error: wails not found. Install with: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0"
+    exit 1
+fi
+
+if [ -z "${BUILD_NUMBER:-}" ]; then
+    echo "error: BUILD_NUMBER is required (set to github.run_number in CI)."
+    exit 1
+fi
+
+PRODUCT_VERSION=$(jq -r '.info.productVersion' "$DESKTOP_DIR/wails.json")
+
+echo "=== Kaja TestFlight build ==="
+echo "Version:      $PRODUCT_VERSION"
+echo "Build number: $BUILD_NUMBER"
+
+# -- Decode App Store Connect API key --
+
+if [ -n "${CI:-}" ]; then
+    missing=()
+    [ -z "${APPLE_API_KEY_ID:-}" ]               && missing+=(APPLE_API_KEY_ID)
+    [ -z "${APPLE_API_ISSUER_ID:-}" ]            && missing+=(APPLE_API_ISSUER_ID)
+    [ -z "${APPLE_API_KEY_BASE64:-}" ]           && missing+=(APPLE_API_KEY_BASE64)
+    [ -z "${DISTRIBUTION_CERT_P12_BASE64:-}" ]   && missing+=(DISTRIBUTION_CERT_P12_BASE64)
+    [ -z "${INSTALLER_CERT_P12_BASE64:-}" ]      && missing+=(INSTALLER_CERT_P12_BASE64)
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo ""
+        echo "error: missing required secrets in CI: ${missing[*]}"
+        exit 1
+    fi
+fi
+
+if [ -n "${APPLE_API_KEY_BASE64:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ]; then
+    echo ""
+    echo "--- Decoding App Store Connect API key"
+    mkdir -p ~/private_keys
+    APPLE_API_KEY_PATH="$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+    echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$APPLE_API_KEY_PATH"
+    CREATED_API_KEY=true
+fi
+
+# -- Import signing certificates into a temporary keychain --
+
+if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ] || [ -n "${INSTALLER_CERT_P12_BASE64:-}" ]; then
+    echo ""
+    echo "--- Importing signing certificates into temporary keychain"
+
+    security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+    CREATED_KEYCHAIN=true
+    security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
+    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+    import_cert() {
+        local cert_base64="$1"
+        local cert_password="$2"
+        local cert_path
+        cert_path="$(mktemp)"
+        echo "$cert_base64" | base64 --decode > "$cert_path"
+        security import "$cert_path" \
+            -k "$KEYCHAIN_NAME" \
+            -P "$cert_password" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productbuild \
+            -T /usr/bin/security
+        rm -f "$cert_path"
+    }
+
+    if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ]; then
+        import_cert "$DISTRIBUTION_CERT_P12_BASE64" "${DISTRIBUTION_CERT_PASSWORD:-}"
+    fi
+    if [ -n "${INSTALLER_CERT_P12_BASE64:-}" ]; then
+        import_cert "$INSTALLER_CERT_P12_BASE64" "${INSTALLER_CERT_PASSWORD:-}"
+    fi
+
+    security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+    # Prepend our keychain to the search list so codesign and productbuild find the certs
+    security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+fi
+
+# -- Build --
+
+echo ""
+echo "--- Building desktop app (store)"
+export MACOSX_DEPLOYMENT_TARGET=12.0
+export CGO_LDFLAGS="-mmacosx-version-min=12.0"
+export CGO_CFLAGS="-mmacosx-version-min=12.0"
+(cd "$DESKTOP_DIR" && wails build -ldflags "-X main.GitRef=$PRODUCT_VERSION")
+
+if [ ! -d "$APP_BUNDLE" ]; then
+    echo "error: app bundle was not created at $APP_BUNDLE"
+    exit 1
+fi
+
+# TestFlight requires a unique CFBundleVersion per upload; stamp it before signing
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
+
+# -- Sign and package --
+
+echo ""
+echo "--- Signing and packaging"
+cp "$DESKTOP_DIR/build/darwin/embedded.provisionprofile" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+
+# The App Store rejects packages whose files carry quarantine attributes.
+# Must run before signing so the clean state is sealed in.
+xattr -cr "$APP_BUNDLE"
+
+codesign --force --options runtime --deep \
+    --sign "$APP_SIGNING_IDENTITY" \
+    --entitlements "$DESKTOP_DIR/build/darwin/entitlements.plist" \
+    "$APP_BUNDLE"
+
+rm -f "$PKG_PATH"
+productbuild \
+    --component "$APP_BUNDLE" /Applications \
+    --sign "$INSTALLER_SIGNING_IDENTITY" \
+    "$PKG_PATH"
+
+# -- Upload --
+
+echo ""
+if [ "${SKIP_UPLOAD:-}" = "true" ] || [ -z "${APPLE_API_KEY_ID:-}" ] || [ -z "${APPLE_API_ISSUER_ID:-}" ]; then
+    echo "=== Build $PRODUCT_VERSION ($BUILD_NUMBER) packaged at $PKG_PATH (no upload) ==="
+else
+    echo "--- Uploading to App Store Connect"
+    xcrun altool --upload-app -f "$PKG_PATH" -t macos \
+        --apiKey "$APPLE_API_KEY_ID" \
+        --apiIssuer "$APPLE_API_ISSUER_ID"
+    echo ""
+    echo "=== Build $PRODUCT_VERSION ($BUILD_NUMBER) uploaded to App Store Connect ==="
+    echo "It will appear in TestFlight after Apple's processing completes."
+fi
