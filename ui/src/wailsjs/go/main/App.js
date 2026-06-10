@@ -22,6 +22,10 @@ export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
 }
 
+export function OpenFileDialog() {
+  return window['go']['main']['App']['OpenFileDialog']();
+}
+
 export function ReadScriptFile(arg1) {
   return window['go']['main']['App']['ReadScriptFile'](arg1);
 }

@@ -267,6 +267,29 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	return dir, nil
 }
 
+// OpenFileDialog opens a native file picker for a single file. On macOS it saves
+// a security-scoped bookmark for the chosen file so a sandboxed app (e.g. the
+// Markdown app) can read and append to it across restarts.
+func (a *App) OpenFileDialog() (string, error) {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Markdown File",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Markdown", Pattern: "*.md;*.markdown"},
+		},
+	})
+	if err != nil || path == "" {
+		return path, err
+	}
+
+	if a.bookmarkStore != nil {
+		if err := a.bookmarkStore.Save(path, path); err != nil {
+			slog.Warn("Failed to save bookmark", "path", path, "error", err)
+		}
+	}
+
+	return path, nil
+}
+
 func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	slog.Info("Twirp called", "method", method, "req_length", len(req))
 
