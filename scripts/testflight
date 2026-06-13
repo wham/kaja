@@ -113,7 +113,10 @@ if [ -n "${DISTRIBUTION_CERT_P12_BASE64:-}" ] || [ -n "${INSTALLER_CERT_P12_BASE
         local cert_path
         cert_path="$(mktemp)"
         echo "$cert_base64" | base64 --decode > "$cert_path"
+        # -f pkcs12 is required: the temp file has no .p12 extension, so without
+        # it `security import` auto-detection fails with "Unknown format in import".
         security import "$cert_path" \
+            -f pkcs12 \
             -k "$KEYCHAIN_NAME" \
             -P "$cert_password" \
             -T /usr/bin/codesign \
