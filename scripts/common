@@ -2,7 +2,9 @@
 set -e
 
 # Install protoc-go (Go port of protoc) to a target directory.
-# The binary is named 'protoc' for compatibility.
+# The binary is named 'protoc' for compatibility. The version is pinned to the
+# one required by server/go.mod so the dev CLI tracks the embedded library
+# whenever protoc-go is bumped.
 #
 # Usage: install_protoc [target_dir]
 #   target_dir: Directory to install to (defaults to $PWD/server/build)
@@ -11,12 +13,11 @@ install_protoc() {
 
     mkdir -p "$BUILD_DIR"
 
-    if [ ! -x "$BUILD_DIR/protoc" ]; then
-        echo "Installing protoc-go..."
-        go install github.com/wham/protoc-go/cmd/protoc-go@latest
-        mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
-    else
-        echo "protoc already installed in $BUILD_DIR"
-    fi
+    local VERSION
+    VERSION=$(cd "$PWD/server" && go list -m -f '{{.Version}}' github.com/wham/protoc-go)
+
+    echo "Installing protoc-go $VERSION..."
+    go install "github.com/wham/protoc-go/cmd/protoc-go@$VERSION"
+    mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
 }
 
