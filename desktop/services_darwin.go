@@ -22,10 +22,11 @@ import (
 var serviceContext context.Context
 
 //export goServiceRunScript
-func goServiceRunScript(text *C.char) {
+func goServiceRunScript(slot *C.char, text *C.char) {
 	if serviceContext == nil {
 		return
 	}
+	slotNumber := C.GoString(slot)
 	selected := C.GoString(text)
 	// macOS calls this on the main thread inside the synchronous service handler.
 	// Wails runtime calls dispatch to the main thread internally, so invoking them
@@ -34,7 +35,7 @@ func goServiceRunScript(text *C.char) {
 	go func() {
 		runtime.WindowUnminimise(serviceContext)
 		runtime.WindowShow(serviceContext)
-		runtime.EventsEmit(serviceContext, "service:runScript", selected)
+		runtime.EventsEmit(serviceContext, "service:runScript", slotNumber, selected)
 	}()
 }
 

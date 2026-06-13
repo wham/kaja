@@ -26,7 +26,7 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 `usePersistedState` under `featurePreview:<key>` keys.
 
 - **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to projects through their import paths and run from their own tabs.
-- **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
+- **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script 1/2/3" to run the script pinned to that slot, with the selection exposed as `kaja.input` (macOS desktop only). The three slots are static `NSServices` entries in `desktop/build/darwin/Info.plist` distinguished by `NSUserData`; scripts are assigned to slots from the Scripts sidebar context menu, persisted under `contextMenuScriptPaths`.
 - **Apps** (`featurePreview:apps`) — alongside projects, an _app_ is a built-in integration that exposes a proto surface kaja renders and invokes just like a gRPC project. When the preview is on, the "+" menu in the sidebar offers "New Project" vs "New App" (the New App entry and form both carry the "Preview" pill). Apps live in `kaja.json` under `apps` (`ConfigurationApp`: `name`, `type`, `parameters`, `headers`). The first built-in app type is **openapi**: given an OpenAPI 3.x spec URL (`parameters.spec_url`), it converts operations into proto services/methods and transcodes method calls into HTTP REST requests against the upstream API. Apps are **gRPC apps** — there is no Twirp path for apps.
 
 ### Apps architecture

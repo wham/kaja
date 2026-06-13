@@ -102,15 +102,16 @@ interface SidebarProps {
   scripts?: Script[];
   currentMethod?: Method;
   currentScriptPath?: string;
-  // Path of the script pinned to the macOS "Run Kaja Script" text service.
-  pinnedScriptPath?: string;
+  // Paths pinned to the three macOS "Run Kaja Script N" text service slots;
+  // index 0 is slot 1. Empty entries are unassigned.
+  pinnedScriptPaths?: (string | undefined)[];
   scrollToMethod?: ScrollToMethod;
   canDeleteProjects?: boolean;
   onSelect: (method: Method, service: Service, project: Project) => void;
   onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
-  onPinScript?: (script: Script) => void;
+  onPinScript?: (script: Script, slot: number) => void;
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onNewAppClick: () => void;
@@ -125,7 +126,7 @@ export function Sidebar({
   scripts,
   currentMethod,
   currentScriptPath,
-  pinnedScriptPath,
+  pinnedScriptPaths,
   scrollToMethod,
   canDeleteProjects = true,
   onSelect,
@@ -452,11 +453,18 @@ export function Sidebar({
                     current={currentScriptPath === script.path}
                   >
                     {script.name}
-                    {pinnedScriptPath === script.path && (
-                      <TreeView.TrailingVisual label="Pinned to context menu">
-                        <PinIcon size={12} />
-                      </TreeView.TrailingVisual>
-                    )}
+                    {(() => {
+                      const slot = pinnedScriptPaths ? pinnedScriptPaths.indexOf(script.path) : -1;
+                      if (slot < 0) return null;
+                      return (
+                        <TreeView.TrailingVisual label={`Pinned to "Run Kaja Script ${slot + 1}"`}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                            <PinIcon size={12} />
+                            {slot + 1}
+                          </span>
+                        </TreeView.TrailingVisual>
+                      );
+                    })()}
                   </TreeView.Item>
                 ))}
               </TreeView>
@@ -650,19 +658,23 @@ export function Sidebar({
       <ActionMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)} anchorRef={scriptMenuAnchorRef}>
         <ActionMenu.Overlay width="small">
           <ActionList>
-            {onPinScript && (
-              <ActionList.Item
-                onSelect={() => {
-                  const script = scriptMenu?.script;
-                  if (script) onPinScript(script);
-                }}
-              >
-                <ActionList.LeadingVisual>
-                  <PinIcon />
-                </ActionList.LeadingVisual>
-                {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
-              </ActionList.Item>
-            )}
+            {onPinScript &&
+              [0, 1, 2].map((slot) => {
+                const script = scriptMenu?.script;
+                const occupant = pinnedScriptPaths?.[slot];
+                const pinnedHere = !!script && occupant === script.path;
+                const otherName = occupant && !pinnedHere ? occupant.split("/").pop() : undefined;
+                return (
+                  <ActionList.Item key={slot} onSelect={() => script && onPinScript(script, slot)}>
+                    <ActionList.LeadingVisual>
+                      <PinIcon />
+                    </ActionList.LeadingVisual>
+                    {pinnedHere ? `Unpin from "Run Kaja Script ${slot + 1}"` : `Pin to "Run Kaja Script ${slot + 1}"`}
+                    {otherName && <ActionList.Description>{otherName}</ActionList.Description>}
+                  </ActionList.Item>
+                );
+              })}
+            {onPinScript && <ActionList.Divider />}
             <ActionList.Item
               onSelect={() => {
                 const script = scriptMenu?.script;
