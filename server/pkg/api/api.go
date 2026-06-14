@@ -212,11 +212,19 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 		return nil, fmt.Errorf("configuration is required")
 	}
 
-	slog.Info("Updating configuration")
-
 	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
-	req.Configuration.System = currentResponse.Configuration.System
+	// Enforce the effective flag, which honors both the constructor value and the
+	// file-based dev override (system.canUpdateConfiguration) - the same value
+	// GetConfiguration reports to the UI to gate config editing.
+	system := currentResponse.Configuration.System
+	if system == nil || !system.CanUpdateConfiguration {
+		return nil, fmt.Errorf("updating configuration is not allowed")
+	}
+
+	slog.Info("Updating configuration")
+
+	req.Configuration.System = system
 
 	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)

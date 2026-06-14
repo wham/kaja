@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"os"
 	"testing"
 )
@@ -85,6 +86,96 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 
 	if getConfigurationResponse.Configuration.PathPrefix != "/test-prefix" {
 		t.Errorf("expected path prefix '/test-prefix', got %q", getConfigurationResponse.Configuration.PathPrefix)
+	}
+}
+
+func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), false, "")
+
+	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{},
+	})
+	if err == nil {
+		t.Fatal("expected error when canUpdateConfiguration is false")
+	}
+
+	// The file must be left untouched.
+	content, readErr := os.ReadFile(tmpfile.Name())
+	if readErr != nil {
+		t.Fatalf("failed to read config file: %v", readErr)
+	}
+	if string(content) != "{}" {
+		t.Errorf("expected config file to be unchanged, got %q", string(content))
+	}
+}
+
+func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), true, "")
+
+	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{
+			Projects: []*ConfigurationProject{
+				{Name: "test-project", Protocol: RpcProtocol_RPC_PROTOCOL_GRPC, Url: "http://localhost:8080"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected no error when canUpdateConfiguration is true, got %v", err)
+	}
+
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), true)
+	if len(getConfigurationResponse.Configuration.Projects) != 1 {
+		t.Fatalf("expected 1 saved project, got %d", len(getConfigurationResponse.Configuration.Projects))
+	}
+}
+
+func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
+	// Web/dev server constructs the service with canUpdateConfiguration=false, but
+	// the file-based dev override (system.canUpdateConfiguration) must still enable
+	// updates - the same effective flag GetConfiguration reports to the UI.
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(`{"system":{"canUpdateConfiguration":true}}`)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), false, "")
+
+	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{
+			Projects: []*ConfigurationProject{
+				{Name: "test-project", Protocol: RpcProtocol_RPC_PROTOCOL_GRPC, Url: "http://localhost:8080"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected no error when file override enables updates, got %v", err)
+	}
+
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	if len(getConfigurationResponse.Configuration.Projects) != 1 {
+		t.Fatalf("expected 1 saved project, got %d", len(getConfigurationResponse.Configuration.Projects))
 	}
 }
 
