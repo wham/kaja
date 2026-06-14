@@ -1,5 +1,5 @@
 import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "@primer/octicons-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
 import { IconButton } from "@primer/react";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
@@ -64,9 +64,9 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
     }
   }, [items.length]);
 
-  const handleRowClick = (index: number) => {
+  const handleRowClick = useCallback((index: number) => {
     setSelectedIndex(index);
-  };
+  }, []);
 
   const handleCopy = async () => {
     if (jsonViewerRef.current) {
@@ -186,7 +186,6 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         {/* Left panel - Call list */}
         <div
           ref={listRef}
-
           style={{
             width: callListWidth,
             overflowY: "auto",
@@ -195,10 +194,17 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         >
           {items.map((item, index) => {
             if (Array.isArray(item)) {
-              return <Console.LogRow key={index} logs={item} />;
+              return <Console.LogRow key={`log:${index}`} logs={item} />;
             } else if ("method" in item) {
               return (
-                <Console.MethodCallRow key={index} methodCall={item} isSelected={selectedIndex === index} onClick={() => handleRowClick(index)} now={now} />
+                <Console.MethodCallRow
+                  key={`mc:${item.id}`}
+                  methodCall={item}
+                  index={index}
+                  isSelected={selectedIndex === index}
+                  onSelect={handleRowClick}
+                  relativeTime={formatRelativeTime(item.timestamp, now)}
+                />
               );
             }
             return null;
@@ -261,12 +267,15 @@ Console.LogRow = function ({ logs }: LogRowProps) {
 
 interface MethodCallRowProps {
   methodCall: MethodCall;
+  index: number;
   isSelected: boolean;
-  onClick: () => void;
-  now: number;
+  onSelect: (index: number) => void;
+  relativeTime: string;
 }
 
-Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: MethodCallRowProps) {
+// Memoized so the per-second timestamp tick only re-renders rows whose displayed
+// relative time actually changed, instead of every row on every tick.
+Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelected, onSelect, relativeTime }: MethodCallRowProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const isStreamActive = isStreaming && !methodCall.streamComplete && !methodCall.error;
 
@@ -287,7 +296,7 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: Meth
   }[status];
 
   return (
-    <div className={`console-row ${isSelected ? "selected" : ""}`} onClick={onClick}>
+    <div className={`console-row ${isSelected ? "selected" : ""}`} onClick={() => onSelect(index)}>
       <span style={{ color: statusColor, marginRight: 8, fontSize: 10 }}>{statusIcon}</span>
       <span
         style={{
@@ -308,11 +317,11 @@ Console.MethodCallRow = function ({ methodCall, isSelected, onClick, now }: Meth
           flexShrink: 0,
         }}
       >
-        {formatRelativeTime(methodCall.timestamp, now)}
+        {relativeTime}
       </span>
     </div>
   );
-};
+});
 
 type ConsoleTab = "request" | "response" | "headers";
 
