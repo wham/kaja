@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,6 +17,46 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
+
+// connections caches one gRPC client connection per (target, TLS) pair. A
+// grpc.ClientConn is safe for concurrent use and manages its own (re)connection
+// and idle handling, so a single long-lived connection is reused across every
+// call to a target instead of dialing and tearing down per request.
+var (
+	connectionsMu sync.Mutex
+	connections   = map[string]*grpc.ClientConn{}
+)
+
+// sharedConnection returns the cached connection for the given target, dialing
+// (lazily — grpc.NewClient does not block) and caching one on first use.
+func sharedConnection(target string, useTLS bool) (*grpc.ClientConn, error) {
+	key := target
+	if useTLS {
+		key = "tls\x00" + target
+	}
+
+	connectionsMu.Lock()
+	defer connectionsMu.Unlock()
+
+	if conn, ok := connections[key]; ok {
+		return conn, nil
+	}
+
+	var creds credentials.TransportCredentials
+	if useTLS {
+		creds = credentials.NewTLS(&tls.Config{})
+	} else {
+		creds = insecure.NewCredentials()
+	}
+
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(&grpcCodec{})))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
+	}
+
+	connections[key] = conn
+	return conn, nil
+}
 
 // grpcCodec is a gRPC codec that passes through raw bytes without modification.
 type grpcCodec struct{}
@@ -132,20 +173,10 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte, head
 		method = "/" + method
 	}
 
-	// Choose transport credentials based on TLS setting
-	var creds credentials.TransportCredentials
-	if c.useTLS {
-		creds = credentials.NewTLS(&tls.Config{})
-	} else {
-		creds = insecure.NewCredentials()
-	}
-
-	codec := &grpcCodec{}
-	conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+	conn, err := sharedConnection(c.target, c.useTLS)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
+		return nil, err
 	}
-	defer conn.Close()
 
 	// Add headers as gRPC metadata to the context
 	if len(headers) > 0 {
@@ -185,20 +216,11 @@ func (c *Client) ServerStream(ctx context.Context, method string, request []byte
 			method = "/" + method
 		}
 
-		var creds credentials.TransportCredentials
-		if c.useTLS {
-			creds = credentials.NewTLS(&tls.Config{})
-		} else {
-			creds = insecure.NewCredentials()
-		}
-
-		codec := &grpcCodec{}
-		conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(codec)))
+		conn, err := sharedConnection(c.target, c.useTLS)
 		if err != nil {
-			errc <- fmt.Errorf("failed to create gRPC client: %w", err)
+			errc <- err
 			return
 		}
-		defer conn.Close()
 
 		if len(headers) > 0 {
 			md := metadata.New(headers)
