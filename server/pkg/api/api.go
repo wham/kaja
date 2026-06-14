@@ -208,6 +208,10 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 }
 
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
+	if !s.canUpdateConfiguration {
+		return nil, fmt.Errorf("updating configuration is not allowed")
+	}
+
 	if req.Configuration == nil {
 		return nil, fmt.Errorf("configuration is required")
 	}
