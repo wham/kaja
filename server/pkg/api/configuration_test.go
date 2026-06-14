@@ -147,6 +147,38 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
+	// Web/dev server constructs the service with canUpdateConfiguration=false, but
+	// the file-based dev override (system.canUpdateConfiguration) must still enable
+	// updates - the same effective flag GetConfiguration reports to the UI.
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(`{"system":{"canUpdateConfiguration":true}}`)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), false, "")
+
+	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{
+			Projects: []*ConfigurationProject{
+				{Name: "test-project", Protocol: RpcProtocol_RPC_PROTOCOL_GRPC, Url: "http://localhost:8080"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected no error when file override enables updates, got %v", err)
+	}
+
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	if len(getConfigurationResponse.Configuration.Projects) != 1 {
+		t.Fatalf("expected 1 saved project, got %d", len(getConfigurationResponse.Configuration.Projects))
+	}
+}
+
 func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 	configContent := `{
 		"projects": [],
