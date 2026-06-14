@@ -61,6 +61,9 @@ import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/
 import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
 import { runTask } from "./taskRunner";
 
+// Maximum number of console items kept in memory; older calls are dropped.
+const MAX_CONSOLE_ITEMS = 500;
+
 // Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
 function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -159,9 +162,10 @@ export function App() {
       const index = consoleItems.findIndex((item) => "id" in item && item.id === methodCall.id);
       if (index > -1) {
         return consoleItems.map((item, i) => (i === index ? { ...methodCall } : item));
-      } else {
-        return [...consoleItems, { ...methodCall }];
       }
+      const next = [...consoleItems, { ...methodCall }];
+      // Cap history so a long session can't grow the console unbounded.
+      return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
     });
   }, []);
 
