@@ -18,6 +18,10 @@ export function ListScripts() {
   return window['go']['main']['App']['ListScripts']();
 }
 
+export function LogFromUI(arg1, arg2) {
+  return window['go']['main']['App']['LogFromUI'](arg1, arg2);
+}
+
 export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
 }

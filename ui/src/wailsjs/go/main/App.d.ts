@@ -10,6 +10,8 @@ export function DeleteScript(arg1:string):Promise<void>;
 
 export function ListScripts():Promise<Array<main.ScriptFile>>;
 
+export function LogFromUI(arg1:string,arg2:string):Promise<void>;
+
 export function OpenDirectoryDialog():Promise<string>;
 
 export function OpenFileDialog():Promise<string>;
