@@ -22,7 +22,7 @@ function send(level: string, args: unknown[]): void {
 }
 
 /**
- * Mirror frontend console errors and uncaught failures into <kajaHome>/logs/ui.log
+ * Mirror frontend console errors and uncaught failures into <kajaHome>/logs/kaja.log
  * via the desktop app. The webview console is otherwise only visible in Web
  * Inspector, so this is how TestFlight users can share frontend logs. No-op
  * outside the Wails desktop environment.

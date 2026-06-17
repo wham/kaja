@@ -247,16 +247,17 @@ func (a *App) RenameScript(path string, newName string) (*ScriptFile, error) {
 	return &ScriptFile{Path: newPath, Name: newName, Content: string(data)}, nil
 }
 
-// LogFromUI appends a log line from the frontend to <kajaHome>/logs/ui.log.
-// The webview console is otherwise only reachable through Web Inspector, so this
+// LogFromUI appends a log line from the frontend to <kajaHome>/logs/kaja.log.
+// Lines are tagged "[ui]" so the file can also hold server logs later; the
+// webview console is otherwise only reachable through Web Inspector, so this
 // lets TestFlight users capture frontend errors and share them for debugging.
 func (a *App) LogFromUI(level string, message string) error {
 	dir := filepath.Join(a.workspaceDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	line := fmt.Sprintf("%s [%s] %s\n", time.Now().Format(time.RFC3339), level, message)
-	f, err := os.OpenFile(filepath.Join(dir, "ui.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	line := fmt.Sprintf("%s [ui] [%s] %s\n", time.Now().Format(time.RFC3339), level, message)
+	f, err := os.OpenFile(filepath.Join(dir, "kaja.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
