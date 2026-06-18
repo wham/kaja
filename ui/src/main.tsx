@@ -4,9 +4,12 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
 import { getPersistedValue, initializeStorage } from "./storage";
+import { installUiLog } from "./uiLog";
 
 export * from "@protobuf-ts/runtime";
 export * from "@protobuf-ts/runtime-rpc";
+
+installUiLog();
 
 initializeStorage().then(() => {
   const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
