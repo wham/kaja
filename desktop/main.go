@@ -144,7 +144,7 @@ func (a *App) showLogsInFinder() {
 		slog.Warn("Failed to create logs directory", "error", err)
 		return
 	}
-	runtime.BrowserOpenURL(a.ctx, "file://"+dir)
+	revealInFinder(dir)
 }
 
 // ScriptFile is the on-disk representation of a Kaja script.
