@@ -19,16 +19,18 @@ type ApiService struct {
 	configurationPath      string
 	canUpdateConfiguration bool
 	gitRef                 string
+	buildNumber            string
 	apps                   *apps.Manager
 }
 
-func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string) *ApiService {
+func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string, buildNumber string) *ApiService {
 	tempdir.StartCleanup()
 
 	return &ApiService{
 		configurationPath:      configurationPath,
 		canUpdateConfiguration: canUpdateConfiguration,
 		gitRef:                 gitRef,
+		buildNumber:            buildNumber,
 		apps: apps.NewManager(map[string]apps.App{
 			"openapi":  openapi.New(),
 			"markdown": markdown.New(),
@@ -193,6 +195,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		system = &ConfigurationSystem{}
 	}
 	system.GitRef = s.gitRef
+	system.BuildNumber = s.buildNumber
 
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,

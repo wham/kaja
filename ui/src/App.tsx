@@ -1370,6 +1370,7 @@ export function App() {
             colorMode={colorMode}
             onToggleColorMode={onToggleColorMode}
             gitRef={configuration?.system?.gitRef}
+            buildNumber={configuration?.system?.buildNumber}
             featurePreviews={featurePreviews}
             onToggleFeaturePreview={onToggleFeaturePreview}
           />

@@ -113,6 +113,8 @@ message ConfigurationSystem {
   bool can_update_configuration = 1;
   // Git commit hash or tag for the currently running version
   string git_ref = 2;
+  // TestFlight/App Store build number (CFBundleVersion), empty for other builds
+  string build_number = 3;
 }
 
 message ConfigurationProject {

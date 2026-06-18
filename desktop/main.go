@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +55,37 @@ func init() {
 	if err := json.Unmarshal(wailsJSON, &config); err != nil {
 		slog.Error("Failed to parse wails.json", "error", err)
 	}
+}
+
+var cfBundleVersionRe = regexp.MustCompile(`(?s)<key>CFBundleVersion</key>\s*<string>([^<]*)</string>`)
+
+// buildNumber returns the TestFlight/App Store build number stamped into the
+// bundle's Info.plist (CFBundleVersion). The testflight script overrides
+// CFBundleVersion with the build number; a plain `wails build` leaves it equal
+// to the product version, so we only report it when the two differ.
+func buildNumber() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	// macOS bundle layout: <App>.app/Contents/MacOS/<exe>, Info.plist one level up.
+	plistPath := filepath.Join(filepath.Dir(filepath.Dir(exe)), "Info.plist")
+	data, err := os.ReadFile(plistPath)
+	if err != nil {
+		return ""
+	}
+	match := cfBundleVersionRe.FindSubmatch(data)
+	if match == nil {
+		return ""
+	}
+	version := strings.TrimSpace(string(match[1]))
+	if version == config.Info.ProductVersion {
+		return ""
+	}
+	return version
 }
 
 // App struct
@@ -589,7 +621,7 @@ func main() {
 	restoreBookmarks(bookmarkStore, configurationPath)
 
 	// Create API service
-	apiService := api.NewApiService(configurationPath, true, GitRef)
+	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber())
 	twirpHandler := api.NewApiServer(apiService)
 
 	// Start configuration file watcher
