@@ -70,7 +70,10 @@ func BuildForProduction() (*UiBundle, error) {
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Outdir:            "build",
+		// Preserve function/class names so stack traces captured in the desktop
+		// logs (uiLog.ts) stay readable instead of showing mangled identifiers.
+		KeepNames: true,
+		Outdir:    "build",
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
 		},

@@ -6,7 +6,14 @@ function formatArg(arg: unknown): string {
     return arg;
   }
   if (arg instanceof Error) {
-    return arg.stack || arg.message;
+    const head = arg.message ? `${arg.name}: ${arg.message}` : arg.name;
+    const stack = arg.stack ?? "";
+    // V8 prefixes the stack with "name: message"; WebKit (macOS WKWebView) emits
+    // only the call frames, so prepend the header ourselves to keep the message.
+    if (stack === "" || stack.startsWith(arg.name)) {
+      return stack || head;
+    }
+    return `${head}\n${stack}`;
   }
   try {
     return JSON.stringify(arg);
@@ -45,7 +52,12 @@ export function installUiLog(): void {
   };
 
   window.addEventListener("error", (event) => {
-    send("ERROR", [event.error ?? event.message]);
+    if (event.error instanceof Error) {
+      send("ERROR", [event.error]);
+      return;
+    }
+    const where = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : "";
+    send("ERROR", [`${event.message}${where}`]);
   });
   window.addEventListener("unhandledrejection", (event) => {
     send("ERROR", [event.reason]);
