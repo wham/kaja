@@ -127,7 +127,24 @@ func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
 		runtime.WindowReloadApp(a.ctx)
 	})
 	appMenu.Append(menu.WindowMenu())
+
+	helpMenu := appMenu.AddSubmenu("Help")
+	helpMenu.AddText("Show Logs in Finder", nil, func(_ *menu.CallbackData) {
+		a.showLogsInFinder()
+	})
+
 	return appMenu
+}
+
+// showLogsInFinder reveals the logs directory (see LogFromUI) in the system
+// file browser, creating it first if it doesn't exist yet.
+func (a *App) showLogsInFinder() {
+	dir := filepath.Join(a.workspaceDir, "logs")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Warn("Failed to create logs directory", "error", err)
+		return
+	}
+	runtime.BrowserOpenURL(a.ctx, "file://"+dir)
 }
 
 // ScriptFile is the on-disk representation of a Kaja script.
