@@ -21,7 +21,7 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
-import { Kaja, MethodCall } from "./kaja";
+import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appConfiguration, createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
 import { Sidebar } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
@@ -146,6 +146,13 @@ export function App() {
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
+  // Active `kaja.ask(...)` prompt; null when no script is waiting for input.
+  const [askPrompt, setAskPrompt] = useState<{
+    message: string;
+    value: string;
+    resolve: (value: string) => void;
+    reject: (reason: unknown) => void;
+  } | null>(null);
   // Whether the New App dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
   // Rename dialog and delete confirmation for scripts (right-click menu).
@@ -169,9 +176,17 @@ export function App() {
     });
   }, []);
 
+  // Open the input dialog for a `kaja.ask(...)` call, resolving once the user
+  // submits. Rejecting on cancel is handled by the dialog itself.
+  const onAsk = useCallback((message: string) => {
+    return new Promise<string>((resolve, reject) => {
+      setAskPrompt({ message, value: "", resolve, reject });
+    });
+  }, []);
+
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate);
+    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk);
   }
 
   const onClearConsole = useCallback(() => {
@@ -1405,6 +1420,50 @@ export function App() {
                 }}
               />
               {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
+            </FormControl>
+          </Dialog>
+        )}
+        {askPrompt && (
+          <Dialog
+            title="Input"
+            width="medium"
+            onClose={() => {
+              askPrompt.reject(new AskCancelledError());
+              setAskPrompt(null);
+            }}
+            footerButtons={[
+              {
+                content: "Cancel",
+                onClick: () => {
+                  askPrompt.reject(new AskCancelledError());
+                  setAskPrompt(null);
+                },
+              },
+              {
+                content: "Submit",
+                buttonType: "primary",
+                onClick: () => {
+                  askPrompt.resolve(askPrompt.value);
+                  setAskPrompt(null);
+                },
+              },
+            ]}
+          >
+            <FormControl>
+              <FormControl.Label>{askPrompt.message}</FormControl.Label>
+              <TextInput
+                block
+                autoFocus
+                value={askPrompt.value}
+                onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    askPrompt.resolve(askPrompt.value);
+                    setAskPrompt(null);
+                  }
+                }}
+              />
             </FormControl>
           </Dialog>
         )}

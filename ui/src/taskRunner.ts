@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { Kaja } from "./kaja";
+import { AskCancelledError, Kaja } from "./kaja";
 import { Client, Project, serviceId } from "./project";
 import { printStatements } from "./projectLoader";
 
@@ -57,5 +57,12 @@ export function runTask(code: string, kaja: Kaja, projects: Project[]) {
   `,
   );
 
-  func(...Object.values(args), kaja);
+  const result = func(...Object.values(args), kaja);
+  if (result && typeof result.then === "function") {
+    result.catch((err: unknown) => {
+      // A cancelled prompt simply stops the script; surface everything else.
+      if (err instanceof AskCancelledError) return;
+      throw err;
+    });
+  }
 }
