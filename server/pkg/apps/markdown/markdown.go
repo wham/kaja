@@ -356,7 +356,9 @@ func resolve(name string) (string, error) {
 	if !strings.HasSuffix(strings.ToLower(name), ".md") {
 		name += ".md"
 	}
-	if name != filepath.Base(name) || strings.Contains(name, "..") {
+	// filepath.IsLocal rejects absolute paths, "..", and anything that would
+	// escape the folder; it is the canonical path-traversal barrier.
+	if !filepath.IsLocal(name) || name != filepath.Base(name) {
 		return "", fmt.Errorf("file must be a plain name within the folder, got %q", name)
 	}
 	return name, nil
