@@ -131,6 +131,7 @@ message ConfigurationApp {
   // Built-in app type, e.g. "openapi" or "markdown".
   string type = 2;
   // App-specific creation parameters. For "openapi": {"spec_url": "<url>"};
+  // for "openai": {"base_url": "<url>", "token": "<key>"};
   // for "markdown": {"path": "<file>"}.
   map<string, string> parameters = 3;
   // Headers sent with each request the app makes to the upstream service.

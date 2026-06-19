@@ -1,4 +1,4 @@
-import { GlobeIcon, Icon, MarkdownIcon } from "@primer/octicons-react";
+import { GlobeIcon, Icon, MarkdownIcon, SparkleFillIcon } from "@primer/octicons-react";
 
 // Parameter kinds an app exposes in the New App form. "file" renders a native
 // file picker on the desktop (and a plain text field everywhere else).
@@ -43,6 +43,33 @@ export const appTypes: AppTypeDefinition[] = [
       label: "Try the Swagger Petstore demo",
       name: "Petstore",
       parameters: { spec_url: "https://petstore3.swagger.io/api/v3/openapi.json" },
+    },
+  },
+  {
+    type: "openai",
+    label: "OpenAI",
+    description: "Call the standard OpenAI chat completions API.",
+    icon: SparkleFillIcon,
+    parameters: [
+      {
+        key: "base_url",
+        label: "API base URL",
+        type: "url",
+        placeholder: "https://api.openai.com/v1",
+        caption: "Base URL of an OpenAI-compatible API. Calls are sent to <base_url>/chat/completions.",
+      },
+      {
+        key: "token",
+        label: "API token",
+        type: "text",
+        placeholder: "sk-...",
+        caption: "Sent as a Bearer token in the Authorization header of each request.",
+      },
+    ],
+    demo: {
+      label: "Use the OpenAI defaults",
+      name: "OpenAI",
+      parameters: { base_url: "https://api.openai.com/v1" },
     },
   },
   {
