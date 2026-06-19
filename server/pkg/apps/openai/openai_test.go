@@ -157,15 +157,76 @@ func TestChatCompletionOmitsSystemPromptWhenEmpty(t *testing.T) {
 
 func TestChatCompletionUpstreamError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		io.WriteString(w, `{"error":{"message":"bad key"}}`)
+		io.WriteString(w, `{"error":{"message":"Incorrect API key provided","type":"invalid_request_error","code":"invalid_api_key","param":null}}`)
 	}))
 	defer server.Close()
 
 	in := openTestApp(t, server.URL, "nope")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
+	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	if err != nil {
+		t.Fatalf("an HTTP error should be returned as a structured response, not a transport error: %v", err)
+	}
+
+	out := decodeResponse(t, in, resp)
+	errObj, ok := out["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected a structured error field, got %v", out)
+	}
+	if errObj["status"].(float64) != 401 {
+		t.Errorf("status = %v, want 401", errObj["status"])
+	}
+	if errObj["message"] != "Incorrect API key provided" {
+		t.Errorf("message = %v", errObj["message"])
+	}
+	if errObj["type"] != "invalid_request_error" {
+		t.Errorf("type = %v", errObj["type"])
+	}
+	if errObj["code"] != "invalid_api_key" {
+		t.Errorf("code = %v", errObj["code"])
+	}
+	if body, _ := errObj["body"].(string); body == "" {
+		t.Errorf("expected the raw body to be included, got %v", errObj["body"])
+	}
+}
+
+func TestChatCompletionUpstreamErrorPlainBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		io.WriteString(w, "upstream unavailable")
+	}))
+	defer server.Close()
+
+	in := openTestApp(t, server.URL, "x")
+	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
+	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+
+	out := decodeResponse(t, in, resp)
+	errObj := out["error"].(map[string]any)
+	if errObj["status"].(float64) != 502 {
+		t.Errorf("status = %v, want 502", errObj["status"])
+	}
+	// No JSON envelope: message falls back to the HTTP status text, body keeps the raw text.
+	if errObj["message"] != "Bad Gateway" {
+		t.Errorf("message = %v, want Bad Gateway", errObj["message"])
+	}
+	if errObj["body"] != "upstream unavailable" {
+		t.Errorf("body = %v", errObj["body"])
+	}
+}
+
+func TestChatCompletionTransportError(t *testing.T) {
+	// Port 1 refuses connections, so the upstream cannot be reached at all and the
+	// call surfaces as a transport error rather than a structured response.
+	in := openTestApp(t, "http://127.0.0.1:1", "x")
+	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
 	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil); err == nil {
-		t.Fatal("expected error on 401 upstream response")
+		t.Fatal("expected a transport error when the upstream is unreachable")
 	}
 }
 

@@ -68,6 +68,24 @@ message Choice {
   string finish_reason = 3 [json_name = "finish_reason"];
 }
 
+// Error carries the details of a failed upstream request. It mirrors the
+// standard OpenAI error envelope so the status code, message, type, code and raw
+// body are all visible on the response.
+message Error {
+  // HTTP status code returned by the upstream API, e.g. 401.
+  int32 status = 1 [json_name = "status"];
+  // Human-readable error message.
+  string message = 2 [json_name = "message"];
+  // Error category, e.g. "invalid_request_error".
+  string type = 3 [json_name = "type"];
+  // Machine-readable error code, e.g. "invalid_api_key".
+  string code = 4 [json_name = "code"];
+  // The request parameter the error relates to, if any.
+  string param = 5 [json_name = "param"];
+  // Raw response body, for any detail not captured above.
+  string body = 6 [json_name = "body"];
+}
+
 message ChatCompletionResponse {
   string id = 1 [json_name = "id"];
   string model = 2 [json_name = "model"];
@@ -75,6 +93,9 @@ message ChatCompletionResponse {
   string content = 3 [json_name = "content"];
   repeated Choice choices = 4 [json_name = "choices"];
   Usage usage = 5 [json_name = "usage"];
+  // Set when the upstream API returns an error (HTTP >= 400) instead of a
+  // completion. The other fields are empty in that case.
+  Error error = 6 [json_name = "error"];
 }
 
 service OpenAI {
