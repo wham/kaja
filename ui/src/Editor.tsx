@@ -44,6 +44,13 @@ declare const kaja: {
    * from the editor, so guard with a fallback (e.g. kaja.input ?? "").
    */
   input?: string;
+  /**
+   * Pause the script and pop up a dialog asking the user for input. Resolves
+   * with the submitted text; if the user cancels, the script stops.
+   *
+   *   const name = await kaja.ask("What's your name?");
+   */
+  ask(message: string): Promise<string>;
 };
 `,
   "ts:kaja-globals.d.ts",

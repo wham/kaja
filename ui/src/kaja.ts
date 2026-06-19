@@ -2,14 +2,35 @@ import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./project";
 import { captureValues } from "./typeMemory";
 
+// Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
+// swallows it so a cancelled prompt quietly stops the script.
+export class AskCancelledError extends Error {
+  constructor() {
+    super("Kaja prompt cancelled");
+    this.name = "AskCancelledError";
+  }
+}
+
+export interface AskRequest {
+  (message: string): Promise<string>;
+}
+
 export class Kaja {
   readonly _internal: KajaInternal;
   // Text passed in when a script is run from the macOS "Run Kaja Script" text
   // service. Scripts can read it as `kaja.input`.
   input?: string;
+  #onAsk: AskRequest;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest) {
     this._internal = new KajaInternal(onMethodCallUpdate);
+    this.#onAsk = onAsk;
+  }
+
+  // Pause the script and pop up a dialog asking the user for input. Resolves
+  // with the submitted text; rejects (aborting the script) if the user cancels.
+  ask(message: string): Promise<string> {
+    return this.#onAsk(message);
   }
 }
 
