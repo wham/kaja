@@ -9,6 +9,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -159,9 +162,28 @@ func randomToken(n int) string {
 	return hex.EncodeToString(b)
 }
 
+// guardScriptPath confines an MCP-supplied path or name to a single file
+// directly inside the flat scripts directory, defeating path traversal from the
+// (untrusted) MCP endpoint. The directory is flat, so only the base name can
+// ever matter; the cleaned result is additionally checked to stay within the
+// root before any filesystem use.
+func (a *App) guardScriptPath(p string) (string, error) {
+	if strings.TrimSpace(p) == "" {
+		return "", fmt.Errorf("empty script path")
+	}
+	root := filepath.Clean(a.scriptsDir())
+	resolved := filepath.Clean(filepath.Join(root, filepath.Base(p)))
+	if resolved == root || !strings.HasPrefix(resolved, root+string(os.PathSeparator)) {
+		return "", fmt.Errorf("invalid script path %q", p)
+	}
+	return resolved, nil
+}
+
 // mcpBridge adapts the App's file methods to the mcp.Bridge interface. It exists
 // because the App already exposes a ListScripts/CreateScript with Wails-shaped
 // return types; the adapter converts those to the MCP shapes without colliding.
+// Every path or name crossing this boundary is run through guardScriptPath so an
+// agent can only touch files inside the scripts directory.
 type mcpBridge struct{ app *App }
 
 func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
@@ -177,7 +199,11 @@ func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
 }
 
 func (b mcpBridge) ReadScript(path string) (string, error) {
-	f, err := b.app.ReadScriptFile(path)
+	safePath, err := b.app.guardScriptPath(path)
+	if err != nil {
+		return "", err
+	}
+	f, err := b.app.ReadScriptFile(safePath)
 	if err != nil {
 		return "", err
 	}
@@ -185,11 +211,19 @@ func (b mcpBridge) ReadScript(path string) (string, error) {
 }
 
 func (b mcpBridge) WriteScript(path, content string) error {
-	return b.app.WriteScriptFile(path, content)
+	safePath, err := b.app.guardScriptPath(path)
+	if err != nil {
+		return err
+	}
+	return b.app.WriteScriptFile(safePath, content)
 }
 
 func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
-	f, err := b.app.CreateScript(name, content)
+	safePath, err := b.app.guardScriptPath(name)
+	if err != nil {
+		return mcp.ScriptInfo{}, err
+	}
+	f, err := b.app.CreateScript(filepath.Base(safePath), content)
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
@@ -197,7 +231,15 @@ func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
 }
 
 func (b mcpBridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
-	f, err := b.app.RenameScript(path, newName)
+	safePath, err := b.app.guardScriptPath(path)
+	if err != nil {
+		return mcp.ScriptInfo{}, err
+	}
+	safeNewPath, err := b.app.guardScriptPath(newName)
+	if err != nil {
+		return mcp.ScriptInfo{}, err
+	}
+	f, err := b.app.RenameScript(safePath, filepath.Base(safeNewPath))
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
@@ -205,10 +247,22 @@ func (b mcpBridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
 }
 
 func (b mcpBridge) DeleteScript(path string) error {
-	return b.app.DeleteScript(path)
+	safePath, err := b.app.guardScriptPath(path)
+	if err != nil {
+		return err
+	}
+	return b.app.DeleteScript(safePath)
 }
 
 func (b mcpBridge) RunScript(ctx context.Context, path, code string) (mcp.RunResult, error) {
+	// Only a saved-script run carries a path; confine it. Inline code has none.
+	if path != "" {
+		safePath, err := b.app.guardScriptPath(path)
+		if err != nil {
+			return mcp.RunResult{}, err
+		}
+		path = safePath
+	}
 	return b.app.runScript(ctx, path, code)
 }
 
