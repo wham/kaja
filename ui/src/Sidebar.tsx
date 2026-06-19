@@ -12,8 +12,10 @@ import {
   UnfoldIcon,
   ChevronRightIcon,
   PackageIcon,
+  KebabHorizontalIcon,
 } from "@primer/octicons-react";
 import { appTypeLabel } from "./appTypes";
+import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -144,6 +146,13 @@ export function Sidebar({
   // Right-click context menu for a script, anchored at the cursor.
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // Script row hovered, used to reveal the kebab actions button.
+  const [hoveredScript, setHoveredScript] = useState<string | null>(null);
+  // Right-click context menu for a project/app, anchored at the cursor.
+  const [projectMenu, setProjectMenu] = useState<{ projectName: string; top: number; left: number } | null>(null);
+  const projectMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // Project/app row hovered, used to reveal the kebab actions button.
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
@@ -440,23 +449,39 @@ export function Sidebar({
                     id={`script-${script.path}`}
                     key={script.path}
                     ref={(el: HTMLElement | null) => {
-                      // TreeView.Item doesn't forward onContextMenu, so attach it to the DOM node.
+                      // TreeView.Item doesn't forward these handlers, so attach them to the DOM node.
                       if (el) {
                         el.oncontextmenu = (e) => {
                           e.preventDefault();
                           setScriptMenu({ script, top: e.clientY, left: e.clientX });
                         };
+                        el.onmouseenter = () => setHoveredScript(script.path);
+                        el.onmouseleave = () => setHoveredScript((prev) => (prev === script.path ? null : prev));
                       }
                     }}
                     onSelect={() => onScriptSelect?.(script)}
                     current={currentScriptPath === script.path}
                   >
                     {script.name}
-                    {pinnedScriptPath === script.path && (
-                      <TreeView.TrailingVisual label="Pinned to context menu">
-                        <PinIcon size={12} />
-                      </TreeView.TrailingVisual>
-                    )}
+                    {/* Always render the trailing visual so its fixed height keeps the row from
+                        reflowing when the kebab appears on hover; only the contents toggle. */}
+                    <TreeView.TrailingVisual>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {pinnedScriptPath === script.path && <PinIcon size={12} />}
+                        {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
+                          <IconButtonXSmall
+                            aria-label={`Actions for ${script.name}`}
+                            icon={KebabHorizontalIcon}
+                            rounded
+                            style={{ minHeight: 0, minWidth: 0 }}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              setScriptMenu({ script, top: e.clientY, left: e.clientX });
+                            }}
+                          />
+                        )}
+                      </span>
+                    </TreeView.TrailingVisual>
                   </TreeView.Item>
                 ))}
               </TreeView>
@@ -486,7 +511,13 @@ export function Sidebar({
                     fontWeight: "bold",
                     marginLeft: -12,
                     paddingLeft: 4,
+                    paddingRight: 4,
+                    borderRadius: 6,
                     color: "var(--fgColor-muted)",
+                    backgroundColor:
+                      hoveredProject === projectName || projectMenu?.projectName === projectName
+                        ? "var(--control-transparent-bgColor-hover)"
+                        : "transparent",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -494,7 +525,13 @@ export function Sidebar({
                     userSelect: "none",
                     height: 28,
                   }}
+                  onMouseEnter={() => setHoveredProject(projectName)}
+                  onMouseLeave={() => setHoveredProject((prev) => (prev === projectName ? null : prev))}
                   onClick={() => toggleProjectExpanded(projectName)}
+                  onContextMenu={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                  }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <span
@@ -510,31 +547,17 @@ export function Sidebar({
                     {projectName}
                     {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
                   </span>
-                  {isExpanded && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <IconButton
-                        aria-label={`Edit ${projectName}`}
-                        icon={PencilIcon}
-                        size="small"
-                        variant="invisible"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          onEditProject(projectName);
-                        }}
-                      />
-                      {canDeleteProjects && (
-                        <IconButton
-                          aria-label={`Delete ${projectName}`}
-                          icon={TrashIcon}
-                          size="small"
-                          variant="invisible"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            onDeleteProject(projectName);
-                          }}
-                        />
-                      )}
-                    </span>
+                  {(hoveredProject === projectName || projectMenu?.projectName === projectName) && (
+                    <IconButtonXSmall
+                      aria-label={`Actions for ${projectName}`}
+                      icon={KebabHorizontalIcon}
+                      rounded
+                      style={{ minHeight: 0, minWidth: 0 }}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                      }}
+                    />
                   )}
                 </div>
               )}
@@ -686,6 +709,42 @@ export function Sidebar({
               </ActionList.LeadingVisual>
               Delete
             </ActionList.Item>
+          </ActionList>
+        </ActionMenu.Overlay>
+      </ActionMenu>
+      {/* Invisible anchor positioned at the cursor for the project context menu. */}
+      <div
+        ref={projectMenuAnchorRef}
+        style={{ position: "fixed", top: projectMenu?.top ?? 0, left: projectMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+      />
+      <ActionMenu open={!!projectMenu} onOpenChange={(open) => !open && setProjectMenu(null)} anchorRef={projectMenuAnchorRef}>
+        <ActionMenu.Overlay width="small">
+          <ActionList>
+            <ActionList.Item
+              onSelect={() => {
+                const projectName = projectMenu?.projectName;
+                if (projectName) onEditProject(projectName);
+              }}
+            >
+              <ActionList.LeadingVisual>
+                <PencilIcon />
+              </ActionList.LeadingVisual>
+              Edit
+            </ActionList.Item>
+            {canDeleteProjects && (
+              <ActionList.Item
+                variant="danger"
+                onSelect={() => {
+                  const projectName = projectMenu?.projectName;
+                  if (projectName) onDeleteProject(projectName);
+                }}
+              >
+                <ActionList.LeadingVisual>
+                  <TrashIcon />
+                </ActionList.LeadingVisual>
+                Delete
+              </ActionList.Item>
+            )}
           </ActionList>
         </ActionMenu.Overlay>
       </ActionMenu>
