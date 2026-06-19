@@ -16,6 +16,20 @@ import { ProjectRef } from "../project";
 
 export type WailsTransportMode = "api" | "target";
 
+// Wails (v2) rejects a bound-method promise with the Go error string, not an
+// Error object. Pull a useful message out of whatever shape the rejection takes
+// so real failures (e.g. "model is required", an upstream 401) reach the UI
+// instead of a generic "Unknown error".
+function wailsErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string" && error) return error;
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return "Unknown error";
+}
+
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   projectRef?: ProjectRef; // Dynamic project reference for "target" mode
@@ -246,7 +260,7 @@ export class WailsTransport implements RpcTransport {
       return output;
     } catch (error) {
       console.error(`Wails ${this.mode} transport error:`, error);
-      throw new Error(`Wails ${this.mode} transport error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Wails ${this.mode} transport error: ${wailsErrorMessage(error)}`);
     }
   }
 }
