@@ -12,6 +12,7 @@ import {
   UnfoldIcon,
   ChevronRightIcon,
   PackageIcon,
+  KebabHorizontalIcon,
 } from "@primer/octicons-react";
 import { appTypeLabel } from "./appTypes";
 import { Method, Project, Script, Service, methodId } from "./project";
@@ -147,6 +148,8 @@ export function Sidebar({
   // Right-click context menu for a project/app, anchored at the cursor.
   const [projectMenu, setProjectMenu] = useState<{ projectName: string; top: number; left: number } | null>(null);
   const projectMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // Project/app row hovered, used to reveal the kebab actions button.
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
@@ -489,13 +492,22 @@ export function Sidebar({
                     fontWeight: "bold",
                     marginLeft: -12,
                     paddingLeft: 4,
+                    paddingRight: 4,
+                    borderRadius: 6,
                     color: "var(--fgColor-muted)",
+                    backgroundColor:
+                      hoveredProject === projectName || projectMenu?.projectName === projectName
+                        ? "var(--control-transparent-bgColor-hover)"
+                        : "transparent",
                     display: "flex",
                     alignItems: "center",
+                    justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
                     height: 28,
                   }}
+                  onMouseEnter={() => setHoveredProject(projectName)}
+                  onMouseLeave={() => setHoveredProject((prev) => (prev === projectName ? null : prev))}
                   onClick={() => toggleProjectExpanded(projectName)}
                   onContextMenu={(e: React.MouseEvent) => {
                     e.preventDefault();
@@ -516,6 +528,18 @@ export function Sidebar({
                     {projectName}
                     {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
                   </span>
+                  {(hoveredProject === projectName || projectMenu?.projectName === projectName) && (
+                    <IconButton
+                      aria-label={`Actions for ${projectName}`}
+                      icon={KebabHorizontalIcon}
+                      size="small"
+                      variant="invisible"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                      }}
+                    />
+                  )}
                 </div>
               )}
               {(isExpanded || !showProjectHeader) && (
