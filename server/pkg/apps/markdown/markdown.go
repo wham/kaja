@@ -140,9 +140,6 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, fmt.Errorf("missing required parameter %q", "folder")
 	}
 	folder = filepath.Clean(folder)
-	if err := os.MkdirAll(folder, 0o755); err != nil {
-		return nil, fmt.Errorf("preparing folder %s: %w", folder, err)
-	}
 	log("Markdown folder: " + folder)
 
 	if err := os.WriteFile(filepath.Join(protoDir, "markdown.proto"), []byte(protoSource), 0o644); err != nil {
