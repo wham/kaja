@@ -15,6 +15,7 @@ package markdown
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -227,33 +228,53 @@ func (in *instance) dispatch(name string, req, resp *dynamicpb.Message) error {
 		return nil
 
 	case "CreateFile":
-		path, rel, err := in.resolve(getString(req, "file"))
+		name, err := resolve(getString(req, "file"))
 		if err != nil {
 			return err
 		}
+		root, err := os.OpenRoot(in.folder)
+		if err != nil {
+			return fmt.Errorf("opening folder: %w", err)
+		}
+		defer root.Close()
 		if !getBool(req, "overwrite") {
-			if _, err := os.Stat(path); err == nil {
-				return fmt.Errorf("%s already exists (set overwrite to replace it)", rel)
+			if _, err := root.Stat(name); err == nil {
+				return fmt.Errorf("%s already exists (set overwrite to replace it)", name)
 			}
 		}
 		var content string
 		if title := strings.TrimSpace(getString(req, "title")); title != "" {
 			content = "# " + title + "\n"
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return fmt.Errorf("creating folder for %s: %w", rel, err)
+		f, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			return fmt.Errorf("creating %s: %w", name, err)
 		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			return fmt.Errorf("writing %s: %w", rel, err)
+		if _, err := f.WriteString(content); err != nil {
+			f.Close()
+			return fmt.Errorf("writing %s: %w", name, err)
 		}
-		return setFileResponse(resp, rel, path)
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("writing %s: %w", name, err)
+		}
+		return setFileResponse(resp, name, filepath.Join(in.folder, name))
 
 	case "ReadFile":
-		path, _, err := in.resolve(getString(req, "file"))
+		name, err := resolve(getString(req, "file"))
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		root, err := os.OpenRoot(in.folder)
+		if err != nil {
+			return fmt.Errorf("opening folder: %w", err)
+		}
+		defer root.Close()
+		f, err := root.Open(name)
+		if err != nil {
+			return fmt.Errorf("reading file: %w", err)
+		}
+		defer f.Close()
+		data, err := io.ReadAll(f)
 		if err != nil {
 			return fmt.Errorf("reading file: %w", err)
 		}
@@ -307,71 +328,60 @@ func (in *instance) dispatch(name string, req, resp *dynamicpb.Message) error {
 	return fmt.Errorf("unhandled method %q", name)
 }
 
-// listFiles returns the Markdown files in the folder, relative to it, including
-// those in sub-folders.
+// listFiles returns the Markdown files at the top level of the folder.
 func (in *instance) listFiles() ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(in.folder, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
-			return nil
-		}
-		rel, err := filepath.Rel(in.folder, path)
-		if err != nil {
-			return err
-		}
-		files = append(files, filepath.ToSlash(rel))
-		return nil
-	})
+	entries, err := os.ReadDir(in.folder)
 	if err != nil {
 		return nil, fmt.Errorf("listing files: %w", err)
+	}
+	var files []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".md") {
+			continue
+		}
+		files = append(files, e.Name())
 	}
 	return files, nil
 }
 
-// resolve turns a requested file name into an absolute path within the folder,
-// adding a ".md" suffix when missing and rejecting names that escape the folder.
-// It returns the absolute path and the cleaned name relative to the folder.
-func (in *instance) resolve(name string) (string, string, error) {
+// resolve validates a requested file name and returns a plain name within the
+// folder, adding a ".md" suffix when missing. Names that contain a path
+// separator or ".." are rejected; together with os.Root in the callers this
+// keeps every file operation inside the folder.
+func resolve(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", "", fmt.Errorf("missing file name")
+		return "", fmt.Errorf("missing file name")
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".md") {
 		name += ".md"
 	}
-	path := filepath.Clean(filepath.Join(in.folder, filepath.FromSlash(name)))
-	// Containment check using strings.HasPrefix is recognized by static analysis
-	// as a path-traversal barrier: the resolved path must stay inside the folder.
-	if path != in.folder && !strings.HasPrefix(path, in.folder+string(os.PathSeparator)) {
-		return "", "", fmt.Errorf("file must be a name within the folder, got %q", name)
+	if name != filepath.Base(name) || strings.Contains(name, "..") {
+		return "", fmt.Errorf("file must be a plain name within the folder, got %q", name)
 	}
-	rel, err := filepath.Rel(in.folder, path)
-	if err != nil {
-		return "", "", fmt.Errorf("file must be a name within the folder, got %q", name)
-	}
-	return path, filepath.ToSlash(rel), nil
+	return name, nil
 }
 
 // appendBlock resolves the request's "file", appends a Markdown block to it
-// (creating the file if missing), and fills the FileResponse.
+// (creating the file if missing), and fills the FileResponse. All file access
+// goes through os.Root so the name can never escape the folder.
 func (in *instance) appendBlock(req, resp *dynamicpb.Message, block string) error {
-	path, rel, err := in.resolve(getString(req, "file"))
+	name, err := resolve(getString(req, "file"))
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("creating folder for %s: %w", rel, err)
+	root, err := os.OpenRoot(in.folder)
+	if err != nil {
+		return fmt.Errorf("opening folder: %w", err)
 	}
+	defer root.Close()
 
-	info, statErr := os.Stat(path)
+	info, statErr := root.Stat(name)
 	nonEmpty := statErr == nil && info.Size() > 0
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := root.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", rel, err)
+		return fmt.Errorf("opening %s: %w", name, err)
 	}
 	defer f.Close()
 
@@ -385,13 +395,13 @@ func (in *instance) appendBlock(req, resp *dynamicpb.Message, block string) erro
 		b.WriteString("\n")
 	}
 	if _, err := f.WriteString(b.String()); err != nil {
-		return fmt.Errorf("writing to %s: %w", rel, err)
+		return fmt.Errorf("writing to %s: %w", name, err)
 	}
-	return setFileResponse(resp, rel, path)
+	return setFileResponse(resp, name, filepath.Join(in.folder, name))
 }
 
-func setFileResponse(resp *dynamicpb.Message, rel, path string) error {
-	setString(resp, "file", rel)
+func setFileResponse(resp *dynamicpb.Message, name, path string) error {
+	setString(resp, "file", name)
 	setString(resp, "path", path)
 	return nil
 }
