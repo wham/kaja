@@ -1,11 +1,11 @@
 import { Button, Dialog, Flash, FormControl, Link, TextInput, Tooltip } from "@primer/react";
-import { FileIcon, LightBulbIcon } from "@primer/octicons-react";
+import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "@primer/octicons-react";
 import { useState } from "react";
 import { appTypes, AppTypeDefinition } from "./appTypes";
 import { ConfigurationApp } from "./server/api";
 import { PreviewPill } from "./Sidebar";
 import { isWailsEnvironment } from "./wails";
-import { OpenFileDialog } from "./wailsjs/go/main/App";
+import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 
 interface NewAppDialogProps {
   // Existing project and app names, used to reject duplicates.
@@ -112,12 +112,12 @@ export function NewAppDialog({ existingNames, onClose, onCreate }: NewAppDialogP
                 }
               }}
               trailingAction={
-                parameter.type === "file" && isWailsEnvironment() ? (
+                (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
                   <TextInput.Action
-                    icon={FileIcon}
-                    aria-label="Select file"
+                    icon={parameter.type === "folder" ? FileDirectoryIcon : FileIcon}
+                    aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
                     onClick={async () => {
-                      const path = await OpenFileDialog();
+                      const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
                       if (path) {
                         setParameters((prev) => ({ ...prev, [parameter.key]: path }));
                       }
