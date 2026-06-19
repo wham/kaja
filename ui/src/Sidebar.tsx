@@ -145,6 +145,8 @@ export function Sidebar({
   // Right-click context menu for a script, anchored at the cursor.
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // Script row hovered, used to reveal the kebab actions button.
+  const [hoveredScript, setHoveredScript] = useState<string | null>(null);
   // Right-click context menu for a project/app, anchored at the cursor.
   const [projectMenu, setProjectMenu] = useState<{ projectName: string; top: number; left: number } | null>(null);
   const projectMenuAnchorRef = useRef<HTMLDivElement>(null);
@@ -446,21 +448,37 @@ export function Sidebar({
                     id={`script-${script.path}`}
                     key={script.path}
                     ref={(el: HTMLElement | null) => {
-                      // TreeView.Item doesn't forward onContextMenu, so attach it to the DOM node.
+                      // TreeView.Item doesn't forward these handlers, so attach them to the DOM node.
                       if (el) {
                         el.oncontextmenu = (e) => {
                           e.preventDefault();
                           setScriptMenu({ script, top: e.clientY, left: e.clientX });
                         };
+                        el.onmouseenter = () => setHoveredScript(script.path);
+                        el.onmouseleave = () => setHoveredScript((prev) => (prev === script.path ? null : prev));
                       }
                     }}
                     onSelect={() => onScriptSelect?.(script)}
                     current={currentScriptPath === script.path}
                   >
                     {script.name}
-                    {pinnedScriptPath === script.path && (
-                      <TreeView.TrailingVisual label="Pinned to context menu">
-                        <PinIcon size={12} />
+                    {(pinnedScriptPath === script.path || hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
+                      <TreeView.TrailingVisual>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          {pinnedScriptPath === script.path && <PinIcon size={12} />}
+                          {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
+                            <IconButton
+                              aria-label={`Actions for ${script.name}`}
+                              icon={KebabHorizontalIcon}
+                              size="small"
+                              variant="invisible"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                setScriptMenu({ script, top: e.clientY, left: e.clientX });
+                              }}
+                            />
+                          )}
+                        </span>
                       </TreeView.TrailingVisual>
                     )}
                   </TreeView.Item>
