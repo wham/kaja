@@ -1,8 +1,8 @@
 import { GlobeIcon, Icon, MarkdownIcon, SparkleFillIcon } from "@primer/octicons-react";
 
-// Parameter kinds an app exposes in the New App form. "file" renders a native
-// file picker on the desktop (and a plain text field everywhere else).
-export type AppParameterType = "text" | "url" | "file";
+// Parameter kinds an app exposes in the New App form. "file" and "folder" render
+// a native picker on the desktop (and a plain text field everywhere else).
+export type AppParameterType = "text" | "url" | "file" | "folder";
 
 export interface AppParameterDefinition {
   key: string;
@@ -75,15 +75,15 @@ export const appTypes: AppTypeDefinition[] = [
   {
     type: "markdown",
     label: "Markdown",
-    description: "Append lines of text to a Markdown file on disk.",
+    description: "Create and write Markdown files in a folder on disk.",
     icon: MarkdownIcon,
     parameters: [
       {
-        key: "path",
-        label: "Markdown file",
-        type: "file",
-        placeholder: "/path/to/notes.md",
-        caption: "Calls append a line to this file. On the desktop, pick the file to grant access.",
+        key: "folder",
+        label: "Markdown folder",
+        type: "folder",
+        placeholder: "/path/to/notes",
+        caption: "Methods create and write Markdown files in this folder. On the desktop, pick the folder to grant access.",
       },
     ],
   },
