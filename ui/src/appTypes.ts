@@ -52,11 +52,11 @@ export const appTypes: AppTypeDefinition[] = [
     icon: SparkleFillIcon,
     parameters: [
       {
-        key: "base_url",
-        label: "API base URL",
+        key: "endpoint",
+        label: "Chat completions endpoint",
         type: "url",
-        placeholder: "https://api.openai.com/v1",
-        caption: "Base URL of an OpenAI-compatible API. Calls are sent to <base_url>/chat/completions.",
+        placeholder: "https://api.openai.com/v1/chat/completions",
+        caption: "Full URL of the chat completions endpoint. Requests are POSTed directly to it.",
       },
       {
         key: "token",
@@ -67,9 +67,9 @@ export const appTypes: AppTypeDefinition[] = [
       },
     ],
     demo: {
-      label: "Use the OpenAI defaults",
+      label: "Use the OpenAI endpoint",
       name: "OpenAI",
-      parameters: { base_url: "https://api.openai.com/v1" },
+      parameters: { endpoint: "https://api.openai.com/v1/chat/completions" },
     },
   },
   {

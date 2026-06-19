@@ -18,11 +18,11 @@ import (
 // arrives as protobuf, is transcoded into a POST against the chat completions
 // endpoint, and the JSON response is shaped back into the protobuf response.
 type instance struct {
-	baseURL string
-	token   string
-	input   protoreflect.MessageDescriptor
-	output  protoreflect.MessageDescriptor
-	client  *http.Client
+	endpoint string
+	token    string
+	input    protoreflect.MessageDescriptor
+	output   protoreflect.MessageDescriptor
+	client   *http.Client
 }
 
 func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
@@ -113,13 +113,12 @@ func (in *instance) buildRequestBody(reqMsg *dynamicpb.Message) ([]byte, error) 
 	return json.Marshal(payload)
 }
 
-// call POSTs the request body to <base_url>/chat/completions, returning the raw
+// call POSTs the request body to the configured endpoint, returning the raw
 // response body and HTTP status code. An error is returned only for transport
 // failures (the upstream could not be reached); HTTP error responses are returned
 // with their status so the caller can shape them into a structured error.
 func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, error) {
-	endpoint := in.baseURL + "/chat/completions"
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, in.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, fmt.Errorf("building request: %w", err)
 	}
@@ -134,7 +133,7 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, e
 
 	resp, err := in.client.Do(httpReq)
 	if err != nil {
-		return nil, 0, fmt.Errorf("calling %s: %w", endpoint, err)
+		return nil, 0, fmt.Errorf("calling %s: %w", in.endpoint, err)
 	}
 	defer resp.Body.Close()
 

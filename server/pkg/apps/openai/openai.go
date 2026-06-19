@@ -1,11 +1,11 @@
 // Package openai implements the built-in "openai" app: it exposes the standard
 // OpenAI chat completions API as a small gRPC surface kaja can render and invoke.
 //
-// The app has two creation parameters: "base_url" (the OpenAI-compatible API
-// base, defaulting to https://api.openai.com/v1) and "token" (the API key sent
-// as a Bearer token). Method calls arrive as protobuf, are transcoded into a
-// POST against <base_url>/chat/completions, and the JSON response is shaped back
-// into the method's protobuf response.
+// The app has two creation parameters: "endpoint" (the full chat completions URL,
+// e.g. https://api.openai.com/v1/chat/completions) and "token" (the API key sent
+// as a Bearer token). Method calls arrive as protobuf, are transcoded into a POST
+// against the endpoint, and the JSON response is shaped back into the method's
+// protobuf response.
 package openai
 
 import (
@@ -25,7 +25,7 @@ import (
 
 const (
 	serviceTypeName = "openai.OpenAI"
-	defaultBaseURL  = "https://api.openai.com/v1"
+	defaultEndpoint = "https://api.openai.com/v1/chat/completions"
 )
 
 // protoSource is the static proto surface the openai app renders: a single
@@ -110,14 +110,14 @@ type App struct{}
 func New() *App { return &App{} }
 
 func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (apps.Instance, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(parameters["base_url"]), "/")
-	if baseURL == "" {
-		baseURL = defaultBaseURL
+	endpoint := strings.TrimSpace(parameters["endpoint"])
+	if endpoint == "" {
+		endpoint = defaultEndpoint
 	}
-	if err := requireHTTPScheme(baseURL); err != nil {
+	if err := requireHTTPScheme(endpoint); err != nil {
 		return nil, err
 	}
-	log("OpenAI base URL: " + baseURL)
+	log("OpenAI endpoint: " + endpoint)
 
 	token := strings.TrimSpace(parameters["token"])
 	if token == "" {
@@ -135,11 +135,11 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	log("Generated service " + serviceTypeName + " with method ChatCompletion")
 
 	return &instance{
-		baseURL: baseURL,
-		token:   token,
-		input:   input,
-		output:  output,
-		client:  &http.Client{Timeout: 120 * time.Second},
+		endpoint: endpoint,
+		token:    token,
+		input:    input,
+		output:   output,
+		client:   &http.Client{Timeout: 120 * time.Second},
 	}, nil
 }
 

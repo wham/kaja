@@ -13,9 +13,9 @@ import (
 )
 
 // openTestApp opens the app against a fake upstream and returns the live instance.
-func openTestApp(t *testing.T, baseURL, token string) *instance {
+func openTestApp(t *testing.T, endpoint, token string) *instance {
 	t.Helper()
-	inst, err := New().Open(map[string]string{"base_url": baseURL, "token": token}, t.TempDir(), func(string) {})
+	inst, err := New().Open(map[string]string{"endpoint": endpoint, "token": token}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestChatCompletion(t *testing.T) {
 	}))
 	defer server.Close()
 
-	in := openTestApp(t, server.URL, "secret-token")
+	in := openTestApp(t, server.URL+"/chat/completions", "secret-token")
 
 	req := encodeRequest(t, in, `{
 		"model": "gpt-4o-mini",
@@ -140,7 +140,7 @@ func TestChatCompletionOmitsSystemPromptWhenEmpty(t *testing.T) {
 	}))
 	defer server.Close()
 
-	in := openTestApp(t, server.URL, "")
+	in := openTestApp(t, server.URL+"/chat/completions", "")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
 	if _, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil); err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -163,7 +163,7 @@ func TestChatCompletionUpstreamError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	in := openTestApp(t, server.URL, "nope")
+	in := openTestApp(t, server.URL+"/chat/completions", "nope")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
 	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
 	if err != nil {
@@ -199,7 +199,7 @@ func TestChatCompletionUpstreamErrorPlainBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	in := openTestApp(t, server.URL, "x")
+	in := openTestApp(t, server.URL+"/chat/completions", "x")
 	req := encodeRequest(t, in, `{"model": "m", "user_prompt": "yo"}`)
 	resp, err := in.Invoke("openai.OpenAI/ChatCompletion", req, nil)
 	if err != nil {
@@ -230,12 +230,12 @@ func TestChatCompletionTransportError(t *testing.T) {
 	}
 }
 
-func TestDefaultBaseURL(t *testing.T) {
+func TestDefaultEndpoint(t *testing.T) {
 	inst, err := New().Open(map[string]string{"token": "x"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := inst.(*instance).baseURL; got != defaultBaseURL {
-		t.Errorf("baseURL = %q, want %q", got, defaultBaseURL)
+	if got := inst.(*instance).endpoint; got != defaultEndpoint {
+		t.Errorf("endpoint = %q, want %q", got, defaultEndpoint)
 	}
 }
