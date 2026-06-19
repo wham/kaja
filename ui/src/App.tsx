@@ -586,13 +586,18 @@ export function App() {
   };
 
   const handlePostCompilationLogic = (updatedProjects: Project[]) => {
+    // Keep the MCP server's view of callable services in sync with whatever has
+    // compiled so far. Apps are ordinary projects here (they carry an `app`
+    // field), so they show up just like gRPC/Twirp projects. This runs on every
+    // compilation update rather than waiting for all projects, so a slow or
+    // failing app can't block the rest of the catalog.
+    if (isWailsEnvironment() && previewMcpRef.current) {
+      MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedProjects))).catch(() => {});
+    }
+
     // Check if all projects have finished compiling successfully
     const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
     if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
-      // Keep the MCP server's view of callable services in sync.
-      if (isWailsEnvironment() && previewMcpRef.current) {
-        MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedProjects))).catch(() => {});
-      }
       updatedProjects.forEach((project) => {
         if (project.sources) {
           project.sources.forEach((source) => {
@@ -805,7 +810,14 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     MCPSetEnabled(previewMcp)
-      .then(setMcpInfo)
+      .then((info) => {
+        setMcpInfo(info);
+        // Seed the server with the already-compiled projects/apps; otherwise the
+        // catalog stays empty until the next compilation event.
+        if (previewMcp) {
+          MCPSetCatalog(JSON.stringify(buildMcpCatalog(projectsRef.current))).catch(() => {});
+        }
+      })
       .catch((err) => showFileError(`MCP server: ${err}`));
   }, [previewMcp, showFileError]);
 
@@ -1621,10 +1633,14 @@ function toMethodCallLog(call: MethodCall) {
 }
 
 // buildMcpCatalog turns the compiled projects into the catalog the MCP server
-// exposes via list_services and the stub resources.
+// exposes via list_services and the stub resources. Apps are included here just
+// like gRPC/Twirp projects — for the MCP consumer there is no difference, both
+// expose callable services. Only successfully compiled projects with services
+// are listed, so a pending or failed project (or app) leaves the rest intact.
 function buildMcpCatalog(projects: Project[]) {
+  const compiled = projects.filter((project) => project.compilation.status === "success" && project.services.length > 0);
   return {
-    projects: projects.map((project) => ({
+    projects: compiled.map((project) => ({
       name: project.configuration.name,
       services: project.services.map((service: Service) => ({
         name: service.name,
@@ -1637,6 +1653,6 @@ function buildMcpCatalog(projects: Project[]) {
         })),
       })),
     })),
-    sources: projects.flatMap((project) => project.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
+    sources: compiled.flatMap((project) => project.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
   };
 }
