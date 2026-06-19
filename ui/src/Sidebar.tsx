@@ -15,6 +15,7 @@ import {
   KebabHorizontalIcon,
 } from "@primer/octicons-react";
 import { appTypeLabel } from "./appTypes";
+import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Method, Project, Script, Service, methodId } from "./project";
 import { RpcProtocol } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -467,11 +468,10 @@ export function Sidebar({
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                           {pinnedScriptPath === script.path && <PinIcon size={12} />}
                           {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                            <IconButton
+                            <IconButtonXSmall
                               aria-label={`Actions for ${script.name}`}
                               icon={KebabHorizontalIcon}
-                              size="small"
-                              variant="invisible"
+                              rounded
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation();
                                 setScriptMenu({ script, top: e.clientY, left: e.clientX });
@@ -547,11 +547,10 @@ export function Sidebar({
                     {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
                   </span>
                   {(hoveredProject === projectName || projectMenu?.projectName === projectName) && (
-                    <IconButton
+                    <IconButtonXSmall
                       aria-label={`Actions for ${projectName}`}
                       icon={KebabHorizontalIcon}
-                      size="small"
-                      variant="invisible"
+                      rounded
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
