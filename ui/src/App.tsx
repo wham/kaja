@@ -1100,10 +1100,13 @@ export function App() {
       return;
     }
 
-    // Update configuration to remove the project
+    // Update configuration to remove the project. Apps are rendered as projects
+    // in the sidebar but stored separately, so drop a matching app too (names are
+    // unique across both).
     const updatedConfiguration: Configuration = {
       ...configuration,
       projects: configuration.projects.filter((p) => p.name !== projectName),
+      apps: (configuration.apps || []).filter((a) => a.name !== projectName),
     };
 
     // Save configuration via API and apply changes through unified path
