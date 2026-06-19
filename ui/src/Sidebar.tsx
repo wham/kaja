@@ -144,6 +144,9 @@ export function Sidebar({
   // Right-click context menu for a script, anchored at the cursor.
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // Right-click context menu for a project/app, anchored at the cursor.
+  const [projectMenu, setProjectMenu] = useState<{ projectName: string; top: number; left: number } | null>(null);
+  const projectMenuAnchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
@@ -489,12 +492,15 @@ export function Sidebar({
                     color: "var(--fgColor-muted)",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
                     cursor: "pointer",
                     userSelect: "none",
                     height: 28,
                   }}
                   onClick={() => toggleProjectExpanded(projectName)}
+                  onContextMenu={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                  }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <span
@@ -510,32 +516,6 @@ export function Sidebar({
                     {projectName}
                     {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
                   </span>
-                  {isExpanded && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <IconButton
-                        aria-label={`Edit ${projectName}`}
-                        icon={PencilIcon}
-                        size="small"
-                        variant="invisible"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          onEditProject(projectName);
-                        }}
-                      />
-                      {canDeleteProjects && (
-                        <IconButton
-                          aria-label={`Delete ${projectName}`}
-                          icon={TrashIcon}
-                          size="small"
-                          variant="invisible"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            onDeleteProject(projectName);
-                          }}
-                        />
-                      )}
-                    </span>
-                  )}
                 </div>
               )}
               {(isExpanded || !showProjectHeader) && (
@@ -686,6 +666,42 @@ export function Sidebar({
               </ActionList.LeadingVisual>
               Delete
             </ActionList.Item>
+          </ActionList>
+        </ActionMenu.Overlay>
+      </ActionMenu>
+      {/* Invisible anchor positioned at the cursor for the project context menu. */}
+      <div
+        ref={projectMenuAnchorRef}
+        style={{ position: "fixed", top: projectMenu?.top ?? 0, left: projectMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+      />
+      <ActionMenu open={!!projectMenu} onOpenChange={(open) => !open && setProjectMenu(null)} anchorRef={projectMenuAnchorRef}>
+        <ActionMenu.Overlay width="small">
+          <ActionList>
+            <ActionList.Item
+              onSelect={() => {
+                const projectName = projectMenu?.projectName;
+                if (projectName) onEditProject(projectName);
+              }}
+            >
+              <ActionList.LeadingVisual>
+                <PencilIcon />
+              </ActionList.LeadingVisual>
+              Edit
+            </ActionList.Item>
+            {canDeleteProjects && (
+              <ActionList.Item
+                variant="danger"
+                onSelect={() => {
+                  const projectName = projectMenu?.projectName;
+                  if (projectName) onDeleteProject(projectName);
+                }}
+              >
+                <ActionList.LeadingVisual>
+                  <TrashIcon />
+                </ActionList.LeadingVisual>
+                Delete
+              </ActionList.Item>
+            )}
           </ActionList>
         </ActionMenu.Overlay>
       </ActionMenu>
