@@ -9,7 +9,7 @@ interface IconButtonXSmallProps extends React.ComponentPropsWithoutRef<"button">
 }
 
 export const IconButtonXSmall = React.forwardRef<HTMLButtonElement, IconButtonXSmallProps>(
-  function IconButtonXSmall({ icon, "aria-label": ariaLabel, onClick, rounded, ...rest }, ref) {
+  function IconButtonXSmall({ icon, "aria-label": ariaLabel, onClick, rounded, style, ...rest }, ref) {
     return (
       <IconButton
         ref={ref}
@@ -25,6 +25,7 @@ export const IconButtonXSmall = React.forwardRef<HTMLButtonElement, IconButtonXS
           padding: 0,
           borderRadius: rounded ? 4 : 0,
           color: "var(--fgColor-muted)",
+          ...style,
         }}
         {...rest}
       />

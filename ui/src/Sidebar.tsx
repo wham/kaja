@@ -472,6 +472,7 @@ export function Sidebar({
                               aria-label={`Actions for ${script.name}`}
                               icon={KebabHorizontalIcon}
                               rounded
+                              style={{ minHeight: 0, minWidth: 0 }}
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation();
                                 setScriptMenu({ script, top: e.clientY, left: e.clientX });
@@ -551,6 +552,7 @@ export function Sidebar({
                       aria-label={`Actions for ${projectName}`}
                       icon={KebabHorizontalIcon}
                       rounded
+                      style={{ minHeight: 0, minWidth: 0 }}
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
