@@ -1,5 +1,21 @@
 export namespace main {
-	
+
+	export class MCPInfo {
+	    enabled: boolean;
+	    url: string;
+	    token: string;
+
+	    static createFrom(source: any = {}) {
+	        return new MCPInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.url = source["url"];
+	        this.token = source["token"];
+	    }
+	}
 	export class ScriptFile {
 	    path: string;
 	    name: string;

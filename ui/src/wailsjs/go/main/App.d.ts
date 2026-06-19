@@ -12,6 +12,14 @@ export function ListScripts():Promise<Array<main.ScriptFile>>;
 
 export function LogFromUI(arg1:string,arg2:string):Promise<void>;
 
+export function MCPScriptResult(arg1:string,arg2:string):Promise<void>;
+
+export function MCPServerInfo():Promise<main.MCPInfo>;
+
+export function MCPSetCatalog(arg1:string):Promise<void>;
+
+export function MCPSetEnabled(arg1:boolean):Promise<main.MCPInfo>;
+
 export function OpenDirectoryDialog():Promise<string>;
 
 export function OpenFileDialog():Promise<string>;

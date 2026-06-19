@@ -58,8 +58,20 @@ import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./st
 import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
-import { CreateScript, DeleteScript, ListScripts, ReadScriptFile, RenameScript, WriteScriptFile } from "./wailsjs/go/main/App";
-import { runTask } from "./taskRunner";
+import {
+  CreateScript,
+  DeleteScript,
+  ListScripts,
+  MCPScriptResult,
+  MCPServerInfo,
+  MCPSetCatalog,
+  MCPSetEnabled,
+  ReadScriptFile,
+  RenameScript,
+  WriteScriptFile,
+} from "./wailsjs/go/main/App";
+import { main } from "./wailsjs/go/models";
+import { runTask, runTaskCaptured } from "./taskRunner";
 
 // Maximum number of console items kept in memory; older calls are dropped.
 const MAX_CONSOLE_ITEMS = 500;
@@ -142,6 +154,17 @@ export function App() {
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:apps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
+  // Experimental "MCP server" feature (desktop only): exposes script edit/run and
+  // the service catalog to an agent over a localhost MCP endpoint.
+  const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
+  const previewMcpRef = useRef(previewMcp);
+  previewMcpRef.current = previewMcp;
+  const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
+  // While an MCP run_script call is in flight, the method calls it makes are
+  // collected here so they can be returned to the agent.
+  const mcpRunCollectorRef = useRef<MethodCall[] | null>(null);
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
@@ -165,6 +188,12 @@ export function App() {
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
+    const collector = mcpRunCollectorRef.current;
+    if (collector) {
+      const i = collector.findIndex((m) => m.id === methodCall.id);
+      if (i > -1) collector[i] = methodCall;
+      else collector.push(methodCall);
+    }
     setConsoleItems((consoleItems) => {
       const index = consoleItems.findIndex((item) => "id" in item && item.id === methodCall.id);
       if (index > -1) {
@@ -209,15 +238,19 @@ export function App() {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
-  // Scripts are desktop-only, so that toggle is only offered in the Wails environment; Apps work everywhere.
+  // Scripts and the MCP server are desktop-only, so those toggles are only offered
+  // in the Wails environment; Apps work everywhere.
   const featurePreviews: FeaturePreview[] = [
     ...(isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : []),
+    ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
     { key: "apps", label: "Apps", enabled: previewApps },
   ];
 
   const onToggleFeaturePreview = useCallback((key: string) => {
     if (key === "scripts") {
       setPreviewScripts((enabled) => !enabled);
+    } else if (key === "mcp") {
+      setPreviewMcp((enabled) => !enabled);
     } else if (key === "apps") {
       setPreviewApps((enabled) => !enabled);
     }
@@ -556,6 +589,10 @@ export function App() {
     // Check if all projects have finished compiling successfully
     const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
     if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
+      // Keep the MCP server's view of callable services in sync.
+      if (isWailsEnvironment() && previewMcpRef.current) {
+        MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedProjects))).catch(() => {});
+      }
       updatedProjects.forEach((project) => {
         if (project.sources) {
           project.sources.forEach((source) => {
@@ -762,6 +799,43 @@ export function App() {
     if (!isWailsEnvironment()) return;
     EventsEmit("scripts:previewEnabled", previewScripts);
   }, [previewScripts]);
+
+  // Start/stop the localhost MCP server in step with its feature preview, and
+  // keep the connection details for the footer.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    MCPSetEnabled(previewMcp)
+      .then(setMcpInfo)
+      .catch((err) => showFileError(`MCP server: ${err}`));
+  }, [previewMcp, showFileError]);
+
+  // Run a script on behalf of the MCP server's run_script tool and report the
+  // console output, return value, and the RPCs it made back to the Go side.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string }) => {
+      const collected: MethodCall[] = [];
+      mcpRunCollectorRef.current = collected;
+      let result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[] };
+      try {
+        let source = payload.code;
+        if (payload.path) {
+          const file = await ReadScriptFile(payload.path);
+          source = file?.content ?? "";
+        }
+        const kaja = kajaRef.current!;
+        kaja.input = undefined;
+        const captured = await runTaskCaptured(source, kaja, projectsRef.current);
+        result = { ...captured, methodCalls: collected.map(toMethodCallLog) };
+      } catch (err) {
+        result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: collected.map(toMethodCallLog) };
+      } finally {
+        mcpRunCollectorRef.current = null;
+      }
+      MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+    });
+    return () => unsub();
+  }, []);
 
   const onConfirmSaveAsScript = useCallback(async () => {
     if (!saveAs) return;
@@ -1391,6 +1465,7 @@ export function App() {
             buildNumber={configuration?.system?.buildNumber}
             featurePreviews={featurePreviews}
             onToggleFeaturePreview={onToggleFeaturePreview}
+            mcpInfo={previewMcp ? mcpInfo : undefined}
           />
         </div>
         <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
@@ -1531,4 +1606,37 @@ export function App() {
       </BaseStyles>
     </ThemeProvider>
   );
+}
+
+// toMethodCallLog flattens a MethodCall into the shape the MCP server returns to
+// the agent (service/method plus best-effort JSON of the request and response).
+function toMethodCallLog(call: MethodCall) {
+  return {
+    service: call.service.name,
+    method: call.method.name,
+    input: call.input,
+    output: call.output,
+    error: call.error ? String(call.error?.message ?? call.error) : undefined,
+  };
+}
+
+// buildMcpCatalog turns the compiled projects into the catalog the MCP server
+// exposes via list_services and the stub resources.
+function buildMcpCatalog(projects: Project[]) {
+  return {
+    projects: projects.map((project) => ({
+      name: project.configuration.name,
+      services: project.services.map((service: Service) => ({
+        name: service.name,
+        packageName: service.packageName,
+        importPath: service.sourcePath,
+        methods: service.methods.map((method) => ({
+          name: method.name,
+          serverStreaming: method.serverStreaming,
+          clientStreaming: method.clientStreaming,
+        })),
+      })),
+    })),
+    sources: projects.flatMap((project) => project.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
+  };
 }

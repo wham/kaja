@@ -27,6 +27,7 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 
 - **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to projects through their import paths and run from their own tabs.
 - **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
+- **MCP server** (`featurePreview:mcp`, desktop only) — a localhost Model Context Protocol server that lets an agent (e.g. Claude Code) read, write, and run the saved scripts and discover the services they can call. The footer shows a plug button with the one-line `claude mcp add` command to connect.
 - **Apps** (`featurePreview:apps`) — alongside projects, an _app_ is a built-in integration that exposes a proto surface kaja renders and invokes just like a gRPC project. When the preview is on, the "+" menu in the sidebar offers "New Project" vs "New App" (the New App entry and form both carry the "Preview" pill). Apps live in `kaja.json` under `apps` (`ConfigurationApp`: `name`, `type`, `parameters`, `headers`). The first built-in app type is **openapi**: given an OpenAPI 3.x spec URL (`parameters.spec_url`), it converts operations into proto services/methods and transcodes method calls into HTTP REST requests against the upstream API. Apps are **gRPC apps** — there is no Twirp path for apps.
 
 ### Apps architecture
@@ -36,6 +37,12 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 - **Open + compile** — the `OpenApp` RPC (`server/proto/api.proto`) opens an app instance: it writes the generated protos to a temp dir (returned as `proto_dir`, then fed into the existing `Compile` pipeline, exactly like reflection) and returns an invocation `target` (`kaja-app://<id>`) used as the project URL.
 - **Invoke** — apps are invoked as gRPC: the browser uses the normal gRPC-Web client. The web `/target/{method}` handler detects `kaja-app://` targets and calls `grpc.ServeAppGRPCWeb` (de-frames the gRPC-Web message, calls `Manager.Invoke`, frames the response / writes a gRPC error trailer); the desktop Wails `Target` dispatches `kaja-app://` to `Manager.Invoke` directly. `Manager.Invoke` always deals in unframed protobuf message bytes.
 - **UI** — apps are loaded as `Project`s with `protocol = GRPC` carrying an `app` field (`ui/src/project.ts`); `useCompilation` calls `OpenApp` instead of `Reflect`, and the standard gRPC-Web transport handles `kaja-app://` targets like any gRPC project.
+
+### MCP server architecture
+
+- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/taskRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into the webview. So the MCP server lives in the desktop process but reaches the webview for runs.
+- **Server** — `desktop/mcp` is a self-contained, Wails-free package: JSON-RPC 2.0 over HTTP (MCP Streamable HTTP, single-response — no SSE), bound to `127.0.0.1` on a random port and guarded by a per-session bearer token. It is self-describing: `initialize` returns `instructions` (the embedded `guide.md` Kaja primer), and it exposes script CRUD + `run_script` + `list_services` tools plus resources (the guide, the live services catalog, and each generated `.ts` stub). It talks to the app only through the `mcp.Bridge` interface, so it is unit-tested with a fake (`desktop/mcp/server_test.go`).
+- **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts/stops the server on the `mcp:previewEnabled` toggle, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the services catalog via `MCPSetCatalog` after each successful compile and shows the connection command via `MCPServerInfo`.
 
 ## Directory Structure
 
