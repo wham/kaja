@@ -463,25 +463,25 @@ export function Sidebar({
                     current={currentScriptPath === script.path}
                   >
                     {script.name}
-                    {(pinnedScriptPath === script.path || hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                      <TreeView.TrailingVisual>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          {pinnedScriptPath === script.path && <PinIcon size={12} />}
-                          {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                            <IconButtonXSmall
-                              aria-label={`Actions for ${script.name}`}
-                              icon={KebabHorizontalIcon}
-                              rounded
-                              style={{ minHeight: 0, minWidth: 0 }}
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                setScriptMenu({ script, top: e.clientY, left: e.clientX });
-                              }}
-                            />
-                          )}
-                        </span>
-                      </TreeView.TrailingVisual>
-                    )}
+                    {/* Always render the trailing visual so its fixed height keeps the row from
+                        reflowing when the kebab appears on hover; only the contents toggle. */}
+                    <TreeView.TrailingVisual>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {pinnedScriptPath === script.path && <PinIcon size={12} />}
+                        {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
+                          <IconButtonXSmall
+                            aria-label={`Actions for ${script.name}`}
+                            icon={KebabHorizontalIcon}
+                            rounded
+                            style={{ minHeight: 0, minWidth: 0 }}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              setScriptMenu({ script, top: e.clientY, left: e.clientX });
+                            }}
+                          />
+                        )}
+                      </span>
+                    </TreeView.TrailingVisual>
                   </TreeView.Item>
                 ))}
               </TreeView>
