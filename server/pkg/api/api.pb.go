@@ -853,7 +853,9 @@ type ConfigurationSystem struct {
 	// Whether the UI can update configuration (true in desktop app, false in web server)
 	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
 	// Git commit hash or tag for the currently running version
-	GitRef        string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
+	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
+	// TestFlight/App Store build number (CFBundleVersion), empty for other builds
+	BuildNumber   string `protobuf:"bytes,3,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -898,6 +900,13 @@ func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
 func (x *ConfigurationSystem) GetGitRef() string {
 	if x != nil {
 		return x.GitRef
+	}
+	return ""
+}
+
+func (x *ConfigurationSystem) GetBuildNumber() string {
+	if x != nil {
+		return x.BuildNumber
 	}
 	return ""
 }
@@ -1195,10 +1204,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"pathPrefix\x121\n" +
 	"\bprojects\x18\x02 \x03(\v2\x15.ConfigurationProjectR\bprojects\x12,\n" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\x12%\n" +
-	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\"h\n" +
+	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\"\x8b\x01\n" +
 	"\x13ConfigurationSystem\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
-	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\"\xa4\x02\n" +
+	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
+	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\"\xa4\x02\n" +
 	"\x14ConfigurationProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12(\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2\f.RpcProtocolR\bprotocol\x12\x10\n" +

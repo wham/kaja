@@ -10,11 +10,12 @@ interface StatusBarProps {
   colorMode: ColorMode;
   onToggleColorMode: () => void;
   gitRef?: string;
+  buildNumber?: string;
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
 }
 
-export function StatusBar({ colorMode, onToggleColorMode, gitRef, featurePreviews, onToggleFeaturePreview }: StatusBarProps) {
+export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
@@ -61,6 +62,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, featurePreview
         ) : (
           <div />
         )}
+        {buildNumber && <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>build {buildNumber}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />

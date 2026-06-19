@@ -41,7 +41,7 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	apiService := api.NewApiService(configurationPath, false, GitRef)
+	apiService := api.NewApiService(configurationPath, false, GitRef, "")
 	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 

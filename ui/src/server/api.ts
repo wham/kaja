@@ -209,6 +209,12 @@ export interface ConfigurationSystem {
      * @generated from protobuf field: string git_ref = 2
      */
     gitRef: string;
+    /**
+     * TestFlight/App Store build number (CFBundleVersion), empty for other builds
+     *
+     * @generated from protobuf field: string build_number = 3
+     */
+    buildNumber: string;
 }
 /**
  * @generated from protobuf message ConfigurationProject
@@ -1030,13 +1036,15 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
     constructor() {
         super("ConfigurationSystem", [
             { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.canUpdateConfiguration = false;
         message.gitRef = "";
+        message.buildNumber = "";
         if (value !== undefined)
             reflectionMergePartial<ConfigurationSystem>(this, message, value);
         return message;
@@ -1051,6 +1059,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
                     break;
                 case /* string git_ref */ 2:
                     message.gitRef = reader.string();
+                    break;
+                case /* string build_number */ 3:
+                    message.buildNumber = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1070,6 +1081,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
         /* string git_ref = 2; */
         if (message.gitRef !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.gitRef);
+        /* string build_number = 3; */
+        if (message.buildNumber !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.buildNumber);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
