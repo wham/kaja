@@ -1,8 +1,11 @@
-import { MarkGithubIcon, MoonIcon, SunIcon } from "@primer/octicons-react";
+import { useState } from "react";
+import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "@primer/octicons-react";
+import { AnchoredOverlay, Button } from "@primer/react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { IconButtonXSmall } from "./IconButtonXSmall";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
+import { main } from "./wailsjs/go/models";
 
 export type ColorMode = "day" | "night";
 
@@ -13,9 +16,60 @@ interface StatusBarProps {
   buildNumber?: string;
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
+  mcpInfo?: main.MCPInfo;
 }
 
-export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview }: StatusBarProps) {
+// MCPStatus surfaces the localhost MCP endpoint and the one-line command to add
+// it to an agent. Shown only while the MCP feature preview is on.
+function MCPStatus({ info }: { info: main.MCPInfo }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const command = `claude mcp add --transport http kaja ${info.url} --header "Authorization: Bearer ${info.token}"`;
+
+  const copy = () => {
+    navigator.clipboard?.writeText(command).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {},
+    );
+  };
+
+  return (
+    <AnchoredOverlay
+      open={open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
+      renderAnchor={(anchorProps) => <IconButtonXSmall icon={PlugIcon} aria-label="MCP server" {...anchorProps} />}
+    >
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, maxWidth: 360 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fgColor-default)" }}>MCP server</span>
+        <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>Add this server to an agent to let it edit and run your scripts:</span>
+        <pre
+          style={{
+            fontSize: 11,
+            padding: 8,
+            margin: 0,
+            background: "var(--bgColor-muted)",
+            borderRadius: 6,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+            fontFamily: "var(--fontStack-monospace, monospace)",
+            color: "var(--fgColor-default)",
+          }}
+        >
+          {command}
+        </pre>
+        <Button size="small" onClick={copy}>
+          {copied ? "Copied" : "Copy command"}
+        </Button>
+      </div>
+    </AnchoredOverlay>
+  );
+}
+
+export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview, mcpInfo }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
@@ -65,6 +119,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
         {buildNumber && <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>build {buildNumber}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />
         <IconButtonXSmall
           icon={colorMode === "night" ? SunIcon : MoonIcon}

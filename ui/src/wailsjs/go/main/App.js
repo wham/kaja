@@ -22,6 +22,22 @@ export function LogFromUI(arg1, arg2) {
   return window['go']['main']['App']['LogFromUI'](arg1, arg2);
 }
 
+export function MCPScriptResult(arg1, arg2) {
+  return window['go']['main']['App']['MCPScriptResult'](arg1, arg2);
+}
+
+export function MCPServerInfo() {
+  return window['go']['main']['App']['MCPServerInfo']();
+}
+
+export function MCPSetCatalog(arg1) {
+  return window['go']['main']['App']['MCPSetCatalog'](arg1);
+}
+
+export function MCPSetEnabled(arg1) {
+  return window['go']['main']['App']['MCPSetEnabled'](arg1);
+}
+
 export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
 }

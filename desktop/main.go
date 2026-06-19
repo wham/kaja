@@ -29,6 +29,8 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
+
+	"github.com/wham/kaja/desktop/mcp"
 )
 
 // GitRef is the git commit hash or tag, set at build time via ldflags
@@ -97,6 +99,14 @@ type App struct {
 	bookmarkStore        *BookmarkStore
 	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
 	activeStreams        sync.Map // streamID -> context.CancelFunc
+
+	// MCP server state (experimental). Guarded by mcpMu.
+	mcpMu      sync.Mutex
+	mcpServer  *http.Server
+	mcpURL     string
+	mcpToken   string
+	mcpCatalog mcp.Catalog
+	mcpPending map[string]chan mcp.RunResult
 }
 
 // NewApp creates a new App application struct
@@ -107,6 +117,7 @@ func NewApp(twirpHandler api.TwirpServer, appManager *apps.Manager, configuratio
 		configurationWatcher: configurationWatcher,
 		bookmarkStore:        bookmarkStore,
 		workspaceDir:         workspaceDir,
+		mcpPending:           make(map[string]chan mcp.RunResult),
 	}
 }
 
@@ -137,6 +148,11 @@ func (a *App) startup(ctx context.Context) {
 		runtime.MenuSetApplicationMenu(ctx, a.buildAppMenu(enabled))
 		runtime.MenuUpdateApplicationMenu(ctx)
 	})
+}
+
+// OnShutdown hook stops the MCP server if it is running.
+func (a *App) shutdown(ctx context.Context) {
+	a.stopMCPServer()
 }
 
 // buildAppMenu assembles the native application menu. The File menu holds only
@@ -665,6 +681,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown: func(ctx context.Context) {
+			app.shutdown(ctx)
 			if configurationWatcher != nil {
 				configurationWatcher.Close()
 			}
