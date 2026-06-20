@@ -3,21 +3,6 @@ set -e
 
 source "$(dirname "$0")/common"
 
-# Parse arguments
-BUILD_MODE=""
-for arg in "$@"; do
-    case $arg in
-        --build=store)
-            BUILD_MODE="store"
-            shift
-            ;;
-    esac
-done
-
-# Hardcoded signing profiles
-STORE_APP_PROFILE="Apple Distribution: Tomas Vesely (U5DMD247UW)"
-STORE_INSTALLER_PROFILE="3rd Party Mac Developer Installer: Tomas Vesely (U5DMD247UW)"
-
 # Check if Wails is installed
 if ! command -v wails &> /dev/null
 then
@@ -34,7 +19,7 @@ then
     brew install wails
 fi
 
-# Check if Bun is installed (wails dev/build invokes it via frontend:install)
+# Check if Bun is installed (wails dev invokes it via frontend:install)
 if ! command -v bun &> /dev/null
 then
     if [ -t 0 ]; then
@@ -57,75 +42,16 @@ export PATH=$GOBIN:$PATH
 
 # Frontend prep (bun install + bundle UI + copy static assets) is now driven
 # by Wails via the frontend:install / frontend:build / frontend:dev:watcher
-# hooks declared in desktop/wails.json. `wails dev` and `wails build` invoke
-# them automatically with cwd = ../ui.
+# hooks declared in desktop/wails.json. `wails dev` invokes them automatically
+# with cwd = ../ui.
 
 cd ./desktop
 
-if [ "$BUILD_MODE" = "store" ]; then
-    # Releases are cut from CI — see scripts/release and .github/workflows/release.yml.
-    # This local store build is for debugging the signed .pkg only: it never bumps
-    # the version, tags, commits, or pushes. It builds whatever version is currently
-    # in wails.json.
-    GIT_TAG=$(jq -r '.info.productVersion' wails.json)
-    echo "Building store package for version $GIT_TAG (local debug; no version bump)"
-
-    echo "Building desktop app (store)..."
-    export MACOSX_DEPLOYMENT_TARGET=12.0
-    export CGO_LDFLAGS="-mmacosx-version-min=12.0"
-    export CGO_CFLAGS="-mmacosx-version-min=12.0"
-    wails build -ldflags "-X main.GitRef=$GIT_TAG"
-
-    APP_BUNDLE="./build/bin/Kaja.app"
-    if [ -d "$APP_BUNDLE" ]; then
-        # Embed provisioning profile for App Store builds
-        PROVISION_PROFILE="./build/darwin/embedded.provisionprofile"
-        if [ ! -f "$PROVISION_PROFILE" ]; then
-            echo "Error: $PROVISION_PROFILE not found."
-            echo "Download your Mac App Store provisioning profile from Apple Developer portal"
-            echo "and save it as $PROVISION_PROFILE"
-            exit 1
-        fi
-        cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
-        echo "Embedded provisioning profile"
-
-        # Strip com.apple.quarantine (and any other xattrs) the downloaded
-        # profile carries — the App Store rejects packages whose files have
-        # quarantine attributes. Must run before signing so it's sealed in.
-        xattr -cr "$APP_BUNDLE"
-
-        # Store builds must sign with the real identity — no ad-hoc fallback
-        codesign --force --options runtime --deep \
-            --sign "$STORE_APP_PROFILE" \
-            --entitlements "./build/darwin/entitlements.plist" \
-            "$APP_BUNDLE"
-        echo "App signed with: $STORE_APP_PROFILE"
-
-        # Build .pkg for App Store submission
-        echo ""
-        echo "Creating App Store package..."
-        PKG_PATH="./build/bin/Kaja.pkg"
-        rm -f "$PKG_PATH"
-
-        productbuild \
-            --component "$APP_BUNDLE" /Applications \
-            --sign "$STORE_INSTALLER_PROFILE" \
-            "$PKG_PATH"
-
-        echo ""
-        echo "App Store package complete: $PKG_PATH"
-        echo "Upload with Transporter or: xcrun altool --upload-app -f $PKG_PATH -t macos"
-        echo ""
-        echo "Build complete: $APP_BUNDLE"
-    fi
-
-else
-    # Dev mode. wails.json handles the entire frontend pipeline:
-    #   - frontend:install runs `bun install` in ../ui
-    #   - frontend:build performs the initial bundle into frontend/dist
-    #   - frontend:dev:watcher keeps that dir live via esbuild's watch mode
-    #   - assetdir + reloaddirs make Wails reload on UI changes and rebuild on
-    #     shared Go edits
-    GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-    wails dev -ldflags "-X main.GitRef=$GIT_REF"
-fi
+# Dev mode. wails.json handles the entire frontend pipeline:
+#   - frontend:install runs `bun install` in ../ui
+#   - frontend:build performs the initial bundle into frontend/dist
+#   - frontend:dev:watcher keeps that dir live via esbuild's watch mode
+#   - assetdir + reloaddirs make Wails reload on UI changes and rebuild on
+#     shared Go edits
+GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
+wails dev -ldflags "-X main.GitRef=$GIT_REF"
