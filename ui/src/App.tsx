@@ -1238,7 +1238,6 @@ export function App() {
                   overflow: "hidden",
                 }}
               >
-                {isDesktopMac && <div style={{ height: 28, flexShrink: 0, "--wails-draggable": "drag" } as React.CSSProperties} />}
                 <Sidebar
                   projects={projects}
                   scripts={scripts}
@@ -1256,6 +1255,7 @@ export function App() {
                   onNewProjectClick={onNewProjectClick}
                   onNewAppClick={onNewAppClick}
                   appsPreviewEnabled={previewApps}
+                  reserveTrafficLights={isDesktopMac}
                   onEditProject={onEditProject}
                   onDeleteProject={onDeleteProject}
                 />
