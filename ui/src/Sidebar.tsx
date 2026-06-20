@@ -529,25 +529,27 @@ export function Sidebar({
                     onSelect={() => onScriptSelect?.(script)}
                     current={currentScriptPath === script.path}
                   >
+                    {/* Pin lives in the leading slot so it never shifts when the kebab appears on
+                        hover, and it lines a pinned script up with the package/expand icons above. */}
+                    {pinnedScriptPath === script.path && (
+                      <TreeView.LeadingVisual>
+                        <PinIcon size={12} />
+                      </TreeView.LeadingVisual>
+                    )}
                     {script.name}
-                    {/* Always render the trailing visual so its fixed height keeps the row from
-                        reflowing when the kebab appears on hover; only the contents toggle. */}
                     <TreeView.TrailingVisual>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        {pinnedScriptPath === script.path && <PinIcon size={12} />}
-                        {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                          <IconButtonXSmall
-                            aria-label={`Actions for ${script.name}`}
-                            icon={KebabHorizontalIcon}
-                            rounded
-                            style={{ minHeight: 0, minWidth: 0 }}
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              setScriptMenu({ script, top: e.clientY, left: e.clientX });
-                            }}
-                          />
-                        )}
-                      </span>
+                      {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
+                        <IconButtonXSmall
+                          aria-label={`Actions for ${script.name}`}
+                          icon={KebabHorizontalIcon}
+                          rounded
+                          style={{ minHeight: 0, minWidth: 0 }}
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setScriptMenu({ script, top: e.clientY, left: e.clientX });
+                          }}
+                        />
+                      )}
                     </TreeView.TrailingVisual>
                   </TreeView.Item>
                 ))}
