@@ -43,7 +43,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	if err != nil {
 		return nil, err
 	}
-	log(fmt.Sprintf("Generated service %s with %d method(s)", gen.serviceTypeName, len(gen.bindings)))
+	log(fmt.Sprintf("Generated %d service(s) with %d method(s)", len(gen.serviceTypeNames), len(gen.bindings)))
 
 	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
 		return nil, fmt.Errorf("writing proto: %w", err)
@@ -84,17 +84,25 @@ func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, e
 		return nil, fmt.Errorf("building descriptors: %w", err)
 	}
 
-	descriptor, err := files.FindDescriptorByName(protoreflect.FullName(gen.serviceTypeName))
-	if err != nil {
-		return nil, fmt.Errorf("finding service %s: %w", gen.serviceTypeName, err)
-	}
-	service, ok := descriptor.(protoreflect.ServiceDescriptor)
-	if !ok {
-		return nil, fmt.Errorf("%s is not a service", gen.serviceTypeName)
+	services := make(map[string]protoreflect.ServiceDescriptor, len(gen.serviceTypeNames))
+	for _, serviceTypeName := range gen.serviceTypeNames {
+		descriptor, err := files.FindDescriptorByName(protoreflect.FullName(serviceTypeName))
+		if err != nil {
+			return nil, fmt.Errorf("finding service %s: %w", serviceTypeName, err)
+		}
+		service, ok := descriptor.(protoreflect.ServiceDescriptor)
+		if !ok {
+			return nil, fmt.Errorf("%s is not a service", serviceTypeName)
+		}
+		services[serviceTypeName] = service
 	}
 
 	methods := make(map[string]*boundMethod, len(gen.bindings))
 	for key, binding := range gen.bindings {
+		service := services[serviceOfMethodPath(key)]
+		if service == nil {
+			return nil, fmt.Errorf("no service for method path %s", key)
+		}
 		name := lastSegment(key)
 		method := service.Methods().ByName(protoreflect.Name(name))
 		if method == nil {

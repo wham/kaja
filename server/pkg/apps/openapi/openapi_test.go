@@ -132,8 +132,8 @@ func TestGenerateProto(t *testing.T) {
 		t.Fatalf("generateProto: %v", err)
 	}
 
-	if want := "openapi.swagger_petstore.SwaggerPetstore"; gen.serviceTypeName != want {
-		t.Errorf("serviceTypeName = %q, want %q", gen.serviceTypeName, want)
+	if want := []string{"openapi.swagger_petstore.SwaggerPetstore"}; len(gen.serviceTypeNames) != 1 || gen.serviceTypeNames[0] != want[0] {
+		t.Errorf("serviceTypeNames = %q, want %q", gen.serviceTypeNames, want)
 	}
 
 	for _, frag := range []string{
@@ -179,6 +179,95 @@ func TestGenerateProto(t *testing.T) {
 	if b := gen.bindings["openapi.swagger_petstore.SwaggerPetstore/ListPets"]; b != nil {
 		if b.responseWrap != "array" || len(b.queryParams) != 1 || b.queryParams[0] != "limit" {
 			t.Errorf("ListPets binding unexpected: %+v", b)
+		}
+	}
+}
+
+// TestGenerateProtoTagGrouping checks that operations are split into one service
+// per OpenAPI tag, with untagged operations falling into the title-named service.
+func TestGenerateProtoTagGrouping(t *testing.T) {
+	const taggedSpec = `
+openapi: 3.0.0
+info:
+  title: Store
+  version: 1.0.0
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      tags: ["Pets"]
+      responses:
+        "200": { description: ok }
+  /pets/{id}:
+    delete:
+      operationId: deletePet
+      tags: ["Pets"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: gone }
+  /orders:
+    post:
+      operationId: createOrder
+      tags: ["Orders"]
+      responses:
+        "201": { description: created }
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200": { description: ok }
+`
+	s, err := parseSpec([]byte(taggedSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	// Services follow first-appearance order: /health (untagged -> Store) sorts
+	// before /orders and /pets.
+	want := []string{
+		"openapi.store.Store",
+		"openapi.store.Orders",
+		"openapi.store.Pets",
+	}
+	if len(gen.serviceTypeNames) != len(want) {
+		t.Fatalf("serviceTypeNames = %q, want %q", gen.serviceTypeNames, want)
+	}
+	for i, w := range want {
+		if gen.serviceTypeNames[i] != w {
+			t.Errorf("serviceTypeNames[%d] = %q, want %q", i, gen.serviceTypeNames[i], w)
+		}
+	}
+
+	for _, frag := range []string{
+		"service Store {",
+		"service Pets {",
+		"service Orders {",
+		"rpc Health(HealthRequest) returns (HealthResponse);",
+		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse);",
+		"rpc DeletePet(DeletePetRequest) returns (DeletePetResponse);",
+		"rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);",
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	for _, key := range []string{
+		"openapi.store.Store/Health",
+		"openapi.store.Pets/ListPets",
+		"openapi.store.Pets/DeletePet",
+		"openapi.store.Orders/CreateOrder",
+	} {
+		if _, ok := gen.bindings[key]; !ok {
+			t.Errorf("missing binding %q", key)
 		}
 	}
 }
