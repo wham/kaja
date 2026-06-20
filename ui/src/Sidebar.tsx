@@ -4,7 +4,6 @@ import {
   CpuIcon,
   FileCodeIcon,
   FoldIcon,
-  GlobeIcon,
   PencilIcon,
   PinIcon,
   PlusIcon,
@@ -14,10 +13,9 @@ import {
   PackageIcon,
   KebabHorizontalIcon,
 } from "@primer/octicons-react";
-import { appTypeLabel } from "./appTypes";
+import { appType, appTypeLabel } from "./appTypes";
 import { IconButtonXSmall } from "./IconButtonXSmall";
-import { Method, Project, Script, Service, methodId } from "./project";
-import { RpcProtocol } from "./server/api";
+import { Method, App, Script, Service, methodId } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
 function hasMultiplePackages(services: Service[]): boolean {
@@ -36,25 +34,6 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
     groups.get(pkg)!.push(service);
   }
   return [...groups.entries()];
-}
-
-function ProtocolPill({ protocol }: { protocol: RpcProtocol }) {
-  const isGrpc = protocol === RpcProtocol.GRPC;
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: "bold",
-        padding: "1px 5px",
-        borderRadius: 4,
-        marginLeft: 6,
-        backgroundColor: isGrpc ? "var(--bgColor-severe-muted)" : "var(--bgColor-done-muted)",
-        color: isGrpc ? "var(--fgColor-severe)" : "var(--fgColor-done)",
-      }}
-    >
-      {isGrpc ? "gRPC" : "Twirp"}
-    </span>
-  );
 }
 
 function AppPill({ type }: { type: string }) {
@@ -96,58 +75,54 @@ export function PreviewPill() {
 interface ScrollToMethod {
   method: Method;
   service: Service;
-  project: Project;
+  app: App;
 }
 
 interface SidebarProps {
-  projects: Project[];
+  apps: App[];
   scripts?: Script[];
   currentMethod?: Method;
   currentScriptPath?: string;
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   pinnedScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
-  canDeleteProjects?: boolean;
-  onSelect: (method: Method, service: Service, project: Project) => void;
+  canDeleteApps?: boolean;
+  onSelect: (method: Method, service: Service, app: App) => void;
   onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
   onPinScript?: (script: Script) => void;
   onCompilerClick: () => void;
-  onNewProjectClick: () => void;
+  // Opens the create form to add an app (gRPC, Twirp, or a built-in integration).
   onNewAppClick: () => void;
-  // One-shot signal to auto-expand a just-added project/app (and its first service).
-  autoExpandProject?: { name: string };
-  // Experimental "Apps" feature preview; gates the New App entry in the "+" menu.
-  appsPreviewEnabled?: boolean;
+  // One-shot signal to auto-expand a just-added app (and its first service).
+  autoExpandApp?: { name: string };
   // macOS desktop: inset the header row to clear the window traffic lights and make
   // the empty parts draggable, so the controls share the title bar band (saves a row).
   reserveTrafficLights?: boolean;
-  onEditProject: (projectName: string) => void;
-  onDeleteProject: (projectName: string) => void;
+  onEditApp: (appName: string) => void;
+  onDeleteApp: (appName: string) => void;
 }
 
 export function Sidebar({
-  projects,
+  apps,
   scripts,
   currentMethod,
   currentScriptPath,
   pinnedScriptPath,
   scrollToMethod,
-  canDeleteProjects = true,
+  canDeleteApps = true,
   onSelect,
   onScriptSelect,
   onRenameScript,
   onDeleteScript,
   onPinScript,
   onCompilerClick,
-  onNewProjectClick,
   onNewAppClick,
-  autoExpandProject,
-  appsPreviewEnabled = false,
+  autoExpandApp,
   reserveTrafficLights = false,
-  onEditProject,
-  onDeleteProject,
+  onEditApp,
+  onDeleteApp,
 }: SidebarProps) {
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
   // Right-click context menu for a script, anchored at the cursor.
@@ -155,19 +130,19 @@ export function Sidebar({
   const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
   // Script row hovered, used to reveal the kebab actions button.
   const [hoveredScript, setHoveredScript] = useState<string | null>(null);
-  // Right-click context menu for a project/app, anchored at the cursor.
-  const [projectMenu, setProjectMenu] = useState<{ projectName: string; top: number; left: number } | null>(null);
-  const projectMenuAnchorRef = useRef<HTMLDivElement>(null);
-  // Project/app row hovered, used to reveal the kebab actions button.
-  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
+  // Right-click context menu for an app, anchored at the cursor.
+  const [appMenu, setAppMenu] = useState<{ appName: string; top: number; left: number } | null>(null);
+  const appMenuAnchorRef = useRef<HTMLDivElement>(null);
+  // App row hovered, used to reveal the kebab actions button.
+  const [hoveredApp, setHoveredApp] = useState<string | null>(null);
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
   }, [scriptsExpanded]);
-  const hadPersistedState = useRef(getPersistedValue<string[]>("expandedProjects") !== undefined);
+  const hadPersistedState = useRef(getPersistedValue<string[]>("expandedApps") !== undefined);
 
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
-    const stored = getPersistedValue<string[]>("expandedProjects");
+  const [expandedApps, setExpandedApps] = useState<Set<string>>(() => {
+    const stored = getPersistedValue<string[]>("expandedApps");
     if (Array.isArray(stored)) {
       return new Set(stored.filter((v): v is string => typeof v === "string"));
     }
@@ -186,46 +161,46 @@ export function Sidebar({
   const pendingScrollRef = useRef<string | null>(null);
 
   // Helper to get service element id
-  const getServiceElementId = (projectName: string, service: Service) => {
+  const getServiceElementId = (appName: string, service: Service) => {
     const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
-    return `${projectName}-${serviceKey}`;
+    return `${appName}-${serviceKey}`;
   };
 
   // Helper to get package element id (used when multiple packages are shown as subtrees)
-  const getPackageElementId = (projectName: string, packageName: string) => {
-    return `${projectName}-pkg:${packageName}`;
+  const getPackageElementId = (appName: string, packageName: string) => {
+    return `${appName}-pkg:${packageName}`;
   };
 
   // Persist expanded state
   useEffect(() => {
-    setPersistedValue("expandedProjects", [...expandedProjects]);
-  }, [expandedProjects]);
+    setPersistedValue("expandedApps", [...expandedApps]);
+  }, [expandedApps]);
 
   useEffect(() => {
     setPersistedValue("expandedServices", [...expandedServices]);
   }, [expandedServices]);
 
-  // On first visit, expand first two projects. On subsequent loads, prune stale keys.
+  // On first visit, expand first two apps. On subsequent loads, prune stale keys.
   useEffect(() => {
-    if (projects.length === 0) return;
+    if (apps.length === 0) return;
 
     if (!hadPersistedState.current) {
-      setExpandedProjects((prev) => {
+      setExpandedApps((prev) => {
         if (prev.size === 0) {
-          return new Set(projects.slice(0, 2).map((p) => p.configuration.name));
+          return new Set(apps.slice(0, 2).map((p) => p.configuration.name));
         }
         return prev;
       });
       setExpandedServices((prev) => {
         if (prev.size === 0) {
           const initialServices = new Set<string>();
-          projects.slice(0, 2).forEach((project) => {
-            if (project.services.length > 0) {
+          apps.slice(0, 2).forEach((app) => {
+            if (app.services.length > 0) {
               // If multiple packages, also expand the first package
-              if (hasMultiplePackages(project.services)) {
-                initialServices.add(getPackageElementId(project.configuration.name, project.services[0].packageName));
+              if (hasMultiplePackages(app.services)) {
+                initialServices.add(getPackageElementId(app.configuration.name, app.services[0].packageName));
               }
-              initialServices.add(getServiceElementId(project.configuration.name, project.services[0]));
+              initialServices.add(getServiceElementId(app.configuration.name, app.services[0]));
             }
           });
           return initialServices;
@@ -233,37 +208,37 @@ export function Sidebar({
         return prev;
       });
       // Only mark initialized once services exist, so defaults retry after compilation finishes
-      if (projects.some((p) => p.services.length > 0)) {
+      if (apps.some((p) => p.services.length > 0)) {
         hadPersistedState.current = true;
       }
       return;
     }
 
-    // Prune stale entries that no longer match current projects/services
-    const validProjects = new Set(projects.map((p) => p.configuration.name));
+    // Prune stale entries that no longer match current apps/services
+    const validApps = new Set(apps.map((p) => p.configuration.name));
     const validServices = new Set<string>();
     const compilingPrefixes: string[] = [];
-    for (const project of projects) {
-      if (project.compilation.status === "running" || project.compilation.status === "pending") {
-        compilingPrefixes.push(project.configuration.name + "-");
+    for (const app of apps) {
+      if (app.compilation.status === "running" || app.compilation.status === "pending") {
+        compilingPrefixes.push(app.configuration.name + "-");
       }
       // Add package IDs as valid when multiple packages exist
-      if (hasMultiplePackages(project.services)) {
+      if (hasMultiplePackages(app.services)) {
         const seenPackages = new Set<string>();
-        for (const service of project.services) {
+        for (const service of app.services) {
           if (!seenPackages.has(service.packageName)) {
             seenPackages.add(service.packageName);
-            validServices.add(getPackageElementId(project.configuration.name, service.packageName));
+            validServices.add(getPackageElementId(app.configuration.name, service.packageName));
           }
         }
       }
-      for (const service of project.services) {
-        validServices.add(getServiceElementId(project.configuration.name, service));
+      for (const service of app.services) {
+        validServices.add(getServiceElementId(app.configuration.name, service));
       }
     }
 
-    setExpandedProjects((prev) => {
-      const pruned = new Set([...prev].filter((p) => validProjects.has(p)));
+    setExpandedApps((prev) => {
+      const pruned = new Set([...prev].filter((p) => validApps.has(p)));
       if (pruned.size !== prev.size) return pruned;
       return prev;
     });
@@ -273,17 +248,17 @@ export function Sidebar({
       if (pruned.size !== prev.size) return pruned;
       return prev;
     });
-  }, [projects]);
+  }, [apps]);
 
-  // Auto-expand a just-added project/app. The project is expanded immediately;
+  // Auto-expand a just-added app. The app is expanded immediately;
   // its first service (and first package, when several exist) is expanded once
   // compilation finishes and services become available.
   const pendingFirstServiceExpand = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!autoExpandProject) return;
-    const { name } = autoExpandProject;
-    setExpandedProjects((prev) => {
+    if (!autoExpandApp) return;
+    const { name } = autoExpandApp;
+    setExpandedApps((prev) => {
       if (prev.has(name)) return prev;
       const next = new Set(prev);
       next.add(name);
@@ -291,19 +266,19 @@ export function Sidebar({
     });
     pendingFirstServiceExpand.current.add(name);
     pendingScrollRef.current = name;
-  }, [autoExpandProject]);
+  }, [autoExpandApp]);
 
   useEffect(() => {
     if (pendingFirstServiceExpand.current.size === 0) return;
     const idsToExpand: string[] = [];
     const ready: string[] = [];
     for (const name of pendingFirstServiceExpand.current) {
-      const project = projects.find((p) => p.configuration.name === name);
-      if (project && project.services.length > 0) {
-        if (hasMultiplePackages(project.services)) {
-          idsToExpand.push(getPackageElementId(name, project.services[0].packageName));
+      const app = apps.find((p) => p.configuration.name === name);
+      if (app && app.services.length > 0) {
+        if (hasMultiplePackages(app.services)) {
+          idsToExpand.push(getPackageElementId(name, app.services[0].packageName));
         }
-        idsToExpand.push(getServiceElementId(name, project.services[0]));
+        idsToExpand.push(getServiceElementId(name, app.services[0]));
         ready.push(name);
       }
     }
@@ -315,7 +290,7 @@ export function Sidebar({
       });
       ready.forEach((n) => pendingFirstServiceExpand.current.delete(n));
     }
-  }, [projects]);
+  }, [apps]);
 
   // Scroll expanded element into view after DOM updates
   const scrollIntoView = (elementId: string) => {
@@ -334,30 +309,30 @@ export function Sidebar({
       pendingScrollRef.current = null;
       scrollIntoView(elementId);
     }
-  }, [expandedProjects, expandedServices]);
+  }, [expandedApps, expandedServices]);
 
-  // Handle scrollToMethod: expand project/service and scroll to method
+  // Handle scrollToMethod: expand app/service and scroll to method
   useEffect(() => {
     if (!scrollToMethod) return;
 
-    const { method, service, project } = scrollToMethod;
-    const projectName = project.configuration.name;
-    const serviceElementId = getServiceElementId(projectName, service);
+    const { method, service, app } = scrollToMethod;
+    const appName = app.configuration.name;
+    const serviceElementId = getServiceElementId(appName, service);
     const methodElementId = methodId(service, method);
 
-    // Expand project if not already expanded
-    setExpandedProjects((prev) => {
-      if (!prev.has(projectName)) {
+    // Expand app if not already expanded
+    setExpandedApps((prev) => {
+      if (!prev.has(appName)) {
         const next = new Set(prev);
-        next.add(projectName);
+        next.add(appName);
         return next;
       }
       return prev;
     });
 
     // Expand package if multiple packages and not already expanded
-    if (hasMultiplePackages(project.services)) {
-      const packageElementId = getPackageElementId(projectName, service.packageName);
+    if (hasMultiplePackages(app.services)) {
+      const packageElementId = getPackageElementId(appName, service.packageName);
       setExpandedServices((prev) => {
         if (!prev.has(packageElementId)) {
           const next = new Set(prev);
@@ -385,42 +360,42 @@ export function Sidebar({
     }, 0);
   }, [scrollToMethod]);
 
-  const toggleProjectExpanded = (projectName: string) => {
-    setExpandedProjects((prev) => {
+  const toggleAppExpanded = (appName: string) => {
+    setExpandedApps((prev) => {
       const next = new Set(prev);
-      if (next.has(projectName)) {
-        next.delete(projectName);
+      if (next.has(appName)) {
+        next.delete(appName);
       } else {
-        next.add(projectName);
-        pendingScrollRef.current = projectName;
+        next.add(appName);
+        pendingScrollRef.current = appName;
       }
       return next;
     });
   };
 
   const foldAll = () => {
-    setExpandedProjects(new Set());
+    setExpandedApps(new Set());
     setExpandedServices(new Set());
   };
 
   const unfoldAll = () => {
-    const allProjects = new Set(projects.map((p) => p.configuration.name));
+    const allApps = new Set(apps.map((p) => p.configuration.name));
     const allServices = new Set<string>();
-    for (const project of projects) {
-      if (hasMultiplePackages(project.services)) {
+    for (const app of apps) {
+      if (hasMultiplePackages(app.services)) {
         const seenPackages = new Set<string>();
-        for (const service of project.services) {
+        for (const service of app.services) {
           if (!seenPackages.has(service.packageName)) {
             seenPackages.add(service.packageName);
-            allServices.add(getPackageElementId(project.configuration.name, service.packageName));
+            allServices.add(getPackageElementId(app.configuration.name, service.packageName));
           }
         }
       }
-      for (const service of project.services) {
-        allServices.add(getServiceElementId(project.configuration.name, service));
+      for (const service of app.services) {
+        allServices.add(getServiceElementId(app.configuration.name, service));
       }
     }
-    setExpandedProjects(allProjects);
+    setExpandedApps(allApps);
     setExpandedServices(allServices);
   };
 
@@ -442,32 +417,7 @@ export function Sidebar({
         }
       >
         <div style={reserveTrafficLights ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties) : { display: "flex", alignItems: "center" }}>
-          <ActionMenu>
-            <ActionMenu.Anchor>
-              <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New" />
-            </ActionMenu.Anchor>
-            <ActionMenu.Overlay width="small">
-              <ActionList>
-                <ActionList.Item onSelect={onNewProjectClick}>
-                  <ActionList.LeadingVisual>
-                    <PackageIcon />
-                  </ActionList.LeadingVisual>
-                  New Project
-                </ActionList.Item>
-                {appsPreviewEnabled && (
-                  <ActionList.Item onSelect={onNewAppClick}>
-                    <ActionList.LeadingVisual>
-                      <GlobeIcon />
-                    </ActionList.LeadingVisual>
-                    New App
-                    <ActionList.TrailingVisual>
-                      <PreviewPill />
-                    </ActionList.TrailingVisual>
-                  </ActionList.Item>
-                )}
-              </ActionList>
-            </ActionMenu.Overlay>
-          </ActionMenu>
+          <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New app" onClick={onNewAppClick} />
           <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
         </div>
         <div style={{ flex: 1 }} />
@@ -557,23 +507,23 @@ export function Sidebar({
             )}
           </nav>
         )}
-        {projects.map((project, projectIndex) => {
-          const projectName = project.configuration.name;
-          const isExpanded = expandedProjects.has(projectName);
-          const showProjectHeader = true;
-          const showTopMargin = projectIndex > 0 || (scripts && scripts.length > 0);
+        {apps.map((app, appIndex) => {
+          const appName = app.configuration.name;
+          const isExpanded = expandedApps.has(appName);
+          const showAppHeader = true;
+          const showTopMargin = appIndex > 0 || (scripts && scripts.length > 0);
 
           return (
             <nav
-              key={projectName}
+              key={appName}
               ref={(el) => {
-                if (el) elementRefs.current.set(projectName, el);
-                else elementRefs.current.delete(projectName);
+                if (el) elementRefs.current.set(appName, el);
+                else elementRefs.current.delete(appName);
               }}
               aria-label="Services and methods"
               style={{ marginTop: showTopMargin ? 12 : 0 }}
             >
-              {showProjectHeader && (
+              {showAppHeader && (
                 <div
                   style={{
                     fontSize: 12,
@@ -584,7 +534,7 @@ export function Sidebar({
                     borderRadius: 6,
                     color: "var(--fgColor-muted)",
                     backgroundColor:
-                      hoveredProject === projectName || projectMenu?.projectName === projectName
+                      hoveredApp === appName || appMenu?.appName === appName
                         ? "var(--control-transparent-bgColor-hover)"
                         : "transparent",
                     display: "flex",
@@ -594,12 +544,12 @@ export function Sidebar({
                     userSelect: "none",
                     height: 28,
                   }}
-                  onMouseEnter={() => setHoveredProject(projectName)}
-                  onMouseLeave={() => setHoveredProject((prev) => (prev === projectName ? null : prev))}
-                  onClick={() => toggleProjectExpanded(projectName)}
+                  onMouseEnter={() => setHoveredApp(appName)}
+                  onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
+                  onClick={() => toggleAppExpanded(appName)}
                   onContextMenu={(e: React.MouseEvent) => {
                     e.preventDefault();
-                    setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                    setAppMenu({ appName, top: e.clientY, left: e.clientX });
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -613,34 +563,34 @@ export function Sidebar({
                     >
                       <ChevronRightIcon size={16} />
                     </span>
-                    {projectName}
-                    {project.app ? <AppPill type={project.app.type} /> : <ProtocolPill protocol={project.configuration.protocol} />}
+                    {appName}
+                    <AppPill type={appType(app.configuration)} />
                   </span>
-                  {(hoveredProject === projectName || projectMenu?.projectName === projectName) && (
+                  {(hoveredApp === appName || appMenu?.appName === appName) && (
                     <IconButtonXSmall
-                      aria-label={`Actions for ${projectName}`}
+                      aria-label={`Actions for ${appName}`}
                       icon={KebabHorizontalIcon}
                       rounded
                       style={{ minHeight: 0, minWidth: 0 }}
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
-                        setProjectMenu({ projectName, top: e.clientY, left: e.clientX });
+                        setAppMenu({ appName, top: e.clientY, left: e.clientX });
                       }}
                     />
                   )}
                 </div>
               )}
-              {(isExpanded || !showProjectHeader) && (
+              {(isExpanded || !showAppHeader) && (
                 <TreeView aria-label="Services and methods">
-                  {project.compilation.status === "running" || project.compilation.status === "pending" ? (
+                  {app.compilation.status === "running" || app.compilation.status === "pending" ? (
                     <LoadingTreeViewItem />
                   ) : (
                     (() => {
-                      const multiplePackages = hasMultiplePackages(project.services);
+                      const multiplePackages = hasMultiplePackages(app.services);
 
                       const renderServiceItem = (service: Service) => {
                         const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
-                        const svcId = `${projectName}-${serviceKey}`;
+                        const svcId = `${appName}-${serviceKey}`;
                         const isServiceExpanded = expandedServices.has(svcId);
                         return (
                           <TreeView.Item
@@ -676,7 +626,7 @@ export function Sidebar({
                                       if (el) elementRefs.current.set(mId, el);
                                       else elementRefs.current.delete(mId);
                                     }}
-                                    onSelect={() => onSelect(method, service, project)}
+                                    onSelect={() => onSelect(method, service, app)}
                                     current={currentMethod === method}
                                   >
                                     {method.name}
@@ -689,11 +639,11 @@ export function Sidebar({
                       };
 
                       if (!multiplePackages) {
-                        return <>{project.services.map(renderServiceItem)}</>;
+                        return <>{app.services.map(renderServiceItem)}</>;
                       }
 
-                      const packageNodes = groupServicesByPackage(project.services).map(([packageName, services]) => {
-                        const packageId = getPackageElementId(projectName, packageName);
+                      const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
+                        const packageId = getPackageElementId(appName, packageName);
                         const isPackageExpanded = expandedServices.has(packageId);
                         return (
                           <TreeView.Item
@@ -781,18 +731,18 @@ export function Sidebar({
           </ActionList>
         </ActionMenu.Overlay>
       </ActionMenu>
-      {/* Invisible anchor positioned at the cursor for the project context menu. */}
+      {/* Invisible anchor positioned at the cursor for the app context menu. */}
       <div
-        ref={projectMenuAnchorRef}
-        style={{ position: "fixed", top: projectMenu?.top ?? 0, left: projectMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+        ref={appMenuAnchorRef}
+        style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
       />
-      <ActionMenu open={!!projectMenu} onOpenChange={(open) => !open && setProjectMenu(null)} anchorRef={projectMenuAnchorRef}>
+      <ActionMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)} anchorRef={appMenuAnchorRef}>
         <ActionMenu.Overlay width="small">
           <ActionList>
             <ActionList.Item
               onSelect={() => {
-                const projectName = projectMenu?.projectName;
-                if (projectName) onEditProject(projectName);
+                const appName = appMenu?.appName;
+                if (appName) onEditApp(appName);
               }}
             >
               <ActionList.LeadingVisual>
@@ -800,12 +750,12 @@ export function Sidebar({
               </ActionList.LeadingVisual>
               Edit
             </ActionList.Item>
-            {canDeleteProjects && (
+            {canDeleteApps && (
               <ActionList.Item
                 variant="danger"
                 onSelect={() => {
-                  const projectName = projectMenu?.projectName;
-                  if (projectName) onDeleteProject(projectName);
+                  const appName = appMenu?.appName;
+                  if (appName) onDeleteApp(appName);
                 }}
               >
                 <ActionList.LeadingVisual>

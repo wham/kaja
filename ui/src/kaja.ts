@@ -1,5 +1,5 @@
 import { IMessageType } from "@protobuf-ts/runtime";
-import { Method, Service } from "./project";
+import { Method, Service } from "./apps";
 import { captureValues } from "./typeMemory";
 
 // Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
@@ -40,7 +40,7 @@ export interface MethodCallHeaders {
 
 export interface MethodCall {
   id: string;
-  projectName: string;
+  appName: string;
   service: Service;
   method: Method;
   input: any;

@@ -2,20 +2,20 @@ import { MethodInfo, ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import ts from "typescript";
 import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
-import { Clients, createProjectRef, Method, Project, ProjectRef, Service, serviceId } from "./project";
-import { Source as ApiSource, ConfigurationProject } from "./server/api";
+import { Clients, createAppRef, Method, App, AppRef, Service, serviceId, Transport } from "./apps";
+import { Source as ApiSource, ConfigurationApp } from "./server/api";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
 // Generate editor code for a method on-demand (when opening a task tab)
-export function generateMethodEditorCode(project: Project, service: Service, method: Method): string {
+export function generateMethodEditorCode(app: App, service: Service, method: Method): string {
   // Find the source that matches the service's source path
-  const source = project.sources.find((s) => s.importPath === service.sourcePath);
+  const source = app.sources.find((s) => s.importPath === service.sourcePath);
   if (!source) {
     return `// Error: Could not find source for service ${service.name}`;
   }
 
   // Find the ServiceInfo from the stub
-  const serviceInfo: ServiceInfo | undefined = findInStub(project.stub, source, service.name);
+  const serviceInfo: ServiceInfo | undefined = findInStub(app.stub, source, service.name);
   if (!serviceInfo) {
     return `// Error: Could not find service info for ${service.name}`;
   }
@@ -26,10 +26,16 @@ export function generateMethodEditorCode(project: Project, service: Service, met
     return `// Error: Could not find method info for ${method.name}`;
   }
 
-  return methodEditorCode(methodInfo, service.name, source, project.sources);
+  return methodEditorCode(methodInfo, service.name, source, app.sources);
 }
 
-export async function loadProject(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationProject): Promise<Project> {
+export async function loadApp(
+  apiSources: ApiSource[],
+  stubCode: string,
+  configuration: ConfigurationApp,
+  target: string,
+  protocol: Transport,
+): Promise<App> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];
@@ -102,7 +108,7 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
     });
   });
 
-  const projectRef = createProjectRef(configuration);
+  const appRef = createAppRef(configuration, target, protocol);
 
   return {
     compilation: {
@@ -110,19 +116,21 @@ export async function loadProject(apiSources: ApiSource[], stubCode: string, con
       logs: [],
     },
     configuration,
-    projectRef,
+    appRef,
     services,
-    clients: createClients(services, stub, projectRef),
+    clients: createClients(services, stub, appRef),
     sources: kajaSources,
     stub,
+    target,
+    protocol,
   };
 }
 
-export function createClients(services: Service[], stub: Stub, projectRef: ProjectRef): Clients {
+export function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients {
   const clients: Clients = {};
 
   for (const service of services) {
-    clients[serviceId(service)] = createClient(service, stub, projectRef);
+    clients[serviceId(service)] = createClient(service, stub, appRef);
   }
 
   return clients;

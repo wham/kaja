@@ -5,14 +5,13 @@ import (
 	fmt "fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/apps/markdown"
 	"github.com/wham/kaja/v2/pkg/apps/openai"
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
-	"github.com/wham/kaja/v2/pkg/grpc"
+	"github.com/wham/kaja/v2/pkg/apps/rpc"
 )
 
 type ApiService struct {
@@ -33,6 +32,8 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 		gitRef:                 gitRef,
 		buildNumber:            buildNumber,
 		apps: apps.NewManager(map[string]apps.App{
+			"grpc":     rpc.New("grpc"),
+			"twirp":    rpc.New("twirp"),
 			"openapi":  openapi.New(),
 			"openai":   openai.New(),
 			"markdown": markdown.New(),
@@ -90,100 +91,37 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 	}, nil
 }
 
-func (s *ApiService) Reflect(ctx context.Context, req *ReflectRequest) (*ReflectResponse, error) {
-	if req.Url == "" {
-		return nil, fmt.Errorf("url is required")
-	}
-
-	logger := NewLogger()
-	logger.info("Starting gRPC reflection for " + req.Url)
-
-	// Create temp directory for proto files
-	protoDir, err := tempdir.NewSourcesDir()
-	if err != nil {
-		logger.error("Failed to create temp directory", err)
-		return &ReflectResponse{
-			Status: ReflectStatus_REFLECT_STATUS_ERROR,
-			Logs:   logger.logs,
-		}, nil
-	}
-	logger.debug("Proto output directory: " + protoDir)
-
-	// Create reflection client
-	client, err := grpc.NewReflectionClientFromString(req.Url)
-	if err != nil {
-		logger.error("Failed to create reflection client", err)
-		return &ReflectResponse{
-			Status: ReflectStatus_REFLECT_STATUS_ERROR,
-			Logs:   logger.logs,
-		}, nil
-	}
-
-	// Discover services with timeout
-	discoverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	logger.info("Connecting to server...")
-	result, err := client.Discover(discoverCtx)
-	if err != nil {
-		logger.error("Failed to discover services", err)
-		return &ReflectResponse{
-			Status: ReflectStatus_REFLECT_STATUS_ERROR,
-			Logs:   logger.logs,
-		}, nil
-	}
-
-	logger.info(fmt.Sprintf("Discovered %d services: %v", len(result.Services), result.Services))
-	logger.info(fmt.Sprintf("Retrieved %d file descriptors", len(result.FileDescriptors)))
-
-	// Write proto files
-	err = grpc.WriteProtoFiles(result, protoDir)
-	if err != nil {
-		logger.error("Failed to write proto files", err)
-		return &ReflectResponse{
-			Status: ReflectStatus_REFLECT_STATUS_ERROR,
-			Logs:   logger.logs,
-		}, nil
-	}
-
-	logger.info("Proto files written to " + protoDir)
-
-	return &ReflectResponse{
-		Status:   ReflectStatus_REFLECT_STATUS_OK,
-		Logs:     logger.logs,
-		ProtoDir: protoDir,
-	}, nil
-}
-
 func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenAppResponse, error) {
-	if req.Type == "" {
-		return nil, fmt.Errorf("type is required")
+	// The app's typed parameters are flattened to a string map for the in-process
+	// app contract; the set oneof field is the app type.
+	appType, parameters := flattenApp(req.App)
+	if appType == "" {
+		return nil, fmt.Errorf("app type is required")
 	}
 
 	logger := NewLogger()
-	logger.info("Opening app: " + req.Type)
+	logger.info("Opening app: " + appType)
 
 	protoDir, err := tempdir.NewSourcesDir()
 	if err != nil {
 		logger.error("Failed to create temp directory", err)
-		return &OpenAppResponse{Status: ReflectStatus_REFLECT_STATUS_ERROR, Logs: logger.logs}, nil
+		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
 	}
 
-	target, err := s.apps.Open(req.Type, req.Parameters, protoDir, func(message string) {
+	result, err := s.apps.Open(appType, parameters, protoDir, func(message string) {
 		logger.info(message)
 	})
 	if err != nil {
 		logger.error("Failed to open app", err)
-		return &OpenAppResponse{Status: ReflectStatus_REFLECT_STATUS_ERROR, Logs: logger.logs}, nil
+		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
 	}
 
-	logger.info("Proto files written to " + protoDir)
-
 	return &OpenAppResponse{
-		Status:   ReflectStatus_REFLECT_STATUS_OK,
+		Status:   OpenStatus_OPEN_STATUS_OK,
 		Logs:     logger.logs,
-		ProtoDir: protoDir,
-		Target:   target,
+		ProtoDir: result.ProtoDir,
+		Target:   result.Target,
+		Protocol: result.Protocol,
 	}, nil
 }
 
@@ -201,7 +139,6 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
-		Projects:   response.Configuration.Projects,
 		Apps:       response.Configuration.Apps,
 		System:     system,
 	}

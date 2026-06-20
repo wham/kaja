@@ -417,9 +417,9 @@ type TargetResult struct {
 }
 
 // Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
-// The protocol parameter indicates which RPC protocol to use:
-// - 1 = gRPC (RPC_PROTOCOL_GRPC)
-// - 2 = Twirp (RPC_PROTOCOL_TWIRP)
+// The protocol parameter indicates which transport to use:
+// - 1 = gRPC
+// - 2 = Twirp
 // The headersJson parameter is a JSON-encoded map of headers to forward to the target.
 func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) (*TargetResult, error) {
 	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req), "headers", headersJson)
@@ -447,15 +447,15 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		return &TargetResult{Body: response}, nil
 	}
 
-	// Use protocol enum to determine which handler to use
+	// Use the transport to determine which handler to use
 	switch protocol {
-	case 1: // RPC_PROTOCOL_GRPC
+	case 1: // gRPC
 		resp, err := a.targetGRPC(target, method, req, headers)
 		if err != nil {
 			return nil, err
 		}
 		return &TargetResult{Body: resp}, nil
-	case 2: // RPC_PROTOCOL_TWIRP
+	case 2: // Twirp
 		return a.targetTwirp(target, method, req, headers)
 	default:
 		return nil, fmt.Errorf("invalid protocol: %d (must be 1 for gRPC or 2 for Twirp)", protocol)

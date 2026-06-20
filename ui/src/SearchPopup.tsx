@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TextInput } from "@primer/react";
 import { SearchIcon } from "@primer/octicons-react";
-import { Method, Project, Service } from "./project";
+import { Method, App, Service } from "./apps";
 
 interface SearchResult {
   method: Method;
   service: Service;
-  project: Project;
+  app: App;
   label: string;
 }
 
 interface SearchPopupProps {
   isOpen: boolean;
-  projects: Project[];
+  apps: App[];
   onClose: () => void;
-  onSelect: (method: Method, service: Service, project: Project) => void;
+  onSelect: (method: Method, service: Service, app: App) => void;
 }
 
-export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopupProps) {
+export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,20 +25,20 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
 
   const allMethods = useMemo(() => {
     const results: SearchResult[] = [];
-    for (const project of projects) {
-      for (const service of project.services) {
+    for (const app of apps) {
+      for (const service of app.services) {
         for (const method of service.methods) {
           results.push({
             method,
             service,
-            project,
-            label: `${project.configuration.name} / ${service.name} / ${method.name}`,
+            app,
+            label: `${app.configuration.name} / ${service.name} / ${method.name}`,
           });
         }
       }
     }
     return results;
-  }, [projects]);
+  }, [apps]);
 
   const filteredResults = useMemo(() => {
     if (!query.trim()) {
@@ -85,7 +85,7 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
         e.preventDefault();
         const result = filteredResults[selectedIndex];
         if (result) {
-          onSelect(result.method, result.service, result.project);
+          onSelect(result.method, result.service, result.app);
           onClose();
         }
       }
@@ -174,13 +174,13 @@ export function SearchPopup({ isOpen, projects, onClose, onSelect }: SearchPopup
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
                 onClick={() => {
-                  onSelect(result.method, result.service, result.project);
+                  onSelect(result.method, result.service, result.app);
                   onClose();
                 }}
               >
                 <div style={{ fontSize: 14, color: "var(--fgColor-default)" }}>{result.method.name}</div>
                 <div style={{ fontSize: 12, color: "var(--fgColor-muted)", marginTop: 2 }}>
-                  {result.project.configuration.name} / {result.service.name}
+                  {result.app.configuration.name} / {result.service.name}
                 </div>
               </div>
             ))

@@ -57,7 +57,7 @@ type CatalogMethod struct {
 	ClientStreaming bool   `json:"clientStreaming,omitempty"`
 }
 
-// CatalogService is a service exposed by a project, with the import path a
+// CatalogService is a service exposed by an app, with the import path a
 // script uses to reach it.
 type CatalogService struct {
 	Name        string          `json:"name"`
@@ -66,8 +66,8 @@ type CatalogService struct {
 	Methods     []CatalogMethod `json:"methods"`
 }
 
-// CatalogProject groups the services of one configured project.
-type CatalogProject struct {
+// CatalogApp groups the services of one configured app.
+type CatalogApp struct {
 	Name     string           `json:"name"`
 	Services []CatalogService `json:"services"`
 }
@@ -82,7 +82,7 @@ type CatalogSource struct {
 // Catalog is the live picture of what scripts can call, pushed from the UI
 // after each successful compilation.
 type Catalog struct {
-	Projects []CatalogProject `json:"projects"`
+	Apps []CatalogApp `json:"apps"`
 	Sources  []CatalogSource  `json:"sources,omitempty"`
 }
 

@@ -17,8 +17,8 @@ func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
 		t.Fatal("expected non-nil configuration")
 	}
 
-	if len(getConfigurationResponse.Configuration.Projects) != 0 {
-		t.Errorf("expected empty projects list, got %d projects", len(getConfigurationResponse.Configuration.Projects))
+	if len(getConfigurationResponse.Configuration.Apps) != 0 {
+		t.Errorf("expected empty apps list, got %d apps", len(getConfigurationResponse.Configuration.Apps))
 	}
 
 	foundInfo := false
@@ -33,14 +33,15 @@ func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
 	}
 }
 
-func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
+func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
 	configContent := `{
-		"projects": [
+		"apps": [
 			{
-				"name": "test-project",
-				"protocol": "RPC_PROTOCOL_GRPC",
-				"url": "http://localhost:8080",
-				"protoDir": "test-protoDir"
+				"name": "test-app",
+				"grpc": {
+					"url": "http://localhost:8080",
+					"proto_dir": "test-protoDir"
+				}
 			}
 		],
 		"pathPrefix": "test-prefix"
@@ -66,26 +67,91 @@ func TestLoadGetConfigurationResponse_MultipleProjectsScenario(t *testing.T) {
 		t.Fatal("expected non-nil configuration")
 	}
 
-	if len(getConfigurationResponse.Configuration.Projects) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(getConfigurationResponse.Configuration.Projects))
+	if len(getConfigurationResponse.Configuration.Apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(getConfigurationResponse.Configuration.Apps))
 	}
 
-	project := getConfigurationResponse.Configuration.Projects[0]
-	if project.Name != "test-project" {
-		t.Errorf("expected project name 'test-project', got %q", project.Name)
+	app := getConfigurationResponse.Configuration.Apps[0]
+	appType, params := flattenApp(app)
+	if app.Name != "test-app" {
+		t.Errorf("expected app name 'test-app', got %q", app.Name)
 	}
-	if project.Protocol != RpcProtocol_RPC_PROTOCOL_GRPC {
-		t.Errorf("expected protocol GRPC, got %v", project.Protocol)
+	if appType != "grpc" {
+		t.Errorf("expected type 'grpc', got %q", appType)
 	}
-	if project.Url != "http://localhost:8080" {
-		t.Errorf("expected URL 'http://localhost:8080', got %q", project.Url)
+	if params["url"] != "http://localhost:8080" {
+		t.Errorf("expected url 'http://localhost:8080', got %q", params["url"])
 	}
-	if project.ProtoDir != "test-protoDir" {
-		t.Errorf("expected protoDir 'test-protoDir', got %q", project.ProtoDir)
+	if params["proto_dir"] != "test-protoDir" {
+		t.Errorf("expected proto_dir 'test-protoDir', got %q", params["proto_dir"])
 	}
 
 	if getConfigurationResponse.Configuration.PathPrefix != "/test-prefix" {
 		t.Errorf("expected path prefix '/test-prefix', got %q", getConfigurationResponse.Configuration.PathPrefix)
+	}
+}
+
+// Legacy kaja.json files used a top-level "projects" list of gRPC/Twirp services.
+// They must be migrated transparently into the unified "apps" model on load.
+func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
+	configContent := `{
+		"projects": [
+			{
+				"name": "grpc-quirks",
+				"protocol": "RPC_PROTOCOL_GRPC",
+				"url": "dns:kaja.tools:443",
+				"protoDir": "quirks/proto",
+				"headers": {"X-Yolo": "kaja123"}
+			},
+			{
+				"name": "twirp-users",
+				"protocol": "RPC_PROTOCOL_TWIRP",
+				"url": "https://kaja.tools/users",
+				"protoDir": "users/proto"
+			},
+			{
+				"name": "teams",
+				"protocol": "RPC_PROTOCOL_GRPC",
+				"url": "dns:kaja.tools:443",
+				"useReflection": true
+			}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name(), false).Configuration
+	if len(configuration.Apps) != 3 {
+		t.Fatalf("expected 3 migrated apps, got %d", len(configuration.Apps))
+	}
+
+	grpc := configuration.Apps[0]
+	grpcType, grpcParams := flattenApp(grpc)
+	if grpc.Name != "grpc-quirks" || grpcType != "grpc" {
+		t.Errorf("expected grpc app 'grpc-quirks', got %q/%q", grpc.Name, grpcType)
+	}
+	if grpcParams["url"] != "dns:kaja.tools:443" || grpcParams["proto_dir"] != "quirks/proto" {
+		t.Errorf("unexpected grpc parameters: %v", grpcParams)
+	}
+	if grpc.GetGrpc().GetHeaders()["X-Yolo"] != "kaja123" {
+		t.Errorf("expected migrated headers, got %v", grpc.GetGrpc().GetHeaders())
+	}
+
+	twirpType, twirpParams := flattenApp(configuration.Apps[1])
+	if twirpType != "twirp" || twirpParams["url"] != "https://kaja.tools/users" {
+		t.Errorf("unexpected twirp app: %q %v", twirpType, twirpParams)
+	}
+
+	teamsType, teamsParams := flattenApp(configuration.Apps[2])
+	if teamsType != "grpc" || teamsParams["reflection"] != "true" {
+		t.Errorf("expected reflection grpc app, got %q %v", teamsType, teamsParams)
 	}
 }
 
@@ -132,8 +198,8 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
-			Projects: []*ConfigurationProject{
-				{Name: "test-project", Protocol: RpcProtocol_RPC_PROTOCOL_GRPC, Url: "http://localhost:8080"},
+			Apps: []*ConfigurationApp{
+				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
 			},
 		},
 	})
@@ -142,8 +208,8 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 	}
 
 	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), true)
-	if len(getConfigurationResponse.Configuration.Projects) != 1 {
-		t.Fatalf("expected 1 saved project, got %d", len(getConfigurationResponse.Configuration.Projects))
+	if len(getConfigurationResponse.Configuration.Apps) != 1 {
+		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
 	}
 }
 
@@ -164,8 +230,8 @@ func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
-			Projects: []*ConfigurationProject{
-				{Name: "test-project", Protocol: RpcProtocol_RPC_PROTOCOL_GRPC, Url: "http://localhost:8080"},
+			Apps: []*ConfigurationApp{
+				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
 			},
 		},
 	})
@@ -174,8 +240,8 @@ func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
 	}
 
 	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
-	if len(getConfigurationResponse.Configuration.Projects) != 1 {
-		t.Fatalf("expected 1 saved project, got %d", len(getConfigurationResponse.Configuration.Projects))
+	if len(getConfigurationResponse.Configuration.Apps) != 1 {
+		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
 	}
 }
 

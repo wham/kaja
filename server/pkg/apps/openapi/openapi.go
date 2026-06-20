@@ -23,7 +23,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (apps.Instance, error) {
+func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
 	if specURL == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "spec_url")
@@ -74,12 +74,12 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		log("Authentication: " + summary)
 	}
 
-	return &instance{
+	return &apps.Opened{Instance: &instance{
 		baseURL: baseURL,
 		methods: methods,
 		client:  &http.Client{Timeout: 30 * time.Second},
 		auth:    authentication,
-	}, nil
+	}}, nil
 }
 
 // compileMethods compiles the generated proto and resolves each method's input
@@ -125,7 +125,7 @@ func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, e
 
 // requireHTTPScheme rejects URLs that are not plain HTTP(S), so a spec can't make
 // the app issue requests over other schemes (file://, etc.). Hosts are still
-// user-controlled by design - the same as a regular project's target.
+// user-controlled by design - the same as a regular app's target.
 func requireHTTPScheme(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {

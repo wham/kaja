@@ -1,5 +1,5 @@
 // Package apps implements kaja "apps": built-in integrations that expose a proto
-// surface kaja renders and invokes the same way as a regular gRPC/Twirp project.
+// surface kaja renders and invokes the same way as a regular gRPC/Twirp app.
 //
 // Today apps are built in (Go code in this package). The App/Instance interfaces
 // are intentionally shaped like a future generic gRPC "App" service so that
@@ -19,16 +19,41 @@ import (
 	"sync"
 )
 
-// TargetScheme is the URL scheme used as a project's URL for an opened app
+// TargetScheme is the URL scheme used as an app's URL for an opened app
 // instance. Method calls whose X-Target uses this scheme are routed back into
 // the app manager for invocation instead of being proxied to an external host.
 const TargetScheme = "kaja-app"
 
 // App is the contract every app type satisfies. An App is a factory: Open turns
-// creation parameters into a live Instance and writes the generated .proto files
-// into protoDir, ready to be picked up by the existing Compile pipeline.
+// creation parameters into an Opened result, describing the proto surface to
+// compile and how the app is invoked.
 type App interface {
-	Open(parameters map[string]string, protoDir string, log func(string)) (Instance, error)
+	Open(parameters map[string]string, protoDir string, log func(string)) (*Opened, error)
+}
+
+// Opened is the result of opening an app: where its proto surface lives and how
+// its methods are invoked.
+type Opened struct {
+	// ProtoDir overrides where the proto surface to compile lives. Empty means
+	// "use the protoDir passed to Open" (the temp directory the app wrote into). A
+	// relative path (e.g. "quirks/proto") is resolved by the compiler against the
+	// workspace and is used by grpc/twirp apps pointing at static, on-disk protos.
+	ProtoDir string
+	// Instance, when non-nil, makes the app invocable in-process: the Manager
+	// registers it and the client reaches it through a kaja-app:// target.
+	Instance Instance
+	// Target and Protocol describe apps whose methods the client invokes directly
+	// (grpc/twirp): Target is the upstream URL and Protocol the transport ("grpc"
+	// or "twirp"). Ignored when Instance is non-nil.
+	Target   string
+	Protocol string
+}
+
+// OpenResult tells the caller how a freshly opened app is compiled and invoked.
+type OpenResult struct {
+	ProtoDir string
+	Target   string
+	Protocol string
 }
 
 // Instance is a live, opened app that can invoke its generated methods.
@@ -56,32 +81,42 @@ func NewManager(types map[string]App) *Manager {
 	}
 }
 
-// Open instantiates an app of the given type and returns the target URL that the
-// UI should use as the project URL (e.g. "kaja-app://<id>"). The generated proto
-// files are written into protoDir.
-func (m *Manager) Open(appType string, parameters map[string]string, protoDir string, log func(string)) (string, error) {
+// Open instantiates an app of the given type and returns how it is compiled and
+// invoked. In-process apps are registered and reached through a "kaja-app://<id>"
+// target; grpc/twirp apps return their upstream URL and transport directly. Any
+// generated proto files are written into protoDir.
+func (m *Manager) Open(appType string, parameters map[string]string, protoDir string, log func(string)) (*OpenResult, error) {
 	m.mu.Lock()
 	app, ok := m.types[appType]
 	m.mu.Unlock()
 	if !ok {
-		return "", fmt.Errorf("unknown app type %q", appType)
+		return nil, fmt.Errorf("unknown app type %q", appType)
 	}
 
-	instance, err := app.Open(parameters, protoDir, log)
+	opened, err := app.Open(parameters, protoDir, log)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	id, err := newID()
-	if err != nil {
-		return "", err
+	result := &OpenResult{ProtoDir: protoDir, Target: opened.Target, Protocol: opened.Protocol}
+	if opened.ProtoDir != "" {
+		result.ProtoDir = opened.ProtoDir
 	}
 
-	m.mu.Lock()
-	m.instances[id] = instance
-	m.mu.Unlock()
+	if opened.Instance != nil {
+		id, err := newID()
+		if err != nil {
+			return nil, err
+		}
+		m.mu.Lock()
+		m.instances[id] = opened.Instance
+		m.mu.Unlock()
+		// In-process apps are gRPC apps reached through the app target scheme.
+		result.Target = TargetScheme + "://" + id
+		result.Protocol = "grpc"
+	}
 
-	return TargetScheme + "://" + id, nil
+	return result, nil
 }
 
 // IsAppTarget reports whether target refers to an opened app instance.

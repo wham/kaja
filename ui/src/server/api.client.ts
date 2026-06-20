@@ -10,8 +10,6 @@ import type { GetConfigurationResponse } from "./api";
 import type { GetConfigurationRequest } from "./api";
 import type { OpenAppResponse } from "./api";
 import type { OpenAppRequest } from "./api";
-import type { ReflectResponse } from "./api";
-import type { ReflectRequest } from "./api";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
 import type { CompileResponse } from "./api";
 import type { CompileRequest } from "./api";
@@ -25,10 +23,6 @@ export interface IApiClient {
      * @generated from protobuf rpc: Compile
      */
     compile(input: CompileRequest, options?: RpcOptions): UnaryCall<CompileRequest, CompileResponse>;
-    /**
-     * @generated from protobuf rpc: Reflect
-     */
-    reflect(input: ReflectRequest, options?: RpcOptions): UnaryCall<ReflectRequest, ReflectResponse>;
     /**
      * @generated from protobuf rpc: OpenApp
      */
@@ -59,31 +53,24 @@ export class ApiClient implements IApiClient, ServiceInfo {
         return stackIntercept<CompileRequest, CompileResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * @generated from protobuf rpc: Reflect
-     */
-    reflect(input: ReflectRequest, options?: RpcOptions): UnaryCall<ReflectRequest, ReflectResponse> {
-        const method = this.methods[1], opt = this._transport.mergeOptions(options);
-        return stackIntercept<ReflectRequest, ReflectResponse>("unary", this._transport, method, opt, input);
-    }
-    /**
      * @generated from protobuf rpc: OpenApp
      */
     openApp(input: OpenAppRequest, options?: RpcOptions): UnaryCall<OpenAppRequest, OpenAppResponse> {
-        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        const method = this.methods[1], opt = this._transport.mergeOptions(options);
         return stackIntercept<OpenAppRequest, OpenAppResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: GetConfiguration
      */
     getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse> {
-        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        const method = this.methods[2], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetConfigurationRequest, GetConfigurationResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: UpdateConfiguration
      */
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
     }
 }

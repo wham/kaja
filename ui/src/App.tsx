@@ -22,32 +22,33 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
-import { appConfiguration, createProjectRef, getDefaultMethod, Method, Project, Script, Service, updateProjectRef } from "./project";
+import { appParameters, appType, buildApp } from "./appTypes";
+import { createPendingApp, createAppRef, getDefaultMethod, Method, App as AppModel, Script, Service, Transport, updateAppRef } from "./apps";
 import { Sidebar } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
-import { ProjectForm } from "./ProjectForm";
+import { AppForm } from "./AppForm";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationApp, ConfigurationProject } from "./server/api";
+import { Configuration, ConfigurationApp } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
-  addProjectFormTab,
+  addAppFormTab,
   addScriptTab,
   addTaskTab,
-  getProjectFormTabIndex,
-  getProjectFormTabLabel,
+  getAppFormTabIndex,
+  getAppFormTabLabel,
   getScriptTabLabel,
   getTabLabel,
-  linkTabsToProjects,
+  linkTabsToApps,
   markInteraction,
   PersistedTabState,
   restoreTabs,
   serializeTabs,
   TabModel,
-  updateProjectFormTab,
+  updateAppFormTab,
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Task } from "./Task";
@@ -55,7 +56,7 @@ import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
-import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
+import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import {
@@ -81,37 +82,24 @@ function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-// Helper: Create a new project in pending compilation state
-function createPendingProject(config: ConfigurationProject, app?: ConfigurationApp): Project {
-  return {
-    configuration: config,
-    projectRef: createProjectRef(config),
-    compilation: { status: "pending", logs: [] },
-    services: [],
-    clients: {},
-    sources: [],
-    stub: { serviceInfos: {} },
-    app,
-  };
-}
-
-// Compare the parts of an app's configuration that require recompilation when changed.
+// Compare the parts of an app's configuration that require recompilation when
+// changed: its type and parameters. Headers are excluded.
 function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
-  return a.type !== b.type || JSON.stringify(a.parameters || {}) !== JSON.stringify(b.parameters || {});
+  return appType(a) !== appType(b) || JSON.stringify(appParameters(a)) !== JSON.stringify(appParameters(b));
 }
 
-// Helper: Apply rename to a project (remap sources and services)
-function applyProjectRename(project: Project, newConfig: ConfigurationProject): Project {
-  const originalName = project.configuration.name;
-  const remappedSources = remapSourcesToNewName(project.sources, originalName, newConfig.name);
-  const remappedServices = project.services.map((service) => ({
+// Helper: Apply rename to an app (remap sources and services)
+function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
+  const originalName = app.configuration.name;
+  const remappedSources = remapSourcesToNewName(app.sources, originalName, newConfig.name);
+  const remappedServices = app.services.map((service) => ({
     ...service,
     sourcePath: newConfig.name + service.sourcePath.slice(originalName.length),
   }));
-  // Update the existing projectRef in place so clients use new values
-  updateProjectRef(project.projectRef, newConfig);
+  // Update the existing appRef in place so clients use new values
+  updateAppRef(app.appRef, newConfig);
   return {
-    ...project,
+    ...app,
     configuration: newConfig,
     sources: remappedSources,
     services: remappedServices,
@@ -122,7 +110,7 @@ export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [apps, setApps] = useState<AppModel[]>([]);
   const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
   const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
   const [activeTabIndex, setActiveTabIndex] = useState(restoredState?.activeIndex ?? 0);
@@ -137,7 +125,7 @@ export function App() {
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; project: Project }>();
+  const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; app: AppModel }>();
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const activeTabIndexRef = useRef(activeTabIndex);
@@ -150,8 +138,9 @@ export function App() {
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
   const previewScriptsRef = useRef(previewScripts);
   previewScriptsRef.current = previewScripts;
-  // Experimental "Apps" feature, toggled from the feature previews menu in the footer.
-  const [previewApps, setPreviewApps] = usePersistedState("featurePreview:apps", false);
+  // "Preview Apps" toggle: reveals the experimental built-in app types in the New
+  // dialog (openapi/openai/markdown). gRPC/Twirp are always available.
+  const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
   // Experimental "MCP server" feature (desktop only): exposes script edit/run and
@@ -163,8 +152,8 @@ export function App() {
   // While an MCP run_script call is in flight, the method calls it makes are
   // collected here so they can be returned to the agent.
   const mcpRunCollectorRef = useRef<MethodCall[] | null>(null);
-  const projectsRef = useRef(projects);
-  projectsRef.current = projects;
+  const appsRef = useRef(apps);
+  appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
@@ -176,10 +165,10 @@ export function App() {
     resolve: (value: string) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
-  // Whether the New App dialog is open.
+  // Whether the New app dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
-  // One-shot signal to auto-expand a just-added project/app in the sidebar.
-  const [autoExpandProject, setAutoExpandProject] = useState<{ name: string }>();
+  // One-shot signal to auto-expand a just-added app in the sidebar.
+  const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // Rename dialog and delete confirmation for scripts (right-click menu).
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
@@ -241,11 +230,12 @@ export function App() {
   }, []);
 
   // Scripts and the MCP server are desktop-only, so those toggles are only offered
-  // in the Wails environment; Apps work everywhere.
+  // in the Wails environment. gRPC/Twirp apps are always enabled; the Preview Apps
+  // toggle only reveals the experimental built-in app types (openapi/openai/markdown).
   const featurePreviews: FeaturePreview[] = [
     ...(isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : []),
     ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
-    { key: "apps", label: "Apps", enabled: previewApps },
+    { key: "previewApps", label: "Preview Apps", enabled: previewApps },
   ];
 
   const onToggleFeaturePreview = useCallback((key: string) => {
@@ -253,7 +243,7 @@ export function App() {
       setPreviewScripts((enabled) => !enabled);
     } else if (key === "mcp") {
       setPreviewMcp((enabled) => !enabled);
-    } else if (key === "apps") {
+    } else if (key === "previewApps") {
       setPreviewApps((enabled) => !enabled);
     }
   }, []);
@@ -265,18 +255,18 @@ export function App() {
   const sidebarMinWidth = isNarrow ? 250 : 100;
   const mainMinWidth = isNarrow ? 300 : 0;
 
-  // Dispose Monaco source models for a project
-  const disposeMonacoModelsForProject = useCallback((projectName: string) => {
+  // Dispose Monaco source models for an app
+  const disposeMonacoModelsForApp = useCallback((appName: string) => {
     monaco.editor.getModels().forEach((model) => {
-      if (model.uri.path.startsWith("/" + projectName + "/")) {
+      if (model.uri.path.startsWith("/" + appName + "/")) {
         model.dispose();
       }
     });
   }, []);
 
-  // Create Monaco source models for a project
-  const createMonacoModelsForProject = useCallback((project: Project) => {
-    project.sources.forEach((source) => {
+  // Create Monaco source models for an app
+  const createMonacoModelsForApp = useCallback((app: AppModel) => {
+    app.sources.forEach((source) => {
       const uri = monaco.Uri.parse("ts:/" + source.path);
       const existingModel = monaco.editor.getModel(uri);
       if (!existingModel) {
@@ -287,11 +277,11 @@ export function App() {
     });
   }, []);
 
-  // Dispose task tabs for given project names, returns filtered tabs
-  const disposeTaskTabsForProjects = useCallback((projectNames: Set<string>, prevTabs: TabModel[]): TabModel[] => {
+  // Dispose task tabs for given app names, returns filtered tabs
+  const disposeTaskTabsForApps = useCallback((appNames: Set<string>, prevTabs: TabModel[]): TabModel[] => {
     const newTabs: TabModel[] = [];
     for (const tab of prevTabs) {
-      if (tab.type === "task" && projectNames.has(tab.originProject.configuration.name)) {
+      if (tab.type === "task" && appNames.has(tab.originApp.configuration.name)) {
         editorRegistryRef.current.delete(tab.id);
         tab.model.dispose();
       } else {
@@ -332,31 +322,26 @@ export function App() {
     setPersistedValue("tabs", state);
   }, [captureActiveViewState]);
 
-  // Core function: Sync projects state from a new configuration
-  // This is the single source of truth for project state changes
-  const syncProjectsFromConfiguration = useCallback(
-    (newConfiguration: Configuration, prevProjects: Project[]): { updatedProjects: Project[]; removedNames: Set<string>; renames: Map<string, string> } => {
-      const updatedProjects: Project[] = [];
-      // Apps reconcile separately (against newConfiguration.apps), so keep them
-      // out of the project-vs-project rename/orphan matching below.
-      const regularPrev = prevProjects.filter((p) => !p.app);
-      const appPrev = prevProjects.filter((p) => p.app);
-      const newConfigByName = new Map(newConfiguration.projects.map((p) => [p.name, p]));
-      const prevByName = new Map(regularPrev.map((p) => [p.configuration.name, p]));
+  // Core function: Sync apps state from a new configuration
+  // This is the single source of truth for app state changes
+  const syncAppsFromConfiguration = useCallback(
+    (newConfiguration: Configuration, prevApps: AppModel[]): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
+      const updatedApps: AppModel[] = [];
+      // Reconciliation is a single app-vs-app pass keyed by name.
+      const newApps = newConfiguration.apps || [];
+      const newConfigByName = new Map(newApps.map((a) => [a.name, a]));
+      const prevByName = new Map(prevApps.map((p) => [p.configuration.name, p]));
 
       // Find orphans (removed) and newcomers (added)
-      const orphans = regularPrev.filter((p) => !newConfigByName.has(p.configuration.name));
-      const newcomerConfigs = newConfiguration.projects.filter((p) => !prevByName.has(p.name));
+      const orphans = prevApps.filter((p) => !newConfigByName.has(p.configuration.name));
+      const newcomerConfigs = newApps.filter((a) => !prevByName.has(a.name));
 
-      // Detect renames: match orphans to newcomers by protoDir/url
-      const renameMap = new Map<string, Project>(); // newName -> oldProject
+      // Detect renames: an orphan and a newcomer with the same type+parameters are
+      // the same backing service under a new name, so the compiled app (and its
+      // open editors) can be remapped instead of recompiled.
+      const renameMap = new Map<string, AppModel>(); // newName -> oldApp
       for (const newcomer of newcomerConfigs) {
-        const matchingOrphan = orphans.find((orphan) => {
-          if (newcomer.useReflection && orphan.configuration.useReflection) {
-            return newcomer.url === orphan.configuration.url;
-          }
-          return newcomer.protoDir === orphan.configuration.protoDir && newcomer.protoDir !== "";
-        });
+        const matchingOrphan = orphans.find((orphan) => !appNeedsRecompile(orphan.configuration, newcomer));
         if (matchingOrphan && !renameMap.has(newcomer.name)) {
           renameMap.set(newcomer.name, matchingOrphan);
           const idx = orphans.indexOf(matchingOrphan);
@@ -364,79 +349,53 @@ export function App() {
         }
       }
 
-      // Process each project in the new configuration
-      for (const newConfig of newConfiguration.projects) {
-        const existingProject = prevByName.get(newConfig.name);
+      // Process each app in the new configuration
+      for (const newConfig of newApps) {
+        const existingApp = prevByName.get(newConfig.name);
         const renamedFrom = renameMap.get(newConfig.name);
 
         if (renamedFrom) {
           // Rename: remap sources and services
-          disposeMonacoModelsForProject(renamedFrom.configuration.name);
-          const renamedProject = applyProjectRename(renamedFrom, newConfig);
-          createMonacoModelsForProject(renamedProject);
-          updatedProjects.push(renamedProject);
+          disposeMonacoModelsForApp(renamedFrom.configuration.name);
+          const renamedApp = applyAppRename(renamedFrom, newConfig);
+          createMonacoModelsForApp(renamedApp);
+          updatedApps.push(renamedApp);
           continue;
         }
 
-        if (!existingProject) {
-          // New project
-          updatedProjects.push(createPendingProject(newConfig));
+        if (!existingApp) {
+          // New app
+          updatedApps.push(createPendingApp(newConfig));
           continue;
         }
 
-        const prev = existingProject.configuration;
-        const protoDirChanged = prev.protoDir !== newConfig.protoDir;
-        const useReflectionChanged = prev.useReflection !== newConfig.useReflection;
-        const reflectionUrlChanged = newConfig.useReflection && prev.url !== newConfig.url;
-
-        if (protoDirChanged || useReflectionChanged || reflectionUrlChanged) {
+        if (appNeedsRecompile(existingApp.configuration, newConfig)) {
           // Needs recompilation
-          disposeMonacoModelsForProject(existingProject.configuration.name);
-          updatedProjects.push(createPendingProject(newConfig));
+          disposeMonacoModelsForApp(existingApp.configuration.name);
+          updatedApps.push(createPendingApp(newConfig));
         } else {
-          // Update the projectRef in place - clients will pick up new URL/headers dynamically
-          updateProjectRef(existingProject.projectRef, newConfig);
-          updatedProjects.push({ ...existingProject, configuration: newConfig });
-        }
-      }
-
-      // Reconcile apps (newConfiguration.apps) against previously loaded apps.
-      // When the Apps preview is off, treat the set as empty so loaded apps are removed.
-      const newApps = previewAppsRef.current ? newConfiguration.apps || [] : [];
-      const newAppByName = new Map(newApps.map((a) => [a.name, a]));
-      const appPrevByName = new Map(appPrev.map((p) => [p.configuration.name, p]));
-      for (const app of newApps) {
-        const existing = appPrevByName.get(app.name);
-        if (!existing || !existing.app || appNeedsRecompile(existing.app, app)) {
-          if (existing) {
-            disposeMonacoModelsForProject(existing.configuration.name);
-          }
-          updatedProjects.push(createPendingProject(appConfiguration(app), app));
-        } else {
-          // Unchanged app: keep the loaded project (and its kaja-app:// target),
+          // Unchanged: keep the compiled app (and its invocation target),
           // refreshing forwarded headers in place.
-          const configuration = { ...existing.configuration, headers: { ...(app.headers || {}) } };
-          updateProjectRef(existing.projectRef, configuration);
-          updatedProjects.push({ ...existing, configuration, app });
+          updateAppRef(existingApp.appRef, newConfig);
+          updatedApps.push({ ...existingApp, configuration: newConfig });
         }
       }
-      const appOrphans = appPrev.filter((p) => !newAppByName.has(p.configuration.name));
 
-      // Clean up removed projects and apps
-      const removedNames = new Set([...orphans, ...appOrphans].map((p) => p.configuration.name));
-      for (const orphan of [...orphans, ...appOrphans]) {
-        disposeMonacoModelsForProject(orphan.configuration.name);
+      // Clean up removed apps
+      const removedNames = new Set(orphans.map((p) => p.configuration.name));
+      for (const orphan of orphans) {
+        disposeMonacoModelsForApp(orphan.configuration.name);
       }
 
       // Build renames: oldName -> newName
       const renames = new Map<string, string>();
-      for (const [newName, oldProject] of renameMap) {
-        renames.set(oldProject.configuration.name, newName);
+      for (const [newName, oldApp] of renameMap) {
+        renames.set(oldApp.configuration.name, newName);
       }
 
-      return { updatedProjects, removedNames, renames };
+      return { updatedApps, removedNames, renames };
     },
-    [disposeMonacoModelsForProject, createMonacoModelsForProject],
+    [disposeMonacoModelsForApp, createMonacoModelsForApp],
   );
 
   // Apply configuration and sync all state
@@ -444,14 +403,14 @@ export function App() {
     (newConfiguration: Configuration) => {
       setConfiguration(newConfiguration);
 
-      setProjects((prevProjects) => {
-        const { updatedProjects, removedNames, renames } = syncProjectsFromConfiguration(newConfiguration, prevProjects);
+      setApps((prevApps) => {
+        const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps);
 
-        // Clean up task tabs for removed projects
+        // Clean up task tabs for removed apps
         if (removedNames.size > 0) {
           setTabs((prevTabs) => {
-            const newTabs = disposeTaskTabsForProjects(removedNames, prevTabs);
-            if (updatedProjects.length === 0) {
+            const newTabs = disposeTaskTabsForApps(removedNames, prevTabs);
+            if (updatedApps.length === 0) {
               setSelectedMethod(undefined);
             }
             if (newTabs.length !== prevTabs.length) {
@@ -474,10 +433,10 @@ export function App() {
           });
         }
 
-        return updatedProjects;
+        return updatedApps;
       });
     },
-    [syncProjectsFromConfiguration, disposeTaskTabsForProjects],
+    [syncAppsFromConfiguration, disposeTaskTabsForApps],
   );
 
   // Toggling the Apps preview adds or removes the configured apps from the sidebar
@@ -508,8 +467,8 @@ export function App() {
   useEffect(() => {
     const active = tabs[activeTabIndex];
     let title = "Kaja";
-    if (active?.type === "task" && active.originProject) {
-      title = `${active.originProject.configuration.name} - Kaja`;
+    if (active?.type === "task" && active.originApp) {
+      title = `${active.originApp.configuration.name} - Kaja`;
     } else if (active?.type === "script") {
       title = `${active.script.name} - Kaja`;
     }
@@ -520,7 +479,7 @@ export function App() {
   }, [tabs, activeTabIndex]);
 
   // Load the global scripts directory (desktop only). Scripts are independent
-  // of projects; they bind to a project at run time via their import paths.
+  // of apps; they bind to an app at run time via their import paths.
   const refreshScripts = useCallback(() => {
     if (!isWailsEnvironment() || !previewScripts) {
       setScripts(undefined);
@@ -573,36 +532,36 @@ export function App() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [persistTabs]);
 
-  const onCompilationUpdate = (updatedProjects: Project[] | ((prev: Project[]) => Project[])) => {
+  const onCompilationUpdate = (updatedApps: AppModel[] | ((prev: AppModel[]) => AppModel[])) => {
     // Handle both direct array and functional updates
-    if (typeof updatedProjects === "function") {
-      setProjects((prevProjects) => {
-        const newProjects = updatedProjects(prevProjects);
-        handlePostCompilationLogic(newProjects);
-        return newProjects;
+    if (typeof updatedApps === "function") {
+      setApps((prevApps) => {
+        const newApps = updatedApps(prevApps);
+        handlePostCompilationLogic(newApps);
+        return newApps;
       });
     } else {
-      setProjects(updatedProjects);
-      handlePostCompilationLogic(updatedProjects);
+      setApps(updatedApps);
+      handlePostCompilationLogic(updatedApps);
     }
   };
 
-  const handlePostCompilationLogic = (updatedProjects: Project[]) => {
+  const handlePostCompilationLogic = (updatedApps: AppModel[]) => {
     // Keep the MCP server's view of callable services in sync with whatever has
-    // compiled so far. Apps are ordinary projects here (they carry an `app`
-    // field), so they show up just like gRPC/Twirp projects. This runs on every
-    // compilation update rather than waiting for all projects, so a slow or
+    // compiled so far. Apps are ordinary apps here (they carry an `app`
+    // field), so they show up just like gRPC/Twirp apps. This runs on every
+    // compilation update rather than waiting for all apps, so a slow or
     // failing app can't block the rest of the catalog.
     if (isWailsEnvironment() && previewMcpRef.current) {
-      MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedProjects))).catch(() => {});
+      MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedApps))).catch(() => {});
     }
 
-    // Check if all projects have finished compiling successfully
-    const allCompiled = updatedProjects.every((p) => p.compilation.status === "success");
-    if (allCompiled && updatedProjects.length > 0 && updatedProjects[0].services.length > 0) {
-      updatedProjects.forEach((project) => {
-        if (project.sources) {
-          project.sources.forEach((source) => {
+    // Check if all apps have finished compiling successfully
+    const allCompiled = updatedApps.every((p) => p.compilation.status === "success");
+    if (allCompiled && updatedApps.length > 0 && updatedApps[0].services.length > 0) {
+      updatedApps.forEach((app) => {
+        if (app.sources) {
+          app.sources.forEach((source) => {
             const uri = monaco.Uri.parse("ts:/" + source.path);
             const existingModel = monaco.editor.getModel(uri);
             if (!existingModel) {
@@ -614,15 +573,15 @@ export function App() {
         }
       });
 
-      if (updatedProjects.length === 0) {
+      if (updatedApps.length === 0) {
         return;
       }
 
-      // If tabs were restored from persisted state, link them to compiled projects
+      // If tabs were restored from persisted state, link them to compiled apps
       if (tabsRestoredRef.current) {
         tabsRestoredRef.current = false;
         setTabs((prevTabs) => {
-          linkTabsToProjects(prevTabs, updatedProjects);
+          linkTabsToApps(prevTabs, updatedApps);
           const activeTab = prevTabs[activeTabIndexRef.current];
           if (activeTab?.type === "task") {
             setSelectedMethod(activeTab.originMethod);
@@ -636,7 +595,7 @@ export function App() {
 
       // Only auto-open the first method on first-time use (no previous tab memory)
       if (!hasTabMemory.current) {
-        const defaultMethodAndService = getDefaultMethod(updatedProjects[0].services);
+        const defaultMethodAndService = getDefaultMethod(updatedApps[0].services);
         setSelectedMethod(defaultMethodAndService?.method);
 
         if (!defaultMethodAndService) {
@@ -650,7 +609,7 @@ export function App() {
               tab.model.dispose();
             }
           });
-          const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedProjects[0]);
+          const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedApps[0]);
           setActiveTabIndex(result.activeIndex);
           return result.tabs;
         });
@@ -658,13 +617,13 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(projects, onCompilationUpdate, setConfiguration, previewApps);
+  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, setConfiguration);
 
-  const onMethodSelect = (method: Method, service: Service, project: Project) => {
+  const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
     captureActiveViewState();
     setSelectedMethod(method);
     setTabs((tabs) => {
-      const result = addTaskTab(tabs, method, service, project);
+      const result = addTaskTab(tabs, method, service, app);
       setActiveTabIndex(result.activeIndex);
       return result.tabs;
     });
@@ -723,12 +682,12 @@ export function App() {
         await onScriptSelect({ path: file.path, name: file.name });
         const kaja = kajaRef.current!;
         kaja.input = text;
-        runTask(file.content, kaja, projects);
+        runTask(file.content, kaja, apps);
       } catch (err) {
         showFileError(`Run failed: ${err}`);
       }
     },
-    [pinnedScriptPath, onScriptSelect, projects, showFileError],
+    [pinnedScriptPath, onScriptSelect, apps, showFileError],
   );
 
   const runContextMenuScriptRef = useRef(runContextMenuScript);
@@ -814,10 +773,10 @@ export function App() {
     MCPSetEnabled(previewMcp)
       .then((info) => {
         setMcpInfo(info);
-        // Seed the server with the already-compiled projects/apps; otherwise the
+        // Seed the server with the already-compiled apps/apps; otherwise the
         // catalog stays empty until the next compilation event.
         if (previewMcp) {
-          MCPSetCatalog(JSON.stringify(buildMcpCatalog(projectsRef.current))).catch(() => {});
+          MCPSetCatalog(JSON.stringify(buildMcpCatalog(appsRef.current))).catch(() => {});
         }
       })
       .catch((err) => showFileError(`MCP server: ${err}`));
@@ -839,7 +798,7 @@ export function App() {
         }
         const kaja = kajaRef.current!;
         kaja.input = undefined;
-        const captured = await runTaskCaptured(source, kaja, projectsRef.current);
+        const captured = await runTaskCaptured(source, kaja, appsRef.current);
         result = { ...captured, methodCalls: collected.map(toMethodCallLog) };
       } catch (err) {
         result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: collected.map(toMethodCallLog) };
@@ -952,9 +911,9 @@ export function App() {
     [showFileError, persistTabs],
   );
 
-  const onSearchMethodSelect = (method: Method, service: Service, project: Project) => {
-    onMethodSelect(method, service, project);
-    setScrollToMethod({ method, service, project });
+  const onSearchMethodSelect = (method: Method, service: Service, app: AppModel) => {
+    onMethodSelect(method, service, app);
+    setScrollToMethod({ method, service, app });
   };
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
@@ -1045,12 +1004,12 @@ export function App() {
     if (!editor) {
       return;
     }
-    runTask(editor.getValue(), kajaRef.current!, projects);
+    runTask(editor.getValue(), kajaRef.current!, apps);
     if (tab.type === "task") {
       setTabs((tabs) => markInteraction(tabs, index));
       persistTabs();
     }
-  }, [projects, persistTabs]);
+  }, [apps, persistTabs]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1078,51 +1037,37 @@ export function App() {
     persistTabs();
   };
 
-  const onNewProjectClick = () => {
+  const onNewAppClick = () => {
+    setNewAppOpen(true);
+  };
+
+  // Picking a type in the New dialog opens the create form tab for that type. The
+  // type is fixed at creation and not editable in the form afterwards.
+  const onSelectAppType = (type: string) => {
+    setNewAppOpen(false);
     setTabs((tabs) => {
-      const newTabs = addProjectFormTab(tabs, "create");
-      const formIndex = getProjectFormTabIndex(newTabs);
+      const newTabs = addAppFormTab(tabs, "create", buildApp("", type, {}, {}));
+      const formIndex = getAppFormTabIndex(newTabs);
       setActiveTabIndex(formIndex);
       return newTabs;
     });
   };
 
-  const onNewAppClick = () => {
-    setNewAppOpen(true);
-  };
-
-  const onCreateApp = async (app: ConfigurationApp) => {
-    if (!configuration) return;
-    const updatedConfiguration: Configuration = {
-      ...configuration,
-      apps: [...(configuration.apps || []), app],
-    };
-
-    const client = getApiClient();
-    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
-    if (response.configuration) {
-      applyConfiguration(response.configuration);
-    }
-    setNewAppOpen(false);
-    onCompilerClick();
-    setAutoExpandProject({ name: app.name });
-  };
-
-  const onEditProject = (projectName: string) => {
-    const project = projects.find((p) => p.configuration.name === projectName);
-    if (project) {
+  const onEditApp = (appName: string) => {
+    const app = apps.find((p) => p.configuration.name === appName);
+    if (app) {
       setTabs((tabs) => {
-        const newTabs = addProjectFormTab(tabs, "edit", project.configuration);
-        const formIndex = getProjectFormTabIndex(newTabs);
+        const newTabs = addAppFormTab(tabs, "edit", app.configuration);
+        const formIndex = getAppFormTabIndex(newTabs);
         setActiveTabIndex(formIndex);
         return newTabs;
       });
     }
   };
 
-  const closeProjectFormTab = () => {
+  const closeAppFormTab = () => {
     setTabs((prevTabs) => {
-      const formIndex = getProjectFormTabIndex(prevTabs);
+      const formIndex = getAppFormTabIndex(prevTabs);
       if (formIndex === -1) return prevTabs;
       const newTabs = prevTabs.filter((_, i) => i !== formIndex);
       const newActiveIndex = formIndex === activeTabIndex ? Math.max(0, newTabs.length - 1) : formIndex < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
@@ -1131,8 +1076,8 @@ export function App() {
     });
   };
 
-  const onProjectFormSubmit = async (project: ConfigurationProject, originalName?: string) => {
-    closeProjectFormTab();
+  const onAppFormSubmit = async (app: ConfigurationApp, originalName?: string) => {
+    closeAppFormTab();
 
     if (!configuration) {
       return;
@@ -1142,16 +1087,16 @@ export function App() {
     const needsRecompilation =
       isEdit &&
       (() => {
-        const originalProject = projects.find((p) => p.configuration.name === originalName);
-        if (!originalProject) return false;
-        return originalProject.configuration.protoDir !== project.protoDir || originalProject.configuration.useReflection !== project.useReflection;
+        const originalApp = apps.find((p) => p.configuration.name === originalName);
+        if (!originalApp) return false;
+        return appNeedsRecompile(originalApp.configuration, app);
       })();
-    const isNewProject = !isEdit;
+    const isNewApp = !isEdit;
 
     // Update configuration
     const updatedConfiguration: Configuration = {
       ...configuration,
-      projects: isEdit ? configuration.projects.map((p) => (p.name === originalName ? project : p)) : [...configuration.projects, project],
+      apps: isEdit ? (configuration.apps || []).map((a) => (a.name === originalName ? app : a)) : [...(configuration.apps || []), app],
     };
 
     // Save configuration via API and apply changes through unified path
@@ -1161,45 +1106,42 @@ export function App() {
       applyConfiguration(response.configuration);
     }
 
-    // Show compiler tab for new projects or when recompilation is needed
-    if (isNewProject || needsRecompilation) {
+    // Show compiler tab for new apps or when recompilation is needed
+    if (isNewApp || needsRecompilation) {
       onCompilerClick();
     }
 
-    if (isNewProject) {
-      setAutoExpandProject({ name: project.name });
+    if (isNewApp) {
+      setAutoExpandApp({ name: app.name });
     }
   };
 
-  const onProjectFormCancel = () => {
-    closeProjectFormTab();
+  const onAppFormCancel = () => {
+    closeAppFormTab();
   };
 
-  const onProjectFormSelect = (projectName: string | null) => {
-    if (projectName === null) {
-      // Switch to new project mode
-      setTabs((tabs) => updateProjectFormTab(tabs, "create"));
+  const onAppFormSelect = (appName: string | null) => {
+    if (appName === null) {
+      // "+ New" reopens the type picker, since the type is chosen there.
+      setNewAppOpen(true);
     } else {
-      // Switch to edit mode for the selected project
-      const project = projects.find((p) => p.configuration.name === projectName);
-      if (project) {
-        setTabs((tabs) => updateProjectFormTab(tabs, "edit", project.configuration));
+      // Switch to edit mode for the selected app
+      const app = apps.find((p) => p.configuration.name === appName);
+      if (app) {
+        setTabs((tabs) => updateAppFormTab(tabs, "edit", app.configuration));
       }
     }
   };
 
-  const onDeleteProject = async (projectName: string) => {
+  const onDeleteApp = async (appName: string) => {
     if (!configuration) {
       return;
     }
 
-    // Update configuration to remove the project. Apps are rendered as projects
-    // in the sidebar but stored separately, so drop a matching app too (names are
-    // unique across both).
+    // Update configuration to remove the app.
     const updatedConfiguration: Configuration = {
       ...configuration,
-      projects: configuration.projects.filter((p) => p.name !== projectName),
-      apps: (configuration.apps || []).filter((a) => a.name !== projectName),
+      apps: (configuration.apps || []).filter((a) => a.name !== appName),
     };
 
     // Save configuration via API and apply changes through unified path
@@ -1246,9 +1188,9 @@ export function App() {
                 }}
               >
                 <Sidebar
-                  projects={projects}
+                  apps={apps}
                   scripts={scripts}
-                  canDeleteProjects={configuration?.system?.canUpdateConfiguration ?? false}
+                  canDeleteApps={configuration?.system?.canUpdateConfiguration ?? false}
                   onSelect={onMethodSelect}
                   onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                   onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
@@ -1259,13 +1201,11 @@ export function App() {
                   currentScriptPath={activeScriptPath}
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
-                  onNewProjectClick={onNewProjectClick}
                   onNewAppClick={onNewAppClick}
-                  autoExpandProject={autoExpandProject}
-                  appsPreviewEnabled={previewApps}
+                  autoExpandApp={autoExpandApp}
                   reserveTrafficLights={isDesktopMac}
-                  onEditProject={onEditProject}
-                  onDeleteProject={onDeleteProject}
+                  onEditApp={onEditApp}
+                  onDeleteApp={onDeleteApp}
                 />
               </div>
             )}
@@ -1361,8 +1301,8 @@ export function App() {
                   </Tooltip>
                 </div>
               </div>
-              {tabs.length === 0 && configurationLoaded && projects.length === 0 && <FirstProjectBlankslate onNewProjectClick={onNewProjectClick} />}
-              {tabs.length === 0 && (projects.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
+              {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
+              {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
               {tabs.length > 0 && (
                 <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                   <div
@@ -1390,7 +1330,7 @@ export function App() {
                         if (tab.type === "compiler") {
                           return (
                             <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler projects={projects} configurationLoaded={configurationLoaded} onNewProjectClick={onNewProjectClick} />
+                              <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} />
                             </Tab>
                           );
                         }
@@ -1434,18 +1374,18 @@ export function App() {
                           );
                         }
 
-                        if (tab.type === "projectForm") {
-                          const label = getProjectFormTabLabel(tab);
+                        if (tab.type === "appForm") {
+                          const label = getAppFormTabLabel(tab);
                           return (
                             <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
-                              <ProjectForm
+                              <AppForm
                                 mode={tab.mode}
                                 initialData={tab.initialData}
-                                allProjects={configuration?.projects ?? []}
+                                allApps={configuration?.apps ?? []}
                                 readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                                onSubmit={onProjectFormSubmit}
-                                onCancel={onProjectFormCancel}
-                                onProjectSelect={onProjectFormSelect}
+                                onSubmit={onAppFormSubmit}
+                                onCancel={onAppFormCancel}
+                                onAppSelect={onAppFormSelect}
                               />
                             </Tab>
                           );
@@ -1488,7 +1428,7 @@ export function App() {
             mcpInfo={previewMcp ? mcpInfo : undefined}
           />
         </div>
-        <SearchPopup isOpen={isSearchOpen} projects={projects} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
+        <SearchPopup isOpen={isSearchOpen} apps={apps} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
         {saveAs && (
           <Dialog
             title="Save as script"
@@ -1565,13 +1505,7 @@ export function App() {
             </FormControl>
           </Dialog>
         )}
-        {newAppOpen && (
-          <NewAppDialog
-            existingNames={configuration ? [...configuration.projects.map((p) => p.name), ...(configuration.apps || []).map((a) => a.name)] : []}
-            onClose={() => setNewAppOpen(false)}
-            onCreate={onCreateApp}
-          />
-        )}
+        {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
         {renameScript && (
           <Dialog
             title="Rename script"
@@ -1640,17 +1574,17 @@ function toMethodCallLog(call: MethodCall) {
   };
 }
 
-// buildMcpCatalog turns the compiled projects into the catalog the MCP server
+// buildMcpCatalog turns the compiled apps into the catalog the MCP server
 // exposes via list_services and the stub resources. Apps are included here just
-// like gRPC/Twirp projects — for the MCP consumer there is no difference, both
-// expose callable services. Only successfully compiled projects with services
-// are listed, so a pending or failed project (or app) leaves the rest intact.
-function buildMcpCatalog(projects: Project[]) {
-  const compiled = projects.filter((project) => project.compilation.status === "success" && project.services.length > 0);
+// like gRPC/Twirp apps — for the MCP consumer there is no difference, both
+// expose callable services. Only successfully compiled apps with services
+// are listed, so a pending or failed app (or app) leaves the rest intact.
+function buildMcpCatalog(apps: AppModel[]) {
+  const compiled = apps.filter((app) => app.compilation.status === "success" && app.services.length > 0);
   return {
-    projects: compiled.map((project) => ({
-      name: project.configuration.name,
-      services: project.services.map((service: Service) => ({
+    apps: compiled.map((app) => ({
+      name: app.configuration.name,
+      services: app.services.map((service: Service) => ({
         name: service.name,
         packageName: service.packageName,
         importPath: service.sourcePath,
@@ -1661,6 +1595,6 @@ function buildMcpCatalog(projects: Project[]) {
         })),
       })),
     })),
-    sources: compiled.flatMap((project) => project.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
+    sources: compiled.flatMap((app) => app.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
   };
 }

@@ -157,7 +157,7 @@ func main() {
 
 		// App targets (kaja-app://<id>) are invoked in-process by the app manager
 		// instead of being proxied to an external host. Apps are gRPC apps, so the
-		// request arrives as gRPC-Web like a regular gRPC project.
+		// request arrives as gRPC-Web like a regular gRPC app.
 		if apps.IsAppTarget(targetHeader) {
 			manager := apiService.Apps()
 			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) ([]byte, error) {

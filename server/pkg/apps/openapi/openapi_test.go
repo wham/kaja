@@ -307,7 +307,7 @@ func TestOpenAndInvoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	inst := opened.(*instance)
+	inst := opened.Instance.(*instance)
 
 	if _, err := os.Stat(filepath.Join(dir, "service.proto")); err != nil {
 		t.Errorf("expected service.proto written: %v", err)
@@ -359,7 +359,7 @@ func TestInvokeUpstreamError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	inst := opened.(*instance)
+	inst := opened.Instance.(*instance)
 	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
 	if _, err := inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil); err == nil {
 		t.Fatal("expected error for 500 upstream, got nil")

@@ -22,7 +22,7 @@ func newFakeBridge() *fakeBridge {
 	return &fakeBridge{
 		scripts: map[string]string{"/s/hello.ts": "console.log('hi')"},
 		catalog: Catalog{
-			Projects: []CatalogProject{{
+			Apps: []CatalogApp{{
 				Name: "users",
 				Services: []CatalogService{{
 					Name:       "Users",

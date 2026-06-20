@@ -4,7 +4,7 @@ import { Gutter } from "./Gutter";
 import { IconButton } from "@primer/react";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { methodId } from "./project";
+import { methodId } from "./apps";
 import { Log, LogLevel } from "./server/api";
 
 export type ConsoleItem = Log[] | MethodCall;

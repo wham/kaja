@@ -11,8 +11,8 @@ import type {
 import { Deferred, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
 import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
-import { RpcProtocol } from "./api";
-import { ProjectRef } from "../project";
+import { appHeaders } from "../appTypes";
+import { AppRef, Transport } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
 
@@ -32,8 +32,8 @@ function wailsErrorMessage(error: unknown): string {
 
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
-  projectRef?: ProjectRef; // Dynamic project reference for "target" mode
-  protocol: RpcProtocol;
+  appRef?: AppRef; // Dynamic app reference for "target" mode
+  protocol: Transport;
 }
 
 /**
@@ -42,16 +42,16 @@ export interface WailsTransportOptions {
  */
 export class WailsTransport implements RpcTransport {
   private mode: WailsTransportMode;
-  private projectRef?: ProjectRef;
+  private appRef?: AppRef;
   private protocol: number;
 
   constructor(options: WailsTransportOptions) {
     this.mode = options.mode;
-    this.projectRef = options.projectRef;
+    this.appRef = options.appRef;
     this.protocol = options.protocol;
 
-    if (this.mode === "target" && !this.projectRef) {
-      throw new Error("projectRef is required when mode is 'target'");
+    if (this.mode === "target" && !this.appRef) {
+      throw new Error("appRef is required when mode is 'target'");
     }
   }
 
@@ -71,7 +71,7 @@ export class WailsTransport implements RpcTransport {
   }
 
   serverStreaming<I extends object, O extends object>(method: MethodInfo<I, O>, input: I, options: RpcOptions): ServerStreamingCall<I, O> {
-    if (this.mode !== "target" || this.protocol !== RpcProtocol.GRPC) {
+    if (this.mode !== "target" || this.protocol !== Transport.GRPC) {
       throw new Error(`Server streaming only supported for gRPC targets in Wails transport`);
     }
 
@@ -131,9 +131,9 @@ export class WailsTransport implements RpcTransport {
     const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
     const inputArray = Array.from(inputBytes);
     const fullMethodPath = `${method.service.typeName}/${method.name}`;
-    const headersJson = JSON.stringify(this.projectRef!.configuration.headers || {});
+    const headersJson = JSON.stringify(appHeaders(this.appRef!.configuration));
 
-    TargetServerStream(this.projectRef!.configuration.url, fullMethodPath, inputArray, headersJson, streamID).catch((err) => {
+    TargetServerStream(this.appRef!.target, fullMethodPath, inputArray, headersJson, streamID).catch((err) => {
       responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
       statusDeferred.reject(err);
       trailersDeferred.reject(err);
@@ -178,7 +178,7 @@ export class WailsTransport implements RpcTransport {
     console.log(
       `Wails${this.mode === "target" ? "Target" : ""}Transport calling method:`,
       this.mode === "target" ? `${method.service.typeName}/${method.name}` : method.name,
-      this.mode === "target" ? `target: ${this.projectRef?.configuration.url}` : "",
+      this.mode === "target" ? `target: ${this.appRef?.target}` : "",
     );
 
     const responsePromise = this.executeCall(method, input);
@@ -196,7 +196,7 @@ export class WailsTransport implements RpcTransport {
     try {
       console.log(`Executing Wails ${this.mode} call for method:`, method.name);
       if (this.mode === "target") {
-        console.log("Target URL:", this.projectRef?.configuration.url);
+        console.log("Target URL:", this.appRef?.target);
       }
       console.log("Input object:", input);
 
@@ -227,11 +227,11 @@ export class WailsTransport implements RpcTransport {
         console.log("Calling Wails Twirp with method:", method.name);
         responseBase64 = await Twirp(method.name, inputArray);
       } else {
-        // mode === "target" - read URL and headers dynamically from projectRef
+        // mode === "target" - read URL and headers dynamically from appRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        const headersJson = JSON.stringify(this.projectRef!.configuration.headers || {});
+        const headersJson = JSON.stringify(appHeaders(this.appRef!.configuration));
         console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
-        const result = await Target(this.projectRef!.configuration.url, fullMethodPath, inputArray, this.protocol, headersJson);
+        const result = await Target(this.appRef!.target, fullMethodPath, inputArray, this.protocol, headersJson);
 
         if (result.statusCode >= 400) {
           // Twirp error responses are always JSON, even in binary mode

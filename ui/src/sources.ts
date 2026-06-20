@@ -17,7 +17,7 @@ export interface Stub {
   [key: string]: any;
 }
 
-export async function loadSources(apiSources: ApiSource[], stub: Stub, projectName: string): Promise<Sources> {
+export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: string): Promise<Sources> {
   if (apiSources.length === 0) {
     return [];
   }
@@ -26,7 +26,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
 
   for (let i = 0; i < apiSources.length; i++) {
     const apiSource = apiSources[i];
-    const path = projectName + "/" + apiSource.path;
+    const path = appName + "/" + apiSource.path;
     const file = ts.createSourceFile(path, apiSource.content, ts.ScriptTarget.Latest);
 
     // Convert source path to stub module identifier
@@ -67,7 +67,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, projectNa
 
 export function remapSourcesToNewName(sources: Sources, oldName: string, newName: string): Sources {
   return sources.map((source) => {
-    // Replace old project name prefix with new one
+    // Replace old app name prefix with new one
     const relativePath = source.path.slice(oldName.length + 1); // +1 for the "/"
     const newPath = newName + "/" + relativePath;
     const newImportPath = newPath.replace(".ts", "");
@@ -85,7 +85,7 @@ export function remapSourcesToNewName(sources: Sources, oldName: string, newName
 }
 
 export function remapEditorCode(editorCode: string, oldName: string, newName: string): string {
-  // Replace import paths that reference the old project name
+  // Replace import paths that reference the old app name
   // e.g. import { Foo } from "oldName/path" -> import { Foo } from "newName/path"
   const importRegex = new RegExp(`from "${oldName}/`, "g");
   return editorCode.replace(importRegex, `from "${newName}/`);

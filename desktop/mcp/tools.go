@@ -22,7 +22,7 @@ func toolDefinitions() []map[string]interface{} {
 	return []map[string]interface{}{
 		{
 			"name":        "list_services",
-			"description": "List every project, service, method, and request/response type a script can currently call. Start here.",
+			"description": "List every app, service, method, and request/response type a script can currently call. Start here.",
 			"inputSchema": obj(map[string]interface{}{}),
 		},
 		{

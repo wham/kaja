@@ -16,7 +16,7 @@ describe("getTabLabel", () => {
 });
 
 describe("serializeTabs", () => {
-  it("should serialize task and compiler tabs, skipping definition and projectForm tabs", () => {
+  it("should serialize task and compiler tabs, skipping definition and appForm tabs", () => {
     const tabs: TabModel[] = [
       { type: "compiler" },
       {
@@ -24,7 +24,7 @@ describe("serializeTabs", () => {
         id: "task-1",
         originMethod: { name: "GetUser" },
         originService: { name: "UserService", packageName: "users.v1", sourcePath: "", clientStubModuleId: "", methods: [] },
-        originProject: { configuration: { name: "users" } } as any,
+        originApp: { configuration: { name: "users" } } as any,
         hasInteraction: true,
         model: { getValue: () => "some code" } as any,
         originalCode: "original code",
@@ -46,7 +46,7 @@ describe("serializeTabs", () => {
     expect(result.tabs[0]).toEqual({ type: "compiler" });
     expect(result.tabs[1]).toEqual({
       type: "task",
-      projectName: "users",
+      appName: "users",
       serviceName: "UserService",
       methodName: "GetUser",
       code: "some code",
@@ -75,7 +75,7 @@ describe("serializeTabs", () => {
         id: "task-1",
         originMethod: { name: "M" },
         originService: { name: "S", packageName: "", sourcePath: "", clientStubModuleId: "", methods: [] },
-        originProject: { configuration: { name: "p" } } as any,
+        originApp: { configuration: { name: "p" } } as any,
         hasInteraction: false,
         model: { getValue: () => "" } as any,
         originalCode: "",
