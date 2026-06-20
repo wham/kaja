@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "@primer/octicons-react";
-import { AnchoredOverlay, Button } from "@primer/react";
+import { AnchoredOverlay, Button, SegmentedControl } from "@primer/react";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { IconButtonXSmall } from "./IconButtonXSmall";
@@ -19,15 +19,62 @@ interface StatusBarProps {
   mcpInfo?: main.MCPInfo;
 }
 
-// MCPStatus surfaces the localhost MCP endpoint and the one-line command to add
-// it to an agent. Shown only while the MCP feature preview is on.
+// McpClient is one way to connect an agent to the local MCP server. Each client
+// turns the live endpoint + token into a copy-pasteable snippet. Add new clients
+// here and they show up as another tab in the popup.
+interface McpClient {
+  label: string;
+  hint: string;
+  // snippet renders the connection instructions for the running server.
+  snippet: (info: main.MCPInfo) => string;
+}
+
+const mcpClients: McpClient[] = [
+  {
+    label: "Claude Code",
+    hint: "Run this command to add the server to the CLI:",
+    snippet: (info) => `claude mcp add --transport http kaja ${info.url} --header "Authorization: Bearer ${info.token}"`,
+  },
+  {
+    // The connector UI connects from Anthropic's servers, which can't reach
+    // localhost, so Desktop goes through the mcp-remote stdio bridge instead.
+    // The header is passed via an env var because Claude Desktop splits args on
+    // spaces, which would otherwise mangle "Bearer <token>".
+    label: "Claude Desktop",
+    hint: "Add this to claude_desktop_config.json (bridges through mcp-remote):",
+    snippet: (info) =>
+      JSON.stringify(
+        {
+          mcpServers: {
+            kaja: {
+              command: "npx",
+              args: ["mcp-remote", info.url, "--header", "Authorization:${AUTH_HEADER}"],
+              env: { AUTH_HEADER: `Bearer ${info.token}` },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+  },
+];
+
+// MCPStatus surfaces the localhost MCP endpoint and, per client, the snippet to
+// connect it to an agent. Shown only while the MCP feature preview is on.
 function MCPStatus({ info }: { info: main.MCPInfo }) {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
-  const command = `claude mcp add --transport http kaja ${info.url} --header "Authorization: Bearer ${info.token}"`;
+  const client = mcpClients[selected];
+  const snippet = client.snippet(info);
+
+  const select = (index: number) => {
+    setSelected(index);
+    setCopied(false);
+  };
 
   const copy = () => {
-    navigator.clipboard?.writeText(command).then(
+    navigator.clipboard?.writeText(snippet).then(
       () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -43,9 +90,16 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
       onClose={() => setOpen(false)}
       renderAnchor={(anchorProps) => <IconButtonXSmall icon={PlugIcon} aria-label="MCP server" {...anchorProps} />}
     >
-      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, maxWidth: 360 }}>
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fgColor-default)" }}>MCP server</span>
-        <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>Add this server to an agent to let it edit and run your scripts:</span>
+        <SegmentedControl aria-label="MCP client" size="small">
+          {mcpClients.map((c, index) => (
+            <SegmentedControl.Button key={c.label} selected={index === selected} onClick={() => select(index)}>
+              {c.label}
+            </SegmentedControl.Button>
+          ))}
+        </SegmentedControl>
+        <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>{client.hint}</span>
         <pre
           style={{
             fontSize: 11,
@@ -59,10 +113,10 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
             color: "var(--fgColor-default)",
           }}
         >
-          {command}
+          {snippet}
         </pre>
         <Button size="small" onClick={copy}>
-          {copied ? "Copied" : "Copy command"}
+          {copied ? "Copied" : "Copy"}
         </Button>
       </div>
     </AnchoredOverlay>
