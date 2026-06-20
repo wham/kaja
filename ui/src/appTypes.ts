@@ -10,6 +10,8 @@ export interface AppParameterDefinition {
   type: AppParameterType;
   placeholder?: string;
   caption?: string;
+  // Optional parameters may be left blank in the New App form.
+  optional?: boolean;
 }
 
 export interface AppTypeDefinition {
@@ -37,6 +39,29 @@ export const appTypes: AppTypeDefinition[] = [
         type: "url",
         placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
         caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp project.",
+      },
+      {
+        key: "token",
+        label: "API token or key",
+        type: "text",
+        optional: true,
+        placeholder: "Token or API key",
+        caption: "Sent per the spec's security scheme: as a Bearer token, or as the named API key header/query/cookie.",
+      },
+      {
+        key: "username",
+        label: "Username",
+        type: "text",
+        optional: true,
+        placeholder: "For HTTP Basic auth",
+        caption: "Only for APIs that use HTTP Basic authentication.",
+      },
+      {
+        key: "password",
+        label: "Password",
+        type: "text",
+        optional: true,
+        placeholder: "For HTTP Basic auth",
       },
     ],
     demo: {

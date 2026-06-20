@@ -41,6 +41,7 @@ export function NewAppDialog({ existingNames, onClose, onCreate }: NewAppDialogP
     for (const parameter of selected.parameters) {
       const value = (parameters[parameter.key] ?? "").trim();
       if (!value) {
+        if (parameter.optional) continue;
         setError(`${parameter.label} is required`);
         return;
       }

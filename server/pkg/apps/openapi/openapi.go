@@ -65,10 +65,20 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Upstream base URL: " + baseURL)
 
+	authentication := resolveAuth(s,
+		strings.TrimSpace(parameters["token"]),
+		strings.TrimSpace(parameters["username"]),
+		strings.TrimSpace(parameters["password"]),
+	)
+	if summary := authentication.describe(); summary != "" {
+		log("Authentication: " + summary)
+	}
+
 	return &instance{
 		baseURL: baseURL,
 		methods: methods,
 		client:  &http.Client{Timeout: 30 * time.Second},
+		auth:    authentication,
 	}, nil
 }
 

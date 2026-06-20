@@ -30,6 +30,7 @@ type instance struct {
 	baseURL string
 	methods map[string]*boundMethod
 	client  *http.Client
+	auth    *auth
 }
 
 func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
@@ -88,6 +89,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 			}
 		}
 	}
+	in.auth.applyQuery(query)
 
 	fullURL := in.baseURL + path
 	if len(query) > 0 {
@@ -107,6 +109,8 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
+	// Apply the spec's auth first so an explicit per-request header can still override it.
+	in.auth.applyRequest(httpReq)
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}

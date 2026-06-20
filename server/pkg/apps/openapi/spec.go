@@ -18,6 +18,9 @@ type spec struct {
 	Servers    []server             `json:"servers"`
 	Paths      map[string]*pathItem `json:"paths"`
 	Components components           `json:"components"`
+	// Security lists the authentication requirements applied to every operation
+	// unless an operation overrides them. Each entry is one alternative.
+	Security []map[string][]string `json:"security"`
 }
 
 type info struct {
@@ -88,7 +91,18 @@ type mediaType struct {
 }
 
 type components struct {
-	Schemas map[string]*schema `json:"schemas"`
+	Schemas         map[string]*schema         `json:"schemas"`
+	SecuritySchemes map[string]*securityScheme `json:"securitySchemes"`
+}
+
+// securityScheme models the OpenAPI 3.x security scheme types kaja understands:
+// http (bearer/basic), apiKey (header/query/cookie), and oauth2/openIdConnect
+// (treated as bearer tokens).
+type securityScheme struct {
+	Type   string `json:"type"`   // http | apiKey | oauth2 | openIdConnect
+	Scheme string `json:"scheme"` // bearer | basic (for type http)
+	In     string `json:"in"`     // header | query | cookie (for type apiKey)
+	Name   string `json:"name"`   // parameter name (for type apiKey)
 }
 
 type schema struct {
