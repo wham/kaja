@@ -105,6 +105,7 @@ type App struct {
 	mcpServer  *http.Server
 	mcpURL     string
 	mcpToken   string
+	mcpError   string
 	mcpCatalog mcp.Catalog
 	mcpPending map[string]chan mcp.RunResult
 }

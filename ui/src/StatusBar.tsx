@@ -123,6 +123,13 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
   );
 }
 
+// MCPError surfaces a server that couldn't start (e.g. the fixed port is already
+// in use). It reuses the plug icon so the footer keeps the same shape, tinted red
+// to signal the failure, instead of silently dropping the connection command.
+function MCPError({ message }: { message: string }) {
+  return <IconButtonXSmall icon={PlugIcon} aria-label={message} style={{ color: "var(--fgColor-danger)" }} />;
+}
+
 export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview, mcpInfo }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
@@ -174,6 +181,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}
+        {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />
         <IconButtonXSmall
           icon={colorMode === "night" ? SunIcon : MoonIcon}
