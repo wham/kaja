@@ -25,11 +25,20 @@ import (
 // token. Editing is plain file I/O; running a script has to round-trip into the
 // webview, which is the only place the script runtime and service clients live.
 
-// MCPInfo is reported to the UI so it can show the connection command.
+// mcpPort is the fixed loopback port the MCP server binds to. It is fixed rather
+// than OS-assigned so the connection command shown to the user stays valid across
+// restarts. It sits next to kaja's web port (41520) in the registered range, so
+// the OS won't hand it out as an ephemeral port.
+const mcpPort = 41521
+
+// MCPInfo is reported to the UI so it can show the connection command. Error is
+// set when the server couldn't start (e.g. the fixed port was already in use) so
+// the footer can explain it instead of silently hiding the connection command.
 type MCPInfo struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
 	Token   string `json:"token"`
+	Error   string `json:"error"`
 }
 
 // MCPSetEnabled starts or stops the MCP server. The UI calls this when the
@@ -47,7 +56,7 @@ func (a *App) MCPSetEnabled(enabled bool) MCPInfo {
 func (a *App) MCPServerInfo() MCPInfo {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
-	return MCPInfo{Enabled: a.mcpServer != nil, URL: a.mcpURL, Token: a.mcpToken}
+	return MCPInfo{Enabled: a.mcpServer != nil, URL: a.mcpURL, Token: a.mcpToken, Error: a.mcpError}
 }
 
 // MCPSetCatalog receives the live services/methods picture from the UI after
@@ -86,12 +95,18 @@ func (a *App) startMCPServer() {
 	if a.mcpServer != nil {
 		return
 	}
+	a.mcpError = ""
 	if a.mcpToken == "" {
-		a.mcpToken = randomToken(24)
+		a.mcpToken = a.loadOrCreateMCPToken()
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	addr := fmt.Sprintf("127.0.0.1:%d", mcpPort)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		slog.Error("Failed to start MCP server", "error", err)
+		// The fixed port is taken. Don't fall back to a random port — that would
+		// silently break the static connection command the user has configured.
+		// Surface it so they can free the port and toggle the preview again.
+		a.mcpError = fmt.Sprintf("Port %d is in use. Free it, then toggle the MCP preview off and on.", mcpPort)
+		slog.Error("Failed to start MCP server", "addr", addr, "error", err)
 		return
 	}
 	mux := http.NewServeMux()
@@ -112,6 +127,7 @@ func (a *App) stopMCPServer() {
 	srv := a.mcpServer
 	a.mcpServer = nil
 	a.mcpURL = ""
+	a.mcpError = ""
 	a.mcpMu.Unlock()
 	if srv == nil {
 		return
@@ -151,6 +167,24 @@ func (a *App) catalog() mcp.Catalog {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
 	return a.mcpCatalog
+}
+
+// loadOrCreateMCPToken returns the bearer token persisted next to kaja.json,
+// generating and saving a new one the first time (or if the stored file is
+// missing, empty, or unreadable). Persisting it keeps the connection command
+// stable across restarts. Must be called with mcpMu held.
+func (a *App) loadOrCreateMCPToken() string {
+	path := filepath.Join(a.workspaceDir, "mcp-token")
+	if data, err := os.ReadFile(path); err == nil {
+		if token := strings.TrimSpace(string(data)); token != "" {
+			return token
+		}
+	}
+	token := randomToken(24)
+	if err := os.WriteFile(path, []byte(token), 0600); err != nil {
+		slog.Warn("Failed to persist MCP token", "error", err)
+	}
+	return token
 }
 
 func randomToken(n int) string {
