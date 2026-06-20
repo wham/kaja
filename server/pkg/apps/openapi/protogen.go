@@ -18,13 +18,13 @@ type methodBinding struct {
 	responseWrap string   // object | array | scalar | empty
 }
 
-// generated is the output of converting a spec: the proto file text, the service
-// type name (package-qualified), and the per-method HTTP bindings keyed by the
-// Twirp method path "<serviceTypeName>/<MethodName>".
+// generated is the output of converting a spec: the proto file text, the
+// package-qualified type names of every generated service, and the per-method
+// HTTP bindings keyed by the gRPC method path "<serviceTypeName>/<MethodName>".
 type generated struct {
-	proto           string
-	serviceTypeName string
-	bindings        map[string]*methodBinding
+	proto            string
+	serviceTypeNames []string
+	bindings         map[string]*methodBinding
 }
 
 type fieldDef struct {
@@ -47,16 +47,28 @@ type rpcDef struct {
 	summary string
 }
 
+// serviceDef is a single generated proto service. Operations are grouped into
+// services by their first OpenAPI tag (untagged operations fall into a default
+// service named after the spec title), so the catalog mirrors how the upstream
+// API documents its resources instead of one crowded flat service.
+type serviceDef struct {
+	name string
+	rpcs []*rpcDef
+}
+
 type generator struct {
-	spec        *spec
-	pkg         string
-	serviceName string
+	spec               *spec
+	pkg                string
+	defaultServiceName string
 
 	messages []*messageDef
 	seenMsg  map[string]bool
-	rpcs     []*rpcDef
-	seenRPC  map[string]bool
-	bindings map[string]*methodBinding
+
+	services     []*serviceDef
+	serviceIndex map[string]*serviceDef
+	seenRPC      map[string]bool
+
+	bindingByMethod map[string]*methodBinding
 }
 
 // generateProto converts an OpenAPI spec into a single proto file plus bindings.
@@ -66,12 +78,13 @@ func generateProto(s *spec) (*generated, error) {
 		title = "Api"
 	}
 	g := &generator{
-		spec:        s,
-		pkg:         "openapi." + lowerSnake(title),
-		serviceName: ensureName(pascal(title), "Api"),
-		seenMsg:     map[string]bool{},
-		seenRPC:     map[string]bool{},
-		bindings:    map[string]*methodBinding{},
+		spec:               s,
+		pkg:                "openapi." + lowerSnake(title),
+		defaultServiceName: ensureName(pascal(title), "Api"),
+		seenMsg:            map[string]bool{},
+		seenRPC:            map[string]bool{},
+		serviceIndex:       map[string]*serviceDef{},
+		bindingByMethod:    map[string]*methodBinding{},
 	}
 
 	paths := make([]string, 0, len(s.Paths))
@@ -87,22 +100,65 @@ func generateProto(s *spec) (*generated, error) {
 		}
 	}
 
-	if len(g.rpcs) == 0 {
+	if len(g.services) == 0 {
 		return nil, fmt.Errorf("spec has no operations to expose")
 	}
 
-	serviceTypeName := g.pkg + "." + g.serviceName
-	// Re-key bindings by full Twirp method path now that the service name is known.
+	g.resolveServiceNameCollisions()
+
+	// Key bindings by full gRPC method path now that service names are settled.
 	bindings := map[string]*methodBinding{}
-	for methodName, b := range g.bindings {
-		bindings[serviceTypeName+"/"+methodName] = b
+	serviceTypeNames := make([]string, 0, len(g.services))
+	for _, svc := range g.services {
+		serviceTypeName := g.pkg + "." + svc.name
+		serviceTypeNames = append(serviceTypeNames, serviceTypeName)
+		for _, r := range svc.rpcs {
+			bindings[serviceTypeName+"/"+r.name] = g.bindingByMethod[r.name]
+		}
 	}
 
 	return &generated{
-		proto:           g.render(),
-		serviceTypeName: serviceTypeName,
-		bindings:        bindings,
+		proto:            g.render(),
+		serviceTypeNames: serviceTypeNames,
+		bindings:         bindings,
 	}, nil
+}
+
+// serviceFor returns the service an operation belongs to, creating it on first
+// use. Grouping is by the operation's first tag; untagged operations land in the
+// default (title-named) service.
+func (g *generator) serviceFor(op *operation) *serviceDef {
+	name := g.defaultServiceName
+	if len(op.Tags) > 0 {
+		if n := pascal(op.Tags[0]); n != "" {
+			name = n
+		}
+	}
+	if svc, ok := g.serviceIndex[name]; ok {
+		return svc
+	}
+	svc := &serviceDef{name: name}
+	g.serviceIndex[name] = svc
+	g.services = append(g.services, svc)
+	return svc
+}
+
+// resolveServiceNameCollisions renames any service whose name clashes with a
+// generated message, since proto services and messages share one namespace.
+func (g *generator) resolveServiceNameCollisions() {
+	for _, svc := range g.services {
+		if !g.seenMsg[svc.name] {
+			continue
+		}
+		base := svc.name + "Service"
+		candidate := base
+		for i := 2; g.seenMsg[candidate] || g.serviceIndex[candidate] != nil; i++ {
+			candidate = fmt.Sprintf("%s%d", base, i)
+		}
+		delete(g.serviceIndex, svc.name)
+		g.serviceIndex[candidate] = svc
+		svc.name = candidate
+	}
 }
 
 func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
@@ -142,8 +198,9 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	output, wrap := g.responseType(methodName, op)
 	binding.responseWrap = wrap
 
-	g.rpcs = append(g.rpcs, &rpcDef{name: methodName, input: reqName, output: output, summary: op.Summary})
-	g.bindings[methodName] = binding
+	svc := g.serviceFor(op)
+	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: reqName, output: output, summary: op.Summary})
+	g.bindingByMethod[methodName] = binding
 }
 
 // responseType resolves a method's output message name and how the HTTP response
@@ -315,14 +372,19 @@ func (g *generator) render() string {
 		b.WriteString("}\n\n")
 	}
 
-	fmt.Fprintf(&b, "service %s {\n", g.serviceName)
-	for _, r := range g.rpcs {
-		if r.summary != "" {
-			fmt.Fprintf(&b, "  // %s\n", strings.ReplaceAll(r.summary, "\n", " "))
+	for i, svc := range g.services {
+		if i > 0 {
+			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "  rpc %s(%s) returns (%s);\n", r.name, r.input, r.output)
+		fmt.Fprintf(&b, "service %s {\n", svc.name)
+		for _, r := range svc.rpcs {
+			if r.summary != "" {
+				fmt.Fprintf(&b, "  // %s\n", strings.ReplaceAll(r.summary, "\n", " "))
+			}
+			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s);\n", r.name, r.input, r.output)
+		}
+		b.WriteString("}\n")
 	}
-	b.WriteString("}\n")
 	return b.String()
 }
 

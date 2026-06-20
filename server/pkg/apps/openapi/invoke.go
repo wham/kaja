@@ -155,6 +155,15 @@ func lastSegment(s string) string {
 	return s
 }
 
+// serviceOfMethodPath returns the service-type portion of a "<service>/<Method>"
+// gRPC method path.
+func serviceOfMethodPath(s string) string {
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
 // jsonScalar renders a JSON value as a plain string for use in a path or query.
 func jsonScalar(raw json.RawMessage) string {
 	if len(raw) == 0 {
