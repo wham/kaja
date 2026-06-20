@@ -5,28 +5,10 @@ source "$(dirname "$0")/common"
 
 # Parse arguments
 BUILD_MODE=""
-VERSION_BUMP=""
-NO_BUMP=""
 for arg in "$@"; do
     case $arg in
         --build=store)
             BUILD_MODE="store"
-            shift
-            ;;
-        --no-bump)
-            NO_BUMP="1"
-            shift
-            ;;
-        --version=patch)
-            VERSION_BUMP="patch"
-            shift
-            ;;
-        --version=minor)
-            VERSION_BUMP="minor"
-            shift
-            ;;
-        --version=major)
-            VERSION_BUMP="major"
             shift
             ;;
     esac
@@ -81,57 +63,12 @@ export PATH=$GOBIN:$PATH
 cd ./desktop
 
 if [ "$BUILD_MODE" = "store" ]; then
-    if [ -n "$NO_BUMP" ]; then
-        # Reuse the current release tag without bumping, committing, or pushing
-        GIT_TAG=$(git tag --list '[0-9]*' --sort=-v:refname | head -1)
-        echo "Reusing current version: ${GIT_TAG:-none} (no bump)"
-    else
-        # Bump the version, update wails.json, and create a git tag
-        if [ -z "$VERSION_BUMP" ]; then
-            VERSION_BUMP="minor"
-        fi
-
-        # Get the latest version tag (format: major.minor.patch)
-        LATEST_TAG=$(git tag --list '[0-9]*' --sort=-v:refname | head -1)
-        if [ -n "$LATEST_TAG" ]; then
-            CURRENT_MAJOR="${LATEST_TAG%%.*}"
-            REMAINDER="${LATEST_TAG#*.}"
-            CURRENT_MINOR="${REMAINDER%%.*}"
-            CURRENT_PATCH="${REMAINDER#*.}"
-            CURRENT_PATCH="${CURRENT_PATCH%%.*}"
-        else
-            CURRENT_MAJOR=0
-            CURRENT_MINOR=0
-            CURRENT_PATCH=0
-        fi
-
-        if [ "$VERSION_BUMP" = "major" ]; then
-            NEW_MAJOR=$((CURRENT_MAJOR + 1))
-            NEW_MINOR=0
-            NEW_PATCH=0
-        elif [ "$VERSION_BUMP" = "minor" ]; then
-            NEW_MAJOR=$CURRENT_MAJOR
-            NEW_MINOR=$((CURRENT_MINOR + 1))
-            NEW_PATCH=0
-        else
-            NEW_MAJOR=$CURRENT_MAJOR
-            NEW_MINOR=$CURRENT_MINOR
-            NEW_PATCH=$((CURRENT_PATCH + 1))
-        fi
-
-        GIT_TAG="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
-        echo "Bumping version: ${LATEST_TAG:-none} -> $GIT_TAG"
-
-        # Update productVersion in wails.json
-        jq --arg version "$GIT_TAG" '.info.productVersion = $version' wails.json > wails.json.tmp && mv wails.json.tmp wails.json
-        echo "Set productVersion to $GIT_TAG"
-
-        # Commit version update, create tag, and push
-        git add wails.json
-        git diff --cached --quiet || git commit -m "Updated productVersion to $GIT_TAG"
-        git tag -f "$GIT_TAG"
-        git push origin HEAD "$GIT_TAG" --force
-    fi
+    # Releases are cut from CI — see scripts/release and .github/workflows/release.yml.
+    # This local store build is for debugging the signed .pkg only: it never bumps
+    # the version, tags, commits, or pushes. It builds whatever version is currently
+    # in wails.json.
+    GIT_TAG=$(jq -r '.info.productVersion' wails.json)
+    echo "Building store package for version $GIT_TAG (local debug; no version bump)"
 
     echo "Building desktop app (store)..."
     export MACOSX_DEPLOYMENT_TARGET=12.0

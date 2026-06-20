@@ -1,0 +1,88 @@
+#!/bin/bash
+# Manage Kaja release versions entirely from CI — no local run required.
+# Driven by .github/workflows/release.yml (manual "Run workflow" button).
+#
+# Lifecycle of a version:
+#   1. open  — bump productVersion, commit, tag, draft a GitHub Release. The
+#              commit lands on main, which triggers the testflight workflow, so a
+#              build carrying the new version shows up in TestFlight automatically.
+#   2. ...    — keep merging to main; each push yields a new TestFlight build of
+#              this version (build number = workflow run number).
+#   3. ship  — when you promote that TestFlight build to the App Store, publish
+#              the draft Release so the GitHub Releases page mirrors what is live.
+#
+# Usage:
+#   scripts/release open <patch|minor|major>
+#   scripts/release ship
+#
+# Requires the GitHub CLI (gh) with GH_TOKEN set (both provided on CI runners).
+# The version source of truth is desktop/wails.json's info.productVersion.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WAILS_JSON="$REPO_ROOT/desktop/wails.json"
+
+current_version() {
+    jq -r '.info.productVersion' "$WAILS_JSON"
+}
+
+next_version() {
+    local bump="$1"
+    local current major minor patch rest
+    current="$(current_version)"
+    major="${current%%.*}"
+    rest="${current#*.}"
+    minor="${rest%%.*}"
+    patch="${rest#*.}"
+    patch="${patch%%.*}"
+
+    case "$bump" in
+        major) major=$((major + 1)); minor=0; patch=0 ;;
+        minor) minor=$((minor + 1)); patch=0 ;;
+        patch) patch=$((patch + 1)) ;;
+        *) echo "error: unknown bump '$bump' (want patch|minor|major)" >&2; exit 1 ;;
+    esac
+    echo "${major}.${minor}.${patch}"
+}
+
+cmd_open() {
+    local bump="${1:-minor}"
+    local version
+    version="$(next_version "$bump")"
+    echo "Opening version $version (bump: $bump, from $(current_version))"
+
+    jq --arg v "$version" '.info.productVersion = $v' "$WAILS_JSON" > "$WAILS_JSON.tmp"
+    mv "$WAILS_JSON.tmp" "$WAILS_JSON"
+
+    git add "$WAILS_JSON"
+    git commit -m "Opened version $version"
+    git tag -f "$version"
+    git push origin HEAD
+    git push origin "$version" --force
+
+    gh release create "$version" \
+        --draft \
+        --title "$version" \
+        --generate-notes
+
+    echo "Drafted GitHub Release $version."
+    echo "New pushes to main now produce TestFlight builds of $version."
+}
+
+cmd_ship() {
+    local version
+    version="$(current_version)"
+    echo "Shipping version $version"
+    gh release edit "$version" --draft=false --latest
+    echo "Published GitHub Release $version."
+}
+
+case "${1:-}" in
+    open) shift; cmd_open "$@" ;;
+    ship) shift; cmd_ship "$@" ;;
+    *)
+        echo "usage: scripts/release <open <patch|minor|major>|ship>" >&2
+        exit 1
+        ;;
+esac
