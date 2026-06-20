@@ -633,6 +633,8 @@ func main() {
 		return
 	}
 
+	setupLogging(kajaDir)
+
 	configurationPath := filepath.Join(kajaDir, "kaja.json")
 
 	// Ensure the global scripts directory exists so it's discoverable.
