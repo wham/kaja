@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -332,13 +331,6 @@ func (c *ReflectionClient) getFileDescriptorByName(
 	}
 
 	return nil
-}
-
-// DiscoverWithTimeout calls Discover with a default timeout.
-func (c *ReflectionClient) DiscoverWithTimeout(timeout time.Duration) (*ReflectionResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return c.Discover(ctx)
 }
 
 // WriteProtoFiles writes the discovered file descriptors as .proto files to a directory.

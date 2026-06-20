@@ -91,15 +91,6 @@ export function remapEditorCode(editorCode: string, oldName: string, newName: st
   return editorCode.replace(importRegex, `from "${newName}/`);
 }
 
-export function findInterface(sources: Sources, interfaceName: string): [ts.InterfaceDeclaration, Source] | undefined {
-  for (const source of sources) {
-    const interfaceDeclaration = source.interfaces[interfaceName];
-    if (interfaceDeclaration) {
-      return [interfaceDeclaration, source];
-    }
-  }
-}
-
 export function findEnum(sources: Sources, object: any): [string, Source] | undefined {
   for (const source of sources) {
     for (const enumName in source.enums) {

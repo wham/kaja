@@ -126,7 +126,7 @@ export async function loadApp(
   };
 }
 
-export function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients {
+function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients {
   const clients: Clients = {};
 
   for (const service of services) {

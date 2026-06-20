@@ -4149,17 +4149,6 @@ func (g *generator) toCamelCase(name string) string {
 	return result
 }
 
-// jsonName returns the jsonName for use in reflection metadata
-// This uses protoc's JsonName which follows JSON naming conventions
-func (g *generator) jsonName(field *descriptorpb.FieldDescriptorProto) string {
-	if field.JsonName != nil {
-		// Use the proto-provided JsonName as-is
-		return *field.JsonName
-	}
-	// Fallback: convert snake_case to camelCase (should not happen with protoc)
-	return g.propertyName(field)
-}
-
 // protocGeneratedJsonName returns what protoc would auto-generate as the jsonName
 // This follows protoc's rules: remove underscores, capitalize letter after underscore
 func (g *generator) protocGeneratedJsonName(fieldName string) string {
@@ -4517,11 +4506,6 @@ func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorPro
 	default:
 		return "any"
 	}
-}
-
-func isJsTypeNormal(field *descriptorpb.FieldDescriptorProto) bool {
-	return field.Options != nil && field.GetOptions().Jstype != nil &&
-		field.GetOptions().GetJstype() == descriptorpb.FieldOptions_JS_NORMAL
 }
 
 func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {
@@ -7673,13 +7657,6 @@ func (g *generator) findMethodIndex(service *descriptorpb.ServiceDescriptorProto
 		}
 	}
 	return 0
-}
-
-func (g *generator) lowerFirst(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
 
 func (g *generator) isPackedType(field *descriptorpb.FieldDescriptorProto) bool {
