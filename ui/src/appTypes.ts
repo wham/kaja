@@ -219,7 +219,7 @@ export function appHeaders(app: ConfigurationApp): Record<string, string> {
 
 // typeForwardsHeaders reports whether an app type sends request headers upstream;
 // only the local Markdown app does not.
-export function typeForwardsHeaders(type: string): boolean {
+function typeForwardsHeaders(type: string): boolean {
   return type !== "markdown";
 }
 
