@@ -116,6 +116,8 @@ interface SidebarProps {
   onCompilerClick: () => void;
   onNewProjectClick: () => void;
   onNewAppClick: () => void;
+  // One-shot signal to auto-expand a just-added project/app (and its first service).
+  autoExpandProject?: { name: string };
   // Experimental "Apps" feature preview; gates the New App entry in the "+" menu.
   appsPreviewEnabled?: boolean;
   // macOS desktop: inset the header row to clear the window traffic lights and make
@@ -141,6 +143,7 @@ export function Sidebar({
   onCompilerClick,
   onNewProjectClick,
   onNewAppClick,
+  autoExpandProject,
   appsPreviewEnabled = false,
   reserveTrafficLights = false,
   onEditProject,
@@ -270,6 +273,48 @@ export function Sidebar({
       if (pruned.size !== prev.size) return pruned;
       return prev;
     });
+  }, [projects]);
+
+  // Auto-expand a just-added project/app. The project is expanded immediately;
+  // its first service (and first package, when several exist) is expanded once
+  // compilation finishes and services become available.
+  const pendingFirstServiceExpand = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!autoExpandProject) return;
+    const { name } = autoExpandProject;
+    setExpandedProjects((prev) => {
+      if (prev.has(name)) return prev;
+      const next = new Set(prev);
+      next.add(name);
+      return next;
+    });
+    pendingFirstServiceExpand.current.add(name);
+    pendingScrollRef.current = name;
+  }, [autoExpandProject]);
+
+  useEffect(() => {
+    if (pendingFirstServiceExpand.current.size === 0) return;
+    const idsToExpand: string[] = [];
+    const ready: string[] = [];
+    for (const name of pendingFirstServiceExpand.current) {
+      const project = projects.find((p) => p.configuration.name === name);
+      if (project && project.services.length > 0) {
+        if (hasMultiplePackages(project.services)) {
+          idsToExpand.push(getPackageElementId(name, project.services[0].packageName));
+        }
+        idsToExpand.push(getServiceElementId(name, project.services[0]));
+        ready.push(name);
+      }
+    }
+    if (idsToExpand.length > 0) {
+      setExpandedServices((prev) => {
+        const next = new Set(prev);
+        idsToExpand.forEach((id) => next.add(id));
+        return next;
+      });
+      ready.forEach((n) => pendingFirstServiceExpand.current.delete(n));
+    }
   }, [projects]);
 
   // Scroll expanded element into view after DOM updates

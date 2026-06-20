@@ -178,6 +178,8 @@ export function App() {
   } | null>(null);
   // Whether the New App dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
+  // One-shot signal to auto-expand a just-added project/app in the sidebar.
+  const [autoExpandProject, setAutoExpandProject] = useState<{ name: string }>();
   // Rename dialog and delete confirmation for scripts (right-click menu).
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
@@ -1103,6 +1105,7 @@ export function App() {
     }
     setNewAppOpen(false);
     onCompilerClick();
+    setAutoExpandProject({ name: app.name });
   };
 
   const onEditProject = (projectName: string) => {
@@ -1161,6 +1164,10 @@ export function App() {
     // Show compiler tab for new projects or when recompilation is needed
     if (isNewProject || needsRecompilation) {
       onCompilerClick();
+    }
+
+    if (isNewProject) {
+      setAutoExpandProject({ name: project.name });
     }
   };
 
@@ -1254,6 +1261,7 @@ export function App() {
                   onCompilerClick={onCompilerClick}
                   onNewProjectClick={onNewProjectClick}
                   onNewAppClick={onNewAppClick}
+                  autoExpandProject={autoExpandProject}
                   appsPreviewEnabled={previewApps}
                   reserveTrafficLights={isDesktopMac}
                   onEditProject={onEditProject}
