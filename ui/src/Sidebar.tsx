@@ -118,6 +118,9 @@ interface SidebarProps {
   onNewAppClick: () => void;
   // Experimental "Apps" feature preview; gates the New App entry in the "+" menu.
   appsPreviewEnabled?: boolean;
+  // macOS desktop: inset the header row to clear the window traffic lights and make
+  // the empty parts draggable, so the controls share the title bar band (saves a row).
+  reserveTrafficLights?: boolean;
   onEditProject: (projectName: string) => void;
   onDeleteProject: (projectName: string) => void;
 }
@@ -139,6 +142,7 @@ export function Sidebar({
   onNewProjectClick,
   onNewAppClick,
   appsPreviewEnabled = false,
+  reserveTrafficLights = false,
   onEditProject,
   onDeleteProject,
 }: SidebarProps) {
@@ -377,37 +381,55 @@ export function Sidebar({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }}>
-        <ActionMenu>
-          <ActionMenu.Anchor>
-            <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New" />
-          </ActionMenu.Anchor>
-          <ActionMenu.Overlay width="small">
-            <ActionList>
-              <ActionList.Item onSelect={onNewProjectClick}>
-                <ActionList.LeadingVisual>
-                  <PackageIcon />
-                </ActionList.LeadingVisual>
-                New Project
-              </ActionList.Item>
-              {appsPreviewEnabled && (
-                <ActionList.Item onSelect={onNewAppClick}>
+      <div
+        style={
+          reserveTrafficLights
+            ? ({
+                display: "flex",
+                alignItems: "center",
+                flexShrink: 0,
+                height: 28,
+                paddingLeft: 78,
+                paddingRight: 8,
+                "--wails-draggable": "drag",
+              } as React.CSSProperties)
+            : { display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }
+        }
+      >
+        <div style={reserveTrafficLights ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties) : { display: "flex", alignItems: "center" }}>
+          <ActionMenu>
+            <ActionMenu.Anchor>
+              <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New" />
+            </ActionMenu.Anchor>
+            <ActionMenu.Overlay width="small">
+              <ActionList>
+                <ActionList.Item onSelect={onNewProjectClick}>
                   <ActionList.LeadingVisual>
-                    <GlobeIcon />
+                    <PackageIcon />
                   </ActionList.LeadingVisual>
-                  New App
-                  <ActionList.TrailingVisual>
-                    <PreviewPill />
-                  </ActionList.TrailingVisual>
+                  New Project
                 </ActionList.Item>
-              )}
-            </ActionList>
-          </ActionMenu.Overlay>
-        </ActionMenu>
-        <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
+                {appsPreviewEnabled && (
+                  <ActionList.Item onSelect={onNewAppClick}>
+                    <ActionList.LeadingVisual>
+                      <GlobeIcon />
+                    </ActionList.LeadingVisual>
+                    New App
+                    <ActionList.TrailingVisual>
+                      <PreviewPill />
+                    </ActionList.TrailingVisual>
+                  </ActionList.Item>
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+          <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
+        </div>
         <div style={{ flex: 1 }} />
-        <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
-        <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
+        <div style={reserveTrafficLights ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties) : { display: "flex", alignItems: "center" }}>
+          <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
+          <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
+        </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {scripts && scripts.length > 0 && (
