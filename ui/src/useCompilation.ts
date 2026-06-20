@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { appConfiguration, createProjectRef, Project, updateProjectRef } from "./project";
-import { loadProject } from "./projectLoader";
-import { CompileStatus as ApiCompileStatus, Configuration, ReflectStatus } from "./server/api";
+import { createAppRef, App, Transport, transportFromProtocol, updateAppRef } from "./apps";
+import { loadApp } from "./appLoader";
+import { CompileStatus as ApiCompileStatus, Configuration, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 const POLL_INTERVAL_MS = 1000;
@@ -12,154 +12,105 @@ function formatDuration(milliseconds: number): string {
 }
 
 export function useCompilation(
-  projects: Project[],
-  onUpdate: (projects: Project[] | ((prev: Project[]) => Project[])) => void,
+  apps: App[],
+  onUpdate: (apps: App[] | ((prev: App[]) => App[])) => void,
   onConfigurationLoaded: (configuration: Configuration) => void,
-  appsPreviewEnabled: boolean,
 ): { configurationLoaded: boolean } {
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
-  const projectsRef = useRef(projects);
+  const appsRef = useRef(apps);
 
-  projectsRef.current = projects;
+  appsRef.current = apps;
 
-  const compile = async (projectName: string) => {
-    const currentProjects = projectsRef.current;
-    const projectIndex = currentProjects.findIndex((p) => p.configuration.name === projectName);
-    const project = currentProjects[projectIndex];
+  const compile = async (appName: string) => {
+    const currentApps = appsRef.current;
+    const appIndex = currentApps.findIndex((p) => p.configuration.name === appName);
+    const app = currentApps[appIndex];
 
-    if (!project || projectIndex === -1) return;
+    if (!app || appIndex === -1) return;
 
-    if (project.compilation.status === "running") {
+    if (app.compilation.status === "running") {
       return;
     }
 
-    if (abortControllers.current[projectName]) {
-      abortControllers.current[projectName].abort();
+    if (abortControllers.current[appName]) {
+      abortControllers.current[appName].abort();
     }
-    abortControllers.current[projectName] = new AbortController();
-    const signal = abortControllers.current[projectName].signal;
+    abortControllers.current[appName] = new AbortController();
+    const signal = abortControllers.current[appName].signal;
 
     try {
       const compilationId = crypto.randomUUID();
-      let protoDir = project.configuration.protoDir;
 
-      onUpdate((prevProjects) => {
-        const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-        if (index === -1) return prevProjects;
+      onUpdate((prevApps) => {
+        const index = prevApps.findIndex((p) => p.configuration.name === appName);
+        if (index === -1) return prevApps;
 
-        const updatedProjects = [...prevProjects];
-        updatedProjects[index] = {
-          ...prevProjects[index],
+        const updatedApps = [...prevApps];
+        updatedApps[index] = {
+          ...prevApps[index],
           compilation: {
-            ...prevProjects[index].compilation,
+            ...prevApps[index].compilation,
             id: compilationId,
             status: "running",
             startTime: Date.now(),
             logOffset: 0,
           },
         };
-        return updatedProjects;
+        return updatedApps;
       });
 
-      if (project.app) {
-        // Open the app: it generates proto files (returned as a temp protoDir,
-        // just like reflection) and an invocation target used as the project URL.
-        const { response: openResponse } = await client.openApp({
-          type: project.app.type,
-          parameters: project.app.parameters,
-        });
+      // Opening an app yields the proto surface to compile, the invocation
+      // target, and the transport the client uses to reach it.
+      const { response: openResponse } = await client.openApp({
+        app: app.configuration,
+      });
 
-        onUpdate((prevProjects) => {
-          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-          if (index === -1) return prevProjects;
+      const target = openResponse.target;
+      const protocol = transportFromProtocol(openResponse.protocol);
 
-          const updatedProjects = [...prevProjects];
-          const configuration = { ...prevProjects[index].configuration, url: openResponse.target };
-          updateProjectRef(prevProjects[index].projectRef, configuration);
-          updatedProjects[index] = {
-            ...prevProjects[index],
-            configuration,
-            compilation: {
-              ...prevProjects[index].compilation,
-              logs: openResponse.logs,
-            },
+      onUpdate((prevApps) => {
+        const index = prevApps.findIndex((p) => p.configuration.name === appName);
+        if (index === -1) return prevApps;
+
+        const updatedApps = [...prevApps];
+        updateAppRef(prevApps[index].appRef, prevApps[index].configuration, target, protocol);
+        updatedApps[index] = {
+          ...prevApps[index],
+          target,
+          protocol,
+          compilation: {
+            ...prevApps[index].compilation,
+            logs: openResponse.logs,
+          },
+        };
+        return updatedApps;
+      });
+
+      if (openResponse.status === OpenStatus.ERROR) {
+        const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
+        const duration = formatDuration(Date.now() - (finalApp?.compilation.startTime || 0));
+
+        onUpdate((prevApps) => {
+          const index = prevApps.findIndex((p) => p.configuration.name === appName);
+          if (index === -1) return prevApps;
+
+          const updatedApps = [...prevApps];
+          updatedApps[index] = {
+            ...prevApps[index],
+            compilation: { status: "error", logs: openResponse.logs, duration },
           };
-          return updatedProjects;
+          return updatedApps;
         });
 
-        if (openResponse.status === ReflectStatus.ERROR) {
-          const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
-          const duration = formatDuration(Date.now() - (finalProject?.compilation.startTime || 0));
-
-          onUpdate((prevProjects) => {
-            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-            if (index === -1) return prevProjects;
-
-            const updatedProjects = [...prevProjects];
-            updatedProjects[index] = {
-              ...prevProjects[index],
-              compilation: { status: "error", logs: openResponse.logs, duration },
-            };
-            return updatedProjects;
-          });
-
-          delete abortControllers.current[projectName];
-          return;
-        }
-
-        protoDir = openResponse.protoDir;
-      } else if (project.configuration.useReflection) {
-        const { response: reflectResponse } = await client.reflect({
-          url: project.configuration.url,
-        });
-
-        onUpdate((prevProjects) => {
-          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-          if (index === -1) return prevProjects;
-
-          const updatedProjects = [...prevProjects];
-          updatedProjects[index] = {
-            ...prevProjects[index],
-            compilation: {
-              ...prevProjects[index].compilation,
-              logs: reflectResponse.logs,
-            },
-          };
-          return updatedProjects;
-        });
-
-        if (reflectResponse.status === ReflectStatus.ERROR) {
-          const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
-          const duration = formatDuration(Date.now() - (finalProject?.compilation.startTime || 0));
-
-          onUpdate((prevProjects) => {
-            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-            if (index === -1) return prevProjects;
-
-            const updatedProjects = [...prevProjects];
-            updatedProjects[index] = {
-              ...prevProjects[index],
-              compilation: {
-                status: "error",
-                logs: reflectResponse.logs,
-                duration,
-              },
-            };
-            return updatedProjects;
-          });
-
-          delete abortControllers.current[projectName];
-          return;
-        }
-
-        protoDir = reflectResponse.protoDir;
+        delete abortControllers.current[appName];
+        return;
       }
 
       if (signal.aborted) return;
 
-      await pollCompilation(projectName, compilationId, protoDir, signal);
+      await pollCompilation(appName, compilationId, openResponse.protoDir, target, protocol, signal);
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("Compilation error:", error);
@@ -167,15 +118,15 @@ export function useCompilation(
     }
   };
 
-  const pollCompilation = async (projectName: string, compilationId: string, protoDir: string, signal: AbortSignal) => {
+  const pollCompilation = async (appName: string, compilationId: string, protoDir: string, target: string, protocol: Transport, signal: AbortSignal) => {
     while (!signal.aborted) {
-      const projectIndex = projectsRef.current.findIndex((p) => p.configuration.name === projectName);
-      const project = projectsRef.current[projectIndex];
-      if (!project || projectIndex === -1) return;
+      const appIndex = appsRef.current.findIndex((p) => p.configuration.name === appName);
+      const app = appsRef.current[appIndex];
+      if (!app || appIndex === -1) return;
 
       const { response } = await client.compile({
         id: compilationId,
-        logOffset: project.compilation.logOffset || 0,
+        logOffset: app.compilation.logOffset || 0,
         protoDir,
       });
 
@@ -185,90 +136,88 @@ export function useCompilation(
       const isReady = response.status === ApiCompileStatus.STATUS_READY;
 
       if (isRunning) {
-        onUpdate((prevProjects) => {
-          const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-          if (index === -1) return prevProjects;
+        onUpdate((prevApps) => {
+          const index = prevApps.findIndex((p) => p.configuration.name === appName);
+          if (index === -1) return prevApps;
 
-          const currentProject = prevProjects[index];
-          const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
-          const newLogOffset = (currentProject.compilation.logOffset || 0) + response.logs.length;
+          const currentApp = prevApps[index];
+          const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
+          const newLogOffset = (currentApp.compilation.logOffset || 0) + response.logs.length;
 
-          const updatedProjects = [...prevProjects];
-          updatedProjects[index] = {
-            ...currentProject,
+          const updatedApps = [...prevApps];
+          updatedApps[index] = {
+            ...currentApp,
             compilation: {
-              ...currentProject.compilation,
+              ...currentApp.compilation,
               status: "running",
               logs: newLogs,
               logOffset: newLogOffset,
             },
           };
-          return updatedProjects;
+          return updatedApps;
         });
 
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       } else {
-        const finalProject = projectsRef.current.find((p) => p.configuration.name === projectName);
-        if (!finalProject) return;
+        const finalApp = appsRef.current.find((p) => p.configuration.name === appName);
+        if (!finalApp) return;
 
-        const duration = formatDuration(Date.now() - (finalProject.compilation.startTime || 0));
+        const duration = formatDuration(Date.now() - (finalApp.compilation.startTime || 0));
 
         if (isReady) {
-          const loadedProject = await loadProject(response.sources, response.stub, finalProject.configuration);
+          const loadedApp = await loadApp(response.sources, response.stub, finalApp.configuration, target, protocol);
 
-          onUpdate((prevProjects) => {
-            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-            if (index === -1) return prevProjects;
+          onUpdate((prevApps) => {
+            const index = prevApps.findIndex((p) => p.configuration.name === appName);
+            if (index === -1) return prevApps;
 
-            const currentProject = prevProjects[index];
-            const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+            const currentApp = prevApps[index];
+            const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
 
-            const updatedProjects = [...prevProjects];
-            updatedProjects[index] = {
-              ...loadedProject,
+            const updatedApps = [...prevApps];
+            updatedApps[index] = {
+              ...loadedApp,
               compilation: {
                 status: "success",
                 logs: newLogs,
                 duration,
               },
             };
-            return updatedProjects;
+            return updatedApps;
           });
         } else {
-          onUpdate((prevProjects) => {
-            const index = prevProjects.findIndex((p) => p.configuration.name === projectName);
-            if (index === -1) return prevProjects;
+          onUpdate((prevApps) => {
+            const index = prevApps.findIndex((p) => p.configuration.name === appName);
+            if (index === -1) return prevApps;
 
-            const currentProject = prevProjects[index];
-            const newLogs = [...(currentProject.compilation.logs || []), ...response.logs];
+            const currentApp = prevApps[index];
+            const newLogs = [...(currentApp.compilation.logs || []), ...response.logs];
 
-            const updatedProjects = [...prevProjects];
-            updatedProjects[index] = {
-              ...currentProject,
+            const updatedApps = [...prevApps];
+            updatedApps[index] = {
+              ...currentApp,
               compilation: {
                 status: "error",
                 logs: newLogs,
                 duration,
               },
             };
-            return updatedProjects;
+            return updatedApps;
           });
         }
 
-        delete abortControllers.current[projectName];
+        delete abortControllers.current[appName];
         return;
       }
     }
   };
 
-  // Initialize projects on mount
+  // Initialize apps on mount
   useEffect(() => {
-    const initializeProjects = async () => {
-      if (projects.length === 0 && !configurationLoaded) {
+    const initializeApps = async () => {
+      if (apps.length === 0 && !configurationLoaded) {
         const { response } = await client.getConfiguration({});
-        const configProjects = response.configuration?.projects || [];
-        // Apps are gated behind their feature preview; skip loading them when it's off.
-        const configApps = appsPreviewEnabled ? response.configuration?.apps || [] : [];
+        const configApps = response.configuration?.apps || [];
 
         if (response.configuration) {
           onConfigurationLoaded(response.configuration);
@@ -276,50 +225,37 @@ export function useCompilation(
 
         setConfigurationLoaded(true);
 
-        if (configProjects.length === 0 && configApps.length === 0) return;
+        if (configApps.length === 0) return;
 
-        const initialProjects: Project[] = [
-          ...configProjects.map((configProject) => ({
-            configuration: configProject,
-            projectRef: createProjectRef(configProject),
-            compilation: { status: "pending" as const, logs: response.logs || [] },
-            services: [],
-            clients: {},
-            sources: [],
-            stub: { serviceInfos: {} },
-          })),
-          ...configApps.map((app) => {
-            const configuration = appConfiguration(app);
-            return {
-              configuration,
-              projectRef: createProjectRef(configuration),
-              compilation: { status: "pending" as const, logs: response.logs || [] },
-              services: [],
-              clients: {},
-              sources: [],
-              stub: { serviceInfos: {} },
-              app,
-            };
-          }),
-        ];
+        const initialApps: App[] = configApps.map((app) => ({
+          configuration: app,
+          appRef: createAppRef(app),
+          compilation: { status: "pending" as const, logs: response.logs || [] },
+          services: [],
+          clients: {},
+          sources: [],
+          stub: { serviceInfos: {} },
+          target: "",
+          protocol: Transport.GRPC,
+        }));
 
-        onUpdate(initialProjects);
+        onUpdate(initialApps);
       }
     };
 
-    initializeProjects();
+    initializeApps();
   }, []);
 
-  // Auto-compile pending projects
+  // Auto-compile pending apps
   useEffect(() => {
-    if (projects.length > 0) {
-      projects.forEach((project) => {
-        if (project.compilation.status === "pending") {
-          compile(project.configuration.name);
+    if (apps.length > 0) {
+      apps.forEach((app) => {
+        if (app.compilation.status === "pending") {
+          compile(app.configuration.name);
         }
       });
     }
-  }, [projects.map((p) => `${p.configuration.name}:${p.compilation.status}`).join(",")]);
+  }, [apps.map((p) => `${p.configuration.name}:${p.compilation.status}`).join(",")]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -1,32 +1,28 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import type { RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
+import { appHeaders } from "./appTypes";
 import { MethodCall } from "./kaja";
-import { Client, ProjectRef, Service, serviceId } from "./project";
-import { RpcProtocol } from "./server/api";
+import { Client, AppRef, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
 
-export function createClient(service: Service, stub: Stub, projectRef: ProjectRef): Client {
+export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
   const client: Client = { methods: {} };
 
-  if (projectRef.configuration.protocol === RpcProtocol.UNSPECIFIED) {
-    throw new Error(`Project has no protocol specified. Set protocol to RPC_PROTOCOL_GRPC or RPC_PROTOCOL_TWIRP.`);
-  }
-
-  const isTwirp = projectRef.configuration.protocol === RpcProtocol.TWIRP;
+  const isTwirp = appRef.protocol === Transport.TWIRP;
 
   let transport;
   if (isWailsEnvironment()) {
     console.log("Creating client in Wails environment - using WailsTransport in target mode");
     // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
-    // Pass projectRef so URL and headers are read dynamically at request time
+    // Pass appRef so URL and headers are read dynamically at request time
     transport = new WailsTransport({
       mode: "target",
-      projectRef,
-      protocol: projectRef.configuration.protocol,
+      appRef,
+      protocol: appRef.protocol,
     });
   } else {
     if (isTwirp) {
@@ -47,15 +43,15 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
     interceptors: [
       {
         // adds X-Target header and configured headers for web environment
-        // Reads from projectRef dynamically at request time
+        // Reads from appRef dynamically at request time
         interceptUnary(next, method, input, options: RpcOptions): UnaryCall {
           if (!options.meta) {
             options.meta = {};
           }
           if (!isWailsEnvironment()) {
-            options.meta["X-Target"] = projectRef.configuration.url;
+            options.meta["X-Target"] = appRef.target;
             // Pass configured headers with X-Header- prefix for the backend to forward
-            const headers = projectRef.configuration.headers || {};
+            const headers = appHeaders(appRef.configuration);
             for (const [key, value] of Object.entries(headers)) {
               options.meta["X-Header-" + key] = value;
             }
@@ -70,17 +66,17 @@ export function createClient(service: Service, stub: Stub, projectRef: ProjectRe
     const isServerStreaming = method.serverStreaming && !method.clientStreaming;
 
     client.methods[method.name] = async (input: any) => {
-      // Capture request headers from projectRef at request time
-      const requestHeaders: { [key: string]: string } = { ...(projectRef.configuration.headers || {}) };
+      // Capture request headers from appRef at request time
+      const requestHeaders: { [key: string]: string } = { ...appHeaders(appRef.configuration) };
 
       const methodCall: MethodCall = {
         id: crypto.randomUUID(),
-        projectName: projectRef.configuration.name,
+        appName: appRef.configuration.name,
         service,
         method,
         input,
         requestHeaders,
-        url: isTwirp ? `${projectRef.configuration.url.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
+        url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
         timestamp: Date.now(),
       };
       client.kaja?._internal.methodCallUpdate(methodCall);

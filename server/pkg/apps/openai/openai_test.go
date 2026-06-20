@@ -15,11 +15,11 @@ import (
 // openTestApp opens the app against a fake upstream and returns the live instance.
 func openTestApp(t *testing.T, endpoint, token string) *instance {
 	t.Helper()
-	inst, err := New().Open(map[string]string{"endpoint": endpoint, "token": token}, t.TempDir(), func(string) {})
+	opened, err := New().Open(map[string]string{"endpoint": endpoint, "token": token}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	return inst.(*instance)
+	return opened.Instance.(*instance)
 }
 
 // encodeRequest builds the protobuf ChatCompletion request bytes from a JSON object.
@@ -231,11 +231,11 @@ func TestChatCompletionTransportError(t *testing.T) {
 }
 
 func TestDefaultEndpoint(t *testing.T) {
-	inst, err := New().Open(map[string]string{"token": "x"}, t.TempDir(), func(string) {})
+	opened, err := New().Open(map[string]string{"token": "x"}, t.TempDir(), func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := inst.(*instance).endpoint; got != defaultEndpoint {
+	if got := opened.Instance.(*instance).endpoint; got != defaultEndpoint {
 		t.Errorf("endpoint = %q, want %q", got, defaultEndpoint)
 	}
 }

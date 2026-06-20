@@ -1,38 +1,43 @@
 {
-  "projects": [
+  "apps": [
     {
       "name": "grpc-quirks",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:kaja.tools:443",
-      "protoDir": "quirks/proto",
-      "headers": {
-        "X-Yolo": "kaja123",
-        "Authorization": "Bear brown"
+      "grpc": {
+        "url": "dns:kaja.tools:443",
+        "proto_dir": "quirks/proto",
+        "headers": {
+          "X-Yolo": "kaja123",
+          "Authorization": "Bear brown"
+        }
       }
     },
     {
       "name": "twirp-quirks",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "https://kaja.tools/twirp-quirks",
-      "protoDir": "quirks/proto",
-      "headers": {
-        "X-Yolo": "kaja123",
-        "Authorization": "Bear brown"
+      "twirp": {
+        "url": "https://kaja.tools/twirp-quirks",
+        "proto_dir": "quirks/proto",
+        "headers": {
+          "X-Yolo": "kaja123",
+          "Authorization": "Bear brown"
+        }
       }
     },
     {
       "name": "grpcb.in",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "grpc://grpcb.in:9000",
-      "protoDir": "grpcbin/proto"
+      "grpc": {
+        "url": "grpc://grpcb.in:9000",
+        "proto_dir": "grpcbin/proto"
+      }
     },
     {
       "name": "teams",
-      "protocol": "RPC_PROTOCOL_GRPC",
-      "url": "dns:kaja.tools:443",
-      "protoDir": "teams/proto",
-      "useReflection": true
-    },
+      "grpc": {
+        "url": "dns:kaja.tools:443",
+        "reflection": true
+      }
+    }
+  ],
+  "projects": [
     {
       "name": "users",
       "protocol": "RPC_PROTOCOL_TWIRP",

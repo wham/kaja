@@ -25,7 +25,7 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 		{
 			"uri":         servicesURI,
 			"name":        "Available services",
-			"description": "Projects, services, methods, and types a script can call.",
+			"description": "Apps, services, methods, and types a script can call.",
 			"mimeType":    "application/json",
 		},
 	}

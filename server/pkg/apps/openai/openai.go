@@ -109,7 +109,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (apps.Instance, error) {
+func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	endpoint := strings.TrimSpace(parameters["endpoint"])
 	if endpoint == "" {
 		endpoint = defaultEndpoint
@@ -134,13 +134,13 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log("Generated service " + serviceTypeName + " with method ChatCompletion")
 
-	return &instance{
+	return &apps.Opened{Instance: &instance{
 		endpoint: endpoint,
 		token:    token,
 		input:    input,
 		output:   output,
 		client:   &http.Client{Timeout: 120 * time.Second},
-	}, nil
+	}}, nil
 }
 
 // compile compiles the static proto and resolves ChatCompletion's request and

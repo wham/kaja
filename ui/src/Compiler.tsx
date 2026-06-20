@@ -1,14 +1,14 @@
 import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
 import { ActionList, Spinner } from "@primer/react";
-import { FirstProjectBlankslate } from "./FirstProjectBlankslate";
+import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { useState } from "react";
-import { CompilationStatus, Project } from "./project";
-import { RpcProtocol } from "./server/api";
+import { CompilationStatus, App } from "./apps";
+import { appType, appTypeLabel } from "./appTypes";
 
 interface CompilerProps {
-  projects: Project[];
+  apps: App[];
   configurationLoaded: boolean;
-  onNewProjectClick?: () => void;
+  onNewAppClick?: () => void;
 }
 
 const ICON_SIZE = 20;
@@ -20,16 +20,16 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ projects, configurationLoaded, onNewProjectClick }: CompilerProps) {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerProps) {
+  const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
 
-  const toggleExpand = (projectName: string) => {
-    setExpandedProjects((prev) => {
+  const toggleExpand = (appName: string) => {
+    setExpandedApps((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(projectName)) {
-        newSet.delete(projectName);
+      if (newSet.has(appName)) {
+        newSet.delete(appName);
       } else {
-        newSet.add(projectName);
+        newSet.add(appName);
       }
       return newSet;
     });
@@ -80,11 +80,7 @@ export function Compiler({ projects, configurationLoaded, onNewProjectClick }: C
     );
   };
 
-  const getProtocolDisplay = (protocol: RpcProtocol) => {
-    return protocol === RpcProtocol.GRPC ? "gRPC" : "Twirp";
-  };
-
-  if (projects.length === 0) {
+  if (apps.length === 0) {
     if (!configurationLoaded) {
       return (
         <div
@@ -107,7 +103,7 @@ export function Compiler({ projects, configurationLoaded, onNewProjectClick }: C
       );
     }
 
-    return <FirstProjectBlankslate onNewProjectClick={onNewProjectClick} />;
+    return <FirstAppBlankslate onNewAppClick={onNewAppClick} />;
   }
 
   return (
@@ -148,30 +144,31 @@ export function Compiler({ projects, configurationLoaded, onNewProjectClick }: C
         }
       `}</style>
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        {projects.map((project, index) => {
-          const isExpanded = expandedProjects.has(project.configuration.name);
+        {apps.map((app, index) => {
+          const isExpanded = expandedApps.has(app.configuration.name);
           return (
-            <div key={`project-${index}-${project.configuration.name}`} className="compiler-item-wrapper">
+            <div key={`app-${index}-${app.configuration.name}`} className="compiler-item-wrapper">
               <div className={isExpanded ? "compiler-item-header sticky" : ""}>
                 <ActionList>
                   <ActionList.Item
-                    variant={getStatusVariant(project.compilation.status)}
-                    onSelect={() => toggleExpand(project.configuration.name)}
+                    variant={getStatusVariant(app.compilation.status)}
+                    onSelect={() => toggleExpand(app.configuration.name)}
                     className={isExpanded ? "compiler-item-expanded" : ""}
                   >
                     <ActionList.LeadingVisual>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${isExpanded ? "expanded" : ""}`} />
-                        {getStatusIcon(project.compilation.status)}
+                        {getStatusIcon(app.compilation.status)}
                       </div>
                     </ActionList.LeadingVisual>
-                    {project.configuration.name}
+                    {app.configuration.name}
                     <ActionList.Description>
-                      {getProtocolDisplay(project.configuration.protocol)} • {project.configuration.url}
+                      {appTypeLabel(appType(app.configuration))}
+                      {app.target ? ` • ${app.target}` : ""}
                     </ActionList.Description>
-                    {project.compilation.duration && (
+                    {app.compilation.duration && (
                       <ActionList.TrailingVisual>
-                        <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>{project.compilation.duration}</span>
+                        <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>{app.compilation.duration}</span>
                       </ActionList.TrailingVisual>
                     )}
                   </ActionList.Item>
@@ -186,7 +183,7 @@ export function Compiler({ projects, configurationLoaded, onNewProjectClick }: C
                       padding: LOG_PADDING,
                     }}
                   >
-                    {project.compilation.logs.map((log, logIndex) => (
+                    {app.compilation.logs.map((log, logIndex) => (
                       <div
                         key={logIndex}
                         style={{
@@ -209,7 +206,7 @@ export function Compiler({ projects, configurationLoaded, onNewProjectClick }: C
                         <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>{log.message}</span>
                       </div>
                     ))}
-                    {project.compilation.status === "running" && (
+                    {app.compilation.status === "running" && (
                       <div
                         style={{
                           marginTop: 8,

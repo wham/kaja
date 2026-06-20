@@ -1,7 +1,8 @@
 import * as monaco from "monaco-editor";
-import { createProjectRef, Method, Project, Script, Service } from "./project";
-import { generateMethodEditorCode } from "./projectLoader";
-import { ConfigurationProject, RpcProtocol } from "./server/api";
+import { createPendingApp, Method, App, Script, Service } from "./apps";
+import { generateMethodEditorCode } from "./appLoader";
+import { appType, appTypeLabel } from "./appTypes";
+import { ConfigurationApp } from "./server/api";
 
 interface CompilerTab {
   type: "compiler";
@@ -12,7 +13,7 @@ interface TaskTab {
   id: string;
   originMethod: Method;
   originService: Service;
-  originProject: Project;
+  originApp: App;
   hasInteraction: boolean;
   model: monaco.editor.ITextModel;
   originalCode: string;
@@ -27,12 +28,12 @@ interface DefinitionTab {
   startColumn: number;
 }
 
-interface ProjectFormTab {
-  type: "projectForm";
+interface AppFormTab {
+  type: "appForm";
   id: string;
   mode: "create" | "edit";
-  editingProjectName?: string;
-  initialData?: ConfigurationProject;
+  editingAppName?: string;
+  initialData?: ConfigurationApp;
 }
 
 export interface ScriptTab {
@@ -44,7 +45,7 @@ export interface ScriptTab {
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
-export type TabModel = CompilerTab | TaskTab | DefinitionTab | ProjectFormTab | ScriptTab;
+export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab;
 
 let idGenerator = 0;
 
@@ -57,9 +58,9 @@ export interface AddTaskTabResult {
   activeIndex: number;
 }
 
-export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originProject: Project): AddTaskTabResult {
+export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originApp: App): AddTaskTabResult {
   // Check if there's an existing tab with the same original code - if so, reuse it
-  const generatedCode = generateMethodEditorCode(originProject, originService, originMethod);
+  const generatedCode = generateMethodEditorCode(originApp, originService, originMethod);
   for (let i = 0; i < tabs.length; i++) {
     const tab = tabs[i];
     if (tab.type === "task" && tab.originalCode === generatedCode) {
@@ -67,7 +68,7 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
     }
   }
 
-  const newTab = newTaskTab(originMethod, originService, originProject, generatedCode);
+  const newTab = newTaskTab(originMethod, originService, originApp, generatedCode);
   const lastTab = tabs[tabs.length - 1];
   // If the last task tab has no interaction, replace it with the new tab.
   // This is to prevent opening many tabs when the user is just clicking through available methods.
@@ -85,7 +86,7 @@ export function addTaskTab(tabs: TabModel[], originMethod: Method, originService
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
-function newTaskTab(originMethod: Method, originService: Service, originProject: Project, editorCode: string): TaskTab {
+function newTaskTab(originMethod: Method, originService: Service, originApp: App, editorCode: string): TaskTab {
   const id = generateId("task");
 
   return {
@@ -93,7 +94,7 @@ function newTaskTab(originMethod: Method, originService: Service, originProject:
     id,
     originMethod,
     originService,
-    originProject,
+    originApp,
     hasInteraction: false,
     model: monaco.editor.createModel(editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
     originalCode: editorCode,
@@ -174,65 +175,67 @@ export function addScriptTab(tabs: TabModel[], script: Script, content: string):
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
-export function addProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
-  // Check if there's already a project form tab open
-  const existingIndex = tabs.findIndex((tab) => tab.type === "projectForm");
+export function addAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): TabModel[] {
+  // Check if there's already an app form tab open
+  const existingIndex = tabs.findIndex((tab) => tab.type === "appForm");
   if (existingIndex !== -1) {
     // Update existing tab
-    const existingTab = tabs[existingIndex] as ProjectFormTab;
+    const existingTab = tabs[existingIndex] as AppFormTab;
     const updatedTabs = [...tabs];
     updatedTabs[existingIndex] = {
-      type: "projectForm",
+      type: "appForm",
       id: existingTab.id,
       mode,
-      editingProjectName: initialData?.name,
+      editingAppName: initialData?.name,
       initialData,
     };
     return updatedTabs;
   }
 
-  const newTab: ProjectFormTab = {
-    type: "projectForm",
-    id: generateId("projectForm"),
+  const newTab: AppFormTab = {
+    type: "appForm",
+    id: generateId("appForm"),
     mode,
-    editingProjectName: initialData?.name,
+    editingAppName: initialData?.name,
     initialData,
   };
   return [...tabs, newTab];
 }
 
-export function updateProjectFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationProject): TabModel[] {
-  const existingIndex = tabs.findIndex((tab) => tab.type === "projectForm");
+export function updateAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): TabModel[] {
+  const existingIndex = tabs.findIndex((tab) => tab.type === "appForm");
   if (existingIndex === -1) return tabs;
 
-  const existingTab = tabs[existingIndex] as ProjectFormTab;
+  const existingTab = tabs[existingIndex] as AppFormTab;
   const updatedTabs = [...tabs];
   updatedTabs[existingIndex] = {
-    type: "projectForm",
+    type: "appForm",
     id: existingTab.id,
     mode,
-    editingProjectName: initialData?.name,
+    editingAppName: initialData?.name,
     initialData,
   };
   return updatedTabs;
 }
 
-export function getProjectFormTabLabel(tab: ProjectFormTab): string {
-  if (tab.mode === "edit" && tab.editingProjectName) {
-    return `Edit ${tab.editingProjectName}`;
+export function getAppFormTabLabel(tab: AppFormTab): string {
+  if (tab.mode === "edit" && tab.editingAppName) {
+    return `Edit ${tab.editingAppName}`;
   }
-  return "New Project";
+  // In create mode the type is picked in the New dialog, so name the tab for it.
+  const type = tab.initialData ? appType(tab.initialData) : "";
+  return type ? `New ${appTypeLabel(type)} app` : "New app";
 }
 
-export function getProjectFormTabIndex(tabs: TabModel[]): number {
-  return tabs.findIndex((tab) => tab.type === "projectForm");
+export function getAppFormTabIndex(tabs: TabModel[]): number {
+  return tabs.findIndex((tab) => tab.type === "appForm");
 }
 
 // --- Tab state persistence ---
 
 interface PersistedTaskTab {
   type: "task";
-  projectName: string;
+  appName: string;
   serviceName: string;
   methodName: string;
   code: string;
@@ -277,7 +280,7 @@ export function serializeTabs(
       indexMap.push(serializedTabs.length);
       serializedTabs.push({
         type: "task",
-        projectName: tab.originProject.configuration.name,
+        appName: tab.originApp.configuration.name,
         serviceName: tab.originService.name,
         methodName: tab.originMethod.name,
         code: tab.model.getValue(),
@@ -335,28 +338,16 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
       clientStubModuleId: "",
       methods: [method],
     };
-    const configuration: ConfigurationProject = {
-      name: persisted.projectName,
-      protocol: RpcProtocol.UNSPECIFIED,
-      url: "",
-      protoDir: "",
-      useReflection: false,
-      headers: {},
-    };
+    const configuration = ConfigurationApp.create({ name: persisted.appName });
 
     tabs.push({
       type: "task",
       id,
       originMethod: method,
       originService: service,
-      originProject: {
-        configuration,
-        projectRef: createProjectRef(configuration),
-        compilation: { status: "pending", logs: [] },
+      originApp: {
+        ...createPendingApp(configuration),
         services: [service],
-        clients: {},
-        sources: [],
-        stub: { serviceInfos: {} },
       },
       hasInteraction: persisted.hasInteraction,
       model,
@@ -371,17 +362,17 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
   return { tabs, activeIndex };
 }
 
-export function linkTabsToProjects(tabs: TabModel[], projects: Project[]): void {
+export function linkTabsToApps(tabs: TabModel[], apps: App[]): void {
   for (const tab of tabs) {
     if (tab.type === "task") {
-      const project = projects.find((p) => p.configuration.name === tab.originProject.configuration.name);
-      if (!project) continue;
-      const service = project.services.find((s) => s.name === tab.originService.name);
+      const app = apps.find((p) => p.configuration.name === tab.originApp.configuration.name);
+      if (!app) continue;
+      const service = app.services.find((s) => s.name === tab.originService.name);
       if (!service) continue;
       const method = service.methods.find((m) => m.name === tab.originMethod.name);
       if (!method) continue;
 
-      tab.originProject = project;
+      tab.originApp = app;
       tab.originService = service;
       tab.originMethod = method;
     }

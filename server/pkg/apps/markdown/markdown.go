@@ -134,7 +134,7 @@ type App struct{}
 
 func New() *App { return &App{} }
 
-func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (apps.Instance, error) {
+func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	folder := strings.TrimSpace(parameters["folder"])
 	if folder == "" {
 		return nil, fmt.Errorf("missing required parameter %q", "folder")
@@ -151,7 +151,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, err
 	}
 
-	return &instance{folder: folder, methods: methods}, nil
+	return &apps.Opened{Instance: &instance{folder: folder, methods: methods}}, nil
 }
 
 // method holds the request and response descriptors of one service method.

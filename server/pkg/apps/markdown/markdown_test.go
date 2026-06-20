@@ -15,11 +15,11 @@ func open(t *testing.T) (*instance, string) {
 	t.Helper()
 	folder := t.TempDir()
 	protoDir := t.TempDir()
-	inst, err := New().Open(map[string]string{"folder": folder}, protoDir, func(string) {})
+	opened, err := New().Open(map[string]string{"folder": folder}, protoDir, func(string) {})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	return inst.(*instance), folder
+	return opened.Instance.(*instance), folder
 }
 
 // invoke encodes requestJSON into the method's request, calls it, and returns

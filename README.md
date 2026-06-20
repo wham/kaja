@@ -56,32 +56,66 @@ Then open [http://localhost:41520](http://localhost:41520).
 
 ## Configuration
 
-On **macOS**, projects are configured through the UI. The configuration is stored at `~/Library/Application Support/kaja/kaja.json`.
+On **macOS**, apps are configured through the UI. The configuration is stored at `~/Library/Application Support/kaja/kaja.json`.
 
-With **Docker**, create a `kaja.json` file and mount it into the container:
+With **Docker**, create a `kaja.json` file and mount it into the container. Every entry in `apps` is one app: a `name` plus one block whose key is the app's type, holding that type's parameters:
 
 ```json
 {
-  "projects": [
+  "apps": [
     {
-      "name": "my_app",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "http://host.docker.internal:41522"
+      "name": "users",
+      "twirp": {
+        "url": "http://host.docker.internal:41522",
+        "proto_dir": "users/proto"
+      }
+    },
+    {
+      "name": "teams",
+      "grpc": {
+        "url": "host.docker.internal:41523",
+        "reflection": true,
+        "headers": { "Authorization": "Bearer xxx" }
+      }
     }
   ]
 }
 ```
 
-### Project options
+### App options
 
-| Option | Description |
+Each app has a `name` and exactly one typed block:
+
+| Type | Parameters |
 |---|---|
-| `name` | Display name. |
-| `protocol` | `RPC_PROTOCOL_TWIRP` or `RPC_PROTOCOL_GRPC`. |
-| `url` | URL where the service is running. |
-| `protoDir` | Path to `.proto` files. Required unless `useReflection` is enabled. |
-| `useReflection` | Use [gRPC server reflection](https://grpc.io/docs/guides/reflection/) instead of local proto files. Only works with gRPC. |
-| `headers` | Headers sent with each request (e.g. `{"Authorization": "Bearer xxx"}`). For gRPC, sent as metadata. |
+| `grpc` | `url`, `proto_dir` (path to `.proto` files), `reflection` (use [gRPC server reflection](https://grpc.io/docs/guides/reflection/) instead of local proto files), `headers` |
+| `twirp` | `url`, `proto_dir`, `headers` |
+
+`headers` are sent with each request (e.g. `{"Authorization": "Bearer xxx"}`); for gRPC they are sent as metadata.
+
+#### Migrating from the old format
+
+Earlier versions used a top-level `projects` list with a `protocol` field. Kaja migrates these automatically on load — but to update a file by hand, move each project into `apps` and replace its `protocol`/`url`/`protoDir`/`useReflection` fields with a block named after the type.
+
+Before:
+
+```json
+{
+  "projects": [
+    { "name": "users", "protocol": "RPC_PROTOCOL_TWIRP", "url": "http://host.docker.internal:41522", "protoDir": "users/proto" }
+  ]
+}
+```
+
+After:
+
+```json
+{
+  "apps": [
+    { "name": "users", "twirp": { "url": "http://host.docker.internal:41522", "proto_dir": "users/proto" } }
+  ]
+}
+```
 
 ### Docker arguments
 

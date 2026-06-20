@@ -4,7 +4,6 @@ option go_package = "pkg/api";
 
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
-  rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
@@ -16,37 +15,35 @@ message CompileRequest {
   string proto_dir = 3;
 }
 
-message ReflectRequest {
-  string url = 1;  // Target gRPC server URL for reflection discovery
+enum OpenStatus {
+  OPEN_STATUS_UNKNOWN = 0;
+  OPEN_STATUS_OK = 1;
+  OPEN_STATUS_ERROR = 2;
 }
 
-message ReflectResponse {
-  ReflectStatus status = 1;
-  repeated Log logs = 2;
-  string proto_dir = 3;  // Temp directory containing discovered proto files (only set on success)
-}
-
-enum ReflectStatus {
-  REFLECT_STATUS_UNKNOWN = 0;
-  REFLECT_STATUS_OK = 1;
-  REFLECT_STATUS_ERROR = 2;
-}
-
-// OpenApp instantiates a built-in app (e.g. the OpenAPI app) from its creation
-// parameters. The app generates proto files describing its services/methods and
-// returns the temp directory they live in, ready to feed into Compile - the same
-// way Reflect works for gRPC reflection. The returned target is used as the
-// project URL so method calls are routed back to the app for invocation.
+// OpenApp opens an app from its configuration. "grpc"/
+// "twirp" apps describe a gRPC/Twirp service (proto files come from a static
+// directory or gRPC reflection), while built-in apps like "openapi" or "markdown"
+// generate their own proto surface. In all cases the app produces proto files to
+// feed into Compile, an invocation target, and the transport protocol the client
+// uses to reach it. The server flattens the app's typed parameters to a string map
+// for the in-process app contract.
 message OpenAppRequest {
-  string type = 1;  // Built-in app type, e.g. "openapi"
-  map<string, string> parameters = 2;  // App-specific creation parameters, e.g. {"spec_url": "..."}
+  ConfigurationApp app = 1;
 }
 
 message OpenAppResponse {
-  ReflectStatus status = 1;
+  OpenStatus status = 1;
   repeated Log logs = 2;
-  string proto_dir = 3;  // Temp directory containing generated proto files (only set on success)
-  string target = 4;  // Invocation target for the app instance, e.g. "kaja-app://<id>" (only set on success)
+  // Directory containing the proto files to compile (only set on success). Either a
+  // temp directory (generated/reflected protos) or a workspace-relative path (static
+  // protos), which Compile resolves against the workspace.
+  string proto_dir = 3;
+  // Invocation target: the upstream URL for grpc/twirp apps, or "kaja-app://<id>"
+  // for in-process apps (only set on success).
+  string target = 4;
+  // Transport the client uses to reach the target: "grpc" or "twirp".
+  string protocol = 5;
 }
 
 message CompileResponse {
@@ -75,12 +72,6 @@ enum LogLevel {
   LEVEL_ERROR = 3;
 }
 
-enum RpcProtocol {
-  RPC_PROTOCOL_UNSPECIFIED = 0;
-  RPC_PROTOCOL_GRPC = 1;
-  RPC_PROTOCOL_TWIRP = 2;
-}
-
 message Source {
   string path = 1;
   string content = 2;
@@ -99,13 +90,17 @@ message Configuration {
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
   string path_prefix = 1;
-  repeated ConfigurationProject projects = 2;
   // System-level settings (read-only, ignored in UpdateConfiguration)
   ConfigurationSystem system = 4;
-  // Apps are an alternative to projects: instead of pointing at a gRPC/Twirp
-  // service, an app is a built-in (or, later, remote) integration that exposes
-  // a proto surface kaja renders and invokes the same way as a project.
+  // Apps are the single unit of configuration. A gRPC or Twirp service is just an
+  // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
+  // are apps too. kaja renders and invokes every app the same way.
   repeated ConfigurationApp apps = 5;
+
+  // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
+  // they were unified into `apps`. Legacy config files are migrated on load.
+  reserved 2;
+  reserved "projects";
 }
 
 message ConfigurationSystem {
@@ -117,25 +112,59 @@ message ConfigurationSystem {
   string build_number = 3;
 }
 
-message ConfigurationProject {
-  string name = 1;
-  RpcProtocol protocol = 2;
-  string url = 3;
-  string proto_dir = 4;
-  bool use_reflection = 5;
-  map<string, string> headers = 6;
-}
-
+// ConfigurationApp is one app: a name and exactly one typed block whose key is the
+// app's type. The block declares the parameters that type needs (so two types can
+// never be mixed in one app); the server flattens its scalar fields to a string map
+// for the app contract.
 message ConfigurationApp {
   string name = 1;
-  // Built-in app type, e.g. "openapi" or "markdown".
-  string type = 2;
-  // App-specific creation parameters. For "openapi": {"spec_url": "<url>"};
-  // for "openai": {"endpoint": "<url>", "token": "<key>"};
-  // for "markdown": {"path": "<file>"}.
-  map<string, string> parameters = 3;
-  // Headers sent with each request the app makes to the upstream service.
+  oneof app {
+    GrpcApp grpc = 2;
+    TwirpApp twirp = 3;
+    OpenApiApp openapi = 4;
+    OpenAiApp openai = 5;
+    MarkdownApp markdown = 6;
+  }
+}
+
+// GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
+// proto_dir, or from server reflection when reflection is set. headers are
+// forwarded (as metadata) with each request.
+message GrpcApp {
+  string url = 1;
+  string proto_dir = 2;
+  bool reflection = 3;
   map<string, string> headers = 4;
+}
+
+// TwirpApp calls a Twirp service described by a workspace-relative proto_dir.
+message TwirpApp {
+  string url = 1;
+  string proto_dir = 2;
+  map<string, string> headers = 3;
+}
+
+// OpenApiApp calls a REST API from its OpenAPI 3.x document. Credentials are
+// applied per the spec's security schemes.
+message OpenApiApp {
+  string spec_url = 1;
+  string token = 2;
+  string username = 3;
+  string password = 4;
+  map<string, string> headers = 5;
+}
+
+// OpenAiApp calls the OpenAI chat completions API.
+message OpenAiApp {
+  string endpoint = 1;
+  string token = 2;
+  map<string, string> headers = 3;
+}
+
+// MarkdownApp creates and writes Markdown files in a folder on disk. It is local,
+// so it forwards no headers.
+message MarkdownApp {
+  string folder = 1;
 }
 
 message UpdateConfigurationRequest {

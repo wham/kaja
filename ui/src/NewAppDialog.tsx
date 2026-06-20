@@ -1,158 +1,43 @@
-import { Button, Dialog, Flash, FormControl, Link, TextInput, Tooltip } from "@primer/react";
-import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "@primer/octicons-react";
-import { useState } from "react";
-import { appTypes, AppTypeDefinition } from "./appTypes";
-import { ConfigurationApp } from "./server/api";
+import { ActionList, Dialog } from "@primer/react";
+import { appTypes } from "./appTypes";
 import { PreviewPill } from "./Sidebar";
-import { isWailsEnvironment } from "./wails";
-import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 
 interface NewAppDialogProps {
-  // Existing project and app names, used to reject duplicates.
-  existingNames: string[];
+  // When the Apps feature preview is off, only gRPC/Twirp are offered.
+  appsPreviewEnabled: boolean;
   onClose: () => void;
-  onCreate: (app: ConfigurationApp) => Promise<void>;
+  // Called with the chosen app type; the app's parameters are filled in afterwards
+  // in the create form. The type is fixed at creation and not editable later.
+  onSelect: (type: string) => void;
 }
 
-// NewAppDialog walks the user through creating a built-in app: first a grid to
-// pick the app type, then a form with that type's parameters.
-export function NewAppDialog({ existingNames, onClose, onCreate }: NewAppDialogProps) {
-  const [selected, setSelected] = useState<AppTypeDefinition | null>(null);
-  const [name, setName] = useState("");
-  const [parameters, setParameters] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string>();
-  const [creating, setCreating] = useState(false);
-
-  const selectType = (type: AppTypeDefinition) => {
-    setSelected(type);
-    setName("");
-    setParameters({});
-    setError(undefined);
-  };
-
-  const submit = async () => {
-    if (!selected) return;
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Name is required");
-      return;
-    }
-    const params: Record<string, string> = {};
-    for (const parameter of selected.parameters) {
-      const value = (parameters[parameter.key] ?? "").trim();
-      if (!value) {
-        if (parameter.optional) continue;
-        setError(`${parameter.label} is required`);
-        return;
-      }
-      params[parameter.key] = value;
-    }
-    if (existingNames.includes(trimmedName)) {
-      setError("A project or app with this name already exists");
-      return;
-    }
-    setError(undefined);
-    setCreating(true);
-    try {
-      await onCreate({ name: trimmedName, type: selected.type, parameters: params, headers: {} });
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const title = (
-    <>
-      New App
-      <PreviewPill />
-    </>
-  );
-
-  if (!selected) {
-    return (
-      <Dialog title={title} width="medium" onClose={onClose} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {appTypes.map((type) => (
-            <Tooltip key={type.type} text={type.description} direction="s">
-              <Button block size="large" leadingVisual={type.icon} onClick={() => selectType(type)}>
-                {type.label}
-              </Button>
-            </Tooltip>
-          ))}
-        </div>
-      </Dialog>
-    );
-  }
+// NewAppDialog picks the type of app to create (gRPC, Twirp, or a built-in
+// integration). Experimental built-ins appear only when the Apps preview is on and
+// carry a "Preview" pill.
+export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDialogProps) {
+  const availableTypes = appTypes.filter((type) => !type.preview || appsPreviewEnabled);
 
   return (
-    <Dialog
-      title={title}
-      width="medium"
-      onClose={onClose}
-      footerButtons={[
-        { content: "Back", onClick: () => setSelected(null) },
-        { content: "Create", buttonType: "primary", onClick: submit, disabled: creating },
-      ]}
-    >
-      <FormControl>
-        <FormControl.Label>Name</FormControl.Label>
-        <TextInput block autoFocus placeholder={selected.label} value={name} onChange={(e) => setName(e.target.value)} />
-      </FormControl>
-      {selected.parameters.map((parameter) => (
-        <div key={parameter.key} style={{ marginTop: 16 }}>
-          <FormControl>
-            <FormControl.Label>{parameter.label}</FormControl.Label>
-            <TextInput
-              block
-              placeholder={parameter.placeholder}
-              value={parameters[parameter.key] ?? ""}
-              onChange={(e) => setParameters((prev) => ({ ...prev, [parameter.key]: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              trailingAction={
-                (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                  <TextInput.Action
-                    icon={parameter.type === "folder" ? FileDirectoryIcon : FileIcon}
-                    aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                    onClick={async () => {
-                      const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
-                      if (path) {
-                        setParameters((prev) => ({ ...prev, [parameter.key]: path }));
-                      }
-                    }}
-                  />
-                ) : undefined
-              }
-            />
-            {parameter.caption && <FormControl.Caption>{parameter.caption}</FormControl.Caption>}
-          </FormControl>
-        </div>
-      ))}
-      {selected.demo && (
-        <div style={{ marginTop: 8 }}>
-          <Link
-            as="button"
-            type="button"
-            onClick={() => {
-              setError(undefined);
-              setName(selected.demo!.name);
-              setParameters({ ...selected.demo!.parameters });
-            }}
-            style={{ fontSize: 12, lineHeight: "18px", display: "inline-flex", alignItems: "center", gap: 4 }}
-          >
-            <LightBulbIcon size={12} />
-            {selected.demo.label}
-          </Link>
-        </div>
-      )}
-      {error && (
-        <div style={{ marginTop: 16 }}>
-          <Flash variant="danger">{error}</Flash>
-        </div>
-      )}
+    <Dialog title="New app" width="medium" onClose={onClose} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
+      <ActionList>
+        {availableTypes.map((type) => {
+          const Icon = type.icon;
+          return (
+            <ActionList.Item key={type.type} onSelect={() => onSelect(type.type)}>
+              <ActionList.LeadingVisual>
+                <Icon />
+              </ActionList.LeadingVisual>
+              {type.label}
+              {type.preview && (
+                <ActionList.TrailingVisual>
+                  <PreviewPill />
+                </ActionList.TrailingVisual>
+              )}
+              <ActionList.Description variant="block">{type.description}</ActionList.Description>
+            </ActionList.Item>
+          );
+        })}
+      </ActionList>
     </Dialog>
   );
 }

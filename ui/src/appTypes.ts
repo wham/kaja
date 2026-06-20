@@ -1,8 +1,10 @@
-import { GlobeIcon, Icon, MarkdownIcon, SparkleFillIcon } from "@primer/octicons-react";
+import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "@primer/octicons-react";
+import { ConfigurationApp } from "./server/api";
 
-// Parameter kinds an app exposes in the New App form. "file" and "folder" render
-// a native picker on the desktop (and a plain text field everywhere else).
-export type AppParameterType = "text" | "url" | "file" | "folder";
+// Parameter kinds an app exposes in the New form. "file" and "folder" render a
+// native picker on the desktop (and a plain text field everywhere else);
+// "boolean" renders a checkbox.
+export type AppParameterType = "text" | "url" | "file" | "folder" | "boolean";
 
 export interface AppParameterDefinition {
   key: string;
@@ -10,7 +12,7 @@ export interface AppParameterDefinition {
   type: AppParameterType;
   placeholder?: string;
   caption?: string;
-  // Optional parameters may be left blank in the New App form.
+  // Optional parameters are not required to create the app.
   optional?: boolean;
 }
 
@@ -20,25 +22,86 @@ export interface AppTypeDefinition {
   description: string;
   icon: Icon;
   parameters: AppParameterDefinition[];
+  // Experimental built-ins are gated behind the Apps feature preview. gRPC/Twirp
+  // are always available.
+  preview?: boolean;
   // Optional one-click demo that prefills the form.
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
 
-// The built-in app types, in the order shown in the New App grid. Keep in sync
-// with the app types registered on the server (server/pkg/api/api.go).
+// The app types, in the order shown in the New grid. Keep in sync with the app
+// types registered on the server (server/pkg/api/api.go).
 export const appTypes: AppTypeDefinition[] = [
   {
+    type: "grpc",
+    label: "gRPC",
+    description: "Call a gRPC service from its proto files or via server reflection.",
+    icon: ServerIcon,
+    parameters: [
+      {
+        key: "url",
+        label: "URL",
+        type: "url",
+        placeholder: "dns:example.com:443",
+        caption: "Address of the gRPC server.",
+      },
+      {
+        key: "protoDir",
+        label: "Proto directory",
+        type: "folder",
+        placeholder: "path/to/proto",
+        caption: "Directory of .proto files. Leave empty to discover services via reflection.",
+        optional: true,
+      },
+      {
+        key: "reflection",
+        label: "Use gRPC reflection",
+        type: "boolean",
+        caption: "Discover services automatically from the server instead of local proto files.",
+        optional: true,
+      },
+    ],
+    demo: {
+      label: "Try the grpcb.in demo server",
+      name: "grpcb.in",
+      parameters: { url: "grpcb.in:9000", reflection: "true" },
+    },
+  },
+  {
+    type: "twirp",
+    label: "Twirp",
+    description: "Call a Twirp service from its proto files.",
+    icon: PlugIcon,
+    parameters: [
+      {
+        key: "url",
+        label: "URL",
+        type: "url",
+        placeholder: "https://example.com/twirp",
+        caption: "Base URL of the Twirp server.",
+      },
+      {
+        key: "protoDir",
+        label: "Proto directory",
+        type: "folder",
+        placeholder: "path/to/proto",
+        caption: "Directory of .proto files (Twirp has no reflection).",
+      },
+    ],
+  },
+  {
+    preview: true,
     type: "openapi",
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
     icon: GlobeIcon,
     parameters: [
       {
-        key: "spec_url",
+        key: "specUrl",
         label: "OpenAPI spec URL",
         type: "url",
         placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
-        caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp project.",
+        caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app.",
       },
       {
         key: "token",
@@ -67,10 +130,11 @@ export const appTypes: AppTypeDefinition[] = [
     demo: {
       label: "Try the Swagger Petstore demo",
       name: "Petstore",
-      parameters: { spec_url: "https://petstore3.swagger.io/api/v3/openapi.json" },
+      parameters: { specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" },
     },
   },
   {
+    preview: true,
     type: "openai",
     label: "OpenAI",
     description: "Call the standard OpenAI chat completions API.",
@@ -98,6 +162,7 @@ export const appTypes: AppTypeDefinition[] = [
     },
   },
   {
+    preview: true,
     type: "markdown",
     label: "Markdown",
     description: "Create and write Markdown files in a folder on disk.",
@@ -120,4 +185,58 @@ export function getAppType(type: string): AppTypeDefinition | undefined {
 
 export function appTypeLabel(type: string): string {
   return getAppType(type)?.label ?? type;
+}
+
+// appType returns an app's type: the set field of its `app` oneof (e.g. "grpc").
+export function appType(app: ConfigurationApp): string {
+  return app.app.oneofKind ?? "";
+}
+
+function appVariant(app: ConfigurationApp): Record<string, unknown> | undefined {
+  const kind = app.app.oneofKind;
+  if (!kind) return undefined;
+  return (app.app as Record<string, unknown>)[kind] as Record<string, unknown> | undefined;
+}
+
+// appParameters reads the fields the app's type declares into the string map the
+// form works with. Booleans become "true"/"". Keys are the (camelCase) field names
+// declared in appTypes.
+export function appParameters(app: ConfigurationApp): Record<string, string> {
+  const variant = appVariant(app);
+  const params: Record<string, string> = {};
+  for (const parameter of getAppType(appType(app))?.parameters ?? []) {
+    const value = variant?.[parameter.key];
+    params[parameter.key] = typeof value === "boolean" ? (value ? "true" : "") : String(value ?? "");
+  }
+  return params;
+}
+
+// appHeaders reads the headers an app forwards to its upstream. They live inside
+// the typed block (every type but the local Markdown app has them).
+export function appHeaders(app: ConfigurationApp): Record<string, string> {
+  return (appVariant(app)?.headers as Record<string, string>) ?? {};
+}
+
+// typeForwardsHeaders reports whether an app type sends request headers upstream;
+// only the local Markdown app does not.
+export function typeForwardsHeaders(type: string): boolean {
+  return type !== "markdown";
+}
+
+// buildApp constructs a ConfigurationApp from the generic form state: it sets the
+// typed block for `type` with the declared params (coercing booleans) and, for
+// types that forward them, the headers.
+export function buildApp(name: string, type: string, params: Record<string, string>, headers: Record<string, string>): ConfigurationApp {
+  const variant: Record<string, unknown> = {};
+  for (const parameter of getAppType(type)?.parameters ?? []) {
+    const value = params[parameter.key] ?? "";
+    variant[parameter.key] = parameter.type === "boolean" ? value === "true" : value;
+  }
+  if (typeForwardsHeaders(type)) {
+    variant.headers = { ...headers };
+  }
+  return {
+    name,
+    app: { oneofKind: type, [type]: variant } as unknown as ConfigurationApp["app"],
+  };
 }

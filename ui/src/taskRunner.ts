@@ -1,11 +1,11 @@
 import ts from "typescript";
 import { AskCancelledError, Kaja } from "./kaja";
-import { Client, Project, serviceId } from "./project";
-import { printStatements } from "./projectLoader";
+import { Client, App, serviceId } from "./apps";
+import { printStatements } from "./appLoader";
 
-// prepareTask resolves a script's imports against the loaded projects and splits
+// prepareTask resolves a script's imports against the loaded apps and splits
 // out the runnable body, returning the args every binding maps to plus the code.
-function prepareTask(code: string, kaja: Kaja, projects: Project[]): { args: { [key: string]: Client | Object }; runCode: string } {
+function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
   const file = ts.createSourceFile("task.ts", code, ts.ScriptTarget.Latest);
   const args: { [key: string]: Client | Object } = {};
   const runStatements: ts.Statement[] = [];
@@ -14,11 +14,11 @@ function prepareTask(code: string, kaja: Kaja, projects: Project[]): { args: { [
     if (ts.isImportDeclaration(statement)) {
       // slice(1, -1) - remove quotes
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
-      const project = projects.find((project) => path.startsWith(project.configuration.name + "/"));
-      if (!project) {
+      const app = apps.find((app) => path.startsWith(app.configuration.name + "/"));
+      if (!app) {
         return;
       }
-      const source = project.sources.find((source) => source.importPath === path);
+      const source = app.sources.find((source) => source.importPath === path);
       if (!source) {
         return;
       }
@@ -29,9 +29,9 @@ function prepareTask(code: string, kaja: Kaja, projects: Project[]): { args: { [
           const alias = importSpecifier.name.text;
           const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
           // Find service by name and source path to handle duplicate service names
-          const service = project.services.find((s) => s.name === name && s.sourcePath === source.importPath);
+          const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
           if (service) {
-            const client = project.clients[serviceId(service)];
+            const client = app.clients[serviceId(service)];
             if (client) {
               client.kaja = kaja;
               args[alias] = client.methods;
@@ -49,8 +49,8 @@ function prepareTask(code: string, kaja: Kaja, projects: Project[]): { args: { [
   return { args, runCode: printStatements(runStatements) };
 }
 
-export function runTask(code: string, kaja: Kaja, projects: Project[]) {
-  const { args, runCode } = prepareTask(code, kaja, projects);
+export function runTask(code: string, kaja: Kaja, apps: App[]) {
+  const { args, runCode } = prepareTask(code, kaja, apps);
 
   // Wrap the user's code in an async function so async keyword can be used
   const func = new Function(
@@ -82,8 +82,8 @@ export interface CapturedRun {
 // runTaskCaptured runs a script and collects its console output, return value,
 // and any error instead of letting them escape. Used by the MCP server so an
 // agent can see what a script did.
-export async function runTaskCaptured(code: string, kaja: Kaja, projects: Project[]): Promise<CapturedRun> {
-  const { args, runCode } = prepareTask(code, kaja, projects);
+export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
+  const { args, runCode } = prepareTask(code, kaja, apps);
   const lines: string[] = [];
   const record = (level: string, parts: unknown[]) => {
     lines.push(parts.map(stringifyConsoleArg).join(" "));

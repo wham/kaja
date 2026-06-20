@@ -8,8 +8,8 @@ run those scripts on the user's behalf.
 ## How a script works
 
 A script is a TypeScript file in the global `scripts/` folder. It imports the
-services it needs and calls their methods. Imports bind to a configured project
-by the project's name, which is the first path segment:
+services it needs and calls their methods. Imports bind to a configured app
+by the app's name, which is the first path segment:
 
 ```ts
 import { Users } from "users/";
@@ -23,9 +23,9 @@ console.log(team);
 Rules that matter:
 
 - Every method call returns a `Promise`; always `await` it.
-- The import name (`Users`) must be a service exposed by the project whose name
-  matches the first path segment of the import (`"users/"` → project `users`).
-- Call `list_services` to discover the exact projects, services, methods, and
+- The import name (`Users`) must be a service exposed by the app whose name
+  matches the first path segment of the import (`"users/"` → app `users`).
+- Call `list_services` to discover the exact apps, services, methods, and
   request/response field types that are available right now. Read the generated
   `.ts` stubs (exposed as resources) for precise field-level types.
 - The body is wrapped in an `async` function, so top-level `await` is fine.
