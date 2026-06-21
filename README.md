@@ -140,3 +140,10 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -v)`
 - Update demo protos: `scripts/demo-protos` (The demo services are deployed via [kaja/tools/website](github.com/kaja-tools/website))
+
+### Releases
+
+Releases are cut from GitHub — no local build needed. Every push to `main` uploads a new build to TestFlight. To ship a version, run the **release** workflow (Actions → Run workflow):
+
+- `open` (with `patch`/`minor`/`major`) — bumps the version, tags it, and drafts a GitHub Release. TestFlight builds now carry the new version.
+- `ship` — publishes the draft Release. Run it when you promote that TestFlight build to the App Store.

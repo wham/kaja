@@ -1,0 +1,50 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "open a new version, or ship the current one"
+        required: true
+        type: choice
+        options:
+          - open
+          - ship
+        default: open
+      bump:
+        description: "version bump (only used by 'open')"
+        required: false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: minor
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Open new version
+        if: ${{ inputs.action == 'open' }}
+        run: scripts/release open "${{ inputs.bump }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Ship current version
+        if: ${{ inputs.action == 'ship' }}
+        run: scripts/release ship
+        env:
+          GH_TOKEN: ${{ github.token }}
