@@ -57,7 +57,7 @@ jobs:
           name: demo
           path: .github/demo/
 
-      - name: Remove demo from PR on failure
+      - name: Remove demo assets on failure
         if: failure() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,17 +72,14 @@ jobs:
               gh release delete-asset "$TAG" "$name" --yes 2>/dev/null || true
             done
 
-          # Remove Demo section from PR description
-          gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
-          perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+      - name: Remove demo comment on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: demo
+          delete: true
 
-          # Only update if there was a demo section to remove
-          if ! diff -q /tmp/current_body.txt /tmp/body_clean.txt > /dev/null 2>&1; then
-            gh pr edit ${PR_NUMBER} --body-file /tmp/body_clean.txt
-            echo "Removed demo section from PR description"
-          fi
-
-      - name: Upload demo assets and update PR description
+      - name: Upload demo assets and build demo comment
         if: success() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,39 +116,39 @@ jobs:
           CALL_URL="${BASE_URL}/pr-${PR_NUMBER}-call.png"
           COMPILER_URL="${BASE_URL}/pr-${PR_NUMBER}-compiler.png"
 
-          # Build demo section
-          echo "<details>" > /tmp/demo.md
-          echo "<summary>🎬 Demo</summary>" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "### Video" >> /tmp/demo.md
-          echo "![Demo](${GIF_URL})" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "### Home" >> /tmp/demo.md
-          echo "![Home](${HOME_URL})" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "### Call" >> /tmp/demo.md
-          echo "![Call](${CALL_URL})" >> /tmp/demo.md
-          echo "" >> /tmp/demo.md
-          echo "### Compiler" >> /tmp/demo.md
-          echo "![Compiler](${COMPILER_URL})" >> /tmp/demo.md
+          # Build demo comment
+          echo "## 🎬 Demo" > demo-comment.md
+          echo "" >> demo-comment.md
+          echo "### Video" >> demo-comment.md
+          echo "![Demo](${GIF_URL})" >> demo-comment.md
+          echo "" >> demo-comment.md
+          echo "### Home" >> demo-comment.md
+          echo "![Home](${HOME_URL})" >> demo-comment.md
+          echo "" >> demo-comment.md
+          echo "### Call" >> demo-comment.md
+          echo "![Call](${CALL_URL})" >> demo-comment.md
+          echo "" >> demo-comment.md
+          echo "### Compiler" >> demo-comment.md
+          echo "![Compiler](${COMPILER_URL})" >> demo-comment.md
 
           if [ -f ".github/demo/pr-${PR_NUMBER}-newproject.png" ]; then
-            echo "" >> /tmp/demo.md
-            echo "### New Project" >> /tmp/demo.md
-            echo "![New Project](${BASE_URL}/pr-${PR_NUMBER}-newproject.png)" >> /tmp/demo.md
+            echo "" >> demo-comment.md
+            echo "### New Project" >> demo-comment.md
+            echo "![New Project](${BASE_URL}/pr-${PR_NUMBER}-newproject.png)" >> demo-comment.md
           fi
 
-          echo "" >> /tmp/demo.md
-          echo "</details>" >> /tmp/demo.md
-
-          # Get current PR body and remove existing Demo section
+          # Remove the legacy Demo section from the PR description; the demo
+          # now lives in a sticky comment instead.
           gh pr view ${PR_NUMBER} --json body --jq '.body' > /tmp/current_body.txt
           perl -0777 -pe 's/\n*<details>\s*<summary>🎬 Demo<\/summary>.*?<\/details>//sg' /tmp/current_body.txt > /tmp/body_clean.txt
+          if ! diff -q /tmp/current_body.txt /tmp/body_clean.txt > /dev/null 2>&1; then
+            gh pr edit ${PR_NUMBER} --body-file /tmp/body_clean.txt
+            echo "Removed legacy demo section from PR description"
+          fi
 
-          # Combine body with demo section
-          cat /tmp/body_clean.txt > /tmp/new_body.txt
-          echo "" >> /tmp/new_body.txt
-          cat /tmp/demo.md >> /tmp/new_body.txt
-
-          # Update PR description
-          gh pr edit ${PR_NUMBER} --body-file /tmp/new_body.txt
+      - name: Post sticky demo comment
+        if: success() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: demo
+          path: demo-comment.md
