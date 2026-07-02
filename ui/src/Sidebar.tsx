@@ -4,10 +4,10 @@ import {
   CpuIcon,
   FileCodeIcon,
   FoldIcon,
-  KeyIcon,
   PencilIcon,
   PinIcon,
   PlusIcon,
+  SlidersIcon,
   TrashIcon,
   UnfoldIcon,
   ChevronRightIcon,
@@ -429,7 +429,7 @@ export function Sidebar({
         >
           <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New app" onClick={onNewAppClick} />
           <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
-          {onVariablesClick && <IconButton icon={KeyIcon} size="small" variant="invisible" aria-label="Variables" onClick={onVariablesClick} />}
+          {onVariablesClick && <IconButton icon={SlidersIcon} size="small" variant="invisible" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
         <div

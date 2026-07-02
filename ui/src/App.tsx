@@ -30,6 +30,7 @@ import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
+import { registerKajaGlobals } from "./Editor";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -406,11 +407,6 @@ export function App() {
     (newConfiguration: Configuration) => {
       setConfiguration(newConfiguration);
 
-      // Keep the variables scripts read via `kaja.variables` in sync.
-      if (kajaRef.current) {
-        kajaRef.current.variables = newConfiguration.variables ?? {};
-      }
-
       setApps((prevApps) => {
         const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps);
 
@@ -455,6 +451,17 @@ export function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewApps]);
+
+  // Keep the variables scripts read via `kaja.variables` — and the editor's typed
+  // declaration for them — in sync with the configuration, whichever path loaded
+  // it (initial compile, save, or hot reload).
+  useEffect(() => {
+    const variables = configuration?.variables ?? {};
+    if (kajaRef.current) {
+      kajaRef.current.variables = variables;
+    }
+    registerKajaGlobals(Object.keys(variables));
+  }, [configuration?.variables]);
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {

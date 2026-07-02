@@ -32,10 +32,25 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   module: monaco.typescript.ModuleKind.ESNext,
 });
 
+// Build the `variables` member type from the configured names so the editor
+// suggests them and flags typos. With names it is an exact object; with none it
+// falls back to an index signature so `kaja.variables.foo` isn't flagged before
+// any variable exists.
+function kajaVariablesType(variableNames: string[]): string {
+  if (variableNames.length === 0) {
+    return "{ [key: string]: string }";
+  }
+  const members = variableNames.map((name) => `    ${JSON.stringify(name)}: string;`).join("\n");
+  return `{\n${members}\n  }`;
+}
+
 // The `kaja` object is injected into every script as a global (see taskRunner),
-// so declare it here for editor autocomplete and type checking.
-monaco.typescript.typescriptDefaults.addExtraLib(
-  `
+// so declare it for editor autocomplete and type checking. Re-registering with
+// the same path replaces the previous declaration, so this is called again
+// whenever the configured variables change (see App.tsx).
+export function registerKajaGlobals(variableNames: string[]): void {
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `
 /** The global Kaja object, available in every script — no import needed. */
 declare const kaja: {
   /**
@@ -48,7 +63,7 @@ declare const kaja: {
    * User-defined variables from the configuration. Manage them in the
    * Variables tab; read them here, e.g. kaja.variables.API_BASE_URL.
    */
-  variables: { [key: string]: string };
+  variables: ${kajaVariablesType(variableNames)};
   /**
    * Pause the script and pop up a dialog asking the user for input. Resolves
    * with the submitted text; if the user cancels, the script stops.
@@ -58,8 +73,11 @@ declare const kaja: {
   ask(message: string): Promise<string>;
 };
 `,
-  "ts:kaja-globals.d.ts",
-);
+    "ts:kaja-globals.d.ts",
+  );
+}
+
+registerKajaGlobals([]);
 
 const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
 let timestampCommandRegistered = false;
