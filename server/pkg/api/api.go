@@ -102,6 +102,11 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	logger := NewLogger()
 	logger.info("Opening app: " + appType)
 
+	// Expand ${NAME} variable references in the creation parameters (URLs,
+	// tokens, ...) from the variables configured in kaja.json.
+	variables := loadConfigurationFile(s.configurationPath, NewLogger()).Variables
+	expandAppParameters(parameters, variables, logger)
+
 	protoDir, err := tempdir.NewSourcesDir()
 	if err != nil {
 		logger.error("Failed to create temp directory", err)

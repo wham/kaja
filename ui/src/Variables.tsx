@@ -69,7 +69,8 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
       <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
         <div style={{ maxWidth: 720, padding: 16 }}>
           <FormControl.Caption>
-            Reusable values for your scripts, read as <code>kaja.variables.&lt;name&gt;</code>. For non-sensitive values only — they are stored in plain text in
+            Reusable values for your scripts, read as <code>kaja.variables.&lt;name&gt;</code>, and for app configuration, referenced as{" "}
+            <code>{"${name}"}</code> in any value or part of it (a URL, a token, a header). For non-sensitive values only — they are stored in plain text in
             kaja.json.
           </FormControl.Caption>
 

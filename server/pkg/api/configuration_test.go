@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -278,6 +279,98 @@ func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 	}
 	if configuration.Variables["TEAM_ID"] != "42" {
 		t.Errorf("expected TEAM_ID from GetConfiguration, got %q", configuration.Variables["TEAM_ID"])
+	}
+}
+
+func TestExpandVariables(t *testing.T) {
+	variables := map[string]string{"HOST": "api.example.com", "TOKEN": "secret", "V_1": "one"}
+
+	cases := []struct {
+		value    string
+		expected string
+	}{
+		{"https://${HOST}/twirp", "https://api.example.com/twirp"},
+		{"${TOKEN}", "secret"},
+		{"Bearer ${TOKEN}", "Bearer secret"},
+		{"${HOST}/${V_1}", "api.example.com/one"},
+		{"${UNDEFINED}", "${UNDEFINED}"},
+		{"no references", "no references"},
+		{"${not-a-name}", "${not-a-name}"},
+		{"$HOST and {HOST}", "$HOST and {HOST}"},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := expandVariables(c.value, variables); got != c.expected {
+			t.Errorf("expandVariables(%q) = %q, expected %q", c.value, got, c.expected)
+		}
+	}
+}
+
+func TestOpenApp_ExpandsVariables(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	configContent := `{"variables": {"KAJA_HOST": "kaja.tools"}}`
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), true, "", "")
+
+	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
+		App: &ConfigurationApp{
+			Name: "quirks",
+			App:  &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "dns:${KAJA_HOST}:443", ProtoDir: "quirks/proto"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OpenApp failed: %v", err)
+	}
+	if response.Status != OpenStatus_OPEN_STATUS_OK {
+		t.Fatalf("expected OK status, got %v: %v", response.Status, response.Logs)
+	}
+	if response.Target != "dns:kaja.tools:443" {
+		t.Errorf("expected expanded target 'dns:kaja.tools:443', got %q", response.Target)
+	}
+}
+
+func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), true, "", "")
+
+	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
+		App: &ConfigurationApp{
+			Name: "quirks",
+			App:  &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "dns:${MISSING}:443", ProtoDir: "quirks/proto"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OpenApp failed: %v", err)
+	}
+
+	// The reference is left as-is and the logs call it out.
+	if response.Target != "dns:${MISSING}:443" {
+		t.Errorf("expected unresolved reference to pass through, got %q", response.Target)
+	}
+	found := false
+	for _, log := range response.Logs {
+		if strings.Contains(log.Message, "${MISSING}") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected a log about the unresolved ${MISSING} reference, got %v", response.Logs)
 	}
 }
 
