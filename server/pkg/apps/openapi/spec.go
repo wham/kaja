@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,6 +71,7 @@ type operation struct {
 }
 
 type parameter struct {
+	Ref      string  `json:"$ref"` // reference to #/components/parameters/<name>
 	Name     string  `json:"name"`
 	In       string  `json:"in"` // path | query | header | cookie
 	Required bool    `json:"required"`
@@ -92,6 +94,7 @@ type mediaType struct {
 
 type components struct {
 	Schemas         map[string]*schema         `json:"schemas"`
+	Parameters      map[string]*parameter      `json:"parameters"`
 	SecuritySchemes map[string]*securityScheme `json:"securitySchemes"`
 }
 
@@ -106,13 +109,29 @@ type securityScheme struct {
 }
 
 type schema struct {
-	Ref        string             `json:"$ref"`
-	Type       string             `json:"type"`
-	Format     string             `json:"format"`
-	Items      *schema            `json:"items"`
-	Properties map[string]*schema `json:"properties"`
-	Required   []string           `json:"required"`
-	Enum       []interface{}      `json:"enum"`
+	Ref                  string                `json:"$ref"`
+	Type                 string                `json:"type"`
+	Format               string                `json:"format"`
+	Items                *schema               `json:"items"`
+	Properties           map[string]*schema    `json:"properties"`
+	AdditionalProperties *additionalProperties `json:"additionalProperties"`
+	AllOf                []*schema             `json:"allOf"`
+	Required             []string              `json:"required"`
+	Enum                 []interface{}         `json:"enum"`
+}
+
+// additionalProperties is either a boolean or a schema in OpenAPI documents.
+type additionalProperties struct {
+	Allowed bool
+	Schema  *schema
+}
+
+func (a *additionalProperties) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &a.Allowed); err == nil {
+		return nil
+	}
+	a.Allowed = true
+	return json.Unmarshal(b, &a.Schema)
 }
 
 // jsonContent returns the application/json media type, if present.
