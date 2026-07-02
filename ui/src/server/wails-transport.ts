@@ -31,6 +31,36 @@ function wailsErrorMessage(error: unknown): string {
   return "Unknown error";
 }
 
+// UpstreamError is an HTTP error response from the invoked app's upstream API
+// (or a Twirp error body). Unlike transport failures it is thrown as-is — no
+// "transport error" wrapping — and its extra fields (status, request, body,
+// ...) end up on the method call's serialized error for the console to show.
+class UpstreamError extends Error {
+  constructor(message: string, fields: Record<string, unknown>) {
+    super(message);
+    Object.assign(this, fields);
+  }
+}
+
+// upstreamError shapes a >= 400 Target result into an UpstreamError. The body
+// is the structured error JSON produced by the server (or a Twirp error), so
+// its message becomes the error message and the rest becomes error fields.
+function upstreamError(result: { body: unknown; statusCode: number; status: string }): UpstreamError {
+  let errorJson: unknown;
+  try {
+    const bodyBytes = Uint8Array.from(atob(result.body as string), (c) => c.charCodeAt(0));
+    errorJson = JSON.parse(new TextDecoder().decode(bodyBytes));
+  } catch {
+    // Body missing or not JSON; fall back to the HTTP status line.
+  }
+  if (!errorJson || typeof errorJson !== "object") {
+    return new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
+  }
+  const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
+  const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
+  return new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
+}
+
 export interface WailsTransportOptions {
   mode: WailsTransportMode;
   appRef?: AppRef; // Dynamic app reference for "target" mode
@@ -235,17 +265,8 @@ export class WailsTransport implements RpcTransport {
         const result = await Target(this.appRef!.target, fullMethodPath, inputArray, this.protocol, headersJson);
 
         if (result.statusCode >= 400) {
-          // Twirp error responses are always JSON, even in binary mode
-          try {
-            const bodyBytes = Uint8Array.from(atob(result.body as unknown as string), (c) => c.charCodeAt(0));
-            const errorJson = JSON.parse(new TextDecoder().decode(bodyBytes));
-            throw new Error(errorJson.msg || errorJson.message || `HTTP ${result.statusCode}`);
-          } catch (parseError) {
-            if (parseError instanceof Error && !parseError.message.startsWith("HTTP ")) {
-              throw parseError;
-            }
-            throw new Error(`HTTP ${result.statusCode} ${result.status}`);
-          }
+          // A structured error body: an upstream failure from an app, or a Twirp error.
+          throw upstreamError(result);
         }
 
         responseBase64 = result.body;
@@ -260,7 +281,10 @@ export class WailsTransport implements RpcTransport {
       console.log(`Wails ${this.mode} output:`, output);
       return output;
     } catch (error) {
-      console.error(`Wails ${this.mode} transport error:`, error);
+      console.error(`Wails ${this.mode} call failed:`, error);
+      if (error instanceof UpstreamError) {
+        throw error;
+      }
       throw new Error(`Wails ${this.mode} transport error: ${wailsErrorMessage(error)}`);
     }
   }
