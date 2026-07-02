@@ -25,15 +25,24 @@ func New() *App { return &App{} }
 
 func (a *App) Open(parameters map[string]string, protoDir string, log func(string)) (*apps.Opened, error) {
 	specURL := strings.TrimSpace(parameters["spec_url"])
-	if specURL == "" {
-		return nil, fmt.Errorf("missing required parameter %q", "spec_url")
-	}
-	if err := requireHTTPScheme(specURL); err != nil {
-		return nil, err
-	}
+	specContent := strings.TrimSpace(parameters["spec_content"])
 
-	log("Fetching OpenAPI spec from " + specURL)
-	s, err := loadSpec(specURL)
+	var s *spec
+	var err error
+	switch {
+	case specContent != "":
+		// The spec was uploaded as a file; parse it directly (JSON or YAML).
+		log("Parsing uploaded OpenAPI spec")
+		s, err = parseSpec([]byte(specContent))
+	case specURL != "":
+		if err := requireHTTPScheme(specURL); err != nil {
+			return nil, err
+		}
+		log("Fetching OpenAPI spec from " + specURL)
+		s, err = loadSpec(specURL)
+	default:
+		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -138,17 +147,34 @@ func requireHTTPScheme(rawURL string) error {
 }
 
 // resolveBaseURL determines the upstream base URL from the spec's servers list,
-// resolving relative server URLs against the document URL.
+// resolving relative server URLs against the document URL. When the spec was
+// uploaded (specURL is empty) there is no document URL to resolve against, so the
+// spec must declare an absolute server URL.
 func resolveBaseURL(specURL string, s *spec) (string, error) {
+	var serverURL string
+	if len(s.Servers) > 0 {
+		serverURL = strings.TrimSpace(s.Servers[0].URL)
+	}
+
+	if specURL == "" {
+		if serverURL == "" {
+			return "", fmt.Errorf("uploaded spec has no servers; add an absolute server URL to the spec")
+		}
+		ref, err := url.Parse(serverURL)
+		if err != nil {
+			return "", fmt.Errorf("invalid server URL %q: %w", serverURL, err)
+		}
+		if !ref.IsAbs() {
+			return "", fmt.Errorf("uploaded spec has relative server URL %q; use an absolute server URL", serverURL)
+		}
+		return strings.TrimRight(serverURL, "/"), nil
+	}
+
 	docURL, err := url.Parse(specURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid spec URL: %w", err)
 	}
 
-	var serverURL string
-	if len(s.Servers) > 0 {
-		serverURL = strings.TrimSpace(s.Servers[0].URL)
-	}
 	if serverURL == "" {
 		return docURL.Scheme + "://" + docURL.Host, nil
 	}

@@ -144,14 +144,16 @@ message TwirpApp {
   map<string, string> headers = 3;
 }
 
-// OpenApiApp calls a REST API from its OpenAPI 3.x document. Credentials are
-// applied per the spec's security schemes.
+// OpenApiApp calls a REST API from its OpenAPI 3.x document. The document is
+// taken from spec_url or, when the spec is uploaded, from spec_content (raw JSON
+// or YAML). Credentials are applied per the spec's security schemes.
 message OpenApiApp {
   string spec_url = 1;
   string token = 2;
   string username = 3;
   string password = 4;
   map<string, string> headers = 5;
+  string spec_content = 6;
 }
 
 // OpenAiApp calls the OpenAI chat completions API.
