@@ -30,7 +30,7 @@ import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
-import { registerKajaGlobals } from "./Editor";
+import { registerKajaModule } from "./Editor";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -460,7 +460,7 @@ export function App() {
     if (kajaRef.current) {
       kajaRef.current.variables = variables;
     }
-    registerKajaGlobals(Object.keys(variables));
+    registerKajaModule(Object.keys(variables));
   }, [configuration?.variables]);
 
   // Handle external configuration file changes (hot reload)

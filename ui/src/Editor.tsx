@@ -44,15 +44,14 @@ function kajaVariablesType(variableNames: string[]): string {
   return `{\n${members}\n  }`;
 }
 
-// The `kaja` object is injected into every script as a global (see taskRunner),
-// so declare it for editor autocomplete and type checking. Re-registering with
-// the same path replaces the previous declaration, so this is called again
-// whenever the configured variables change (see App.tsx).
-export function registerKajaGlobals(variableNames: string[]): void {
-  monaco.typescript.typescriptDefaults.addExtraLib(
-    `
-/** The global Kaja object, available in every script — no import needed. */
-declare const kaja: {
+// Scripts get the kaja object through `import { kaja } from "kaja"` — the task
+// runner resolves the import at run time (see taskRunner). Back the import with
+// a model (not an extra lib) so autocomplete can auto-import it and
+// go-to-definition lands here. Called again whenever the configured variables
+// change (see App.tsx) to refresh the typed `variables` member.
+export function registerKajaModule(variableNames: string[]): void {
+  const content = `/** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
+export declare const kaja: {
   /**
    * The selected text passed in when the script is launched from the macOS
    * "Run Kaja Script" text service. Undefined when the script is run manually
@@ -72,12 +71,41 @@ declare const kaja: {
    */
   ask(message: string): Promise<string>;
 };
-`,
-    "ts:kaja-globals.d.ts",
-  );
+`;
+  const uri = monaco.Uri.parse("ts:/kaja.ts");
+  const existing = monaco.editor.getModel(uri);
+  if (existing) {
+    existing.setValue(content);
+  } else {
+    monaco.editor.createModel(content, "typescript", uri);
+  }
 }
 
-registerKajaGlobals([]);
+registerKajaModule([]);
+
+// Monaco's TypeScript worker doesn't auto-import from other models, so offer
+// `kaja` as a completion that also inserts the import when it's missing.
+monaco.languages.registerCompletionItemProvider("typescript", {
+  provideCompletionItems(model, position) {
+    if (model.uri.path === "/kaja.ts" || /from\s+["']kaja["']/.test(model.getValue())) {
+      return { suggestions: [] };
+    }
+    const word = model.getWordUntilPosition(position);
+    return {
+      suggestions: [
+        {
+          label: { label: "kaja", description: 'import from "kaja"' },
+          kind: monaco.languages.CompletionItemKind.Variable,
+          detail: 'Add import from "kaja"',
+          documentation: "The Kaja runtime object (kaja.input, kaja.variables, kaja.ask).",
+          insertText: "kaja",
+          range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+          additionalTextEdits: [{ range: new monaco.Range(1, 1, 1, 1), text: 'import { kaja } from "kaja";\n' }],
+        },
+      ],
+    };
+  },
+});
 
 const TIMESTAMP_PICKER_COMMAND = "kaja.pickTimestamp";
 let timestampCommandRegistered = false;
