@@ -32,3 +32,19 @@ describe("kaja.variables injection", () => {
     expect(run.result).toBe("new");
   });
 });
+
+describe("kaja.uuid", () => {
+  it("generates a version 4 UUID from scripts", async () => {
+    const kaja = makeKaja();
+
+    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.uuid.v4();`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("generates unique values", () => {
+    const kaja = makeKaja();
+    expect(kaja.uuid.v4()).not.toBe(kaja.uuid.v4());
+  });
+});
