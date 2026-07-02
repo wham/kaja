@@ -4,6 +4,7 @@ import {
   CpuIcon,
   FileCodeIcon,
   FoldIcon,
+  KeyIcon,
   PencilIcon,
   PinIcon,
   PlusIcon,
@@ -95,6 +96,8 @@ interface SidebarProps {
   onCompilerClick: () => void;
   // Opens the create form to add an app (gRPC, Twirp, or a built-in integration).
   onNewAppClick: () => void;
+  // Opens the variables manager tab. Undefined when the feature preview is off.
+  onVariablesClick?: () => void;
   // One-shot signal to auto-expand a just-added app (and its first service).
   autoExpandApp?: { name: string };
   // macOS desktop: inset the header row to clear the window traffic lights and make
@@ -119,6 +122,7 @@ export function Sidebar({
   onPinScript,
   onCompilerClick,
   onNewAppClick,
+  onVariablesClick,
   autoExpandApp,
   reserveTrafficLights = false,
   onEditApp,
@@ -416,12 +420,25 @@ export function Sidebar({
             : { display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }
         }
       >
-        <div style={reserveTrafficLights ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties) : { display: "flex", alignItems: "center" }}>
+        <div
+          style={
+            reserveTrafficLights
+              ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties)
+              : { display: "flex", alignItems: "center" }
+          }
+        >
           <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New app" onClick={onNewAppClick} />
           <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
+          {onVariablesClick && <IconButton icon={KeyIcon} size="small" variant="invisible" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
-        <div style={reserveTrafficLights ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties) : { display: "flex", alignItems: "center" }}>
+        <div
+          style={
+            reserveTrafficLights
+              ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties)
+              : { display: "flex", alignItems: "center" }
+          }
+        >
           <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
           <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
         </div>
@@ -533,10 +550,7 @@ export function Sidebar({
                     paddingRight: 4,
                     borderRadius: 6,
                     color: "var(--fgColor-muted)",
-                    backgroundColor:
-                      hoveredApp === appName || appMenu?.appName === appName
-                        ? "var(--control-transparent-bgColor-hover)"
-                        : "transparent",
+                    backgroundColor: hoveredApp === appName || appMenu?.appName === appName ? "var(--control-transparent-bgColor-hover)" : "transparent",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -732,10 +746,7 @@ export function Sidebar({
         </ActionMenu.Overlay>
       </ActionMenu>
       {/* Invisible anchor positioned at the cursor for the app context menu. */}
-      <div
-        ref={appMenuAnchorRef}
-        style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
-      />
+      <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
       <ActionMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)} anchorRef={appMenuAnchorRef}>
         <ActionMenu.Overlay width="small">
           <ActionList>

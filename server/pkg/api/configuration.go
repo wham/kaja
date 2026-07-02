@@ -223,6 +223,7 @@ func SaveConfiguration(configurationPath string, configuration *Configuration) e
 		PathPrefix: configuration.PathPrefix,
 		Apps:       configuration.Apps,
 		System:     configuration.System,
+		Variables:  configuration.Variables,
 	}
 
 	jsonBytes, err := protojson.MarshalOptions{

@@ -45,6 +45,11 @@ declare const kaja: {
    */
   input?: string;
   /**
+   * User-defined variables from the configuration. Manage them in the
+   * Variables tab; read them here, e.g. kaja.variables.API_BASE_URL.
+   */
+  variables: { [key: string]: string };
+  /**
    * Pause the script and pop up a dialog asking the user for input. Resolves
    * with the submitted text; if the user cancels, the script stops.
    *

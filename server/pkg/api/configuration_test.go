@@ -245,6 +245,36 @@ func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
 	}
 }
 
+func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), true, "", "")
+
+	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{
+			Variables: map[string]string{"API_BASE_URL": "https://api.example.com", "TEAM_ID": "42"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected no error saving variables, got %v", err)
+	}
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name(), true).Configuration
+	if configuration.Variables["API_BASE_URL"] != "https://api.example.com" {
+		t.Errorf("expected persisted API_BASE_URL, got %q", configuration.Variables["API_BASE_URL"])
+	}
+	if configuration.Variables["TEAM_ID"] != "42" {
+		t.Errorf("expected persisted TEAM_ID, got %q", configuration.Variables["TEAM_ID"])
+	}
+}
+
 func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 	configContent := `{
 		"projects": [],

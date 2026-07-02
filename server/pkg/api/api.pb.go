@@ -639,7 +639,10 @@ type Configuration struct {
 	// Apps are the single unit of configuration. A gRPC or Twirp service is just an
 	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
 	// are apps too. kaja renders and invokes every app the same way.
-	Apps          []*ConfigurationApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
+	Apps []*ConfigurationApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
+	// User-defined variables usable from scripts as `kaja.variables.<name>`.
+	// Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+	Variables     map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -691,6 +694,13 @@ func (x *Configuration) GetSystem() *ConfigurationSystem {
 func (x *Configuration) GetApps() []*ConfigurationApp {
 	if x != nil {
 		return x.Apps
+	}
+	return nil
+}
+
+func (x *Configuration) GetVariables() map[string]string {
+	if x != nil {
+		return x.Variables
 	}
 	return nil
 }
@@ -1346,12 +1356,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x17GetConfigurationRequest\"j\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\"\x95\x01\n" +
+	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\"\x90\x02\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12,\n" +
 	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\x12%\n" +
-	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04appsJ\x04\b\x02\x10\x03R\bprojects\"\x8b\x01\n" +
+	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
+	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x1a<\n" +
+	"\x0eVariablesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03R\bprojects\"\x8b\x01\n" +
 	"\x13ConfigurationSystem\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
@@ -1442,7 +1456,7 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
 	(CompileStatus)(0),                  // 1: CompileStatus
@@ -1465,10 +1479,11 @@ var file_proto_api_proto_goTypes = []any{
 	(*MarkdownApp)(nil),                 // 18: MarkdownApp
 	(*UpdateConfigurationRequest)(nil),  // 19: UpdateConfigurationRequest
 	(*UpdateConfigurationResponse)(nil), // 20: UpdateConfigurationResponse
-	nil,                                 // 21: GrpcApp.HeadersEntry
-	nil,                                 // 22: TwirpApp.HeadersEntry
-	nil,                                 // 23: OpenApiApp.HeadersEntry
-	nil,                                 // 24: OpenAiApp.HeadersEntry
+	nil,                                 // 21: Configuration.VariablesEntry
+	nil,                                 // 22: GrpcApp.HeadersEntry
+	nil,                                 // 23: TwirpApp.HeadersEntry
+	nil,                                 // 24: OpenApiApp.HeadersEntry
+	nil,                                 // 25: OpenAiApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
 	13, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
@@ -1482,30 +1497,31 @@ var file_proto_api_proto_depIdxs = []int32{
 	7,  // 8: GetConfigurationResponse.logs:type_name -> Log
 	12, // 9: Configuration.system:type_name -> ConfigurationSystem
 	13, // 10: Configuration.apps:type_name -> ConfigurationApp
-	14, // 11: ConfigurationApp.grpc:type_name -> GrpcApp
-	15, // 12: ConfigurationApp.twirp:type_name -> TwirpApp
-	16, // 13: ConfigurationApp.openapi:type_name -> OpenApiApp
-	17, // 14: ConfigurationApp.openai:type_name -> OpenAiApp
-	18, // 15: ConfigurationApp.markdown:type_name -> MarkdownApp
-	21, // 16: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	22, // 17: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	23, // 18: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	24, // 19: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	11, // 20: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	11, // 21: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	3,  // 22: Api.Compile:input_type -> CompileRequest
-	4,  // 23: Api.OpenApp:input_type -> OpenAppRequest
-	9,  // 24: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	19, // 25: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	6,  // 26: Api.Compile:output_type -> CompileResponse
-	5,  // 27: Api.OpenApp:output_type -> OpenAppResponse
-	10, // 28: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	20, // 29: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	26, // [26:30] is the sub-list for method output_type
-	22, // [22:26] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	21, // 11: Configuration.variables:type_name -> Configuration.VariablesEntry
+	14, // 12: ConfigurationApp.grpc:type_name -> GrpcApp
+	15, // 13: ConfigurationApp.twirp:type_name -> TwirpApp
+	16, // 14: ConfigurationApp.openapi:type_name -> OpenApiApp
+	17, // 15: ConfigurationApp.openai:type_name -> OpenAiApp
+	18, // 16: ConfigurationApp.markdown:type_name -> MarkdownApp
+	22, // 17: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	23, // 18: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	24, // 19: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	25, // 20: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	11, // 21: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	11, // 22: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	3,  // 23: Api.Compile:input_type -> CompileRequest
+	4,  // 24: Api.OpenApp:input_type -> OpenAppRequest
+	9,  // 25: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	19, // 26: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	6,  // 27: Api.Compile:output_type -> CompileResponse
+	5,  // 28: Api.OpenApp:output_type -> OpenAppResponse
+	10, // 29: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	20, // 30: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	27, // [27:31] is the sub-list for method output_type
+	23, // [23:27] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -1526,7 +1542,7 @@ func file_proto_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

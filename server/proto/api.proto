@@ -96,6 +96,9 @@ message Configuration {
   // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
   // are apps too. kaja renders and invokes every app the same way.
   repeated ConfigurationApp apps = 5;
+  // User-defined variables usable from scripts as `kaja.variables.<name>`.
+  // Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+  map<string, string> variables = 6;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
   // they were unified into `apps`. Legacy config files are migrated on load.
