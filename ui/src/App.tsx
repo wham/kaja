@@ -151,9 +151,6 @@ export function App() {
   const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
   const previewMcpRef = useRef(previewMcp);
   previewMcpRef.current = previewMcp;
-  // Experimental "Variables" feature: user-defined values stored in kaja.json and
-  // exposed to scripts as `kaja.variables.<name>`. Available on web too (read-only).
-  const [previewVariables, setPreviewVariables] = usePersistedState("featurePreview:variables", false);
   const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
   // While an MCP run_script call is in flight, the method calls it makes are
   // collected here so they can be returned to the agent.
@@ -241,7 +238,6 @@ export function App() {
   const featurePreviews: FeaturePreview[] = [
     ...(isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : []),
     ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
-    { key: "variables", label: "Variables", enabled: previewVariables },
     { key: "previewApps", label: "Preview Apps", enabled: previewApps },
   ];
 
@@ -250,8 +246,6 @@ export function App() {
       setPreviewScripts((enabled) => !enabled);
     } else if (key === "mcp") {
       setPreviewMcp((enabled) => !enabled);
-    } else if (key === "variables") {
-      setPreviewVariables((enabled) => !enabled);
     } else if (key === "previewApps") {
       setPreviewApps((enabled) => !enabled);
     }
@@ -1254,7 +1248,7 @@ export function App() {
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
                   onNewAppClick={onNewAppClick}
-                  onVariablesClick={previewVariables ? onVariablesClick : undefined}
+                  onVariablesClick={previewScripts ? onVariablesClick : undefined}
                   autoExpandApp={autoExpandApp}
                   reserveTrafficLights={isDesktopMac}
                   onEditApp={onEditApp}
