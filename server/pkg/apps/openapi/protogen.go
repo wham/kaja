@@ -61,8 +61,9 @@ type generator struct {
 	pkg                string
 	defaultServiceName string
 
-	messages []*messageDef
-	seenMsg  map[string]bool
+	messages     []*messageDef
+	seenMsg      map[string]bool
+	resolvingRef map[string]bool
 
 	services     []*serviceDef
 	serviceIndex map[string]*serviceDef
@@ -82,6 +83,7 @@ func generateProto(s *spec) (*generated, error) {
 		pkg:                "openapi." + lowerSnake(title),
 		defaultServiceName: ensureName(pascal(title), "Api"),
 		seenMsg:            map[string]bool{},
+		resolvingRef:       map[string]bool{},
 		seenRPC:            map[string]bool{},
 		serviceIndex:       map[string]*serviceDef{},
 		bindingByMethod:    map[string]*methodBinding{},
@@ -172,7 +174,7 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	// Request message: path + query params, then an optional body field.
 	req := &messageDef{name: reqName}
 	num := 1
-	for _, param := range mergedParameters(item, op) {
+	for _, param := range g.mergedParameters(item, op) {
 		switch param.In {
 		case "path":
 			req.fields = append(req.fields, g.paramField(param, num))
@@ -295,20 +297,41 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		return "string", false
 	}
 	if s.Ref != "" {
-		return g.refMessage(s.Ref), false
+		return g.refType(parent, hint, s.Ref)
+	}
+	// "allOf: [$ref]" plus sibling annotations is a common way to reference a
+	// schema; delegate when the schema declares nothing structural itself.
+	if len(s.Properties) == 0 && s.AdditionalProperties == nil && len(s.AllOf) > 0 {
+		return g.protoType(parent, hint, s.AllOf[0])
 	}
 	switch s.Type {
 	case "array":
 		elem, _ := g.protoType(parent, hint+"Item", s.Items)
-		return elem, true
-	case "object":
-		if len(s.Properties) == 0 {
-			// Free-form object: fall back to string for the minimal happy path.
-			return "string", false
+		if strings.HasPrefix(elem, "map<") {
+			// proto has no repeated maps; fall back to string elements.
+			return "string", true
 		}
-		name := g.uniqueMessageName(parent + hint)
-		g.addMessage(&messageDef{name: name, fields: g.fieldsFromProperties(name, s)})
-		return name, false
+		return elem, true
+	case "object", "":
+		if len(s.Properties) > 0 {
+			name := g.uniqueMessageName(parent + hint)
+			g.addMessage(&messageDef{name: name, fields: g.fieldsFromProperties(name, s)})
+			return name, false
+		}
+		if ap := s.AdditionalProperties; ap != nil && ap.Allowed {
+			value := "string"
+			if ap.Schema != nil {
+				value, _ = g.protoType(parent, hint+"Value", ap.Schema)
+				if strings.HasPrefix(value, "map<") {
+					// proto map values cannot be maps themselves.
+					value = "string"
+				}
+			}
+			return "map<string, " + value + ">", false
+		}
+		// Free-form object (or untyped schema): fall back to string for the
+		// minimal happy path.
+		return "string", false
 	case "integer":
 		if s.Format == "int64" {
 			return "int64", false
@@ -321,11 +344,33 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		return "double", false
 	case "boolean":
 		return "bool", false
-	case "string", "":
+	case "string":
 		return "string", false
 	default:
 		return "string", false
 	}
+}
+
+// refType maps a "#/components/schemas/X" reference to a proto type. Schemas
+// with properties become named messages; string/enum, number, map, array, and
+// allOf targets are expanded in place so their fields keep the scalar or map
+// shape the REST JSON uses (an empty message would reject those values).
+func (g *generator) refType(parent, hint, ref string) (string, bool) {
+	name := refName(ref)
+	var target *schema
+	if g.spec.Components.Schemas != nil {
+		target = g.spec.Components.Schemas[name]
+	}
+	expandable := target != nil && len(target.Properties) == 0 &&
+		(target.Ref != "" || len(target.AllOf) > 0 ||
+			(target.AdditionalProperties != nil && target.AdditionalProperties.Allowed) ||
+			(target.Type != "" && target.Type != "object"))
+	if !expandable || g.resolvingRef[name] {
+		return g.refMessage(ref), false
+	}
+	g.resolvingRef[name] = true
+	defer delete(g.resolvingRef, name)
+	return g.protoType(parent, hint, target)
 }
 
 func (g *generator) addMessage(m *messageDef) {
@@ -389,12 +434,13 @@ func (g *generator) render() string {
 }
 
 // mergedParameters combines path-item-level and operation-level parameters,
-// with operation-level taking precedence on (name, in) collisions.
-func mergedParameters(item *pathItem, op *operation) []*parameter {
+// with operation-level taking precedence on (name, in) collisions. Parameters
+// declared as "#/components/parameters/<name>" references are resolved first.
+func (g *generator) mergedParameters(item *pathItem, op *operation) []*parameter {
 	seen := map[string]bool{}
 	var out []*parameter
 	for _, p := range op.Parameters {
-		if p == nil {
+		if p = g.resolveParameter(p); p == nil {
 			continue
 		}
 		key := p.In + ":" + p.Name
@@ -402,7 +448,7 @@ func mergedParameters(item *pathItem, op *operation) []*parameter {
 		out = append(out, p)
 	}
 	for _, p := range item.Parameters {
-		if p == nil {
+		if p = g.resolveParameter(p); p == nil {
 			continue
 		}
 		key := p.In + ":" + p.Name
@@ -411,6 +457,16 @@ func mergedParameters(item *pathItem, op *operation) []*parameter {
 		}
 	}
 	return out
+}
+
+func (g *generator) resolveParameter(p *parameter) *parameter {
+	if p == nil || p.Ref == "" {
+		return p
+	}
+	if resolved, ok := g.spec.Components.Parameters[refName(p.Ref)]; ok && resolved != nil && resolved.Ref == "" {
+		return resolved
+	}
+	return nil
 }
 
 func successResponse(op *operation) *response {

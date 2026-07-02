@@ -273,6 +273,147 @@ paths:
 	}
 }
 
+// meteringSpec mirrors the OpenMeter API shapes: parameters declared as
+// "#/components/parameters" references, map-typed properties
+// (additionalProperties), and "allOf: [$ref]" wrappers around enums and maps.
+const meteringSpec = `
+openapi: 3.0.0
+info:
+  title: Metering
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /meters:
+    get:
+      operationId: listMeters
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/order"
+        - $ref: "#/components/parameters/missing"
+        - name: includeDeleted
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Meter"
+components:
+  parameters:
+    page:
+      name: page
+      in: query
+      schema: { type: integer }
+    order:
+      name: order
+      in: query
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/SortOrder"
+        default: ASC
+  schemas:
+    SortOrder:
+      type: string
+      enum: [ASC, DESC]
+    Metadata:
+      type: object
+      additionalProperties: { type: string }
+    Meter:
+      type: object
+      properties:
+        slug: { type: string }
+        groupBy:
+          type: object
+          additionalProperties: { type: string }
+        metadata:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/Metadata"
+          nullable: true
+        aggregation:
+          allOf:
+            - $ref: "#/components/schemas/SortOrder"
+`
+
+// TestParameterRefsAndMaps locks in that referenced parameters land in the
+// request message (an unresolvable reference is dropped), additionalProperties
+// objects become proto maps, and references to enum/map schemas are expanded in
+// place instead of producing empty messages.
+func TestParameterRefsAndMaps(t *testing.T) {
+	s, err := parseSpec([]byte(meteringSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		`int32 page = 1 [json_name = "page"];`,
+		`string order = 2 [json_name = "order"];`,
+		`bool include_deleted = 3 [json_name = "includeDeleted"];`,
+		`string aggregation = 1 [json_name = "aggregation"];`,
+		`map<string, string> group_by = 2 [json_name = "groupBy"];`,
+		`map<string, string> metadata = 3 [json_name = "metadata"];`,
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+	for _, frag := range []string{"message SortOrder", "message Metadata"} {
+		if strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto should not contain %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	b := gen.bindings["openapi.metering.Metering/ListMeters"]
+	if b == nil {
+		t.Fatal("missing ListMeters binding")
+	}
+	if want := []string{"page", "order", "includeDeleted"}; strings.Join(b.queryParams, ",") != strings.Join(want, ",") {
+		t.Errorf("queryParams = %q, want %q", b.queryParams, want)
+	}
+}
+
+// TestInvokeMapField reproduces calling List Meters with empty parameters: the
+// upstream response carries map-valued and null map fields, which must decode
+// into the generated map<string, string> fields.
+func TestInvokeMapField(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, meteringSpec)
+	})
+	mux.HandleFunc("/meters", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" {
+			t.Errorf("unexpected query %q for empty request", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `[{"slug":"tokens","groupBy":{"model":"$.model"},"metadata":null,"aggregation":"SUM"}]`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+
+	const method = "openapi.metering.Metering/ListMeters"
+	out, err := inst.Invoke(method, encodeRequest(t, inst, method, `{}`), nil)
+	if err != nil {
+		t.Fatalf("ListMeters: %v", err)
+	}
+	assertJSONEq(t, decodeResponse(t, inst, method, out),
+		`{"items":[{"slug":"tokens","groupBy":{"model":"$.model"},"aggregation":"SUM"}]}`)
+}
+
 // TestOpenAndInvoke exercises the full path: a fake upstream serves both the spec
 // and the REST API; we open the app and invoke each generated method.
 func TestOpenAndInvoke(t *testing.T) {
