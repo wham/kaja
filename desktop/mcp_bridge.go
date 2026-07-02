@@ -163,6 +163,12 @@ func (a *App) runScript(ctx context.Context, path, code string) (mcp.RunResult, 
 	}
 }
 
+// notifyScriptsChanged tells the webview an MCP tool changed a script on disk,
+// so an open tab can live-reload its content and the sidebar list stays fresh.
+func (a *App) notifyScriptsChanged(payload map[string]string) {
+	runtime.EventsEmit(a.ctx, "mcp:scriptsChanged", payload)
+}
+
 func (a *App) catalog() mcp.Catalog {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
@@ -249,7 +255,11 @@ func (b mcpBridge) WriteScript(path, content string) error {
 	if err != nil {
 		return err
 	}
-	return b.app.WriteScriptFile(safePath, content)
+	if err := b.app.WriteScriptFile(safePath, content); err != nil {
+		return err
+	}
+	b.app.notifyScriptsChanged(map[string]string{"action": "write", "path": safePath, "content": content})
+	return nil
 }
 
 func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
@@ -261,6 +271,7 @@ func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
+	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name})
 	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Content: f.Content}, nil
 }
 
@@ -277,6 +288,7 @@ func (b mcpBridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
+	b.app.notifyScriptsChanged(map[string]string{"action": "rename", "oldPath": safePath, "path": f.Path, "name": f.Name})
 	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Content: f.Content}, nil
 }
 
@@ -285,7 +297,11 @@ func (b mcpBridge) DeleteScript(path string) error {
 	if err != nil {
 		return err
 	}
-	return b.app.DeleteScript(safePath)
+	if err := b.app.DeleteScript(safePath); err != nil {
+		return err
+	}
+	b.app.notifyScriptsChanged(map[string]string{"action": "delete", "path": safePath})
+	return nil
 }
 
 func (b mcpBridge) RunScript(ctx context.Context, path, code string) (mcp.RunResult, error) {

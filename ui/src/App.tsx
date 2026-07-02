@@ -874,6 +874,18 @@ export function App() {
     setRenameScript({ script, name: script.name.replace(/\.ts$/, "") });
   }, []);
 
+  // Reflect a rename that already happened on disk: update the sidebar list,
+  // re-point any open tab, and keep the context-menu pin on the renamed file.
+  const applyScriptRename = useCallback(
+    (oldPath: string, renamed: Script) => {
+      setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
+      setTabs((prev) => prev.map((t) => (t.type === "script" && t.script.path === oldPath ? { ...t, script: renamed } : t)));
+      setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
+      persistTabs();
+    },
+    [persistTabs],
+  );
+
   const onConfirmRenameScript = useCallback(async () => {
     if (!renameScript) return;
     const name = renameScript.name.trim();
@@ -895,34 +907,22 @@ export function App() {
       }
       const file = await RenameScript(original.path, name);
       if (!file) return;
-      const renamed: Script = { path: file.path, name: file.name };
-      setScripts((prev) => (prev ?? []).map((s) => (s.path === original.path ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
-      // Re-point any open tab for this script at the new path/name.
-      setTabs((prev) => prev.map((t) => (t.type === "script" && t.script.path === original.path ? { ...t, script: renamed } : t)));
-      // Keep the context-menu pin pointing at the renamed file.
-      setPinnedScriptPath((current) => (current === original.path ? renamed.path : current));
-      persistTabs();
+      applyScriptRename(original.path, { path: file.path, name: file.name });
       setRenameScript(null);
       setRenameError(undefined);
     } catch (err) {
       setRenameError(String(err));
     }
-  }, [renameScript, persistTabs]);
+  }, [renameScript, applyScriptRename]);
 
-  // Right-click → Delete: confirm, then remove the file and close its tab.
-  const onConfirmDeleteScript = useCallback(
-    async (script: Script) => {
-      try {
-        await DeleteScript(script.path);
-      } catch (err) {
-        showFileError(`Delete failed: ${err}`);
-        return;
-      }
-      setScripts((prev) => (prev ?? []).filter((s) => s.path !== script.path));
-      // Drop the context-menu pin if it pointed at the deleted script.
-      setPinnedScriptPath((current) => (current === script.path ? undefined : current));
+  // Reflect a deletion that already happened on disk: drop the script from the
+  // sidebar list and the context-menu pin, and close its tab.
+  const removeScriptFromUI = useCallback(
+    (path: string) => {
+      setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
+      setPinnedScriptPath((current) => (current === path ? undefined : current));
       setTabs((prevTabs) => {
-        const idx = prevTabs.findIndex((t) => t.type === "script" && t.script.path === script.path);
+        const idx = prevTabs.findIndex((t) => t.type === "script" && t.script.path === path);
         if (idx === -1) return prevTabs;
         const tab = prevTabs[idx];
         if (tab.type !== "script") return prevTabs;
@@ -940,8 +940,56 @@ export function App() {
       });
       persistTabs();
     },
-    [showFileError, persistTabs],
+    [persistTabs],
   );
+
+  // Right-click → Delete: confirm, then remove the file and close its tab.
+  const onConfirmDeleteScript = useCallback(
+    async (script: Script) => {
+      try {
+        await DeleteScript(script.path);
+      } catch (err) {
+        showFileError(`Delete failed: ${err}`);
+        return;
+      }
+      removeScriptFromUI(script.path);
+    },
+    [showFileError, removeScriptFromUI],
+  );
+
+  // Reflect script changes made through the MCP server: live-reload the content
+  // of an open tab on write, and keep the sidebar list in step with
+  // create/rename/delete — no manual refresh or tab switch needed.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    const unsub = EventsOn("mcp:scriptsChanged", (payload: { action: string; path: string; name?: string; content?: string; oldPath?: string }) => {
+      switch (payload.action) {
+        case "write": {
+          const tab = tabsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
+          const content = payload.content ?? "";
+          if (tab?.type === "script" && tab.model.getValue() !== content) {
+            // Replace via an edit operation (not setValue) so undo history survives.
+            tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: content }], () => null);
+          }
+          break;
+        }
+        case "create": {
+          const script: Script = { path: payload.path, name: payload.name ?? "" };
+          setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? [...prev, script].sort((a, b) => a.name.localeCompare(b.name)) : prev));
+          break;
+        }
+        case "rename":
+          if (payload.oldPath) {
+            applyScriptRename(payload.oldPath, { path: payload.path, name: payload.name ?? "" });
+          }
+          break;
+        case "delete":
+          removeScriptFromUI(payload.path);
+          break;
+      }
+    });
+    return () => unsub();
+  }, [applyScriptRename, removeScriptFromUI]);
 
   const onSearchMethodSelect = (method: Method, service: Service, app: AppModel) => {
     onMethodSelect(method, service, app);
