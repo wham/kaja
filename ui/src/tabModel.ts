@@ -45,7 +45,12 @@ export interface ScriptTab {
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
-export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab;
+interface VariablesTab {
+  type: "variables";
+  id: string;
+}
+
+export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab | VariablesTab;
 
 let idGenerator = 0;
 
@@ -231,6 +236,22 @@ export function getAppFormTabIndex(tabs: TabModel[]): number {
   return tabs.findIndex((tab) => tab.type === "appForm");
 }
 
+// Like the app form tab, the variables tab is a singleton: reuse an open one
+// instead of stacking duplicates. It is intentionally not persisted.
+export function addVariablesTab(tabs: TabModel[]): { tabs: TabModel[]; activeIndex: number } {
+  const existingIndex = tabs.findIndex((tab) => tab.type === "variables");
+  if (existingIndex !== -1) {
+    return { tabs, activeIndex: existingIndex };
+  }
+  const newTab: VariablesTab = { type: "variables", id: generateId("variables") };
+  const newTabs = [...tabs, newTab];
+  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
+}
+
+export function getVariablesTabIndex(tabs: TabModel[]): number {
+  return tabs.findIndex((tab) => tab.type === "variables");
+}
+
 // --- Tab state persistence ---
 
 interface PersistedTaskTab {
@@ -300,7 +321,7 @@ export function serializeTabs(
     }
   }
 
-  const adjustedIndex = activeIndex < indexMap.length ? indexMap[activeIndex] ?? 0 : 0;
+  const adjustedIndex = activeIndex < indexMap.length ? (indexMap[activeIndex] ?? 0) : 0;
 
   return { activeIndex: adjustedIndex, tabs: serializedTabs };
 }

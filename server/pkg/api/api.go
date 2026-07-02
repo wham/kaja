@@ -141,6 +141,7 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 		PathPrefix: response.Configuration.PathPrefix,
 		Apps:       response.Configuration.Apps,
 		System:     system,
+		Variables:  response.Configuration.Variables,
 	}
 
 	return &GetConfigurationResponse{

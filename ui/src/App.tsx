@@ -30,6 +30,7 @@ import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
+import { registerKajaGlobals } from "./Editor";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -38,10 +39,12 @@ import {
   addAppFormTab,
   addScriptTab,
   addTaskTab,
+  addVariablesTab,
   getAppFormTabIndex,
   getAppFormTabLabel,
   getScriptTabLabel,
   getTabLabel,
+  getVariablesTabIndex,
   linkTabsToApps,
   markInteraction,
   PersistedTabState,
@@ -51,6 +54,7 @@ import {
   updateAppFormTab,
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
+import { Variables } from "./Variables";
 import { Task } from "./Task";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
@@ -447,6 +451,17 @@ export function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewApps]);
+
+  // Keep the variables scripts read via `kaja.variables` — and the editor's typed
+  // declaration for them — in sync with the configuration, whichever path loaded
+  // it (initial compile, save, or hot reload).
+  useEffect(() => {
+    const variables = configuration?.variables ?? {};
+    if (kajaRef.current) {
+      kajaRef.current.variables = variables;
+    }
+    registerKajaGlobals(Object.keys(variables));
+  }, [configuration?.variables]);
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {
@@ -1120,6 +1135,44 @@ export function App() {
     closeAppFormTab();
   };
 
+  const onVariablesClick = () => {
+    setTabs((tabs) => {
+      const { tabs: newTabs, activeIndex } = addVariablesTab(tabs);
+      setActiveTabIndex(activeIndex);
+      return newTabs;
+    });
+  };
+
+  const closeVariablesTab = () => {
+    setTabs((prevTabs) => {
+      const index = getVariablesTabIndex(prevTabs);
+      if (index === -1) return prevTabs;
+      const newTabs = prevTabs.filter((_, i) => i !== index);
+      const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
+      setActiveTabIndex(newActiveIndex);
+      return newTabs;
+    });
+  };
+
+  const onVariablesSubmit = async (variables: { [key: string]: string }) => {
+    closeVariablesTab();
+
+    if (!configuration) {
+      return;
+    }
+
+    const updatedConfiguration: Configuration = { ...configuration, variables };
+    const client = getApiClient();
+    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
+    if (response.configuration) {
+      applyConfiguration(response.configuration);
+    }
+  };
+
+  const onVariablesCancel = () => {
+    closeVariablesTab();
+  };
+
   const onAppFormSelect = (appName: string | null) => {
     if (appName === null) {
       // "+ New" reopens the type picker, since the type is chosen there.
@@ -1202,6 +1255,7 @@ export function App() {
                   scrollToMethod={scrollToMethod}
                   onCompilerClick={onCompilerClick}
                   onNewAppClick={onNewAppClick}
+                  onVariablesClick={previewScripts ? onVariablesClick : undefined}
                   autoExpandApp={autoExpandApp}
                   reserveTrafficLights={isDesktopMac}
                   onEditApp={onEditApp}
@@ -1386,6 +1440,19 @@ export function App() {
                                 onSubmit={onAppFormSubmit}
                                 onCancel={onAppFormCancel}
                                 onAppSelect={onAppFormSelect}
+                              />
+                            </Tab>
+                          );
+                        }
+
+                        if (tab.type === "variables") {
+                          return (
+                            <Tab tabId={tab.id} tabLabel="Variables" key={tab.id}>
+                              <Variables
+                                variables={configuration?.variables ?? {}}
+                                readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                                onSubmit={onVariablesSubmit}
+                                onCancel={onVariablesCancel}
                               />
                             </Tab>
                           );
