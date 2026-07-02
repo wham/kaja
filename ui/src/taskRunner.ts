@@ -3,14 +3,48 @@ import { AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { printStatements } from "./appLoader";
 
+// Scripts are TypeScript but new Function only accepts JavaScript, so transpile
+// first. Parse errors are thrown with line numbers pointing into the user's
+// source. moduleDetection: Force keeps top-level await parseable even in a
+// script with no imports.
+function transpile(code: string): string {
+  const output = ts.transpileModule(code, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleDetection: ts.ModuleDetectionKind.Force,
+    },
+    reportDiagnostics: true,
+  });
+  const errors = (output.diagnostics ?? []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+  if (errors.length > 0) {
+    throw new Error(errors.map(formatDiagnostic).join("\n"));
+  }
+  return output.outputText;
+}
+
+function formatDiagnostic(diagnostic: ts.Diagnostic): string {
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+  if (diagnostic.file && diagnostic.start !== undefined) {
+    const { line } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+    return `Line ${line + 1}: ${message}`;
+  }
+  return message;
+}
+
 // prepareTask resolves a script's imports against the loaded apps and splits
 // out the runnable body, returning the args every binding maps to plus the code.
 function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: string]: Client | Object }; runCode: string } {
-  const file = ts.createSourceFile("task.ts", code, ts.ScriptTarget.Latest);
+  const file = ts.createSourceFile("task.js", transpile(code), ts.ScriptTarget.Latest);
   const args: { [key: string]: Client | Object } = {};
   const runStatements: ts.Statement[] = [];
 
   file.statements.forEach((statement) => {
+    // moduleDetection: Force can make the transpiler emit a bare `export {};`,
+    // which new Function would reject.
+    if (ts.isExportDeclaration(statement)) {
+      return;
+    }
     if (ts.isImportDeclaration(statement)) {
       // slice(1, -1) - remove quotes
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
@@ -62,25 +96,31 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
   return { args, runCode: printStatements(runStatements) };
 }
 
-export function runTask(code: string, kaja: Kaja, apps: App[]) {
-  const { args, runCode } = prepareTask(code, kaja, apps);
+export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void) {
+  let result: any;
+  try {
+    const { args, runCode } = prepareTask(code, kaja, apps);
 
-  // Wrap the user's code in an async function so async keyword can be used
-  const func = new Function(
-    ...Object.keys(args),
-    `
-    return (async function() {
-      ${runCode}
-    })();
-  `,
-  );
+    // Wrap the user's code in an async function so async keyword can be used
+    const func = new Function(
+      ...Object.keys(args),
+      `
+      return (async function() {
+        ${runCode}
+      })();
+    `,
+    );
 
-  const result = func(...Object.values(args));
+    result = func(...Object.values(args));
+  } catch (err) {
+    onError(err);
+    return;
+  }
   if (result && typeof result.then === "function") {
     result.catch((err: unknown) => {
       // A cancelled prompt simply stops the script; surface everything else.
       if (err instanceof AskCancelledError) return;
-      throw err;
+      onError(err);
     });
   }
 }
@@ -95,7 +135,6 @@ export interface CapturedRun {
 // and any error instead of letting them escape. Used by the MCP server so an
 // agent can see what a script did.
 export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
-  const { args, runCode } = prepareTask(code, kaja, apps);
   const lines: string[] = [];
   const record = (level: string, parts: unknown[]) => {
     lines.push(parts.map(stringifyConsoleArg).join(" "));
@@ -110,17 +149,18 @@ export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Pr
     debug: (...parts: unknown[]) => record("debug", parts),
   };
 
-  const func = new Function(
-    ...Object.keys(args),
-    "console",
-    `
-    return (async function() {
-      ${runCode}
-    })();
-  `,
-  );
-
   try {
+    const { args, runCode } = prepareTask(code, kaja, apps);
+    const func = new Function(
+      ...Object.keys(args),
+      "console",
+      `
+      return (async function() {
+        ${runCode}
+      })();
+    `,
+    );
+
     const result = await func(...Object.values(args), captureConsole);
     return { console: lines, result };
   } catch (err) {
