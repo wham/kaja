@@ -178,7 +178,7 @@ func TestGenerateProto(t *testing.T) {
 		}
 	}
 	if b := gen.bindings["openapi.swagger_petstore.SwaggerPetstore/ListPets"]; b != nil {
-		if b.responseWrap != "array" || len(b.queryParams) != 1 || b.queryParams[0] != "limit" {
+		if b.responseWrap != "array" || len(b.queryParams) != 1 || b.queryParams[0].name != "limit" {
 			t.Errorf("ListPets binding unexpected: %+v", b)
 		}
 	}
@@ -273,7 +273,7 @@ paths:
 	}
 }
 
-// meteringSpec mirrors the OpenMeter API shapes: parameters declared as
+// meteringSpec mirrors a metering-style API's shapes: parameters declared as
 // "#/components/parameters" references, map-typed properties
 // (additionalProperties), and "allOf: [$ref]" wrappers around enums and maps.
 const meteringSpec = `
@@ -376,8 +376,12 @@ func TestParameterRefsAndMaps(t *testing.T) {
 	if b == nil {
 		t.Fatal("missing ListMeters binding")
 	}
-	if want := []string{"page", "order", "includeDeleted"}; strings.Join(b.queryParams, ",") != strings.Join(want, ",") {
-		t.Errorf("queryParams = %q, want %q", b.queryParams, want)
+	names := make([]string, len(b.queryParams))
+	for i, qp := range b.queryParams {
+		names[i] = qp.name
+	}
+	if want := []string{"page", "order", "includeDeleted"}; strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Errorf("queryParams = %q, want %q", names, want)
 	}
 }
 
@@ -561,6 +565,230 @@ components:
 	}
 }
 
+// eventsSpec mirrors an event-ingestion API's shapes: an anyOf union of a
+// single event and a batch (mixed shapes), a discriminated oneOf union of
+// object variants, structured "+json" content types, and explode/deepObject
+// query styles.
+const eventsSpec = `
+openapi: 3.0.0
+info:
+  title: Events
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /events:
+    post:
+      operationId: ingestEvents
+      requestBody:
+        required: true
+        content:
+          application/vnd.kaja.events+json:
+            schema:
+              $ref: "#/components/schemas/IngestEventsBody"
+      responses:
+        "204":
+          description: accepted
+    get:
+      operationId: listEvents
+      parameters:
+        - name: expand
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { type: string }
+        - name: filterGroupBy
+          in: query
+          style: deepObject
+          schema:
+            type: object
+            additionalProperties: { type: string }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+  /cards:
+    post:
+      operationId: createCard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Card"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+  /metrics:
+    get:
+      operationId: getMetrics
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema: { type: string }
+components:
+  schemas:
+    IngestEventsBody:
+      anyOf:
+        - $ref: "#/components/schemas/Event"
+        - type: array
+          items:
+            $ref: "#/components/schemas/Event"
+    Event:
+      type: object
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        total: { type: integer, format: uint64 }
+        count: { type: integer, format: uint32 }
+    Card:
+      oneOf:
+        - $ref: "#/components/schemas/FlatCard"
+        - $ref: "#/components/schemas/TieredCard"
+      discriminator:
+        propertyName: type
+    FlatCard:
+      type: object
+      properties:
+        type: { type: string, enum: [flat] }
+        name: { type: string }
+        amount: { type: string }
+    TieredCard:
+      type: object
+      properties:
+        type: { type: string, enum: [tiered] }
+        name: { type: string }
+        tiers:
+          type: array
+          items: { type: string }
+`
+
+// TestUnionSchemas locks in oneOf/anyOf handling: a mixed-shape anyOf models
+// its first variant, and a discriminated oneOf of objects merges the variants'
+// properties into one message.
+func TestUnionSchemas(t *testing.T) {
+	s, err := parseSpec([]byte(eventsSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		// anyOf [Event, Event[]] models the single Event.
+		`Event body = 1 [json_name = "body"];`,
+		// integer formats
+		`uint64 total = `,
+		`uint32 count = `,
+		// oneOf [FlatCard, TieredCard] merges into one Card message.
+		"message Card {",
+		`string amount = 1 [json_name = "amount"];`,
+		`string name = 2 [json_name = "name"];`,
+		`repeated string tiers = 3 [json_name = "tiers"];`,
+		`string type = 4 [json_name = "type"];`,
+		// text/plain response becomes a string value.
+		`rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);`,
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+	if strings.Contains(gen.proto, "message IngestEventsBody") {
+		t.Errorf("mixed-shape anyOf should expand in place, not become a message\n---\n%s", gen.proto)
+	}
+
+	ingest := gen.bindings["openapi.events.Events/IngestEvents"]
+	if ingest == nil {
+		t.Fatal("missing IngestEvents binding")
+	}
+	if ingest.bodyKey != "body" || ingest.bodyContentType != "application/vnd.kaja.events+json" {
+		t.Errorf("IngestEvents binding unexpected: %+v", ingest)
+	}
+	metrics := gen.bindings["openapi.events.Events/GetMetrics"]
+	if metrics == nil || metrics.responseWrap != "text" {
+		t.Errorf("GetMetrics binding unexpected: %+v", metrics)
+	}
+}
+
+// TestIngestEventsInvoke reproduces an event-ingestion call end to end: the
+// event fields must reach the upstream as the raw JSON body with the spec's
+// "+json" content type, and query parameters must honour their styles.
+func TestIngestEventsInvoke(t *testing.T) {
+	var gotBody, gotContentType, gotRawQuery string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, eventsSpec)
+	})
+	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			gotContentType = r.Header.Get("Content-Type")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		gotRawQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `[]`)
+	})
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "events_total 42")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const svc = "openapi.events.Events"
+
+	// POST /events with the single-event body.
+	out, err := inst.Invoke(svc+"/IngestEvents", encodeRequest(t, inst, svc+"/IngestEvents", `{"body":{"id":"1","type":"prompt"}}`), nil)
+	if err != nil {
+		t.Fatalf("IngestEvents: %v", err)
+	}
+	assertJSONEq(t, decodeResponse(t, inst, svc+"/IngestEvents", out), `{}`)
+	assertJSONEq(t, []byte(gotBody), `{"id":"1","type":"prompt"}`)
+	if gotContentType != "application/vnd.kaja.events+json" {
+		t.Errorf("Content-Type = %q, want application/vnd.kaja.events+json", gotContentType)
+	}
+
+	// GET /events with csv and deepObject query styles.
+	_, err = inst.Invoke(svc+"/ListEvents", encodeRequest(t, inst, svc+"/ListEvents",
+		`{"expand":["lines","preceding"],"filterGroupBy":{"model":"gpt-4","region":"us"}}`), nil)
+	if err != nil {
+		t.Fatalf("ListEvents: %v", err)
+	}
+	if want := "expand=lines%2Cpreceding&filterGroupBy%5Bmodel%5D=gpt-4&filterGroupBy%5Bregion%5D=us"; gotRawQuery != want {
+		t.Errorf("query = %q, want %q", gotRawQuery, want)
+	}
+
+	// GET /metrics returns plain text wrapped as a string value.
+	out, err = inst.Invoke(svc+"/GetMetrics", encodeRequest(t, inst, svc+"/GetMetrics", `{}`), nil)
+	if err != nil {
+		t.Fatalf("GetMetrics: %v", err)
+	}
+	assertJSONEq(t, decodeResponse(t, inst, svc+"/GetMetrics", out), `{"value":"events_total 42"}`)
+}
+
 // TestTranscodeArrayQuery checks that an array-typed query parameter is expanded
 // into repeated query values (tags=a&tags=b) rather than a single JSON literal.
 func TestTranscodeArrayQuery(t *testing.T) {
@@ -573,7 +801,7 @@ func TestTranscodeArrayQuery(t *testing.T) {
 	defer srv.Close()
 
 	in := &instance{baseURL: srv.URL, client: srv.Client()}
-	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []string{"tags"}, responseWrap: "array"}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []queryParam{{name: "tags"}}, responseWrap: "array"}
 
 	if _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
 		t.Fatalf("transcode: %v", err)

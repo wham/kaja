@@ -3,6 +3,7 @@ package openapi
 import (
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // authKind is the shape of credential the upstream expects.
@@ -82,7 +83,8 @@ func resolveAuth(s *spec, token, username, password string) *auth {
 	if scheme := pickScheme(s); scheme != nil {
 		switch scheme.Type {
 		case "http":
-			if scheme.Scheme == "basic" {
+			// Scheme names are case-insensitive; specs write "Bearer" and "bearer".
+			if strings.EqualFold(scheme.Scheme, "basic") {
 				a.kind = authBasic
 			} else {
 				a.kind = authBearer
