@@ -70,6 +70,15 @@ export declare const kaja: {
    *   const name = await kaja.ask("What's your name?");
    */
   ask(message: string): Promise<string>;
+  /** UUID helpers. */
+  uuid: {
+    /**
+     * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
+     *
+     *   const id = kaja.uuid.v4();
+     */
+    v4(): string;
+  };
 };
 `;
   const uri = monaco.Uri.parse("ts:/kaja.ts");

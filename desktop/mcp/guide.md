@@ -42,6 +42,7 @@ Scripts can import a `kaja` object with `import { kaja } from "kaja";`:
   input in a dialog. Resolves with the entered text; if the user cancels, the
   script quietly stops. Avoid `kaja.ask` in scripts you run via MCP unless the
   user is present, since it blocks on a human.
+- `kaja.uuid.v4(): string` — generate a random version 4 UUID.
 
 ## Working effectively
 
