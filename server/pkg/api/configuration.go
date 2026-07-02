@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -171,6 +172,33 @@ func flattenApp(app *ConfigurationApp) (string, map[string]string) {
 		return true
 	})
 	return string(field.Name()), params
+}
+
+var variableReferencePattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// expandVariables replaces ${NAME} references with the configured variable
+// values. References to undefined variables are left as-is so literal ${...}
+// text still passes through.
+func expandVariables(value string, variables map[string]string) string {
+	return variableReferencePattern.ReplaceAllStringFunc(value, func(reference string) string {
+		name := reference[2 : len(reference)-1]
+		if replacement, ok := variables[name]; ok {
+			return replacement
+		}
+		return reference
+	})
+}
+
+// expandAppParameters expands ${NAME} variable references in an app's flattened
+// creation parameters and reports any references that stayed unresolved.
+func expandAppParameters(parameters map[string]string, variables map[string]string, logger *Logger) {
+	for key, value := range parameters {
+		expanded := expandVariables(value, variables)
+		parameters[key] = expanded
+		for _, match := range variableReferencePattern.FindAllStringSubmatch(expanded, -1) {
+			logger.info(fmt.Sprintf("No variable named %q is defined; leaving ${%s} in %q as-is", match[1], match[1], key))
+		}
+	}
 }
 
 func stringField(m map[string]any, keys ...string) string {

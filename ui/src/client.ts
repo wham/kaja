@@ -3,6 +3,7 @@ import type { RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/ru
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders } from "./appTypes";
 import { MethodCall } from "./kaja";
+import { expandHeaders } from "./variableExpansion";
 import { Client, AppRef, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -51,7 +52,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           if (!isWailsEnvironment()) {
             options.meta["X-Target"] = appRef.target;
             // Pass configured headers with X-Header- prefix for the backend to forward
-            const headers = appHeaders(appRef.configuration);
+            const headers = expandHeaders(appHeaders(appRef.configuration));
             for (const [key, value] of Object.entries(headers)) {
               options.meta["X-Header-" + key] = value;
             }
@@ -67,7 +68,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
     client.methods[method.name] = async (input: any) => {
       // Capture request headers from appRef at request time
-      const requestHeaders: { [key: string]: string } = { ...appHeaders(appRef.configuration) };
+      const requestHeaders: { [key: string]: string } = expandHeaders(appHeaders(appRef.configuration));
 
       const methodCall: MethodCall = {
         id: crypto.randomUUID(),

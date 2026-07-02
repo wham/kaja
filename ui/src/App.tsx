@@ -59,6 +59,7 @@ import { Task } from "./Task";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
+import { setVariables, variableReferences } from "./variableExpansion";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { isWailsEnvironment } from "./wails";
@@ -90,6 +91,13 @@ function lowerFirst(s: string): string {
 // changed: its type and parameters. Headers are excluded.
 function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
   return appType(a) !== appType(b) || JSON.stringify(appParameters(a)) !== JSON.stringify(appParameters(b));
+}
+
+// Parameters may reference ${NAME} variables, expanded when the app is opened,
+// so a changed variable also forces a recompile. Headers are excluded here too;
+// they are expanded per request.
+function appReferencesChangedVariable(app: ConfigurationApp, previous: { [key: string]: string }, next: { [key: string]: string }): boolean {
+  return Object.values(appParameters(app)).some((value) => variableReferences(value).some((name) => previous[name] !== next[name]));
 }
 
 // Helper: Apply rename to an app (remap sources and services)
@@ -329,8 +337,13 @@ export function App() {
   // Core function: Sync apps state from a new configuration
   // This is the single source of truth for app state changes
   const syncAppsFromConfiguration = useCallback(
-    (newConfiguration: Configuration, prevApps: AppModel[]): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
+    (
+      newConfiguration: Configuration,
+      prevApps: AppModel[],
+      previousVariables: { [key: string]: string },
+    ): { updatedApps: AppModel[]; removedNames: Set<string>; renames: Map<string, string> } => {
       const updatedApps: AppModel[] = [];
+      const newVariables = newConfiguration.variables ?? {};
       // Reconciliation is a single app-vs-app pass keyed by name.
       const newApps = newConfiguration.apps || [];
       const newConfigByName = new Map(newApps.map((a) => [a.name, a]));
@@ -345,7 +358,9 @@ export function App() {
       // open editors) can be remapped instead of recompiled.
       const renameMap = new Map<string, AppModel>(); // newName -> oldApp
       for (const newcomer of newcomerConfigs) {
-        const matchingOrphan = orphans.find((orphan) => !appNeedsRecompile(orphan.configuration, newcomer));
+        const matchingOrphan = orphans.find(
+          (orphan) => !appNeedsRecompile(orphan.configuration, newcomer) && !appReferencesChangedVariable(newcomer, previousVariables, newVariables),
+        );
         if (matchingOrphan && !renameMap.has(newcomer.name)) {
           renameMap.set(newcomer.name, matchingOrphan);
           const idx = orphans.indexOf(matchingOrphan);
@@ -373,7 +388,7 @@ export function App() {
           continue;
         }
 
-        if (appNeedsRecompile(existingApp.configuration, newConfig)) {
+        if (appNeedsRecompile(existingApp.configuration, newConfig) || appReferencesChangedVariable(newConfig, previousVariables, newVariables)) {
           // Needs recompilation
           disposeMonacoModelsForApp(existingApp.configuration.name);
           updatedApps.push(createPendingApp(newConfig));
@@ -405,10 +420,11 @@ export function App() {
   // Apply configuration and sync all state
   const applyConfiguration = useCallback(
     (newConfiguration: Configuration) => {
+      const previousVariables = configurationRef.current?.variables ?? {};
       setConfiguration(newConfiguration);
 
       setApps((prevApps) => {
-        const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps);
+        const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
 
         // Clean up task tabs for removed apps
         if (removedNames.size > 0) {
@@ -457,6 +473,7 @@ export function App() {
   // it (initial compile, save, or hot reload).
   useEffect(() => {
     const variables = configuration?.variables ?? {};
+    setVariables(variables);
     if (kajaRef.current) {
       kajaRef.current.variables = variables;
     }
@@ -1436,6 +1453,7 @@ export function App() {
                                 mode={tab.mode}
                                 initialData={tab.initialData}
                                 allApps={configuration?.apps ?? []}
+                                variables={configuration?.variables ?? {}}
                                 readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
                                 onSubmit={onAppFormSubmit}
                                 onCancel={onAppFormCancel}

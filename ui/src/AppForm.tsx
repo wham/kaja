@@ -1,11 +1,12 @@
 import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "@primer/octicons-react";
-import { Button, Checkbox, FormControl, Link, SegmentedControl, Select, Stack, Text, TextInput } from "@primer/react";
+import { ActionList, Button, Checkbox, FormControl, Link, SegmentedControl, Select, Stack, Text, TextInput } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
 import { ConfigurationApp } from "./server/api";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
+import { getVariables } from "./variableExpansion";
 import { isWailsEnvironment } from "./wails";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,12 +36,164 @@ jsonDefaults.setDiagnosticsOptions({
   ],
 });
 
+// Suggest ${NAME} variable references while editing the app JSON (the only
+// place headers are edited). Values are read from the registry at completion
+// time so the list is always current.
+monaco.languages.registerCompletionItemProvider("json", {
+  triggerCharacters: ["$", "{"],
+  provideCompletionItems: (model, position) => {
+    if (model.uri.path !== "/app-config.json") {
+      return { suggestions: [] };
+    }
+    const line = model.getValueInRange({
+      startLineNumber: position.lineNumber,
+      startColumn: 1,
+      endLineNumber: position.lineNumber,
+      endColumn: position.column,
+    });
+    const match = /\$\{?([A-Za-z0-9_]*)$/.exec(line);
+    if (!match) {
+      return { suggestions: [] };
+    }
+    const range = new monaco.Range(position.lineNumber, position.column - match[0].length, position.lineNumber, position.column);
+    return {
+      suggestions: Object.entries(getVariables()).map(([name, value]) => ({
+        label: "${" + name + "}",
+        kind: monaco.languages.CompletionItemKind.Variable,
+        detail: value,
+        insertText: "${" + name + "}",
+        range,
+      })),
+    };
+  },
+});
+
+// matchVariableReferencePrefix finds an unfinished ${NAME reference ending at
+// the caret, returning where it starts and the name typed so far.
+function matchVariableReferencePrefix(value: string, caret: number): { start: number; query: string } | null {
+  const match = /\$\{([A-Za-z0-9_]*)$/.exec(value.slice(0, caret));
+  return match ? { start: caret - match[0].length, query: match[1] } : null;
+}
+
+interface VariableSuggestInputProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  variables: { [key: string]: string };
+  placeholder?: string;
+  disabled?: boolean;
+  trailingAction?: React.ComponentProps<typeof TextInput>["trailingAction"];
+}
+
+// A TextInput that suggests the configured variables once the user types "${",
+// completing the reference to ${NAME}.
+function VariableSuggestInput({ value, onValueChange, variables, placeholder, disabled, trailingAction }: VariableSuggestInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [suggestion, setSuggestion] = useState<{ start: number; query: string } | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+
+  const names = suggestion ? Object.keys(variables).filter((name) => name.toLowerCase().startsWith(suggestion.query.toLowerCase())) : [];
+  const open = names.length > 0;
+
+  const refreshSuggestion = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    const next = matchVariableReferencePrefix(input.value, input.selectionStart ?? 0);
+    setSuggestion((prev) => {
+      if (prev?.start !== next?.start || prev?.query !== next?.query) {
+        setHighlightIndex(0);
+        return next;
+      }
+      return prev;
+    });
+  };
+
+  const insert = (name: string) => {
+    const input = inputRef.current;
+    if (!input || !suggestion) return;
+    const caret = input.selectionStart ?? input.value.length;
+    // Replace the unfinished ${query with ${name}, consuming a closing brace
+    // the user may already have typed.
+    let rest = value.slice(caret);
+    if (rest.startsWith("}")) rest = rest.slice(1);
+    onValueChange(value.slice(0, suggestion.start) + "${" + name + "}" + rest);
+    setSuggestion(null);
+    const position = suggestion.start + name.length + 3;
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(position, position));
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((prev) => (prev + (e.key === "ArrowDown" ? 1 : names.length - 1)) % names.length);
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      insert(names[highlightIndex]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setSuggestion(null);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <TextInput
+        ref={inputRef}
+        value={value}
+        onChange={(e) => {
+          onValueChange(e.target.value);
+          refreshSuggestion();
+        }}
+        onSelect={refreshSuggestion}
+        onKeyDown={onKeyDown}
+        onBlur={() => setSuggestion(null)}
+        placeholder={placeholder}
+        block
+        disabled={disabled}
+        trailingAction={trailingAction}
+      />
+      {open && (
+        // Keep focus in the input so a click on a suggestion isn't lost to blur.
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            minWidth: 320,
+            zIndex: 10,
+            marginTop: 4,
+            background: "var(--overlay-bgColor)",
+            border: "1px solid var(--borderColor-default)",
+            borderRadius: 6,
+            boxShadow: "var(--shadow-floating-small)",
+            maxHeight: 240,
+            overflowY: "auto",
+          }}
+        >
+          <ActionList>
+            {names.map((name, index) => (
+              <ActionList.Item key={name} active={index === highlightIndex} onSelect={() => insert(name)}>
+                {"${" + name + "}"}
+                <ActionList.Description>{variables[name]}</ActionList.Description>
+              </ActionList.Item>
+            ))}
+          </ActionList>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const NEW_APP_VALUE = "__new__";
 
 interface AppFormProps {
   mode: "create" | "edit";
   initialData?: ConfigurationApp;
   allApps: ConfigurationApp[];
+  // Configured variables, usable in parameter values as ${NAME} and offered as
+  // suggestions when "${" is typed.
+  variables: { [key: string]: string };
   readOnly?: boolean;
   onSubmit: (app: ConfigurationApp, originalName?: string) => void;
   onCancel: () => void;
@@ -90,7 +243,7 @@ function missingRequiredParameter(type: string, parameters: Record<string, strin
   return undefined;
 }
 
-export function AppForm({ mode, initialData, allApps, readOnly = false, onSubmit, onCancel, onAppSelect }: AppFormProps) {
+export function AppForm({ mode, initialData, allApps, variables, readOnly = false, onSubmit, onCancel, onAppSelect }: AppFormProps) {
   const [editMode, setEditMode] = useState<EditMode>("form");
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
@@ -373,11 +526,11 @@ export function AppForm({ mode, initialData, allApps, readOnly = false, onSubmit
                       </Text>
                     </Stack>
                   ) : (
-                    <TextInput
+                    <VariableSuggestInput
                       value={parameters[parameter.key] ?? ""}
-                      onChange={(e) => setParameters((prev) => ({ ...prev, [parameter.key]: e.target.value }))}
+                      onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
+                      variables={variables}
                       placeholder={parameter.placeholder}
-                      block
                       disabled={readOnly}
                       trailingAction={
                         (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
