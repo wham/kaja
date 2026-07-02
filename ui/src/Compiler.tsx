@@ -1,13 +1,17 @@
 import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, Spinner } from "@primer/react";
+import { ActionList, Flash, Spinner } from "@primer/react";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { useState } from "react";
 import { CompilationStatus, App } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
+import { Log, LogLevel } from "./server/api";
 
 interface CompilerProps {
   apps: App[];
   configurationLoaded: boolean;
+  // Logs from loading the configuration file, shown when they contain problems
+  // and no apps loaded - otherwise a broken kaja.json would fail invisibly.
+  configurationLogs?: Log[];
   onNewAppClick?: () => void;
 }
 
@@ -20,7 +24,7 @@ const LOG_PADDING = "12px 16px";
 const LINE_NUMBER_WIDTH = "40px";
 const LINE_NUMBER_MARGIN = 16;
 
-export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerProps) {
+export function Compiler({ apps, configurationLoaded, configurationLogs, onNewAppClick }: CompilerProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
 
   const toggleExpand = (appName: string) => {
@@ -98,6 +102,24 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
           <div>
             <Spinner size="medium" />
             <div style={{ marginTop: 12 }}>Loading configuration...</div>
+          </div>
+        </div>
+      );
+    }
+
+    const problems = (configurationLogs || []).filter((log) => log.level === LogLevel.LEVEL_WARN || log.level === LogLevel.LEVEL_ERROR);
+    if (problems.length > 0) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-muted)" }}>
+          <div style={{ padding: 16 }}>
+            <Flash variant="danger">Failed to load the configuration.</Flash>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0, fontFamily: "monospace", fontSize: LOG_FONT_SIZE, padding: LOG_PADDING }}>
+            {problems.map((log, index) => (
+              <div key={index} style={{ marginBottom: 1, lineHeight: `${LOG_LINE_HEIGHT}px` }}>
+                <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>{log.message}</span>
+              </div>
+            ))}
           </div>
         </div>
       );

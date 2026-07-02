@@ -59,7 +59,54 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 	fileContent = migrateConfiguration(fileContent, logger)
 
 	if err := protojson.Unmarshal(fileContent, configuration); err != nil {
-		logger.error(fmt.Sprintf("Failed to unmarshal configuration file %s", configurationPath), err)
+		logger.warn(fmt.Sprintf("Configuration file %s did not parse cleanly (%s). Loading it with best effort.", configurationPath, err))
+		return salvageConfiguration(fileContent, logger)
+	}
+
+	return configuration
+}
+
+// salvageConfiguration loads as much of a configuration as possible when the
+// strict parse fails: unknown fields (e.g. a kaja.json written by a newer Kaja)
+// are ignored, and an app that still fails to decode is skipped with an error,
+// so one bad entry can't silently hide every other app.
+func salvageConfiguration(content []byte, logger *Logger) *Configuration {
+	configuration := &Configuration{
+		Apps: []*ConfigurationApp{},
+	}
+	lenient := protojson.UnmarshalOptions{DiscardUnknown: true}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(content, &raw); err != nil {
+		logger.error("Failed to parse configuration file as JSON", err)
+		return configuration
+	}
+
+	appsRaw, hasApps := raw["apps"]
+	delete(raw, "apps")
+	if rest, err := json.Marshal(raw); err == nil {
+		if err := lenient.Unmarshal(rest, configuration); err != nil {
+			logger.error("Failed to read configuration settings", err)
+		}
+	}
+	configuration.Apps = []*ConfigurationApp{}
+
+	if !hasApps {
+		return configuration
+	}
+
+	var appList []json.RawMessage
+	if err := json.Unmarshal(appsRaw, &appList); err != nil {
+		logger.error("Failed to read apps list", err)
+		return configuration
+	}
+	for i, appRaw := range appList {
+		app := &ConfigurationApp{}
+		if err := lenient.Unmarshal(appRaw, app); err != nil {
+			logger.error(fmt.Sprintf("Skipping app #%d that could not be read", i+1), err)
+			continue
+		}
+		configuration.Apps = append(configuration.Apps, app)
 	}
 
 	return configuration

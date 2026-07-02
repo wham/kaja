@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -152,6 +153,109 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 	teamsType, teamsParams := flattenApp(configuration.Apps[2])
 	if teamsType != "grpc" || teamsParams["reflection"] != "true" {
 		t.Errorf("expected reflection grpc app, got %q %v", teamsType, teamsParams)
+	}
+}
+
+// A kaja.json written by a newer Kaja can contain fields this build doesn't know
+// about. They must be ignored instead of silently dropping the configuration.
+func TestLoadGetConfigurationResponse_IgnoresUnknownFields(t *testing.T) {
+	configContent := `{
+		"some_future_setting": true,
+		"system": {"canUpdateConfiguration": true},
+		"apps": [
+			{
+				"name": "openmeter",
+				"openapi": {
+					"spec_url": "https://openmeter.io/api/openapi.json",
+					"some_future_field": "x"
+				}
+			},
+			{
+				"name": "grpc-quirks",
+				"grpc": {"url": "dns:kaja.tools:443", "proto_dir": "quirks/proto"}
+			}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	response := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	configuration := response.Configuration
+
+	if len(configuration.Apps) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(configuration.Apps))
+	}
+	openmeterType, openmeterParams := flattenApp(configuration.Apps[0])
+	if configuration.Apps[0].Name != "openmeter" || openmeterType != "openapi" {
+		t.Errorf("expected openapi app 'openmeter', got %q/%q", configuration.Apps[0].Name, openmeterType)
+	}
+	if openmeterParams["spec_url"] != "https://openmeter.io/api/openapi.json" {
+		t.Errorf("unexpected openapi parameters: %v", openmeterParams)
+	}
+	if grpcType, _ := flattenApp(configuration.Apps[1]); grpcType != "grpc" {
+		t.Errorf("expected grpc app, got %q", grpcType)
+	}
+	if !configuration.System.CanUpdateConfiguration {
+		t.Error("expected system settings to survive the best-effort load")
+	}
+
+	foundWarn := false
+	for _, log := range response.Logs {
+		if log.Level == LogLevel_LEVEL_WARN && strings.Contains(log.Message, "best effort") {
+			foundWarn = true
+			break
+		}
+	}
+	if !foundWarn {
+		t.Error("expected a warning about the best-effort load")
+	}
+}
+
+// One app that can't be decoded (here: a wrong value type) must not hide the
+// other apps.
+func TestLoadGetConfigurationResponse_SkipsUnreadableApp(t *testing.T) {
+	configContent := `{
+		"apps": [
+			{"name": "broken", "grpc": {"url": "dns:kaja.tools:443", "reflection": "yes"}},
+			{"name": "grpc-quirks", "grpc": {"url": "dns:kaja.tools:443", "proto_dir": "quirks/proto"}}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	response := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	configuration := response.Configuration
+
+	if len(configuration.Apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(configuration.Apps))
+	}
+	if configuration.Apps[0].Name != "grpc-quirks" {
+		t.Errorf("expected the readable app to survive, got %q", configuration.Apps[0].Name)
+	}
+
+	foundError := false
+	for _, log := range response.Logs {
+		if log.Level == LogLevel_LEVEL_ERROR && strings.Contains(log.Message, "Skipping app #1") {
+			foundError = true
+			break
+		}
+	}
+	if !foundError {
+		t.Error("expected an error log about the skipped app")
 	}
 }
 

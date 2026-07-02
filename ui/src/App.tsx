@@ -617,7 +617,7 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, setConfiguration);
+  const { configurationLoaded, configurationLogs } = useCompilation(apps, onCompilationUpdate, setConfiguration);
 
   const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
     captureActiveViewState();
@@ -1330,7 +1330,12 @@ export function App() {
                         if (tab.type === "compiler") {
                           return (
                             <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} />
+                              <Compiler
+                                apps={apps}
+                                configurationLoaded={configurationLoaded}
+                                configurationLogs={configurationLogs}
+                                onNewAppClick={onNewAppClick}
+                              />
                             </Tab>
                           );
                         }

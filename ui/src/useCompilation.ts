@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, Transport, transportFromProtocol, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
-import { CompileStatus as ApiCompileStatus, Configuration, OpenStatus } from "./server/api";
+import { CompileStatus as ApiCompileStatus, Configuration, Log, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 const POLL_INTERVAL_MS = 1000;
@@ -15,8 +15,9 @@ export function useCompilation(
   apps: App[],
   onUpdate: (apps: App[] | ((prev: App[]) => App[])) => void,
   onConfigurationLoaded: (configuration: Configuration) => void,
-): { configurationLoaded: boolean } {
+): { configurationLoaded: boolean; configurationLogs: Log[] } {
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
+  const [configurationLogs, setConfigurationLogs] = useState<Log[]>([]);
   const client = getApiClient();
   const abortControllers = useRef<{ [key: string]: AbortController }>({});
   const appsRef = useRef(apps);
@@ -223,6 +224,7 @@ export function useCompilation(
           onConfigurationLoaded(response.configuration);
         }
 
+        setConfigurationLogs(response.logs || []);
         setConfigurationLoaded(true);
 
         if (configApps.length === 0) return;
@@ -267,5 +269,5 @@ export function useCompilation(
     };
   }, []);
 
-  return { configurationLoaded };
+  return { configurationLoaded, configurationLogs };
 }

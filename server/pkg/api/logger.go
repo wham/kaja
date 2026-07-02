@@ -24,6 +24,11 @@ func (l *Logger) info(message string) {
 	l.log(LogLevel_LEVEL_INFO, message)
 }
 
+func (l *Logger) warn(message string) {
+	slog.Warn(message)
+	l.log(LogLevel_LEVEL_WARN, message)
+}
+
 func (l *Logger) error(message string, err error) {
 	slog.Error(message, "error", err)
 	// Include the error details in the UI message
