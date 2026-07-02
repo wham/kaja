@@ -34,7 +34,7 @@ Rules that matter:
 
 ## The `kaja` runtime object
 
-A global `kaja` object is available inside every script:
+Scripts can import a `kaja` object with `import { kaja } from "kaja";`:
 
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.

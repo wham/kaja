@@ -14,6 +14,19 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
     if (ts.isImportDeclaration(statement)) {
       // slice(1, -1) - remove quotes
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
+      if (path === "kaja") {
+        const importClause = statement.importClause;
+        if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+          importClause.namedBindings.elements.forEach((importSpecifier) => {
+            const alias = importSpecifier.name.text;
+            const name = importSpecifier.propertyName ? importSpecifier.propertyName.text : alias;
+            if (name === "kaja") {
+              args[alias] = kaja;
+            }
+          });
+        }
+        return;
+      }
       const app = apps.find((app) => path.startsWith(app.configuration.name + "/"));
       if (!app) {
         return;
@@ -55,7 +68,6 @@ export function runTask(code: string, kaja: Kaja, apps: App[]) {
   // Wrap the user's code in an async function so async keyword can be used
   const func = new Function(
     ...Object.keys(args),
-    "kaja",
     `
     return (async function() {
       ${runCode}
@@ -63,7 +75,7 @@ export function runTask(code: string, kaja: Kaja, apps: App[]) {
   `,
   );
 
-  const result = func(...Object.values(args), kaja);
+  const result = func(...Object.values(args));
   if (result && typeof result.then === "function") {
     result.catch((err: unknown) => {
       // A cancelled prompt simply stops the script; surface everything else.
@@ -100,7 +112,6 @@ export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Pr
 
   const func = new Function(
     ...Object.keys(args),
-    "kaja",
     "console",
     `
     return (async function() {
@@ -110,7 +121,7 @@ export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Pr
   );
 
   try {
-    const result = await func(...Object.values(args), kaja, captureConsole);
+    const result = await func(...Object.values(args), captureConsole);
     return { console: lines, result };
   } catch (err) {
     if (err instanceof AskCancelledError) {
