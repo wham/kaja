@@ -257,7 +257,7 @@ Console.LogRow = function ({ logs }: LogRowProps) {
 
   return (
     <div className="console-row" style={{ color, opacity: 0.8 }} title={logs.map((l) => l.message).join("\n")}>
-      <span style={{ marginRight: 8, fontSize: 10 }}>LOG</span>
+      <span style={{ marginRight: 8, fontSize: 10 }}>{labelForLogLevel(highestSeverity)}</span>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}
       </span>
@@ -537,6 +537,19 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
     </table>
   );
 };
+
+function labelForLogLevel(level: LogLevel): string {
+  switch (level) {
+    case LogLevel.LEVEL_DEBUG:
+      return "DEBUG";
+    case LogLevel.LEVEL_INFO:
+      return "LOG";
+    case LogLevel.LEVEL_WARN:
+      return "WARN";
+    case LogLevel.LEVEL_ERROR:
+      return "ERROR";
+  }
+}
 
 function colorForLogLevel(level: LogLevel): string {
   switch (level) {

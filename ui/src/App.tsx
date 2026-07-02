@@ -32,7 +32,7 @@ import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { registerKajaModule } from "./Editor";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationApp } from "./server/api";
+import { Configuration, ConfigurationApp, LogLevel } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
@@ -204,6 +204,17 @@ export function App() {
       }
       const next = [...consoleItems, { ...methodCall }];
       // Cap history so a long session can't grow the console unbounded.
+      return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
+    });
+  }, []);
+
+  // Show a failed script run in the console; a script that dies silently looks
+  // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
+  const onScriptError = useCallback((error: unknown) => {
+    console.error("Script error:", error);
+    const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
+    setConsoleItems((consoleItems) => {
+      const next: ConsoleItem[] = [...consoleItems, [{ level: LogLevel.LEVEL_ERROR, message }]];
       return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
     });
   }, []);
@@ -714,12 +725,12 @@ export function App() {
         await onScriptSelect({ path: file.path, name: file.name });
         const kaja = kajaRef.current!;
         kaja.input = text;
-        runTask(file.content, kaja, apps);
+        runTask(file.content, kaja, apps, onScriptError);
       } catch (err) {
         showFileError(`Run failed: ${err}`);
       }
     },
-    [pinnedScriptPath, onScriptSelect, apps, showFileError],
+    [pinnedScriptPath, onScriptSelect, apps, showFileError, onScriptError],
   );
 
   const runContextMenuScriptRef = useRef(runContextMenuScript);
@@ -1084,12 +1095,12 @@ export function App() {
     if (!editor) {
       return;
     }
-    runTask(editor.getValue(), kajaRef.current!, apps);
+    runTask(editor.getValue(), kajaRef.current!, apps, onScriptError);
     if (tab.type === "task") {
       setTabs((tabs) => markInteraction(tabs, index));
       persistTabs();
     }
-  }, [apps, persistTabs]);
+  }, [apps, persistTabs, onScriptError]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
