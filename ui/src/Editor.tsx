@@ -32,12 +32,25 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   module: monaco.typescript.ModuleKind.ESNext,
 });
 
+// Build the `variables` member type from the configured names so the editor
+// suggests them and flags typos. With names it is an exact object; with none it
+// falls back to an index signature so `kaja.variables.foo` isn't flagged before
+// any variable exists.
+function kajaVariablesType(variableNames: string[]): string {
+  if (variableNames.length === 0) {
+    return "{ [key: string]: string }";
+  }
+  const members = variableNames.map((name) => `    ${JSON.stringify(name)}: string;`).join("\n");
+  return `{\n${members}\n  }`;
+}
+
 // Scripts get the kaja object through `import { kaja } from "kaja"` — the task
 // runner resolves the import at run time (see taskRunner). Back the import with
 // a model (not an extra lib) so autocomplete can auto-import it and
-// go-to-definition lands here.
-monaco.editor.createModel(
-  `/** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
+// go-to-definition lands here. Called again whenever the configured variables
+// change (see App.tsx) to refresh the typed `variables` member.
+export function registerKajaModule(variableNames: string[]): void {
+  const content = `/** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
    * The selected text passed in when the script is launched from the macOS
@@ -46,6 +59,11 @@ export declare const kaja: {
    */
   input?: string;
   /**
+   * User-defined variables from the configuration. Manage them in the
+   * Variables tab; read them here, e.g. kaja.variables.API_BASE_URL.
+   */
+  variables: ${kajaVariablesType(variableNames)};
+  /**
    * Pause the script and pop up a dialog asking the user for input. Resolves
    * with the submitted text; if the user cancels, the script stops.
    *
@@ -53,10 +71,17 @@ export declare const kaja: {
    */
   ask(message: string): Promise<string>;
 };
-`,
-  "typescript",
-  monaco.Uri.parse("ts:/kaja.ts"),
-);
+`;
+  const uri = monaco.Uri.parse("ts:/kaja.ts");
+  const existing = monaco.editor.getModel(uri);
+  if (existing) {
+    existing.setValue(content);
+  } else {
+    monaco.editor.createModel(content, "typescript", uri);
+  }
+}
+
+registerKajaModule([]);
 
 // Monaco's TypeScript worker doesn't auto-import from other models, so offer
 // `kaja` as a completion that also inserts the import when it's missing.
@@ -72,7 +97,7 @@ monaco.languages.registerCompletionItemProvider("typescript", {
           label: { label: "kaja", description: 'import from "kaja"' },
           kind: monaco.languages.CompletionItemKind.Variable,
           detail: 'Add import from "kaja"',
-          documentation: "The Kaja runtime object (kaja.input, kaja.ask).",
+          documentation: "The Kaja runtime object (kaja.input, kaja.variables, kaja.ask).",
           insertText: "kaja",
           range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
           additionalTextEdits: [{ range: new monaco.Range(1, 1, 1, 1), text: 'import { kaja } from "kaja";\n' }],

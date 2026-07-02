@@ -20,6 +20,9 @@ export class Kaja {
   // Text passed in when a script is run from the macOS "Run Kaja Script" text
   // service. Scripts can read it as `kaja.input`.
   input?: string;
+  // User-defined variables from the configuration, readable as
+  // `kaja.variables.<name>`. Kept in sync with the loaded configuration.
+  variables: { [key: string]: string } = {};
   #onAsk: AskRequest;
 
   constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest) {

@@ -171,6 +171,15 @@ export interface Configuration {
      * @generated from protobuf field: repeated ConfigurationApp apps = 5
      */
     apps: ConfigurationApp[];
+    /**
+     * User-defined variables usable from scripts as `kaja.variables.<name>`.
+     * Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+     *
+     * @generated from protobuf field: map<string, string> variables = 6
+     */
+    variables: {
+        [key: string]: string;
+    };
 }
 /**
  * @generated from protobuf message ConfigurationSystem
@@ -905,13 +914,15 @@ class Configuration$Type extends MessageType<Configuration> {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
-            { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp }
+            { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
+            { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
     }
     create(value?: PartialMessage<Configuration>): Configuration {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pathPrefix = "";
         message.apps = [];
+        message.variables = {};
         if (value !== undefined)
             reflectionMergePartial<Configuration>(this, message, value);
         return message;
@@ -930,6 +941,9 @@ class Configuration$Type extends MessageType<Configuration> {
                 case /* repeated ConfigurationApp apps */ 5:
                     message.apps.push(ConfigurationApp.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* map<string, string> variables */ 6:
+                    this.binaryReadMap6(message.variables, reader, options);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -941,6 +955,22 @@ class Configuration$Type extends MessageType<Configuration> {
         }
         return message;
     }
+    private binaryReadMap6(map: Configuration["variables"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof Configuration["variables"] | undefined, val: Configuration["variables"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for Configuration.variables");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
     internalBinaryWrite(message: Configuration, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string path_prefix = 1; */
         if (message.pathPrefix !== "")
@@ -951,6 +981,9 @@ class Configuration$Type extends MessageType<Configuration> {
         /* repeated ConfigurationApp apps = 5; */
         for (let i = 0; i < message.apps.length; i++)
             ConfigurationApp.internalBinaryWrite(message.apps[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* map<string, string> variables = 6; */
+        for (let k of globalThis.Object.keys(message.variables))
+            writer.tag(6, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.variables[k]).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
