@@ -11,6 +11,22 @@ export async function formatTypeScript(code: string): Promise<string> {
   return format(code, "typescript", [prettierPluginTypescript, prettierPluginEsTree]);
 }
 
+// Formats and remaps an offset in the original code to the corresponding offset
+// in the formatted code, so positions survive the reformatting.
+export async function formatTypeScriptWithCursor(code: string, cursorOffset: number): Promise<{ code: string; cursorOffset: number }> {
+  try {
+    const result = await prettier.formatWithCursor(code, {
+      parser: "typescript",
+      plugins: [prettierPluginTypescript, prettierPluginEsTree],
+      cursorOffset,
+    });
+    return { code: result.formatted, cursorOffset: result.cursorOffset };
+  } catch {
+    console.warn("Failed to format typescript", code);
+    return { code, cursorOffset };
+  }
+}
+
 function format(code: string, parser: string, plugins: prettier.Plugin[]): Promise<string> {
   return prettier
     .format(code, { parser, plugins })
