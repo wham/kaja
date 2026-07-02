@@ -156,6 +156,67 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 	}
 }
 
+// Built-in apps used to be configured in a generic { name, type, parameters }
+// shape before the typed oneof model. Files from that era must be migrated
+// transparently on load.
+func TestLoadGetConfigurationResponse_MigratesLegacyTypedApps(t *testing.T) {
+	configContent := `{
+		"system": {
+			"canUpdateConfiguration": true
+		},
+		"apps": [
+			{
+				"name": "work-os",
+				"type": "markdown",
+				"parameters": {
+					"folder": "/Users/tomas.vesely/My Drive/work-os"
+				}
+			},
+			{
+				"name": "benchling",
+				"type": "openapi",
+				"parameters": {
+					"spec_url": "https://benchling.com/api/v2/openapi.yaml"
+				},
+				"headers": {"X-Api-Key": "secret"}
+			}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name(), false).Configuration
+	if len(configuration.Apps) != 2 {
+		t.Fatalf("expected 2 migrated apps, got %d", len(configuration.Apps))
+	}
+
+	markdownType, markdownParams := flattenApp(configuration.Apps[0])
+	if configuration.Apps[0].Name != "work-os" || markdownType != "markdown" {
+		t.Errorf("expected markdown app 'work-os', got %q/%q", configuration.Apps[0].Name, markdownType)
+	}
+	if markdownParams["folder"] != "/Users/tomas.vesely/My Drive/work-os" {
+		t.Errorf("unexpected markdown parameters: %v", markdownParams)
+	}
+
+	openapiType, openapiParams := flattenApp(configuration.Apps[1])
+	if configuration.Apps[1].Name != "benchling" || openapiType != "openapi" {
+		t.Errorf("expected openapi app 'benchling', got %q/%q", configuration.Apps[1].Name, openapiType)
+	}
+	if openapiParams["spec_url"] != "https://benchling.com/api/v2/openapi.yaml" {
+		t.Errorf("unexpected openapi parameters: %v", openapiParams)
+	}
+	if configuration.Apps[1].GetOpenapi().GetHeaders()["X-Api-Key"] != "secret" {
+		t.Errorf("expected migrated headers, got %v", configuration.Apps[1].GetOpenapi().GetHeaders())
+	}
+}
+
 // A kaja.json written by a newer Kaja can contain fields this build doesn't know
 // about. They must be ignored instead of silently dropping the configuration.
 func TestLoadGetConfigurationResponse_IgnoresUnknownFields(t *testing.T) {

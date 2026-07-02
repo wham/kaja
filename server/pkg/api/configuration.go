@@ -112,27 +112,18 @@ func salvageConfiguration(content []byte, logger *Logger) *Configuration {
 	return configuration
 }
 
-// migrateConfiguration upgrades the pre-unification config shape - a top-level
-// "projects" list of gRPC/Twirp services - into the typed "apps" model in place, so
-// existing files keep working. Each project becomes an app whose set field is its
-// type, e.g. { "name", "grpc": { "url", ... } }; protojson would otherwise reject
-// the removed "projects" field. (The earlier "apps" form never shipped, so only
-// "projects" needs migrating.)
+// migrateConfiguration upgrades the pre-unification config shapes into the typed
+// "apps" model in place, so existing files keep working:
+//   - a top-level "projects" list of gRPC/Twirp services; each project becomes an
+//     app whose set field is its type, e.g. { "name", "grpc": { "url", ... } }
+//   - built-in apps in the generic { "name", "type", "parameters" } form; the type
+//     becomes the set field, e.g. { "name", "markdown": { "folder": ... } }
+//
+// protojson would otherwise reject the removed "projects" and "type" fields.
 func migrateConfiguration(content []byte, logger *Logger) []byte {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(content, &raw); err != nil {
 		// Leave it to protojson to report the parse error.
-		return content
-	}
-
-	projectsRaw, ok := raw["projects"]
-	if !ok {
-		return content
-	}
-
-	var projects []map[string]any
-	if err := json.Unmarshal(projectsRaw, &projects); err != nil {
-		logger.error("Failed to read legacy projects list", err)
 		return content
 	}
 
@@ -144,11 +135,34 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 		}
 	}
 
-	for _, project := range projects {
-		apps = append(apps, legacyProjectToApp(project))
+	legacyApps := 0
+	for i, app := range apps {
+		if _, ok := app["type"].(string); ok {
+			apps[i] = legacyGenericAppToApp(app)
+			legacyApps++
+		}
 	}
-	if len(projects) > 0 {
-		logger.info(fmt.Sprintf("Migrated %d legacy project(s) to apps", len(projects)))
+	if legacyApps > 0 {
+		logger.info(fmt.Sprintf("Migrated %d legacy app(s) to the typed format", legacyApps))
+	}
+
+	projectsRaw, hasProjects := raw["projects"]
+	if hasProjects {
+		var projects []map[string]any
+		if err := json.Unmarshal(projectsRaw, &projects); err != nil {
+			logger.error("Failed to read legacy projects list", err)
+			return content
+		}
+		for _, project := range projects {
+			apps = append(apps, legacyProjectToApp(project))
+		}
+		if len(projects) > 0 {
+			logger.info(fmt.Sprintf("Migrated %d legacy project(s) to apps", len(projects)))
+		}
+	}
+
+	if legacyApps == 0 && !hasProjects {
+		return content
 	}
 
 	delete(raw, "projects")
@@ -165,6 +179,27 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 		return content
 	}
 	return migrated
+}
+
+// legacyGenericAppToApp converts a pre-unification built-in app - { name, type,
+// parameters, headers } - into the typed shape { name, <type>: { <parameters>,
+// headers } }. Parameter keys already match the typed block's proto field names
+// (e.g. "spec_url", "folder").
+func legacyGenericAppToApp(app map[string]any) map[string]any {
+	appType, _ := app["type"].(string)
+
+	variant := map[string]any{}
+	if parameters, ok := app["parameters"].(map[string]any); ok {
+		for key, value := range parameters {
+			variant[key] = value
+		}
+	}
+	// The local Markdown app is the only type without a headers field.
+	if headers, ok := app["headers"]; ok && appType != "markdown" {
+		variant["headers"] = headers
+	}
+
+	return map[string]any{"name": app["name"], appType: variant}
 }
 
 // legacyProjectToApp converts a pre-unification gRPC/Twirp project into the typed
