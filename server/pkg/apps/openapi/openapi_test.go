@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // encodeRequest builds the protobuf request bytes for a method from a JSON object.
@@ -492,11 +495,16 @@ func TestOpenAndInvoke(t *testing.T) {
 	assertJSONEq(t, decodeResponse(t, inst, svc+"/CreatePet", out), `{"id":7,"name":"Milo"}`)
 }
 
+// TestInvokeUpstreamError locks in that an HTTP error response surfaces as a
+// structured apps.UpstreamError — status, extracted message, and raw body —
+// rather than a flat error string.
 func TestInvokeUpstreamError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, petstoreSpec) })
 	mux.HandleFunc("/v3/pets/1", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `{"type":"about:blank","title":"Bad Request","status":400,"detail":"request body has an error: doesn't match schema"}`)
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -507,8 +515,22 @@ func TestInvokeUpstreamError(t *testing.T) {
 	}
 	inst := opened.Instance.(*instance)
 	const method = "openapi.swagger_petstore.SwaggerPetstore/GetPetById"
-	if _, err := inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil); err == nil {
-		t.Fatal("expected error for 500 upstream, got nil")
+	_, err = inst.Invoke(method, encodeRequest(t, inst, method, `{"petId":1}`), nil)
+	var upstream *apps.UpstreamError
+	if !errors.As(err, &upstream) {
+		t.Fatalf("expected apps.UpstreamError for 400 upstream, got %v", err)
+	}
+	if upstream.Status != http.StatusBadRequest {
+		t.Errorf("Status = %d, want 400", upstream.Status)
+	}
+	if upstream.Message != "request body has an error: doesn't match schema" {
+		t.Errorf("Message = %q", upstream.Message)
+	}
+	if !strings.Contains(string(upstream.Body), `"title":"Bad Request"`) {
+		t.Errorf("Body = %s", upstream.Body)
+	}
+	if upstream.Method != http.MethodGet || !strings.HasSuffix(upstream.URL, "/v3/pets/1") {
+		t.Errorf("request = %s %s", upstream.Method, upstream.URL)
 	}
 }
 

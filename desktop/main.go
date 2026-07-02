@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -442,6 +443,12 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
 	if apps.IsAppTarget(target) {
 		response, err := a.apps.Invoke(target, method, req, headers)
+		var upstream *apps.UpstreamError
+		if errors.As(err, &upstream) {
+			// Hand the structured upstream failure to the transport instead of
+			// rejecting the promise with a flat string.
+			return &TargetResult{Body: upstream.JSON(), StatusCode: upstream.Status, Status: upstream.StatusText}, nil
+		}
 		if err != nil {
 			return nil, err
 		}

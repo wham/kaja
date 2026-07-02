@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // grpcWebTextFrame builds a base64 gRPC-Web-text request body wrapping msg.
@@ -90,5 +92,38 @@ func TestServeAppGRPCWebError(t *testing.T) {
 	}
 	if strings.Count(trailers, "\n") != 2 {
 		t.Errorf("grpc-message newline not sanitized: %q", trailers)
+	}
+}
+
+// TestServeAppGRPCWebUpstreamError locks in that an apps.UpstreamError maps to
+// the matching gRPC status with the extracted message, and that the raw
+// upstream body rides in its own trailer.
+func TestServeAppGRPCWebUpstreamError(t *testing.T) {
+	body := `{"title":"Bad Request","detail":"request body has an error"}`
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) ([]byte, error) {
+		return nil, apps.NewUpstreamError(http.MethodPost, "https://api.example.com/v1/events", http.StatusBadRequest, []byte(body))
+	})
+
+	message, trailers := parseGRPCWebText(t, w.Body.String())
+	if message != nil {
+		t.Errorf("expected no data frame on error, got %v", message)
+	}
+	if !strings.Contains(trailers, "grpc-status: 3") {
+		t.Errorf("trailers = %q, want grpc-status: 3 (INVALID_ARGUMENT)", trailers)
+	}
+	if !strings.Contains(trailers, "request body has an error") {
+		t.Errorf("trailers = %q, want extracted message", trailers)
+	}
+	if !strings.Contains(trailers, "upstream-body: "+body) {
+		t.Errorf("trailers = %q, want upstream-body trailer", trailers)
+	}
+}
+
+func TestGRPCStatusFromHTTP(t *testing.T) {
+	tests := map[int]int{400: 3, 401: 16, 403: 7, 404: 5, 409: 10, 429: 8, 418: 2, 500: 13, 501: 12, 502: 13, 503: 14, 504: 4}
+	for httpStatus, want := range tests {
+		if got := grpcStatusFromHTTP(httpStatus); got != want {
+			t.Errorf("grpcStatusFromHTTP(%d) = %d, want %d", httpStatus, got, want)
+		}
 	}
 }

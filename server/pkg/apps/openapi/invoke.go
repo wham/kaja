@@ -14,6 +14,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // boundMethod pairs a method's HTTP binding with the protobuf descriptors used to
@@ -163,7 +165,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("upstream %s %s returned %s: %s", binding.verb, fullURL, resp.Status, truncate(respBody, 500))
+		return nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody)
 	}
 
 	return wrapResponse(binding.responseWrap, respBody), nil
@@ -262,12 +264,4 @@ func wrapResponse(wrap string, body []byte) []byte {
 		}
 		return trimmed
 	}
-}
-
-func truncate(b []byte, n int) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > n {
-		return s[:n] + "…"
-	}
-	return s
 }

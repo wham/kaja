@@ -3,10 +3,13 @@ package grpc
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // AppInvoker invokes an in-process app method given the de-framed request message
@@ -32,16 +35,53 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 	response, err := invoke(method, message, headers)
 	if err != nil {
 		slog.Error("App invocation failed", "method", method, "error", err)
+		var upstream *apps.UpstreamError
+		if errors.As(err, &upstream) {
+			// An upstream HTTP failure maps to the closest gRPC status; the raw
+			// response body rides in a trailer the client shows alongside it.
+			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), map[string]string{"upstream-body": string(upstream.Body)})
+			return
+		}
 		// gRPC status 2 = UNKNOWN; the browser surfaces grpc-message as the error.
-		writeGRPCWebText(w, nil, 2, err.Error())
+		writeGRPCWebText(w, nil, 2, err.Error(), nil)
 		return
 	}
-	writeGRPCWebText(w, response, 0, "")
+	writeGRPCWebText(w, response, 0, "", nil)
+}
+
+// grpcStatusFromHTTP maps an upstream HTTP status code to the closest gRPC
+// status code.
+func grpcStatusFromHTTP(status int) int {
+	switch status {
+	case http.StatusBadRequest:
+		return 3 // INVALID_ARGUMENT
+	case http.StatusUnauthorized:
+		return 16 // UNAUTHENTICATED
+	case http.StatusForbidden:
+		return 7 // PERMISSION_DENIED
+	case http.StatusNotFound:
+		return 5 // NOT_FOUND
+	case http.StatusConflict:
+		return 10 // ABORTED
+	case http.StatusTooManyRequests:
+		return 8 // RESOURCE_EXHAUSTED
+	case http.StatusNotImplemented:
+		return 12 // UNIMPLEMENTED
+	case http.StatusServiceUnavailable:
+		return 14 // UNAVAILABLE
+	case http.StatusGatewayTimeout:
+		return 4 // DEADLINE_EXCEEDED
+	}
+	if status >= 500 {
+		return 13 // INTERNAL
+	}
+	return 2 // UNKNOWN
 }
 
 // writeGRPCWebText writes a base64 gRPC-Web-text response: an optional data frame
-// followed by a trailer frame carrying grpc-status and grpc-message.
-func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMessage string) {
+// followed by a trailer frame carrying grpc-status, grpc-message, and any extra
+// trailers.
+func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMessage string, extraTrailers map[string]string) {
 	var full []byte
 	if message != nil {
 		frame := make([]byte, 5+len(message))
@@ -52,6 +92,9 @@ func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMes
 	}
 
 	trailers := fmt.Sprintf("grpc-status: %d\r\ngrpc-message: %s\r\n", status, sanitizeTrailerValue(grpcMessage))
+	for name, value := range extraTrailers {
+		trailers += fmt.Sprintf("%s: %s\r\n", name, sanitizeTrailerValue(value))
+	}
 	trailerBytes := []byte(trailers)
 	trailerFrame := make([]byte, 5+len(trailerBytes))
 	trailerFrame[0] = 0x80 // trailer frame
