@@ -44,6 +44,13 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			wantKeyNam: "X-API-Key",
 		},
 		{
+			name:     "capitalized Basic http",
+			schemes:  map[string]*securityScheme{"basicAuth": {Type: "http", Scheme: "Basic"}},
+			security: []map[string][]string{{"basicAuth": {}}},
+			username: "u",
+			wantKind: authBasic,
+		},
+		{
 			name:     "oauth2 is bearer",
 			schemes:  map[string]*securityScheme{"oauth": {Type: "oauth2"}},
 			security: []map[string][]string{{"oauth": {}}},

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"sigs.k8s.io/yaml"
@@ -71,11 +73,14 @@ type operation struct {
 }
 
 type parameter struct {
-	Ref      string  `json:"$ref"` // reference to #/components/parameters/<name>
-	Name     string  `json:"name"`
-	In       string  `json:"in"` // path | query | header | cookie
-	Required bool    `json:"required"`
-	Schema   *schema `json:"schema"`
+	Ref      string               `json:"$ref"` // reference to #/components/parameters/<name>
+	Name     string               `json:"name"`
+	In       string               `json:"in"` // path | query | header | cookie
+	Required bool                 `json:"required"`
+	Schema   *schema              `json:"schema"`
+	Style    string               `json:"style"`   // form (default) | deepObject | ...
+	Explode  *bool                `json:"explode"` // default true for form style
+	Content  map[string]mediaType `json:"content"` // alternative to schema: a serialized media type
 }
 
 type requestBody struct {
@@ -116,6 +121,8 @@ type schema struct {
 	Properties           map[string]*schema    `json:"properties"`
 	AdditionalProperties *additionalProperties `json:"additionalProperties"`
 	AllOf                []*schema             `json:"allOf"`
+	OneOf                []*schema             `json:"oneOf"`
+	AnyOf                []*schema             `json:"anyOf"`
 	Required             []string              `json:"required"`
 	Enum                 []interface{}         `json:"enum"`
 }
@@ -134,19 +141,44 @@ func (a *additionalProperties) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &a.Schema)
 }
 
-// jsonContent returns the application/json media type, if present.
-func jsonContent(content map[string]mediaType) (mediaType, bool) {
-	mt, ok := content["application/json"]
-	if ok {
-		return mt, true
+// jsonContent returns the JSON media type to use, preferring plain
+// application/json, then charset-suffixed variants, then structured-syntax
+// "+json" types (application/vnd.example+json etc.). The returned string is the
+// content type as declared in the spec.
+func jsonContent(content map[string]mediaType) (string, mediaType, bool) {
+	if mt, ok := content["application/json"]; ok {
+		return "application/json", mt, true
 	}
-	// Be lenient about charset suffixes etc.
-	for ct, mt := range content {
-		if len(ct) >= 16 && ct[:16] == "application/json" {
-			return mt, true
+	keys := make([]string, 0, len(content))
+	for ct := range content {
+		keys = append(keys, ct)
+	}
+	sort.Strings(keys)
+	for _, ct := range keys {
+		if strings.HasPrefix(ct, "application/json") {
+			return ct, content[ct], true
 		}
 	}
-	return mediaType{}, false
+	for _, ct := range keys {
+		base := ct
+		if i := strings.Index(base, ";"); i >= 0 {
+			base = strings.TrimSpace(base[:i])
+		}
+		if strings.HasSuffix(base, "+json") {
+			return ct, content[ct], true
+		}
+	}
+	return "", mediaType{}, false
+}
+
+// textContent reports whether the content declares a text/* media type.
+func textContent(content map[string]mediaType) bool {
+	for ct := range content {
+		if strings.HasPrefix(ct, "text/") {
+			return true
+		}
+	}
+	return false
 }
 
 // loadSpec fetches and parses an OpenAPI document from a URL.

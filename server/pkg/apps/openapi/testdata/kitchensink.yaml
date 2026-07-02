@@ -1,0 +1,322 @@
+# A Kaja-specific kitchen-sink OpenAPI document: a compact fictional API that
+# exercises every schema construct the openapi app must parse, modeled after
+# patterns seen in real-world specs.
+#
+# - anyOf with mixed JSON shapes (single object vs array of them) as a request body
+# - oneOf discriminated unions of object variants, including a property the
+#   variants declare with different schemas
+# - anyOf of scalar variants (string vs enum reference)
+# - multi-entry allOf composition with sibling properties
+# - "allOf: [$ref]" wrappers carrying only annotations (nullable, default)
+# - a component schema named exactly like an operation's request wrapper
+# - $ref'd parameters, explode:false arrays, deepObject objects, and a
+#   parameter declared via "content" instead of "schema"
+# - structured "+json" request content types
+# - a $ref response resolving to an array (mixed-shape union), a text/plain
+#   response, and a 204 empty response
+# - uint32/uint64 integer formats, maps, free-form objects, self-references
+# - an http security scheme with a capitalized "Bearer" scheme name
+openapi: 3.0.0
+info:
+  title: Kaja Kitchen Sink
+  version: 1.0.0
+servers:
+  - url: https://kitchensink.kaja.tools
+security:
+  - TokenAuth: []
+paths:
+  /signals:
+    post:
+      operationId: ingestSignals
+      tags: [Signals]
+      summary: Ingest signals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestSignalsBody"
+          application/vnd.kaja.signals+json:
+            schema:
+              $ref: "#/components/schemas/Signal"
+      responses:
+        "204":
+          description: accepted
+        default:
+          description: error
+    get:
+      operationId: listSignals
+      tags: [Signals]
+      summary: List signals
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/order"
+        - name: expand
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { type: string }
+        - name: filterLabels
+          in: query
+          style: deepObject
+          schema:
+            type: object
+            additionalProperties: { type: string }
+        - name: advancedFilter
+          in: query
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: string }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+  /gauges:
+    post:
+      operationId: createGauge
+      tags: [Gauges]
+      summary: Create a gauge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Gauge"
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Gauge"
+  /gauges/{gaugeKey}:
+    parameters:
+      - name: gaugeKey
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getGauge
+      tags: [Gauges]
+      summary: Get a gauge
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Gauge"
+  /probes:
+    post:
+      operationId: createProbe
+      tags: [Probes]
+      summary: Create a probe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProbeRequest"
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Probe"
+  /reports:
+    get:
+      operationId: listReports
+      tags: [Reports]
+      summary: List reports
+      parameters:
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListReportsResult"
+  /status:
+    get:
+      operationId: getStatus
+      summary: Plain-text service status
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema: { type: string }
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      tags: [Widgets]
+      summary: Get a widget
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+components:
+  parameters:
+    page:
+      name: page
+      in: query
+      style: form
+      explode: false
+      schema: { type: integer }
+    order:
+      name: order
+      in: query
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/SortOrder"
+        default: ASC
+  securitySchemes:
+    TokenAuth:
+      type: http
+      scheme: Bearer
+  schemas:
+    SortOrder:
+      type: string
+      enum: [ASC, DESC]
+    IngestSignalsBody:
+      anyOf:
+        - $ref: "#/components/schemas/Signal"
+        - type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+      description: A single signal or a batch of signals.
+    Signal:
+      type: object
+      required: [id, source, kind]
+      properties:
+        id: { type: string }
+        source: { type: string }
+        kind: { type: string }
+        reading: { type: number, format: double }
+        total: { type: integer, format: uint64 }
+        count: { type: integer, format: uint32 }
+        at: { type: string, format: date-time, nullable: true }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        payload:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        interval:
+          $ref: "#/components/schemas/Interval"
+    Interval:
+      anyOf:
+        - type: string
+          format: duration
+        - $ref: "#/components/schemas/IntervalEnum"
+    IntervalEnum:
+      type: string
+      enum: [MINUTE, HOUR, DAY]
+    Gauge:
+      oneOf:
+        - $ref: "#/components/schemas/GaugeFlat"
+        - $ref: "#/components/schemas/GaugeTiered"
+      discriminator:
+        propertyName: kind
+    GaugeFlat:
+      type: object
+      required: [kind, key]
+      properties:
+        kind: { type: string, enum: [flat] }
+        key: { type: string }
+        name: { type: string }
+        scale:
+          allOf:
+            - $ref: "#/components/schemas/FlatScale"
+          nullable: true
+    GaugeTiered:
+      type: object
+      required: [kind, key]
+      properties:
+        kind: { type: string, enum: [tiered] }
+        key: { type: string }
+        name: { type: string }
+        scale:
+          $ref: "#/components/schemas/TieredScale"
+    FlatScale:
+      type: object
+      properties:
+        factor: { type: string }
+    TieredScale:
+      type: object
+      properties:
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScaleTier"
+    ScaleTier:
+      type: object
+      properties:
+        upTo: { type: integer, format: int64 }
+        factor: { type: string }
+    CreateProbeRequest:
+      type: object
+      required: [target]
+      properties:
+        target: { type: string }
+        timeoutSeconds: { type: integer }
+    Probe:
+      allOf:
+        - $ref: "#/components/schemas/Resource"
+        - $ref: "#/components/schemas/CreateProbeRequest"
+    Resource:
+      type: object
+      properties:
+        id: { type: string, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+    Widget:
+      allOf:
+        - $ref: "#/components/schemas/Resource"
+        - $ref: "#/components/schemas/WidgetBase"
+      properties:
+        deprecatedName: { type: string, deprecated: true }
+    WidgetBase:
+      type: object
+      properties:
+        name: { type: string }
+        kind: { type: string }
+    Report:
+      type: object
+      properties:
+        title: { type: string }
+        parent:
+          $ref: "#/components/schemas/Report"
+    ListReportsResult:
+      oneOf:
+        - type: array
+          items:
+            $ref: "#/components/schemas/Report"
+        - $ref: "#/components/schemas/PaginatedReports"
+    PaginatedReports:
+      type: object
+      properties:
+        totalCount: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"

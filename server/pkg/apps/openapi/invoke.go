@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -82,10 +83,35 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	}
 
 	query := url.Values{}
-	for _, name := range binding.queryParams {
-		if raw, ok := req[name]; ok {
+	for _, qp := range binding.queryParams {
+		raw, ok := req[qp.name]
+		if !ok {
+			continue
+		}
+		switch qp.style {
+		case "deepObject":
+			// {"filter":{"model":"gpt-4"}} becomes filter[model]=gpt-4.
+			var obj map[string]json.RawMessage
+			if err := json.Unmarshal(bytes.TrimSpace(raw), &obj); err == nil {
+				keys := make([]string, 0, len(obj))
+				for k := range obj {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					query.Add(qp.name+"["+k+"]", jsonScalar(obj[k]))
+				}
+			} else if vs := jsonQueryValues(raw); len(vs) > 0 {
+				query.Add(qp.name, strings.Join(vs, ","))
+			}
+		case "csv":
+			// form style with explode=false: values are comma-joined.
+			if vs := jsonQueryValues(raw); len(vs) > 0 {
+				query.Add(qp.name, strings.Join(vs, ","))
+			}
+		default:
 			for _, v := range jsonQueryValues(raw) {
-				query.Add(name, v)
+				query.Add(qp.name, v)
 			}
 		}
 	}
@@ -114,9 +140,15 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}
-	httpReq.Header.Set("Accept", "application/json")
-	if hasBody {
-		httpReq.Header.Set("Content-Type", "application/json")
+	if httpReq.Header.Get("Accept") == "" {
+		httpReq.Header.Set("Accept", "application/json")
+	}
+	if hasBody && httpReq.Header.Get("Content-Type") == "" {
+		contentType := binding.bodyContentType
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		httpReq.Header.Set("Content-Type", contentType)
 	}
 
 	resp, err := in.client.Do(httpReq)
@@ -219,6 +251,10 @@ func wrapResponse(wrap string, body []byte) []byte {
 			trimmed = []byte("null")
 		}
 		out, _ := json.Marshal(map[string]json.RawMessage{"value": json.RawMessage(trimmed)})
+		return out
+	case "text":
+		// The body is plain text, not JSON; carry it as a JSON string.
+		out, _ := json.Marshal(map[string]string{"value": string(trimmed)})
 		return out
 	default: // object
 		if len(trimmed) == 0 {
