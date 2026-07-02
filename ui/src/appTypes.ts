@@ -3,8 +3,9 @@ import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a
 // native picker on the desktop (and a plain text field everywhere else);
-// "boolean" renders a checkbox.
-export type AppParameterType = "text" | "url" | "file" | "folder" | "boolean";
+// "boolean" renders a checkbox; "upload" reads a chosen file's text content into
+// the parameter value (works on both web and desktop).
+export type AppParameterType = "text" | "url" | "file" | "folder" | "boolean" | "upload";
 
 export interface AppParameterDefinition {
   key: string;
@@ -22,6 +23,10 @@ export interface AppTypeDefinition {
   description: string;
   icon: Icon;
   parameters: AppParameterDefinition[];
+  // Groups of parameter keys where at least one must be provided (e.g. an OpenAPI
+  // spec supplied as a URL or as an uploaded file). Each group is checked
+  // independently.
+  requireOneOf?: string[][];
   // Experimental built-ins are gated behind the Apps feature preview. gRPC/Twirp
   // are always available.
   preview?: boolean;
@@ -95,13 +100,22 @@ export const appTypes: AppTypeDefinition[] = [
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
     icon: GlobeIcon,
+    requireOneOf: [["specUrl", "specContent"]],
     parameters: [
       {
         key: "specUrl",
         label: "OpenAPI spec URL",
         type: "url",
+        optional: true,
         placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
         caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app.",
+      },
+      {
+        key: "specContent",
+        label: "Or upload a spec file",
+        type: "upload",
+        optional: true,
+        caption: "Upload an OpenAPI 3.x document (JSON or YAML). The spec must declare an absolute server URL.",
       },
       {
         key: "token",

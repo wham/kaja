@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -438,6 +439,108 @@ func TestTranscodeArrayQuery(t *testing.T) {
 	}
 	if gotRawQuery != "tags=foo&tags=bar" {
 		t.Errorf("query = %q, want %q", gotRawQuery, "tags=foo&tags=bar")
+	}
+}
+
+// TestOpenFromUploadedSpec opens the app from inline spec content (JSON and
+// YAML) instead of a URL, and invokes a method against the fake upstream. The
+// spec's absolute server URL points at the upstream so no document URL is needed.
+func TestOpenFromUploadedSpec(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"id":1,"name":"Rex","tag":"dog"}`)
+	}))
+	defer srv.Close()
+
+	yamlSpec := `
+openapi: 3.0.0
+info:
+  title: Uploaded Petstore
+  version: 1.0.0
+servers:
+  - url: ` + srv.URL + `
+paths:
+  /pets/{petId}:
+    get:
+      operationId: getPetById
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A pet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  tag: { type: string }
+`
+	jsonSpec := fmt.Sprintf(`{
+  "openapi": "3.0.0",
+  "info": {"title": "Uploaded Petstore", "version": "1.0.0"},
+  "servers": [{"url": %q}],
+  "paths": {
+    "/pets/{petId}": {
+      "get": {
+        "operationId": "getPetById",
+        "parameters": [{"name": "petId", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "A pet", "content": {"application/json": {"schema": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "tag": {"type": "string"}}}}}}}
+      }
+    }
+  }
+}`, srv.URL)
+
+	const svc = "openapi.uploaded_petstore.UploadedPetstore"
+	for _, tc := range []struct{ name, content string }{{"yaml", yamlSpec}, {"json", jsonSpec}} {
+		t.Run(tc.name, func(t *testing.T) {
+			opened, err := New().Open(map[string]string{"spec_content": tc.content}, t.TempDir(), func(string) {})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			inst := opened.Instance.(*instance)
+			out, err := inst.Invoke(svc+"/GetPetById", encodeRequest(t, inst, svc+"/GetPetById", `{"petId":1}`), nil)
+			if err != nil {
+				t.Fatalf("GetPetById: %v", err)
+			}
+			assertJSONEq(t, decodeResponse(t, inst, svc+"/GetPetById", out), `{"id":1,"name":"Rex","tag":"dog"}`)
+		})
+	}
+}
+
+// TestOpenUploadedSpecRequiresAbsoluteServer rejects an uploaded spec whose
+// server URL is relative (or absent): with no document URL there is nothing to
+// resolve it against.
+func TestOpenUploadedSpecRequiresAbsoluteServer(t *testing.T) {
+	relativeServerSpec := `
+openapi: 3.0.0
+info:
+  title: Relative
+  version: 1.0.0
+servers:
+  - url: /v3
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      responses:
+        "200": { description: ok }
+`
+	if _, err := New().Open(map[string]string{"spec_content": relativeServerSpec}, t.TempDir(), func(string) {}); err == nil {
+		t.Fatal("expected error for uploaded spec with relative server URL, got nil")
+	}
+}
+
+// TestOpenRequiresSpecSource rejects an app configured with neither a URL nor
+// uploaded content.
+func TestOpenRequiresSpecSource(t *testing.T) {
+	if _, err := New().Open(map[string]string{}, t.TempDir(), func(string) {}); err == nil {
+		t.Fatal("expected error when neither spec_url nor spec_content is set, got nil")
 	}
 }
 

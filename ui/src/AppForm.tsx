@@ -1,5 +1,5 @@
 import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "@primer/octicons-react";
-import { Button, Checkbox, FormControl, Link, SegmentedControl, Select, Stack, TextInput } from "@primer/react";
+import { Button, Checkbox, FormControl, Link, SegmentedControl, Select, Stack, Text, TextInput } from "@primer/react";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
@@ -71,13 +71,21 @@ function jsonToApp(json: any): ConfigurationApp {
 }
 
 // missingRequiredParameter returns the label of the first required parameter the
-// app's type defines but the form leaves empty, or undefined if all are set.
+// app's type defines but the form leaves empty, or undefined if all are set. It
+// also enforces requireOneOf groups, where at least one of a set of parameters
+// must be provided.
 function missingRequiredParameter(type: string, parameters: Record<string, string>): string | undefined {
   const definition = getAppType(type);
   if (!definition) return undefined;
   for (const parameter of definition.parameters) {
     if (parameter.optional) continue;
     if (!(parameters[parameter.key] ?? "").trim()) return parameter.label;
+  }
+  for (const group of definition.requireOneOf ?? []) {
+    if (group.every((key) => !(parameters[key] ?? "").trim())) {
+      const first = definition.parameters.find((parameter) => parameter.key === group[0]);
+      return first?.label ?? group[0];
+    }
   }
   return undefined;
 }
@@ -87,6 +95,9 @@ export function AppForm({ mode, initialData, allApps, readOnly = false, onSubmit
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
+  // Names of files chosen for "upload" parameters, shown next to the picker. The
+  // parameter value itself holds the file's text content.
+  const [uploadNames, setUploadNames] = useState<Record<string, string>>({});
   const [jsonError, setJsonError] = useState<string | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -106,6 +117,17 @@ export function AppForm({ mode, initialData, allApps, readOnly = false, onSubmit
     setName(app.name);
     setType(appType(app) || "grpc");
     setParameters(appParameters(app));
+    setUploadNames({});
+  }, []);
+
+  const handleUpload = useCallback((key: string, file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setParameters((prev) => ({ ...prev, [key]: String(reader.result ?? "") }));
+      setUploadNames((prev) => ({ ...prev, [key]: file.name }));
+    };
+    reader.readAsText(file);
   }, []);
 
   useEffect(() => {
@@ -331,6 +353,25 @@ export function AppForm({ mode, initialData, allApps, readOnly = false, onSubmit
                       disabled={readOnly}
                       onChange={(e) => setParameters((prev) => ({ ...prev, [parameter.key]: e.target.checked ? "true" : "" }))}
                     />
+                  ) : parameter.type === "upload" ? (
+                    <Stack direction="horizontal" gap="condensed" align="center">
+                      <Button as="label" leadingVisual={FileIcon} disabled={readOnly}>
+                        {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                        <input
+                          type="file"
+                          accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                          hidden
+                          disabled={readOnly}
+                          onChange={(e) => {
+                            handleUpload(parameter.key, e.target.files?.[0]);
+                            e.target.value = "";
+                          }}
+                        />
+                      </Button>
+                      <Text style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
+                        {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
+                      </Text>
+                    </Stack>
                   ) : (
                     <TextInput
                       value={parameters[parameter.key] ?? ""}

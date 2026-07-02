@@ -294,8 +294,9 @@ export interface TwirpApp {
     };
 }
 /**
- * OpenApiApp calls a REST API from its OpenAPI 3.x document. Credentials are
- * applied per the spec's security schemes.
+ * OpenApiApp calls a REST API from its OpenAPI 3.x document. The document is
+ * taken from spec_url or, when the spec is uploaded, from spec_content (raw JSON
+ * or YAML). Credentials are applied per the spec's security schemes.
  *
  * @generated from protobuf message OpenApiApp
  */
@@ -322,6 +323,10 @@ export interface OpenApiApp {
     headers: {
         [key: string]: string;
     };
+    /**
+     * @generated from protobuf field: string spec_content = 6
+     */
+    specContent: string;
 }
 /**
  * OpenAiApp calls the OpenAI chat completions API.
@@ -1291,7 +1296,8 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
             { no: 2, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "password", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 5, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 6, name: "spec_content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenApiApp>): OpenApiApp {
@@ -1301,6 +1307,7 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         message.username = "";
         message.password = "";
         message.headers = {};
+        message.specContent = "";
         if (value !== undefined)
             reflectionMergePartial<OpenApiApp>(this, message, value);
         return message;
@@ -1324,6 +1331,9 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
                     break;
                 case /* map<string, string> headers */ 5:
                     this.binaryReadMap5(message.headers, reader, options);
+                    break;
+                case /* string spec_content */ 6:
+                    message.specContent = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1368,6 +1378,9 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         /* map<string, string> headers = 5; */
         for (let k of globalThis.Object.keys(message.headers))
             writer.tag(5, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
+        /* string spec_content = 6; */
+        if (message.specContent !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.specContent);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
