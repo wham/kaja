@@ -1,6 +1,6 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
-import { formatTypeScript } from "./formatter";
+import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 
@@ -266,17 +266,28 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
       onMount?.(editorRef.current);
     }
 
-    formatTypeScript(model.getValue()).then((formattedCode) => {
-      if (!isDisposing && editorRef.current) {
-        editorRef.current.setValue(formattedCode);
-        if (viewState) {
-          editorRef.current.restoreViewState(viewState);
-        } else if (startLineNumber > 0) {
-          editorRef.current.revealLineInCenter(startLineNumber);
-          editorRef.current.setPosition({ lineNumber: startLineNumber, column: startColumn });
+    if (!viewState && startLineNumber > 0) {
+      // startLineNumber/startColumn were resolved against the unformatted model
+      // text; formatting reflows lines, so remap the position through prettier.
+      const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
+      formatTypeScriptWithCursor(model.getValue(), cursorOffset).then((result) => {
+        if (!isDisposing && editorRef.current) {
+          editorRef.current.setValue(result.code);
+          const position = model.getPositionAt(result.cursorOffset);
+          editorRef.current.revealLineInCenter(position.lineNumber);
+          editorRef.current.setPosition(position);
         }
-      }
-    });
+      });
+    } else {
+      formatTypeScript(model.getValue()).then((formattedCode) => {
+        if (!isDisposing && editorRef.current) {
+          editorRef.current.setValue(formattedCode);
+          if (viewState) {
+            editorRef.current.restoreViewState(viewState);
+          }
+        }
+      });
+    }
 
     editorRef.current?.setModel(model);
 
