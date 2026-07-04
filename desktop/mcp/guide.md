@@ -12,19 +12,23 @@ services it needs and calls their methods. Imports bind to a configured app
 by the app's name, which is the first path segment:
 
 ```ts
-import { Users } from "users/";
-import { Teams } from "teams/";
+import { Seating } from "seating/";
+import { BoxOffice } from "boxoffice/";
 
-const user = await Users.GetUser({ id: 42 });
-const team = await Teams.GetTeam({ id: user.team_id });
-console.log(team);
+const { seatMap } = await Seating.GetSeatMap({ performanceId: "matinee-1" });
+const { reservation } = await BoxOffice.Reserve({
+  performanceId: "matinee-1",
+  seatIds: ["F7", "F8"],
+  customerName: "Ada",
+});
+console.log(reservation);
 ```
 
 Rules that matter:
 
 - Every method call returns a `Promise`; always `await` it.
-- The import name (`Users`) must be a service exposed by the app whose name
-  matches the first path segment of the import (`"users/"` → app `users`).
+- The import name (`Seating`) must be a service exposed by the app whose name
+  matches the first path segment of the import (`"seating/"` → app `seating`).
 - Call `list_services` to discover the exact apps, services, methods, and
   request/response field types that are available right now. Read the generated
   `.ts` stubs (exposed as resources) for precise field-level types.

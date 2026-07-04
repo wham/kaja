@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package boxoffice;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "internal/api";
+
+// The ticket counter of The Kaja Theatre. Reservations hold seats through
+// the seating service and expire automatically; purchasing turns a
+// reservation into an order with tickets.
+service BoxOffice {
+    // Hold seats for a performance. The reservation expires in ~2 minutes
+    // unless purchased.
+    rpc Reserve(ReserveRequest) returns (ReserveResponse);
+    // Pay for a reservation. Demo payments: card number 4242424242424242
+    // or gift code "KAJA" always succeed.
+    rpc Purchase(PurchaseRequest) returns (PurchaseResponse);
+    // Give the seats back before the reservation expires.
+    rpc CancelReservation(CancelReservationRequest) returns (CancelReservationResponse);
+    // Look up a past order by its confirmation code.
+    rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}
+
+enum ReservationStatus {
+    RESERVATION_STATUS_UNKNOWN = 0;
+    RESERVATION_STATUS_PENDING = 1;
+    RESERVATION_STATUS_PURCHASED = 2;
+    RESERVATION_STATUS_CANCELED = 3;
+    RESERVATION_STATUS_EXPIRED = 4;
+}
+
+message Reservation {
+    string id = 1;
+    string performance_id = 2;
+    string event_title = 3;
+    repeated string seat_ids = 4;
+    string customer_name = 5;
+    ReservationStatus status = 6;
+    int32 total_cents = 7;
+    google.protobuf.Timestamp expires_at = 8;
+}
+
+message Ticket {
+    string seat_id = 1;
+    string section = 2;
+    int32 price_cents = 3;
+}
+
+message Order {
+    string confirmation_code = 1;   // "KAJA-7F3B"
+    string performance_id = 2;
+    string event_id = 3;
+    string event_title = 4;
+    // Where to read more about the event in the theatre catalog API.
+    string event_url = 5;
+    string customer_name = 6;
+    repeated Ticket tickets = 7;
+    int32 total_cents = 8;
+    google.protobuf.Timestamp purchased_at = 9;
+}
+
+message ReserveRequest {
+    string performance_id = 1;
+    repeated string seat_ids = 2;   // max 6 seats per reservation
+    string customer_name = 3;
+}
+
+message ReserveResponse {
+    Reservation reservation = 1;
+}
+
+message PurchaseRequest {
+    string reservation_id = 1;
+    oneof payment {
+        Card card = 2;
+        GiftCode gift_code = 3;
+    }
+}
+
+message Card {
+    string number = 1;   // demo: 4242424242424242
+    string expiry = 2;   // MM/YY, any future date
+}
+
+message GiftCode {
+    string code = 1;     // demo: "KAJA"
+}
+
+message PurchaseResponse {
+    Order order = 1;
+}
+
+message CancelReservationRequest {
+    string reservation_id = 1;
+}
+
+message CancelReservationResponse {
+}
+
+message GetOrderRequest {
+    string confirmation_code = 1;
+}
+
+message GetOrderResponse {
+    Order order = 1;
+}

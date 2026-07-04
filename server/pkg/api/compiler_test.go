@@ -6,15 +6,15 @@ import (
 	"testing"
 )
 
-func TestCompileQuirksProto(t *testing.T) {
+func TestCompileSeatingProto(t *testing.T) {
 	// Find workspace directory relative to this test
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Navigate from server/pkg/api/ to workspace/quirks/proto
-	protoDir := filepath.Join(cwd, "../../../workspace/quirks/proto")
+	// Navigate from server/pkg/api/ to workspace/seating/proto
+	protoDir := filepath.Join(cwd, "../../../workspace/seating/proto")
 	if _, err := os.Stat(protoDir); os.IsNotExist(err) {
 		t.Skipf("workspace not found at %s", protoDir)
 	}

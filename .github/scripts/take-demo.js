@@ -253,10 +253,10 @@ async function takeDemo() {
 
     if (!clicked) {
       // Last resort: click by visible text
-      const textItem = page.getByText('grpc-quirks').first();
+      const textItem = page.getByText('seating').first();
       if ((await textItem.count()) > 0) {
         await textItem.click();
-        console.log("  ✓ Clicked compiler item using text: grpc-quirks");
+        console.log("  ✓ Clicked compiler item using text: seating");
       } else {
         console.log("  ⚠ Could not find compiler item to expand");
       }

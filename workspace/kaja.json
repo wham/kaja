@@ -1,25 +1,23 @@
 {
   "apps": [
     {
-      "name": "grpc-quirks",
-      "grpc": {
-        "url": "dns:kaja.tools:443",
-        "proto_dir": "quirks/proto",
-        "headers": {
-          "X-Yolo": "kaja123",
-          "Authorization": "Bear brown"
-        }
+      "name": "theatre",
+      "openapi": {
+        "spec_url": "https://kaja.tools/theatre/openapi.yaml"
       }
     },
     {
-      "name": "twirp-quirks",
+      "name": "seating",
+      "grpc": {
+        "url": "dns:kaja.tools:443",
+        "proto_dir": "seating/proto"
+      }
+    },
+    {
+      "name": "boxoffice",
       "twirp": {
-        "url": "https://kaja.tools/twirp-quirks",
-        "proto_dir": "quirks/proto",
-        "headers": {
-          "X-Yolo": "kaja123",
-          "Authorization": "Bear brown"
-        }
+        "url": "https://kaja.tools/boxoffice",
+        "proto_dir": "boxoffice/proto"
       }
     },
     {
@@ -28,21 +26,6 @@
         "url": "grpc://grpcb.in:9000",
         "proto_dir": "grpcbin/proto"
       }
-    },
-    {
-      "name": "teams",
-      "grpc": {
-        "url": "dns:kaja.tools:443",
-        "reflection": true
-      }
-    }
-  ],
-  "projects": [
-    {
-      "name": "users",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "https://kaja.tools/users",
-      "protoDir": "users/proto"
     }
   ],
   "system": {

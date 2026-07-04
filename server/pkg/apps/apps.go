@@ -36,7 +36,7 @@ type App interface {
 type Opened struct {
 	// ProtoDir overrides where the proto surface to compile lives. Empty means
 	// "use the protoDir passed to Open" (the temp directory the app wrote into). A
-	// relative path (e.g. "quirks/proto") is resolved by the compiler against the
+	// relative path (e.g. "seating/proto") is resolved by the compiler against the
 	// workspace and is used by grpc/twirp apps pointing at static, on-disk protos.
 	ProtoDir string
 	// Instance, when non-nil, makes the app invocable in-process: the Manager
