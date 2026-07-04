@@ -138,12 +138,12 @@ async function takeDemo() {
       console.log("New Project button not found, skipping screenshot");
     }
 
-    // 3. Call screenshot - click Types method, run it, wait for results
+    // 3. Call screenshot - click listEvents method, run it, wait for results
     console.log("Taking call screenshot...");
 
-    // Click on the Types method in the sidebar tree
-    const methodItem = page.getByText('Types', { exact: true }).first();
-    await waitForLocator(methodItem, "Types method in sidebar");
+    // Click on the listEvents method (theatre) in the sidebar tree
+    const methodItem = page.getByText('listEvents', { exact: true }).first();
+    await waitForLocator(methodItem, "listEvents method in sidebar");
     await methodItem.click();
 
     // Wait for method tab to become active
