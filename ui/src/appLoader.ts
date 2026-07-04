@@ -136,6 +136,30 @@ function createClients(services: Service[], stub: Stub, appRef: AppRef): Clients
   return clients;
 }
 
+// Copy a node's leading comments (proto docs the generator emits as JSDoc) from
+// the original source onto a freshly synthesized node as synthetic comments, so
+// the printer re-emits them. Interior lines are re-indented to a single ` *`
+// since the source indentation would otherwise be preserved verbatim.
+function copyLeadingComments(sourceFile: ts.SourceFile, fromNode: ts.Node, toNode: ts.Node): void {
+  const fullText = sourceFile.getFullText();
+  const ranges = ts.getLeadingCommentRanges(fullText, fromNode.getFullStart());
+  if (!ranges) {
+    return;
+  }
+
+  ranges.forEach((range) => {
+    if (range.kind === ts.SyntaxKind.MultiLineCommentTrivia) {
+      const text = fullText
+        .slice(range.pos + 2, range.end - 2)
+        .replace(/\n[ \t]*\*/g, "\n *")
+        .replace(/\n[ \t]+$/, "\n ");
+      ts.addSyntheticLeadingComment(toNode, range.kind, text, range.hasTrailingNewLine);
+    } else {
+      ts.addSyntheticLeadingComment(toNode, range.kind, fullText.slice(range.pos + 2, range.end), range.hasTrailingNewLine);
+    }
+  });
+}
+
 function getInputParameter(method: ts.MethodSignature, sourceFile: ts.SourceFile): ts.ParameterDeclaration | undefined {
   return method.parameters.find((parameter) => parameter.name.getText(sourceFile) == "input");
 }
@@ -259,6 +283,9 @@ function createServiceInterfaceDefinition(
         ts.factory.createBlock([]),
       ),
     );
+    // Carry the proto doc comment (emitted as JSDoc on the generated I<Service>Client
+    // member) onto the synthesized method so Monaco shows it on hover/autocomplete.
+    copyLeadingComments(sourceFile, member, func);
     funcs.push(func);
   });
 
