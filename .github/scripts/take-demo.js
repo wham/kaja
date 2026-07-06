@@ -97,53 +97,48 @@ async function takeDemo() {
     console.log("Taking home screenshot...");
     await page.screenshot({ path: `${DEMO_DIR}/home.png` });
 
-    // 2. New Project screenshot - open the new project form (optional)
-    // Only take this screenshot if the New Project button is present
-    console.log("Checking for New Project button...");
-    const newProjectButton = page.locator('button[aria-label="New Project"], button:has(svg.octicon-plus)').first();
+    // 2. New app screenshot - open the "New app" dialog (app type picker).
+    // The "+" opens a dialog, not a tab. This screenshot is optional.
+    console.log("Checking for New app button...");
+    const newAppButton = page.locator('button[aria-label="New app"], button:has(svg.octicon-plus)').first();
 
-    if ((await newProjectButton.count()) > 0 && (await newProjectButton.isVisible())) {
-      console.log("Taking new project screenshot...");
-      await newProjectButton.click();
+    if ((await newAppButton.count()) > 0 && (await newAppButton.isVisible())) {
+      console.log("Taking new app screenshot...");
+      await newAppButton.click();
 
-      // Wait for the project form to be ready
-      await waitFor(page, 'div.tab-item.active', "new project tab to be active");
-      // Wait for form input or JSON editor to be ready
-      const formInput = page.locator('input[placeholder="Project name"]');
-      const jsonEditor = page.locator('.monaco-editor');
-      try {
-        await Promise.race([
-          formInput.waitFor({ timeout: 5000, state: "visible" }),
-          jsonEditor.waitFor({ timeout: 5000, state: "visible" })
-        ]);
-        console.log("  ✓ Project form content loaded");
-      } catch {
-        console.log("  ✓ Project form opened (content type unknown)");
-      }
+      // Wait for the New app dialog (app type picker) to open
+      await waitFor(page, 'div[role="dialog"]', "new app dialog to open");
       await settleDelay(page);
 
       await page.screenshot({ path: `${DEMO_DIR}/newproject.png` });
 
-      // Close the tab by pressing Escape or clicking close button
-      const closeButton = page.locator('button[aria-label="Close New Project"]');
-      if ((await closeButton.count()) > 0) {
-        await closeButton.click();
+      // Close the dialog
+      const cancelButton = page.getByRole("button", { name: "Cancel" }).first();
+      if ((await cancelButton.count()) > 0) {
+        await cancelButton.click();
       } else {
         await page.keyboard.press("Escape");
       }
-      // Wait for the tab to close
-      await page.locator('div.tab-item:has-text("New Project")').waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+      await page.locator('div[role="dialog"]').waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
       await settleDelay(page);
     } else {
-      console.log("New Project button not found, skipping screenshot");
+      console.log("New app button not found, skipping screenshot");
     }
 
-    // 3. Call screenshot - click listEvents method, run it, wait for results
+    // 3. Call screenshot - click the theatre ListEvents method, run it, wait for results
     console.log("Taking call screenshot...");
 
-    // Click on the listEvents method (theatre) in the sidebar tree
-    const methodItem = page.getByText('listEvents', { exact: true }).first();
-    await waitForLocator(methodItem, "listEvents method in sidebar");
+    // Expand the whole tree so the target method is reliably visible; default
+    // expansion depends on compile timing and isn't deterministic.
+    const unfoldAll = page.getByRole("button", { name: "Unfold All" });
+    if ((await unfoldAll.count()) > 0) {
+      await unfoldAll.click();
+      await settleDelay(page);
+    }
+
+    // Click on the ListEvents method (theatre) in the sidebar tree
+    const methodItem = page.getByText('ListEvents', { exact: true }).first();
+    await waitForLocator(methodItem, "ListEvents method in sidebar");
     await methodItem.click();
 
     // Wait for method tab to become active
