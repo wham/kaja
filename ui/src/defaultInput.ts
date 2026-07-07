@@ -3,16 +3,25 @@ import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
 import { getScalarMemorizedValue, getMessageMemorizedValue } from "./typeMemory";
 
-export function defaultMessage<T extends object>(message: IMessageType<T>, sources: Sources, imports: Imports): ts.ObjectLiteralExpression {
+export function defaultMessage<T extends object>(
+  message: IMessageType<T>,
+  sources: Sources,
+  imports: Imports,
+  visiting: Set<string> = new Set(),
+): ts.ObjectLiteralExpression {
   let properties: ts.PropertyAssignment[] = [];
 
   const typeName = message.typeName;
+  // Track the message types on the current recursion path so a self-referential
+  // message (e.g. a recursive filter/expression type from an OpenAPI spec) stops
+  // instead of recursing until the stack overflows.
+  const nested = new Set(visiting).add(typeName);
 
   message.fields.forEach((field) => {
-    let value = defaultMessageField(field, sources, imports, typeName);
+    let value = defaultMessageField(field, sources, imports, nested, typeName);
 
     if (field.repeat) {
-      const arrayValue = defaultMessageField(field, sources, imports, typeName);
+      const arrayValue = defaultMessageField(field, sources, imports, nested, typeName);
       value = ts.factory.createArrayLiteralExpression([arrayValue]);
     }
 
@@ -38,7 +47,7 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, parentTypeName?: string): ts.Expression {
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, parentTypeName?: string): ts.Expression {
   // For scalar fields, try to get memorized value
   if (field.kind === "scalar") {
     // First check type memory (more specific - values seen in this exact type)
@@ -58,7 +67,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "map") {
     const properties: ts.PropertyAssignment[] = [];
-    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports)));
+    properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting)));
 
     return ts.factory.createObjectLiteralExpression(properties);
   }
@@ -69,6 +78,11 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
+    // Break recursive message cycles: a field whose type is already on the
+    // current path gets an empty object literal instead of recursing forever.
+    if (visiting.has(messageType.typeName)) {
+      return ts.factory.createObjectLiteralExpression([]);
+    }
     // Special case for Timestamp - default to current time
     if (messageType.typeName === "google.protobuf.Timestamp") {
       const now = new Date();
@@ -80,7 +94,7 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
       ]);
     }
     // For nested message types, recurse with the nested type name
-    return defaultMessage(messageType, sources, imports);
+    return defaultMessage(messageType, sources, imports, visiting);
   }
 
   return ts.factory.createNull();
@@ -164,14 +178,19 @@ type mapValueType =
       T: () => IMessageType<any>;
     };
 
-function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports): ts.Expression {
+function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports, visiting: Set<string>): ts.Expression {
   switch (value.kind) {
     case "scalar":
       return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
-    case "message":
-      return defaultMessage(value.T(), sources, imports);
+    case "message": {
+      const messageType = value.T();
+      if (visiting.has(messageType.typeName)) {
+        return ts.factory.createObjectLiteralExpression([]);
+      }
+      return defaultMessage(messageType, sources, imports, visiting);
+    }
   }
 }
 
