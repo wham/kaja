@@ -16,7 +16,7 @@ test("defaultInput", () => {
 });
 
 // A self-referential message (as generated for recursive OpenAPI schemas such as
-// OpenMeter's filter/expression types) must terminate and still produce valid code:
+// filter/expression types) must terminate and still produce valid code:
 // a repeated self-reference defaults to an empty array, a singular one is omitted.
 test("defaultInput terminates on self-referential message with valid output", () => {
   const filter: MessageType<any> = new MessageType("openapi.demo.Filter", [

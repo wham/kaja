@@ -16,6 +16,7 @@
 - Use pure Primer when possible, avoid custom wrappers and abstractions.
 - Ask me before creating custom UI components; prefer direct use of Primer components.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
+- Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
 
 ## Experimental (Preview)
 
