@@ -16,19 +16,23 @@ test("defaultInput", () => {
 });
 
 // A self-referential message (as generated for recursive OpenAPI schemas such as
-// OpenMeter's filter/expression types) must not recurse until the stack overflows.
-test("defaultInput terminates on self-referential message", () => {
+// OpenMeter's filter/expression types) must terminate and still produce valid code:
+// a repeated self-reference defaults to an empty array, a singular one is omitted.
+test("defaultInput terminates on self-referential message with valid output", () => {
   const filter: MessageType<any> = new MessageType("openapi.demo.Filter", [
     { no: 1, name: "field", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
     { no: 2, name: "and", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => filter },
+    { no: 3, name: "not", kind: "message", T: () => filter },
   ]);
 
   const sources: Sources = [];
   const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(filter, sources, {}))]);
 
-  // The nested "and" element stops at an empty object literal instead of recursing.
+  // The repeated self-reference becomes an empty array, not an unfillable element.
   expect(expr).toContain("field:");
-  expect(expr).toContain("and: [{}]");
+  expect(expr).toContain("and: []");
+  // The singular self-reference is optional in the generated type, so it is omitted.
+  expect(expr).not.toContain("not:");
 });
 
 // A cycle across two messages (A -> B -> A) must also terminate.
@@ -38,4 +42,16 @@ test("defaultInput terminates on mutually recursive messages", () => {
 
   const sources: Sources = [];
   expect(() => defaultMessage(a, sources, {})).not.toThrow();
+});
+
+// A map whose value type is self-referential defaults to an empty map.
+test("defaultInput terminates on recursive map value", () => {
+  const node: MessageType<any> = new MessageType("openapi.demo.Node", [
+    { no: 1, name: "children", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => node } },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(node, sources, {}))]);
+
+  expect(expr).toContain("children: {}");
 });
