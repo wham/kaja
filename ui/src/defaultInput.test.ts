@@ -54,6 +54,26 @@ test("defaultInput uses empty arrays for repeated scalars, one element for messa
   expect(expr).toContain("name:");
 });
 
+// google.protobuf.Value (used for free-form / polymorphic OpenAPI fields) must
+// not recurse into its "kind" oneof — that would emit every member at once, an
+// invalid shape. It renders as an empty, editable placeholder instead.
+test("defaultInput renders google.protobuf.Value as an empty placeholder", () => {
+  const value: MessageType<any> = new MessageType("google.protobuf.Value", [
+    { no: 1, name: "null_value", kind: "enum", oneof: "kind", T: () => ["google.protobuf.NullValue", {}] },
+    { no: 3, name: "string_value", kind: "scalar", oneof: "kind", T: 9 /*ScalarType.STRING*/ },
+    { no: 4, name: "bool_value", kind: "scalar", oneof: "kind", T: 8 /*ScalarType.BOOL*/ },
+  ]);
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [{ no: 1, name: "data", kind: "message", T: () => value }]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+
+  expect(expr).toContain("kind: { oneofKind: undefined }");
+  // No flat oneof members leaked out.
+  expect(expr).not.toContain("stringValue");
+  expect(expr).not.toContain("boolValue");
+});
+
 // A cycle across two messages (A -> B -> A) must also terminate.
 test("defaultInput terminates on mutually recursive messages", () => {
   const a: MessageType<any> = new MessageType("openapi.demo.A", [{ no: 1, name: "b", kind: "message", T: () => b }]);

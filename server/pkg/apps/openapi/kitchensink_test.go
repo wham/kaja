@@ -55,9 +55,16 @@ func TestKitchenSinkSpec(t *testing.T) {
 		`uint64 total = `,
 		`uint32 count = `,
 		`map<string, string> labels = `,
-		// Interval is "anyOf: [string, IntervalEnum]" - a scalar union expands
-		// to its first variant in place.
+		// Interval is "anyOf: [string, IntervalEnum]" - a same-category (all
+		// string) scalar union expands to its first variant in place.
 		`string interval = `,
+		// A union mixing incompatible scalars and a bare free-form property both
+		// map to google.protobuf.Value so any JSON value round-trips.
+		`import "google/protobuf/struct.proto";`,
+		`google.protobuf.Value data = `,
+		`google.protobuf.Value value = `,
+		// A free-form map value (additionalProperties: {}) carries any JSON.
+		`map<string, google.protobuf.Value> payload = `,
 		// Gauge is "oneOf: [GaugeFlat, GaugeTiered]" - the merged message
 		// exposes the union's fields, and the variants' differing "scale"
 		// schemas merge into a union of their own.

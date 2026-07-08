@@ -113,6 +113,17 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
         ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
       ]);
     }
+    // google.protobuf.Value holds arbitrary JSON through a "kind" oneof (used for
+    // free-form / polymorphic fields). Recursing would emit every oneof member at
+    // once, an invalid shape; an empty value is a valid, editable placeholder.
+    if (messageType.typeName === "google.protobuf.Value") {
+      return ts.factory.createObjectLiteralExpression([
+        ts.factory.createPropertyAssignment(
+          "kind",
+          ts.factory.createObjectLiteralExpression([ts.factory.createPropertyAssignment("oneofKind", ts.factory.createIdentifier("undefined"))]),
+        ),
+      ]);
+    }
     // For nested message types, recurse with the nested type name
     return defaultMessage(messageType, sources, imports, visiting);
   }

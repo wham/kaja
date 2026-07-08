@@ -878,6 +878,75 @@ func TestIngestEventsInvoke(t *testing.T) {
 	assertJSONEq(t, decodeResponse(t, inst, svc+"/GetMetrics", out), `{"value":"events_total 42"}`)
 }
 
+// TestFreeFormResponseDecode reproduces the reported failure: a response whose
+// schema types a field loosely (a bare free-form property, or a union that mixes
+// scalars) must decode whatever JSON the API actually returns — a boolean, a
+// nested object, an array — instead of being forced into a string and rejected
+// by protojson.
+func TestFreeFormResponseDecode(t *testing.T) {
+	const spec = `
+openapi: 3.0.0
+info:
+  title: Loose
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /events:
+    get:
+      operationId: listEvents
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        value:
+          oneOf:
+            - type: string
+            - type: boolean
+            - type: number
+        data:
+          description: arbitrary JSON payload
+`
+	// The upstream returns events whose "value" is a boolean and a number, and a
+	// "data" payload that is a nested object — none of which a string field would
+	// accept.
+	const upstreamBody = `[{"id":"1","value":true,"data":{"nested":[1,true,"x"]}},{"id":"2","value":42.5,"data":"plain string"}]`
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, spec) })
+	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, upstreamBody)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml"}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const method = "openapi.loose.Loose/ListEvents"
+
+	out, err := inst.Invoke(method, encodeRequest(t, inst, method, `{}`), nil)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	assertJSONEq(t, decodeResponse(t, inst, method, out),
+		`{"items":[{"id":"1","value":true,"data":{"nested":[1,true,"x"]}},{"id":"2","value":42.5,"data":"plain string"}]}`)
+}
+
 // TestTranscodeArrayQuery checks that an array-typed query parameter is expanded
 // into repeated query values (tags=a&tags=b) rather than a single JSON literal.
 func TestTranscodeArrayQuery(t *testing.T) {

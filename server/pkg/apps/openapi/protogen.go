@@ -111,6 +111,20 @@ type generator struct {
 	seenRPC      map[string]bool
 
 	bindingByMethod map[string]*methodBinding
+
+	usesValue bool // a field maps to google.protobuf.Value, so struct.proto is imported
+}
+
+// anyValueType is the proto type for a schema that admits arbitrary JSON (a
+// free-form object, an untyped schema, or a union mixing primitive and other
+// shapes). google.protobuf.Value round-trips any JSON through protojson, so the
+// upstream response decodes whether the value is an object, string, number,
+// bool, or array — where a plain "string" field would reject everything else.
+const anyValueType = "google.protobuf.Value"
+
+func (g *generator) anyValue() string {
+	g.usesValue = true
+	return anyValueType
 }
 
 // generateProto converts an OpenAPI spec into a single proto file plus bindings.
@@ -388,6 +402,49 @@ func (g *generator) allObjectLike(vs []*schema) bool {
 	return true
 }
 
+// unionMapsToValue reports whether a mixed-shape union must be modeled as
+// google.protobuf.Value: it mixes categories (so no single variant fits) and at
+// least one variant is a primitive scalar (so a proto message can't hold it).
+// A union of one category — all strings (string|enum), or all structured
+// (object vs array of it) — is still modeled by its first variant.
+func (g *generator) unionMapsToValue(vs []*schema) bool {
+	categories := map[string]bool{}
+	hasScalar := false
+	for _, v := range vs {
+		c := g.jsonCategory(v, 0)
+		categories[c] = true
+		if c != "complex" {
+			hasScalar = true
+		}
+	}
+	return hasScalar && len(categories) > 1
+}
+
+// jsonCategory classifies a schema's JSON shape into "string", "number",
+// "boolean", or "complex" (object, array, free-form, or unknown), following
+// refs and single-entry allOf wrappers.
+func (g *generator) jsonCategory(s *schema, depth int) string {
+	if s == nil || depth > 16 {
+		return "complex"
+	}
+	s = unwrapAllOf(s)
+	if s == nil {
+		return "complex"
+	}
+	if s.Ref != "" {
+		return g.jsonCategory(g.lookupRef(s.Ref), depth+1)
+	}
+	switch s.Type {
+	case "string":
+		return "string"
+	case "number", "integer":
+		return "number"
+	case "boolean":
+		return "boolean"
+	}
+	return "complex"
+}
+
 // fieldsFromSchema flattens a schema's effective object properties into proto
 // fields: its own properties, those of every allOf entry, and — when every
 // oneOf/anyOf variant is an object — the superset of the variants' properties,
@@ -513,8 +570,14 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s), doc: docLines(s.Description)})
 			return name, false
 		}
-		// Variants disagree on JSON shape (e.g. a single object vs an array of
-		// them); model the first variant as the happy path.
+		if g.unionMapsToValue(vs) {
+			// Variants mix categories including a primitive (e.g. string|bool or
+			// string|object): no single proto type accepts them all, so any JSON
+			// value is decoded through Value.
+			return g.anyValue(), false
+		}
+		// Variants are all structured but disagree on shape (e.g. a single object
+		// vs an array of them); model the first variant as the happy path.
 		return g.protoType(parent, hint, vs[0])
 	}
 	if len(s.AllOf) > 0 {
@@ -550,12 +613,15 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 					// proto map values cannot be maps themselves.
 					value = "string"
 				}
+			} else {
+				// additionalProperties: true — values hold any JSON.
+				value = g.anyValue()
 			}
 			return "map<string, " + value + ">", false
 		}
-		// Free-form object (or untyped schema): fall back to string for the
-		// minimal happy path.
-		return "string", false
+		// Free-form object (or untyped schema): any JSON value round-trips through
+		// google.protobuf.Value instead of being forced into a string.
+		return g.anyValue(), false
 	case "integer":
 		switch s.Format {
 		case "int64":
@@ -639,6 +705,9 @@ func (g *generator) render() string {
 	var b strings.Builder
 	b.WriteString("syntax = \"proto3\";\n\n")
 	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
+	if g.usesValue {
+		b.WriteString("import \"google/protobuf/struct.proto\";\n\n")
+	}
 
 	for _, m := range g.messages {
 		for _, line := range m.doc {
