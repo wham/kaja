@@ -53,18 +53,38 @@ type fieldDef struct {
 	number   int
 	jsonName string
 	repeated bool
+	doc      []string
 }
 
 type messageDef struct {
 	name   string
 	fields []fieldDef
+	doc    []string
 }
 
 type rpcDef struct {
-	name    string
-	input   string
-	output  string
-	summary string
+	name   string
+	input  string
+	output string
+	doc    []string
+}
+
+// docLines turns a spec description into sanitized proto comment lines: CRLF is
+// normalized, trailing whitespace stripped, and an all-blank description drops
+// to nothing. Each line is later emitted as a "// ..." comment, so the origin of
+// a generated type is visible in "Go to Definition".
+func docLines(text string) []string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = strings.TrimRight(text, " \t\n")
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], " \t")
+	}
+	return lines
 }
 
 // serviceDef is a single generated proto service. Operations are grouped into
@@ -225,8 +245,12 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	output, wrap := g.responseType(methodName, op)
 	binding.responseWrap = wrap
 
+	doc := []string{vo.verb + " " + path}
+	doc = append(doc, docLines(op.Summary)...)
+	doc = append(doc, docLines(op.Description)...)
+
 	svc := g.serviceFor(op)
-	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: reqName, output: output, summary: op.Summary})
+	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: reqName, output: output, doc: doc})
 	g.bindingByMethod[methodName] = binding
 }
 
@@ -282,7 +306,11 @@ func (g *generator) paramField(param *parameter, number int) fieldDef {
 		}
 	}
 	typ, repeated := g.protoType("Param", pascal(param.Name), s)
-	return fieldDef{typ: typ, name: ensureName(lowerSnake(param.Name), fmt.Sprintf("field%d", number)), number: number, jsonName: param.Name, repeated: repeated}
+	desc := param.Description
+	if desc == "" && s != nil {
+		desc = s.Description
+	}
+	return fieldDef{typ: typ, name: ensureName(lowerSnake(param.Name), fmt.Sprintf("field%d", number)), number: number, jsonName: param.Name, repeated: repeated, doc: docLines(desc)}
 }
 
 // refMessage ensures a message exists for a "#/components/schemas/X" reference
@@ -298,11 +326,12 @@ func (g *generator) refMessage(ref string) string {
 	// Reserve the name before recursing to break self-referential cycles.
 	g.refMsgName[refName(ref)] = name
 	g.seenMsg[name] = true
-	placeholder := &messageDef{name: name}
+	placeholder := &messageDef{name: name, doc: []string{"from #/components/schemas/" + refName(ref)}}
 	g.messages = append(g.messages, placeholder)
 
 	if s := g.lookupRef(ref); s != nil {
 		placeholder.fields = g.fieldsFromSchema(name, s)
+		placeholder.doc = append(placeholder.doc, docLines(s.Description)...)
 	}
 	return name
 }
@@ -395,10 +424,23 @@ func (g *generator) fieldsFromSchema(parent string, s *schema) []fieldDef {
 			number:   num,
 			jsonName: propName,
 			repeated: repeated,
+			doc:      docLines(propertyDescription(props[propName])),
 		})
 		num++
 	}
 	return fields
+}
+
+// propertyDescription returns the first non-empty description among the schemas
+// declared for a property (a property merged from several union variants can
+// carry the description on any of them).
+func propertyDescription(schemas []*schema) string {
+	for _, s := range schemas {
+		if s != nil && strings.TrimSpace(s.Description) != "" {
+			return s.Description
+		}
+	}
+	return ""
 }
 
 // collectProperties gathers the flattened property set of a schema, keeping
@@ -468,7 +510,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 			// All variants are objects (a discriminated union): merge their
 			// properties into one message so any variant can be expressed.
 			name := g.uniqueMessageName(parent + hint)
-			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
+			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s), doc: docLines(s.Description)})
 			return name, false
 		}
 		// Variants disagree on JSON shape (e.g. a single object vs an array of
@@ -483,7 +525,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 		}
 		// Composition: merge every entry's properties with the schema's own.
 		name := g.uniqueMessageName(parent + hint)
-		g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
+		g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s), doc: docLines(s.Description)})
 		return name, false
 	}
 	switch s.Type {
@@ -497,7 +539,7 @@ func (g *generator) protoType(parent, hint string, s *schema) (string, bool) {
 	case "object", "":
 		if len(s.Properties) > 0 {
 			name := g.uniqueMessageName(parent + hint)
-			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s)})
+			g.addMessage(&messageDef{name: name, fields: g.fieldsFromSchema(name, s), doc: docLines(s.Description)})
 			return name, false
 		}
 		if ap := s.AdditionalProperties; ap != nil && ap.Allowed {
@@ -599,8 +641,14 @@ func (g *generator) render() string {
 	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
 
 	for _, m := range g.messages {
+		for _, line := range m.doc {
+			fmt.Fprintf(&b, "// %s\n", line)
+		}
 		fmt.Fprintf(&b, "message %s {\n", m.name)
 		for _, f := range m.fields {
+			for _, line := range f.doc {
+				fmt.Fprintf(&b, "  // %s\n", line)
+			}
 			prefix := ""
 			if f.repeated {
 				prefix = "repeated "
@@ -616,8 +664,8 @@ func (g *generator) render() string {
 		}
 		fmt.Fprintf(&b, "service %s {\n", svc.name)
 		for _, r := range svc.rpcs {
-			if r.summary != "" {
-				fmt.Fprintf(&b, "  // %s\n", strings.ReplaceAll(r.summary, "\n", " "))
+			for _, line := range r.doc {
+				fmt.Fprintf(&b, "  // %s\n", line)
 			}
 			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s);\n", r.name, r.input, r.output)
 		}
