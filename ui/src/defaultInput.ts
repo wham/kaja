@@ -30,11 +30,19 @@ export function defaultMessage<T extends object>(
       return;
     }
 
-    let value = defaultMessageField(field, sources, imports, nested, typeName);
+    let value: ts.Expression;
 
     if (field.repeat) {
-      const arrayValue = defaultMessageField(field, sources, imports, nested, typeName);
-      value = ts.factory.createArrayLiteralExpression([arrayValue]);
+      // A repeated scalar defaults to an empty array. A single placeholder element
+      // (e.g. [""] or [0]) is sent verbatim as an invalid value, and for request
+      // bodies that accept at most one of several array-valued operators it also
+      // makes multiple operators look "set". Repeated message and enum fields keep
+      // one element: there the element carries a nested shape or a concrete valid
+      // value that the field name alone doesn't convey.
+      const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested, typeName)];
+      value = ts.factory.createArrayLiteralExpression(elements);
+    } else {
+      value = defaultMessageField(field, sources, imports, nested, typeName);
     }
 
     properties.push(ts.factory.createPropertyAssignment(field.localName, value));

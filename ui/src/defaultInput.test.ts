@@ -35,6 +35,25 @@ test("defaultInput terminates on self-referential message with valid output", ()
   expect(expr).not.toContain("not:");
 });
 
+// A repeated scalar defaults to an empty array, not a placeholder element like
+// [""]: that placeholder would be sent verbatim as an invalid value. Repeated
+// message and enum fields keep one element, where it carries real structure.
+test("defaultInput uses empty arrays for repeated scalars, one element for messages", () => {
+  const item: MessageType<any> = new MessageType("openapi.demo.Item", [{ no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }]);
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [
+    { no: 1, name: "ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+    { no: 2, name: "items", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => item },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+
+  // Repeated scalar: empty array, no placeholder element.
+  expect(expr).toContain("ids: []");
+  // Repeated message: one element revealing the nested shape.
+  expect(expr).toContain("name:");
+});
+
 // A cycle across two messages (A -> B -> A) must also terminate.
 test("defaultInput terminates on mutually recursive messages", () => {
   const a: MessageType<any> = new MessageType("openapi.demo.A", [{ no: 1, name: "b", kind: "message", T: () => b }]);
