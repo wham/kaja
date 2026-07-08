@@ -187,6 +187,73 @@ func TestGenerateProto(t *testing.T) {
 	}
 }
 
+// TestGenerateProtoComments locks in that the generator preserves origin and
+// description snippets from the spec as proto comments: an RPC gets a
+// "VERB /path" origin plus its summary/description, a component-derived message
+// gets a "from #/components/schemas/X" origin plus its description, and both
+// property and parameter descriptions surface on their fields.
+func TestGenerateProtoComments(t *testing.T) {
+	const spec = `
+openapi: 3.0.0
+info:
+  title: Docs
+  version: 1.0.0
+paths:
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      summary: Fetch one pet
+      description: Returns a single pet by id.
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          description: The pet's unique id.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+components:
+  schemas:
+    Pet:
+      type: object
+      description: A pet in the store.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          description: The pet's display name.
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		"// from #/components/schemas/Pet",
+		"// A pet in the store.",
+		"// The pet's display name.",
+		"// GET /pets/{petId}",
+		"// Fetch one pet",
+		"// Returns a single pet by id.",
+		"// The pet's unique id.",
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing comment %q\n---\n%s", frag, gen.proto)
+		}
+	}
+}
+
 // TestGenerateProtoTagGrouping checks that operations are split into one service
 // per OpenAPI tag, with untagged operations falling into the title-named service.
 func TestGenerateProtoTagGrouping(t *testing.T) {

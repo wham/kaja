@@ -43,6 +43,13 @@ func TestKitchenSinkSpec(t *testing.T) {
 		"message IngestSignalsRequest {",
 		`Signal body = `,
 		"message Signal {",
+		// Origin + description snippets from the spec surface as proto comments.
+		"// from #/components/schemas/Signal",
+		"// A single observed signal.",
+		"// Comments preserve special chars like */ and <html>.",
+		"// Stable identifier.",
+		"// POST /signals",
+		"// Zero-based page index.",
 		`string id = `,
 		`string source = `,
 		`uint64 total = `,
