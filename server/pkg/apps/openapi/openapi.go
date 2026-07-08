@@ -94,7 +94,10 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 // compileMethods compiles the generated proto and resolves each method's input
 // and output message descriptors, keyed by the gRPC method path.
 func compileMethods(protoDir string, gen *generated) (map[string]*boundMethod, error) {
-	result, err := protoc.New(protoc.WithProtoPaths(protoDir)).Compile("service.proto")
+	// WithIncludeImports keeps imported descriptors (google/protobuf/struct.proto,
+	// pulled in when a field maps to google.protobuf.Value) in the set so
+	// protodesc.NewFiles can resolve them.
+	result, err := protoc.New(protoc.WithProtoPaths(protoDir), protoc.WithIncludeImports()).Compile("service.proto")
 	if err != nil {
 		return nil, fmt.Errorf("compiling generated proto: %w", err)
 	}

@@ -6,6 +6,8 @@
 # - oneOf discriminated unions of object variants, including a property the
 #   variants declare with different schemas
 # - anyOf of scalar variants (string vs enum reference)
+# - a union mixing incompatible scalars (string|bool|number) and a bare
+#   free-form property, both mapping to google.protobuf.Value
 # - multi-entry allOf composition with sibling properties
 # - "allOf: [$ref]" wrappers carrying only annotations (nullable, default)
 # - a component schema named exactly like an operation's request wrapper
@@ -222,6 +224,13 @@ components:
           type: object
           additionalProperties: {}
           nullable: true
+        value:
+          oneOf:
+            - type: string
+            - type: boolean
+            - type: number
+        data:
+          description: Arbitrary JSON payload with no declared type.
         interval:
           $ref: "#/components/schemas/Interval"
     Interval:
