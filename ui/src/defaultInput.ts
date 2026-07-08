@@ -18,6 +18,18 @@ export function defaultMessage<T extends object>(
   const nested = new Set(visiting).add(typeName);
 
   message.fields.forEach((field) => {
+    // Break recursive message cycles. A field whose message type is already on
+    // the current path can't be filled in without recursing forever: a repeated
+    // field defaults to an empty array and a singular (optional) field is omitted
+    // entirely, so the generated code stays type-correct instead of holding an
+    // unfillable placeholder.
+    if (field.kind === "message" && nested.has(field.T().typeName)) {
+      if (field.repeat) {
+        properties.push(ts.factory.createPropertyAssignment(field.localName, ts.factory.createArrayLiteralExpression([])));
+      }
+      return;
+    }
+
     let value = defaultMessageField(field, sources, imports, nested, typeName);
 
     if (field.repeat) {
@@ -66,6 +78,11 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   if (field.kind === "map") {
+    // An empty map is valid; if the value type would recurse into the current
+    // path, leave the map empty rather than emit an unfillable entry.
+    if (field.V.kind === "message" && visiting.has(field.V.T().typeName)) {
+      return ts.factory.createObjectLiteralExpression([]);
+    }
     const properties: ts.PropertyAssignment[] = [];
     properties.push(ts.factory.createPropertyAssignment(defaultMapKey(field.K), defaultMapValue(field.V, sources, imports, visiting)));
 
@@ -78,11 +95,6 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
 
   if (field.kind === "message") {
     const messageType = field.T();
-    // Break recursive message cycles: a field whose type is already on the
-    // current path gets an empty object literal instead of recursing forever.
-    if (visiting.has(messageType.typeName)) {
-      return ts.factory.createObjectLiteralExpression([]);
-    }
     // Special case for Timestamp - default to current time
     if (messageType.typeName === "google.protobuf.Timestamp") {
       const now = new Date();
@@ -184,13 +196,8 @@ function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports
       return defaultScalar(value.T);
     case "enum":
       return defaultEnum(value.T(), sources, imports);
-    case "message": {
-      const messageType = value.T();
-      if (visiting.has(messageType.typeName)) {
-        return ts.factory.createObjectLiteralExpression([]);
-      }
-      return defaultMessage(messageType, sources, imports, visiting);
-    }
+    case "message":
+      return defaultMessage(value.T(), sources, imports, visiting);
   }
 }
 
