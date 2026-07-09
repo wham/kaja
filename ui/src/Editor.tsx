@@ -206,12 +206,6 @@ export interface onGoToDefinition {
 
 const UNIFIED_BG = "var(--bgColor-muted)";
 
-// Prettier runs synchronously on the main thread, so reformatting a very large
-// model (e.g. the generated stub for a huge OpenAPI spec, which can be millions
-// of characters in a single file) freezes the UI. Generated stubs are already
-// formatted, so above this size we show them as-is instead of reflowing them.
-const MAX_FORMAT_CHARS = 300_000;
-
 export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -281,31 +275,18 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
       onMount?.(editorRef.current);
     }
 
-    const skipFormat = model.getValue().length > MAX_FORMAT_CHARS;
-
     if (!viewState && startLineNumber > 0) {
-      if (skipFormat) {
-        // The model is shown unformatted, so the original coordinates still line up.
-        const column = Math.max(startColumn, 1);
-        editorRef.current?.revealLineInCenter(startLineNumber);
-        editorRef.current?.setPosition({ lineNumber: startLineNumber, column });
-      } else {
-        // startLineNumber/startColumn were resolved against the unformatted model
-        // text; formatting reflows lines, so remap the position through prettier.
-        const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
-        formatTypeScriptWithCursor(model.getValue(), cursorOffset).then((result) => {
-          if (!isDisposing && editorRef.current) {
-            editorRef.current.setValue(result.code);
-            const position = model.getPositionAt(result.cursorOffset);
-            editorRef.current.revealLineInCenter(position.lineNumber);
-            editorRef.current.setPosition(position);
-          }
-        });
-      }
-    } else if (skipFormat) {
-      if (viewState) {
-        editorRef.current?.restoreViewState(viewState);
-      }
+      // startLineNumber/startColumn were resolved against the unformatted model
+      // text; formatting reflows lines, so remap the position through prettier.
+      const cursorOffset = model.getOffsetAt({ lineNumber: startLineNumber, column: Math.max(startColumn, 1) });
+      formatTypeScriptWithCursor(model.getValue(), cursorOffset).then((result) => {
+        if (!isDisposing && editorRef.current) {
+          editorRef.current.setValue(result.code);
+          const position = model.getPositionAt(result.cursorOffset);
+          editorRef.current.revealLineInCenter(position.lineNumber);
+          editorRef.current.setPosition(position);
+        }
+      });
     } else {
       formatTypeScript(model.getValue()).then((formattedCode) => {
         if (!isDisposing && editorRef.current) {
