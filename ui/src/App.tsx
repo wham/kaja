@@ -821,6 +821,40 @@ export function App() {
     return () => disposables.forEach((d) => d.dispose());
   }, [tabs, showFileError]);
 
+  // Script tabs are file-backed, so disk is their source of truth. The persisted
+  // tab-state cache can go stale while the app is closed — an MCP write_script, an
+  // external editor, or another window can change the file — so on mount re-read
+  // each restored script tab from disk and reconcile its model. Without this a
+  // reload would show the cached copy captured before the file last changed. The
+  // beforeunload handler flushes pending saves, so disk is never behind the cache.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    let cancelled = false;
+    (async () => {
+      let reconciled = false;
+      for (const tab of tabsRef.current) {
+        if (tab.type !== "script") continue;
+        try {
+          const file = await ReadScriptFile(tab.script.path);
+          if (cancelled || !file || tab.model.getValue() === file.content) continue;
+          // Suppress the auto-save this edit would trigger — the content is disk's.
+          suppressScriptSave.current.add(tab.id);
+          tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: file.content }], () => null);
+          suppressScriptSave.current.delete(tab.id);
+          reconciled = true;
+        } catch {
+          // File missing or unreadable (e.g. deleted while closed); keep the
+          // restored buffer rather than dropping the user's tab.
+        }
+      }
+      if (!cancelled && reconciled) persistTabs();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ⌘S saves the active editor (a method or a script) as a new named script.
   const onRequestSaveAsScript = useCallback(() => {
     if (!isWailsEnvironment() || !previewScriptsRef.current) return;
@@ -1017,8 +1051,15 @@ export function App() {
           const tab = tabsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
           const content = payload.content ?? "";
           if (tab?.type === "script" && tab.model.getValue() !== content) {
-            // Replace via an edit operation (not setValue) so undo history survives.
+            // The content just came from disk. Apply it as an edit (not setValue)
+            // so undo history survives, and suppress the auto-save it would
+            // otherwise trigger — writing it straight back would be redundant.
+            suppressScriptSave.current.add(tab.id);
             tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: content }], () => null);
+            suppressScriptSave.current.delete(tab.id);
+            // Keep the persisted tab-state cache in step so a reload restores this
+            // content, not the stale copy captured before the write.
+            persistTabs();
           }
           break;
         }
@@ -1038,7 +1079,7 @@ export function App() {
       }
     });
     return () => unsub();
-  }, [applyScriptRename, removeScriptFromUI]);
+  }, [applyScriptRename, removeScriptFromUI, persistTabs]);
 
   const onSearchMethodSelect = (method: Method, service: Service, app: AppModel) => {
     onMethodSelect(method, service, app);
