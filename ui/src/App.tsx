@@ -189,6 +189,9 @@ export function App() {
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
   // Pending debounced disk writes for open script tabs, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Tab ids whose next content change is a programmatic revalidation poke (see
+  // refreshOpenScriptEditors), not a user edit — skip the debounced disk save.
+  const suppressScriptSave = useRef(new Set<string>());
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     const collector = mcpRunCollectorRef.current;
@@ -320,6 +323,25 @@ export function App() {
       if (tab.type === "task") {
         const value = tab.model.getValue();
         tab.model.setValue(value);
+      }
+    });
+  }, []);
+
+  // Poke open script editors so TypeScript re-resolves service-module imports
+  // (e.g. "app/service") once their backing source models exist. Script models
+  // are frequently created (on tab restore or open) before compilation produces
+  // the service definitions, so the TS worker caches "cannot find module" and
+  // never clears it on its own. Use an identity edit — not setValue — to keep
+  // undo history, and suppress the auto-save it would otherwise trigger.
+  const refreshOpenScriptEditors = useCallback(() => {
+    tabsRef.current.forEach((tab) => {
+      if (tab.type === "script") {
+        // onDidChangeContent fires synchronously within pushEditOperations, so
+        // bracketing the poke leaves the set empty afterwards — a later real
+        // edit is never mistaken for a poke even if the edit fires no event.
+        suppressScriptSave.current.add(tab.id);
+        tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: tab.model.getValue() }], () => null);
+        suppressScriptSave.current.delete(tab.id);
       }
     });
   }, []);
@@ -599,23 +621,38 @@ export function App() {
       MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedApps))).catch(() => {});
     }
 
+    // Register the Monaco source models that back script imports like
+    // "app/service" for every app that has compiled, regardless of whether the
+    // others are done. Gating this on all apps compiling meant a single slow or
+    // failing app kept scripts from resolving apps that were ready. Idempotent:
+    // create on first sight, update in place when the definitions change.
+    let sourceModelsChanged = false;
+    updatedApps.forEach((app) => {
+      app.sources?.forEach((source) => {
+        const uri = monaco.Uri.parse("ts:/" + source.path);
+        const existingModel = monaco.editor.getModel(uri);
+        if (!existingModel) {
+          monaco.editor.createModel(source.file.text, "typescript", uri);
+          sourceModelsChanged = true;
+        } else if (existingModel.getValue() !== source.file.text) {
+          existingModel.setValue(source.file.text);
+          sourceModelsChanged = true;
+        }
+      });
+    });
+
+    // A source model appearing after a script tab's own model was created does
+    // not retroactively clear the stale "cannot find module" error on the
+    // script; poke the open script editors so TypeScript re-resolves. (Task tabs
+    // are opened only after their app has compiled, so they resolve on creation
+    // and are additionally refreshed below when restored.)
+    if (sourceModelsChanged) {
+      refreshOpenScriptEditors();
+    }
+
     // Check if all apps have finished compiling successfully
     const allCompiled = updatedApps.every((p) => p.compilation.status === "success");
     if (allCompiled && updatedApps.length > 0 && updatedApps[0].services.length > 0) {
-      updatedApps.forEach((app) => {
-        if (app.sources) {
-          app.sources.forEach((source) => {
-            const uri = monaco.Uri.parse("ts:/" + source.path);
-            const existingModel = monaco.editor.getModel(uri);
-            if (!existingModel) {
-              monaco.editor.createModel(source.file.text, "typescript", uri);
-            } else {
-              existingModel.setValue(source.file.text);
-            }
-          });
-        }
-      });
-
       if (updatedApps.length === 0) {
         return;
       }
@@ -768,6 +805,7 @@ export function App() {
       const path = tab.script.path;
       disposables.push(
         model.onDidChangeContent(() => {
+          if (suppressScriptSave.current.has(id)) return;
           const existing = scriptSaveTimers.current.get(id);
           if (existing) clearTimeout(existing);
           scriptSaveTimers.current.set(
