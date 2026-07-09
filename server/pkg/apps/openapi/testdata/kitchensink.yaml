@@ -18,8 +18,6 @@
 #   response, and a 204 empty response
 # - uint32/uint64 integer formats, maps, free-form objects, self-references
 # - an http security scheme with a capitalized "Bearer" scheme name
-# - schema/property/parameter descriptions preserved as proto comments,
-#   including multi-line text and special chars
 openapi: 3.0.0
 info:
   title: Kaja Kitchen Sink
@@ -185,7 +183,6 @@ components:
       in: query
       style: form
       explode: false
-      description: Zero-based page index.
       schema: { type: integer }
     order:
       name: order
@@ -211,14 +208,9 @@ components:
       description: A single signal or a batch of signals.
     Signal:
       type: object
-      description: |
-        A single observed signal.
-        Comments preserve special chars like */ and <html>.
       required: [id, source, kind]
       properties:
-        id:
-          type: string
-          description: Stable identifier.
+        id: { type: string }
         source: { type: string }
         kind: { type: string }
         reading: { type: number, format: double }
