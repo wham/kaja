@@ -79,10 +79,26 @@ func escapeMethodName(name string) string {
 	return name
 }
 
-type params struct{}
+type params struct {
+	// valueAsJson renders google.protobuf.Value fields as the runtime's plain
+	// JsonValue type (any JSON) instead of the wire-oneof Value message. Enabled
+	// via the "value_as_json" plugin parameter; used by the OpenAPI app so its
+	// free-form fields read as ordinary JSON in the script editor.
+	valueAsJson bool
+}
 
 func parseParameters(paramStr *string) params {
-	return params{}
+	p := params{}
+	if paramStr == nil {
+		return p
+	}
+	for _, part := range strings.Split(*paramStr, ",") {
+		switch strings.TrimSpace(part) {
+		case "value_as_json":
+			p.valueAsJson = true
+		}
+	}
+	return p
 }
 
 func findFile(files []*descriptorpb.FileDescriptorProto, name string) *descriptorpb.FileDescriptorProto {
@@ -580,6 +596,7 @@ type generator struct {
 	file                *descriptorpb.FileDescriptorProto
 	allFiles            []*descriptorpb.FileDescriptorProto
 	indent              string
+	usesJsonValueType   bool     // A field was rendered as JsonValue (value_as_json), so import it
 	isImportedByService bool     // True if imported ONLY by service files (not by non-service files)
 	importedTypeNames   map[string]bool   // Set of simple type names that have been imported
 	typeNameSuffixes    map[string]int    // Map from full proto type name to numeric suffix (0 = no suffix, 1 = $1, etc.)
@@ -2945,6 +2962,11 @@ func (g *generator) writeImports(imports map[string]bool) {
 		}
 		g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.partialMessageImport())
 		g.pNoIndent("import { %s } from \"@protobuf-ts/runtime\";", g.reflectionMergePartialImport())
+		// JsonValue for value_as_json fields (imports emit before bodies, so pre-scan).
+		// WKT files (Struct/Timestamp/...) import JsonValue on their own below.
+		if g.fileUsesValueAsJson() && !isStruct && !isTimestamp && !isDuration && !isFieldMask {
+			g.pNoIndent("import type { %s } from \"@protobuf-ts/runtime\";", g.jsonValueImport())
+		}
 		}
 		// ScalarType for wrappers (after reflectionMergePartial, only when aliased)
 		if wrapperNeedsScalarType && (g.scalarTypeRef == "ScalarType$" || g.longTypeRef == "LongType$") {
@@ -4500,12 +4522,62 @@ func (g *generator) getBaseTypescriptType(field *descriptorpb.FieldDescriptorPro
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		return "Uint8Array"
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
+		if g.isValueAsJsonField(field) {
+			g.usesJsonValueType = true
+			return g.jsonValueRef
+		}
 		return g.stripPackage(field.GetTypeName())
 	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
 		return g.stripPackage(field.GetTypeName())
 	default:
 		return "any"
 	}
+}
+
+// isValueAsJsonField reports whether a field should be typed as the plain
+// JsonValue (any JSON) rather than the wire-oneof google.protobuf.Value message.
+// Only the field's TypeScript *type* changes: the message keeps serializing and
+// reflecting as a real Value, and the client converts JsonValue <-> Value at the
+// request boundary. Gated by the value_as_json plugin parameter (OpenAPI app).
+func (g *generator) isValueAsJsonField(field *descriptorpb.FieldDescriptorProto) bool {
+	return g.params.valueAsJson &&
+		field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE &&
+		field.GetTypeName() == ".google.protobuf.Value"
+}
+
+// fileUsesValueAsJson reports whether any field in the file (including nested
+// messages and map values) renders as JsonValue, so the import is emitted.
+func (g *generator) fileUsesValueAsJson() bool {
+	if !g.params.valueAsJson {
+		return false
+	}
+	var scan func(msg *descriptorpb.DescriptorProto) bool
+	scan = func(msg *descriptorpb.DescriptorProto) bool {
+		for _, field := range msg.Field {
+			f := field
+			// A map value lives on the synthetic map-entry message's second field.
+			if field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				if entry := g.findMessageType(field.GetTypeName()); entry != nil && entry.GetOptions().GetMapEntry() {
+					f = entry.Field[1]
+				}
+			}
+			if g.isValueAsJsonField(f) {
+				return true
+			}
+		}
+		for _, nested := range msg.NestedType {
+			if scan(nested) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, msg := range g.file.MessageType {
+		if scan(msg) {
+			return true
+		}
+	}
+	return false
 }
 
 func is64BitIntType(field *descriptorpb.FieldDescriptorProto) bool {

@@ -14,11 +14,12 @@ import (
 )
 
 type Compiler struct {
-	mu      sync.Mutex
-	status  CompileStatus
-	logger  *Logger
-	sources []*Source
-	stub    string
+	mu              sync.Mutex
+	status          CompileStatus
+	logger          *Logger
+	sources         []*Source
+	stub            string
+	pluginParameter string // passed to protoc-gen-kaja, e.g. "value_as_json" for OpenAPI apps
 }
 
 func NewCompiler() *Compiler {
@@ -126,7 +127,7 @@ func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error
 	}
 
 	c.logger.debug("Running protoc-gen-kaja")
-	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), "")
+	generated, err := result.RunLibraryPlugin(kaja.NewPlugin(), c.pluginParameter)
 	if err != nil {
 		return fmt.Errorf("protoc-gen-kaja: %v", err)
 	}

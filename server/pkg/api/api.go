@@ -16,6 +16,7 @@ import (
 
 type ApiService struct {
 	compilers              sync.Map // map[string]*Compiler - keyed by ID
+	valueAsJsonProtoDirs   sync.Map // map[string]bool - proto dirs that opt into value_as_json codegen (OpenAPI apps)
 	configurationPath      string
 	canUpdateConfiguration bool
 	gitRef                 string
@@ -69,6 +70,12 @@ func (s *ApiService) Compile(ctx context.Context, req *CompileRequest) (*Compile
 		compiler.status = CompileStatus_STATUS_RUNNING
 		compiler.logger = NewLogger()
 		compiler.sources = []*Source{}
+		// OpenAPI apps render google.protobuf.Value fields as plain JSON. OpenApp
+		// recorded the proto dir when it opened such an app.
+		compiler.pluginParameter = ""
+		if _, ok := s.valueAsJsonProtoDirs.Load(req.ProtoDir); ok {
+			compiler.pluginParameter = "value_as_json"
+		}
 		compiler.logger.info("Starting compilation")
 		go compiler.start(req.Id, req.ProtoDir)
 	}
@@ -119,6 +126,12 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	if err != nil {
 		logger.error("Failed to open app", err)
 		return &OpenAppResponse{Status: OpenStatus_OPEN_STATUS_ERROR, Logs: logger.logs}, nil
+	}
+
+	// The OpenAPI app maps free-form/mixed schemas to google.protobuf.Value. Remember
+	// its proto dir so the follow-up Compile renders those fields as plain JsonValue.
+	if appType == "openapi" {
+		s.valueAsJsonProtoDirs.Store(result.ProtoDir, true)
 	}
 
 	return &OpenAppResponse{
