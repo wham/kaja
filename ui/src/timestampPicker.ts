@@ -8,16 +8,9 @@ export interface TimestampMatch {
   fullRange: monaco.Range;
 }
 
-// Above this size the model is a large generated stub (not editable request
-// code), so scanning it for timestamp literals only burns main-thread time.
-const MAX_SCAN_CHARS = 300_000;
-
 export function findTimestamps(model: monaco.editor.ITextModel): TimestampMatch[] {
   const matches: TimestampMatch[] = [];
   const text = model.getValue();
-  if (text.length > MAX_SCAN_CHARS) {
-    return matches;
-  }
 
   // Use multi-line regex to find timestamp objects regardless of formatting
   // Matches: fieldName: { ... seconds: "digits" ... nanos: digits ... }

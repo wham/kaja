@@ -73,15 +73,14 @@ type operation struct {
 }
 
 type parameter struct {
-	Ref         string               `json:"$ref"` // reference to #/components/parameters/<name>
-	Name        string               `json:"name"`
-	In          string               `json:"in"` // path | query | header | cookie
-	Description string               `json:"description"`
-	Required    bool                 `json:"required"`
-	Schema      *schema              `json:"schema"`
-	Style       string               `json:"style"`   // form (default) | deepObject | ...
-	Explode     *bool                `json:"explode"` // default true for form style
-	Content     map[string]mediaType `json:"content"` // alternative to schema: a serialized media type
+	Ref      string               `json:"$ref"` // reference to #/components/parameters/<name>
+	Name     string               `json:"name"`
+	In       string               `json:"in"` // path | query | header | cookie
+	Required bool                 `json:"required"`
+	Schema   *schema              `json:"schema"`
+	Style    string               `json:"style"`   // form (default) | deepObject | ...
+	Explode  *bool                `json:"explode"` // default true for form style
+	Content  map[string]mediaType `json:"content"` // alternative to schema: a serialized media type
 }
 
 type requestBody struct {
@@ -117,7 +116,6 @@ type securityScheme struct {
 type schema struct {
 	Ref                  string                `json:"$ref"`
 	Type                 string                `json:"type"`
-	Description          string                `json:"description"`
 	Format               string                `json:"format"`
 	Items                *schema               `json:"items"`
 	Properties           map[string]*schema    `json:"properties"`
