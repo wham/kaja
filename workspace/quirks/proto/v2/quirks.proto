@@ -1,0 +1,20 @@
+syntax = "proto3";
+package quirks.v2;
+
+option go_package = "internal/api/v2";
+
+message SumIntsRequest {
+    int32 a = 1;
+    int32 b = 2;
+}
+
+message SumIntsResponse {
+    int32 result = 1;
+}
+
+// Same service name as quirks.v1.Quirks but in different package
+// Tests how kaja handles services with same name in different packages
+service Quirks {
+    // Sums two integers (unlike quirks.v1.Quirks.Sum which concatenates strings)
+    rpc Sum(SumIntsRequest) returns(SumIntsResponse);
+}

@@ -150,8 +150,8 @@ Both share the same backend code but differ in how they're packaged:
 
 - This is a demo workspace that developers use to test kaja
 - `kaja.json` - Configuration file defining demo apps hosted on kaja.tools:
-  - The Kaja Theatre box office trio — theatre (OpenAPI), seating (gRPC), boxoffice (Twirp) — plus grpcb.in (gRPC)
-- `seating/proto/`, `boxoffice/proto/` - Proto files for the gRPC/Twirp services (theatre is OpenAPI, its spec is fetched from `spec_url` at runtime)
+  - The Kaja Theatre box office trio — theatre (OpenAPI), seating (gRPC), boxoffice (Twirp) — plus quirks (gRPC and Twirp) and grpcb.in (gRPC)
+- `quirks/proto/`, `seating/proto/`, `boxoffice/proto/` - Proto files for the gRPC/Twirp services (theatre is OpenAPI, its spec is fetched from `spec_url` at runtime)
 - Run `scripts/demo-protos` to update proto files from kaja-tools/website
 - The `scripts/server` script starts kaja with this workspace by default
 
