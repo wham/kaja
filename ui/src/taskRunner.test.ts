@@ -20,6 +20,16 @@ describe("kaja.variables injection", () => {
     expect(run.result).toBe("https://api.example.com / 42");
   });
 
+  it("resolves the kaja import from the relative ./kaja path", async () => {
+    const kaja = makeKaja();
+    kaja.variables = { HELLO: "world" };
+
+    const run = await runTaskCaptured(`import { kaja } from "./kaja";\nreturn kaja.variables.HELLO;`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("world");
+  });
+
   it("reflects updates to variables on the shared kaja object", async () => {
     const kaja = makeKaja();
     kaja.variables = { TOKEN: "old" };
