@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+package seating;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "internal/api";
+
+// Live seat inventory for The Kaja Theatre. Seat state is owned here;
+// the boxoffice service places holds and sales through the same RPCs
+// that are exposed publicly.
+//
+// The unary RPCs below are a complete, self-contained API: browse, follow
+// a filling house by polling, hold, and buy — everything works without
+// streaming, so the web demo is fully functional. The two streaming RPCs
+// (WatchSeats, PickSeats) are a real-time bonus for the desktop app, which
+// supports gRPC streaming; they add nothing you can't do by polling.
+service Seating {
+    // --- Unary API (works everywhere, including the web demo) ---
+
+    // Full snapshot of a performance's seat map. The response carries a
+    // cursor; pass it to PollSeatChanges to follow the house from here.
+    rpc GetSeatMap(GetSeatMapRequest) returns (GetSeatMapResponse);
+    // Poll for seat changes since a cursor. Call it on a timer to watch the
+    // crowd fill a house without streaming. This is the web-friendly
+    // counterpart to WatchSeats.
+    rpc PollSeatChanges(PollSeatChangesRequest) returns (PollSeatChangesResponse);
+    // Place a hold on specific seats. Holds expire automatically.
+    rpc HoldSeats(HoldSeatsRequest) returns (HoldSeatsResponse);
+    // Turn a hold into a sale.
+    rpc ConfirmSeats(ConfirmSeatsRequest) returns (ConfirmSeatsResponse);
+    // Release a hold early, freeing its seats.
+    rpc ReleaseSeats(ReleaseSeatsRequest) returns (ReleaseSeatsResponse);
+
+    // --- Streaming bonus (desktop app only; not needed for the demo) ---
+
+    // Server streaming: sends a snapshot, then every hold/sale/release live
+    // until the client disconnects. The real-time version of
+    // GetSeatMap + PollSeatChanges.
+    rpc WatchSeats(WatchSeatsRequest) returns (stream SeatUpdate);
+    // Bidirectional streaming: an interactive picking session. Stream
+    // commands in (watch, hold, release, confirm) and receive everyone's
+    // seat changes plus your own results back. Equivalent to combining the
+    // unary hold/confirm/release calls with WatchSeats.
+    rpc PickSeats(stream PickSeatsCommand) returns (stream SeatUpdate);
+}
+
+enum SeatStatus {
+    SEAT_STATUS_UNKNOWN = 0;
+    SEAT_STATUS_AVAILABLE = 1;
+    SEAT_STATUS_HELD = 2;
+    SEAT_STATUS_SOLD = 3;
+}
+
+enum Section {
+    SECTION_UNKNOWN = 0;
+    SECTION_ORCHESTRA = 1;
+    SECTION_BALCONY = 2;
+}
+
+enum ChangeReason {
+    CHANGE_REASON_UNKNOWN = 0;
+    CHANGE_REASON_HOLD = 1;
+    CHANGE_REASON_PURCHASE = 2;
+    CHANGE_REASON_RELEASE = 3;
+    CHANGE_REASON_EXPIRE = 4;
+}
+
+message Seat {
+    string id = 1;        // "F7" - row letter + seat number
+    Section section = 2;
+    string row = 3;
+    int32 number = 4;
+    SeatStatus status = 5;
+    int32 price_cents = 6;
+}
+
+message Row {
+    string letter = 1;
+    repeated Seat seats = 2;
+}
+
+message SectionMap {
+    Section section = 1;
+    repeated Row rows = 2;
+}
+
+message SeatMap {
+    string performance_id = 1;
+    repeated SectionMap sections = 2;
+    int32 available = 3;
+    int32 held = 4;
+    int32 sold = 5;
+    // Available seat counts keyed by section name, e.g. "ORCHESTRA" -> 96.
+    map<string, int32> available_by_section = 6;
+    // The sequence of the most recent change reflected in this snapshot.
+    // Pass it to PollSeatChanges (or WatchSeats changes_only) to continue.
+    int64 cursor = 7;
+}
+
+message SeatChange {
+    string performance_id = 1;
+    string seat_id = 2;
+    SeatStatus status = 3;
+    ChangeReason reason = 4;
+    google.protobuf.Timestamp changed_at = 5;
+    // Monotonic per-performance sequence number, usable as a poll cursor.
+    int64 seq = 6;
+}
+
+message Hold {
+    string id = 1;
+    string performance_id = 2;
+    repeated string seat_ids = 3;
+    int32 total_price_cents = 4;
+    google.protobuf.Timestamp expires_at = 5;
+}
+
+message GetSeatMapRequest {
+    string performance_id = 1;
+}
+
+message GetSeatMapResponse {
+    SeatMap seat_map = 1;
+}
+
+message PollSeatChangesRequest {
+    string performance_id = 1;
+    // The last seq you saw (from GetSeatMap's cursor or a prior poll).
+    // 0 starts from the latest change, returning none.
+    int64 cursor = 2;
+}
+
+message PollSeatChangesResponse {
+    // Changes after the requested cursor, in ascending seq order.
+    repeated SeatChange changes = 1;
+    // Pass this back as the cursor on your next poll.
+    int64 cursor = 2;
+    // True if you polled from too far back and missed some changes; call
+    // GetSeatMap to resync from a fresh snapshot.
+    bool reset = 3;
+}
+
+message HoldSeatsRequest {
+    string performance_id = 1;
+    repeated string seat_ids = 2;
+}
+
+message HoldSeatsResponse {
+    Hold hold = 1;
+}
+
+message ConfirmSeatsRequest {
+    string hold_id = 1;
+}
+
+message ConfirmSeatsResponse {
+    repeated Seat seats = 1;
+}
+
+message ReleaseSeatsRequest {
+    string hold_id = 1;
+}
+
+message ReleaseSeatsResponse {
+}
+
+message WatchSeatsRequest {
+    string performance_id = 1;
+    // Skip the initial snapshot and only stream changes.
+    bool changes_only = 2;
+}
+
+// One frame of a WatchSeats or PickSeats stream.
+message SeatUpdate {
+    oneof update {
+        SeatMap snapshot = 1;      // first frame of a watch
+        SeatChange change = 2;     // somebody's seat changed state
+        Hold hold = 3;             // your hold/confirm command succeeded
+        Rejection rejection = 4;   // your command failed; the stream stays open
+    }
+}
+
+// A command failed inside a PickSeats session. Sent instead of terminating
+// the stream with an error, so the session can continue.
+message Rejection {
+    string reason = 1;              // e.g. "seat F7 was just taken"
+    repeated string seat_ids = 2;
+}
+
+message PickSeatsCommand {
+    oneof command {
+        WatchCommand watch = 1;      // must be the first command
+        HoldCommand hold = 2;
+        ReleaseCommand release = 3;
+        ConfirmCommand confirm = 4;
+    }
+}
+
+message WatchCommand {
+    string performance_id = 1;
+}
+
+message HoldCommand {
+    repeated string seat_ids = 1;
+}
+
+message ReleaseCommand {
+    string hold_id = 1;
+}
+
+message ConfirmCommand {
+    string hold_id = 1;
+}

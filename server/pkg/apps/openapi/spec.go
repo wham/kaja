@@ -113,9 +113,35 @@ type securityScheme struct {
 	Name   string `json:"name"`   // parameter name (for type apiKey)
 }
 
+// openAPIType is a schema "type". OpenAPI 3.0 writes a single string
+// ("string"), while OpenAPI 3.1 (JSON Schema) also allows an array such as
+// ["string", "null"] to express a nullable type. We keep the first non-"null"
+// entry so a 3.1 nullable type is treated exactly like its 3.0 counterpart —
+// proto3 fields already model an absent value.
+type openAPIType string
+
+func (t *openAPIType) UnmarshalJSON(data []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch val := v.(type) {
+	case string:
+		*t = openAPIType(val)
+	case []interface{}:
+		for _, e := range val {
+			if s, ok := e.(string); ok && s != "null" {
+				*t = openAPIType(s)
+				break
+			}
+		}
+	}
+	return nil
+}
+
 type schema struct {
 	Ref                  string                `json:"$ref"`
-	Type                 string                `json:"type"`
+	Type                 openAPIType           `json:"type"`
 	Format               string                `json:"format"`
 	Items                *schema               `json:"items"`
 	Properties           map[string]*schema    `json:"properties"`

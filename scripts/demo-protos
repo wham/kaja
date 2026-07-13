@@ -9,7 +9,9 @@ cd "$(dirname "$0")/.."
 REPO_URL="https://github.com/kaja-tools/website.git"
 
 # Services to copy (source path in repo -> destination folder in workspace)
-SERVICES="quirks users teams"
+# The theatre demo service is OpenAPI and needs no local protos (its spec is
+# fetched from spec_url at runtime), so only the gRPC/Twirp services are listed.
+SERVICES="quirks seating boxoffice"
 
 echo "Fetching demo proto files from kaja-tools/website..."
 

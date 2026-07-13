@@ -1027,3 +1027,77 @@ func assertJSONEq(t *testing.T, got []byte, want string) {
 		t.Errorf("JSON mismatch\n got: %s\nwant: %s", gb, wb)
 	}
 }
+
+// OpenAPI 3.1 (JSON Schema) lets a schema "type" be an array, e.g.
+// ["string", "null"] for a nullable value. We keep the first non-"null" entry
+// so a 3.1 nullable type generates the same proto field as its 3.0 counterpart.
+func TestOpenAPI31NullableType(t *testing.T) {
+	const spec = `
+openapi: 3.1.0
+info: { title: Nullable API, version: "1.0.0" }
+servers: [{ url: https://example.test }]
+paths:
+  /events:
+    get:
+      operationId: listEvents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        nextPerformanceId: { type: ["string", "null"] }
+        capacity: { type: ["integer", "null"], format: int64 }
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	for _, frag := range []string{
+		"message Event {",
+		"string next_performance_id = ",
+		"int64 capacity = ",
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	// The generated proto must compile into descriptors.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
+		t.Fatalf("write proto: %v", err)
+	}
+	if _, err := compileMethods(dir, gen); err != nil {
+		t.Fatalf("compileMethods: %v", err)
+	}
+}
+
+func TestOpenAPITypeUnmarshal(t *testing.T) {
+	cases := map[string]string{
+		`"string"`:           "string",
+		`["string","null"]`:  "string",
+		`["null","integer"]`: "integer",
+		`["null"]`:           "",
+		`null`:               "",
+	}
+	for in, want := range cases {
+		var ty openAPIType
+		if err := json.Unmarshal([]byte(in), &ty); err != nil {
+			t.Errorf("unmarshal %s: %v", in, err)
+			continue
+		}
+		if string(ty) != want {
+			t.Errorf("unmarshal %s = %q, want %q", in, string(ty), want)
+		}
+	}
+}

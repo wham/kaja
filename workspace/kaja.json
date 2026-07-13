@@ -1,6 +1,26 @@
 {
   "apps": [
     {
+      "name": "theatre",
+      "openapi": {
+        "spec_url": "https://kaja.tools/theatre/openapi.yaml"
+      }
+    },
+    {
+      "name": "seating",
+      "grpc": {
+        "url": "dns:kaja.tools:443",
+        "proto_dir": "seating/proto"
+      }
+    },
+    {
+      "name": "boxoffice",
+      "twirp": {
+        "url": "https://kaja.tools/boxoffice",
+        "proto_dir": "boxoffice/proto"
+      }
+    },
+    {
       "name": "grpc-quirks",
       "grpc": {
         "url": "dns:kaja.tools:443",
@@ -28,21 +48,6 @@
         "url": "grpc://grpcb.in:9000",
         "proto_dir": "grpcbin/proto"
       }
-    },
-    {
-      "name": "teams",
-      "grpc": {
-        "url": "dns:kaja.tools:443",
-        "reflection": true
-      }
-    }
-  ],
-  "projects": [
-    {
-      "name": "users",
-      "protocol": "RPC_PROTOCOL_TWIRP",
-      "url": "https://kaja.tools/users",
-      "protoDir": "users/proto"
     }
   ],
   "system": {
