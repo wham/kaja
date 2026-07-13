@@ -48,7 +48,9 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
     if (ts.isImportDeclaration(statement)) {
       // slice(1, -1) - remove quotes
       const path = statement.moduleSpecifier.getText(file).slice(1, -1);
-      if (path === "kaja") {
+      // Monaco backs the kaja module with a model at ts:/kaja.ts, so its
+      // auto-import and go-to-definition can emit the relative "./kaja" form.
+      if (path === "kaja" || path === "./kaja") {
         const importClause = statement.importClause;
         if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
           importClause.namedBindings.elements.forEach((importSpecifier) => {
