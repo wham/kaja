@@ -121,11 +121,28 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 	return migrated
 }
 
-// legacyProjectToApp converts a pre-unification gRPC/Twirp project into the typed
-// app shape { name, headers, <type>: { url, proto_dir, reflection } }.
+// legacyProjectToApp converts a pre-unification gRPC/Twirp/OpenAPI project into the
+// typed app shape, e.g. { name, headers, <type>: { url, proto_dir, reflection } }.
 func legacyProjectToApp(project map[string]any) map[string]any {
+	protocol := strings.ToUpper(stringField(project, "protocol"))
+
+	// An OpenAPI project carries its spec document URL in "url", which maps to the
+	// openapi app's spec_url (not a gRPC/Twirp upstream url). Without this the
+	// project would fall through to the gRPC branch below, producing an app with no
+	// proto surface and therefore no methods.
+	if strings.Contains(protocol, "OPENAPI") {
+		variant := map[string]any{}
+		if url := stringField(project, "url"); url != "" {
+			variant["spec_url"] = url
+		}
+		if headers, ok := project["headers"]; ok {
+			variant["headers"] = headers
+		}
+		return map[string]any{"name": project["name"], "openapi": variant}
+	}
+
 	appType := "grpc"
-	if protocol, _ := project["protocol"].(string); strings.Contains(strings.ToUpper(protocol), "TWIRP") {
+	if strings.Contains(protocol, "TWIRP") {
 		appType = "twirp"
 	}
 

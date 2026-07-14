@@ -156,6 +156,43 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 	}
 }
 
+func TestLoadGetConfigurationResponse_MigratesLegacyOpenApiProject(t *testing.T) {
+	// A legacy OpenAPI project keeps its spec document URL in "url"; it must migrate
+	// to an openapi app whose spec_url is set, not a gRPC app with no proto surface.
+	configContent := `{
+		"projects": [
+			{
+				"name": "theatre",
+				"protocol": "RPC_PROTOCOL_OPENAPI",
+				"url": "https://kaja.tools/theatre/openapi.yaml"
+			}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name(), false).Configuration
+	if len(configuration.Apps) != 1 {
+		t.Fatalf("expected 1 migrated app, got %d", len(configuration.Apps))
+	}
+
+	app := configuration.Apps[0]
+	appType, params := flattenApp(app)
+	if app.Name != "theatre" || appType != "openapi" {
+		t.Errorf("expected openapi app 'theatre', got %q/%q", app.Name, appType)
+	}
+	if params["spec_url"] != "https://kaja.tools/theatre/openapi.yaml" {
+		t.Errorf("expected spec_url to carry the document URL, got %v", params)
+	}
+}
+
 func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
