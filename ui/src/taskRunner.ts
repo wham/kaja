@@ -65,11 +65,13 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
       }
       const app = apps.find((app) => path.startsWith(app.configuration.name + "/"));
       if (!app) {
-        return;
+        // A silent drop here surfaces later as an opaque "X is not defined" when
+        // the body uses the binding; name the unresolved app instead.
+        throw new Error(`Cannot resolve import "${path}": app "${path.split("/")[0]}" was not found (it may have been deleted).`);
       }
       const source = app.sources.find((source) => source.importPath === path);
       if (!source) {
-        return;
+        throw new Error(`Cannot resolve import "${path}" in app "${app.configuration.name}".`);
       }
 
       const importClause = statement.importClause;

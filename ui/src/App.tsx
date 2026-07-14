@@ -661,12 +661,17 @@ export function App() {
       if (tabsRestoredRef.current) {
         tabsRestoredRef.current = false;
         setTabs((prevTabs) => {
-          linkTabsToApps(prevTabs, updatedApps);
-          const activeTab = prevTabs[activeTabIndexRef.current];
+          const { tabs: linkedTabs, removedTabIds } = linkTabsToApps(prevTabs, updatedApps);
+          removedTabIds.forEach((id) => editorRegistryRef.current.delete(id));
+          if (removedTabIds.length > 0) {
+            setActiveTabIndex((idx) => Math.min(idx, Math.max(0, linkedTabs.length - 1)));
+          }
+          const clampedIndex = Math.min(activeTabIndexRef.current, Math.max(0, linkedTabs.length - 1));
+          const activeTab = linkedTabs[clampedIndex];
           if (activeTab?.type === "task") {
             setSelectedMethod(activeTab.originMethod);
           }
-          return [...prevTabs];
+          return linkedTabs;
         });
         // Force TypeScript to revalidate restored models now that source models exist
         refreshOpenTaskEditors();

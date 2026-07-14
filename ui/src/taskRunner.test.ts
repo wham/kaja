@@ -83,6 +83,15 @@ return pick<number>([base]) + 1;`,
   });
 });
 
+describe("orphaned imports", () => {
+  it("reports a clear error when the imported app no longer exists", async () => {
+    const run = await runTaskCaptured(`import { Teams } from "teams/teams";\nTeams.GetAllTeams({});`, makeKaja(), []);
+
+    expect(run.result).toBeUndefined();
+    expect(run.error).toContain(`app "teams" was not found`);
+  });
+});
+
 describe("kaja.uuid", () => {
   it("generates a version 4 UUID from scripts", async () => {
     const kaja = makeKaja();

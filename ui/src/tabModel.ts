@@ -383,19 +383,33 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
   return { tabs, activeIndex };
 }
 
-export function linkTabsToApps(tabs: TabModel[], apps: App[]): void {
+// Re-bind restored task tabs to the compiled apps by name. A task tab whose
+// app/service/method no longer exists (e.g. the app was deleted while the tab
+// was closed) can no longer resolve its import, so it is dropped instead of
+// lingering as a stale stub. Runs only once compilation has succeeded, so a
+// missing app means removed, not still-compiling. Returns the surviving tabs
+// and the ids of the dropped tabs so the caller can clean up editor state.
+export function linkTabsToApps(tabs: TabModel[], apps: App[]): { tabs: TabModel[]; removedTabIds: string[] } {
+  const kept: TabModel[] = [];
+  const removedTabIds: string[] = [];
+
   for (const tab of tabs) {
     if (tab.type === "task") {
       const app = apps.find((p) => p.configuration.name === tab.originApp.configuration.name);
-      if (!app) continue;
-      const service = app.services.find((s) => s.name === tab.originService.name);
-      if (!service) continue;
-      const method = service.methods.find((m) => m.name === tab.originMethod.name);
-      if (!method) continue;
+      const service = app?.services.find((s) => s.name === tab.originService.name);
+      const method = service?.methods.find((m) => m.name === tab.originMethod.name);
+      if (!app || !service || !method) {
+        tab.model.dispose();
+        removedTabIds.push(tab.id);
+        continue;
+      }
 
       tab.originApp = app;
       tab.originService = service;
       tab.originMethod = method;
     }
+    kept.push(tab);
   }
+
+  return { tabs: kept, removedTabIds };
 }
