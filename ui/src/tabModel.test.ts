@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { getTabLabel, serializeTabs, TabModel } from "./tabModel";
+import { getTabLabel, linkTabsToApps, serializeTabs, TabModel } from "./tabModel";
+import { App } from "./apps";
 
 describe("getTabLabel", () => {
   it("should return just the filename from a path", () => {
@@ -57,10 +58,7 @@ describe("serializeTabs", () => {
   });
 
   it("should adjust active index when non-serialized tabs are before the active tab", () => {
-    const tabs: TabModel[] = [
-      { type: "definition", id: "def-1", model: {} as any, startLineNumber: 1, startColumn: 1 },
-      { type: "compiler" },
-    ];
+    const tabs: TabModel[] = [{ type: "definition", id: "def-1", model: {} as any, startLineNumber: 1, startColumn: 1 }, { type: "compiler" }];
 
     const result = serializeTabs(tabs, 1, () => undefined);
     expect(result.activeIndex).toBe(0);
@@ -85,5 +83,67 @@ describe("serializeTabs", () => {
 
     const result = serializeTabs(tabs, 0, () => liveViewState);
     expect((result.tabs[0] as any).viewState).toBe(liveViewState);
+  });
+});
+
+describe("linkTabsToApps", () => {
+  function taskTab(id: string, appName: string, serviceName: string, methodName: string): TabModel {
+    let disposed = false;
+    return {
+      type: "task",
+      id,
+      originMethod: { name: methodName },
+      originService: { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] },
+      originApp: { configuration: { name: appName } } as any,
+      hasInteraction: false,
+      model: { dispose: () => (disposed = true), isDisposed: () => disposed } as any,
+      originalCode: "",
+    };
+  }
+
+  function app(name: string, serviceName: string, methodName: string): App {
+    const service = { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] };
+    return { configuration: { name }, services: [service] } as any;
+  }
+
+  it("re-binds a task tab to the matching compiled app by identity", () => {
+    const tab = taskTab("task-1", "users", "UserService", "GetUser");
+    const compiled = app("users", "UserService", "GetUser");
+
+    const result = linkTabsToApps([tab], [compiled]);
+
+    expect(result.tabs).toHaveLength(1);
+    expect(result.removedTabIds).toHaveLength(0);
+    expect((result.tabs[0] as any).originApp).toBe(compiled);
+    expect((result.tabs[0] as any).originService).toBe(compiled.services[0]);
+  });
+
+  it("drops and disposes a task tab whose app was deleted", () => {
+    const tab = taskTab("task-1", "teams", "Teams", "GetAllTeams");
+
+    const result = linkTabsToApps([tab], [app("users", "UserService", "GetUser")]);
+
+    expect(result.tabs).toHaveLength(0);
+    expect(result.removedTabIds).toEqual(["task-1"]);
+    expect((tab as any).model.isDisposed()).toBe(true);
+  });
+
+  it("drops a task tab whose service or method no longer exists", () => {
+    const goneMethod = taskTab("task-1", "users", "UserService", "RemovedMethod");
+    const goneService = taskTab("task-2", "users", "RemovedService", "GetUser");
+    const kept = taskTab("task-3", "users", "UserService", "GetUser");
+
+    const result = linkTabsToApps([goneMethod, goneService, kept], [app("users", "UserService", "GetUser")]);
+
+    expect(result.tabs.map((t) => (t as any).id)).toEqual(["task-3"]);
+    expect(result.removedTabIds).toEqual(["task-1", "task-2"]);
+  });
+
+  it("keeps non-task tabs untouched", () => {
+    const compilerTab: TabModel = { type: "compiler" };
+    const result = linkTabsToApps([compilerTab], []);
+
+    expect(result.tabs).toEqual([compilerTab]);
+    expect(result.removedTabIds).toHaveLength(0);
   });
 });
