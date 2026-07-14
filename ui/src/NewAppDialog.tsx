@@ -1,4 +1,5 @@
 import { ActionList, Dialog } from "@primer/react";
+import { useRef } from "react";
 import { appTypes } from "./appTypes";
 import { PreviewPill } from "./Sidebar";
 
@@ -17,13 +18,27 @@ interface NewAppDialogProps {
 export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDialogProps) {
   const availableTypes = appTypes.filter((type) => !type.preview || appsPreviewEnabled);
 
+  // Focus the first app option on open. Otherwise Primer focuses the header's close
+  // button, whose "Close" tooltip then shows on focus and appears unprompted.
+  const firstItemRef = useRef<HTMLLIElement>(null);
+
   return (
-    <Dialog title="New app" width="medium" onClose={onClose} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
+    <Dialog
+      title="New app"
+      width="medium"
+      onClose={onClose}
+      initialFocusRef={firstItemRef}
+      footerButtons={[{ content: "Cancel", onClick: onClose }]}
+    >
       <ActionList>
-        {availableTypes.map((type) => {
+        {availableTypes.map((type, index) => {
           const Icon = type.icon;
           return (
-            <ActionList.Item key={type.type} onSelect={() => onSelect(type.type)}>
+            <ActionList.Item
+              key={type.type}
+              ref={index === 0 ? firstItemRef : undefined}
+              onSelect={() => onSelect(type.type)}
+            >
               <ActionList.LeadingVisual>
                 <Icon />
               </ActionList.LeadingVisual>
