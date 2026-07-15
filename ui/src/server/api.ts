@@ -305,7 +305,8 @@ export interface TwirpApp {
 /**
  * OpenApiApp calls a REST API from its OpenAPI 3.x document. The document is
  * taken from spec_url or, when the spec is uploaded, from spec_content (raw JSON
- * or YAML). Credentials are applied per the spec's security schemes.
+ * or YAML). Credentials are applied per the spec's security schemes. base_url
+ * overrides the upstream base URL derived from the spec's servers list.
  *
  * @generated from protobuf message OpenApiApp
  */
@@ -336,6 +337,10 @@ export interface OpenApiApp {
      * @generated from protobuf field: string spec_content = 6
      */
     specContent: string;
+    /**
+     * @generated from protobuf field: string base_url = 7
+     */
+    baseUrl: string;
 }
 /**
  * OpenAiApp calls the OpenAI chat completions API.
@@ -1330,7 +1335,8 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
             { no: 3, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "password", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
-            { no: 6, name: "spec_content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "spec_content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenApiApp>): OpenApiApp {
@@ -1341,6 +1347,7 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         message.password = "";
         message.headers = {};
         message.specContent = "";
+        message.baseUrl = "";
         if (value !== undefined)
             reflectionMergePartial<OpenApiApp>(this, message, value);
         return message;
@@ -1367,6 +1374,9 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
                     break;
                 case /* string spec_content */ 6:
                     message.specContent = reader.string();
+                    break;
+                case /* string base_url */ 7:
+                    message.baseUrl = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1414,6 +1424,9 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         /* string spec_content = 6; */
         if (message.specContent !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.specContent);
+        /* string base_url = 7; */
+        if (message.baseUrl !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.baseUrl);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -115,7 +115,15 @@ export const appTypes: AppTypeDefinition[] = [
         label: "Or upload a spec file",
         type: "upload",
         optional: true,
-        caption: "Upload an OpenAPI 3.x document (JSON or YAML). The spec must declare an absolute server URL.",
+        caption: "Upload an OpenAPI 3.x document (JSON or YAML). Set the base URL below, or the spec must declare an absolute server URL.",
+      },
+      {
+        key: "baseUrl",
+        label: "Base URL",
+        type: "url",
+        optional: true,
+        placeholder: "https://api.example.com/v3",
+        caption: "Overrides the upstream base URL from the spec's servers list. Requests are sent here, with each operation's path appended.",
       },
       {
         key: "token",

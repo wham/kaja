@@ -1101,6 +1101,66 @@ paths:
 	}
 }
 
+// TestBaseURLOverride checks that the base_url parameter wins over the spec's
+// servers list, and rescues an uploaded spec that has no absolute server URL.
+func TestBaseURLOverride(t *testing.T) {
+	specWithServer := &spec{Servers: []server{{URL: "https://spec.example.com/v1"}}}
+	specNoServer := &spec{}
+
+	tests := []struct {
+		name     string
+		specURL  string
+		override string
+		spec     *spec
+		want     string
+	}{
+		{"override wins over spec server", "https://docs.example.com/openapi.json", "https://api.example.com/v3", specWithServer, "https://api.example.com/v3"},
+		{"override rescues uploaded spec without server", "", "https://api.example.com/v3", specNoServer, "https://api.example.com/v3"},
+		{"override trailing slash trimmed", "", "https://api.example.com/v3/", specNoServer, "https://api.example.com/v3"},
+		{"blank override falls back to spec server", "https://docs.example.com/openapi.json", "  ", specWithServer, "https://spec.example.com/v1"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveBaseURL(tc.specURL, tc.override, tc.spec)
+			if err != nil {
+				t.Fatalf("resolveBaseURL: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("resolveBaseURL = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestOpenUploadedSpecWithBaseURLOverride opens an uploaded spec whose server URL
+// is relative (normally an error) and confirms the base_url override makes it work.
+func TestOpenUploadedSpecWithBaseURLOverride(t *testing.T) {
+	relativeServerSpec := `
+openapi: 3.0.0
+info:
+  title: Relative
+  version: 1.0.0
+servers:
+  - url: /v3
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      responses:
+        "200": { description: ok }
+`
+	opened, err := New().Open(map[string]string{
+		"spec_content": relativeServerSpec,
+		"base_url":     "https://api.example.com",
+	}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open with base_url override: %v", err)
+	}
+	if in, ok := opened.Instance.(*instance); !ok || in.baseURL != "https://api.example.com" {
+		t.Fatalf("baseURL = %q, want %q", opened.Instance.(*instance).baseURL, "https://api.example.com")
+	}
+}
+
 // TestOpenRequiresSpecSource rejects an app configured with neither a URL nor
 // uploaded content.
 func TestOpenRequiresSpecSource(t *testing.T) {
