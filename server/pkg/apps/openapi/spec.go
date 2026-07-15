@@ -207,25 +207,98 @@ func textContent(content map[string]mediaType) bool {
 	return false
 }
 
-// loadSpec fetches and parses an OpenAPI document from a URL.
-func loadSpec(specURL string) (*spec, error) {
+// loadSpec fetches and parses an OpenAPI document from a URL, authenticating the
+// request with the user's credentials so specs served behind a login (e.g. a
+// tenant's /api/v2/openapi.yaml) can be read. The spec's own security schemes are
+// not known yet, so it falls back the same way invocations do: username/password
+// as HTTP Basic, otherwise a bearer token.
+func loadSpec(specURL, token, username, password string, log func(string)) (*spec, error) {
+	req, err := http.NewRequest(http.MethodGet, specURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetching spec: %w", err)
+	}
+	req.Header.Set("Accept", "application/yaml, application/json, text/yaml, text/plain, */*")
+	applyFetchAuth(req, token, username, password)
+
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(specURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching spec: %w", err)
 	}
 	defer resp.Body.Close()
 
+	contentType := resp.Header.Get("Content-Type")
+	log(fmt.Sprintf("Spec response: HTTP %d, Content-Type %q", resp.StatusCode, contentType))
+	if final := resp.Request.URL.String(); final != specURL {
+		// A redirect to a different location (typically a sign-in page) is the
+		// usual reason an authenticated spec ends up as unparseable HTML.
+		log("Request was redirected to " + final)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetching spec: unexpected status %s", resp.Status)
+		return nil, specFetchError(specURL, resp)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
 		return nil, fmt.Errorf("reading spec: %w", err)
 	}
+	log(fmt.Sprintf("Read %d bytes of spec", len(body)))
 
-	return parseSpec(body)
+	s, err := parseSpec(body)
+	if err != nil {
+		// The response was fetched but is not a parseable OpenAPI document. Name
+		// what actually came back so the failure is diagnosable from the log
+		// instead of a cryptic YAML error against, e.g., an HTML sign-in page.
+		if isHTML(contentType, body) {
+			return nil, fmt.Errorf("spec URL %q returned an HTML page, not an OpenAPI document; it likely requires authentication (provide a token or username/password)", specURL)
+		}
+		return nil, fmt.Errorf("%w (Content-Type %q, starts with %q)", err, contentType, snippet(body))
+	}
+	return s, nil
+}
+
+// snippet returns a short, single-line preview of a fetched body for diagnostics.
+func snippet(body []byte) string {
+	const max = 120
+	s := strings.TrimSpace(string(body))
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", "")
+	if len(s) > max {
+		s = s[:max] + "…"
+	}
+	return s
+}
+
+// applyFetchAuth adds the user's credentials to a spec-fetch request. It mirrors
+// resolveAuth's no-scheme fallback since the spec is not parsed yet.
+func applyFetchAuth(req *http.Request, token, username, password string) {
+	switch {
+	case username != "" || password != "":
+		req.SetBasicAuth(username, password)
+	case token != "":
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// specFetchError builds a helpful error for a non-200 spec response, calling out
+// authentication for the statuses that indicate it.
+func specFetchError(specURL string, resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return fmt.Errorf("fetching spec: %q returned %s; it requires authentication (provide a token or username/password)", specURL, resp.Status)
+	default:
+		return fmt.Errorf("fetching spec: unexpected status %s", resp.Status)
+	}
+}
+
+// isHTML reports whether a fetched spec response is actually an HTML document,
+// judged by content type and, failing that, the body's opening tag.
+func isHTML(contentType string, body []byte) bool {
+	if strings.Contains(strings.ToLower(contentType), "text/html") {
+		return true
+	}
+	head := strings.ToLower(strings.TrimSpace(string(body)))
+	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
 }
 
 func parseSpec(body []byte) (*spec, error) {

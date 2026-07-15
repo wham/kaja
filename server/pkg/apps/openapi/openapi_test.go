@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -970,6 +971,110 @@ paths:
 			}
 			assertJSONEq(t, decodeResponse(t, inst, svc+"/GetPetById", out), `{"id":1,"name":"Rex","tag":"dog"}`)
 		})
+	}
+}
+
+// TestLoadSpecSendsCredentials verifies the spec fetch authenticates: a URL that
+// serves the document only to an authenticated request must load when credentials
+// are supplied. Both a bearer token and HTTP Basic are exercised.
+func TestLoadSpecSendsCredentials(t *testing.T) {
+	spec := `openapi: 3.0.1
+info: {title: Guarded, version: "1"}
+servers: [{url: "https://api.example.com"}]
+paths:
+  /ping:
+    get:
+      responses:
+        "200": {description: OK}
+`
+	for _, tc := range []struct {
+		name, wantAuth        string
+		token, user, password string
+	}{
+		{name: "bearer", wantAuth: "Bearer secret-token", token: "secret-token"},
+		{name: "basic", wantAuth: "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass")), user: "user", password: "pass"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != tc.wantAuth {
+					http.Redirect(w, r, "/signin", http.StatusFound)
+					return
+				}
+				w.Header().Set("Content-Type", "application/yaml")
+				io.WriteString(w, spec)
+			}))
+			defer srv.Close()
+
+			s, err := loadSpec(srv.URL+"/openapi.yaml", tc.token, tc.user, tc.password, func(string) {})
+			if err != nil {
+				t.Fatalf("loadSpec: %v", err)
+			}
+			if s.Info.Title != "Guarded" {
+				t.Errorf("title = %q", s.Info.Title)
+			}
+		})
+	}
+}
+
+// TestLoadSpecReportsLoginRedirect covers the real failure behind a misleading
+// YAML error: an unauthenticated fetch is redirected to an HTML sign-in page,
+// which must surface as an authentication error, not a parse error.
+func TestLoadSpecReportsLoginRedirect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/signin" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.WriteString(w, "<!doctype html>\n<html><title>Sign in</title></html>")
+			return
+		}
+		http.Redirect(w, r, "/signin", http.StatusFound)
+	}))
+	defer srv.Close()
+
+	var logs []string
+	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(m string) { logs = append(logs, m) })
+	if err == nil {
+		t.Fatal("expected an error for an unauthenticated fetch")
+	}
+	if !strings.Contains(err.Error(), "authentication") {
+		t.Errorf("error = %q, want it to mention authentication", err)
+	}
+	// The compile log should make the redirect diagnosable.
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "redirected to") || !strings.Contains(joined, "text/html") {
+		t.Errorf("logs did not surface the redirect/content-type: %q", joined)
+	}
+}
+
+// TestLoadSpecReportsUnauthorizedStatus checks that a 401 spec response is
+// reported as an authentication problem.
+func TestLoadSpecReportsUnauthorizedStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "authentication") {
+		t.Fatalf("error = %v, want it to mention authentication", err)
+	}
+}
+
+// TestLoadSpecNonYAMLErrorIncludesSnippet checks that a fetched-but-unparseable
+// non-HTML body surfaces its content type and a preview, so the log explains the
+// failure instead of a bare YAML error.
+func TestLoadSpecNonYAMLErrorIncludesSnippet(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"error": "not found", "code": 404}`)
+	}))
+	defer srv.Close()
+
+	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(string) {})
+	if err == nil {
+		t.Fatal("expected an error for a non-spec body")
+	}
+	if !strings.Contains(err.Error(), "application/json") || !strings.Contains(err.Error(), "starts with") {
+		t.Errorf("error = %q, want content type and preview", err)
 	}
 }
 

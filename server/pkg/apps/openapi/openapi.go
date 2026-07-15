@@ -39,7 +39,12 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 			return nil, err
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, err = loadSpec(specURL)
+		s, err = loadSpec(specURL,
+			strings.TrimSpace(parameters["token"]),
+			strings.TrimSpace(parameters["username"]),
+			strings.TrimSpace(parameters["password"]),
+			log,
+		)
 	default:
 		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
 	}
@@ -60,6 +65,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 
 	// Compile the generated proto to descriptors so invocations can decode the
 	// protobuf request and encode the protobuf response (the app is a gRPC app).
+	log("Compiling generated proto to descriptors")
 	methods, err := compileMethods(protoDir, gen)
 	if err != nil {
 		return nil, err
