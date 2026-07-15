@@ -212,7 +212,7 @@ func textContent(content map[string]mediaType) bool {
 // tenant's /api/v2/openapi.yaml) can be read. The spec's own security schemes are
 // not known yet, so it falls back the same way invocations do: username/password
 // as HTTP Basic, otherwise a bearer token.
-func loadSpec(specURL, token, username, password string) (*spec, error) {
+func loadSpec(specURL, token, username, password string, log func(string)) (*spec, error) {
 	req, err := http.NewRequest(http.MethodGet, specURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetching spec: %w", err)
@@ -227,6 +227,14 @@ func loadSpec(specURL, token, username, password string) (*spec, error) {
 	}
 	defer resp.Body.Close()
 
+	contentType := resp.Header.Get("Content-Type")
+	log(fmt.Sprintf("Spec response: HTTP %d, Content-Type %q", resp.StatusCode, contentType))
+	if final := resp.Request.URL.String(); final != specURL {
+		// A redirect to a different location (typically a sign-in page) is the
+		// usual reason an authenticated spec ends up as unparseable HTML.
+		log("Request was redirected to " + final)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, specFetchError(specURL, resp)
 	}
@@ -235,18 +243,30 @@ func loadSpec(specURL, token, username, password string) (*spec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading spec: %w", err)
 	}
+	log(fmt.Sprintf("Read %d bytes of spec", len(body)))
 
 	s, err := parseSpec(body)
 	if err != nil {
-		// A server that gates the spec behind a login typically redirects to an
-		// HTML sign-in page, which the client follows to a 200; parsing that as
-		// YAML yields a misleading error, so name the real cause instead.
-		if isHTML(resp.Header.Get("Content-Type"), body) {
+		// The response was fetched but is not a parseable OpenAPI document. Name
+		// what actually came back so the failure is diagnosable from the log
+		// instead of a cryptic YAML error against, e.g., an HTML sign-in page.
+		if isHTML(contentType, body) {
 			return nil, fmt.Errorf("spec URL %q returned an HTML page, not an OpenAPI document; it likely requires authentication (provide a token or username/password)", specURL)
 		}
-		return nil, err
+		return nil, fmt.Errorf("%w (Content-Type %q, starts with %q)", err, contentType, snippet(body))
 	}
 	return s, nil
+}
+
+// snippet returns a short, single-line preview of a fetched body for diagnostics.
+func snippet(body []byte) string {
+	const max = 120
+	s := strings.TrimSpace(string(body))
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", "")
+	if len(s) > max {
+		s = s[:max] + "…"
+	}
+	return s
 }
 
 // applyFetchAuth adds the user's credentials to a spec-fetch request. It mirrors
