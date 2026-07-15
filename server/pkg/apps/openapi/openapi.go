@@ -71,7 +71,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		return nil, err
 	}
 
-	baseURL, err := resolveBaseURL(specURL, s)
+	baseURL, err := resolveBaseURL(specURL, parameters["base_url"], s)
 	if err != nil {
 		return nil, err
 	}
@@ -155,11 +155,17 @@ func requireHTTPScheme(rawURL string) error {
 	return nil
 }
 
-// resolveBaseURL determines the upstream base URL from the spec's servers list,
-// resolving relative server URLs against the document URL. When the spec was
-// uploaded (specURL is empty) there is no document URL to resolve against, so the
-// spec must declare an absolute server URL.
-func resolveBaseURL(specURL string, s *spec) (string, error) {
+// resolveBaseURL determines the upstream base URL. An explicit override (the
+// base_url app parameter) wins over the spec's servers list. Otherwise it uses
+// the spec's servers list, resolving relative server URLs against the document
+// URL. When the spec was uploaded (specURL is empty) there is no document URL to
+// resolve against, so the spec must declare an absolute server URL or an override
+// must be provided.
+func resolveBaseURL(specURL string, override string, s *spec) (string, error) {
+	if override = strings.TrimSpace(override); override != "" {
+		return strings.TrimRight(override, "/"), nil
+	}
+
 	var serverURL string
 	if len(s.Servers) > 0 {
 		serverURL = strings.TrimSpace(s.Servers[0].URL)

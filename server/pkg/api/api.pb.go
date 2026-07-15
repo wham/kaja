@@ -1044,7 +1044,8 @@ func (x *TwirpApp) GetHeaders() map[string]string {
 
 // OpenApiApp calls a REST API from its OpenAPI 3.x document. The document is
 // taken from spec_url or, when the spec is uploaded, from spec_content (raw JSON
-// or YAML). Credentials are applied per the spec's security schemes.
+// or YAML). Credentials are applied per the spec's security schemes. base_url
+// overrides the upstream base URL derived from the spec's servers list.
 type OpenApiApp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SpecUrl       string                 `protobuf:"bytes,1,opt,name=spec_url,json=specUrl,proto3" json:"spec_url,omitempty"`
@@ -1053,6 +1054,7 @@ type OpenApiApp struct {
 	Password      string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	SpecContent   string                 `protobuf:"bytes,6,opt,name=spec_content,json=specContent,proto3" json:"spec_content,omitempty"`
+	BaseUrl       string                 `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1125,6 +1127,13 @@ func (x *OpenApiApp) GetHeaders() map[string]string {
 func (x *OpenApiApp) GetSpecContent() string {
 	if x != nil {
 		return x.SpecContent
+	}
+	return ""
+}
+
+func (x *OpenApiApp) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
 	}
 	return ""
 }
@@ -1395,7 +1404,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\aheaders\x18\x03 \x03(\v2\x16.TwirpApp.HeadersEntryR\aheaders\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x88\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x02\n" +
 	"\n" +
 	"OpenApiApp\x12\x19\n" +
 	"\bspec_url\x18\x01 \x01(\tR\aspecUrl\x12\x14\n" +
@@ -1403,7 +1412,8 @@ const file_proto_api_proto_rawDesc = "" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x04 \x01(\tR\bpassword\x122\n" +
 	"\aheaders\x18\x05 \x03(\v2\x18.OpenApiApp.HeadersEntryR\aheaders\x12!\n" +
-	"\fspec_content\x18\x06 \x01(\tR\vspecContent\x1a:\n" +
+	"\fspec_content\x18\x06 \x01(\tR\vspecContent\x12\x19\n" +
+	"\bbase_url\x18\a \x01(\tR\abaseUrl\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x01\n" +
