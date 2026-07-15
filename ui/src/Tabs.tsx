@@ -118,6 +118,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         .tab-item {
           display: flex;
           align-items: center;
+          flex-shrink: 0;
           padding: 0 10px 0 16px;
           border-top: 1px solid transparent;
           border-right: 1px solid var(--borderColor-muted);
@@ -172,6 +173,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                     color: isActive ? "var(--fgColor-default)" : "var(--fgColor-muted)",
                     fontStyle: isEphemeral ? "italic" : "normal",
                     userSelect: "none",
+                    whiteSpace: "nowrap",
                     marginRight: 8,
                   }}
                 >
