@@ -39,7 +39,11 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 			return nil, err
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, err = loadSpec(specURL)
+		s, err = loadSpec(specURL,
+			strings.TrimSpace(parameters["token"]),
+			strings.TrimSpace(parameters["username"]),
+			strings.TrimSpace(parameters["password"]),
+		)
 	default:
 		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
 	}

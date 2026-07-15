@@ -108,7 +108,7 @@ export const appTypes: AppTypeDefinition[] = [
         type: "url",
         optional: true,
         placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
-        caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app.",
+        caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app. Credentials below are used to fetch it, so a spec behind a login can be read.",
       },
       {
         key: "specContent",
@@ -123,7 +123,7 @@ export const appTypes: AppTypeDefinition[] = [
         type: "text",
         optional: true,
         placeholder: "Token or API key",
-        caption: "Sent per the spec's security scheme: as a Bearer token, or as the named API key header/query/cookie.",
+        caption: "Sent per the spec's security scheme: as a Bearer token, or as the named API key header/query/cookie. Also used to fetch the spec URL.",
       },
       {
         key: "username",
