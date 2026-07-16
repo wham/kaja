@@ -36,7 +36,7 @@ type instance struct {
 	auth    *auth
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
+func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
 	method := in.lookup(methodPath)
 	if method == nil {
 		return nil, fmt.Errorf("unknown method %q", methodPath)
@@ -55,7 +55,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, fmt.Errorf("encoding request to JSON: %w", err)
 	}
 
-	respJSON, err := in.transcode(method.binding, reqJSON, headers)
+	respJSON, reqHeaders, respHeaders, err := in.transcode(method.binding, reqJSON, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -66,16 +66,21 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(respJSON, respMsg); err != nil {
 		return nil, fmt.Errorf("decoding response JSON: %w", err)
 	}
-	return proto.Marshal(respMsg)
+	body, err := proto.Marshal(respMsg)
+	if err != nil {
+		return nil, err
+	}
+	return &apps.InvokeResult{Body: body, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
 }
 
 // transcode runs the upstream REST call for a method given the proto3-JSON
-// request, returning the proto3-JSON response.
-func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) ([]byte, error) {
+// request, returning the proto3-JSON response along with the request headers
+// actually sent upstream and the response headers received.
+func (in *instance) transcode(binding *methodBinding, request []byte, headers map[string]string) ([]byte, map[string]string, map[string]string, error) {
 	req := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(request)) > 0 {
 		if err := json.Unmarshal(request, &req); err != nil {
-			return nil, fmt.Errorf("decoding request: %w", err)
+			return nil, nil, nil, fmt.Errorf("decoding request: %w", err)
 		}
 	}
 
@@ -135,7 +140,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 
 	httpReq, err := http.NewRequest(binding.verb, fullURL, body)
 	if err != nil {
-		return nil, fmt.Errorf("building request: %w", err)
+		return nil, nil, nil, fmt.Errorf("building request: %w", err)
 	}
 	// Apply the spec's auth first so an explicit per-request header can still override it.
 	in.auth.applyRequest(httpReq)
@@ -152,23 +157,25 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 		}
 		httpReq.Header.Set("Content-Type", contentType)
 	}
+	reqHeaders := apps.SurfaceHeaders(httpReq.Header)
 
 	resp, err := in.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("calling %s %s: %w", binding.verb, fullURL, err)
+		return nil, nil, nil, fmt.Errorf("calling %s %s: %w", binding.verb, fullURL, err)
 	}
 	defer resp.Body.Close()
+	respHeaders := apps.SurfaceHeaders(resp.Header)
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
+		return nil, nil, nil, fmt.Errorf("reading response: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody)
+		return nil, nil, nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody)
 	}
 
-	return wrapResponse(binding.responseWrap, respBody), nil
+	return wrapResponse(binding.responseWrap, respBody), reqHeaders, respHeaders, nil
 }
 
 // lookup finds a method by exact gRPC path, falling back to a case-insensitive

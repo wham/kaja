@@ -39,11 +39,11 @@ func encodeRequest(t *testing.T, inst *instance, method, requestJSON string) []b
 }
 
 // decodeResponse turns a method's protobuf response bytes back into JSON.
-func decodeResponse(t *testing.T, inst *instance, method string, response []byte) []byte {
+func decodeResponse(t *testing.T, inst *instance, method string, result *apps.InvokeResult) []byte {
 	t.Helper()
 	m := inst.lookup(method)
 	msg := dynamicpb.NewMessage(m.output)
-	if err := proto.Unmarshal(response, msg); err != nil {
+	if err := proto.Unmarshal(result.Body, msg); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	j, err := protojson.Marshal(msg)
@@ -895,7 +895,7 @@ func TestTranscodeArrayQuery(t *testing.T) {
 	in := &instance{baseURL: srv.URL, client: srv.Client()}
 	binding := &methodBinding{verb: "GET", pathTemplate: "/pet/findByTags", queryParams: []queryParam{{name: "tags"}}, responseWrap: "array"}
 
-	if _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
+	if _, _, _, err := in.transcode(binding, []byte(`{"tags":["foo","bar"]}`), nil); err != nil {
 		t.Fatalf("transcode: %v", err)
 	}
 	if gotRawQuery != "tags=foo&tags=bar" {

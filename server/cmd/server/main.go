@@ -160,7 +160,7 @@ func main() {
 		// request arrives as gRPC-Web like a regular gRPC app.
 		if apps.IsAppTarget(targetHeader) {
 			manager := apiService.Apps()
-			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) ([]byte, error) {
+			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
 				return manager.Invoke(targetHeader, method, message, headers)
 			}, forwardHeaders)
 			return

@@ -72,6 +72,11 @@ export interface MethodCall {
   error?: any;
   requestHeaders?: MethodCallHeaders;
   responseHeaders?: MethodCallHeaders;
+  // Headers an in-process app (e.g. OpenAPI) actually exchanged with its
+  // upstream REST service, surfaced separately from the gRPC-Web transport
+  // headers above. Sensitive values are redacted server-side.
+  upstreamRequestHeaders?: MethodCallHeaders;
+  upstreamResponseHeaders?: MethodCallHeaders;
   url?: string;
   timestamp: number;
 }

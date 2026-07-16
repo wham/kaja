@@ -13,6 +13,7 @@ import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/m
 import { EventsOn } from "../wailsjs/runtime";
 import { appHeaders } from "../appTypes";
 import { expandHeaders } from "../variableExpansion";
+import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
@@ -212,9 +213,10 @@ export class WailsTransport implements RpcTransport {
       this.mode === "target" ? `target: ${this.appRef?.target}` : "",
     );
 
-    const responsePromise = this.executeCall(method, input);
-    const statusPromise = responsePromise.then(() => ({ code: "OK", detail: "" }));
-    const trailersPromise = responsePromise.then(() => ({}));
+    const resultPromise = this.executeCall(method, input);
+    const responsePromise = resultPromise.then((result) => result.output);
+    const statusPromise = resultPromise.then(() => ({ code: "OK", detail: "" }));
+    const trailersPromise = resultPromise.then((result) => result.trailers);
 
     return {
       response: responsePromise,
@@ -223,7 +225,7 @@ export class WailsTransport implements RpcTransport {
     };
   }
 
-  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<O> {
+  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<{ output: O; trailers: RpcMetadata }> {
     try {
       console.log(`Executing Wails ${this.mode} call for method:`, method.name);
       if (this.mode === "target") {
@@ -253,6 +255,7 @@ export class WailsTransport implements RpcTransport {
       }
 
       let responseBase64: unknown;
+      const trailers: RpcMetadata = {};
 
       if (this.mode === "api") {
         console.log("Calling Wails Twirp with method:", method.name);
@@ -269,6 +272,15 @@ export class WailsTransport implements RpcTransport {
           throw upstreamError(result);
         }
 
+        // Mirror an in-process app's upstream headers as trailers so the client
+        // surfaces them the same way as the web gRPC-Web transport does.
+        if (result.requestHeaders && Object.keys(result.requestHeaders).length > 0) {
+          trailers[UPSTREAM_REQUEST_HEADERS_TRAILER] = JSON.stringify(result.requestHeaders);
+        }
+        if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
+          trailers[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+        }
+
         responseBase64 = result.body;
       }
 
@@ -279,7 +291,7 @@ export class WailsTransport implements RpcTransport {
 
       const output = method.O.fromBinary(responseBytes);
       console.log(`Wails ${this.mode} output:`, output);
-      return output;
+      return { output, trailers };
     } catch (error) {
       console.error(`Wails ${this.mode} call failed:`, error);
       if (error instanceof UpstreamError) {

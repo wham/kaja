@@ -10,6 +10,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // openTestApp opens the app against a fake upstream and returns the live instance.
@@ -37,10 +39,10 @@ func encodeRequest(t *testing.T, in *instance, requestJSON string) []byte {
 }
 
 // decodeResponse turns the protobuf response bytes back into JSON.
-func decodeResponse(t *testing.T, in *instance, response []byte) map[string]any {
+func decodeResponse(t *testing.T, in *instance, result *apps.InvokeResult) map[string]any {
 	t.Helper()
 	msg := dynamicpb.NewMessage(in.output)
-	if err := proto.Unmarshal(response, msg); err != nil {
+	if err := proto.Unmarshal(result.Body, msg); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	j, err := protojson.Marshal(msg)

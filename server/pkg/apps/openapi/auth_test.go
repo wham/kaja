@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 func TestResolveAuthFromScheme(t *testing.T) {
@@ -169,10 +171,39 @@ func TestTranscodeAuthInjection(t *testing.T) {
 
 			in := &instance{baseURL: srv.URL, client: srv.Client(), auth: tc.auth}
 			binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-			if _, err := in.transcode(binding, []byte(`{}`), nil); err != nil {
+			if _, _, _, err := in.transcode(binding, []byte(`{}`), nil); err != nil {
 				t.Fatalf("transcode: %v", err)
 			}
 		})
+	}
+}
+
+// TestTranscodeSurfacesHeaders checks that transcode reports the headers it
+// exchanged with the upstream, masking credential-bearing ones while passing
+// plain headers and response headers through.
+func TestTranscodeSurfacesHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-Id", "req-123")
+		io.WriteString(w, `{}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, reqHeaders, respHeaders, err := in.transcode(binding, []byte(`{}`), nil)
+	if err != nil {
+		t.Fatalf("transcode: %v", err)
+	}
+
+	if got := reqHeaders["Authorization"]; got != apps.RedactedValue {
+		t.Errorf("request Authorization = %q, want %q", got, apps.RedactedValue)
+	}
+	if got := reqHeaders["Accept"]; got != "application/json" {
+		t.Errorf("request Accept = %q, want application/json", got)
+	}
+	if got := respHeaders["X-Request-Id"]; got != "req-123" {
+		t.Errorf("response X-Request-Id = %q, want req-123", got)
 	}
 }
 

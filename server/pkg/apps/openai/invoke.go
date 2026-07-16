@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // instance is a live opened OpenAI app. It is a gRPC app: a ChatCompletion call
@@ -25,7 +27,7 @@ type instance struct {
 	client   *http.Client
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
+func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
 	if lastSegment(methodPath) != "ChatCompletion" {
 		return nil, fmt.Errorf("unknown method %q", methodPath)
 	}
@@ -42,7 +44,7 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		return nil, err
 	}
 
-	respBody, status, err := in.call(body, headers)
+	respBody, status, reqHeaders, respHeaders, err := in.call(body, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -52,19 +54,24 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 		// Surface the upstream failure as a structured error on the response
 		// rather than a flat transport error, so the status code, the OpenAI
 		// error type/code/param and the raw body are all visible in the response.
-		return in.encodeError(respMsg, parseUpstreamError(status, respBody))
+		return in.encodeError(respMsg, parseUpstreamError(status, respBody), reqHeaders, respHeaders)
 	}
 
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(respBody, respMsg); err != nil {
 		return nil, fmt.Errorf("decoding response JSON: %w", err)
 	}
 	setReplyContent(respMsg)
-	return proto.Marshal(respMsg)
+	out, err := proto.Marshal(respMsg)
+	if err != nil {
+		return nil, err
+	}
+	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
 }
 
 // encodeError populates the response's "error" field from the structured upstream
-// error and marshals it.
-func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]any) ([]byte, error) {
+// error and marshals it into an InvokeResult that still carries the upstream
+// headers exchanged.
+func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]any, reqHeaders, respHeaders map[string]string) (*apps.InvokeResult, error) {
 	payload, err := json.Marshal(map[string]any{"error": upstream})
 	if err != nil {
 		return nil, fmt.Errorf("encoding error response: %w", err)
@@ -72,7 +79,11 @@ func (in *instance) encodeError(respMsg *dynamicpb.Message, upstream map[string]
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(payload, respMsg); err != nil {
 		return nil, fmt.Errorf("encoding error response: %w", err)
 	}
-	return proto.Marshal(respMsg)
+	out, err := proto.Marshal(respMsg)
+	if err != nil {
+		return nil, err
+	}
+	return &apps.InvokeResult{Body: out, RequestHeaders: reqHeaders, ResponseHeaders: respHeaders}, nil
 }
 
 // buildRequestBody turns the decoded ChatCompletion request into the JSON body
@@ -114,13 +125,14 @@ func (in *instance) buildRequestBody(reqMsg *dynamicpb.Message) ([]byte, error) 
 }
 
 // call POSTs the request body to the configured endpoint, returning the raw
-// response body and HTTP status code. An error is returned only for transport
-// failures (the upstream could not be reached); HTTP error responses are returned
-// with their status so the caller can shape them into a structured error.
-func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, error) {
+// response body, HTTP status code, and the headers exchanged with the upstream
+// (sensitive values redacted). An error is returned only for transport failures
+// (the upstream could not be reached); HTTP error responses are returned with
+// their status so the caller can shape them into a structured error.
+func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, map[string]string, map[string]string, error) {
 	httpReq, err := http.NewRequest(http.MethodPost, in.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, 0, fmt.Errorf("building request: %w", err)
+		return nil, 0, nil, nil, fmt.Errorf("building request: %w", err)
 	}
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
@@ -130,18 +142,20 @@ func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, e
 	if in.token != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+in.token)
 	}
+	reqHeaders := apps.SurfaceHeaders(httpReq.Header)
 
 	resp, err := in.client.Do(httpReq)
 	if err != nil {
-		return nil, 0, fmt.Errorf("calling %s: %w", in.endpoint, err)
+		return nil, 0, reqHeaders, nil, fmt.Errorf("calling %s: %w", in.endpoint, err)
 	}
 	defer resp.Body.Close()
+	respHeaders := apps.SurfaceHeaders(resp.Header)
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("reading response: %w", err)
+		return nil, resp.StatusCode, reqHeaders, respHeaders, fmt.Errorf("reading response: %w", err)
 	}
-	return respBody, resp.StatusCode, nil
+	return respBody, resp.StatusCode, reqHeaders, respHeaders, nil
 }
 
 // parseUpstreamError turns a failed (HTTP >= 400) upstream response into the
