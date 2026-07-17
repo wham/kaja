@@ -104,6 +104,7 @@
   --bgColor-accent-muted: oklch(0.6 0.12 250 / 12%);
   --bgColor-canvas-inset: var(--muted);
   --bgColor-neutral-muted: var(--accent);
+  --control-transparent-bgColor-hover: var(--accent);
   --borderColor-default: var(--border);
   --borderColor-muted: var(--border);
   --fontStack-monospace: var(--font-mono);
