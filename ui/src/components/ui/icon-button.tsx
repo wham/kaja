@@ -47,9 +47,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function
     </button>
   );
   if (!tooltip) return button;
-  return (
-    <SimpleTooltip text={ariaLabel}>{button}</SimpleTooltip>
-  );
+  return <SimpleTooltip text={ariaLabel}>{button}</SimpleTooltip>;
 });
 
 export { IconButton };

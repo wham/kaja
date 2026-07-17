@@ -744,7 +744,10 @@ export function Sidebar({
       {/* Cursor-anchored context menu for an app. */}
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
         <DropdownMenuTrigger asChild>
-          <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+          <div
+            ref={appMenuAnchorRef}
+            style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
           <DropdownMenuItem
