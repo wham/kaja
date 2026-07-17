@@ -19,8 +19,12 @@ var tailwindPlugin = esbuild.Plugin{
 	Name: "tailwindcss",
 	Setup: func(build esbuild.PluginBuild) {
 		build.OnStart(func() (esbuild.OnStartResult, error) {
+			// Run the Tailwind CLI through bun rather than the node-shebang bin shim:
+			// bun is the one JS runtime present everywhere the UI is built (local dev,
+			// the mac desktop CI runner, and the node-less Docker builder stage).
 			cmd := exec.Command(
-				"./node_modules/.bin/tailwindcss",
+				"bun",
+				"./node_modules/@tailwindcss/cli/dist/index.mjs",
 				"-i", "src/tailwind.css",
 				"-o", "src/generated/tailwind.generated.css",
 				"--minify",
