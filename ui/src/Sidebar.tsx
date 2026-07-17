@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { ActionList, ActionMenu, TreeView, IconButton } from "@primer/react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
+import { IconButton } from "./components/ui/icon-button";
+import { TreeView } from "./components/ui/tree-view";
 import {
   CpuIcon,
   FileCodeIcon,
@@ -13,7 +15,7 @@ import {
   ChevronRightIcon,
   PackageIcon,
   KebabHorizontalIcon,
-} from "@primer/octicons-react";
+} from "./components/icons";
 import { appType, appTypeLabel } from "./appTypes";
 import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Method, App, Script, Service, methodId } from "./apps";
@@ -698,86 +700,76 @@ export function Sidebar({
           );
         })}
       </div>
-      {/* Invisible anchor positioned at the cursor for the script context menu. */}
-      <div
-        ref={scriptMenuAnchorRef}
-        style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
-      />
-      <ActionMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)} anchorRef={scriptMenuAnchorRef}>
-        <ActionMenu.Overlay width="small">
-          <ActionList>
-            {onPinScript && (
-              <ActionList.Item
-                onSelect={() => {
-                  const script = scriptMenu?.script;
-                  if (script) onPinScript(script);
-                }}
-              >
-                <ActionList.LeadingVisual>
-                  <PinIcon />
-                </ActionList.LeadingVisual>
-                {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
-              </ActionList.Item>
-            )}
-            <ActionList.Item
+      {/* Cursor-anchored context menu for a script. */}
+      <DropdownMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)}>
+        <DropdownMenuTrigger asChild>
+          <div
+            ref={scriptMenuAnchorRef}
+            style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          {onPinScript && (
+            <DropdownMenuItem
               onSelect={() => {
                 const script = scriptMenu?.script;
-                if (script) onRenameScript?.(script);
+                if (script) onPinScript(script);
               }}
             >
-              <ActionList.LeadingVisual>
-                <PencilIcon />
-              </ActionList.LeadingVisual>
-              Rename
-            </ActionList.Item>
-            <ActionList.Item
+              <PinIcon size={16} />
+              {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={() => {
+              const script = scriptMenu?.script;
+              if (script) onRenameScript?.(script);
+            }}
+          >
+            <PencilIcon size={16} />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="danger"
+            onSelect={() => {
+              const script = scriptMenu?.script;
+              if (script) onDeleteScript?.(script);
+            }}
+          >
+            <TrashIcon size={16} />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {/* Cursor-anchored context menu for an app. */}
+      <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
+        <DropdownMenuTrigger asChild>
+          <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem
+            onSelect={() => {
+              const appName = appMenu?.appName;
+              if (appName) onEditApp(appName);
+            }}
+          >
+            <PencilIcon size={16} />
+            Edit
+          </DropdownMenuItem>
+          {canDeleteApps && (
+            <DropdownMenuItem
               variant="danger"
               onSelect={() => {
-                const script = scriptMenu?.script;
-                if (script) onDeleteScript?.(script);
-              }}
-            >
-              <ActionList.LeadingVisual>
-                <TrashIcon />
-              </ActionList.LeadingVisual>
-              Delete
-            </ActionList.Item>
-          </ActionList>
-        </ActionMenu.Overlay>
-      </ActionMenu>
-      {/* Invisible anchor positioned at the cursor for the app context menu. */}
-      <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
-      <ActionMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)} anchorRef={appMenuAnchorRef}>
-        <ActionMenu.Overlay width="small">
-          <ActionList>
-            <ActionList.Item
-              onSelect={() => {
                 const appName = appMenu?.appName;
-                if (appName) onEditApp(appName);
+                if (appName) onDeleteApp(appName);
               }}
             >
-              <ActionList.LeadingVisual>
-                <PencilIcon />
-              </ActionList.LeadingVisual>
-              Edit
-            </ActionList.Item>
-            {canDeleteApps && (
-              <ActionList.Item
-                variant="danger"
-                onSelect={() => {
-                  const appName = appMenu?.appName;
-                  if (appName) onDeleteApp(appName);
-                }}
-              >
-                <ActionList.LeadingVisual>
-                  <TrashIcon />
-                </ActionList.LeadingVisual>
-                Delete
-              </ActionList.Item>
-            )}
-          </ActionList>
-        </ActionMenu.Overlay>
-      </ActionMenu>
+              <TrashIcon size={16} />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
