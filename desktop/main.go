@@ -451,8 +451,15 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			// Hand the structured upstream failure to the transport instead of
-			// rejecting the promise with a flat string.
-			return &TargetResult{Body: upstream.JSON(), StatusCode: upstream.Status, Status: upstream.StatusText}, nil
+			// rejecting the promise with a flat string. The exchanged headers ride
+			// along so the Headers view is populated even on a failure (e.g. 401).
+			return &TargetResult{
+				Body:            upstream.JSON(),
+				StatusCode:      upstream.Status,
+				Status:          upstream.StatusText,
+				RequestHeaders:  upstream.RequestHeaders,
+				ResponseHeaders: upstream.ResponseHeaders,
+			}, nil
 		}
 		if err != nil {
 			return nil, err

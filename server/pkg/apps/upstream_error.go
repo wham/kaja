@@ -18,6 +18,19 @@ type UpstreamError struct {
 	StatusText string // e.g. "Bad Request"
 	Message    string // human summary extracted from the response body
 	Body       []byte // raw response body, truncated
+	// RequestHeaders/ResponseHeaders are the headers exchanged with the upstream
+	// (sensitive values redacted), surfaced in the client's Headers view even
+	// though the call failed. A 401 is exactly when they matter most.
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+}
+
+// WithHeaders attaches the upstream request/response headers to the error so the
+// transports can surface them alongside the failure.
+func (e *UpstreamError) WithHeaders(request, response map[string]string) *UpstreamError {
+	e.RequestHeaders = request
+	e.ResponseHeaders = response
+	return e
 }
 
 const upstreamBodyLimit = 4000

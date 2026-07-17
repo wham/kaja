@@ -47,30 +47,30 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			// An upstream HTTP failure maps to the closest gRPC status; the raw
-			// response body rides in a trailer the client shows alongside it.
-			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), map[string]string{"upstream-body": string(upstream.Body)})
+			// response body and the exchanged headers ride in trailers the client
+			// shows alongside it (a 401 is exactly when the headers matter).
+			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
+			trailers["upstream-body"] = string(upstream.Body)
+			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), trailers)
 			return
 		}
 		// gRPC status 2 = UNKNOWN; the browser surfaces grpc-message as the error.
 		writeGRPCWebText(w, nil, 2, err.Error(), nil)
 		return
 	}
-	writeGRPCWebText(w, result.Body, 0, "", upstreamHeaderTrailers(result))
+	writeGRPCWebText(w, result.Body, 0, "", upstreamHeaderTrailers(result.RequestHeaders, result.ResponseHeaders))
 }
 
 // upstreamHeaderTrailers encodes an app's exchanged upstream headers as gRPC-Web
-// trailers, one JSON object each. Returns nil when the app surfaced no upstream
-// headers (e.g. a local app), so no trailer is emitted.
-func upstreamHeaderTrailers(result *apps.InvokeResult) map[string]string {
+// trailers, one JSON object each. Absent maps contribute no trailer; the result
+// is always non-nil so callers can add their own trailers to it.
+func upstreamHeaderTrailers(requestHeaders, responseHeaders map[string]string) map[string]string {
 	trailers := map[string]string{}
-	if encoded, ok := encodeHeaderTrailer(result.RequestHeaders); ok {
+	if encoded, ok := encodeHeaderTrailer(requestHeaders); ok {
 		trailers[upstreamRequestHeadersTrailer] = encoded
 	}
-	if encoded, ok := encodeHeaderTrailer(result.ResponseHeaders); ok {
+	if encoded, ok := encodeHeaderTrailer(responseHeaders); ok {
 		trailers[upstreamResponseHeadersTrailer] = encoded
-	}
-	if len(trailers) == 0 {
-		return nil
 	}
 	return trailers
 }

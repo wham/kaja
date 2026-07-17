@@ -32,6 +32,22 @@ function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, t
   methodCall.responseHeaders = responseHeaders;
 }
 
+// applyUpstreamHeadersFromError routes the upstream-header trailers carried on a
+// failed call's error metadata to the method call, so the Headers view is still
+// populated on an upstream failure (e.g. a 401). Web errors carry them in the
+// RpcError's trailer meta; the Wails transport mirrors them the same way.
+function applyUpstreamHeadersFromError(methodCall: MethodCall, error: unknown): void {
+  const meta = error && typeof error === "object" ? (error as { meta?: unknown }).meta : undefined;
+  if (!meta || typeof meta !== "object") return;
+  const metaRecord = meta as Record<string, unknown>;
+  if (UPSTREAM_REQUEST_HEADERS_TRAILER in metaRecord) {
+    methodCall.upstreamRequestHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_REQUEST_HEADERS_TRAILER]);
+  }
+  if (UPSTREAM_RESPONSE_HEADERS_TRAILER in metaRecord) {
+    methodCall.upstreamResponseHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_RESPONSE_HEADERS_TRAILER]);
+  }
+}
+
 export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
   const client: Client = { methods: {} };
 
@@ -137,6 +153,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         }
       } catch (error: any) {
         methodCall.error = serializeError(error);
+        applyUpstreamHeadersFromError(methodCall, error);
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);

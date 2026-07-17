@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -204,6 +205,33 @@ func TestTranscodeSurfacesHeaders(t *testing.T) {
 	}
 	if got := respHeaders["X-Request-Id"]; got != "req-123" {
 		t.Errorf("response X-Request-Id = %q, want req-123", got)
+	}
+}
+
+// TestTranscodeSurfacesHeadersOnError checks that a failed (>= 400) upstream call
+// still reports the exchanged headers via the UpstreamError, so the Headers view
+// is populated on a 401.
+func TestTranscodeSurfacesHeadersOnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, `{"message":"unauthorized"}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, _, _, err := in.transcode(binding, []byte(`{}`), nil)
+
+	var upstream *apps.UpstreamError
+	if !errors.As(err, &upstream) {
+		t.Fatalf("transcode error = %v, want *apps.UpstreamError", err)
+	}
+	if got := upstream.RequestHeaders["Authorization"]; got != apps.RedactedValue {
+		t.Errorf("request Authorization = %q, want %q", got, apps.RedactedValue)
+	}
+	if got := upstream.ResponseHeaders["Www-Authenticate"]; got != "Bearer" {
+		t.Errorf("response Www-Authenticate = %q, want Bearer", got)
 	}
 }
 

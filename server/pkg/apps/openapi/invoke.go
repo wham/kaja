@@ -172,7 +172,7 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, nil, nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody)
+		return nil, nil, nil, apps.NewUpstreamError(binding.verb, fullURL, resp.StatusCode, respBody).WithHeaders(reqHeaders, respHeaders)
 	}
 
 	return wrapResponse(binding.responseWrap, respBody), reqHeaders, respHeaders, nil

@@ -45,8 +45,17 @@ class UpstreamError extends Error {
 
 // upstreamError shapes a >= 400 Target result into an UpstreamError. The body
 // is the structured error JSON produced by the server (or a Twirp error), so
-// its message becomes the error message and the rest becomes error fields.
-function upstreamError(result: { body: unknown; statusCode: number; status: string }): UpstreamError {
+// its message becomes the error message and the rest becomes error fields. The
+// exchanged upstream headers are mirrored onto the error's `meta` in the same
+// trailer shape the web transport uses, so the Headers view is populated on a
+// failure too.
+function upstreamError(result: {
+  body: unknown;
+  statusCode: number;
+  status: string;
+  requestHeaders?: { [key: string]: string };
+  responseHeaders?: { [key: string]: string };
+}): UpstreamError {
   let errorJson: unknown;
   try {
     const bodyBytes = Uint8Array.from(atob(result.body as string), (c) => c.charCodeAt(0));
@@ -54,12 +63,25 @@ function upstreamError(result: { body: unknown; statusCode: number; status: stri
   } catch {
     // Body missing or not JSON; fall back to the HTTP status line.
   }
+  let error: UpstreamError;
   if (!errorJson || typeof errorJson !== "object") {
-    return new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
+    error = new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
+  } else {
+    const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
+    const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
+    error = new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
   }
-  const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
-  const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
-  return new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
+  const meta: RpcMetadata = {};
+  if (result.requestHeaders && Object.keys(result.requestHeaders).length > 0) {
+    meta[UPSTREAM_REQUEST_HEADERS_TRAILER] = JSON.stringify(result.requestHeaders);
+  }
+  if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
+    meta[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+  }
+  if (Object.keys(meta).length > 0) {
+    (error as unknown as { meta: RpcMetadata }).meta = meta;
+  }
+  return error;
 }
 
 export interface WailsTransportOptions {
