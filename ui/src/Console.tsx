@@ -1,7 +1,7 @@
-import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "@primer/octicons-react";
+import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "./components/icons";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
-import { IconButton } from "@primer/react";
+import { IconButton } from "./components/ui/icon-button";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
 import { methodId } from "./apps";
