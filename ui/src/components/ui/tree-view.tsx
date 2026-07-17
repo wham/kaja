@@ -99,9 +99,7 @@ function SubTree({ state, count = 3, children }: SubTreeProps) {
       </ul>
     );
   }
-  return (
-    <ul role="group">{children}</ul>
-  );
+  return <ul role="group">{children}</ul>;
 }
 
 function LeadingVisual({ children }: { children: React.ReactNode }) {
