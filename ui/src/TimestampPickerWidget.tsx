@@ -1,7 +1,8 @@
 import * as monaco from "monaco-editor";
 import { useState } from "react";
 import { createRoot, Root } from "react-dom/client";
-import { Button, FormControl } from "@primer/react";
+import { Button } from "./components/ui/button";
+import { FormControl } from "./components/ui/form-control";
 import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
 
 interface TimestampPickerProps {
@@ -84,13 +85,13 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
         </div>
       </FormControl>
       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-        <Button size="small" variant="primary" onClick={handleApply}>
+        <Button size="sm" onClick={handleApply}>
           Apply
         </Button>
-        <Button size="small" onClick={handleSetNow}>
+        <Button size="sm" variant="outline" onClick={handleSetNow}>
           Now
         </Button>
-        <Button size="small" variant="danger" onClick={handleClear}>
+        <Button size="sm" variant="destructive" onClick={handleClear}>
           Clear
         </Button>
       </div>
