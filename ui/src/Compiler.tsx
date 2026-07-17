@@ -1,5 +1,6 @@
-import { CheckIcon, ChevronRightIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, Spinner } from "@primer/react";
+import { CheckIcon, ChevronRightIcon, XIcon } from "./components/icons";
+import { ActionList } from "./components/ui/action-list";
+import { Spinner } from "./components/ui/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { useState } from "react";
 import { CompilationStatus, App } from "./apps";
@@ -75,7 +76,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
           backgroundColor: bgColor,
         }}
       >
-        <Icon size={CHECK_ICON_SIZE} fill={fgColor} />
+        <Icon size={CHECK_ICON_SIZE} color={fgColor} />
       </div>
     );
   };

@@ -99,6 +99,11 @@
   --fgColor-attention: oklch(0.55 0.13 85);
   --bgColor-attention-muted: oklch(0.55 0.13 85 / 12%);
   --bgColor-danger-muted: oklch(0.577 0.245 27.325 / 12%);
+  --fgColor-success: oklch(0.6 0.13 155);
+  --bgColor-success-muted: oklch(0.6 0.13 155 / 12%);
+  --bgColor-accent-muted: oklch(0.6 0.12 250 / 12%);
+  --bgColor-canvas-inset: var(--muted);
+  --bgColor-neutral-muted: var(--accent);
   --borderColor-default: var(--border);
   --borderColor-muted: var(--border);
   --fontStack-monospace: var(--font-mono);

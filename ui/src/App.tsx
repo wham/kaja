@@ -1,19 +1,15 @@
 import "@primer/primitives/dist/css/functional/themes/dark.css";
 import "@primer/primitives/dist/css/functional/themes/light.css";
-import {
-  BaseStyles,
-  Button,
-  ConfirmationDialog,
-  Dialog,
-  Flash,
-  FormControl,
-  IconButton,
-  TextInput,
-  ThemeProvider,
-  Tooltip,
-  useResponsiveValue,
-} from "@primer/react";
-import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
+import { Alert } from "./components/ui/alert";
+import { Button } from "./components/ui/button";
+import { ConfirmationDialog } from "./components/ui/confirmation-dialog";
+import { Dialog } from "./components/ui/dialog";
+import { FormControl } from "./components/ui/form-control";
+import { IconButton } from "./components/ui/icon-button";
+import { Input } from "./components/ui/input";
+import { SimpleTooltip } from "./components/ui/tooltip";
+import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "./components/icons";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -1459,9 +1455,8 @@ export function App() {
                     {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                   </div>
                   <Button
-                    leadingVisual={CommentDiscussionIcon}
-                    variant="invisible"
-                    size="small"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
                       if (isWailsEnvironment()) {
@@ -1472,6 +1467,7 @@ export function App() {
                     }}
                     style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
                   >
+                    <CommentDiscussionIcon size={16} />
                     Feedback
                   </Button>
                 </div>
@@ -1488,13 +1484,13 @@ export function App() {
                     } as React.CSSProperties
                   }
                 >
-                  <Tooltip
+                  <SimpleTooltip
                     text={
                       sidebarCollapsed
                         ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
                         : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
                     }
-                    direction="s"
+                    side="bottom"
                   >
                     <IconButton
                       icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
@@ -1502,17 +1498,19 @@ export function App() {
                       onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
                       size="small"
                       variant="invisible"
+                      tooltip={false}
                     />
-                  </Tooltip>
-                  <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
+                  </SimpleTooltip>
+                  <SimpleTooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
                     <IconButton
                       icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
                       aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
                       onClick={onToggleEditorLayout}
                       size="small"
                       variant="invisible"
+                      tooltip={false}
                     />
-                  </Tooltip>
+                  </SimpleTooltip>
                 </div>
               </div>
               {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
@@ -1672,19 +1670,21 @@ export function App() {
           >
             <FormControl>
               <FormControl.Label>Name</FormControl.Label>
-              <TextInput
-                block
-                autoFocus
-                trailingVisual=".ts"
-                value={saveAs.name}
-                onChange={(e) => setSaveAs((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmSaveAsScript();
-                  }
-                }}
-              />
+              <div className="relative">
+                <Input
+                  autoFocus
+                  className="pr-9"
+                  value={saveAs.name}
+                  onChange={(e) => setSaveAs((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onConfirmSaveAsScript();
+                    }
+                  }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+              </div>
               {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
             </FormControl>
           </Dialog>
@@ -1717,8 +1717,7 @@ export function App() {
           >
             <FormControl>
               <FormControl.Label>{askPrompt.message}</FormControl.Label>
-              <TextInput
-                block
+              <Input
                 autoFocus
                 value={askPrompt.value}
                 onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
@@ -1749,19 +1748,21 @@ export function App() {
           >
             <FormControl>
               <FormControl.Label>Name</FormControl.Label>
-              <TextInput
-                block
-                autoFocus
-                trailingVisual=".ts"
-                value={renameScript.name}
-                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmRenameScript();
-                  }
-                }}
-              />
+              <div className="relative">
+                <Input
+                  autoFocus
+                  className="pr-9"
+                  value={renameScript.name}
+                  onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onConfirmRenameScript();
+                    }
+                  }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+              </div>
               {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
             </FormControl>
           </Dialog>
@@ -1782,7 +1783,7 @@ export function App() {
         )}
         {fileError && (
           <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
-            <Flash variant="danger">{fileError}</Flash>
+            <Alert variant="danger">{fileError}</Alert>
           </div>
         )}
       </BaseStyles>
