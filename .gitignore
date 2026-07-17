@@ -6,3 +6,6 @@
 /server/build
 /ui/node_modules
 /ui/package.json.md5
+
+# Tailwind generated CSS
+/ui/src/generated/
