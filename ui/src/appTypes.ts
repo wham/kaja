@@ -1,4 +1,4 @@
-import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "@primer/octicons-react";
+import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "./components/icons";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a

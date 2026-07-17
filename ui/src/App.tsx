@@ -1,6 +1,4 @@
-import "@primer/primitives/dist/css/functional/themes/dark.css";
-import "@primer/primitives/dist/css/functional/themes/light.css";
-import { BaseStyles, ThemeProvider, useResponsiveValue } from "@primer/react";
+import { useMediaQuery } from "./useMediaQuery";
 import { Alert } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { ConfirmationDialog } from "./components/ui/confirmation-dialog";
@@ -271,7 +269,7 @@ export function App() {
   }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
-  const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const isNarrow = useMediaQuery("(max-width: 767px)");
   const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
@@ -523,6 +521,9 @@ export function App() {
   useEffect(() => {
     monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
     document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+    // Drive the shadcn theme tokens. The class goes on <html> so Radix portals
+    // (rendered into <body>) are themed too.
+    document.documentElement.classList.toggle("dark", colorMode === "night");
   }, [colorMode]);
 
   useEffect(() => {
@@ -1369,20 +1370,20 @@ export function App() {
   const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
 
   return (
-    <ThemeProvider colorMode={colorMode}>
-      <BaseStyles>
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow,
-            background: "var(--bgColor-default)",
-            WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
-            overscrollBehavior: isNarrow ? "contain" : "none",
-          }}
-        >
+    <>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow,
+          background: "var(--bgColor-default)",
+          color: "var(--fgColor-default)",
+          WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
+          overscrollBehavior: isNarrow ? "contain" : "none",
+        }}
+      >
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
             {!sidebarCollapsed && (
               <div
@@ -1786,8 +1787,7 @@ export function App() {
             <Alert variant="danger">{fileError}</Alert>
           </div>
         )}
-      </BaseStyles>
-    </ThemeProvider>
+    </>
   );
 }
 

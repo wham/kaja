@@ -1,6 +1,6 @@
-// Central icon map. The UI was built against @primer/octicons-react; these
-// re-exports keep the octicon names so consumers only swap their import path.
-// Names on the left are the octicon identifiers used throughout the UI.
+// Central icon map. The UI was originally built against Primer's octicons;
+// these re-exports keep the old icon names so consumers only swap their import
+// path. Names on the left are the identifiers used throughout the UI.
 import {
   Check as CheckIcon,
   ChevronRight as ChevronRightIcon,
