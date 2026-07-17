@@ -4,11 +4,39 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	esbuild "github.com/evanw/esbuild/pkg/api"
 )
+
+// tailwindPlugin compiles ui/src/tailwind.css into ui/src/generated/tailwind.generated.css
+// with the Tailwind CLI before every esbuild run. esbuild's Go API can't run Tailwind's
+// PostCSS plugin, so we shell out; main.tsx imports the generated file, folding it into
+// main.css. bun (and thus the Tailwind binary) is already a build-time dependency.
+var tailwindPlugin = esbuild.Plugin{
+	Name: "tailwindcss",
+	Setup: func(build esbuild.PluginBuild) {
+		build.OnStart(func() (esbuild.OnStartResult, error) {
+			cmd := exec.Command(
+				"./node_modules/.bin/tailwindcss",
+				"-i", "src/tailwind.css",
+				"-o", "src/generated/tailwind.generated.css",
+				"--minify",
+			)
+			// builder.go always runs with the server/ directory as CWD, so ui is ../ui
+			// (matching the "../ui/src/main.tsx" entry points below).
+			cmd.Dir = "../ui"
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return esbuild.OnStartResult{
+					Errors: []esbuild.Message{{Text: "tailwindcss build failed: " + string(out)}},
+				}, nil
+			}
+			return esbuild.OnStartResult{}, nil
+		})
+	},
+}
 
 type UiBundle struct {
 	MainJs         []byte
@@ -26,6 +54,7 @@ func BuildForDevelopment() *UiBundle {
 		Format:      esbuild.FormatESModule,
 		Sourcemap:   esbuild.SourceMapInline,
 		Outdir:      "build",
+		Plugins:     []esbuild.Plugin{tailwindPlugin},
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
 		},
@@ -48,6 +77,7 @@ func WatchForDevelopment(outDir string) (esbuild.BuildContext, error) {
 		Sourcemap:   esbuild.SourceMapInline,
 		Outdir:      outDir,
 		Write:       true,
+		Plugins:     []esbuild.Plugin{tailwindPlugin},
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
 		},
@@ -74,6 +104,7 @@ func BuildForProduction() (*UiBundle, error) {
 		// logs (uiLog.ts) stay readable instead of showing mangled identifiers.
 		KeepNames: true,
 		Outdir:    "build",
+		Plugins:   []esbuild.Plugin{tailwindPlugin},
 		Loader: map[string]esbuild.Loader{
 			".ttf": esbuild.LoaderFile,
 		},
