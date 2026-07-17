@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "@primer/octicons-react";
-import { AnchoredOverlay, Button, SegmentedControl } from "@primer/react";
+import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "./components/icons";
+import { Button } from "./components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
+import { SegmentedControl } from "./components/ui/segmented-control";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { IconButtonXSmall } from "./IconButtonXSmall";
@@ -84,42 +86,42 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
   };
 
   return (
-    <AnchoredOverlay
-      open={open}
-      onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
-      renderAnchor={(anchorProps) => <IconButtonXSmall icon={PlugIcon} aria-label="MCP server" {...anchorProps} />}
-    >
-      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fgColor-default)" }}>MCP server</span>
-        <SegmentedControl aria-label="MCP client" size="small">
-          {mcpClients.map((c, index) => (
-            <SegmentedControl.Button key={c.label} selected={index === selected} onClick={() => select(index)}>
-              {c.label}
-            </SegmentedControl.Button>
-          ))}
-        </SegmentedControl>
-        <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>{client.hint}</span>
-        <pre
-          style={{
-            fontSize: 11,
-            padding: 8,
-            margin: 0,
-            background: "var(--bgColor-muted)",
-            borderRadius: 6,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            fontFamily: "var(--fontStack-monospace, monospace)",
-            color: "var(--fgColor-default)",
-          }}
-        >
-          {snippet}
-        </pre>
-        <Button size="small" onClick={copy}>
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </div>
-    </AnchoredOverlay>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <IconButtonXSmall icon={PlugIcon} aria-label="MCP server" />
+      </PopoverTrigger>
+      <PopoverContent align="end" side="top" className="p-3">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fgColor-default)" }}>MCP server</span>
+          <SegmentedControl aria-label="MCP client">
+            {mcpClients.map((c, index) => (
+              <SegmentedControl.Button key={c.label} selected={index === selected} onClick={() => select(index)}>
+                {c.label}
+              </SegmentedControl.Button>
+            ))}
+          </SegmentedControl>
+          <span style={{ fontSize: 11, color: "var(--fgColor-muted)" }}>{client.hint}</span>
+          <pre
+            style={{
+              fontSize: 11,
+              padding: 8,
+              margin: 0,
+              background: "var(--bgColor-muted)",
+              borderRadius: 6,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              fontFamily: "var(--fontStack-monospace, monospace)",
+              color: "var(--fgColor-default)",
+            }}
+          >
+            {snippet}
+          </pre>
+          <Button variant="outline" size="sm" onClick={copy}>
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

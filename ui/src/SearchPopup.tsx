@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TextInput } from "@primer/react";
-import { SearchIcon } from "@primer/octicons-react";
+import { Input } from "./components/ui/input";
+import { SearchIcon } from "./components/icons";
 import { Method, App, Service } from "./apps";
 
 interface SearchResult {
@@ -132,16 +132,19 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
         }}
       >
         <div style={{ padding: 12 }}>
-          <TextInput
-            ref={inputRef}
-            leadingVisual={SearchIcon}
-            placeholder={`Search methods (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}K)`}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            block
-            size="large"
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <SearchIcon size={16} />
+            </span>
+            <Input
+              ref={inputRef}
+              className="h-10 pl-9 text-base"
+              placeholder={`Search methods (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}K)`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
         </div>
         <div
           ref={listRef}
