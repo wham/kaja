@@ -1,46 +1,28 @@
-import { Tooltip as TooltipPrimitive } from "radix-ui";
+import { Tooltip } from "@base-ui-components/react/tooltip";
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
-
-const TooltipProvider = TooltipPrimitive.Provider;
-const Tooltip = TooltipPrimitive.Root;
-const TooltipTrigger = TooltipPrimitive.Trigger;
-
-const TooltipContent = React.forwardRef<React.ElementRef<typeof TooltipPrimitive.Content>, React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>>(
-  ({ className, sideOffset = 4, ...props }, ref) => (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        ref={ref}
-        sideOffset={sideOffset}
-        className={cn(
-          "z-50 overflow-hidden rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-          className,
-        )}
-        {...props}
-      />
-    </TooltipPrimitive.Portal>
-  ),
-);
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
-
-// Convenience wrapper matching Primer's <Tooltip text="..."> single-child API.
 export interface SimpleTooltipProps {
   text: string;
-  children: React.ReactNode;
+  children: React.ReactElement;
   side?: "top" | "right" | "bottom" | "left";
   delayDuration?: number;
 }
 
 function SimpleTooltip({ text, children, side = "top", delayDuration = 300 }: SimpleTooltipProps) {
   return (
-    <TooltipProvider delayDuration={delayDuration}>
-      <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
-        <TooltipContent side={side}>{text}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip.Provider delay={delayDuration}>
+      <Tooltip.Root>
+        <Tooltip.Trigger render={children as React.ReactElement<Record<string, unknown>>} />
+        <Tooltip.Portal>
+          <Tooltip.Positioner side={side} sideOffset={4} className="z-50">
+            <Tooltip.Popup className="rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground shadow-md transition-opacity data-[starting-style]:opacity-0 data-[ending-style]:opacity-0">
+              {text}
+            </Tooltip.Popup>
+          </Tooltip.Positioner>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, SimpleTooltip };
+export { SimpleTooltip };

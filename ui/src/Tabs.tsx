@@ -294,10 +294,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
             if (!open) setContextMenu((prev) => ({ ...prev, open: false }));
           }}
         >
-          <DropdownMenuTrigger asChild>
-            <div style={{ position: "fixed", left: contextMenu.anchorPoint.x, top: contextMenu.anchorPoint.y, width: 1, height: 1 }} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" anchor={{ getBoundingClientRect: () => new DOMRect(contextMenu.anchorPoint.x, contextMenu.anchorPoint.y, 0, 0) }}>
             {onCloseTab && (
               <DropdownMenuItem
                 onSelect={() => {

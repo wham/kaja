@@ -1,4 +1,4 @@
-import { Dialog as DialogPrimitive } from "radix-ui";
+import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { X } from "lucide-react";
 import * as React from "react";
 
@@ -27,31 +27,23 @@ export interface DialogProps {
   children: React.ReactNode;
 }
 
-// Primer-compatible Dialog: always open while mounted (the parent controls
-// mounting via conditional rendering), closing through onClose.
+const backdropClass = "fixed inset-0 z-50 bg-black/50 transition-opacity data-[starting-style]:opacity-0 data-[ending-style]:opacity-0";
+const popupClass =
+  "fixed left-1/2 top-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card shadow-lg transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0";
+
+// Primer-compatible Dialog: open while mounted, closing through onClose.
 function Dialog({ title, width = "medium", onClose, footerButtons, initialFocusRef, children }: DialogProps) {
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content
-          onOpenAutoFocus={(e) => {
-            if (initialFocusRef?.current) {
-              e.preventDefault();
-              initialFocusRef.current.focus();
-            }
-          }}
-          className={cn(
-            "fixed left-1/2 top-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card p-0 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            widthClass[width],
-          )}
-        >
+    <BaseDialog.Root open onOpenChange={(open) => !open && onClose()}>
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className={backdropClass} />
+        <BaseDialog.Popup initialFocus={initialFocusRef} className={cn(popupClass, widthClass[width])}>
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <DialogPrimitive.Title className="text-sm font-semibold text-foreground">{title}</DialogPrimitive.Title>
-            <DialogPrimitive.Close className="rounded-sm text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <BaseDialog.Title className="text-sm font-semibold text-foreground">{title}</BaseDialog.Title>
+            <BaseDialog.Close className="rounded-sm text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <X size={16} />
               <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
+            </BaseDialog.Close>
           </div>
           <div className="px-4 py-1">{children}</div>
           {footerButtons && footerButtons.length > 0 && (
@@ -67,9 +59,9 @@ function Dialog({ title, width = "medium", onClose, footerButtons, initialFocusR
               ))}
             </div>
           )}
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+        </BaseDialog.Popup>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
 
