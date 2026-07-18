@@ -193,7 +193,7 @@ type instance struct {
 	methods map[string]method
 }
 
-func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error) {
+func (in *instance) Invoke(methodPath string, request []byte, headers map[string]string) (*apps.InvokeResult, error) {
 	name := lastSegment(methodPath)
 	m, ok := in.methods[name]
 	if !ok {
@@ -211,7 +211,13 @@ func (in *instance) Invoke(methodPath string, request []byte, headers map[string
 	if err := in.dispatch(name, req, resp); err != nil {
 		return nil, err
 	}
-	return proto.Marshal(resp)
+	// The Markdown app is local: it makes no upstream call, so it surfaces no
+	// upstream headers.
+	body, err := proto.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	return &apps.InvokeResult{Body: body}, nil
 }
 
 func (in *instance) dispatch(name string, req, resp *dynamicpb.Message) error {

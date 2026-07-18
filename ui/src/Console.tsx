@@ -444,8 +444,30 @@ interface HeadersContentProps {
 Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const requestHeaders = methodCall.requestHeaders || {};
   const responseHeaders = methodCall.responseHeaders || {};
-  const hasRequestHeaders = Object.keys(requestHeaders).length > 0;
-  const hasResponseHeaders = Object.keys(responseHeaders).length > 0;
+  const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
+  const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
+  // An in-process app (e.g. OpenAPI) reports the headers it exchanged with its
+  // upstream API. When present, the transport headers (browser ↔ Kaja) become a
+  // second, less interesting hop shown below the upstream ones.
+  const hasUpstream = Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
+
+  const section = (title: string, headers: { [key: string]: string }) => (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--fgColor-default)" }}>{title}</div>
+      {Object.keys(headers).length > 0 ? (
+        <Console.HeadersTable headers={headers} />
+      ) : (
+        <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No {title.toLowerCase()}</div>
+      )}
+    </div>
+  );
+
+  const groupHeading = (text: string, caption: string) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--fgColor-default)" }}>{text}</div>
+      <div style={{ color: "var(--fgColor-muted)" }}>{caption}</div>
+    </div>
+  );
 
   return (
     <div
@@ -458,39 +480,22 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
         fontSize: 12,
       }}
     >
-      <div style={{ marginBottom: 24 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            marginBottom: 8,
-            color: "var(--fgColor-default)",
-          }}
-        >
-          Request Headers
-        </div>
-        {hasRequestHeaders ? (
-          <Console.HeadersTable headers={requestHeaders} />
-        ) : (
-          <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No request headers</div>
-        )}
-      </div>
-
-      <div>
-        <div
-          style={{
-            fontWeight: 600,
-            marginBottom: 8,
-            color: "var(--fgColor-default)",
-          }}
-        >
-          Response Headers
-        </div>
-        {hasResponseHeaders ? (
-          <Console.HeadersTable headers={responseHeaders} />
-        ) : (
-          <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No response headers</div>
-        )}
-      </div>
+      {hasUpstream ? (
+        <>
+          {groupHeading("Upstream", "Headers Kaja exchanged with the API")}
+          {section("Request headers", upstreamRequestHeaders)}
+          {section("Response headers", upstreamResponseHeaders)}
+          <div style={{ height: 1, background: "var(--borderColor-default)", margin: "0 0 24px" }} />
+          {groupHeading("Transport", "Headers between the browser and Kaja")}
+          {section("Request headers", requestHeaders)}
+          {section("Response headers", responseHeaders)}
+        </>
+      ) : (
+        <>
+          {section("Request Headers", requestHeaders)}
+          {section("Response Headers", responseHeaders)}
+        </>
+      )}
     </div>
   );
 };

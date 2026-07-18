@@ -13,6 +13,7 @@ import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/m
 import { EventsOn } from "../wailsjs/runtime";
 import { appHeaders } from "../appTypes";
 import { expandHeaders } from "../variableExpansion";
+import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
 export type WailsTransportMode = "api" | "target";
@@ -44,8 +45,17 @@ class UpstreamError extends Error {
 
 // upstreamError shapes a >= 400 Target result into an UpstreamError. The body
 // is the structured error JSON produced by the server (or a Twirp error), so
-// its message becomes the error message and the rest becomes error fields.
-function upstreamError(result: { body: unknown; statusCode: number; status: string }): UpstreamError {
+// its message becomes the error message and the rest becomes error fields. The
+// exchanged upstream headers are mirrored onto the error's `meta` in the same
+// trailer shape the web transport uses, so the Headers view is populated on a
+// failure too.
+function upstreamError(result: {
+  body: unknown;
+  statusCode: number;
+  status: string;
+  requestHeaders?: { [key: string]: string };
+  responseHeaders?: { [key: string]: string };
+}): UpstreamError {
   let errorJson: unknown;
   try {
     const bodyBytes = Uint8Array.from(atob(result.body as string), (c) => c.charCodeAt(0));
@@ -53,12 +63,25 @@ function upstreamError(result: { body: unknown; statusCode: number; status: stri
   } catch {
     // Body missing or not JSON; fall back to the HTTP status line.
   }
+  let error: UpstreamError;
   if (!errorJson || typeof errorJson !== "object") {
-    return new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
+    error = new UpstreamError(`HTTP ${result.statusCode} ${result.status}`, {});
+  } else {
+    const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
+    const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
+    error = new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
   }
-  const { msg, message, ...fields } = errorJson as { msg?: unknown; message?: unknown };
-  const summary = [msg, message].find((m): m is string => typeof m === "string" && m !== "");
-  return new UpstreamError(summary || `HTTP ${result.statusCode} ${result.status}`, fields);
+  const meta: RpcMetadata = {};
+  if (result.requestHeaders && Object.keys(result.requestHeaders).length > 0) {
+    meta[UPSTREAM_REQUEST_HEADERS_TRAILER] = JSON.stringify(result.requestHeaders);
+  }
+  if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
+    meta[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+  }
+  if (Object.keys(meta).length > 0) {
+    (error as unknown as { meta: RpcMetadata }).meta = meta;
+  }
+  return error;
 }
 
 export interface WailsTransportOptions {
@@ -212,9 +235,10 @@ export class WailsTransport implements RpcTransport {
       this.mode === "target" ? `target: ${this.appRef?.target}` : "",
     );
 
-    const responsePromise = this.executeCall(method, input);
-    const statusPromise = responsePromise.then(() => ({ code: "OK", detail: "" }));
-    const trailersPromise = responsePromise.then(() => ({}));
+    const resultPromise = this.executeCall(method, input);
+    const responsePromise = resultPromise.then((result) => result.output);
+    const statusPromise = resultPromise.then(() => ({ code: "OK", detail: "" }));
+    const trailersPromise = resultPromise.then((result) => result.trailers);
 
     return {
       response: responsePromise,
@@ -223,7 +247,7 @@ export class WailsTransport implements RpcTransport {
     };
   }
 
-  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<O> {
+  private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<{ output: O; trailers: RpcMetadata }> {
     try {
       console.log(`Executing Wails ${this.mode} call for method:`, method.name);
       if (this.mode === "target") {
@@ -253,6 +277,7 @@ export class WailsTransport implements RpcTransport {
       }
 
       let responseBase64: unknown;
+      const trailers: RpcMetadata = {};
 
       if (this.mode === "api") {
         console.log("Calling Wails Twirp with method:", method.name);
@@ -269,6 +294,15 @@ export class WailsTransport implements RpcTransport {
           throw upstreamError(result);
         }
 
+        // Mirror an in-process app's upstream headers as trailers so the client
+        // surfaces them the same way as the web gRPC-Web transport does.
+        if (result.requestHeaders && Object.keys(result.requestHeaders).length > 0) {
+          trailers[UPSTREAM_REQUEST_HEADERS_TRAILER] = JSON.stringify(result.requestHeaders);
+        }
+        if (result.responseHeaders && Object.keys(result.responseHeaders).length > 0) {
+          trailers[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
+        }
+
         responseBase64 = result.body;
       }
 
@@ -279,7 +313,7 @@ export class WailsTransport implements RpcTransport {
 
       const output = method.O.fromBinary(responseBytes);
       console.log(`Wails ${this.mode} output:`, output);
-      return output;
+      return { output, trailers };
     } catch (error) {
       console.error(`Wails ${this.mode} call failed:`, error);
       if (error instanceof UpstreamError) {

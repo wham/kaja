@@ -3,6 +3,7 @@ package grpc
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,9 +13,17 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps"
 )
 
+// Trailer keys carrying the headers an in-process app exchanged with its
+// upstream service, each a JSON object of header name to value. The client
+// surfaces them in its Headers view alongside the transport headers.
+const (
+	upstreamRequestHeadersTrailer  = "kaja-upstream-request-headers"
+	upstreamResponseHeadersTrailer = "kaja-upstream-response-headers"
+)
+
 // AppInvoker invokes an in-process app method given the de-framed request message
-// and returns the response message (both unframed protobuf bytes).
-type AppInvoker func(method string, message []byte, headers map[string]string) ([]byte, error)
+// and returns the invocation result (response message plus any upstream headers).
+type AppInvoker func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error)
 
 // ServeAppGRPCWeb handles a gRPC-Web request targeting an in-process app: it
 // de-frames the request message, invokes the app, and writes a gRPC-Web framed
@@ -32,21 +41,56 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 
 	w.Header().Set("Content-Type", "application/grpc-web-text")
 
-	response, err := invoke(method, message, headers)
+	result, err := invoke(method, message, headers)
 	if err != nil {
 		slog.Error("App invocation failed", "method", method, "error", err)
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			// An upstream HTTP failure maps to the closest gRPC status; the raw
-			// response body rides in a trailer the client shows alongside it.
-			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), map[string]string{"upstream-body": string(upstream.Body)})
+			// response body and the exchanged headers ride in trailers the client
+			// shows alongside it (a 401 is exactly when the headers matter).
+			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
+			trailers["upstream-body"] = string(upstream.Body)
+			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), trailers)
 			return
 		}
 		// gRPC status 2 = UNKNOWN; the browser surfaces grpc-message as the error.
 		writeGRPCWebText(w, nil, 2, err.Error(), nil)
 		return
 	}
-	writeGRPCWebText(w, response, 0, "", nil)
+	writeGRPCWebText(w, result.Body, 0, "", upstreamHeaderTrailers(result.RequestHeaders, result.ResponseHeaders))
+}
+
+// upstreamHeaderTrailers encodes an app's exchanged upstream headers as gRPC-Web
+// trailers, one JSON object each. Absent maps contribute no trailer; the result
+// is always non-nil so callers can add their own trailers to it.
+func upstreamHeaderTrailers(requestHeaders, responseHeaders map[string]string) map[string]string {
+	trailers := map[string]string{}
+	if encoded, ok := encodeHeaderTrailer(requestHeaders); ok {
+		trailers[upstreamRequestHeadersTrailer] = encoded
+	}
+	if encoded, ok := encodeHeaderTrailer(responseHeaders); ok {
+		trailers[upstreamResponseHeadersTrailer] = encoded
+	}
+	return trailers
+}
+
+// encodeHeaderTrailer JSON-encodes a header map for a trailer value without
+// HTML-escaping, so header names/values (which may contain <, >, &) stay
+// readable. Returns false for an empty map so no trailer is emitted.
+func encodeHeaderTrailer(headers map[string]string) (string, bool) {
+	if len(headers) == 0 {
+		return "", false
+	}
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(headers); err != nil {
+		return "", false
+	}
+	// Encoder.Encode appends a trailing newline; drop it to keep the trailer on
+	// a single line.
+	return strings.TrimRight(buf.String(), "\n"), true
 }
 
 // grpcStatusFromHTTP maps an upstream HTTP status code to the closest gRPC
