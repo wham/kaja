@@ -1,4 +1,4 @@
-import "./generated/tailwind.generated.css";
+import "../build/tailwind.css";
 import * as monaco from "monaco-editor";
 import React from "react";
 import ReactDOM from "react-dom/client";

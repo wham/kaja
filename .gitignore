@@ -8,4 +8,4 @@
 /ui/package.json.md5
 
 # Tailwind generated CSS
-/ui/src/generated/
+/ui/build/
