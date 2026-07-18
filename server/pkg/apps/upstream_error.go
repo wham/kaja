@@ -18,9 +18,9 @@ type UpstreamError struct {
 	StatusText string // e.g. "Bad Request"
 	Message    string // human summary extracted from the response body
 	Body       []byte // raw response body, truncated
-	// RequestHeaders/ResponseHeaders are the headers exchanged with the upstream
-	// (sensitive values redacted), surfaced in the client's Headers view even
-	// though the call failed. A 401 is exactly when they matter most.
+	// RequestHeaders/ResponseHeaders are the headers exchanged with the upstream,
+	// surfaced in the client's Headers view even though the call failed. A 401 is
+	// exactly when they matter most.
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
 }

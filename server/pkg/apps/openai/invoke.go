@@ -125,10 +125,10 @@ func (in *instance) buildRequestBody(reqMsg *dynamicpb.Message) ([]byte, error) 
 }
 
 // call POSTs the request body to the configured endpoint, returning the raw
-// response body, HTTP status code, and the headers exchanged with the upstream
-// (sensitive values redacted). An error is returned only for transport failures
-// (the upstream could not be reached); HTTP error responses are returned with
-// their status so the caller can shape them into a structured error.
+// response body, HTTP status code, and the headers exchanged with the upstream.
+// An error is returned only for transport failures (the upstream could not be
+// reached); HTTP error responses are returned with their status so the caller
+// can shape them into a structured error.
 func (in *instance) call(body []byte, headers map[string]string) ([]byte, int, map[string]string, map[string]string, error) {
 	httpReq, err := http.NewRequest(http.MethodPost, in.endpoint, bytes.NewReader(body))
 	if err != nil {

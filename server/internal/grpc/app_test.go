@@ -81,13 +81,13 @@ func TestServeAppGRPCWebUpstreamHeaders(t *testing.T) {
 	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
 		return &apps.InvokeResult{
 			Body:            []byte{9},
-			RequestHeaders:  map[string]string{"Authorization": apps.RedactedValue},
+			RequestHeaders:  map[string]string{"Authorization": "Bearer secret"},
 			ResponseHeaders: map[string]string{"Content-Type": "application/json"},
 		}, nil
 	})
 
 	_, trailers := parseGRPCWebText(t, w.Body.String())
-	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"<redacted>"}`) {
+	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
 		t.Errorf("trailers = %q, want request-headers trailer", trailers)
 	}
 	if !strings.Contains(trailers, `kaja-upstream-response-headers: {"Content-Type":"application/json"}`) {
@@ -122,7 +122,7 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	body := `{"title":"Bad Request","detail":"request body has an error"}`
 	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
 		return nil, apps.NewUpstreamError(http.MethodPost, "https://api.example.com/v1/events", http.StatusBadRequest, []byte(body)).
-			WithHeaders(map[string]string{"Authorization": apps.RedactedValue}, map[string]string{"Content-Type": "application/json"})
+			WithHeaders(map[string]string{"Authorization": "Bearer secret"}, map[string]string{"Content-Type": "application/json"})
 	})
 
 	message, trailers := parseGRPCWebText(t, w.Body.String())
@@ -140,7 +140,7 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	}
 	// The exchanged headers ride along on the error too (a 401/4xx is exactly
 	// when they matter).
-	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"<redacted>"}`) {
+	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
 		t.Errorf("trailers = %q, want request-headers trailer on error", trailers)
 	}
 	if !strings.Contains(trailers, `kaja-upstream-response-headers: {"Content-Type":"application/json"}`) {

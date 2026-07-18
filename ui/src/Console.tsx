@@ -482,7 +482,7 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     >
       {hasUpstream ? (
         <>
-          {groupHeading("Upstream", "Headers Kaja exchanged with the API (sensitive values redacted)")}
+          {groupHeading("Upstream", "Headers Kaja exchanged with the API")}
           {section("Request headers", upstreamRequestHeaders)}
           {section("Response headers", upstreamResponseHeaders)}
           <div style={{ height: 1, background: "var(--borderColor-default)", margin: "0 0 24px" }} />

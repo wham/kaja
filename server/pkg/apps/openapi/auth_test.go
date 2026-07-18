@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -197,14 +198,36 @@ func TestTranscodeSurfacesHeaders(t *testing.T) {
 		t.Fatalf("transcode: %v", err)
 	}
 
-	if got := reqHeaders["Authorization"]; got != apps.RedactedValue {
-		t.Errorf("request Authorization = %q, want %q", got, apps.RedactedValue)
+	if got := reqHeaders["Authorization"]; got != "Bearer secret-token" {
+		t.Errorf("request Authorization = %q, want %q", got, "Bearer secret-token")
 	}
 	if got := reqHeaders["Accept"]; got != "application/json" {
 		t.Errorf("request Accept = %q, want application/json", got)
 	}
 	if got := respHeaders["X-Request-Id"]; got != "req-123" {
 		t.Errorf("response X-Request-Id = %q, want req-123", got)
+	}
+}
+
+// TestTranscodeSurfacesBasicAuthUsername checks that a basic-auth username is
+// sent and shows up in the surfaced request headers as the Basic Authorization
+// header (the shape APIs like Benchling expect, with the key as the username).
+func TestTranscodeSurfacesBasicAuthUsername(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBasic, username: "my-api-key"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, reqHeaders, _, err := in.transcode(binding, []byte(`{}`), nil)
+	if err != nil {
+		t.Fatalf("transcode: %v", err)
+	}
+
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("my-api-key:"))
+	if got := reqHeaders["Authorization"]; got != want {
+		t.Errorf("request Authorization = %q, want %q", got, want)
 	}
 }
 
@@ -227,8 +250,8 @@ func TestTranscodeSurfacesHeadersOnError(t *testing.T) {
 	if !errors.As(err, &upstream) {
 		t.Fatalf("transcode error = %v, want *apps.UpstreamError", err)
 	}
-	if got := upstream.RequestHeaders["Authorization"]; got != apps.RedactedValue {
-		t.Errorf("request Authorization = %q, want %q", got, apps.RedactedValue)
+	if got := upstream.RequestHeaders["Authorization"]; got != "Bearer secret-token" {
+		t.Errorf("request Authorization = %q, want %q", got, "Bearer secret-token")
 	}
 	if got := upstream.ResponseHeaders["Www-Authenticate"]; got != "Bearer" {
 		t.Errorf("response Www-Authenticate = %q, want Bearer", got)

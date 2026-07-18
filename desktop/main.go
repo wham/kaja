@@ -413,8 +413,7 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 
 // TargetResult holds the response from a Target call, including HTTP status for
 // Twirp. RequestHeaders/ResponseHeaders, when set, are the headers an in-process
-// app exchanged with its upstream service (sensitive values redacted), surfaced
-// in the client's Headers view.
+// app exchanged with its upstream service, surfaced in the client's Headers view.
 type TargetResult struct {
 	Body            []byte            `json:"body"`
 	StatusCode      int               `json:"statusCode"`
