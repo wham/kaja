@@ -78,6 +78,18 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			password: "p",
 			wantKind: authBasic,
 		},
+		{
+			// Benchling-style: oauth is the first document security requirement,
+			// but a username means the user wants the basic API-key scheme.
+			name: "username selects basic over oauth-first security",
+			schemes: map[string]*securityScheme{
+				"oAuth":           {Type: "oauth2"},
+				"basicApiKeyAuth": {Type: "http", Scheme: "basic"},
+			},
+			security: []map[string][]string{{"oAuth": {}}, {"basicApiKeyAuth": {}}},
+			username: "my-key",
+			wantKind: authBasic,
+		},
 	}
 
 	for _, tc := range tests {
