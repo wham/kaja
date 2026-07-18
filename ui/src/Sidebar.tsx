@@ -701,14 +701,12 @@ export function Sidebar({
         })}
       </div>
       {/* Cursor-anchored context menu for a script. */}
+      <div
+        ref={scriptMenuAnchorRef}
+        style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+      />
       <DropdownMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)}>
-        <DropdownMenuTrigger asChild>
-          <div
-            ref={scriptMenuAnchorRef}
-            style={{ position: "fixed", top: scriptMenu?.top ?? 0, left: scriptMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuContent align="start" anchor={scriptMenuAnchorRef} className="w-48">
           {onPinScript && (
             <DropdownMenuItem
               onSelect={() => {
@@ -742,14 +740,9 @@ export function Sidebar({
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Cursor-anchored context menu for an app. */}
+      <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
-        <DropdownMenuTrigger asChild>
-          <div
-            ref={appMenuAnchorRef}
-            style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuContent align="start" anchor={appMenuAnchorRef} className="w-48">
           <DropdownMenuItem
             onSelect={() => {
               const appName = appMenu?.appName;

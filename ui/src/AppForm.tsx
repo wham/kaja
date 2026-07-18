@@ -1,5 +1,5 @@
 import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "./components/icons";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import { Checkbox } from "./components/ui/checkbox";
 import { FormControl } from "./components/ui/form-control";
 import { IconButton } from "./components/ui/icon-button";
@@ -452,9 +452,9 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Select value={selectedAppValue} onValueChange={handleAppChange}>
+          <Select value={selectedAppValue} onValueChange={(value) => value != null && handleAppChange(value)}>
             <SelectTrigger className="min-w-[200px]">
-              <SelectValue />
+              <SelectValue>{(value) => (value === NEW_APP_VALUE ? "+ New" : (value as string))}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NEW_APP_VALUE}>+ New</SelectItem>
@@ -512,22 +512,20 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                     />
                   ) : parameter.type === "upload" ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Button asChild variant="outline" className={cn("cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-                        <label>
-                          <FileIcon size={16} />
-                          {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
-                          <input
-                            type="file"
-                            accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                            hidden
-                            disabled={readOnly}
-                            onChange={(e) => {
-                              handleUpload(parameter.key, e.target.files?.[0]);
-                              e.target.value = "";
-                            }}
-                          />
-                        </label>
-                      </Button>
+                      <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                        <FileIcon size={16} />
+                        {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                        <input
+                          type="file"
+                          accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                          hidden
+                          disabled={readOnly}
+                          onChange={(e) => {
+                            handleUpload(parameter.key, e.target.files?.[0]);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
                       <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
                         {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
                       </span>

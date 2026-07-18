@@ -1,80 +1,78 @@
-import { Select as SelectPrimitive } from "radix-ui";
+import { Select as BaseSelect } from "@base-ui-components/react/select";
 import { Check, ChevronDown } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-const Select = SelectPrimitive.Root;
-const SelectGroup = SelectPrimitive.Group;
-const SelectValue = SelectPrimitive.Value;
+const Select = BaseSelect.Root;
+const SelectGroup = BaseSelect.Group;
 
-const SelectTrigger = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Trigger>, React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>>(
+function SelectValue(props: React.ComponentProps<typeof BaseSelect.Value>) {
+  return <BaseSelect.Value {...props} />;
+}
+
+const SelectTrigger = React.forwardRef<React.ElementRef<typeof BaseSelect.Trigger>, React.ComponentPropsWithoutRef<typeof BaseSelect.Trigger>>(
   ({ className, children, ...props }, ref) => (
-    <SelectPrimitive.Trigger
+    <BaseSelect.Trigger
       ref={ref}
       className={cn(
-        "flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+        "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
+      <BaseSelect.Icon>
         <ChevronDown className="h-4 w-4 opacity-50" />
-      </SelectPrimitive.Icon>
-    </SelectPrimitive.Trigger>
+      </BaseSelect.Icon>
+    </BaseSelect.Trigger>
   ),
 );
-SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
+SelectTrigger.displayName = "SelectTrigger";
 
-const SelectContent = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Content>, React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>>(
-  ({ className, children, position = "popper", ...props }, ref) => (
-    <SelectPrimitive.Portal>
-      <SelectPrimitive.Content
-        ref={ref}
-        className={cn(
-          "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-          position === "popper" && "data-[side=bottom]:translate-y-1",
-          className,
-        )}
-        position={position}
-        {...props}
-      >
-        <SelectPrimitive.Viewport className={cn("p-1", position === "popper" && "w-full min-w-[var(--radix-select-trigger-width)]")}>
+function SelectContent({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof BaseSelect.Popup>) {
+  return (
+    <BaseSelect.Portal>
+      <BaseSelect.Positioner className="z-50 outline-none" sideOffset={4}>
+        <BaseSelect.Popup
+          className={cn(
+            "max-h-96 min-w-[8rem] origin-[var(--transform-origin)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
+            className,
+          )}
+          {...props}
+        >
           {children}
-        </SelectPrimitive.Viewport>
-      </SelectPrimitive.Content>
-    </SelectPrimitive.Portal>
-  ),
-);
-SelectContent.displayName = SelectPrimitive.Content.displayName;
+        </BaseSelect.Popup>
+      </BaseSelect.Positioner>
+    </BaseSelect.Portal>
+  );
+}
 
-const SelectLabel = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Label>, React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>>(
-  ({ className, ...props }, ref) => (
-    <SelectPrimitive.Label ref={ref} className={cn("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />
-  ),
-);
-SelectLabel.displayName = SelectPrimitive.Label.displayName;
+function SelectLabel({ className, ...props }: React.ComponentPropsWithoutRef<typeof BaseSelect.GroupLabel>) {
+  return <BaseSelect.GroupLabel className={cn("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />;
+}
 
-const SelectItem = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Item>, React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>>(
-  ({ className, children, ...props }, ref) => (
-    <SelectPrimitive.Item
-      ref={ref}
+interface SelectItemProps extends React.ComponentPropsWithoutRef<typeof BaseSelect.Item> {
+  value: string;
+}
+
+function SelectItem({ className, children, ...props }: SelectItemProps) {
+  return (
+    <BaseSelect.Item
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
     >
       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
+        <BaseSelect.ItemIndicator>
           <Check className="h-4 w-4" />
-        </SelectPrimitive.ItemIndicator>
+        </BaseSelect.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-    </SelectPrimitive.Item>
-  ),
-);
-SelectItem.displayName = SelectPrimitive.Item.displayName;
+      <BaseSelect.ItemText>{children}</BaseSelect.ItemText>
+    </BaseSelect.Item>
+  );
+}
 
 export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectLabel, SelectItem };
