@@ -14,7 +14,7 @@
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
 - Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
 - Prefer the existing primitives in `ui/src/components/` and Tailwind utilities; add a new shared primitive only when a pattern repeats across screens.
-- Icons come from `ui/src/components/icons.ts` (a lucide-react map that keeps the old icon names). Use `cn()` from `ui/src/lib/utils.ts` to compose class names.
+- Icons come from `ui/src/components/icons.ts` (a lucide-react map that keeps the old icon names). Use `cn()` from `ui/src/cn.ts` to compose class names.
 - Ask me before adding a new shared UI primitive; one-off compositions of existing primitives are fine.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
@@ -214,6 +214,6 @@ off `data-starting-style` / `data-ending-style`.
 ### Conventions
 
 - Icons: import from `ui/src/components/icons.ts` (a lucide-react map keeping the old icon names, e.g. `TrashIcon`). Standalone icons take a numeric `size` prop.
-- Class names: compose with `cn()` from `ui/src/lib/utils.ts` (clsx + tailwind-merge).
+- Class names: compose with `cn()` from `ui/src/cn.ts` (clsx + tailwind-merge).
 - Theme tokens: shadcn CSS variables plus a Primer-name alias bridge live in `ui/src/tailwind.css`. Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately via `vs`/`vs-dark`.
 - Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `ui/build/tailwind.css` (gitignored) is imported by `main.tsx` and folded into `main.css`.

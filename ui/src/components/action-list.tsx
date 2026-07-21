@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "../lib/utils";
+import { cn } from "../cn";
 
 // Stand-in for Primer's standalone ActionList (used as a selectable list, not a
 // dropdown menu). Item lays its children out with flex-wrap so a block

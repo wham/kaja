@@ -230,6 +230,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 <Button
                   onClick={onRun}
                   size="sm"
+                  className="bg-[#1f883d] text-white hover:bg-[#1a7f37]"
                   style={{
                     height: "22px",
                     paddingLeft: "7px",

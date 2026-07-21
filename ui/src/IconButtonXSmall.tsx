@@ -1,7 +1,7 @@
 import React from "react";
 
 import type { Icon } from "./components/icons";
-import { cn } from "./lib/utils";
+import { cn } from "./cn";
 
 interface IconButtonXSmallProps extends React.ComponentPropsWithoutRef<"button"> {
   icon: Icon;
