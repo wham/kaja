@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "../lib/utils";
+import { cn } from "../cn";
 
 function Blankslate({ className, children }: { className?: string; children: React.ReactNode }) {
   return <div className={cn("mx-auto flex max-w-md flex-col items-center gap-2 px-6 py-12 text-center", className)}>{children}</div>;

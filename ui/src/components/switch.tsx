@@ -1,7 +1,7 @@
 import { Switch as BaseSwitch } from "@base-ui-components/react/switch";
 import * as React from "react";
 
-import { cn } from "../lib/utils";
+import { cn } from "../cn";
 
 const Switch = React.forwardRef<React.ElementRef<typeof BaseSwitch.Root>, React.ComponentPropsWithoutRef<typeof BaseSwitch.Root>>(
   ({ className, ...props }, ref) => (

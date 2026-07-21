@@ -6,7 +6,7 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./components/select";
-import { cn } from "./lib/utils";
+import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";

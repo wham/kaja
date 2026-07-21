@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "../lib/utils";
+import { cn } from "../cn";
 
 // Minimal stand-in for Primer's FormControl compound component: a labelled
 // field with optional caption and validation message.
