@@ -1,4 +1,4 @@
-import { Blankslate } from "./components/ui/blankslate";
+import { Blankslate } from "./components/blankslate";
 import { RocketIcon } from "./components/icons";
 
 export function GetStartedBlankslate() {

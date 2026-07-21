@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { BeakerIcon } from "./components/icons";
 import { IconButtonXSmall } from "./IconButtonXSmall";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { Switch } from "./components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { Switch } from "./components/switch";
 
 export interface FeaturePreview {
   key: string;

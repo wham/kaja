@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
+import { cn } from "../lib/utils";
 
 const sizePx: Record<string, number> = { small: 16, medium: 32, large: 48 };
 

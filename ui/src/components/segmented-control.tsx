@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
+import { cn } from "../lib/utils";
 
 // Stand-in for Primer's SegmentedControl: a horizontal group of buttons where
 // one is selected. Matches the <SegmentedControl><SegmentedControl.Button

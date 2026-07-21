@@ -1,5 +1,5 @@
-import { ActionList } from "./components/ui/action-list";
-import { Dialog } from "./components/ui/dialog";
+import { ActionList } from "./components/action-list";
+import { Dialog } from "./components/dialog";
 import { useRef } from "react";
 import { appTypes } from "./appTypes";
 import { PreviewPill } from "./Sidebar";

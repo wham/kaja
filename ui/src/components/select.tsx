@@ -2,7 +2,7 @@ import { Select as BaseSelect } from "@base-ui-components/react/select";
 import { Check, ChevronDown } from "lucide-react";
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
+import { cn } from "../lib/utils";
 
 const Select = BaseSelect.Root;
 const SelectGroup = BaseSelect.Group;

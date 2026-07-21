@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
+import { cn } from "../lib/utils";
 
 // A minimal replacement for Primer's TreeView covering what the sidebar uses:
 // controlled expand/collapse, a current (selected) leaf, leading/trailing

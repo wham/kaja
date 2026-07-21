@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Input } from "./components/ui/input";
+import { Input } from "./components/input";
 import { SearchIcon } from "./components/icons";
 import { Method, App, Service } from "./apps";
 

@@ -1,7 +1,7 @@
 import * as React from "react";
 
-import { cn } from "../../lib/utils";
-import type { Icon } from "../icons";
+import { cn } from "../lib/utils";
+import type { Icon } from "./icons";
 import { buttonVariants } from "./button";
 import { SimpleTooltip } from "./tooltip";
 
