@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
-import { IconButton } from "./components/ui/icon-button";
-import { TreeView } from "./components/ui/tree-view";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
+import { IconButton } from "./components/icon-button";
+import { TreeView } from "./components/tree-view";
 import {
   CpuIcon,
   FileCodeIcon,

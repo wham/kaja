@@ -1,4 +1,4 @@
-import { Blankslate } from "./components/ui/blankslate";
+import { Blankslate } from "./components/blankslate";
 import { PlusIcon } from "./components/icons";
 
 interface FirstAppBlankslateProps {

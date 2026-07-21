@@ -1,8 +1,8 @@
 import { PlusIcon, TrashIcon } from "./components/icons";
-import { Button } from "./components/ui/button";
-import { FormControl } from "./components/ui/form-control";
-import { IconButton } from "./components/ui/icon-button";
-import { Input } from "./components/ui/input";
+import { Button } from "./components/button";
+import { FormControl } from "./components/form-control";
+import { IconButton } from "./components/icon-button";
+import { Input } from "./components/input";
 import { useEffect, useState } from "react";
 
 interface VariableRow {

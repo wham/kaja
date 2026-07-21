@@ -1,8 +1,8 @@
 import { EllipsisIcon, PlayIcon, XIcon } from "./components/icons";
-import { Button } from "./components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
-import { IconButton } from "./components/ui/icon-button";
-import { SimpleTooltip } from "./components/ui/tooltip";
+import { Button } from "./components/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
+import { IconButton } from "./components/icon-button";
+import { SimpleTooltip } from "./components/tooltip";
 import { useMediaQuery } from "./useMediaQuery";
 
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";

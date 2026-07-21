@@ -1,6 +1,6 @@
 import { CheckIcon, ChevronRightIcon, XIcon } from "./components/icons";
-import { ActionList } from "./components/ui/action-list";
-import { Spinner } from "./components/ui/spinner";
+import { ActionList } from "./components/action-list";
+import { Spinner } from "./components/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { useState } from "react";
 import { CompilationStatus, App } from "./apps";

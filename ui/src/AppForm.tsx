@@ -1,11 +1,11 @@
 import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "./components/icons";
-import { Button, buttonVariants } from "./components/ui/button";
-import { Checkbox } from "./components/ui/checkbox";
-import { FormControl } from "./components/ui/form-control";
-import { IconButton } from "./components/ui/icon-button";
-import { Input } from "./components/ui/input";
-import { SegmentedControl } from "./components/ui/segmented-control";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./components/ui/select";
+import { Button, buttonVariants } from "./components/button";
+import { Checkbox } from "./components/checkbox";
+import { FormControl } from "./components/form-control";
+import { IconButton } from "./components/icon-button";
+import { Input } from "./components/input";
+import { SegmentedControl } from "./components/segmented-control";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./components/select";
 import { cn } from "./lib/utils";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";

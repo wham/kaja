@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "./components/icons";
-import { Button } from "./components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { SegmentedControl } from "./components/ui/segmented-control";
+import { Button } from "./components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { SegmentedControl } from "./components/segmented-control";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { IconButtonXSmall } from "./IconButtonXSmall";

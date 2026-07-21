@@ -1,8 +1,8 @@
 import * as monaco from "monaco-editor";
 import { useState } from "react";
 import { createRoot, Root } from "react-dom/client";
-import { Button } from "./components/ui/button";
-import { FormControl } from "./components/ui/form-control";
+import { Button } from "./components/button";
+import { FormControl } from "./components/form-control";
 import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
 
 interface TimestampPickerProps {
