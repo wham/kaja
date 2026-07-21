@@ -11,7 +11,7 @@ import (
 	esbuild "github.com/evanw/esbuild/pkg/api"
 )
 
-// tailwindPlugin compiles ui/src/tailwind.css into ui/build/tailwind.css with the
+// tailwindPlugin compiles ui/src/tailwind.css into server/build/tailwind.css with the
 // Tailwind CLI before every esbuild run. esbuild's Go API can't run Tailwind's
 // PostCSS plugin, so we shell out; main.tsx imports the generated file, folding it
 // into main.css. bun (and thus the Tailwind binary) is already a build-time dependency.
@@ -26,7 +26,7 @@ var tailwindPlugin = esbuild.Plugin{
 				"bun",
 				"./node_modules/@tailwindcss/cli/dist/index.mjs",
 				"-i", "src/tailwind.css",
-				"-o", "build/tailwind.css",
+				"-o", "../server/build/tailwind.css",
 				"--minify",
 			)
 			// builder.go always runs with the server/ directory as CWD, so ui is ../ui
