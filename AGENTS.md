@@ -216,4 +216,4 @@ off `data-starting-style` / `data-ending-style`.
 - Icons: import from `ui/src/components/icons.ts` (a lucide-react map keeping the old icon names, e.g. `TrashIcon`). Standalone icons take a numeric `size` prop.
 - Class names: compose with `cn()` from `ui/src/cn.ts` (clsx + tailwind-merge).
 - Theme tokens: shadcn CSS variables plus a Primer-name alias bridge live in `ui/src/tailwind.css`. Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately via `vs`/`vs-dark`.
-- Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `ui/build/tailwind.css` (gitignored) is imported by `main.tsx` and folded into `main.css`.
+- Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx` and folded into `main.css`.
