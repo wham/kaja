@@ -1,14 +1,52 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import type { RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders } from "./appTypes";
-import { MethodCall } from "./kaja";
+import { MethodCall, MethodCallHeaders } from "./kaja";
+import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER, parseUpstreamHeaders } from "./upstreamHeaders";
 import { expandHeaders } from "./variableExpansion";
 import { Client, AppRef, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
 import { isWailsEnvironment } from "./wails";
+
+// collectResponseHeaders folds a call's response headers and trailers onto the
+// method call, routing the upstream-header trailers to their own fields.
+function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, trailers?: RpcMetadata): void {
+  const responseHeaders: MethodCallHeaders = {};
+  const absorb = (meta?: RpcMetadata) => {
+    if (!meta) return;
+    for (const [key, value] of Object.entries(meta)) {
+      if (key === UPSTREAM_REQUEST_HEADERS_TRAILER) {
+        methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
+      } else if (key === UPSTREAM_RESPONSE_HEADERS_TRAILER) {
+        methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
+      } else {
+        responseHeaders[key] = String(value);
+      }
+    }
+  };
+  absorb(headers);
+  absorb(trailers);
+  methodCall.responseHeaders = responseHeaders;
+}
+
+// applyUpstreamHeadersFromError routes the upstream-header trailers carried on a
+// failed call's error metadata to the method call, so the Headers view is still
+// populated on an upstream failure (e.g. a 401). Web errors carry them in the
+// RpcError's trailer meta; the Wails transport mirrors them the same way.
+function applyUpstreamHeadersFromError(methodCall: MethodCall, error: unknown): void {
+  const meta = error && typeof error === "object" ? (error as { meta?: unknown }).meta : undefined;
+  if (!meta || typeof meta !== "object") return;
+  const metaRecord = meta as Record<string, unknown>;
+  if (UPSTREAM_REQUEST_HEADERS_TRAILER in metaRecord) {
+    methodCall.upstreamRequestHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_REQUEST_HEADERS_TRAILER]);
+  }
+  if (UPSTREAM_RESPONSE_HEADERS_TRAILER in metaRecord) {
+    methodCall.upstreamResponseHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_RESPONSE_HEADERS_TRAILER]);
+  }
+}
 
 export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
   const client: Client = { methods: {} };
@@ -101,18 +139,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           methodCall.streamComplete = true;
 
           const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
-          const responseHeaders: { [key: string]: string } = {};
-          if (headers) {
-            for (const [key, value] of Object.entries(headers)) {
-              responseHeaders[key] = String(value);
-            }
-          }
-          if (trailers) {
-            for (const [key, value] of Object.entries(trailers)) {
-              responseHeaders[key] = String(value);
-            }
-          }
-          methodCall.responseHeaders = responseHeaders;
+          collectResponseHeaders(methodCall, headers, trailers);
         } else {
           const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
           methodCall.output = response;
@@ -122,21 +149,11 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           methodCall.outputType = call.method?.O;
 
           // Capture response headers and trailers
-          const responseHeaders: { [key: string]: string } = {};
-          if (headers) {
-            for (const [key, value] of Object.entries(headers)) {
-              responseHeaders[key] = String(value);
-            }
-          }
-          if (trailers) {
-            for (const [key, value] of Object.entries(trailers)) {
-              responseHeaders[key] = String(value);
-            }
-          }
-          methodCall.responseHeaders = responseHeaders;
+          collectResponseHeaders(methodCall, headers, trailers);
         }
       } catch (error: any) {
         methodCall.error = serializeError(error);
+        applyUpstreamHeadersFromError(methodCall, error);
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);

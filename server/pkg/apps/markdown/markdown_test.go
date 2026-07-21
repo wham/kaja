@@ -40,12 +40,12 @@ func invoke(t *testing.T, inst *instance, methodName, requestJSON string) string
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
 	}
-	respBytes, err := inst.Invoke("markdown.Markdown/"+methodName, reqBytes, nil)
+	result, err := inst.Invoke("markdown.Markdown/"+methodName, reqBytes, nil)
 	if err != nil {
 		t.Fatalf("Invoke %q: %v", methodName, err)
 	}
 	resp := dynamicpb.NewMessage(m.output)
-	if err := proto.Unmarshal(respBytes, resp); err != nil {
+	if err := proto.Unmarshal(result.Body, resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 	out, err := protojson.Marshal(resp)

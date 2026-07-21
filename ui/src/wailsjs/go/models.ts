@@ -37,6 +37,8 @@ export namespace main {
     body: number[];
     statusCode: number;
     status: string;
+    requestHeaders?: { [key: string]: string };
+    responseHeaders?: { [key: string]: string };
 
     static createFrom(source: any = {}) {
       return new TargetResult(source);
@@ -47,6 +49,8 @@ export namespace main {
       this.body = source["body"];
       this.statusCode = source["statusCode"];
       this.status = source["status"];
+      this.requestHeaders = source["requestHeaders"];
+      this.responseHeaders = source["responseHeaders"];
     }
   }
 }

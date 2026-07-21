@@ -60,10 +60,20 @@ type OpenResult struct {
 type Instance interface {
 	// Invoke runs the method identified by its Twirp path, e.g.
 	// "openapi.petstore.PetstoreApi/GetPet". request is the proto3-JSON request
-	// body sent by the client and headers are forwarded to the upstream service;
-	// the returned bytes are the proto3-JSON response body. An error is returned
-	// for upstream/transcoding failures.
-	Invoke(methodPath string, request []byte, headers map[string]string) ([]byte, error)
+	// body sent by the client and headers are forwarded to the upstream service.
+	// An error is returned for upstream/transcoding failures.
+	Invoke(methodPath string, request []byte, headers map[string]string) (*InvokeResult, error)
+}
+
+// InvokeResult is the outcome of a single Invoke. Body is the proto3-JSON
+// response body. RequestHeaders/ResponseHeaders, when set, are the headers the
+// app actually exchanged with its upstream service, which the transports
+// surface to the client's Headers view. In-process apps with no upstream hop
+// (e.g. the local Markdown app) leave them empty.
+type InvokeResult struct {
+	Body            []byte
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
 }
 
 // Manager owns the registry of app types and the set of live instances.
@@ -125,7 +135,7 @@ func IsAppTarget(target string) bool {
 }
 
 // Invoke routes a method call to the instance referenced by target.
-func (m *Manager) Invoke(target string, methodPath string, request []byte, headers map[string]string) ([]byte, error) {
+func (m *Manager) Invoke(target string, methodPath string, request []byte, headers map[string]string) (*InvokeResult, error) {
 	u, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("invalid app target %q: %w", target, err)

@@ -53,10 +53,10 @@ func serveText(method string, body string, invoke AppInvoker) *httptest.Response
 func TestServeAppGRPCWebSuccess(t *testing.T) {
 	var gotMethod string
 	var gotMessage []byte
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1, 2, 3}), func(method string, message []byte, headers map[string]string) ([]byte, error) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1, 2, 3}), func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
 		gotMethod = method
 		gotMessage = message
-		return []byte{9, 8, 7}, nil
+		return &apps.InvokeResult{Body: []byte{9, 8, 7}}, nil
 	})
 
 	if gotMethod != "svc/Method" {
@@ -75,8 +75,28 @@ func TestServeAppGRPCWebSuccess(t *testing.T) {
 	}
 }
 
+// TestServeAppGRPCWebUpstreamHeaders locks in that an app's exchanged upstream
+// headers are surfaced as their own JSON trailers alongside the response.
+func TestServeAppGRPCWebUpstreamHeaders(t *testing.T) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return &apps.InvokeResult{
+			Body:            []byte{9},
+			RequestHeaders:  map[string]string{"Authorization": "Bearer secret"},
+			ResponseHeaders: map[string]string{"Content-Type": "application/json"},
+		}, nil
+	})
+
+	_, trailers := parseGRPCWebText(t, w.Body.String())
+	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
+		t.Errorf("trailers = %q, want request-headers trailer", trailers)
+	}
+	if !strings.Contains(trailers, `kaja-upstream-response-headers: {"Content-Type":"application/json"}`) {
+		t.Errorf("trailers = %q, want response-headers trailer", trailers)
+	}
+}
+
 func TestServeAppGRPCWebError(t *testing.T) {
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) ([]byte, error) {
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
 		return nil, fmt.Errorf("upstream 404\nnot found")
 	})
 
@@ -100,8 +120,9 @@ func TestServeAppGRPCWebError(t *testing.T) {
 // upstream body rides in its own trailer.
 func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	body := `{"title":"Bad Request","detail":"request body has an error"}`
-	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) ([]byte, error) {
-		return nil, apps.NewUpstreamError(http.MethodPost, "https://api.example.com/v1/events", http.StatusBadRequest, []byte(body))
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return nil, apps.NewUpstreamError(http.MethodPost, "https://api.example.com/v1/events", http.StatusBadRequest, []byte(body)).
+			WithHeaders(map[string]string{"Authorization": "Bearer secret"}, map[string]string{"Content-Type": "application/json"})
 	})
 
 	message, trailers := parseGRPCWebText(t, w.Body.String())
@@ -116,6 +137,14 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	}
 	if !strings.Contains(trailers, "upstream-body: "+body) {
 		t.Errorf("trailers = %q, want upstream-body trailer", trailers)
+	}
+	// The exchanged headers ride along on the error too (a 401/4xx is exactly
+	// when they matter).
+	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
+		t.Errorf("trailers = %q, want request-headers trailer on error", trailers)
+	}
+	if !strings.Contains(trailers, `kaja-upstream-response-headers: {"Content-Type":"application/json"}`) {
+		t.Errorf("trailers = %q, want response-headers trailer on error", trailers)
 	}
 }
 

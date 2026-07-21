@@ -1,11 +1,15 @@
 package openapi
 
 import (
+	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 func TestResolveAuthFromScheme(t *testing.T) {
@@ -72,6 +76,18 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			name:     "no scheme, basic creds fall back to basic",
 			username: "u",
 			password: "p",
+			wantKind: authBasic,
+		},
+		{
+			// Benchling-style: oauth is the first document security requirement,
+			// but a username means the user wants the basic API-key scheme.
+			name: "username selects basic over oauth-first security",
+			schemes: map[string]*securityScheme{
+				"oAuth":           {Type: "oauth2"},
+				"basicApiKeyAuth": {Type: "http", Scheme: "basic"},
+			},
+			security: []map[string][]string{{"oAuth": {}}, {"basicApiKeyAuth": {}}},
+			username: "my-key",
 			wantKind: authBasic,
 		},
 	}
@@ -169,10 +185,88 @@ func TestTranscodeAuthInjection(t *testing.T) {
 
 			in := &instance{baseURL: srv.URL, client: srv.Client(), auth: tc.auth}
 			binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
-			if _, err := in.transcode(binding, []byte(`{}`), nil); err != nil {
+			if _, _, _, err := in.transcode(binding, []byte(`{}`), nil); err != nil {
 				t.Fatalf("transcode: %v", err)
 			}
 		})
+	}
+}
+
+// TestTranscodeSurfacesHeaders checks that transcode reports the headers it
+// exchanged with the upstream, masking credential-bearing ones while passing
+// plain headers and response headers through.
+func TestTranscodeSurfacesHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-Id", "req-123")
+		io.WriteString(w, `{}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, reqHeaders, respHeaders, err := in.transcode(binding, []byte(`{}`), nil)
+	if err != nil {
+		t.Fatalf("transcode: %v", err)
+	}
+
+	if got := reqHeaders["Authorization"]; got != "Bearer secret-token" {
+		t.Errorf("request Authorization = %q, want %q", got, "Bearer secret-token")
+	}
+	if got := reqHeaders["Accept"]; got != "application/json" {
+		t.Errorf("request Accept = %q, want application/json", got)
+	}
+	if got := respHeaders["X-Request-Id"]; got != "req-123" {
+		t.Errorf("response X-Request-Id = %q, want req-123", got)
+	}
+}
+
+// TestTranscodeSurfacesBasicAuthUsername checks that a basic-auth username is
+// sent and shows up in the surfaced request headers as the Basic Authorization
+// header (the shape APIs like Benchling expect, with the key as the username).
+func TestTranscodeSurfacesBasicAuthUsername(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBasic, username: "my-api-key"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, reqHeaders, _, err := in.transcode(binding, []byte(`{}`), nil)
+	if err != nil {
+		t.Fatalf("transcode: %v", err)
+	}
+
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("my-api-key:"))
+	if got := reqHeaders["Authorization"]; got != want {
+		t.Errorf("request Authorization = %q, want %q", got, want)
+	}
+}
+
+// TestTranscodeSurfacesHeadersOnError checks that a failed (>= 400) upstream call
+// still reports the exchanged headers via the UpstreamError, so the Headers view
+// is populated on a 401.
+func TestTranscodeSurfacesHeadersOnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, `{"message":"unauthorized"}`)
+	}))
+	defer srv.Close()
+
+	in := &instance{baseURL: srv.URL, client: srv.Client(), auth: &auth{kind: authBearer, token: "secret-token"}}
+	binding := &methodBinding{verb: "GET", pathTemplate: "/thing", responseWrap: "object"}
+	_, _, _, err := in.transcode(binding, []byte(`{}`), nil)
+
+	var upstream *apps.UpstreamError
+	if !errors.As(err, &upstream) {
+		t.Fatalf("transcode error = %v, want *apps.UpstreamError", err)
+	}
+	if got := upstream.RequestHeaders["Authorization"]; got != "Bearer secret-token" {
+		t.Errorf("request Authorization = %q, want %q", got, "Bearer secret-token")
+	}
+	if got := upstream.ResponseHeaders["Www-Authenticate"]; got != "Bearer" {
+		t.Errorf("response Www-Authenticate = %q, want Bearer", got)
 	}
 }
 

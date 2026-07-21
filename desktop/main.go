@@ -411,11 +411,15 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	return response, nil
 }
 
-// TargetResult holds the response from a Target call, including HTTP status for Twirp.
+// TargetResult holds the response from a Target call, including HTTP status for
+// Twirp. RequestHeaders/ResponseHeaders, when set, are the headers an in-process
+// app exchanged with its upstream service, surfaced in the client's Headers view.
 type TargetResult struct {
-	Body       []byte `json:"body"`
-	StatusCode int    `json:"statusCode"`
-	Status     string `json:"status"`
+	Body            []byte            `json:"body"`
+	StatusCode      int               `json:"statusCode"`
+	Status          string            `json:"status"`
+	RequestHeaders  map[string]string `json:"requestHeaders,omitempty"`
+	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
 }
 
 // Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
@@ -442,17 +446,28 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 
 	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
 	if apps.IsAppTarget(target) {
-		response, err := a.apps.Invoke(target, method, req, headers)
+		result, err := a.apps.Invoke(target, method, req, headers)
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			// Hand the structured upstream failure to the transport instead of
-			// rejecting the promise with a flat string.
-			return &TargetResult{Body: upstream.JSON(), StatusCode: upstream.Status, Status: upstream.StatusText}, nil
+			// rejecting the promise with a flat string. The exchanged headers ride
+			// along so the Headers view is populated even on a failure (e.g. 401).
+			return &TargetResult{
+				Body:            upstream.JSON(),
+				StatusCode:      upstream.Status,
+				Status:          upstream.StatusText,
+				RequestHeaders:  upstream.RequestHeaders,
+				ResponseHeaders: upstream.ResponseHeaders,
+			}, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		return &TargetResult{Body: response}, nil
+		return &TargetResult{
+			Body:            result.Body,
+			RequestHeaders:  result.RequestHeaders,
+			ResponseHeaders: result.ResponseHeaders,
+		}, nil
 	}
 
 	// Use the transport to determine which handler to use

@@ -80,6 +80,16 @@ func (a *auth) applyRequest(req *http.Request) {
 func resolveAuth(s *spec, token, username, password string) *auth {
 	a := &auth{token: token, username: username, password: password}
 
+	// The credential the user supplied decides the scheme. A username/password is
+	// unambiguously HTTP Basic, so honour it even when the spec's first security
+	// requirement is something else - specs commonly list oauth before an API-key
+	// basic scheme (e.g. Benchling: security [{oAuth}, {basicApiKeyAuth}]), and
+	// the app form's username field means "use Basic auth".
+	if username != "" || password != "" {
+		a.kind = authBasic
+		return a
+	}
+
 	if scheme := pickScheme(s); scheme != nil {
 		switch scheme.Type {
 		case "http":
@@ -98,13 +108,9 @@ func resolveAuth(s *spec, token, username, password string) *auth {
 		}
 	}
 
-	if a.kind == authNone {
-		// No declared scheme: guess from the credentials so the app is still usable.
-		if a.username != "" || a.password != "" {
-			a.kind = authBasic
-		} else if a.token != "" {
-			a.kind = authBearer
-		}
+	if a.kind == authNone && a.token != "" {
+		// No declared scheme: a bare token is sent as a bearer token.
+		a.kind = authBearer
 	}
 	return a
 }
