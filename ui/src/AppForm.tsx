@@ -1,5 +1,12 @@
-import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "@primer/octicons-react";
-import { ActionList, Button, Checkbox, FormControl, Link, SegmentedControl, Select, Stack, Text, TextInput } from "@primer/react";
+import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "./components/icons";
+import { Button, buttonVariants } from "./components/button";
+import { Checkbox } from "./components/checkbox";
+import { FormControl } from "./components/form-control";
+import { IconButton } from "./components/icon-button";
+import { Input } from "./components/input";
+import { SegmentedControl } from "./components/segmented-control";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./components/select";
+import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
@@ -81,7 +88,7 @@ interface VariableSuggestInputProps {
   variables: { [key: string]: string };
   placeholder?: string;
   disabled?: boolean;
-  trailingAction?: React.ComponentProps<typeof TextInput>["trailingAction"];
+  trailingAction?: React.ReactNode;
 }
 
 // A TextInput that suggests the configured variables once the user types "${",
@@ -137,48 +144,43 @@ function VariableSuggestInput({ value, onValueChange, variables, placeholder, di
 
   return (
     <div style={{ position: "relative" }}>
-      <TextInput
-        ref={inputRef}
-        value={value}
-        onChange={(e) => {
-          onValueChange(e.target.value);
-          refreshSuggestion();
-        }}
-        onSelect={refreshSuggestion}
-        onKeyDown={onKeyDown}
-        onBlur={() => setSuggestion(null)}
-        placeholder={placeholder}
-        block
-        disabled={disabled}
-        trailingAction={trailingAction}
-      />
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => {
+            onValueChange(e.target.value);
+            refreshSuggestion();
+          }}
+          onSelect={refreshSuggestion}
+          onKeyDown={onKeyDown}
+          onBlur={() => setSuggestion(null)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={trailingAction ? "pr-9" : undefined}
+        />
+        {trailingAction && <div className="absolute right-1 top-1/2 -translate-y-1/2">{trailingAction}</div>}
+      </div>
       {open && (
         // Keep focus in the input so a click on a suggestion isn't lost to blur.
         <div
           onMouseDown={(e) => e.preventDefault()}
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            minWidth: 320,
-            zIndex: 10,
-            marginTop: 4,
-            background: "var(--overlay-bgColor)",
-            border: "1px solid var(--borderColor-default)",
-            borderRadius: 6,
-            boxShadow: "var(--shadow-floating-small)",
-            maxHeight: 240,
-            overflowY: "auto",
-          }}
+          className="absolute left-0 top-full z-10 mt-1 max-h-60 min-w-80 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
         >
-          <ActionList>
-            {names.map((name, index) => (
-              <ActionList.Item key={name} active={index === highlightIndex} onSelect={() => insert(name)}>
-                {"${" + name + "}"}
-                <ActionList.Description>{variables[name]}</ActionList.Description>
-              </ActionList.Item>
-            ))}
-          </ActionList>
+          {names.map((name, index) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => insert(name)}
+              className={cn(
+                "flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left text-sm",
+                index === highlightIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
+              )}
+            >
+              <span className="font-mono">{"${" + name + "}"}</span>
+              <span className="text-xs text-muted-foreground">{variables[name]}</span>
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -424,8 +426,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   const selectedAppValue = mode === "edit" && initialData?.name ? initialData.name : NEW_APP_VALUE;
 
-  const handleAppChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+  const handleAppChange = (value: string) => {
     setJsonError(null);
     onAppSelect(value === NEW_APP_VALUE ? null : value);
   };
@@ -441,13 +442,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   return (
     <div className="app-form" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
-      <style>{`
-        .app-form select,
-        .app-form span:has(> input:not([type="radio"]):not([type="checkbox"])),
-        .app-form span:has(> select) {
-          background-color: var(--bgColor-muted) !important;
-        }
-      `}</style>
       <div
         style={{
           display: "flex",
@@ -458,22 +452,32 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Select value={selectedAppValue} onChange={handleAppChange} style={{ minWidth: 200 }}>
-            <Select.Option value={NEW_APP_VALUE}>+ New</Select.Option>
-            {allApps.length > 0 && (
-              <Select.OptGroup label="Edit existing">
-                {allApps.map((p) => (
-                  <Select.Option key={p.name} value={p.name}>
-                    {p.name}
-                  </Select.Option>
-                ))}
-              </Select.OptGroup>
-            )}
+          <Select value={selectedAppValue} onValueChange={(value) => value != null && handleAppChange(value)}>
+            <SelectTrigger className="min-w-[200px]">
+              <SelectValue>{(value) => (value === NEW_APP_VALUE ? "+ New" : (value as string))}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NEW_APP_VALUE}>+ New</SelectItem>
+              {allApps.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Edit existing</SelectLabel>
+                  {allApps.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+            </SelectContent>
           </Select>
         </div>
-        <SegmentedControl aria-label="Edit mode" onChange={handleModeChange}>
-          <SegmentedControl.Button selected={editMode === "form"}>Form</SegmentedControl.Button>
-          <SegmentedControl.Button selected={editMode === "json"}>JSON</SegmentedControl.Button>
+        <SegmentedControl aria-label="Edit mode">
+          <SegmentedControl.Button selected={editMode === "form"} onClick={() => handleModeChange(0)}>
+            Form
+          </SegmentedControl.Button>
+          <SegmentedControl.Button selected={editMode === "json"} onClick={() => handleModeChange(1)}>
+            JSON
+          </SegmentedControl.Button>
         </SegmentedControl>
       </div>
 
@@ -490,25 +494,26 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
       <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
         {editMode === "form" ? (
           <div style={{ maxWidth: 600, padding: 16 }}>
-            <Stack direction="vertical" gap="spacious">
-              <FormControl disabled={readOnly}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <FormControl>
                 <FormControl.Label>Name</FormControl.Label>
-                <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" block disabled={readOnly} />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" disabled={readOnly} />
                 {duplicateName && <FormControl.Validation variant="error">An app with this name already exists</FormControl.Validation>}
               </FormControl>
 
               {(definition?.parameters ?? []).map((parameter) => (
-                <FormControl key={parameter.key} disabled={readOnly}>
+                <FormControl key={parameter.key}>
                   <FormControl.Label>{parameter.label}</FormControl.Label>
                   {parameter.type === "boolean" ? (
                     <Checkbox
                       checked={parameters[parameter.key] === "true"}
                       disabled={readOnly}
-                      onChange={(e) => setParameters((prev) => ({ ...prev, [parameter.key]: e.target.checked ? "true" : "" }))}
+                      onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
                     />
                   ) : parameter.type === "upload" ? (
-                    <Stack direction="horizontal" gap="condensed" align="center">
-                      <Button as="label" leadingVisual={FileIcon} disabled={readOnly}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                        <FileIcon size={16} />
                         {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
                         <input
                           type="file"
@@ -520,11 +525,11 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                             e.target.value = "";
                           }}
                         />
-                      </Button>
-                      <Text style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
+                      </label>
+                      <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
                         {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
-                      </Text>
-                    </Stack>
+                      </span>
+                    </div>
                   ) : (
                     <VariableSuggestInput
                       value={parameters[parameter.key] ?? ""}
@@ -534,9 +539,12 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                       disabled={readOnly}
                       trailingAction={
                         (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                          <TextInput.Action
+                          <IconButton
                             icon={parameter.type === "folder" ? FileDirectoryIcon : FileIcon}
                             aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
+                            variant="invisible"
+                            size="small"
+                            tooltip={false}
                             onClick={async () => {
                               const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
                               if (path) {
@@ -554,17 +562,16 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
               ))}
 
               {demo && !readOnly && (
-                <Link
-                  as="button"
+                <button
                   type="button"
                   onClick={fillDemo}
-                  style={{ fontSize: 12, lineHeight: "18px", display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start" }}
+                  className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
                 >
                   <LightBulbIcon size={12} />
                   {demo.label}
-                </Link>
+                </button>
               )}
-            </Stack>
+            </div>
           </div>
         ) : (
           <>
@@ -581,9 +588,11 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
       </div>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
-        <Button onClick={handleCancel}>{readOnly ? "Close" : "Cancel"}</Button>
+        <Button variant="outline" onClick={handleCancel}>
+          {readOnly ? "Close" : "Cancel"}
+        </Button>
         {!readOnly && (
-          <Button variant="primary" onClick={handleSubmit} disabled={!isValid}>
+          <Button onClick={handleSubmit} disabled={!isValid}>
             {submitLabel}
           </Button>
         )}

@@ -1,4 +1,4 @@
-import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "@primer/octicons-react";
+import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "./components/icons";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a
@@ -108,7 +108,8 @@ export const appTypes: AppTypeDefinition[] = [
         type: "url",
         optional: true,
         placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
-        caption: "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app. Credentials below are used to fetch it, so a spec behind a login can be read.",
+        caption:
+          "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app. Credentials below are used to fetch it, so a spec behind a login can be read.",
       },
       {
         key: "specContent",

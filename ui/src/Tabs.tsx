@@ -1,5 +1,9 @@
-import { EllipsisIcon, PlayIcon, XIcon } from "@primer/octicons-react";
-import { ActionList, ActionMenu, Button, IconButton, Tooltip, useResponsiveValue } from "@primer/react";
+import { EllipsisIcon, PlayIcon, XIcon } from "./components/icons";
+import { Button } from "./components/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
+import { IconButton } from "./components/icon-button";
+import { SimpleTooltip } from "./components/tooltip";
+import { useMediaQuery } from "./useMediaQuery";
 
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
 
@@ -26,7 +30,7 @@ export function Tab({ children }: TabProps) {
 }
 
 export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers, onRun }: TabsProps) {
-  const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const isNarrow = useMediaQuery("(max-width: 767px)");
   const overflow = isNarrow ? "auto" : "hidden";
   const tabsHeaderRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -185,6 +189,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                     aria-label={`Close ${tabLabel}`}
                     variant="invisible"
                     size="small"
+                    tooltip={false}
                     className="tab-close-button"
                     style={{
                       padding: 1,
@@ -221,39 +226,34 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
             }}
           >
             {onRun && (
-              <Tooltip text="Run (F5)" direction="s">
+              <SimpleTooltip text="Run (F5)" side="bottom">
                 <Button
-                  leadingVisual={() => <PlayIcon size={14} />}
                   onClick={onRun}
-                  variant="primary"
-                  size="small"
-                  style={
-                    {
-                      "--control-small-gap": "5px",
-                      height: "22px",
-                      paddingLeft: "7px",
-                      paddingRight: "9px",
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      borderRadius: "6px",
-                    } as React.CSSProperties
-                  }
+                  size="sm"
+                  className="bg-[#1f883d] text-white hover:bg-[#1a7f37]"
+                  style={{
+                    height: "22px",
+                    paddingLeft: "7px",
+                    paddingRight: "9px",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    borderRadius: "6px",
+                  }}
                 >
+                  <PlayIcon size={14} />
                   Run
                 </Button>
-              </Tooltip>
+              </SimpleTooltip>
             )}
             {onCloseAll && (
-              <ActionMenu>
-                <ActionMenu.Anchor>
-                  <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" />
-                </ActionMenu.Anchor>
-                <ActionMenu.Overlay>
-                  <ActionList>
-                    <ActionList.Item onSelect={onCloseAll}>Close All</ActionList.Item>
-                  </ActionList>
-                </ActionMenu.Overlay>
-              </ActionMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" tooltip={false} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={onCloseAll}>Close All</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         )}
@@ -289,40 +289,35 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         ))}
       </div>
       {contextMenu.open && (
-        <ActionMenu
+        <DropdownMenu
           open={true}
           onOpenChange={(open) => {
             if (!open) setContextMenu((prev) => ({ ...prev, open: false }));
           }}
         >
-          <ActionMenu.Anchor>
-            <div style={{ position: "fixed", left: contextMenu.anchorPoint.x, top: contextMenu.anchorPoint.y, width: 1, height: 1 }} />
-          </ActionMenu.Anchor>
-          <ActionMenu.Overlay>
-            <ActionList>
-              {onCloseTab && (
-                <ActionList.Item
-                  onSelect={() => {
-                    onCloseTab(contextMenu.tabIndex);
-                    setContextMenu((prev) => ({ ...prev, open: false }));
-                  }}
-                >
-                  Close
-                </ActionList.Item>
-              )}
-              {onCloseOthers && tabCount > 1 && (
-                <ActionList.Item
-                  onSelect={() => {
-                    onCloseOthers(contextMenu.tabIndex);
-                    setContextMenu((prev) => ({ ...prev, open: false }));
-                  }}
-                >
-                  Close Others
-                </ActionList.Item>
-              )}
-            </ActionList>
-          </ActionMenu.Overlay>
-        </ActionMenu>
+          <DropdownMenuContent align="start" anchor={{ getBoundingClientRect: () => new DOMRect(contextMenu.anchorPoint.x, contextMenu.anchorPoint.y, 0, 0) }}>
+            {onCloseTab && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  onCloseTab(contextMenu.tabIndex);
+                  setContextMenu((prev) => ({ ...prev, open: false }));
+                }}
+              >
+                Close
+              </DropdownMenuItem>
+            )}
+            {onCloseOthers && tabCount > 1 && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  onCloseOthers(contextMenu.tabIndex);
+                  setContextMenu((prev) => ({ ...prev, open: false }));
+                }}
+              >
+                Close Others
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );

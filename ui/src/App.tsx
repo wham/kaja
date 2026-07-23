@@ -1,19 +1,13 @@
-import "@primer/primitives/dist/css/functional/themes/dark.css";
-import "@primer/primitives/dist/css/functional/themes/light.css";
-import {
-  BaseStyles,
-  Button,
-  ConfirmationDialog,
-  Dialog,
-  Flash,
-  FormControl,
-  IconButton,
-  TextInput,
-  ThemeProvider,
-  Tooltip,
-  useResponsiveValue,
-} from "@primer/react";
-import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@primer/octicons-react";
+import { useMediaQuery } from "./useMediaQuery";
+import { Alert } from "./components/alert";
+import { Button } from "./components/button";
+import { ConfirmationDialog } from "./components/confirmation-dialog";
+import { Dialog } from "./components/dialog";
+import { FormControl } from "./components/form-control";
+import { IconButton } from "./components/icon-button";
+import { Input } from "./components/input";
+import { SimpleTooltip } from "./components/tooltip";
+import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "./components/icons";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -275,7 +269,7 @@ export function App() {
   }, []);
 
   // Responsive layout: narrow (mobile) allows scrolling, regular/wide (desktop) is fixed
-  const isNarrow = useResponsiveValue({ narrow: true, regular: false, wide: false }, false);
+  const isNarrow = useMediaQuery("(max-width: 767px)");
   const isDesktopMac = isWailsEnvironment() && navigator.platform.startsWith("Mac");
   const overflow = isNarrow ? "auto" : "hidden";
   const sidebarMinWidth = isNarrow ? 250 : 100;
@@ -527,6 +521,9 @@ export function App() {
   useEffect(() => {
     monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
     document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+    // Drive the shadcn theme tokens. The class goes on <html> so Radix portals
+    // (rendered into <body>) are themed too.
+    document.documentElement.classList.toggle("dark", colorMode === "night");
   }, [colorMode]);
 
   useEffect(() => {
@@ -1373,309 +1370,308 @@ export function App() {
   const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
 
   return (
-    <ThemeProvider colorMode={colorMode}>
-      <BaseStyles>
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow,
-            background: "var(--bgColor-default)",
-            WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
-            overscrollBehavior: isNarrow ? "contain" : "none",
-          }}
-        >
-          <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-            {!sidebarCollapsed && (
-              <div
-                style={{
-                  width: isNarrow ? 250 : sidebarWidth,
-                  minWidth: sidebarMinWidth,
-                  maxWidth: 600,
+    <>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow,
+          background: "var(--bgColor-default)",
+          color: "var(--fgColor-default)",
+          WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
+          overscrollBehavior: isNarrow ? "contain" : "none",
+        }}
+      >
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          {!sidebarCollapsed && (
+            <div
+              style={{
+                width: isNarrow ? 250 : sidebarWidth,
+                minWidth: sidebarMinWidth,
+                maxWidth: 600,
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 0,
+                overflow: "hidden",
+              }}
+            >
+              <Sidebar
+                apps={apps}
+                scripts={scripts}
+                canDeleteApps={configuration?.system?.canUpdateConfiguration ?? false}
+                onSelect={onMethodSelect}
+                onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
+                onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
+                onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
+                onPinScript={isDesktopMac ? onPinScript : undefined}
+                pinnedScriptPath={pinnedScriptPath}
+                currentMethod={selectedMethod}
+                currentScriptPath={activeScriptPath}
+                scrollToMethod={scrollToMethod}
+                onCompilerClick={onCompilerClick}
+                onNewAppClick={onNewAppClick}
+                onVariablesClick={previewScripts ? onVariablesClick : undefined}
+                autoExpandApp={autoExpandApp}
+                reserveTrafficLights={isDesktopMac}
+                onEditApp={onEditApp}
+                onDeleteApp={onDeleteApp}
+              />
+            </div>
+          )}
+          <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
+            <div
+              style={
+                {
+                  height: 30,
                   display: "flex",
-                  flexDirection: "column",
+                  alignItems: "center",
+                  borderBottom: "1px solid var(--borderColor-muted)",
+                  background: "var(--bgColor-default)",
                   flexShrink: 0,
-                  overflow: "hidden",
-                }}
-              >
-                <Sidebar
-                  apps={apps}
-                  scripts={scripts}
-                  canDeleteApps={configuration?.system?.canUpdateConfiguration ?? false}
-                  onSelect={onMethodSelect}
-                  onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
-                  onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
-                  onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
-                  onPinScript={isDesktopMac ? onPinScript : undefined}
-                  pinnedScriptPath={pinnedScriptPath}
-                  currentMethod={selectedMethod}
-                  currentScriptPath={activeScriptPath}
-                  scrollToMethod={scrollToMethod}
-                  onCompilerClick={onCompilerClick}
-                  onNewAppClick={onNewAppClick}
-                  onVariablesClick={previewScripts ? onVariablesClick : undefined}
-                  autoExpandApp={autoExpandApp}
-                  reserveTrafficLights={isDesktopMac}
-                  onEditApp={onEditApp}
-                  onDeleteApp={onDeleteApp}
-                />
+                  "--wails-draggable": "drag",
+                } as React.CSSProperties
+              }
+            >
+              <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
+                <div
+                  onClick={() => setIsSearchOpen(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "2px 12px",
+                    fontSize: 12,
+                    color: "var(--fgColor-muted)",
+                    backgroundColor: "var(--bgColor-muted)",
+                    border: "1px solid var(--borderColor-default)",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    flexShrink: 0,
+                  }}
+                >
+                  {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+                    if (isWailsEnvironment()) {
+                      BrowserOpenURL(url);
+                    } else {
+                      window.open(url, "_blank");
+                    }
+                  }}
+                  style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
+                >
+                  <CommentDiscussionIcon size={16} />
+                  Feedback
+                </Button>
               </div>
-            )}
-            <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
               <div
                 style={
                   {
-                    height: 30,
+                    flex: 1,
+                    minWidth: 0,
                     display: "flex",
-                    alignItems: "center",
-                    borderBottom: "1px solid var(--borderColor-muted)",
-                    background: "var(--bgColor-default)",
-                    flexShrink: 0,
-                    "--wails-draggable": "drag",
+                    justifyContent: "flex-end",
+                    paddingRight: 8,
+                    gap: 2,
+                    "--wails-draggable": "no-drag",
                   } as React.CSSProperties
                 }
               >
-                <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                  <div
-                    onClick={() => setIsSearchOpen(true)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "2px 12px",
-                      fontSize: 12,
-                      color: "var(--fgColor-muted)",
-                      backgroundColor: "var(--bgColor-muted)",
-                      border: "1px solid var(--borderColor-default)",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      userSelect: "none",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
-                  </div>
-                  <Button
-                    leadingVisual={CommentDiscussionIcon}
-                    variant="invisible"
-                    size="small"
-                    onClick={() => {
-                      const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
-                      if (isWailsEnvironment()) {
-                        BrowserOpenURL(url);
-                      } else {
-                        window.open(url, "_blank");
-                      }
-                    }}
-                    style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
-                  >
-                    Feedback
-                  </Button>
-                </div>
-                <div
-                  style={
-                    {
-                      flex: 1,
-                      minWidth: 0,
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      paddingRight: 8,
-                      gap: 2,
-                      "--wails-draggable": "no-drag",
-                    } as React.CSSProperties
+                <SimpleTooltip
+                  text={
+                    sidebarCollapsed
+                      ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                      : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
                   }
+                  side="bottom"
                 >
-                  <Tooltip
-                    text={
-                      sidebarCollapsed
-                        ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                        : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                    }
-                    direction="s"
-                  >
-                    <IconButton
-                      icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
-                      aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                      size="small"
-                      variant="invisible"
-                    />
-                  </Tooltip>
-                  <Tooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} direction="s">
-                    <IconButton
-                      icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
-                      aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
-                      onClick={onToggleEditorLayout}
-                      size="small"
-                      variant="invisible"
-                    />
-                  </Tooltip>
-                </div>
+                  <IconButton
+                    icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
+                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                    onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                    size="small"
+                    variant="invisible"
+                    tooltip={false}
+                  />
+                </SimpleTooltip>
+                <SimpleTooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
+                  <IconButton
+                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
+                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
+                    onClick={onToggleEditorLayout}
+                    size="small"
+                    variant="invisible"
+                    tooltip={false}
+                  />
+                </SimpleTooltip>
               </div>
-              {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
-              {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
-              {tabs.length > 0 && (
-                <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
-                  <div
-                    style={{
-                      height: isActiveTaskTab && !isHorizontalLayout ? editorHeight : undefined,
-                      width: isActiveTaskTab && isHorizontalLayout ? editorWidth : undefined,
-                      flexGrow: isActiveTaskTab ? 0 : 1,
-                      flexShrink: 0,
-                      flexBasis: isActiveTaskTab ? "auto" : 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      minHeight: 0,
-                      minWidth: 0,
-                    }}
-                  >
-                    <Tabs
-                      activeTabIndex={activeTabIndex}
-                      onSelectTab={onSelectTab}
-                      onCloseTab={onCloseTab}
-                      onCloseAll={onCloseAll}
-                      onCloseOthers={onCloseOthers}
-                      onRun={isActiveTaskTab ? onRunActiveTab : undefined}
-                    >
-                      {tabs.map((tab, index) => {
-                        if (tab.type === "compiler") {
-                          return (
-                            <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                              <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} />
-                            </Tab>
-                          );
-                        }
-
-                        if (tab.type === "task") {
-                          return (
-                            <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                              <Task
-                                model={tab.model}
-                                onGoToDefinition={onGoToDefinition}
-                                onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
-                                viewState={tab.viewState}
-                              />
-                            </Tab>
-                          );
-                        }
-
-                        if (tab.type === "script") {
-                          return (
-                            <Tab tabId={tab.id} tabLabel={tab.script.name} key={tab.id}>
-                              <Task
-                                model={tab.model}
-                                onGoToDefinition={onGoToDefinition}
-                                onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
-                                viewState={tab.viewState}
-                              />
-                            </Tab>
-                          );
-                        }
-
-                        if (tab.type === "definition") {
-                          return (
-                            <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
-                              <Definition
-                                model={tab.model}
-                                onGoToDefinition={onGoToDefinition}
-                                startLineNumber={tab.startLineNumber}
-                                startColumn={tab.startColumn}
-                              />
-                            </Tab>
-                          );
-                        }
-
-                        if (tab.type === "appForm") {
-                          const label = getAppFormTabLabel(tab);
-                          return (
-                            <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
-                              <AppForm
-                                mode={tab.mode}
-                                initialData={tab.initialData}
-                                allApps={configuration?.apps ?? []}
-                                variables={configuration?.variables ?? {}}
-                                readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                                onSubmit={onAppFormSubmit}
-                                onCancel={onAppFormCancel}
-                                onAppSelect={onAppFormSelect}
-                              />
-                            </Tab>
-                          );
-                        }
-
-                        if (tab.type === "variables") {
-                          return (
-                            <Tab tabId={tab.id} tabLabel="Variables" key={tab.id}>
-                              <Variables
-                                variables={configuration?.variables ?? {}}
-                                readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                                onSubmit={onVariablesSubmit}
-                                onCancel={onVariablesCancel}
-                              />
-                            </Tab>
-                          );
-                        }
-
-                        throw new Error("Unknown tab type");
-                      })}
-                    </Tabs>
-                  </div>
-                  {isActiveTaskTab && (
-                    <>
-                      <Gutter
-                        orientation={isHorizontalLayout ? "vertical" : "horizontal"}
-                        onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize}
-                      />
-                      <div
-                        style={{
-                          flex: 1,
-                          minHeight: isHorizontalLayout ? 0 : 100,
-                          minWidth: isHorizontalLayout ? 100 : 0,
-                          display: "flex",
-                          flexDirection: "column",
-                        }}
-                      >
-                        <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
+            {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
+            {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
+            {tabs.length > 0 && (
+              <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
+                <div
+                  style={{
+                    height: isActiveTaskTab && !isHorizontalLayout ? editorHeight : undefined,
+                    width: isActiveTaskTab && isHorizontalLayout ? editorWidth : undefined,
+                    flexGrow: isActiveTaskTab ? 0 : 1,
+                    flexShrink: 0,
+                    flexBasis: isActiveTaskTab ? "auto" : 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: 0,
+                    minWidth: 0,
+                  }}
+                >
+                  <Tabs
+                    activeTabIndex={activeTabIndex}
+                    onSelectTab={onSelectTab}
+                    onCloseTab={onCloseTab}
+                    onCloseAll={onCloseAll}
+                    onCloseOthers={onCloseOthers}
+                    onRun={isActiveTaskTab ? onRunActiveTab : undefined}
+                  >
+                    {tabs.map((tab, index) => {
+                      if (tab.type === "compiler") {
+                        return (
+                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
+                            <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} />
+                          </Tab>
+                        );
+                      }
+
+                      if (tab.type === "task") {
+                        return (
+                          <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
+                            <Task
+                              model={tab.model}
+                              onGoToDefinition={onGoToDefinition}
+                              onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                              viewState={tab.viewState}
+                            />
+                          </Tab>
+                        );
+                      }
+
+                      if (tab.type === "script") {
+                        return (
+                          <Tab tabId={tab.id} tabLabel={tab.script.name} key={tab.id}>
+                            <Task
+                              model={tab.model}
+                              onGoToDefinition={onGoToDefinition}
+                              onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                              viewState={tab.viewState}
+                            />
+                          </Tab>
+                        );
+                      }
+
+                      if (tab.type === "definition") {
+                        return (
+                          <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
+                            <Definition
+                              model={tab.model}
+                              onGoToDefinition={onGoToDefinition}
+                              startLineNumber={tab.startLineNumber}
+                              startColumn={tab.startColumn}
+                            />
+                          </Tab>
+                        );
+                      }
+
+                      if (tab.type === "appForm") {
+                        const label = getAppFormTabLabel(tab);
+                        return (
+                          <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                            <AppForm
+                              mode={tab.mode}
+                              initialData={tab.initialData}
+                              allApps={configuration?.apps ?? []}
+                              variables={configuration?.variables ?? {}}
+                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              onSubmit={onAppFormSubmit}
+                              onCancel={onAppFormCancel}
+                              onAppSelect={onAppFormSelect}
+                            />
+                          </Tab>
+                        );
+                      }
+
+                      if (tab.type === "variables") {
+                        return (
+                          <Tab tabId={tab.id} tabLabel="Variables" key={tab.id}>
+                            <Variables
+                              variables={configuration?.variables ?? {}}
+                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              onSubmit={onVariablesSubmit}
+                              onCancel={onVariablesCancel}
+                            />
+                          </Tab>
+                        );
+                      }
+
+                      throw new Error("Unknown tab type");
+                    })}
+                  </Tabs>
+                </div>
+                {isActiveTaskTab && (
+                  <>
+                    <Gutter orientation={isHorizontalLayout ? "vertical" : "horizontal"} onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize} />
+                    <div
+                      style={{
+                        flex: 1,
+                        minHeight: isHorizontalLayout ? 0 : 100,
+                        minWidth: isHorizontalLayout ? 100 : 0,
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <StatusBar
-            colorMode={colorMode}
-            onToggleColorMode={onToggleColorMode}
-            gitRef={configuration?.system?.gitRef}
-            buildNumber={configuration?.system?.buildNumber}
-            featurePreviews={featurePreviews}
-            onToggleFeaturePreview={onToggleFeaturePreview}
-            mcpInfo={previewMcp ? mcpInfo : undefined}
-          />
         </div>
-        <SearchPopup isOpen={isSearchOpen} apps={apps} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
-        {saveAs && (
-          <Dialog
-            title="Save as script"
-            width="medium"
-            onClose={() => {
-              setSaveAs(null);
-              setSaveAsError(undefined);
-            }}
-            footerButtons={[
-              { content: "Cancel", onClick: () => setSaveAs(null) },
-              { content: "Save", buttonType: "primary", onClick: onConfirmSaveAsScript },
-            ]}
-          >
-            <FormControl>
-              <FormControl.Label>Name</FormControl.Label>
-              <TextInput
-                block
+        <StatusBar
+          colorMode={colorMode}
+          onToggleColorMode={onToggleColorMode}
+          gitRef={configuration?.system?.gitRef}
+          buildNumber={configuration?.system?.buildNumber}
+          featurePreviews={featurePreviews}
+          onToggleFeaturePreview={onToggleFeaturePreview}
+          mcpInfo={previewMcp ? mcpInfo : undefined}
+        />
+      </div>
+      <SearchPopup isOpen={isSearchOpen} apps={apps} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
+      {saveAs && (
+        <Dialog
+          title="Save as script"
+          width="medium"
+          onClose={() => {
+            setSaveAs(null);
+            setSaveAsError(undefined);
+          }}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setSaveAs(null) },
+            { content: "Save", buttonType: "primary", onClick: onConfirmSaveAsScript },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <div className="relative">
+              <Input
                 autoFocus
-                trailingVisual=".ts"
+                className="pr-9"
                 value={saveAs.name}
                 onChange={(e) => setSaveAs((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
                 onKeyDown={(e) => {
@@ -1685,74 +1681,75 @@ export function App() {
                   }
                 }}
               />
-              {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
-            </FormControl>
-          </Dialog>
-        )}
-        {askPrompt && (
-          <Dialog
-            title="Input"
-            width="medium"
-            onClose={() => {
-              askPrompt.reject(new AskCancelledError());
-              setAskPrompt(null);
-            }}
-            footerButtons={[
-              {
-                content: "Cancel",
-                onClick: () => {
-                  askPrompt.reject(new AskCancelledError());
-                  setAskPrompt(null);
-                },
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
+          </FormControl>
+        </Dialog>
+      )}
+      {askPrompt && (
+        <Dialog
+          title="Input"
+          width="medium"
+          onClose={() => {
+            askPrompt.reject(new AskCancelledError());
+            setAskPrompt(null);
+          }}
+          footerButtons={[
+            {
+              content: "Cancel",
+              onClick: () => {
+                askPrompt.reject(new AskCancelledError());
+                setAskPrompt(null);
               },
-              {
-                content: "Submit",
-                buttonType: "primary",
-                onClick: () => {
+            },
+            {
+              content: "Submit",
+              buttonType: "primary",
+              onClick: () => {
+                askPrompt.resolve(askPrompt.value);
+                setAskPrompt(null);
+              },
+            },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>{askPrompt.message}</FormControl.Label>
+            <Input
+              autoFocus
+              value={askPrompt.value}
+              onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
                   askPrompt.resolve(askPrompt.value);
                   setAskPrompt(null);
-                },
-              },
-            ]}
-          >
-            <FormControl>
-              <FormControl.Label>{askPrompt.message}</FormControl.Label>
-              <TextInput
-                block
+                }
+              }}
+            />
+          </FormControl>
+        </Dialog>
+      )}
+      {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
+      {renameScript && (
+        <Dialog
+          title="Rename script"
+          width="medium"
+          onClose={() => {
+            setRenameScript(null);
+            setRenameError(undefined);
+          }}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setRenameScript(null) },
+            { content: "Rename", buttonType: "primary", onClick: onConfirmRenameScript },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <div className="relative">
+              <Input
                 autoFocus
-                value={askPrompt.value}
-                onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    askPrompt.resolve(askPrompt.value);
-                    setAskPrompt(null);
-                  }
-                }}
-              />
-            </FormControl>
-          </Dialog>
-        )}
-        {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
-        {renameScript && (
-          <Dialog
-            title="Rename script"
-            width="medium"
-            onClose={() => {
-              setRenameScript(null);
-              setRenameError(undefined);
-            }}
-            footerButtons={[
-              { content: "Cancel", onClick: () => setRenameScript(null) },
-              { content: "Rename", buttonType: "primary", onClick: onConfirmRenameScript },
-            ]}
-          >
-            <FormControl>
-              <FormControl.Label>Name</FormControl.Label>
-              <TextInput
-                block
-                autoFocus
-                trailingVisual=".ts"
+                className="pr-9"
                 value={renameScript.name}
                 onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
                 onKeyDown={(e) => {
@@ -1762,31 +1759,32 @@ export function App() {
                   }
                 }}
               />
-              {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
-            </FormControl>
-          </Dialog>
-        )}
-        {deleteScript && (
-          <ConfirmationDialog
-            title="Delete script?"
-            confirmButtonContent="Delete"
-            confirmButtonType="danger"
-            onClose={(gesture) => {
-              const script = deleteScript;
-              setDeleteScript(null);
-              if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-            }}
-          >
-            Permanently delete <strong>{deleteScript.name}</strong>?
-          </ConfirmationDialog>
-        )}
-        {fileError && (
-          <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
-            <Flash variant="danger">{fileError}</Flash>
-          </div>
-        )}
-      </BaseStyles>
-    </ThemeProvider>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
+          </FormControl>
+        </Dialog>
+      )}
+      {deleteScript && (
+        <ConfirmationDialog
+          title="Delete script?"
+          confirmButtonContent="Delete"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const script = deleteScript;
+            setDeleteScript(null);
+            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+          }}
+        >
+          Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
+      )}
+      {fileError && (
+        <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
+          <Alert variant="danger">{fileError}</Alert>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,8 @@
-import { PlusIcon, TrashIcon } from "@primer/octicons-react";
-import { Button, FormControl, IconButton, TextInput } from "@primer/react";
+import { PlusIcon, TrashIcon } from "./components/icons";
+import { Button } from "./components/button";
+import { FormControl } from "./components/form-control";
+import { IconButton } from "./components/icon-button";
+import { Input } from "./components/input";
 import { useEffect, useState } from "react";
 
 interface VariableRow {
@@ -85,14 +88,14 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {rows.map((row, index) => (
               <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <TextInput
+                <Input
                   value={row.key}
                   onChange={(e) => updateRow(index, { key: e.target.value })}
                   placeholder="API_BASE_URL"
                   disabled={readOnly}
                   style={{ flex: 1 }}
                 />
-                <TextInput
+                <Input
                   value={row.value}
                   onChange={(e) => updateRow(index, { value: e.target.value })}
                   placeholder="https://api.example.com"
@@ -108,7 +111,8 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
 
           {!readOnly && (
             <div style={{ marginTop: 12 }}>
-              <Button leadingVisual={PlusIcon} variant="invisible" onClick={addRow}>
+              <Button variant="ghost" onClick={addRow}>
+                <PlusIcon size={16} />
                 Add variable
               </Button>
             </div>
@@ -117,9 +121,11 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
       </div>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
-        <Button onClick={onCancel}>{readOnly ? "Close" : "Cancel"}</Button>
+        <Button variant="outline" onClick={onCancel}>
+          {readOnly ? "Close" : "Cancel"}
+        </Button>
         {!readOnly && (
-          <Button variant="primary" onClick={() => onSubmit(toVariables(rows))} disabled={duplicateKey}>
+          <Button onClick={() => onSubmit(toVariables(rows))} disabled={duplicateKey}>
             Save Changes
           </Button>
         )}
