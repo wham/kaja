@@ -14,7 +14,7 @@
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
 - Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
 - Prefer the existing primitives in `ui/src/components/` and Tailwind utilities; add a new shared primitive only when a pattern repeats across screens.
-- Icons come from `ui/src/components/icons.ts` (a lucide-react map that keeps the old icon names). Use `cn()` from `ui/src/cn.ts` to compose class names.
+- Icons are imported straight from `lucide-react` under their real names (e.g. `Trash2`, `Ellipsis`). Use `cn()` from `ui/src/cn.ts` to compose class names.
 - Ask me before adding a new shared UI primitive; one-off compositions of existing primitives are fine.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
@@ -195,12 +195,12 @@ off `data-starting-style` / `data-ending-style`.
 ### Available primitives (`ui/src/components/`)
 
 - **button** - `Button` (variants: default/secondary/outline/ghost/destructive/link; sizes: default/sm/lg/icon) + `buttonVariants`
-- **icon-button** - `IconButton` (Primer-style `icon`/`aria-label` API, optional hover tooltip)
+- **icon-button** - `IconButton` (`icon`/`aria-label`, `variant` from `button`, sizes `xs`/`sm`/`default`/`lg`, optional hover tooltip)
 - **input** / **checkbox** / **switch** - form controls (Base UI where interactive)
 - **select** - `Select` (`SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`)
 - **form-control** - `FormControl` with `.Label` / `.Caption` / `.Validation`
 - **segmented-control** - `SegmentedControl` with `.Button`
-- **dialog** - `Dialog` (Primer-compatible `title`/`width`/`onClose`/`footerButtons`/`initialFocusRef`)
+- **dialog** - `Dialog` (`title`/`width`/`onClose`/`footerButtons`/`initialFocusRef`)
 - **confirmation-dialog** - `ConfirmationDialog` over Base UI AlertDialog (`onClose(gesture)`)
 - **dropdown-menu** - `DropdownMenu` (`DropdownMenuTrigger`, `DropdownMenuContent` with optional `anchor`, `DropdownMenuItem`, …)
 - **popover** - `Popover` (`PopoverTrigger`, `PopoverContent`)
@@ -208,11 +208,12 @@ off `data-starting-style` / `data-ending-style`.
 - **action-list** - standalone selectable list (`.Item`, `.LeadingVisual`, `.TrailingVisual`, `.Description`)
 - **tree-view** - `TreeView` with `.Item` / `.SubTree` (supports `state="loading"`) / `.LeadingVisual` / `.TrailingVisual`
 - **alert** - inline banner (variants default/success/warning/danger)
-- **spinner** / **blankslate** - loading indicator and empty-state placeholder
+- **spinner** / **blankslate** - loading indicator (sizes `sm`/`default`/`lg`) and empty-state placeholder
 
 ### Conventions
 
-- Icons: import from `ui/src/components/icons.ts` (a lucide-react map keeping the old icon names, e.g. `TrashIcon`). Standalone icons take a numeric `size` prop.
+- Icons: import from `lucide-react` directly, under lucide's own names (e.g. `Trash2`, `Ellipsis`, `PanelLeftClose`). Standalone icons take a numeric `size` prop; inside `IconButton` the size comes from the button. lucide ships no brand icons, so the GitHub mark is drawn inline in `StatusBar.tsx`.
 - Class names: compose with `cn()` from `ui/src/cn.ts` (clsx + tailwind-merge).
-- Theme tokens: shadcn CSS variables plus a Primer-name alias bridge live in `ui/src/tailwind.css`. Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately via `vs`/`vs-dark`.
+- Theme tokens: the shadcn CSS variables live in `ui/src/tailwind.css`. Style with Tailwind utilities (`bg-muted`, `text-muted-foreground`, `border-border`); reference the raw `var(--muted)` only where the markup isn't ours, i.e. the CSS overrides for Monaco's internal DOM. Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately via `vs`/`vs-dark`.
+- Status colors beyond the tokens: warnings are `text-amber-600 dark:text-amber-400` over `bg-amber-500/10`, successes `text-emerald-600 dark:text-emerald-400` over `bg-emerald-500/10`, errors `text-destructive` over `bg-destructive/10`.
 - Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx` and folded into `main.css`.
