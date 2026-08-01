@@ -171,7 +171,11 @@ Console.LogRow = function ({ logs }: LogRowProps) {
   const highestSeverity = Math.max(...logs.map((l) => l.level));
 
   return (
-    <div className={cn(consoleRowClass, "opacity-80 hover:bg-accent/50", classForLogLevel(highestSeverity))} title={logs.map((l) => l.message).join("\n")}>
+    <div
+      data-testid="console-row"
+      className={cn(consoleRowClass, "opacity-80 hover:bg-accent/50", classForLogLevel(highestSeverity))}
+      title={logs.map((l) => l.message).join("\n")}
+    >
       <span className="mr-2 text-[10px]">{labelForLogLevel(highestSeverity)}</span>
       <span className="overflow-hidden text-ellipsis whitespace-nowrap">{logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}</span>
     </div>
@@ -209,7 +213,7 @@ Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelec
   }[status];
 
   return (
-    <div className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")} onClick={() => onSelect(index)}>
+    <div data-testid="console-row" className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")} onClick={() => onSelect(index)}>
       <span className={cn("mr-2 text-[10px]", statusClass)}>{statusIcon}</span>
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground">{methodId(methodCall.service, methodCall.method)}</span>
       <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">{relativeTime}</span>

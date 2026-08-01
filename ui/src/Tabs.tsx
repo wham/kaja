@@ -117,7 +117,12 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div className="relative shrink-0" onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
-        <div ref={tabsHeaderRef} className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ paddingRight: tabCount > 0 ? controlsWidth : 0 }}>
+        <div
+          ref={tabsHeaderRef}
+          role="tablist"
+          className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden"
+          style={{ paddingRight: tabCount > 0 ? controlsWidth : 0 }}
+        >
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
             const isActive = index === activeTabIndex;
@@ -129,6 +134,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                   if (el) tabRefs.current.set(index, el);
                   else tabRefs.current.delete(index);
                 }}
+                role="tab"
+                aria-selected={isActive}
                 className={cn(
                   "group box-border flex h-[35px] shrink-0 cursor-pointer items-center border-r border-t border-r-border border-t-transparent border-b pl-4 pr-2.5 text-sm hover:bg-accent",
                   isActive ? "border-t-primary border-b-transparent bg-muted" : "border-b-border",

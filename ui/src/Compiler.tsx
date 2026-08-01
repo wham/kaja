@@ -81,7 +81,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
         {apps.map((app, index) => {
           const isExpanded = expandedApps.has(app.configuration.name);
           return (
-            <div key={`app-${index}-${app.configuration.name}`} className="relative">
+            <div key={`app-${index}-${app.configuration.name}`} data-testid="compiler-item" className="relative">
               <div className={cn(isExpanded && "sticky top-0 z-10 bg-background")}>
                 <ActionList>
                   <ActionList.Item
@@ -112,7 +112,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
                 </ActionList>
               </div>
               {isExpanded && (
-                <div className="bg-muted">
+                <div data-testid="compiler-logs" className="bg-muted">
                   <div className="px-4 py-3 font-mono text-xs">
                     {app.compilation.logs.map((log, logIndex) => (
                       <div key={logIndex} className="mb-px flex leading-5">
