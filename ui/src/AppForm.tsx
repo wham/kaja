@@ -1,4 +1,4 @@
-import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "./components/icons";
+import { Folder, FileIcon, Lightbulb } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -441,17 +441,9 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   };
 
   return (
-    <div className="app-form" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "8px 16px",
-          borderBottom: "1px solid var(--borderColor-default)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="flex h-full flex-col bg-muted">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <div className="flex items-center gap-3">
           <Select value={selectedAppValue} onValueChange={(value) => value != null && handleAppChange(value)}>
             <SelectTrigger className="min-w-[200px]">
               <SelectValue>{(value) => (value === NEW_APP_VALUE ? "+ New" : (value as string))}</SelectValue>
@@ -482,19 +474,17 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
       </div>
 
       {readOnly && (
-        <div style={{ padding: "8px 16px", background: "var(--bgColor-attention-muted)", color: "var(--fgColor-attention)", fontSize: 14 }}>
+        <div className="bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
           Configuration is read-only. Contact your administrator for changes.
         </div>
       )}
 
-      {jsonError && (
-        <div style={{ padding: "8px 16px", background: "var(--bgColor-danger-muted)", color: "var(--fgColor-danger)", fontSize: 14 }}>{jsonError}</div>
-      )}
+      {jsonError && <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{jsonError}</div>}
 
-      <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+      <div className="min-h-0 flex-1 overflow-auto">
         {editMode === "form" ? (
-          <div style={{ maxWidth: 600, padding: 16 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div className="max-w-[600px] p-4">
+            <div className="flex flex-col gap-6">
               <FormControl>
                 <FormControl.Label>Name</FormControl.Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" disabled={readOnly} />
@@ -526,7 +516,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                           }}
                         />
                       </label>
-                      <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>
+                      <span className="text-xs text-muted-foreground">
                         {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
                       </span>
                     </div>
@@ -540,10 +530,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                       trailingAction={
                         (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
                           <IconButton
-                            icon={parameter.type === "folder" ? FileDirectoryIcon : FileIcon}
+                            icon={parameter.type === "folder" ? Folder : FileIcon}
                             aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                            variant="invisible"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             tooltip={false}
                             onClick={async () => {
                               const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
@@ -567,7 +557,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                   onClick={fillDemo}
                   className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
                 >
-                  <LightBulbIcon size={12} />
+                  <Lightbulb size={12} />
                   {demo.label}
                 </button>
               )}
@@ -579,15 +569,15 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
               .app-form-editor .monaco-editor,
               .app-form-editor .monaco-editor-background,
               .app-form-editor .monaco-editor .margin {
-                background-color: var(--bgColor-muted) !important;
+                background-color: var(--muted) !important;
               }
             `}</style>
-            <div ref={editorContainerRef} className="app-form-editor" style={{ height: "100%", minHeight: 300, backgroundColor: "var(--bgColor-muted)" }} />
+            <div ref={editorContainerRef} className="app-form-editor h-full min-h-[300px] bg-muted" />
           </>
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
+      <div className="flex justify-end gap-2 border-t border-border p-4">
         <Button variant="outline" onClick={handleCancel}>
           {readOnly ? "Close" : "Cancel"}
         </Button>

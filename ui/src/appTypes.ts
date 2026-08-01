@@ -1,4 +1,4 @@
-import { GlobeIcon, Icon, MarkdownIcon, PlugIcon, ServerIcon, SparkleFillIcon } from "./components/icons";
+import { Globe, FileText, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a
@@ -21,7 +21,7 @@ export interface AppTypeDefinition {
   type: string;
   label: string;
   description: string;
-  icon: Icon;
+  icon: LucideIcon;
   parameters: AppParameterDefinition[];
   // Groups of parameter keys where at least one must be provided (e.g. an OpenAPI
   // spec supplied as a URL or as an uploaded file). Each group is checked
@@ -41,7 +41,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "grpc",
     label: "gRPC",
     description: "Call a gRPC service from its proto files or via server reflection.",
-    icon: ServerIcon,
+    icon: Server,
     parameters: [
       {
         key: "url",
@@ -76,7 +76,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "twirp",
     label: "Twirp",
     description: "Call a Twirp service from its proto files.",
-    icon: PlugIcon,
+    icon: Plug,
     parameters: [
       {
         key: "url",
@@ -99,7 +99,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "openapi",
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
-    icon: GlobeIcon,
+    icon: Globe,
     requireOneOf: [["specUrl", "specContent"]],
     parameters: [
       {
@@ -161,7 +161,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "openai",
     label: "OpenAI",
     description: "Call the standard OpenAI chat completions API.",
-    icon: SparkleFillIcon,
+    icon: Sparkles,
     parameters: [
       {
         key: "endpoint",
@@ -189,7 +189,7 @@ export const appTypes: AppTypeDefinition[] = [
     type: "markdown",
     label: "Markdown",
     description: "Create and write Markdown files in a folder on disk.",
-    icon: MarkdownIcon,
+    icon: FileText,
     parameters: [
       {
         key: "folder",

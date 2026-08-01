@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "./cn";
 import { Input } from "./components/input";
-import { SearchIcon } from "./components/icons";
+import { Search } from "lucide-react";
 import { Method, App, Service } from "./apps";
 
 interface SearchResult {
@@ -107,34 +108,12 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        paddingTop: "15vh",
-        zIndex: 1000,
-      }}
-      onClick={handleBackdropClick}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 560,
-          backgroundColor: "var(--bgColor-default)",
-          borderRadius: 12,
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.24)",
-          border: "1px solid var(--borderColor-default)",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: 12 }}>
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/50 pt-[15vh]" onClick={handleBackdropClick}>
+      <div className="w-full max-w-[560px] overflow-hidden rounded-xl border border-border bg-background shadow-[0_8px_32px_rgba(0,0,0,0.24)]">
+        <div className="p-3">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <SearchIcon size={16} />
+              <Search size={16} />
             </span>
             <Input
               ref={inputRef}
@@ -146,43 +125,22 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
             />
           </div>
         </div>
-        <div
-          ref={listRef}
-          style={{
-            maxHeight: 320,
-            overflowY: "auto",
-            borderTop: "1px solid var(--borderColor-default)",
-          }}
-        >
+        <div ref={listRef} className="max-h-80 overflow-y-auto border-t border-border">
           {filteredResults.length === 0 ? (
-            <div
-              style={{
-                padding: "16px 12px",
-                color: "var(--fgColor-muted)",
-                textAlign: "center",
-                fontSize: 14,
-              }}
-            >
-              No methods found
-            </div>
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">No methods found</div>
           ) : (
             filteredResults.map((result, index) => (
               <div
                 key={index}
-                style={{
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  backgroundColor: index === selectedIndex ? "var(--bgColor-neutral-muted)" : "transparent",
-                  borderLeft: index === selectedIndex ? "2px solid var(--fgColor-accent)" : "2px solid transparent",
-                }}
+                className={cn("cursor-pointer border-l-2 px-3 py-2.5", index === selectedIndex ? "border-primary bg-accent" : "border-transparent")}
                 onMouseEnter={() => setSelectedIndex(index)}
                 onClick={() => {
                   onSelect(result.method, result.service, result.app);
                   onClose();
                 }}
               >
-                <div style={{ fontSize: 14, color: "var(--fgColor-default)" }}>{result.method.name}</div>
-                <div style={{ fontSize: 12, color: "var(--fgColor-muted)", marginTop: 2 }}>
+                <div className="text-sm text-foreground">{result.method.name}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
                   {result.app.configuration.name} / {result.service.name}
                 </div>
               </div>

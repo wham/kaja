@@ -1,38 +1,35 @@
+import { cva, type VariantProps } from "class-variance-authority";
+import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../cn";
-import type { Icon } from "./icons";
 import { buttonVariants } from "./button";
 import { SimpleTooltip } from "./tooltip";
 
-type IconButtonVariant = "default" | "invisible" | "primary" | "danger";
-type IconButtonSize = "small" | "medium" | "large";
+const iconButtonVariants = cva("", {
+  variants: {
+    size: {
+      xs: "h-5 w-[22px] rounded text-muted-foreground [&_svg]:size-4",
+      sm: "h-7 w-7 [&_svg]:size-4",
+      default: "h-8 w-8 [&_svg]:size-4",
+      lg: "h-10 w-10 [&_svg]:size-5",
+    },
+  },
+  defaultVariants: { size: "default" },
+});
 
-const variantMap: Record<IconButtonVariant, "outline" | "ghost" | "default" | "destructive"> = {
-  default: "outline",
-  invisible: "ghost",
-  primary: "default",
-  danger: "destructive",
-};
-
-const sizeClass: Record<IconButtonSize, string> = {
-  small: "h-7 w-7",
-  medium: "h-8 w-8",
-  large: "h-10 w-10",
-};
-
-const iconPx: Record<IconButtonSize, number> = { small: 16, medium: 16, large: 20 };
-
-export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  icon: Icon;
+export interface IconButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof iconButtonVariants>, Pick<VariantProps<typeof buttonVariants>, "variant"> {
+  icon: LucideIcon;
   "aria-label": string;
-  variant?: IconButtonVariant;
-  size?: IconButtonSize;
+  // Hover tooltip. Turn off when the button is a Base UI trigger (Popover,
+  // DropdownMenu): both would claim the same `render` slot, so the native
+  // title attribute stands in.
   tooltip?: boolean;
 }
 
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: IconCmp, "aria-label": ariaLabel, variant = "default", size = "medium", tooltip = true, className, ...rest },
+  { icon: Icon, "aria-label": ariaLabel, variant = "outline", size, tooltip = true, className, ...rest },
   ref,
 ) {
   const button = (
@@ -40,10 +37,11 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function
       ref={ref}
       type="button"
       aria-label={ariaLabel}
-      className={cn(buttonVariants({ variant: variantMap[variant], size: "icon" }), sizeClass[size], className)}
+      title={tooltip ? undefined : ariaLabel}
+      className={cn(buttonVariants({ variant, size: "icon" }), iconButtonVariants({ size }), className)}
       {...rest}
     >
-      <IconCmp size={iconPx[size]} />
+      <Icon />
     </button>
   );
   if (!tooltip) return button;

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { cn } from "./cn";
+
 interface GutterProps {
   orientation: "vertical" | "horizontal";
   onResize: (delta: number) => void;
@@ -8,15 +10,16 @@ interface GutterProps {
 
 export function Gutter({ orientation, onResize, hitAreaSize }: GutterProps) {
   const [isResizing, setIsResizing] = useState(false);
+  const isVertical = orientation === "vertical";
 
   const onMouseDown = (event: React.MouseEvent) => {
     setIsResizing(true);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-    window.document.body.style.cursor = orientation === "vertical" ? "col-resize" : "row-resize";
+    window.document.body.style.cursor = isVertical ? "col-resize" : "row-resize";
 
     function onMouseMove(e: MouseEvent) {
-      onResize(orientation === "vertical" ? e.movementX : e.movementY);
+      onResize(isVertical ? e.movementX : e.movementY);
       e.preventDefault();
     }
 
@@ -30,33 +33,17 @@ export function Gutter({ orientation, onResize, hitAreaSize }: GutterProps) {
     event.preventDefault();
   };
 
+  const hitArea = hitAreaSize ?? 3;
+
   return (
-    <div
-      style={{
-        width: orientation === "vertical" ? 1 : "100%",
-        height: orientation === "vertical" ? "100%" : 1,
-        flexShrink: 0,
-        position: "relative",
-        backgroundColor: "var(--borderColor-muted)",
-      }}
-    >
+    <div className={cn("relative shrink-0 bg-border", isVertical ? "h-full w-px" : "h-px w-full")}>
       <div
-        style={{
-          width: orientation === "vertical" ? (hitAreaSize ?? 3) : "100%",
-          height: orientation === "vertical" ? "100%" : (hitAreaSize ?? 3),
-          position: "absolute",
-          left: orientation === "vertical" ? "-1px" : 0,
-          top: orientation === "vertical" ? 0 : "-1px",
-          cursor: orientation === "vertical" ? "col-resize" : "row-resize",
-          zIndex: 1,
-          backgroundColor: isResizing ? "var(--bgColor-accent-emphasis)" : "transparent",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--bgColor-accent-emphasis)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = isResizing ? "var(--bgColor-accent-emphasis)" : "transparent";
-        }}
+        className={cn(
+          "absolute z-[1] hover:bg-primary",
+          isVertical ? "-left-px top-0 h-full cursor-col-resize" : "-top-px left-0 w-full cursor-row-resize",
+          isResizing && "bg-primary",
+        )}
+        style={isVertical ? { width: hitArea } : { height: hitArea }}
         onMouseDown={onMouseDown}
       />
     </div>

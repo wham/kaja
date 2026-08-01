@@ -3,10 +3,10 @@ import * as React from "react";
 
 import { cn } from "../cn";
 
-// A minimal replacement for Primer's TreeView covering what the sidebar uses:
-// controlled expand/collapse, a current (selected) leaf, leading/trailing
-// visuals, depth-based indentation, and a loading SubTree. Rows toggle when they
-// have a SubTree, otherwise they call onSelect.
+// Covers what the sidebar uses: controlled expand/collapse, a current
+// (selected) leaf, leading/trailing visuals, depth-based indentation, and a
+// loading SubTree. Rows toggle when they have a SubTree, otherwise they call
+// onSelect.
 const DepthContext = React.createContext(0);
 const INDENT = 16;
 const BASE_PADDING = 8;

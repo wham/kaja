@@ -1,4 +1,5 @@
-import { CheckIcon, ChevronRightIcon, XIcon } from "./components/icons";
+import { Check, ChevronRight, X } from "lucide-react";
+import { cn } from "./cn";
 import { ActionList } from "./components/action-list";
 import { Spinner } from "./components/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
@@ -12,14 +13,8 @@ interface CompilerProps {
   onNewAppClick?: () => void;
 }
 
-const ICON_SIZE = 20;
 const CHEVRON_SIZE = 16;
 const CHECK_ICON_SIZE = 12;
-const LOG_LINE_HEIGHT = 20;
-const LOG_FONT_SIZE = 12;
-const LOG_PADDING = "12px 16px";
-const LINE_NUMBER_WIDTH = "40px";
-const LINE_NUMBER_MARGIN = 16;
 
 export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
@@ -41,17 +36,8 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
   };
 
   const renderSpinner = () => (
-    <div
-      className="spinner-rotating"
-      style={{
-        width: ICON_SIZE,
-        height: ICON_SIZE,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Spinner size="small" />
+    <div className="flex size-5 items-center justify-center">
+      <Spinner size="sm" />
     </div>
   );
 
@@ -60,23 +46,16 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
     if (status === "pending") return null;
 
     const isSuccess = status === "success";
-    const bgColor = isSuccess ? "var(--bgColor-success-muted)" : "var(--bgColor-danger-muted)";
-    const fgColor = isSuccess ? "var(--fgColor-success)" : "var(--fgColor-danger)";
-    const Icon = isSuccess ? CheckIcon : XIcon;
+    const Icon = isSuccess ? Check : X;
 
     return (
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: ICON_SIZE,
-          height: ICON_SIZE,
-          borderRadius: "50%",
-          backgroundColor: bgColor,
-        }}
+        className={cn(
+          "flex size-5 items-center justify-center rounded-full",
+          isSuccess ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive",
+        )}
       >
-        <Icon size={CHECK_ICON_SIZE} color={fgColor} />
+        <Icon size={CHECK_ICON_SIZE} />
       </div>
     );
   };
@@ -84,21 +63,10 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
   if (apps.length === 0) {
     if (!configurationLoaded) {
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flex: 1,
-            minHeight: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--fgColor-muted)",
-            backgroundColor: "var(--bgColor-muted)",
-          }}
-        >
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-muted text-muted-foreground">
           <div>
-            <Spinner size="medium" />
-            <div style={{ marginTop: 12 }}>Loading configuration...</div>
+            <Spinner />
+            <div className="mt-3">Loading configuration...</div>
           </div>
         </div>
       );
@@ -108,57 +76,25 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-muted)" }}>
-      <style>{`
-        @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        .spinner-rotating {
-          animation: spin 1s linear infinite;
-        }
-        .chevron-icon {
-          transition: transform 0.2s;
-          color: var(--fgColor-muted);
-        }
-        .chevron-icon.expanded {
-          transform: rotate(90deg);
-        }
-        .compiler-item-expanded {
-          background-color: var(--bgColor-accent-muted) !important;
-        }
-        .compiler-logs-container {
-          background-color: var(--bgColor-canvas-inset);
-        }
-        .compiler-item-wrapper {
-          position: relative;
-        }
-        .compiler-item-header.sticky {
-          position: sticky;
-          top: 0;
-          z-index: 10;
-          background-color: var(--bgColor-default);
-        }
-      `}</style>
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+    <div className="flex min-h-0 flex-1 flex-col bg-muted">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {apps.map((app, index) => {
           const isExpanded = expandedApps.has(app.configuration.name);
           return (
-            <div key={`app-${index}-${app.configuration.name}`} className="compiler-item-wrapper">
-              <div className={isExpanded ? "compiler-item-header sticky" : ""}>
+            <div key={`app-${index}-${app.configuration.name}`} data-testid="compiler-item" className="relative">
+              <div className={cn(isExpanded && "sticky top-0 z-10 bg-background")}>
                 <ActionList>
                   <ActionList.Item
                     variant={getStatusVariant(app.compilation.status)}
                     onSelect={() => toggleExpand(app.configuration.name)}
-                    className={isExpanded ? "compiler-item-expanded" : ""}
+                    className={cn(isExpanded && "bg-accent")}
                   >
                     <ActionList.LeadingVisual>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${isExpanded ? "expanded" : ""}`} />
+                      <div className="flex items-center gap-1">
+                        <ChevronRight
+                          size={CHEVRON_SIZE}
+                          className={cn("text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")}
+                        />
                         {getStatusIcon(app.compilation.status)}
                       </div>
                     </ActionList.LeadingVisual>
@@ -169,54 +105,23 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
                     </ActionList.Description>
                     {app.compilation.duration && (
                       <ActionList.TrailingVisual>
-                        <span style={{ fontSize: 12, color: "var(--fgColor-muted)" }}>{app.compilation.duration}</span>
+                        <span className="text-xs text-muted-foreground">{app.compilation.duration}</span>
                       </ActionList.TrailingVisual>
                     )}
                   </ActionList.Item>
                 </ActionList>
               </div>
               {isExpanded && (
-                <div className="compiler-logs-container">
-                  <div
-                    style={{
-                      fontFamily: "monospace",
-                      fontSize: LOG_FONT_SIZE,
-                      padding: LOG_PADDING,
-                    }}
-                  >
+                <div data-testid="compiler-logs" className="bg-muted">
+                  <div className="px-4 py-3 font-mono text-xs">
                     {app.compilation.logs.map((log, logIndex) => (
-                      <div
-                        key={logIndex}
-                        style={{
-                          display: "flex",
-                          marginBottom: 1,
-                          lineHeight: `${LOG_LINE_HEIGHT}px`,
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: "var(--fgColor-muted)",
-                            minWidth: LINE_NUMBER_WIDTH,
-                            textAlign: "right",
-                            marginRight: LINE_NUMBER_MARGIN,
-                            userSelect: "none",
-                          }}
-                        >
-                          {logIndex + 1}
-                        </span>
-                        <span style={{ color: getLogColor(log.level), whiteSpace: "pre-wrap" }}>{log.message}</span>
+                      <div key={logIndex} className="mb-px flex leading-5">
+                        <span className="mr-4 min-w-10 select-none text-right text-muted-foreground">{logIndex + 1}</span>
+                        <span className={cn("whitespace-pre-wrap", logClass(log.level))}>{log.message}</span>
                       </div>
                     ))}
                     {app.compilation.status === "running" && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: "var(--fgColor-muted)",
-                        }}
-                      >
+                      <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                         {renderSpinner()}
                         Compiling...
                       </div>
@@ -232,17 +137,15 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
   );
 }
 
-function getLogColor(level: number): string {
+function logClass(level: number): string {
   switch (level) {
     case 0: // DEBUG
-      return "var(--fgColor-muted)";
-    case 1: // INFO
-      return "var(--fgColor-default)";
+      return "text-muted-foreground";
     case 2: // WARN
-      return "var(--fgColor-attention)";
+      return "text-amber-600 dark:text-amber-400";
     case 3: // ERROR
-      return "var(--fgColor-danger)";
-    default:
-      return "var(--fgColor-default)";
+      return "text-destructive";
+    default: // INFO
+      return "text-foreground";
   }
 }

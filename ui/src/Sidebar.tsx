@@ -1,23 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
-import {
-  CpuIcon,
-  FileCodeIcon,
-  FoldIcon,
-  PencilIcon,
-  PinIcon,
-  PlusIcon,
-  SlidersIcon,
-  TrashIcon,
-  UnfoldIcon,
-  ChevronRightIcon,
-  PackageIcon,
-  KebabHorizontalIcon,
-} from "./components/icons";
+import { Cpu, FileCode, FoldVertical, Pencil, Pin, Plus, SlidersHorizontal, Trash2, UnfoldVertical, ChevronRight, Package, Ellipsis } from "lucide-react";
 import { appType, appTypeLabel } from "./appTypes";
-import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -39,40 +26,14 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
   return [...groups.entries()];
 }
 
+const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
+
 function AppPill({ type }: { type: string }) {
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: "bold",
-        padding: "1px 5px",
-        borderRadius: 4,
-        marginLeft: 6,
-        backgroundColor: "var(--bgColor-accent-muted)",
-        color: "var(--fgColor-accent)",
-      }}
-    >
-      {appTypeLabel(type)}
-    </span>
-  );
+  return <span className={pillClass}>{appTypeLabel(type)}</span>;
 }
 
 export function PreviewPill() {
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: "bold",
-        padding: "1px 5px",
-        borderRadius: 4,
-        marginLeft: 6,
-        backgroundColor: "var(--bgColor-accent-muted)",
-        color: "var(--fgColor-accent)",
-      }}
-    >
-      Preview
-    </span>
-  );
+  return <span className={pillClass}>Preview</span>;
 }
 
 interface ScrollToMethod {
@@ -429,9 +390,9 @@ export function Sidebar({
               : { display: "flex", alignItems: "center" }
           }
         >
-          <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New app" onClick={onNewAppClick} />
-          <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
-          {onVariablesClick && <IconButton icon={SlidersIcon} size="small" variant="invisible" aria-label="Variables" onClick={onVariablesClick} />}
+          <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
+          <IconButton icon={Cpu} size="sm" variant="ghost" aria-label="Open Compiler" onClick={onCompilerClick} />
+          {onVariablesClick && <IconButton icon={SlidersHorizontal} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
         <div
@@ -441,41 +402,22 @@ export function Sidebar({
               : { display: "flex", alignItems: "center" }
           }
         >
-          <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
-          <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
+          <IconButton icon={FoldVertical} size="sm" variant="ghost" aria-label="Fold All" onClick={foldAll} />
+          <IconButton icon={UnfoldVertical} size="sm" variant="ghost" aria-label="Unfold All" onClick={unfoldAll} />
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
         {scripts && scripts.length > 0 && (
           <nav aria-label="Scripts">
             <div
-              style={{
-                fontSize: 12,
-                fontWeight: "bold",
-                marginLeft: -12,
-                paddingLeft: 4,
-                color: "var(--fgColor-muted)",
-                display: "flex",
-                alignItems: "center",
-                cursor: "pointer",
-                userSelect: "none",
-                height: 28,
-                gap: 2,
-              }}
+              className="-ml-3 flex h-7 cursor-pointer select-none items-center gap-0.5 pl-1 text-xs font-bold text-muted-foreground"
               onClick={() => setScriptsExpanded((v) => !v)}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  transform: scriptsExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                  transition: "transform 0.12s ease",
-                  color: "var(--fgColor-muted)",
-                }}
-              >
-                <ChevronRightIcon size={16} />
+              <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", scriptsExpanded && "rotate-90")}>
+                <ChevronRight size={16} />
               </span>
-              <FileCodeIcon size={16} />
-              <span style={{ marginLeft: 4 }}>Scripts</span>
+              <FileCode size={16} />
+              <span className="ml-1">Scripts</span>
               <PreviewPill />
             </div>
             {scriptsExpanded && (
@@ -502,16 +444,18 @@ export function Sidebar({
                         hover, and it lines a pinned script up with the package/expand icons above. */}
                     {pinnedScriptPath === script.path && (
                       <TreeView.LeadingVisual>
-                        <PinIcon size={12} />
+                        <Pin size={12} />
                       </TreeView.LeadingVisual>
                     )}
                     {script.name}
                     <TreeView.TrailingVisual>
                       {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                        <IconButtonXSmall
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          tooltip={false}
                           aria-label={`Actions for ${script.name}`}
-                          icon={KebabHorizontalIcon}
-                          rounded
+                          icon={Ellipsis}
                           style={{ minHeight: 0, minWidth: 0 }}
                           onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
@@ -544,22 +488,10 @@ export function Sidebar({
             >
               {showAppHeader && (
                 <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "bold",
-                    marginLeft: -12,
-                    paddingLeft: 4,
-                    paddingRight: 4,
-                    borderRadius: 6,
-                    color: "var(--fgColor-muted)",
-                    backgroundColor: hoveredApp === appName || appMenu?.appName === appName ? "var(--control-transparent-bgColor-hover)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    userSelect: "none",
-                    height: 28,
-                  }}
+                  className={cn(
+                    "-ml-3 flex h-7 cursor-pointer select-none items-center justify-between rounded-md px-1 text-xs font-bold text-muted-foreground",
+                    (hoveredApp === appName || appMenu?.appName === appName) && "bg-accent",
+                  )}
                   onMouseEnter={() => setHoveredApp(appName)}
                   onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
                   onClick={() => toggleAppExpanded(appName)}
@@ -568,25 +500,20 @@ export function Sidebar({
                     setAppMenu({ appName, top: e.clientY, left: e.clientX });
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                        transition: "transform 0.12s ease",
-                        color: "var(--fgColor-muted)",
-                      }}
-                    >
-                      <ChevronRightIcon size={16} />
+                  <span className="flex items-center gap-0.5">
+                    <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")}>
+                      <ChevronRight size={16} />
                     </span>
                     {appName}
                     <AppPill type={appType(app.configuration)} />
                   </span>
                   {(hoveredApp === appName || appMenu?.appName === appName) && (
-                    <IconButtonXSmall
+                    <IconButton
+                      size="xs"
+                      variant="ghost"
+                      tooltip={false}
                       aria-label={`Actions for ${appName}`}
-                      icon={KebabHorizontalIcon}
-                      rounded
+                      icon={Ellipsis}
                       style={{ minHeight: 0, minWidth: 0 }}
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
@@ -684,9 +611,9 @@ export function Sidebar({
                             }}
                           >
                             <TreeView.LeadingVisual>
-                              <PackageIcon size={16} />
+                              <Package size={16} />
                             </TreeView.LeadingVisual>
-                            <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>{packageName}</span>
+                            <span className="font-normal text-muted-foreground">{packageName}</span>
                             <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
                           </TreeView.Item>
                         );
@@ -714,7 +641,7 @@ export function Sidebar({
                 if (script) onPinScript(script);
               }}
             >
-              <PinIcon size={16} />
+              <Pin size={16} />
               {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
             </DropdownMenuItem>
           )}
@@ -724,7 +651,7 @@ export function Sidebar({
               if (script) onRenameScript?.(script);
             }}
           >
-            <PencilIcon size={16} />
+            <Pencil size={16} />
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -734,7 +661,7 @@ export function Sidebar({
               if (script) onDeleteScript?.(script);
             }}
           >
-            <TrashIcon size={16} />
+            <Trash2 size={16} />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -749,7 +676,7 @@ export function Sidebar({
               if (appName) onEditApp(appName);
             }}
           >
-            <PencilIcon size={16} />
+            <Pencil size={16} />
             Edit
           </DropdownMenuItem>
           {canDeleteApps && (
@@ -760,7 +687,7 @@ export function Sidebar({
                 if (appName) onDeleteApp(appName);
               }}
             >
-              <TrashIcon size={16} />
+              <Trash2 size={16} />
               Delete
             </DropdownMenuItem>
           )}

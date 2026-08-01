@@ -1,10 +1,8 @@
+import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../cn";
 
-// Stand-in for Primer's SegmentedControl: a horizontal group of buttons where
-// one is selected. Matches the <SegmentedControl><SegmentedControl.Button
-// selected onClick> compound API.
 interface SegmentedControlProps extends React.HTMLAttributes<HTMLDivElement> {
   "aria-label"?: string;
 }
@@ -19,7 +17,7 @@ function SegmentedControl({ className, children, ...props }: SegmentedControlPro
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean;
-  leadingIcon?: React.ComponentType<{ size?: number }>;
+  leadingIcon?: LucideIcon;
 }
 
 function Button({ selected, leadingIcon: LeadingIcon, className, children, ...props }: ButtonProps) {

@@ -100,7 +100,7 @@ async function takeDemo() {
     // 2. New app screenshot - open the "New app" dialog (app type picker).
     // The "+" opens a dialog, not a tab. This screenshot is optional.
     console.log("Checking for New app button...");
-    const newAppButton = page.locator('button[aria-label="New app"], button:has(svg.octicon-plus)').first();
+    const newAppButton = page.locator('button[aria-label="New app"]').first();
 
     if ((await newAppButton.count()) > 0 && (await newAppButton.isVisible())) {
       console.log("Taking new app screenshot...");
@@ -142,16 +142,11 @@ async function takeDemo() {
     await methodItem.click();
 
     // Wait for method tab to become active
-    await waitFor(page, 'div.tab-item.active', "method tab to become active");
+    await waitFor(page, '[role="tab"][aria-selected="true"]', "method tab to become active");
     await settleDelay(page);
 
-    // Click the Run button - try multiple selectors
-    // The button contains text "Run" and has a play icon (octicon-play)
-    const runButtonSelectors = [
-      'button:has(svg.octicon-play)',           // Button with play icon
-      'button:has-text("Run")',                  // Button containing "Run" text
-      'button[data-variant="primary"]:has-text("Run")', // Primary button with Run text
-    ];
+    // Click the Run button
+    const runButtonSelectors = ['button:has-text("Run")'];
 
     let runButtonClicked = false;
     for (const selector of runButtonSelectors) {
@@ -180,14 +175,14 @@ async function takeDemo() {
 
     // Wait for console to show results
     // First wait for the call to appear in console
-    await waitFor(page, 'div.console-row', "call to appear in console");
+    await waitFor(page, '[data-testid="console-row"]', "call to appear in console");
 
     // Wait for response to complete - the pending state shows hollow circle, completed shows filled
     console.log("  Waiting for: response to complete...");
     try {
       // Wait for filled status indicator (● means complete, ○ means pending)
       await page.waitForFunction(() => {
-        const rows = document.querySelectorAll('.console-row');
+        const rows = document.querySelectorAll('[data-testid="console-row"]');
         if (rows.length === 0) return false;
         // Check if any row has the filled circle (success or error)
         const text = rows[0].textContent || '';
@@ -206,7 +201,7 @@ async function takeDemo() {
 
     // Click the Compiler button (CPU icon in sidebar header)
     const compilerButton = page.locator('button[aria-label="Open Compiler"]');
-    const compilerButtonFallback = page.locator('button:has(svg[class*="octicon-cpu"])');
+    const compilerButtonFallback = page.locator('button[aria-label="Open Compiler"]');
 
     if ((await compilerButton.count()) > 0) {
       await compilerButton.click();
@@ -218,22 +213,17 @@ async function takeDemo() {
     }
 
     // Wait for compiler tab to become active
-    await waitFor(page, 'div.tab-item.active:has-text("Compiler")', "Compiler tab to become active");
+    await waitFor(page, '[role="tab"][aria-selected="true"]:has-text("Compiler")', "Compiler tab to become active");
 
     // Wait for compiler content to load - either project items or loading state to finish
     await waitForTextHidden(page, "Loading configuration", "configuration to load");
-    await waitFor(page, 'div.compiler-item-wrapper', "compiler project items", 10000).catch(() => {
+    await waitFor(page, '[data-testid="compiler-item"]', "compiler project items", 10000).catch(() => {
       console.log("  ⚠ No compiler items found, continuing anyway");
     });
     await settleDelay(page);
 
-    // Expand the first compiled project by clicking on the ActionList.Item
-    // Try multiple selectors since Primer components can render differently
-    const compilerSelectors = [
-      'div.compiler-item-wrapper li',
-      'div.compiler-item-wrapper [role="option"]',
-      'div.compiler-item-wrapper button',
-    ];
+    // Expand the first compiled project by clicking its list item
+    const compilerSelectors = ['[data-testid="compiler-item"] li'];
 
     let clicked = false;
     for (const selector of compilerSelectors) {
@@ -258,7 +248,7 @@ async function takeDemo() {
     }
 
     // Wait for logs to expand - look for expanded state or logs container
-    await waitFor(page, 'div.compiler-item-expanded, div.compiler-logs-container, span.chevron-icon.expanded', "logs to expand", 5000).catch(() => {
+    await waitFor(page, '[data-testid="compiler-logs"]', "logs to expand", 5000).catch(() => {
       console.log("  ✓ Logs expansion state unknown, proceeding");
     });
     await settleDelay(page);
