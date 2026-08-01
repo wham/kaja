@@ -29,13 +29,7 @@ export function generateMethodEditorCode(app: App, service: Service, method: Met
   return methodEditorCode(methodInfo, service.name, source, app.sources);
 }
 
-export async function loadApp(
-  apiSources: ApiSource[],
-  stubCode: string,
-  configuration: ConfigurationApp,
-  target: string,
-  protocol: Transport,
-): Promise<App> {
+export async function loadApp(apiSources: ApiSource[], stubCode: string, configuration: ConfigurationApp, target: string, protocol: Transport): Promise<App> {
   const stub = await parseStub(stubCode);
   const sources = await loadSources(apiSources, stub, configuration.name);
   const kajaSources: Sources = [];

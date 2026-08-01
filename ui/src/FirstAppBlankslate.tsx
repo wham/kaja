@@ -1,5 +1,5 @@
-import { PlusIcon } from "@primer/octicons-react";
-import { Blankslate } from "@primer/react/experimental";
+import { Blankslate } from "./components/blankslate";
+import { PlusIcon } from "./components/icons";
 
 interface FirstAppBlankslateProps {
   onNewAppClick?: () => void;
@@ -10,7 +10,7 @@ export function FirstAppBlankslate({ onNewAppClick }: FirstAppBlankslateProps) {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, justifyContent: "center" }}>
       <Blankslate>
         <Blankslate.Visual>
-          <PlusIcon size="medium" />
+          <PlusIcon size={24} />
         </Blankslate.Visual>
         <Blankslate.Heading>No apps configured</Blankslate.Heading>
         <Blankslate.Description>Add an app to get started.</Blankslate.Description>

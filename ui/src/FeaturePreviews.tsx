@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { BeakerIcon } from "@primer/octicons-react";
-import { AnchoredOverlay, ToggleSwitch } from "@primer/react";
+import { BeakerIcon } from "./components/icons";
 import { IconButtonXSmall } from "./IconButtonXSmall";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { Switch } from "./components/switch";
 
 export interface FeaturePreview {
   key: string;
@@ -22,25 +23,25 @@ export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
   }
 
   return (
-    <AnchoredOverlay
-      open={open}
-      onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
-      renderAnchor={(anchorProps) => <IconButtonXSmall icon={BeakerIcon} aria-label="Feature previews" {...anchorProps} />}
-    >
-      <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8, minWidth: 180 }}>
-        {features.map((feature) => {
-          const labelId = `feature-preview-${feature.key}`;
-          return (
-            <div key={feature.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
-              <span id={labelId} style={{ fontSize: 12, color: "var(--fgColor-default)" }}>
-                {feature.label}
-              </span>
-              <ToggleSwitch size="small" checked={feature.enabled} aria-labelledby={labelId} onClick={() => onToggle(feature.key)} />
-            </div>
-          );
-        })}
-      </div>
-    </AnchoredOverlay>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <IconButtonXSmall icon={BeakerIcon} aria-label="Feature previews" />
+      </PopoverTrigger>
+      <PopoverContent align="end" side="top" className="p-2">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 180 }}>
+          {features.map((feature) => {
+            const labelId = `feature-preview-${feature.key}`;
+            return (
+              <div key={feature.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
+                <span id={labelId} style={{ fontSize: 12, color: "var(--fgColor-default)" }}>
+                  {feature.label}
+                </span>
+                <Switch checked={feature.enabled} aria-labelledby={labelId} onCheckedChange={() => onToggle(feature.key)} />
+              </div>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

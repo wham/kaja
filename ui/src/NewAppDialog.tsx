@@ -1,4 +1,5 @@
-import { ActionList, Dialog } from "@primer/react";
+import { ActionList } from "./components/action-list";
+import { Dialog } from "./components/dialog";
 import { useRef } from "react";
 import { appTypes } from "./appTypes";
 import { PreviewPill } from "./Sidebar";
@@ -23,22 +24,12 @@ export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDi
   const firstItemRef = useRef<HTMLLIElement>(null);
 
   return (
-    <Dialog
-      title="New app"
-      width="medium"
-      onClose={onClose}
-      initialFocusRef={firstItemRef}
-      footerButtons={[{ content: "Cancel", onClick: onClose }]}
-    >
+    <Dialog title="New app" width="medium" onClose={onClose} initialFocusRef={firstItemRef} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
       <ActionList>
         {availableTypes.map((type, index) => {
           const Icon = type.icon;
           return (
-            <ActionList.Item
-              key={type.type}
-              ref={index === 0 ? firstItemRef : undefined}
-              onSelect={() => onSelect(type.type)}
-            >
+            <ActionList.Item key={type.type} ref={index === 0 ? firstItemRef : undefined} onSelect={() => onSelect(type.type)}>
               <ActionList.LeadingVisual>
                 <Icon />
               </ActionList.LeadingVisual>

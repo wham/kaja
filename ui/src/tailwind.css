@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* shadcn/ui — stock neutral theme */
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/*
+ * Primer-variable bridge. The pre-shadcn UI styles inline with Primer CSS custom
+ * properties (--bgColor-*, --fgColor-*, ...). While components are migrated these
+ * aliases keep those inline styles resolving after Primer's own primitives CSS is
+ * gone. During coexistence Primer's own definitions win (higher specificity), so
+ * this only takes effect once Primer is removed. Delete once no inline Primer vars
+ * remain.
+ */
+:root,
+.dark {
+  --bgColor-default: var(--background);
+  --bgColor-muted: var(--muted);
+  --bgColor-inset: var(--muted);
+  --fgColor-default: var(--foreground);
+  --fgColor-muted: var(--muted-foreground);
+  --fgColor-danger: var(--destructive);
+  --fgColor-accent: var(--primary);
+  --fgColor-attention: oklch(0.55 0.13 85);
+  --bgColor-attention-muted: oklch(0.55 0.13 85 / 12%);
+  --bgColor-danger-muted: oklch(0.577 0.245 27.325 / 12%);
+  --fgColor-success: oklch(0.6 0.13 155);
+  --bgColor-success-muted: oklch(0.6 0.13 155 / 12%);
+  --bgColor-accent-muted: oklch(0.6 0.12 250 / 12%);
+  --bgColor-canvas-inset: var(--muted);
+  --bgColor-neutral-muted: var(--accent);
+  --control-transparent-bgColor-hover: var(--accent);
+  --borderColor-default: var(--border);
+  --borderColor-muted: var(--border);
+  --fontStack-monospace: var(--font-mono);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
