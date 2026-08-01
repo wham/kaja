@@ -74,7 +74,7 @@ func main() {
 		w.Write(assets.ReadUiBundle().MainCss)
 	})
 
-	mux.HandleFunc("GET /codicon-LN6W7LCM.ttf", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /codicon-KP4OV2OO.ttf", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "font/ttf")
 		w.Write(assets.ReadUiBundle().CodiconTtf)
 	})
