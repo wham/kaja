@@ -16,8 +16,7 @@ import { formatJson } from "./formatter";
 import { getVariables } from "./variableExpansion";
 import { isWailsEnvironment } from "./wails";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const jsonDefaults = (monaco.languages as any).json.jsonDefaults;
+const jsonDefaults = monaco.json.jsonDefaults;
 
 type EditMode = "form" | "json";
 

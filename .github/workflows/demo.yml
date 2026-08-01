@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload demo (artifact)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: demo
           path: .github/demo/
@@ -74,7 +74,7 @@ jobs:
 
       - name: Remove demo comment on failure
         if: failure() && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: demo
           delete: true
@@ -148,7 +148,7 @@ jobs:
 
       - name: Post sticky demo comment
         if: success() && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: demo
           path: demo-comment.md
