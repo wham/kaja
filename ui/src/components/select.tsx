@@ -2,7 +2,7 @@ import { Select as BaseSelect } from "@base-ui-components/react/select";
 import { Check, ChevronDown } from "lucide-react";
 import * as React from "react";
 
-import { cn } from "../cn";
+import { cnState } from "../cn";
 
 const Select = BaseSelect.Root;
 const SelectGroup = BaseSelect.Group;
@@ -15,7 +15,7 @@ const SelectTrigger = React.forwardRef<React.ElementRef<typeof BaseSelect.Trigge
   ({ className, children, ...props }, ref) => (
     <BaseSelect.Trigger
       ref={ref}
-      className={cn(
+      className={cnState(
         "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -35,7 +35,7 @@ function SelectContent({ className, children, ...props }: React.ComponentPropsWi
     <BaseSelect.Portal>
       <BaseSelect.Positioner className="z-50 outline-none" sideOffset={4}>
         <BaseSelect.Popup
-          className={cn(
+          className={cnState(
             "max-h-96 min-w-[8rem] origin-[var(--transform-origin)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
             className,
           )}
@@ -49,7 +49,7 @@ function SelectContent({ className, children, ...props }: React.ComponentPropsWi
 }
 
 function SelectLabel({ className, ...props }: React.ComponentPropsWithoutRef<typeof BaseSelect.GroupLabel>) {
-  return <BaseSelect.GroupLabel className={cn("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />;
+  return <BaseSelect.GroupLabel className={cnState("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)} {...props} />;
 }
 
 interface SelectItemProps extends React.ComponentPropsWithoutRef<typeof BaseSelect.Item> {
@@ -59,7 +59,7 @@ interface SelectItemProps extends React.ComponentPropsWithoutRef<typeof BaseSele
 function SelectItem({ className, children, ...props }: SelectItemProps) {
   return (
     <BaseSelect.Item
-      className={cn(
+      className={cnState(
         "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}

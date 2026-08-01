@@ -1,8 +1,7 @@
-import { cva, type VariantProps } from "class-variance-authority";
 import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
-import { cn } from "../cn";
+import { cn, cva, type VariantProps } from "../cn";
 import { buttonVariants } from "./button";
 import { SimpleTooltip } from "./tooltip";
 
