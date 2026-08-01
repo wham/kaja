@@ -79,6 +79,9 @@ export interface MethodCall {
   upstreamResponseHeaders?: MethodCallHeaders;
   url?: string;
   timestamp: number;
+  // Wall-clock time the call took, set once it succeeds, fails, or its stream
+  // completes. Undefined while still in flight.
+  durationMs?: number;
 }
 
 export interface MethodCallUpdate {

@@ -120,6 +120,9 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
       };
       client.kaja?._internal.methodCallUpdate(methodCall);
 
+      const startedAt = performance.now();
+      const elapsed = () => Math.round(performance.now() - startedAt);
+
       try {
         const call = clientStub[lcfirst(method.name)](input, options);
 
@@ -137,11 +140,13 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             client.kaja?._internal.methodCallUpdate(methodCall);
           }
           methodCall.streamComplete = true;
+          methodCall.durationMs = elapsed();
 
           const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
           collectResponseHeaders(methodCall, headers, trailers);
         } else {
           const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
+          methodCall.durationMs = elapsed();
           methodCall.output = response;
           methodCall.inputTypeName = call.method?.I?.typeName;
           methodCall.inputType = call.method?.I;
@@ -152,6 +157,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           collectResponseHeaders(methodCall, headers, trailers);
         }
       } catch (error: any) {
+        methodCall.durationMs = elapsed();
         methodCall.error = serializeError(error);
         applyUpstreamHeadersFromError(methodCall, error);
       }

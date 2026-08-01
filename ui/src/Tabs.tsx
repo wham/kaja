@@ -137,8 +137,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 role="tab"
                 aria-selected={isActive}
                 className={cn(
-                  "group box-border flex h-[35px] shrink-0 cursor-pointer items-center border-r border-t border-r-border border-t-transparent border-b pl-4 pr-2.5 text-sm hover:bg-accent",
-                  isActive ? "border-t-primary border-b-transparent bg-muted" : "border-b-border",
+                  "group box-border flex h-[35px] shrink-0 cursor-pointer items-center border-b border-r border-t-2 border-r-border border-t-transparent pl-4 pr-2.5 text-sm hover:bg-accent",
+                  isActive ? "border-b-transparent border-t-primary bg-muted" : "border-b-border bg-background",
                 )}
                 onClick={() => onSelectTab(index)}
                 onContextMenu={(e) => handleContextMenu(e, index)}

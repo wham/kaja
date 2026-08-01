@@ -1,11 +1,33 @@
 import * as monaco from "monaco-editor";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { formatJson } from "./formatter";
+import "./monacoTheme";
+
+// A private language rather than the built-in "json" one: that language is wired
+// to the JSON language service, which validates every JSON model against the app
+// configuration schema (see AppForm) and would flag responses as errors. Only
+// tokenization is needed here, and it runs on the main thread — no worker.
+const LANGUAGE_ID = "kaja-json";
+
+monaco.languages.register({ id: LANGUAGE_ID });
+monaco.languages.setMonarchTokensProvider(LANGUAGE_ID, {
+  tokenizer: {
+    root: [
+      [/"(?:[^"\\]|\\.)*"(?=\s*:)/, "string.key.json"],
+      [/"(?:[^"\\]|\\.)*"/, "string.value.json"],
+      [/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/, "number.json"],
+      [/\b(?:true|false|null)\b/, "keyword.json"],
+      [/[{}]/, "delimiter.bracket.json"],
+      [/[[\]]/, "delimiter.array.json"],
+      [/:/, "delimiter.colon.json"],
+      [/,/, "delimiter.comma.json"],
+    ],
+  },
+});
 
 interface JsonViewerProps {
   value: any;
   rawText?: string;
-  colorMode?: "day" | "night";
 }
 
 export interface JsonViewerHandle {
@@ -14,7 +36,7 @@ export interface JsonViewerHandle {
   copyToClipboard: () => void;
 }
 
-export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText, colorMode = "night" }, ref) {
+export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [jsonText, setJsonText] = useState("");
@@ -44,8 +66,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
 
     editorRef.current = monaco.editor.create(containerRef.current, {
       value: jsonText,
-      language: "javascript", // Use JS instead of JSON to avoid worker errors (JSON is valid JS)
-      theme: colorMode === "night" ? "vs-dark" : "vs",
+      language: LANGUAGE_ID,
       automaticLayout: true,
       // Read-only configuration
       readOnly: true,
@@ -117,17 +138,15 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
 
   return (
     <div className="relative h-full">
-      {colorMode === "night" && (
-        <style>{`
-          .json-viewer-container .monaco-editor,
-          .json-viewer-container .monaco-editor-background,
-          .json-viewer-container .monaco-editor .margin {
-            background-color: var(--background) !important;
-          }
-        `}</style>
-      )}
+      <style>{`
+        .json-viewer-container .monaco-editor,
+        .json-viewer-container .monaco-editor-background,
+        .json-viewer-container .monaco-editor .margin {
+          background-color: var(--muted) !important;
+        }
+      `}</style>
       {/* Editor */}
-      <div ref={containerRef} className="json-viewer-container h-full" />
+      <div ref={containerRef} className="json-viewer-container h-full bg-muted" />
     </div>
   );
 });

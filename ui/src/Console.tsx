@@ -17,10 +17,9 @@ const consoleTabActiveClass = "border-b-primary text-foreground";
 interface ConsoleProps {
   items: ConsoleItem[];
   onClear?: () => void;
-  colorMode?: "day" | "night";
 }
 
-export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
+export function Console({ items, onClear }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
   const [callListWidth, setCallListWidth] = useState(300);
@@ -139,16 +138,11 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
 
         <Gutter orientation="vertical" onResize={onCallListResize} />
 
-        {/* Right panel - Details */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Right panel - Details. Elevated to the same surface as the editor:
+            payloads are content, the call list and headers around them are chrome. */}
+        <div className="flex min-w-0 flex-1 flex-col bg-muted">
           {selectedMethodCall ? (
-            <Console.DetailContent
-              methodCall={selectedMethodCall}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              colorMode={colorMode}
-              jsonViewerRef={jsonViewerRef}
-            />
+            <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} jsonViewerRef={jsonViewerRef} />
           ) : (
             <div className="flex flex-1 items-center justify-center gap-1.5 text-xs text-muted-foreground">
               Press <Play size={12} /> to run
@@ -193,17 +187,9 @@ interface MethodCallRowProps {
 // Memoized so the per-second timestamp tick only re-renders rows whose displayed
 // relative time actually changed, instead of every row on every tick.
 Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelected, onSelect, relativeTime }: MethodCallRowProps) {
-  const isStreaming = methodCall.streamOutputs !== undefined;
-  const isStreamActive = isStreaming && !methodCall.streamComplete && !methodCall.error;
-
-  const status = methodCall.error ? "error" : isStreamActive ? "streaming" : methodCall.output ? "success" : "pending";
-
-  const statusClass = {
-    pending: "text-muted-foreground",
-    streaming: "text-primary",
-    success: "text-emerald-600 dark:text-emerald-400",
-    error: "text-destructive",
-  }[status];
+  const status = callStatus(methodCall);
+  const errorCode = callErrorCode(methodCall);
+  const duration = formatDuration(methodCall.durationMs);
 
   const statusIcon = {
     pending: "○",
@@ -213,9 +199,16 @@ Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelec
   }[status];
 
   return (
-    <div data-testid="console-row" className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")} onClick={() => onSelect(index)}>
-      <span className={cn("mr-2 text-[10px]", statusClass)}>{statusIcon}</span>
+    <div
+      data-testid="console-row"
+      className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")}
+      onClick={() => onSelect(index)}
+      title={new Date(methodCall.timestamp).toLocaleTimeString()}
+    >
+      <span className={cn("mr-2 text-[10px]", statusClass(status))}>{statusIcon}</span>
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground">{methodId(methodCall.service, methodCall.method)}</span>
+      {errorCode && <span className="ml-2 shrink-0 overflow-hidden text-ellipsis text-[10px] font-medium text-destructive">{errorCode}</span>}
+      {duration && <span className="ml-2 shrink-0 text-[11px] tabular-nums text-muted-foreground">{duration}</span>}
       <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">{relativeTime}</span>
     </div>
   );
@@ -255,11 +248,10 @@ interface DetailContentProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
-  colorMode?: "day" | "night";
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMode = "night", jsonViewerRef }: DetailContentProps) {
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: DetailContentProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
   const hasError = methodCall.error !== undefined;
@@ -293,11 +285,41 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
         <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for response...</div>
       ) : (
         <>
+          {activeTab === "response" && <Console.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
           {activeTab === "response" && hasError && methodCall.url && (
             <div className="border-b border-border bg-destructive/10 px-3 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
           )}
-          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} colorMode={colorMode} />
+          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
         </>
+      )}
+    </div>
+  );
+};
+
+interface ResponseSummaryProps {
+  methodCall: MethodCall;
+  content: unknown;
+  rawText?: string;
+}
+
+// A one-line readout above the payload: what came back, how long it took and how
+// big it is. Without it a successful call and an empty one look the same.
+Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
+  const status = callStatus(methodCall);
+  const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
+  const duration = formatDuration(methodCall.durationMs);
+  const size = formatBytes(payloadBytes(content, rawText));
+  const streamCount = methodCall.streamOutputs?.length;
+
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-1 font-mono text-[11px]">
+      <span className={cn("font-medium", statusClass(status))}>{label}</span>
+      {duration && <span className="tabular-nums text-muted-foreground">{duration}</span>}
+      {size && <span className="tabular-nums text-muted-foreground">{size}</span>}
+      {streamCount !== undefined && (
+        <span className="text-muted-foreground">
+          {streamCount} {streamCount === 1 ? "message" : "messages"}
+        </span>
       )}
     </div>
   );
@@ -378,6 +400,56 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
   );
 };
 
+type CallStatus = "pending" | "streaming" | "success" | "error";
+
+function callStatus(methodCall: MethodCall): CallStatus {
+  if (methodCall.error) return "error";
+  const isStreaming = methodCall.streamOutputs !== undefined;
+  if (isStreaming && !methodCall.streamComplete) return "streaming";
+  return methodCall.output ? "success" : "pending";
+}
+
+function statusClass(status: CallStatus): string {
+  return {
+    pending: "text-muted-foreground",
+    streaming: "text-primary",
+    success: "text-emerald-600 dark:text-emerald-400",
+    error: "text-destructive",
+  }[status];
+}
+
+// gRPC and Twirp errors carry a status code (e.g. "INVALID_ARGUMENT"); anything
+// else just shows as a plain error.
+function callErrorCode(methodCall: MethodCall): string | undefined {
+  const code = methodCall.error?.code;
+  return typeof code === "string" && code.length > 0 && code.length <= 24 ? code : undefined;
+}
+
+function formatDuration(durationMs?: number): string | undefined {
+  if (durationMs === undefined) return undefined;
+  return durationMs < 1000 ? `${durationMs} ms` : `${(durationMs / 1000).toFixed(durationMs < 10000 ? 2 : 1)} s`;
+}
+
+function payloadBytes(content: unknown, rawText?: string): number | undefined {
+  let text = rawText;
+  if (text === undefined) {
+    if (content === undefined) return undefined;
+    try {
+      text = JSON.stringify(content);
+    } catch {
+      return undefined;
+    }
+  }
+  return text === undefined ? undefined : new TextEncoder().encode(text).length;
+}
+
+function formatBytes(bytes?: number): string | undefined {
+  if (bytes === undefined) return undefined;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function labelForLogLevel(level: LogLevel): string {
   switch (level) {
     case LogLevel.LEVEL_DEBUG:
@@ -404,17 +476,15 @@ function classForLogLevel(level: LogLevel): string {
   }
 }
 
+// Kept short so the row still has room for the status and duration; the row's
+// tooltip carries the exact time.
 function formatRelativeTime(timestamp: number, now: number): string {
   const seconds = Math.floor((now - timestamp) / 1000);
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 5) return "now";
+  if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes === 1) return "1 minute ago";
-  if (minutes < 60) return `${minutes} minutes ago`;
+  if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
-  if (hours === 1) return "1 hour ago";
-  if (hours < 24) return `${hours} hours ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }
