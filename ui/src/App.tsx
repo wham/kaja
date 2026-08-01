@@ -85,8 +85,11 @@ const EDITOR_PADDING = 32;
 const MIN_EDITOR_HEIGHT = 120;
 const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 // Above this window width the editor and the response fit side by side, which
-// suits the wide, short shape of a method call better than stacking them.
-const SIDE_BY_SIDE_MIN_WIDTH = 1200;
+// suits the wide, short shape of a method call better than stacking them. Side
+// by side splits the window four ways — sidebar, editor, call list, response —
+// so the threshold has to leave the response a usable share of it; below this,
+// stacking gives it the full width instead.
+const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
 // Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
 function lowerFirst(s: string): string {

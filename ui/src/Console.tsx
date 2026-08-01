@@ -312,12 +312,12 @@ Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSu
   const streamCount = methodCall.streamOutputs?.length;
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-1 font-mono text-[11px]">
-      <span className={cn("font-medium", statusClass(status))}>{label}</span>
-      {duration && <span className="tabular-nums text-muted-foreground">{duration}</span>}
-      {size && <span className="tabular-nums text-muted-foreground">{size}</span>}
+    <div className="flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-border px-3 py-1 font-mono text-[11px]">
+      <span className={cn("shrink-0 font-medium", statusClass(status))}>{label}</span>
+      {duration && <span className="shrink-0 tabular-nums text-muted-foreground">{duration}</span>}
+      {size && <span className="shrink-0 tabular-nums text-muted-foreground">{size}</span>}
       {streamCount !== undefined && (
-        <span className="text-muted-foreground">
+        <span className="shrink-0 text-muted-foreground">
           {streamCount} {streamCount === 1 ? "message" : "messages"}
         </span>
       )}
