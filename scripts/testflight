@@ -178,6 +178,9 @@ fi
 echo ""
 echo "--- Signing and packaging"
 cp "$PROVISION_PROFILE_PATH" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+# cp carries over mktemp's 0600, and the App Store rejects a package whose
+# files are not readable by non-root users.
+chmod 644 "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
 # The App Store rejects packages whose files carry quarantine attributes.
 # Must run before signing so the clean state is sealed in.
