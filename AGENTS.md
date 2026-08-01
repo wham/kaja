@@ -149,10 +149,9 @@ Both share the same backend code but differ in how they're packaged:
 **`/workspace/`** - Example workspace for development and testing:
 
 - This is a demo workspace that developers use to test kaja
-- `kaja.json` - Configuration file defining demo apps hosted on kaja.tools:
-  - The Kaja Theatre box office trio — theatre (OpenAPI), seating (gRPC), boxoffice (Twirp) — plus quirks (gRPC and Twirp) and grpcb.in (gRPC)
-- `quirks/proto/`, `seating/proto/`, `boxoffice/proto/` - Proto files for the gRPC/Twirp services (theatre is OpenAPI, its spec is fetched from `spec_url` at runtime)
-- Run `scripts/demo-protos` to update proto files from kaja-tools/website
+- `kaja.json` - Configuration file defining demo apps: grpcb.in (gRPC), plus quirks (Twirp), theatre (OpenAPI) and seating (gRPC) hosted on kaja.tools
+- `quirks/proto/`, `grpcbin/proto/` - Proto files for the Twirp service and grpcb.in. Nothing else needs local protos: theatre is OpenAPI (its spec is fetched from `spec_url` at runtime) and seating uses gRPC server reflection
+- Run `scripts/demo-protos` to update proto files from kaja-tools/website and moul/pb
 - The `scripts/server` script starts kaja with this workspace by default
 
 ### Code Generation Flow
