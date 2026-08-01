@@ -695,11 +695,15 @@ func main() {
 	// feature preview as on (see startup).
 	appMenu := app.buildAppMenu(false)
 
+	width, height := windowSize()
+
 	err = wails.Run(&options.App{
-		Title:  "Kaja",
-		Width:  1024,
-		Height: 768,
-		Menu:   appMenu,
+		Title:     "Kaja",
+		Width:     width,
+		Height:    height,
+		MinWidth:  windowMinWidth,
+		MinHeight: windowMinHeight,
+		Menu:      appMenu,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
