@@ -1,52 +1,34 @@
 {
   "apps": [
     {
+      "name": "grpcb.in",
+      "grpc": {
+        "url": "grpc://grpcb.in:9000",
+        "proto_dir": "grpcbin/proto"
+      }
+    },
+    {
+      "name": "quirks",
+      "twirp": {
+        "url": "https://quirks.kaja.tools",
+        "proto_dir": "quirks/proto",
+        "headers": {
+          "X-Yolo": "kaja123",
+          "Authorization": "Bear brown"
+        }
+      }
+    },
+    {
       "name": "theatre",
       "openapi": {
-        "spec_url": "https://kaja.tools/theatre/openapi.yaml"
+        "spec_url": "https://theatre.kaja.tools/openapi.yaml"
       }
     },
     {
       "name": "seating",
       "grpc": {
-        "url": "dns:kaja.tools:443",
-        "proto_dir": "seating/proto"
-      }
-    },
-    {
-      "name": "boxoffice",
-      "twirp": {
-        "url": "https://kaja.tools/boxoffice",
-        "proto_dir": "boxoffice/proto"
-      }
-    },
-    {
-      "name": "grpc-quirks",
-      "grpc": {
-        "url": "dns:kaja.tools:443",
-        "proto_dir": "quirks/proto",
-        "headers": {
-          "X-Yolo": "kaja123",
-          "Authorization": "Bear brown"
-        }
-      }
-    },
-    {
-      "name": "twirp-quirks",
-      "twirp": {
-        "url": "https://kaja.tools/twirp-quirks",
-        "proto_dir": "quirks/proto",
-        "headers": {
-          "X-Yolo": "kaja123",
-          "Authorization": "Bear brown"
-        }
-      }
-    },
-    {
-      "name": "grpcb.in",
-      "grpc": {
-        "url": "grpc://grpcb.in:9000",
-        "proto_dir": "grpcbin/proto"
+        "url": "dns:seating.kaja.tools:443",
+        "reflection": true
       }
     }
   ],

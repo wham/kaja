@@ -125,7 +125,7 @@ async function takeDemo() {
       console.log("New app button not found, skipping screenshot");
     }
 
-    // 3. Call screenshot - click the theatre ListEvents method, run it, wait for results
+    // 3. Call screenshot - click the theatre ListShows method, run it, wait for results
     console.log("Taking call screenshot...");
 
     // Expand the whole tree so the target method is reliably visible; default
@@ -136,9 +136,9 @@ async function takeDemo() {
       await settleDelay(page);
     }
 
-    // Click on the ListEvents method (theatre) in the sidebar tree
-    const methodItem = page.getByText('ListEvents', { exact: true }).first();
-    await waitForLocator(methodItem, "ListEvents method in sidebar");
+    // Click on the ListShows method (theatre) in the sidebar tree
+    const methodItem = page.getByText('ListShows', { exact: true }).first();
+    await waitForLocator(methodItem, "ListShows method in sidebar");
     await methodItem.click();
 
     // Wait for method tab to become active
