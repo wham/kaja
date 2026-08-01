@@ -78,37 +78,6 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
-/*
- * Primer-variable bridge. The pre-shadcn UI styles inline with Primer CSS custom
- * properties (--bgColor-*, --fgColor-*, ...). While components are migrated these
- * aliases keep those inline styles resolving after Primer's own primitives CSS is
- * gone. During coexistence Primer's own definitions win (higher specificity), so
- * this only takes effect once Primer is removed. Delete once no inline Primer vars
- * remain.
- */
-:root,
-.dark {
-  --bgColor-default: var(--background);
-  --bgColor-muted: var(--muted);
-  --bgColor-inset: var(--muted);
-  --fgColor-default: var(--foreground);
-  --fgColor-muted: var(--muted-foreground);
-  --fgColor-danger: var(--destructive);
-  --fgColor-accent: var(--primary);
-  --fgColor-attention: oklch(0.55 0.13 85);
-  --bgColor-attention-muted: oklch(0.55 0.13 85 / 12%);
-  --bgColor-danger-muted: oklch(0.577 0.245 27.325 / 12%);
-  --fgColor-success: oklch(0.6 0.13 155);
-  --bgColor-success-muted: oklch(0.6 0.13 155 / 12%);
-  --bgColor-accent-muted: oklch(0.6 0.12 250 / 12%);
-  --bgColor-canvas-inset: var(--muted);
-  --bgColor-neutral-muted: var(--accent);
-  --control-transparent-bgColor-hover: var(--accent);
-  --borderColor-default: var(--border);
-  --borderColor-muted: var(--border);
-  --fontStack-monospace: var(--font-mono);
-}
-
 @layer base {
   * {
     border-color: var(--border);

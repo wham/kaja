@@ -204,7 +204,6 @@ export interface onGoToDefinition {
   (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
 }
 
-
 export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);

@@ -1,5 +1,6 @@
 import { Check, Copy, FoldVertical, Play, Trash2, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "./cn";
 import { Gutter } from "./Gutter";
 import { IconButton } from "./components/icon-button";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
@@ -8,6 +9,10 @@ import { methodId } from "./apps";
 import { Log, LogLevel } from "./server/api";
 
 export type ConsoleItem = Log[] | MethodCall;
+
+const consoleRowClass = "flex cursor-pointer items-center border-b border-border px-3 py-1.5 font-mono text-xs";
+const consoleTabClass = "cursor-pointer border-b-2 border-transparent px-4 py-2 font-mono text-xs text-muted-foreground hover:text-foreground";
+const consoleTabActiveClass = "border-b-primary text-foreground";
 
 interface ConsoleProps {
   items: ConsoleItem[];
@@ -89,90 +94,18 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, backgroundColor: "var(--bgColor-default)" }}>
-      <style>{`
-        .console-row {
-          display: flex;
-          align-items: center;
-          padding: 6px 12px;
-          cursor: pointer;
-          border-bottom: 1px solid var(--borderColor-muted);
-          font-size: 12px;
-          font-family: monospace;
-        }
-        .console-row:hover {
-          background-color: var(--bgColor-neutral-muted);
-        }
-        .console-row.selected {
-          background-color: var(--bgColor-accent-muted);
-        }
-        .console-row.selected:hover {
-          background-color: var(--bgColor-accent-muted);
-        }
-        .console-tab {
-          padding: 8px 16px;
-          cursor: pointer;
-          font-size: 12px;
-          font-family: monospace;
-          border-bottom: 2px solid transparent;
-          color: var(--fgColor-muted);
-        }
-        .console-tab:hover {
-          color: var(--fgColor-default);
-        }
-        .console-tab.active {
-          color: var(--fgColor-default);
-          border-bottom-color: var(--fgColor-accent);
-        }
-      `}</style>
-
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* Header row */}
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid var(--borderColor-muted)",
-          height: 35,
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            width: callListWidth,
-            flexShrink: 0,
-            padding: "0 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--fgColor-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Calls
-          </span>
+      <div className="flex h-[35px] shrink-0 border-b border-border">
+        <div className="flex shrink-0 items-center justify-between px-3" style={{ width: callListWidth }}>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Calls</span>
           {onClear && items.length > 0 && <IconButton icon={Trash2} aria-label="Clear console" onClick={onClear} size="sm" variant="ghost" />}
         </div>
-        <div style={{ width: 1, flexShrink: 0, backgroundColor: "var(--borderColor-muted)" }} />
-        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+        <div className="w-px shrink-0 bg-border" />
+        <div className="flex min-w-0 flex-1 items-center">
           {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
           {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
-            <div
-              style={{
-                marginLeft: "auto",
-                marginRight: 12,
-                background: "var(--bgColor-muted)",
-                borderRadius: 6,
-                padding: 2,
-                display: "flex",
-                gap: 2,
-              }}
-            >
+            <div className="ml-auto mr-3 flex gap-0.5 rounded-md bg-muted p-0.5">
               <IconButton icon={FoldVertical} aria-label="Fold all" onClick={handleFoldAll} size="sm" variant="ghost" />
               <IconButton icon={UnfoldVertical} aria-label="Unfold all" onClick={handleUnfoldAll} size="sm" variant="ghost" />
               <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" onClick={handleCopy} size="sm" variant="ghost" />
@@ -182,16 +115,9 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
       </div>
 
       {/* Content row */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div className="flex min-h-0 flex-1">
         {/* Left panel - Call list */}
-        <div
-          ref={listRef}
-          style={{
-            width: callListWidth,
-            overflowY: "auto",
-            flexShrink: 0,
-          }}
-        >
+        <div ref={listRef} className="shrink-0 overflow-y-auto" style={{ width: callListWidth }}>
           {items.map((item, index) => {
             if (Array.isArray(item)) {
               return <Console.LogRow key={`log:${index}`} logs={item} />;
@@ -214,7 +140,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
         <Gutter orientation="vertical" onResize={onCallListResize} />
 
         {/* Right panel - Details */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <div className="flex min-w-0 flex-1 flex-col">
           {selectedMethodCall ? (
             <Console.DetailContent
               methodCall={selectedMethodCall}
@@ -224,17 +150,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
               jsonViewerRef={jsonViewerRef}
             />
           ) : (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                color: "var(--fgColor-muted)",
-                fontSize: 12,
-              }}
-            >
+            <div className="flex flex-1 items-center justify-center gap-1.5 text-xs text-muted-foreground">
               Press <Play size={12} /> to run
             </div>
           )}
@@ -253,14 +169,11 @@ Console.LogRow = function ({ logs }: LogRowProps) {
 
   // Show summary of logs with highest severity
   const highestSeverity = Math.max(...logs.map((l) => l.level));
-  const color = colorForLogLevel(highestSeverity);
 
   return (
-    <div className="console-row" style={{ color, opacity: 0.8 }} title={logs.map((l) => l.message).join("\n")}>
-      <span style={{ marginRight: 8, fontSize: 10 }}>{labelForLogLevel(highestSeverity)}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}
-      </span>
+    <div className={cn(consoleRowClass, "opacity-80 hover:bg-accent/50", classForLogLevel(highestSeverity))} title={logs.map((l) => l.message).join("\n")}>
+      <span className="mr-2 text-[10px]">{labelForLogLevel(highestSeverity)}</span>
+      <span className="overflow-hidden text-ellipsis whitespace-nowrap">{logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}</span>
     </div>
   );
 };
@@ -281,11 +194,11 @@ Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelec
 
   const status = methodCall.error ? "error" : isStreamActive ? "streaming" : methodCall.output ? "success" : "pending";
 
-  const statusColor = {
-    pending: "var(--fgColor-muted)",
-    streaming: "var(--fgColor-accent)",
-    success: "var(--fgColor-success)",
-    error: "var(--fgColor-danger)",
+  const statusClass = {
+    pending: "text-muted-foreground",
+    streaming: "text-primary",
+    success: "text-emerald-600 dark:text-emerald-400",
+    error: "text-destructive",
   }[status];
 
   const statusIcon = {
@@ -296,29 +209,10 @@ Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelec
   }[status];
 
   return (
-    <div className={`console-row ${isSelected ? "selected" : ""}`} onClick={() => onSelect(index)}>
-      <span style={{ color: statusColor, marginRight: 8, fontSize: 10 }}>{statusIcon}</span>
-      <span
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          color: "var(--fgColor-default)",
-          flex: 1,
-        }}
-      >
-        {methodId(methodCall.service, methodCall.method)}
-      </span>
-      <span
-        style={{
-          color: "var(--fgColor-muted)",
-          fontSize: 11,
-          marginLeft: 8,
-          flexShrink: 0,
-        }}
-      >
-        {relativeTime}
-      </span>
+    <div className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")} onClick={() => onSelect(index)}>
+      <span className={cn("mr-2 text-[10px]", statusClass)}>{statusIcon}</span>
+      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground">{methodId(methodCall.service, methodCall.method)}</span>
+      <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">{relativeTime}</span>
     </div>
   );
 });
@@ -336,20 +230,17 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
   const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
 
   return (
-    <div style={{ display: "flex" }}>
-      <div className={`console-tab ${activeTab === "request" ? "active" : ""}`} onClick={() => onTabChange("request")}>
+    <div className="flex">
+      <div className={cn(consoleTabClass, activeTab === "request" && consoleTabActiveClass)} onClick={() => onTabChange("request")}>
         Request
       </div>
       <div
-        className={`console-tab ${activeTab === "response" ? "active" : ""}`}
+        className={cn(consoleTabClass, activeTab === "response" && consoleTabActiveClass, methodCall.error && "text-destructive hover:text-destructive")}
         onClick={() => onTabChange("response")}
-        style={{
-          color: methodCall.error ? "var(--fgColor-danger)" : activeTab === "response" ? "var(--fgColor-default)" : "var(--fgColor-muted)",
-        }}
       >
         Response{isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}
       </div>
-      <div className={`console-tab ${activeTab === "headers" ? "active" : ""}`} onClick={() => onTabChange("headers")}>
+      <div className={cn(consoleTabClass, activeTab === "headers" && consoleTabActiveClass)} onClick={() => onTabChange("headers")}>
         Headers
       </div>
     </div>
@@ -393,42 +284,13 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, colorMod
   }
 
   return (
-    <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div className="flex min-h-0 flex-1 flex-col">
       {activeTab === "response" && !hasResponse ? (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--fgColor-muted)",
-            fontSize: 12,
-          }}
-        >
-          Waiting for response...
-        </div>
+        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for response...</div>
       ) : (
         <>
           {activeTab === "response" && hasError && methodCall.url && (
-            <div
-              style={{
-                padding: "6px 12px",
-                fontFamily: "monospace",
-                fontSize: 12,
-                color: "var(--fgColor-danger)",
-                borderBottom: "1px solid var(--borderColor-muted)",
-                backgroundColor: "var(--bgColor-danger-muted)",
-              }}
-            >
-              POST {methodCall.url}
-            </div>
+            <div className="border-b border-border bg-destructive/10 px-3 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
           )}
           <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} colorMode={colorMode} />
         </>
@@ -452,40 +314,31 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const hasUpstream = Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
 
   const section = (title: string, headers: { [key: string]: string }) => (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--fgColor-default)" }}>{title}</div>
+    <div className="mb-6">
+      <div className="mb-2 font-semibold text-foreground">{title}</div>
       {Object.keys(headers).length > 0 ? (
         <Console.HeadersTable headers={headers} />
       ) : (
-        <div style={{ color: "var(--fgColor-muted)", fontStyle: "italic" }}>No {title.toLowerCase()}</div>
+        <div className="italic text-muted-foreground">No {title.toLowerCase()}</div>
       )}
     </div>
   );
 
   const groupHeading = (text: string, caption: string) => (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--fgColor-default)" }}>{text}</div>
-      <div style={{ color: "var(--fgColor-muted)" }}>{caption}</div>
+    <div className="mb-3">
+      <div className="font-semibold uppercase tracking-wider text-foreground">{text}</div>
+      <div className="text-muted-foreground">{caption}</div>
     </div>
   );
 
   return (
-    <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: "auto",
-        padding: 16,
-        fontFamily: "monospace",
-        fontSize: 12,
-      }}
-    >
+    <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs">
       {hasUpstream ? (
         <>
           {groupHeading("Upstream", "Headers Kaja exchanged with the API")}
           {section("Request headers", upstreamRequestHeaders)}
           {section("Response headers", upstreamResponseHeaders)}
-          <div style={{ height: 1, background: "var(--borderColor-default)", margin: "0 0 24px" }} />
+          <div className="mb-6 h-px bg-border" />
           {groupHeading("Transport", "Headers between the browser and Kaja")}
           {section("Request headers", requestHeaders)}
           {section("Response headers", responseHeaders)}
@@ -508,34 +361,12 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
   const sortedKeys = Object.keys(headers).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
   return (
-    <table
-      style={{
-        borderCollapse: "collapse",
-        width: "100%",
-      }}
-    >
+    <table className="w-full border-collapse">
       <tbody>
         {sortedKeys.map((key) => (
           <tr key={key}>
-            <td
-              style={{
-                padding: "4px 12px 4px 0",
-                color: "var(--fgColor-muted)",
-                verticalAlign: "top",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {key}:
-            </td>
-            <td
-              style={{
-                padding: "4px 0",
-                color: "var(--fgColor-default)",
-                wordBreak: "break-all",
-              }}
-            >
-              {headers[key]}
-            </td>
+            <td className="whitespace-nowrap py-1 pr-3 align-top text-muted-foreground">{key}:</td>
+            <td className="break-all py-1 text-foreground">{headers[key]}</td>
           </tr>
         ))}
       </tbody>
@@ -556,16 +387,16 @@ function labelForLogLevel(level: LogLevel): string {
   }
 }
 
-function colorForLogLevel(level: LogLevel): string {
+function classForLogLevel(level: LogLevel): string {
   switch (level) {
     case LogLevel.LEVEL_DEBUG:
-      return "var(--fgColor-muted)";
+      return "text-muted-foreground";
     case LogLevel.LEVEL_INFO:
-      return "var(--fgColor-default)";
+      return "text-foreground";
     case LogLevel.LEVEL_WARN:
-      return "var(--fgColor-attention)";
+      return "text-amber-600 dark:text-amber-400";
     case LogLevel.LEVEL_ERROR:
-      return "var(--fgColor-danger)";
+      return "text-destructive";
   }
 }
 

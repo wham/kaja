@@ -110,9 +110,7 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
             ))}
           </SegmentedControl>
           <span className="text-[11px] text-muted-foreground">{client.hint}</span>
-          <pre className="m-0 whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
-            {snippet}
-          </pre>
+          <pre className="m-0 whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">{snippet}</pre>
           <Button variant="outline" size="sm" onClick={copy}>
             {copied ? "Copied" : "Copy"}
           </Button>

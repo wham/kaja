@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
@@ -25,40 +26,14 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
   return [...groups.entries()];
 }
 
+const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
+
 function AppPill({ type }: { type: string }) {
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: "bold",
-        padding: "1px 5px",
-        borderRadius: 4,
-        marginLeft: 6,
-        backgroundColor: "var(--bgColor-accent-muted)",
-        color: "var(--fgColor-accent)",
-      }}
-    >
-      {appTypeLabel(type)}
-    </span>
-  );
+  return <span className={pillClass}>{appTypeLabel(type)}</span>;
 }
 
 export function PreviewPill() {
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        fontWeight: "bold",
-        padding: "1px 5px",
-        borderRadius: 4,
-        marginLeft: 6,
-        backgroundColor: "var(--bgColor-accent-muted)",
-        color: "var(--fgColor-accent)",
-      }}
-    >
-      Preview
-    </span>
-  );
+  return <span className={pillClass}>Preview</span>;
 }
 
 interface ScrollToMethod {
@@ -435,33 +410,14 @@ export function Sidebar({
         {scripts && scripts.length > 0 && (
           <nav aria-label="Scripts">
             <div
-              style={{
-                fontSize: 12,
-                fontWeight: "bold",
-                marginLeft: -12,
-                paddingLeft: 4,
-                color: "var(--fgColor-muted)",
-                display: "flex",
-                alignItems: "center",
-                cursor: "pointer",
-                userSelect: "none",
-                height: 28,
-                gap: 2,
-              }}
+              className="-ml-3 flex h-7 cursor-pointer select-none items-center gap-0.5 pl-1 text-xs font-bold text-muted-foreground"
               onClick={() => setScriptsExpanded((v) => !v)}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  transform: scriptsExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                  transition: "transform 0.12s ease",
-                  color: "var(--fgColor-muted)",
-                }}
-              >
+              <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", scriptsExpanded && "rotate-90")}>
                 <ChevronRight size={16} />
               </span>
               <FileCode size={16} />
-              <span style={{ marginLeft: 4 }}>Scripts</span>
+              <span className="ml-1">Scripts</span>
               <PreviewPill />
             </div>
             {scriptsExpanded && (
@@ -532,22 +488,10 @@ export function Sidebar({
             >
               {showAppHeader && (
                 <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "bold",
-                    marginLeft: -12,
-                    paddingLeft: 4,
-                    paddingRight: 4,
-                    borderRadius: 6,
-                    color: "var(--fgColor-muted)",
-                    backgroundColor: hoveredApp === appName || appMenu?.appName === appName ? "var(--control-transparent-bgColor-hover)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    userSelect: "none",
-                    height: 28,
-                  }}
+                  className={cn(
+                    "-ml-3 flex h-7 cursor-pointer select-none items-center justify-between rounded-md px-1 text-xs font-bold text-muted-foreground",
+                    (hoveredApp === appName || appMenu?.appName === appName) && "bg-accent",
+                  )}
                   onMouseEnter={() => setHoveredApp(appName)}
                   onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
                   onClick={() => toggleAppExpanded(appName)}
@@ -556,15 +500,8 @@ export function Sidebar({
                     setAppMenu({ appName, top: e.clientY, left: e.clientX });
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                        transition: "transform 0.12s ease",
-                        color: "var(--fgColor-muted)",
-                      }}
-                    >
+                  <span className="flex items-center gap-0.5">
+                    <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")}>
                       <ChevronRight size={16} />
                     </span>
                     {appName}
@@ -676,7 +613,7 @@ export function Sidebar({
                             <TreeView.LeadingVisual>
                               <Package size={16} />
                             </TreeView.LeadingVisual>
-                            <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>{packageName}</span>
+                            <span className="font-normal text-muted-foreground">{packageName}</span>
                             <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
                           </TreeView.Item>
                         );

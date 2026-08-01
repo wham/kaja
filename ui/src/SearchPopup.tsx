@@ -132,10 +132,7 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
             filteredResults.map((result, index) => (
               <div
                 key={index}
-                className={cn(
-                  "cursor-pointer border-l-2 px-3 py-2.5",
-                  index === selectedIndex ? "border-primary bg-accent" : "border-transparent",
-                )}
+                className={cn("cursor-pointer border-l-2 px-3 py-2.5", index === selectedIndex ? "border-primary bg-accent" : "border-transparent")}
                 onMouseEnter={() => setSelectedIndex(index)}
                 onClick={() => {
                   onSelect(result.method, result.service, result.app);

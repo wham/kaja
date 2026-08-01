@@ -1372,14 +1372,9 @@ export function App() {
   return (
     <>
       <div
+        className="fixed inset-0 flex flex-col bg-background text-foreground"
         style={{
-          position: "fixed",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
           overflow,
-          background: "var(--bgColor-default)",
-          color: "var(--fgColor-default)",
           WebkitOverflowScrolling: isNarrow ? "touch" : undefined,
           overscrollBehavior: isNarrow ? "contain" : "none",
         }}
@@ -1423,35 +1418,14 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
-              style={
-                {
-                  height: 30,
-                  display: "flex",
-                  alignItems: "center",
-                  borderBottom: "1px solid var(--borderColor-muted)",
-                  background: "var(--bgColor-default)",
-                  flexShrink: 0,
-                  "--wails-draggable": "drag",
-                } as React.CSSProperties
-              }
+              className="flex h-[30px] shrink-0 items-center border-b border-border bg-background"
+              style={{ "--wails-draggable": "drag" } as React.CSSProperties}
             >
               <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
                 <div
                   onClick={() => setIsSearchOpen(true)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "2px 12px",
-                    fontSize: 12,
-                    color: "var(--fgColor-muted)",
-                    backgroundColor: "var(--bgColor-muted)",
-                    border: "1px solid var(--borderColor-default)",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    userSelect: "none",
-                    flexShrink: 0,
-                  }}
+                  className="flex shrink-0 cursor-pointer select-none items-center rounded-md border border-border bg-muted px-3 py-0.5 text-xs text-muted-foreground"
                 >
                   {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>
@@ -1466,7 +1440,7 @@ export function App() {
                       window.open(url, "_blank");
                     }
                   }}
-                  style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
+                  className="text-xs text-muted-foreground"
                 >
                   <MessagesSquare size={16} />
                   Feedback

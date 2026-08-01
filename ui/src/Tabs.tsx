@@ -1,4 +1,5 @@
 import { Ellipsis, Play, X } from "lucide-react";
+import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -115,47 +116,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <style>{`
-        .tabs-header::-webkit-scrollbar {
-          display: none;
-        }
-        .tab-item {
-          display: flex;
-          align-items: center;
-          flex-shrink: 0;
-          padding: 0 10px 0 16px;
-          border-top: 1px solid transparent;
-          border-right: 1px solid var(--borderColor-muted);
-          border-bottom: 1px solid var(--borderColor-muted);
-          font-size: 14px;
-          cursor: pointer;
-          background-color: transparent;
-          height: 35px;
-          box-sizing: border-box;
-        }
-        .tab-item:hover {
-          background-color: var(--bgColor-neutral-muted);
-        }
-        .tab-item.active {
-          border-top-color: var(--fgColor-accent);
-          border-bottom-color: transparent;
-          background-color: var(--bgColor-muted);
-        }
-        .tab-close-button:hover {
-          opacity: 1 !important;
-          background-color: var(--bgColor-neutral-muted);
-        }
-        .tab-item:hover .tab-close-button {
-          opacity: 1 !important;
-        }
-      `}</style>
-      <div
-        className="tabs-wrapper"
-        style={{ position: "relative", flexShrink: 0 }}
-        onMouseEnter={() => setShowScrollbar(true)}
-        onMouseLeave={() => setShowScrollbar(false)}
-      >
-        <div ref={tabsHeaderRef} className="tabs-header" style={{ display: "flex", overflowX: "auto", paddingRight: tabCount > 0 ? controlsWidth : 0 }}>
+      <div className="relative shrink-0" onMouseEnter={() => setShowScrollbar(true)} onMouseLeave={() => setShowScrollbar(false)}>
+        <div ref={tabsHeaderRef} className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ paddingRight: tabCount > 0 ? controlsWidth : 0 }}>
           {React.Children.map(children, (child, index) => {
             const { tabId, tabLabel, isEphemeral } = child.props;
             const isActive = index === activeTabIndex;
@@ -167,19 +129,19 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                   if (el) tabRefs.current.set(index, el);
                   else tabRefs.current.delete(index);
                 }}
-                className={`tab-item ${isActive ? "active" : ""}`}
+                className={cn(
+                  "group box-border flex h-[35px] shrink-0 cursor-pointer items-center border-r border-t border-r-border border-t-transparent border-b pl-4 pr-2.5 text-sm hover:bg-accent",
+                  isActive ? "border-t-primary border-b-transparent bg-muted" : "border-b-border",
+                )}
                 onClick={() => onSelectTab(index)}
                 onContextMenu={(e) => handleContextMenu(e, index)}
               >
                 <span
-                  style={{
-                    fontSize: "inherit",
-                    color: isActive ? "var(--fgColor-default)" : "var(--fgColor-muted)",
-                    fontStyle: isEphemeral ? "italic" : "normal",
-                    userSelect: "none",
-                    whiteSpace: "nowrap",
-                    marginRight: 8,
-                  }}
+                  className={cn(
+                    "mr-2 select-none whitespace-nowrap text-[length:inherit]",
+                    isActive ? "text-foreground" : "text-muted-foreground",
+                    isEphemeral && "italic",
+                  )}
                 >
                   {tabLabel}
                 </span>
@@ -190,13 +152,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                     variant="ghost"
                     size="sm"
                     tooltip={false}
-                    className="tab-close-button"
-                    style={{
-                      padding: 1,
-                      height: 16,
-                      width: 16,
-                      opacity: isActive ? 0.7 : 0,
-                    }}
+                    className={cn("h-4 w-4 p-px hover:bg-accent hover:opacity-100 group-hover:opacity-100", isActive ? "opacity-70" : "opacity-0")}
                     onClick={(e) => {
                       e.stopPropagation();
                       onCloseTab(index);
@@ -206,39 +162,16 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div style={{ flexGrow: 1, borderBottom: "1px solid var(--borderColor-muted)" }} />
+          <div className="grow border-b border-border" />
         </div>
         {tabCount > 0 && (onRun || onCloseAll) && (
-          <div
-            ref={controlsRef}
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              paddingLeft: 4,
-              paddingRight: 8,
-              background: "var(--bgColor-default)",
-              borderBottom: "1px solid var(--borderColor-muted)",
-            }}
-          >
+          <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1.5 border-b border-border bg-background pl-1 pr-2">
             {onRun && (
               <SimpleTooltip text="Run (F5)" side="bottom">
                 <Button
                   onClick={onRun}
                   size="sm"
-                  className="bg-[#1f883d] text-white hover:bg-[#1a7f37]"
-                  style={{
-                    height: "22px",
-                    paddingLeft: "7px",
-                    paddingRight: "9px",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    borderRadius: "6px",
-                  }}
+                  className="h-[22px] rounded-md bg-emerald-600 pl-[7px] pr-[9px] text-xs font-medium text-white hover:bg-emerald-700"
                 >
                   <Play size={14} />
                   Run
@@ -259,16 +192,10 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
         )}
         {showScrollbar && scrollMetrics.width > scrollMetrics.clientWidth && (
           <div
+            className="pointer-events-none absolute bottom-0 z-[1] h-0.5 rounded-sm bg-muted-foreground"
             style={{
-              position: "absolute",
-              bottom: 0,
               left: Math.max(0, Math.min((scrollMetrics.left / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth - 8)),
               width: Math.min((scrollMetrics.clientWidth / scrollMetrics.width) * scrollMetrics.clientWidth, scrollMetrics.clientWidth),
-              height: 2,
-              background: "var(--fgColor-muted)",
-              borderRadius: 1,
-              pointerEvents: "none",
-              zIndex: 1,
             }}
           />
         )}
