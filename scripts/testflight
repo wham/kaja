@@ -19,10 +19,6 @@
 #   PROVISION_PROFILE_BASE64      - Base64 Mac App Store provisioning profile (.provisionprofile)
 #   BUILD_NUMBER                  - CFBundleVersion to stamp on the build (required)
 #   SKIP_UPLOAD                   - Set to "true" to build and package only, skip upload
-#
-# The provisioning profile is not tracked in git. Locally, drop it at
-# desktop/build/darwin/embedded.provisionprofile (gitignored) or set
-# PROVISION_PROFILE_BASE64; in CI it comes from the secret of the same name.
 
 set -euo pipefail
 
@@ -46,10 +42,9 @@ APP_BUNDLE="$DESKTOP_DIR/build/bin/Kaja.app"
 PKG_PATH="$DESKTOP_DIR/build/bin/Kaja.pkg"
 KEYCHAIN_NAME="build-$(uuidgen).keychain-db"
 KEYCHAIN_PASSWORD="$(uuidgen)"
-PROVISION_PROFILE_PATH="$DESKTOP_DIR/build/darwin/embedded.provisionprofile"
+PROVISION_PROFILE_PATH=""
 CREATED_KEYCHAIN=false
 CREATED_API_KEY=false
-CREATED_PROVISION_PROFILE=false
 
 cleanup() {
     echo "--- Cleaning up"
@@ -59,7 +54,7 @@ cleanup() {
     if [ "$CREATED_API_KEY" = true ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
         rm -f "$APPLE_API_KEY_PATH"
     fi
-    if [ "$CREATED_PROVISION_PROFILE" = true ]; then
+    if [ -n "$PROVISION_PROFILE_PATH" ]; then
         rm -f "$PROVISION_PROFILE_PATH"
     fi
 }
@@ -109,17 +104,15 @@ fi
 
 # -- Decode the provisioning profile --
 
-if [ -n "${PROVISION_PROFILE_BASE64:-}" ]; then
-    echo ""
-    echo "--- Decoding provisioning profile"
-    mkdir -p "$(dirname "$PROVISION_PROFILE_PATH")"
-    echo "$PROVISION_PROFILE_BASE64" | base64 --decode > "$PROVISION_PROFILE_PATH"
-    CREATED_PROVISION_PROFILE=true
-elif [ ! -f "$PROVISION_PROFILE_PATH" ]; then
-    echo "error: no provisioning profile. Set PROVISION_PROFILE_BASE64 or put the"
-    echo "       Mac App Store profile at $PROVISION_PROFILE_PATH."
+if [ -z "${PROVISION_PROFILE_BASE64:-}" ]; then
+    echo "error: PROVISION_PROFILE_BASE64 is required."
     exit 1
 fi
+
+echo ""
+echo "--- Decoding provisioning profile"
+PROVISION_PROFILE_PATH="$(mktemp)"
+echo "$PROVISION_PROFILE_BASE64" | base64 --decode > "$PROVISION_PROFILE_PATH"
 
 # -- Import signing certificates into a temporary keychain --
 
