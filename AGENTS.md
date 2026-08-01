@@ -213,7 +213,7 @@ off `data-starting-style` / `data-ending-style`.
 ### Conventions
 
 - Icons: import from `lucide-react` directly, under lucide's own names (e.g. `Trash2`, `Ellipsis`, `PanelLeftClose`). Standalone icons take a numeric `size` prop; inside `IconButton` the size comes from the button. lucide ships no brand icons, so the GitHub mark is drawn inline in `StatusBar.tsx`.
-- Class names: compose with `cn()` from `ui/src/cn.ts` (clsx + tailwind-merge).
+- Class names: compose with `cn()` from `ui/src/cn.ts` (tailwind-merge over a plain join). The same file holds `cva()` for variant maps and `cnState()` for the Base UI parts whose `className` may be a function of the part's state.
 - Theme tokens: the shadcn CSS variables live in `ui/src/tailwind.css`. Style with Tailwind utilities (`bg-muted`, `text-muted-foreground`, `border-border`); reference the raw `var(--muted)` only where the markup isn't ours, i.e. the CSS overrides for Monaco's internal DOM. Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately via `vs`/`vs-dark`.
 - Status colors beyond the tokens: warnings are `text-amber-600 dark:text-amber-400` over `bg-amber-500/10`, successes `text-emerald-600 dark:text-emerald-400` over `bg-emerald-500/10`, errors `text-destructive` over `bg-destructive/10`.
 - Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx` and folded into `main.css`.

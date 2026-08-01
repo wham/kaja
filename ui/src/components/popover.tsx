@@ -1,7 +1,7 @@
 import { Popover as BasePopover } from "@base-ui-components/react/popover";
 import * as React from "react";
 
-import { cn } from "../cn";
+import { cnState } from "../cn";
 
 const Popover = BasePopover.Root;
 
@@ -23,7 +23,7 @@ function PopoverContent({ className, align = "center", side = "bottom", sideOffs
     <BasePopover.Portal>
       <BasePopover.Positioner className="z-50 outline-none" align={align} side={side} sideOffset={sideOffset}>
         <BasePopover.Popup
-          className={cn(
+          className={cnState(
             "origin-[var(--transform-origin)] rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
             className,
           )}

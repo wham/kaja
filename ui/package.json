@@ -11,8 +11,6 @@
     "@protobuf-ts/runtime-rpc": "^2.11.1",
     "@protobuf-ts/twirp-transport": "^2.11.1",
     "@tailwindcss/cli": "^4",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "lucide-react": "^1.25.0",
     "monaco-editor": "^0.55.1",
     "prettier": "^3.7.4",

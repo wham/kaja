@@ -1,13 +1,13 @@
 import { Switch as BaseSwitch } from "@base-ui-components/react/switch";
 import * as React from "react";
 
-import { cn } from "../cn";
+import { cnState } from "../cn";
 
 const Switch = React.forwardRef<React.ElementRef<typeof BaseSwitch.Root>, React.ComponentPropsWithoutRef<typeof BaseSwitch.Root>>(
   ({ className, ...props }, ref) => (
     <BaseSwitch.Root
       ref={ref}
-      className={cn(
+      className={cnState(
         "inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:bg-primary data-[unchecked]:bg-input",
         className,
       )}
