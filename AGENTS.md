@@ -72,6 +72,7 @@ There are multiple `build/` directories, each serving a different purpose:
 | `/server/build/`          | Protoc plugins (protoc-gen-\*) and bundled UI assets (main.js, main.css, monaco workers) | Yes        |
 | `/desktop/build/`         | Platform files (app icons, Info.plist) - tracked in git                                  | No         |
 | `/desktop/build/bin/`     | Desktop executable binaries                                                              | Yes        |
+| `/desktop/build/darwin/embedded.provisionprofile` | Mac App Store provisioning profile, supplied by `PROVISION_PROFILE_BASE64` | Yes |
 | `/desktop/frontend/dist/` | Frontend distribution for desktop (copied from server/build)                             | Yes        |
 | `$TMPDIR/kaja/`           | Compilation temp folders (auto-cleaned after 60 min)                                     | N/A        |
 

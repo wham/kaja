@@ -16,8 +16,13 @@
 #   DISTRIBUTION_CERT_PASSWORD    - Password for the distribution .p12
 #   INSTALLER_CERT_P12_BASE64     - Base64 "3rd Party Mac Developer Installer" certificate (.p12)
 #   INSTALLER_CERT_PASSWORD       - Password for the installer .p12
+#   PROVISION_PROFILE_BASE64      - Base64 Mac App Store provisioning profile (.provisionprofile)
 #   BUILD_NUMBER                  - CFBundleVersion to stamp on the build (required)
 #   SKIP_UPLOAD                   - Set to "true" to build and package only, skip upload
+#
+# The provisioning profile is not tracked in git. Locally, drop it at
+# desktop/build/darwin/embedded.provisionprofile (gitignored) or set
+# PROVISION_PROFILE_BASE64; in CI it comes from the secret of the same name.
 
 set -euo pipefail
 
@@ -41,8 +46,10 @@ APP_BUNDLE="$DESKTOP_DIR/build/bin/Kaja.app"
 PKG_PATH="$DESKTOP_DIR/build/bin/Kaja.pkg"
 KEYCHAIN_NAME="build-$(uuidgen).keychain-db"
 KEYCHAIN_PASSWORD="$(uuidgen)"
+PROVISION_PROFILE_PATH="$DESKTOP_DIR/build/darwin/embedded.provisionprofile"
 CREATED_KEYCHAIN=false
 CREATED_API_KEY=false
+CREATED_PROVISION_PROFILE=false
 
 cleanup() {
     echo "--- Cleaning up"
@@ -51,6 +58,9 @@ cleanup() {
     fi
     if [ "$CREATED_API_KEY" = true ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
         rm -f "$APPLE_API_KEY_PATH"
+    fi
+    if [ "$CREATED_PROVISION_PROFILE" = true ]; then
+        rm -f "$PROVISION_PROFILE_PATH"
     fi
 }
 trap cleanup EXIT
@@ -80,6 +90,7 @@ if [ -n "${CI:-}" ]; then
     [ -z "${APPLE_API_KEY_BASE64:-}" ]           && missing+=(APPLE_API_KEY_BASE64)
     [ -z "${DISTRIBUTION_CERT_P12_BASE64:-}" ]   && missing+=(DISTRIBUTION_CERT_P12_BASE64)
     [ -z "${INSTALLER_CERT_P12_BASE64:-}" ]      && missing+=(INSTALLER_CERT_P12_BASE64)
+    [ -z "${PROVISION_PROFILE_BASE64:-}" ]       && missing+=(PROVISION_PROFILE_BASE64)
     if [ ${#missing[@]} -gt 0 ]; then
         echo ""
         echo "error: missing required secrets in CI: ${missing[*]}"
@@ -94,6 +105,20 @@ if [ -n "${APPLE_API_KEY_BASE64:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ]; then
     APPLE_API_KEY_PATH="$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
     echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$APPLE_API_KEY_PATH"
     CREATED_API_KEY=true
+fi
+
+# -- Decode the provisioning profile --
+
+if [ -n "${PROVISION_PROFILE_BASE64:-}" ]; then
+    echo ""
+    echo "--- Decoding provisioning profile"
+    mkdir -p "$(dirname "$PROVISION_PROFILE_PATH")"
+    echo "$PROVISION_PROFILE_BASE64" | base64 --decode > "$PROVISION_PROFILE_PATH"
+    CREATED_PROVISION_PROFILE=true
+elif [ ! -f "$PROVISION_PROFILE_PATH" ]; then
+    echo "error: no provisioning profile. Set PROVISION_PROFILE_BASE64 or put the"
+    echo "       Mac App Store profile at $PROVISION_PROFILE_PATH."
+    exit 1
 fi
 
 # -- Import signing certificates into a temporary keychain --
@@ -159,7 +184,7 @@ fi
 
 echo ""
 echo "--- Signing and packaging"
-cp "$DESKTOP_DIR/build/darwin/embedded.provisionprofile" "$APP_BUNDLE/Contents/embedded.provisionprofile"
+cp "$PROVISION_PROFILE_PATH" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
 # The App Store rejects packages whose files carry quarantine attributes.
 # Must run before signing so the clean state is sealed in.
