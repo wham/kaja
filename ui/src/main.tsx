@@ -4,6 +4,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
+import { monacoTheme } from "./monacoTheme";
 import { getPersistedValue, initializeStorage } from "./storage";
 import { installUiLog } from "./uiLog";
 
@@ -14,7 +15,7 @@ installUiLog();
 
 initializeStorage().then(() => {
   const colorMode = getPersistedValue<"day" | "night">("colorMode") ?? "night";
-  monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
+  monaco.editor.setTheme(monacoTheme(colorMode));
   document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
   document.documentElement.classList.toggle("dark", colorMode === "night");
 

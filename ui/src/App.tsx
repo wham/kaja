@@ -1,13 +1,12 @@
 import { useMediaQuery } from "./useMediaQuery";
 import { Alert } from "./components/alert";
-import { Button } from "./components/button";
 import { ConfirmationDialog } from "./components/confirmation-dialog";
 import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
-import { Columns2, MessagesSquare, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -25,6 +24,7 @@ import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { registerKajaModule } from "./Editor";
+import { monacoTheme } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -57,7 +57,7 @@ import { setVariables, variableReferences } from "./variableExpansion";
 import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./storage";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { isWailsEnvironment } from "./wails";
-import { BrowserOpenURL, EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import {
   CreateScript,
   DeleteScript,
@@ -75,6 +75,21 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 
 // Maximum number of console items kept in memory; older calls are dropped.
 const MAX_CONSOLE_ITEMS = 500;
+
+// Height of the tab strip sitting above the editor, part of the editor pane.
+const TAB_STRIP_HEIGHT = 35;
+// Vertical padding the editor reserves around the code (see Editor.tsx).
+const EDITOR_PADDING = 32;
+// Bounds for the editor pane in the top-bottom layout. The maximum is a share of
+// the window so a long script can't push the response off screen.
+const MIN_EDITOR_HEIGHT = 120;
+const MAX_EDITOR_HEIGHT_RATIO = 0.55;
+// Above this window width the editor and the response fit side by side, which
+// suits the wide, short shape of a method call better than stacking them. Side
+// by side splits the window four ways — sidebar, editor, call list, response —
+// so the threshold has to leave the response a usable share of it; below this,
+// stacking gives it the full width instead.
+const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
 // Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
 function lowerFirst(s: string): string {
@@ -126,8 +141,18 @@ export function App() {
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
   const [editorHeight, setEditorHeight] = usePersistedState("editorHeight", 400);
+  // Until the gutter is dragged, the editor pane is sized to the code it holds
+  // rather than to a fixed split — a three-line call shouldn't reserve half the
+  // window. Dragging switches to the manual editorHeight for good.
+  const [editorHeightAuto, setEditorHeightAuto] = usePersistedState("editorHeightAuto", true);
+  const editorHeightAutoRef = useRef(editorHeightAuto);
+  editorHeightAutoRef.current = editorHeightAuto;
+  const [editorContentHeights, setEditorContentHeights] = useState<{ [tabId: string]: number }>({});
+  const [windowHeight, setWindowHeight] = useState(() => window.innerHeight);
   const [editorWidth, setEditorWidth] = usePersistedState("editorWidth", 600);
-  const [editorLayout, setEditorLayout] = usePersistedState<"vertical" | "horizontal">("editorLayout", "vertical");
+  const [editorLayout, setEditorLayout] = usePersistedState<"vertical" | "horizontal">("editorLayout", () =>
+    window.innerWidth >= SIDE_BY_SIDE_MIN_WIDTH ? "horizontal" : "vertical",
+  );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -233,8 +258,18 @@ export function App() {
     setConsoleItems([]);
   }, []);
 
+  // Kept in sync during render so the first drag can pick up wherever the gutter
+  // currently sits instead of jumping to the stale manual height.
+  const effectiveEditorHeightRef = useRef(editorHeight);
+
   const onEditorResize = useCallback((delta: number) => {
-    setEditorHeight((height) => Math.max(100, height + delta));
+    if (editorHeightAutoRef.current) {
+      editorHeightAutoRef.current = false;
+      setEditorHeightAuto(false);
+      setEditorHeight(Math.max(MIN_EDITOR_HEIGHT, effectiveEditorHeightRef.current + delta));
+      return;
+    }
+    setEditorHeight((height) => Math.max(MIN_EDITOR_HEIGHT, height + delta));
   }, []);
 
   const onEditorWidthResize = useCallback((delta: number) => {
@@ -519,7 +554,7 @@ export function App() {
   useConfigurationChanges(handleConfigurationFileChange);
 
   useEffect(() => {
-    monaco.editor.setTheme(colorMode === "night" ? "vs-dark" : "vs");
+    monaco.editor.setTheme(monacoTheme(colorMode));
     document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
     // Drive the shadcn theme tokens. The class goes on <html> so Radix portals
     // (rendered into <body>) are themed too.
@@ -558,6 +593,12 @@ export function App() {
   useEffect(() => {
     refreshScripts();
   }, [refreshScripts]);
+
+  useEffect(() => {
+    const onResize = () => setWindowHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -1124,10 +1165,28 @@ export function App() {
     persistTabs();
   };
 
+  // Track how tall each open editor's code is so the pane can be sized to it.
+  // Derived from the line count rather than Monaco's content height: with
+  // scrollBeyondLastLine on, content height grows with the editor itself, so
+  // feeding it back into the pane height would only ever settle at the maximum.
+  // The listeners belong to the editor and go away when the editor is disposed.
+  const onEditorReady = useCallback((tabId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
+    editorRegistryRef.current.set(tabId, editorInstance);
+    const report = () => {
+      const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
+      const height = (editorInstance.getModel()?.getLineCount() ?? 1) * lineHeight + EDITOR_PADDING;
+      setEditorContentHeights((heights) => (heights[tabId] === height ? heights : { ...heights, [tabId]: height }));
+    };
+    report();
+    editorInstance.onDidChangeModelContent(report);
+    editorInstance.onDidChangeModel(report);
+  }, []);
+
   const disposeTabEditor = (tab: TabModel) => {
     if (tab.type === "task" || tab.type === "script") {
       flushScriptTab(tab);
       editorRegistryRef.current.delete(tab.id);
+      setEditorContentHeights(({ [tab.id]: _removed, ...rest }) => rest);
       tab.model.dispose();
     }
   };
@@ -1369,6 +1428,17 @@ export function App() {
   const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
   const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
 
+  const activeEditorContentHeight = activeTab?.type === "task" || activeTab?.type === "script" ? editorContentHeights[activeTab.id] : undefined;
+  const autoEditorHeight =
+    activeEditorContentHeight === undefined
+      ? undefined
+      : Math.min(
+          Math.max(activeEditorContentHeight + TAB_STRIP_HEIGHT, MIN_EDITOR_HEIGHT),
+          Math.max(MIN_EDITOR_HEIGHT, Math.round(windowHeight * MAX_EDITOR_HEIGHT_RATIO)),
+        );
+  const effectiveEditorHeight = editorHeightAuto && autoEditorHeight !== undefined ? autoEditorHeight : editorHeight;
+  effectiveEditorHeightRef.current = effectiveEditorHeight;
+
   return (
     <>
       <div
@@ -1429,22 +1499,6 @@ export function App() {
                 >
                   {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
-                    if (isWailsEnvironment()) {
-                      BrowserOpenURL(url);
-                    } else {
-                      window.open(url, "_blank");
-                    }
-                  }}
-                  className="text-xs text-muted-foreground"
-                >
-                  <MessagesSquare size={16} />
-                  Feedback
-                </Button>
               </div>
               <div
                 style={
@@ -1494,7 +1548,7 @@ export function App() {
               <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                 <div
                   style={{
-                    height: isActiveTaskTab && !isHorizontalLayout ? editorHeight : undefined,
+                    height: isActiveTaskTab && !isHorizontalLayout ? effectiveEditorHeight : undefined,
                     width: isActiveTaskTab && isHorizontalLayout ? editorWidth : undefined,
                     flexGrow: isActiveTaskTab ? 0 : 1,
                     flexShrink: 0,
@@ -1528,7 +1582,7 @@ export function App() {
                             <Task
                               model={tab.model}
                               onGoToDefinition={onGoToDefinition}
-                              onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                              onEditorReady={(editor) => onEditorReady(tab.id, editor)}
                               viewState={tab.viewState}
                             />
                           </Tab>
@@ -1541,7 +1595,7 @@ export function App() {
                             <Task
                               model={tab.model}
                               onGoToDefinition={onGoToDefinition}
-                              onEditorReady={(editor) => editorRegistryRef.current.set(tab.id, editor)}
+                              onEditorReady={(editor) => onEditorReady(tab.id, editor)}
                               viewState={tab.viewState}
                             />
                           </Tab>
@@ -1608,7 +1662,7 @@ export function App() {
                         flexDirection: "column",
                       }}
                     >
-                      <Console items={consoleItems} onClear={onClearConsole} colorMode={colorMode} />
+                      <Console items={consoleItems} onClear={onClearConsole} />
                     </div>
                   </>
                 )}

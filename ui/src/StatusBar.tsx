@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Moon, Sun, Plug } from "lucide-react";
+import { MessagesSquare, Moon, Sun, Plug } from "lucide-react";
 import { Button } from "./components/button";
 import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
@@ -127,6 +127,15 @@ function MCPError({ message }: { message: string }) {
   return <IconButton size="xs" variant="ghost" tooltip={false} icon={Plug} aria-label={message} className="text-destructive" />;
 }
 
+function openFeedback() {
+  const url = "https://github.com/wham/kaja/issues/new?template=feedback.yml";
+  if (isWailsEnvironment()) {
+    BrowserOpenURL(url);
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview, mcpInfo }: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
@@ -160,6 +169,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
       <div className="flex items-center gap-0.5">
         {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}
         {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
+        <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />
         <IconButton
           size="xs"
