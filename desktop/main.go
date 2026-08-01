@@ -696,10 +696,14 @@ func main() {
 	appMenu := app.buildAppMenu(false)
 
 	err = wails.Run(&options.App{
-		Title:  "Kaja",
-		Width:  1024,
-		Height: 768,
-		Menu:   appMenu,
+		Title: "Kaja",
+		// The size VS Code and its forks open a workspace window at, and the
+		// minimum they allow. Wails centers the window on the display for us.
+		Width:     1440,
+		Height:    900,
+		MinWidth:  400,
+		MinHeight: 270,
+		Menu:      appMenu,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
