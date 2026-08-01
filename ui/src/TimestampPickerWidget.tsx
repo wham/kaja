@@ -1,6 +1,7 @@
 import * as monaco from "monaco-editor";
 import { useState } from "react";
 import { createRoot, Root } from "react-dom/client";
+import { cn } from "./cn";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
 import { dateToTimestamp, formatTimestampCode, timestampToDate } from "./timestampPicker";
@@ -57,34 +58,18 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
     onApply(newCode);
   };
 
-  const inputStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    backgroundColor: "var(--bgColor-default)",
-    border: "1px solid var(--borderColor-default)",
-    borderRadius: "6px",
-    color: "var(--fgColor-default)",
-    fontSize: "14px",
-  };
+  const inputClass = "rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
 
   return (
-    <div
-      style={{
-        backgroundColor: "var(--bgColor-muted)",
-        border: "1px solid var(--borderColor-default)",
-        borderRadius: "6px",
-        padding: "16px",
-        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
-        minWidth: "280px",
-      }}
-    >
+    <div className="min-w-[280px] rounded-md border border-border bg-muted p-4 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
       <FormControl>
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-          <input type="time" value={timeValue} onChange={(e) => setTimeValue(e.target.value)} style={{ ...inputStyle, width: "110px" }} />
+        <div className="flex gap-2">
+          <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className={cn(inputClass, "flex-1")} />
+          <input type="time" value={timeValue} onChange={(e) => setTimeValue(e.target.value)} className={cn(inputClass, "w-[110px]")} />
         </div>
       </FormControl>
-      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+      <div className="mt-3 flex gap-2">
         <Button size="sm" onClick={handleApply}>
           Apply
         </Button>

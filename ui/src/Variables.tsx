@@ -50,27 +50,19 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
   const duplicateKey = trimmedKeys.some((key, i) => trimmedKeys.indexOf(key) !== i);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bgColor-muted)" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "8px 16px",
-          borderBottom: "1px solid var(--borderColor-default)",
-        }}
-      >
-        <span style={{ fontWeight: 600 }}>Variables</span>
+    <div className="flex h-full flex-col bg-muted">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="font-semibold">Variables</span>
       </div>
 
       {readOnly && (
-        <div style={{ padding: "8px 16px", background: "var(--bgColor-attention-muted)", color: "var(--fgColor-attention)", fontSize: 14 }}>
+        <div className="bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
           Configuration is read-only. Contact your administrator for changes.
         </div>
       )}
 
-      <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-        <div style={{ maxWidth: 720, padding: 16 }}>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="max-w-[720px] p-4">
           <FormControl.Caption>
             Reusable values for your scripts, read as <code>kaja.variables.&lt;name&gt;</code>, and for app configuration, referenced as{" "}
             <code>{"${name}"}</code> in any value or part of it (a URL, a token, a header). For non-sensitive values only — they are stored in plain text in
@@ -78,39 +70,39 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
           </FormControl.Caption>
 
           {rows.length > 0 && (
-            <div style={{ display: "flex", gap: 8, marginTop: 16, marginBottom: 4, fontSize: 12, color: "var(--fgColor-muted)" }}>
-              <span style={{ flex: 1 }}>Name</span>
-              <span style={{ flex: 2 }}>Value</span>
-              <span style={{ width: 32 }} />
+            <div className="mb-1 mt-4 flex gap-2 text-xs text-muted-foreground">
+              <span className="flex-1">Name</span>
+              <span className="flex-[2]">Value</span>
+              <span className="w-8" />
             </div>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {rows.map((row, index) => (
-              <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div key={index} className="flex items-center gap-2">
                 <Input
                   value={row.key}
                   onChange={(e) => updateRow(index, { key: e.target.value })}
                   placeholder="API_BASE_URL"
                   disabled={readOnly}
-                  style={{ flex: 1 }}
+                  className="flex-1"
                 />
                 <Input
                   value={row.value}
                   onChange={(e) => updateRow(index, { value: e.target.value })}
                   placeholder="https://api.example.com"
                   disabled={readOnly}
-                  style={{ flex: 2 }}
+                  className="flex-[2]"
                 />
                 <IconButton icon={Trash2} aria-label="Remove variable" variant="ghost" onClick={() => removeRow(index)} disabled={readOnly} />
               </div>
             ))}
           </div>
 
-          {duplicateKey && <div style={{ marginTop: 8, color: "var(--fgColor-danger)", fontSize: 12 }}>Variable names must be unique.</div>}
+          {duplicateKey && <div className="mt-2 text-xs text-destructive">Variable names must be unique.</div>}
 
           {!readOnly && (
-            <div style={{ marginTop: 12 }}>
+            <div className="mt-3">
               <Button variant="ghost" onClick={addRow}>
                 <Plus size={16} />
                 Add variable
@@ -120,7 +112,7 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: 16, borderTop: "1px solid var(--borderColor-default)" }}>
+      <div className="flex justify-end gap-2 border-t border-border p-4">
         <Button variant="outline" onClick={onCancel}>
           {readOnly ? "Close" : "Cancel"}
         </Button>

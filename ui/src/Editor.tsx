@@ -204,7 +204,6 @@ export interface onGoToDefinition {
   (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): void;
 }
 
-const UNIFIED_BG = "var(--bgColor-muted)";
 
 export function Editor({ model, onMount, onGoToDefinition, readOnly = false, startLineNumber = 0, startColumn = 0, viewState }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,10 +312,10 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         .editor-container .monaco-editor,
         .editor-container .monaco-editor-background,
         .editor-container .monaco-editor .margin {
-          background-color: ${UNIFIED_BG} !important;
+          background-color: var(--muted) !important;
         }
       `}</style>
-      <div ref={containerRef} className="editor-container" style={{ width: "100%", height: "100%", backgroundColor: UNIFIED_BG }} />
+      <div ref={containerRef} className="editor-container h-full w-full bg-muted" />
     </>
   );
 }
