@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronRightIcon, XIcon } from "./components/icons";
+import { Check, ChevronRight, X } from "lucide-react";
 import { ActionList } from "./components/action-list";
 import { Spinner } from "./components/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
@@ -51,7 +51,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
         justifyContent: "center",
       }}
     >
-      <Spinner size="small" />
+      <Spinner size="sm" />
     </div>
   );
 
@@ -62,7 +62,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
     const isSuccess = status === "success";
     const bgColor = isSuccess ? "var(--bgColor-success-muted)" : "var(--bgColor-danger-muted)";
     const fgColor = isSuccess ? "var(--fgColor-success)" : "var(--fgColor-danger)";
-    const Icon = isSuccess ? CheckIcon : XIcon;
+    const Icon = isSuccess ? Check : X;
 
     return (
       <div
@@ -97,7 +97,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
           }}
         >
           <div>
-            <Spinner size="medium" />
+            <Spinner />
             <div style={{ marginTop: 12 }}>Loading configuration...</div>
           </div>
         </div>
@@ -158,7 +158,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
                   >
                     <ActionList.LeadingVisual>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <ChevronRightIcon size={CHEVRON_SIZE} className={`chevron-icon ${isExpanded ? "expanded" : ""}`} />
+                        <ChevronRight size={CHEVRON_SIZE} className={`chevron-icon ${isExpanded ? "expanded" : ""}`} />
                         {getStatusIcon(app.compilation.status)}
                       </div>
                     </ActionList.LeadingVisual>

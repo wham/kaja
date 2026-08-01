@@ -1,4 +1,4 @@
-import { FileDirectoryIcon, FileIcon, LightBulbIcon } from "./components/icons";
+import { Folder, FileIcon, Lightbulb } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -540,10 +540,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                       trailingAction={
                         (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
                           <IconButton
-                            icon={parameter.type === "folder" ? FileDirectoryIcon : FileIcon}
+                            icon={parameter.type === "folder" ? Folder : FileIcon}
                             aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                            variant="invisible"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             tooltip={false}
                             onClick={async () => {
                               const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
@@ -567,7 +567,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                   onClick={fillDemo}
                   className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
                 >
-                  <LightBulbIcon size={12} />
+                  <Lightbulb size={12} />
                   {demo.label}
                 </button>
               )}

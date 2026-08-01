@@ -19,12 +19,12 @@ interface NewAppDialogProps {
 export function NewAppDialog({ appsPreviewEnabled, onClose, onSelect }: NewAppDialogProps) {
   const availableTypes = appTypes.filter((type) => !type.preview || appsPreviewEnabled);
 
-  // Focus the first app option on open. Otherwise Primer focuses the header's close
-  // button, whose "Close" tooltip then shows on focus and appears unprompted.
+  // Focus the first app option on open, so focus doesn't land on the header's
+  // close button.
   const firstItemRef = useRef<HTMLLIElement>(null);
 
   return (
-    <Dialog title="New app" width="medium" onClose={onClose} initialFocusRef={firstItemRef} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
+    <Dialog title="New app" onClose={onClose} initialFocusRef={firstItemRef} footerButtons={[{ content: "Cancel", onClick: onClose }]}>
       <ActionList>
         {availableTypes.map((type, index) => {
           const Icon = type.icon;

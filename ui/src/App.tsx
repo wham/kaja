@@ -7,7 +7,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
-import { ColumnsIcon, CommentDiscussionIcon, RowsIcon, SidebarCollapseIcon, SidebarExpandIcon } from "./components/icons";
+import { Columns2, MessagesSquare, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -1468,7 +1468,7 @@ export function App() {
                   }}
                   style={{ color: "var(--fgColor-muted)", fontSize: 12 }}
                 >
-                  <CommentDiscussionIcon size={16} />
+                  <MessagesSquare size={16} />
                   Feedback
                 </Button>
               </div>
@@ -1494,21 +1494,21 @@ export function App() {
                   side="bottom"
                 >
                   <IconButton
-                    icon={sidebarCollapsed ? SidebarCollapseIcon : SidebarExpandIcon}
+                    icon={sidebarCollapsed ? PanelLeftClose : PanelLeftOpen}
                     aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
                     onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                    size="small"
-                    variant="invisible"
+                    size="sm"
+                    variant="ghost"
                     tooltip={false}
                   />
                 </SimpleTooltip>
                 <SimpleTooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
                   <IconButton
-                    icon={editorLayout === "vertical" ? ColumnsIcon : RowsIcon}
+                    icon={editorLayout === "vertical" ? Columns2 : Rows2}
                     aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
                     onClick={onToggleEditorLayout}
-                    size="small"
-                    variant="invisible"
+                    size="sm"
+                    variant="ghost"
                     tooltip={false}
                   />
                 </SimpleTooltip>
@@ -1656,14 +1656,13 @@ export function App() {
       {saveAs && (
         <Dialog
           title="Save as script"
-          width="medium"
           onClose={() => {
             setSaveAs(null);
             setSaveAsError(undefined);
           }}
           footerButtons={[
             { content: "Cancel", onClick: () => setSaveAs(null) },
-            { content: "Save", buttonType: "primary", onClick: onConfirmSaveAsScript },
+            { content: "Save", variant: "default", onClick: onConfirmSaveAsScript },
           ]}
         >
           <FormControl>
@@ -1690,7 +1689,6 @@ export function App() {
       {askPrompt && (
         <Dialog
           title="Input"
-          width="medium"
           onClose={() => {
             askPrompt.reject(new AskCancelledError());
             setAskPrompt(null);
@@ -1705,7 +1703,7 @@ export function App() {
             },
             {
               content: "Submit",
-              buttonType: "primary",
+              variant: "default",
               onClick: () => {
                 askPrompt.resolve(askPrompt.value);
                 setAskPrompt(null);
@@ -1734,14 +1732,13 @@ export function App() {
       {renameScript && (
         <Dialog
           title="Rename script"
-          width="medium"
           onClose={() => {
             setRenameScript(null);
             setRenameError(undefined);
           }}
           footerButtons={[
             { content: "Cancel", onClick: () => setRenameScript(null) },
-            { content: "Rename", buttonType: "primary", onClick: onConfirmRenameScript },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
           ]}
         >
           <FormControl>

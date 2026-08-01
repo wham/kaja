@@ -2,9 +2,9 @@ import * as React from "react";
 
 import { cn } from "../cn";
 
-// Stand-in for Primer's standalone ActionList (used as a selectable list, not a
-// dropdown menu). Item lays its children out with flex-wrap so a block
-// Description drops onto its own full-width line beneath the label.
+// A selectable list (not a dropdown menu). Item lays its children out with
+// flex-wrap so a block Description drops onto its own full-width line beneath
+// the label.
 function ActionList({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <ul role="list" className={cn("flex flex-col gap-0.5", className)}>

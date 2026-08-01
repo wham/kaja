@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { BeakerIcon } from "./components/icons";
-import { IconButtonXSmall } from "./IconButtonXSmall";
+import { FlaskConical } from "lucide-react";
+import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Switch } from "./components/switch";
 
@@ -25,7 +25,7 @@ export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <IconButtonXSmall icon={BeakerIcon} aria-label="Feature previews" />
+        <IconButton size="xs" variant="ghost" tooltip={false} icon={FlaskConical} aria-label="Feature previews" />
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="p-2">
         <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 180 }}>

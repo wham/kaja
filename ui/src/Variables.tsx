@@ -1,4 +1,4 @@
-import { PlusIcon, TrashIcon } from "./components/icons";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "./components/button";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
@@ -102,7 +102,7 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
                   disabled={readOnly}
                   style={{ flex: 2 }}
                 />
-                <IconButton icon={TrashIcon} aria-label="Remove variable" variant="invisible" onClick={() => removeRow(index)} disabled={readOnly} />
+                <IconButton icon={Trash2} aria-label="Remove variable" variant="ghost" onClick={() => removeRow(index)} disabled={readOnly} />
               </div>
             ))}
           </div>
@@ -112,7 +112,7 @@ export function Variables({ variables, readOnly = false, onSubmit, onCancel }: V
           {!readOnly && (
             <div style={{ marginTop: 12 }}>
               <Button variant="ghost" onClick={addRow}>
-                <PlusIcon size={16} />
+                <Plus size={16} />
                 Add variable
               </Button>
             </div>

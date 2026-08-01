@@ -1,15 +1,24 @@
 import { useState } from "react";
-import { MarkGithubIcon, MoonIcon, SunIcon, PlugIcon } from "./components/icons";
+import { Moon, Sun, Plug } from "lucide-react";
 import { Button } from "./components/button";
+import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { SegmentedControl } from "./components/segmented-control";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
-import { IconButtonXSmall } from "./IconButtonXSmall";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { main } from "./wailsjs/go/models";
 
 export type ColorMode = "day" | "night";
+
+// lucide ships no brand icons, so the GitHub mark is drawn here.
+function GithubIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
 
 interface StatusBarProps {
   colorMode: ColorMode;
@@ -88,7 +97,7 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <IconButtonXSmall icon={PlugIcon} aria-label="MCP server" />
+        <IconButton size="xs" variant="ghost" tooltip={false} icon={Plug} aria-label="MCP server" />
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="p-3">
         <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
@@ -129,7 +138,7 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
 // in use). It reuses the plug icon so the footer keeps the same shape, tinted red
 // to signal the failure, instead of silently dropping the connection command.
 function MCPError({ message }: { message: string }) {
-  return <IconButtonXSmall icon={PlugIcon} aria-label={message} style={{ color: "var(--fgColor-danger)" }} />;
+  return <IconButton size="xs" variant="ghost" tooltip={false} icon={Plug} aria-label={message} style={{ color: "var(--fgColor-danger)" }} />;
 }
 
 export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview, mcpInfo }: StatusBarProps) {
@@ -173,7 +182,7 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
               textDecoration: "none",
             }}
           >
-            <MarkGithubIcon size={12} />
+            <GithubIcon size={12} />
             <span style={{ position: "relative", top: 1 }}>{shortRef}</span>
           </a>
         ) : (
@@ -185,8 +194,11 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
         {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}
         {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} />
-        <IconButtonXSmall
-          icon={colorMode === "night" ? SunIcon : MoonIcon}
+        <IconButton
+          size="xs"
+          variant="ghost"
+          tooltip={false}
+          icon={colorMode === "night" ? Sun : Moon}
           aria-label={colorMode === "night" ? "Switch to light theme" : "Switch to dark theme"}
           onClick={onToggleColorMode}
         />

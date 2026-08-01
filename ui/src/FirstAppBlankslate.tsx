@@ -1,5 +1,5 @@
 import { Blankslate } from "./components/blankslate";
-import { PlusIcon } from "./components/icons";
+import { Plus } from "lucide-react";
 
 interface FirstAppBlankslateProps {
   onNewAppClick?: () => void;
@@ -10,7 +10,7 @@ export function FirstAppBlankslate({ onNewAppClick }: FirstAppBlankslateProps) {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, justifyContent: "center" }}>
       <Blankslate>
         <Blankslate.Visual>
-          <PlusIcon size={24} />
+          <Plus size={24} />
         </Blankslate.Visual>
         <Blankslate.Heading>No apps configured</Blankslate.Heading>
         <Blankslate.Description>Add an app to get started.</Blankslate.Description>

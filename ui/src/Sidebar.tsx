@@ -2,22 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
-import {
-  CpuIcon,
-  FileCodeIcon,
-  FoldIcon,
-  PencilIcon,
-  PinIcon,
-  PlusIcon,
-  SlidersIcon,
-  TrashIcon,
-  UnfoldIcon,
-  ChevronRightIcon,
-  PackageIcon,
-  KebabHorizontalIcon,
-} from "./components/icons";
+import { Cpu, FileCode, FoldVertical, Pencil, Pin, Plus, SlidersHorizontal, Trash2, UnfoldVertical, ChevronRight, Package, Ellipsis } from "lucide-react";
 import { appType, appTypeLabel } from "./appTypes";
-import { IconButtonXSmall } from "./IconButtonXSmall";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -429,9 +415,9 @@ export function Sidebar({
               : { display: "flex", alignItems: "center" }
           }
         >
-          <IconButton icon={PlusIcon} size="small" variant="invisible" aria-label="New app" onClick={onNewAppClick} />
-          <IconButton icon={CpuIcon} size="small" variant="invisible" aria-label="Open Compiler" onClick={onCompilerClick} />
-          {onVariablesClick && <IconButton icon={SlidersIcon} size="small" variant="invisible" aria-label="Variables" onClick={onVariablesClick} />}
+          <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
+          <IconButton icon={Cpu} size="sm" variant="ghost" aria-label="Open Compiler" onClick={onCompilerClick} />
+          {onVariablesClick && <IconButton icon={SlidersHorizontal} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
         <div
@@ -441,8 +427,8 @@ export function Sidebar({
               : { display: "flex", alignItems: "center" }
           }
         >
-          <IconButton icon={FoldIcon} size="small" variant="invisible" aria-label="Fold All" onClick={foldAll} />
-          <IconButton icon={UnfoldIcon} size="small" variant="invisible" aria-label="Unfold All" onClick={unfoldAll} />
+          <IconButton icon={FoldVertical} size="sm" variant="ghost" aria-label="Fold All" onClick={foldAll} />
+          <IconButton icon={UnfoldVertical} size="sm" variant="ghost" aria-label="Unfold All" onClick={unfoldAll} />
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
@@ -472,9 +458,9 @@ export function Sidebar({
                   color: "var(--fgColor-muted)",
                 }}
               >
-                <ChevronRightIcon size={16} />
+                <ChevronRight size={16} />
               </span>
-              <FileCodeIcon size={16} />
+              <FileCode size={16} />
               <span style={{ marginLeft: 4 }}>Scripts</span>
               <PreviewPill />
             </div>
@@ -502,16 +488,18 @@ export function Sidebar({
                         hover, and it lines a pinned script up with the package/expand icons above. */}
                     {pinnedScriptPath === script.path && (
                       <TreeView.LeadingVisual>
-                        <PinIcon size={12} />
+                        <Pin size={12} />
                       </TreeView.LeadingVisual>
                     )}
                     {script.name}
                     <TreeView.TrailingVisual>
                       {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                        <IconButtonXSmall
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          tooltip={false}
                           aria-label={`Actions for ${script.name}`}
-                          icon={KebabHorizontalIcon}
-                          rounded
+                          icon={Ellipsis}
                           style={{ minHeight: 0, minWidth: 0 }}
                           onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
@@ -577,16 +565,18 @@ export function Sidebar({
                         color: "var(--fgColor-muted)",
                       }}
                     >
-                      <ChevronRightIcon size={16} />
+                      <ChevronRight size={16} />
                     </span>
                     {appName}
                     <AppPill type={appType(app.configuration)} />
                   </span>
                   {(hoveredApp === appName || appMenu?.appName === appName) && (
-                    <IconButtonXSmall
+                    <IconButton
+                      size="xs"
+                      variant="ghost"
+                      tooltip={false}
                       aria-label={`Actions for ${appName}`}
-                      icon={KebabHorizontalIcon}
-                      rounded
+                      icon={Ellipsis}
                       style={{ minHeight: 0, minWidth: 0 }}
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
@@ -684,7 +674,7 @@ export function Sidebar({
                             }}
                           >
                             <TreeView.LeadingVisual>
-                              <PackageIcon size={16} />
+                              <Package size={16} />
                             </TreeView.LeadingVisual>
                             <span style={{ fontWeight: "normal", color: "var(--fgColor-muted)" }}>{packageName}</span>
                             <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
@@ -714,7 +704,7 @@ export function Sidebar({
                 if (script) onPinScript(script);
               }}
             >
-              <PinIcon size={16} />
+              <Pin size={16} />
               {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
             </DropdownMenuItem>
           )}
@@ -724,7 +714,7 @@ export function Sidebar({
               if (script) onRenameScript?.(script);
             }}
           >
-            <PencilIcon size={16} />
+            <Pencil size={16} />
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -734,7 +724,7 @@ export function Sidebar({
               if (script) onDeleteScript?.(script);
             }}
           >
-            <TrashIcon size={16} />
+            <Trash2 size={16} />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -749,7 +739,7 @@ export function Sidebar({
               if (appName) onEditApp(appName);
             }}
           >
-            <PencilIcon size={16} />
+            <Pencil size={16} />
             Edit
           </DropdownMenuItem>
           {canDeleteApps && (
@@ -760,7 +750,7 @@ export function Sidebar({
                 if (appName) onDeleteApp(appName);
               }}
             >
-              <TrashIcon size={16} />
+              <Trash2 size={16} />
               Delete
             </DropdownMenuItem>
           )}

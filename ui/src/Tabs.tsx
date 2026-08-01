@@ -1,4 +1,4 @@
-import { EllipsisIcon, PlayIcon, XIcon } from "./components/icons";
+import { Ellipsis, Play, X } from "lucide-react";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -185,10 +185,10 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 </span>
                 {onCloseTab && (
                   <IconButton
-                    icon={XIcon}
+                    icon={X}
                     aria-label={`Close ${tabLabel}`}
-                    variant="invisible"
-                    size="small"
+                    variant="ghost"
+                    size="sm"
                     tooltip={false}
                     className="tab-close-button"
                     style={{
@@ -240,7 +240,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                     borderRadius: "6px",
                   }}
                 >
-                  <PlayIcon size={14} />
+                  <Play size={14} />
                   Run
                 </Button>
               </SimpleTooltip>
@@ -248,7 +248,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
             {onCloseAll && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <IconButton icon={EllipsisIcon} aria-label="Tab options" variant="invisible" size="small" tooltip={false} />
+                  <IconButton icon={Ellipsis} aria-label="Tab options" variant="ghost" size="sm" tooltip={false} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onSelect={onCloseAll}>Close All</DropdownMenuItem>

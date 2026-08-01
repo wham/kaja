@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "./components/input";
-import { SearchIcon } from "./components/icons";
+import { Search } from "lucide-react";
 import { Method, App, Service } from "./apps";
 
 interface SearchResult {
@@ -134,7 +134,7 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
         <div style={{ padding: 12 }}>
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <SearchIcon size={16} />
+              <Search size={16} />
             </span>
             <Input
               ref={inputRef}

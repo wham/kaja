@@ -1,4 +1,4 @@
-import { CheckIcon, CopyIcon, FoldIcon, PlayIcon, TrashIcon, UnfoldIcon } from "./components/icons";
+import { Check, Copy, FoldVertical, Play, Trash2, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Gutter } from "./Gutter";
 import { IconButton } from "./components/icon-button";
@@ -156,7 +156,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
           >
             Calls
           </span>
-          {onClear && items.length > 0 && <IconButton icon={TrashIcon} aria-label="Clear console" onClick={onClear} size="small" variant="invisible" />}
+          {onClear && items.length > 0 && <IconButton icon={Trash2} aria-label="Clear console" onClick={onClear} size="sm" variant="ghost" />}
         </div>
         <div style={{ width: 1, flexShrink: 0, backgroundColor: "var(--borderColor-muted)" }} />
         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
@@ -173,9 +173,9 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
                 gap: 2,
               }}
             >
-              <IconButton icon={FoldIcon} aria-label="Fold all" onClick={handleFoldAll} size="small" variant="invisible" />
-              <IconButton icon={UnfoldIcon} aria-label="Unfold all" onClick={handleUnfoldAll} size="small" variant="invisible" />
-              <IconButton icon={copied ? CheckIcon : CopyIcon} aria-label="Copy JSON" onClick={handleCopy} size="small" variant="invisible" />
+              <IconButton icon={FoldVertical} aria-label="Fold all" onClick={handleFoldAll} size="sm" variant="ghost" />
+              <IconButton icon={UnfoldVertical} aria-label="Unfold all" onClick={handleUnfoldAll} size="sm" variant="ghost" />
+              <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" onClick={handleCopy} size="sm" variant="ghost" />
             </div>
           )}
         </div>
@@ -235,7 +235,7 @@ export function Console({ items, onClear, colorMode = "night" }: ConsoleProps) {
                 fontSize: 12,
               }}
             >
-              Press <PlayIcon size={12} /> to run
+              Press <Play size={12} /> to run
             </div>
           )}
         </div>
