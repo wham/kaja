@@ -51,7 +51,6 @@ jobs:
           DISTRIBUTION_CERT_PASSWORD: ${{ secrets.DISTRIBUTION_CERT_PASSWORD }}
           INSTALLER_CERT_P12_BASE64: ${{ secrets.INSTALLER_CERT_P12_BASE64 }}
           INSTALLER_CERT_PASSWORD: ${{ secrets.INSTALLER_CERT_PASSWORD }}
-          PROVISION_PROFILE_BASE64: ${{ secrets.PROVISION_PROFILE_BASE64 }}
 
       - uses: actions/upload-artifact@v7
         if: always()
