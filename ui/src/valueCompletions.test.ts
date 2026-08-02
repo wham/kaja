@@ -57,10 +57,15 @@ function moviesApp(): App {
 
 const imports = `import { MoviesService } from "demo/proto/movies";\n\n`;
 
-// Resolve at the position marked with | in the code (the marker is removed).
-function resolveAt(code: string, apps: App[] = [moviesApp()]) {
+// Split code at the | marking the cursor, into the code without it and its offset.
+function atMarker(code: string): { code: string; offset: number } {
   const offset = code.indexOf("|");
-  return resolveValuePosition(code.replace("|", ""), offset, apps);
+  return { code: code.slice(0, offset) + code.slice(offset + 1), offset };
+}
+
+function resolveAt(marked: string, apps: App[] = [moviesApp()]) {
+  const { code, offset } = atMarker(marked);
+  return resolveValuePosition(code, offset, apps);
 }
 
 describe("resolveValuePosition", () => {
@@ -125,9 +130,9 @@ describe("suggestValues", () => {
     clearTypeMemory();
   });
 
-  function suggestAt(code: string) {
-    const offset = code.indexOf("|");
-    return suggestValues(code.replace("|", ""), offset, [moviesApp()]);
+  function suggestAt(marked: string) {
+    const { code, offset } = atMarker(marked);
+    return suggestValues(code, offset, [moviesApp()]);
   }
 
   it("offers nothing when nothing has been called yet", () => {
