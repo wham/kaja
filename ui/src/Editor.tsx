@@ -61,8 +61,9 @@ export declare const kaja: {
    */
   input?: string;
   /**
-   * User-defined variables from the configuration. Manage them in the
-   * Variables tab; read them here, e.g. kaja.variables.API_BASE_URL.
+   * User-defined variables. Manage them in the Variables tab; read them here,
+   * e.g. kaja.variables.API_BASE_URL. A variable whose value this machine holds
+   * (your keychain, or an environment variable) reads the same way.
    */
   variables: ${kajaVariablesType(variableNames)};
   /**

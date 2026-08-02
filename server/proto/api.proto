@@ -8,6 +8,8 @@ service Api {
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
+  rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
+  rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
 }
 
 message CompileRequest {
@@ -184,6 +186,46 @@ message GetConfigurationRequest {}
 message GetConfigurationResponse {
   Configuration configuration = 1;
   repeated Log logs = 2;
+  // Where each configured variable's value came from, one entry per variable.
+  repeated VariableStatus variable_status = 3;
+}
+
+// VariableStatus reports where a variable's value came from. A variable whose
+// value is not written in kaja.json is never sent to the UI, so this is all the
+// Variables tab knows about it.
+message VariableStatus {
+  string name = 1;
+  VariableSource source = 2;
+  // The environment variable consulted for this variable: the name inside
+  // ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
+  // written in kaja.json.
+  string env_name = 3;
+}
+
+enum VariableSource {
+  // The variable names a source, but the source holds nothing on this machine.
+  VARIABLE_SOURCE_UNSET = 0;
+  // The value is written in kaja.json.
+  VARIABLE_SOURCE_FILE = 1;
+  // The value came from the OS keychain.
+  VARIABLE_SOURCE_KEYCHAIN = 2;
+  // The value came from an environment variable.
+  VARIABLE_SOURCE_ENVIRONMENT = 3;
+}
+
+// SetStoredValue writes a "${secret}" variable's value to the OS keychain. Only
+// the desktop app has one; the web server rejects the call.
+message SetStoredValueRequest {
+  string name = 1;
+  string value = 2;
+}
+
+message ClearStoredValueRequest {
+  string name = 1;
+}
+
+message StoredValueResponse {
+  repeated VariableStatus variable_status = 1;
 }
 
 message Configuration {
@@ -198,8 +240,12 @@ message Configuration {
   // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
   // are apps too. kaja renders and invokes every app the same way.
   repeated ConfigurationApp apps = 5;
-  // User-defined variables usable from scripts as `kaja.variables.<name>`.
-  // Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+  // User-defined variables, referenced as `${NAME}` in app configuration and read
+  // from scripts as `kaja.variables.<name>`. A value is either literal, or names
+  // the source that holds it outside this file: "${secret}" (the OS keychain, or
+  // KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
+  // which may sit inside a longer value). Only literal values are ever sent to a
+  // remote browser.
   map<string, string> variables = 6;
 
   // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
@@ -215,6 +261,11 @@ message ConfigurationSystem {
   string git_ref = 2;
   // TestFlight/App Store build number (CFBundleVersion), empty for other builds
   string build_number = 3;
+  // Whether this machine has somewhere to store a variable's value outside
+  // kaja.json (the OS keychain). False on the web server, and on a desktop with
+  // no usable keyring, where "${secret}" variables can only come from the
+  // environment.
+  bool variable_store_available = 4;
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -291,4 +342,6 @@ message UpdateConfigurationRequest {
 
 message UpdateConfigurationResponse {
   Configuration configuration = 1;
+  // Where each variable's value came from, re-resolved against what was saved.
+  repeated VariableStatus variable_status = 2;
 }

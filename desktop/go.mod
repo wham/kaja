@@ -15,6 +15,7 @@ replace (
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
+	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/evanw/esbuild v0.28.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
@@ -41,6 +42,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
 	github.com/wham/protoc-go v0.0.0-20260615005337-eaf780362c1c // indirect
+	github.com/zalando/go-keyring v0.2.8 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/net v0.57.0 // indirect

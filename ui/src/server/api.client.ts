@@ -4,6 +4,9 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { StoredValueResponse } from "./api";
+import type { ClearStoredValueRequest } from "./api";
+import type { SetStoredValueRequest } from "./api";
 import type { UpdateConfigurationResponse } from "./api";
 import type { UpdateConfigurationRequest } from "./api";
 import type { GetConfigurationResponse } from "./api";
@@ -41,6 +44,14 @@ export interface IApiClient {
      * @generated from protobuf rpc: UpdateConfiguration
      */
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse>;
+    /**
+     * @generated from protobuf rpc: SetStoredValue
+     */
+    setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse>;
+    /**
+     * @generated from protobuf rpc: ClearStoredValue
+     */
+    clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -85,5 +96,19 @@ export class ApiClient implements IApiClient, ServiceInfo {
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
         const method = this.methods[4], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: SetStoredValue
+     */
+    setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse> {
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ClearStoredValue
+     */
+    clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
     }
 }

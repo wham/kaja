@@ -20,8 +20,10 @@ export class Kaja {
   // Text passed in when a script is run from the macOS "Run Kaja Script" text
   // service. Scripts can read it as `kaja.input`.
   input?: string;
-  // User-defined variables from the configuration, readable as
-  // `kaja.variables.<name>`. Kept in sync with the loaded configuration.
+  // User-defined variables, readable as `kaja.variables.<name>`. These are the
+  // resolved values, including the ones kaja.json only names and this machine
+  // holds - scripts are the desktop only, where there is no remote browser
+  // being handed a value it shouldn't have.
   variables: { [key: string]: string } = {};
   // UUID helpers for scripts, e.g. `kaja.uuid.v4()`.
   readonly uuid = {

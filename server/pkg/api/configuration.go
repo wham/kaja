@@ -190,10 +190,12 @@ func expandVariables(value string, variables map[string]string) string {
 }
 
 // expandAppParameters expands ${NAME} variable references in an app's flattened
-// creation parameters and reports any references that stayed unresolved.
-func expandAppParameters(parameters map[string]string, variables map[string]string, logger *Logger) {
+// creation parameters and reports any references that stayed unresolved. Only
+// the reference is logged, never the expanded value - a variable's value may be
+// one this machine holds outside kaja.json.
+func expandAppParameters(parameters map[string]string, resolver *Resolver, logger *Logger) {
 	for key, value := range parameters {
-		expanded := expandVariables(value, variables)
+		expanded := resolver.Expand(value)
 		parameters[key] = expanded
 		for _, match := range variableReferencePattern.FindAllStringSubmatch(expanded, -1) {
 			logger.info(fmt.Sprintf("No variable named %q is defined; leaving ${%s} in %q as-is", match[1], match[1], key))

@@ -166,7 +166,7 @@ func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), false, "", "")
+	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{},
@@ -195,7 +195,7 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), true, "", "")
+	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
@@ -227,7 +227,7 @@ func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), false, "", "")
+	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
@@ -256,7 +256,7 @@ func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), true, "", "")
+	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
@@ -317,7 +317,7 @@ func TestOpenApp_ExpandsVariables(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), true, "", "")
+	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
 		App: &ConfigurationApp{
@@ -346,7 +346,7 @@ func TestOpenApp_LogsUnresolvedVariableReference(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	service := NewApiService(tmpfile.Name(), true, "", "")
+	service := NewApiService(tmpfile.Name(), true, "", "", nil)
 
 	response, err := service.OpenApp(context.Background(), &OpenAppRequest{
 		App: &ConfigurationApp{

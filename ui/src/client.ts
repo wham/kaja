@@ -4,7 +4,6 @@ import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders } from "./appTypes";
 import { MethodCall, MethodCallHeaders } from "./kaja";
 import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER, parseUpstreamHeaders } from "./upstreamHeaders";
-import { expandHeaders } from "./variableExpansion";
 import { Client, AppRef, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -89,8 +88,11 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           }
           if (!isWailsEnvironment()) {
             options.meta["X-Target"] = appRef.target;
-            // Pass configured headers with X-Header- prefix for the backend to forward
-            const headers = expandHeaders(appHeaders(appRef.configuration));
+            // Pass configured headers with X-Header- prefix for the backend to
+            // forward. Their ${NAME} references travel unexpanded: the server
+            // resolves them, because a variable's value may be one it holds and
+            // the browser is not allowed to know.
+            const headers = appHeaders(appRef.configuration);
             for (const [key, value] of Object.entries(headers)) {
               options.meta["X-Header-" + key] = value;
             }
@@ -105,8 +107,11 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     const isServerStreaming = method.serverStreaming && !method.clientStreaming;
 
     client.methods[method.name] = async (input: any) => {
-      // Capture request headers from appRef at request time
-      const requestHeaders: { [key: string]: string } = expandHeaders(appHeaders(appRef.configuration));
+      // Capture request headers from appRef at request time. They are shown as
+      // configured, with their ${NAME} references intact - the Headers view
+      // reads better that way, and the values behind them stay outside the
+      // browser.
+      const requestHeaders: { [key: string]: string } = appHeaders(appRef.configuration);
 
       const methodCall: MethodCall = {
         id: crypto.randomUUID(),

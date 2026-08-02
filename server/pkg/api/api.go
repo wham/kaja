@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	fmt "fmt"
 	"log/slog"
 	"sync"
@@ -20,10 +21,14 @@ type ApiService struct {
 	canUpdateConfiguration bool
 	gitRef                 string
 	buildNumber            string
+	variableStore          VariableStore
 	apps                   *apps.Manager
 }
 
-func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string, buildNumber string) *ApiService {
+// NewApiService builds the service. variableStore is where a "${secret}"
+// variable's value lives on this machine; the web server passes nil and those
+// variables come from the environment instead.
+func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef string, buildNumber string, variableStore VariableStore) *ApiService {
 	tempdir.StartCleanup()
 
 	return &ApiService{
@@ -31,6 +36,7 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 		canUpdateConfiguration: canUpdateConfiguration,
 		gitRef:                 gitRef,
 		buildNumber:            buildNumber,
+		variableStore:          variableStore,
 		apps: apps.NewManager(map[string]apps.App{
 			"grpc":     rpc.New("grpc"),
 			"twirp":    rpc.New("twirp"),
@@ -45,6 +51,43 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 // opened app instances.
 func (s *ApiService) Apps() *apps.Manager {
 	return s.apps
+}
+
+// Variables resolves the configured variables as they stand right now. The
+// request routers use it to expand the ${NAME} references in the headers the
+// client sends, and to mask resolved values back out of what an app reports
+// exchanging with its upstream.
+func (s *ApiService) Variables() *Resolver {
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	return NewResolver(configuration.Variables, s.variableStore)
+}
+
+// variableStoreAvailable reports whether this machine can store a variable's
+// value outside kaja.json.
+func (s *ApiService) variableStoreAvailable() bool {
+	return s.variableStore != nil && s.variableStore.Available()
+}
+
+// InvokeApp invokes a method on an opened in-process app. It expands the ${NAME}
+// references in the headers the client sent - the client sends them unexpanded,
+// because a variable's value may be one it is not allowed to know - and masks
+// every resolved value back out of the headers the app reports exchanging with
+// its upstream. Both request routers go through here, so neither can surface a
+// value kaja.json doesn't carry.
+func (s *ApiService) InvokeApp(target string, method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
+	resolver := s.Variables()
+
+	result, err := s.apps.Invoke(target, method, message, resolver.ExpandAll(headers))
+	if err != nil {
+		var upstream *apps.UpstreamError
+		if errors.As(err, &upstream) {
+			upstream.RequestHeaders = resolver.Redact(upstream.RequestHeaders, headers)
+		}
+		return nil, err
+	}
+
+	result.RequestHeaders = resolver.Redact(result.RequestHeaders, headers)
+	return result, nil
 }
 
 func (s *ApiService) getOrCreateCompiler(id string) *Compiler {
@@ -104,8 +147,7 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 
 	// Expand ${NAME} variable references in the creation parameters (URLs,
 	// tokens, ...) from the variables configured in kaja.json.
-	variables := loadConfigurationFile(s.configurationPath, NewLogger()).Variables
-	expandAppParameters(parameters, variables, logger)
+	expandAppParameters(parameters, s.Variables(), logger)
 
 	protoDir, err := tempdir.NewSourcesDir()
 	if err != nil {
@@ -138,8 +180,7 @@ func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequ
 	}
 
 	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Openapi{Openapi: req.Openapi}})
-	variables := loadConfigurationFile(s.configurationPath, NewLogger()).Variables
-	expandAppParameters(parameters, variables, NewLogger())
+	expandAppParameters(parameters, s.Variables(), NewLogger())
 
 	document, problem := openapi.Inspect(parameters, func(message string) { slog.Info(message) })
 	if problem != nil {
@@ -225,7 +266,11 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	}
 	system.GitRef = s.gitRef
 	system.BuildNumber = s.buildNumber
+	system.VariableStoreAvailable = s.variableStoreAvailable()
 
+	// The variables travel as kaja.json writes them - a literal value, or the
+	// source that holds it ("${secret}", "${env:X}"). A value this machine
+	// resolved from a source is never part of the response.
 	configuration := &Configuration{
 		PathPrefix: response.Configuration.PathPrefix,
 		Apps:       response.Configuration.Apps,
@@ -234,8 +279,9 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	}
 
 	return &GetConfigurationResponse{
-		Configuration: configuration,
-		Logs:          response.Logs,
+		Configuration:  configuration,
+		Logs:           response.Logs,
+		VariableStatus: NewResolver(response.Configuration.Variables, s.variableStore).Statuses(),
 	}, nil
 }
 
@@ -254,6 +300,10 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 		return nil, fmt.Errorf("updating configuration is not allowed")
 	}
 
+	if err := validateVariables(req.Configuration.Variables); err != nil {
+		return nil, err
+	}
+
 	slog.Info("Updating configuration")
 
 	req.Configuration.System = system
@@ -263,6 +313,59 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}
 
 	return &UpdateConfigurationResponse{
-		Configuration: req.Configuration,
+		Configuration:  req.Configuration,
+		VariableStatus: NewResolver(req.Configuration.Variables, s.variableStore).Statuses(),
 	}, nil
+}
+
+// SetStoredValue writes a variable's value to this machine's store, so kaja.json
+// only has to name it. The value never travels back out.
+func (s *ApiService) SetStoredValue(ctx context.Context, req *SetStoredValueRequest) (*StoredValueResponse, error) {
+	if err := s.checkStoredValueAllowed(req.Name); err != nil {
+		return nil, err
+	}
+	if !s.variableStoreAvailable() {
+		return nil, fmt.Errorf("this machine has nowhere to store a variable's value; set %s in the environment instead", storedEnvName(req.Name))
+	}
+	if req.Value == "" {
+		return nil, fmt.Errorf("value is required")
+	}
+
+	slog.Info("Storing variable value", "name", req.Name)
+
+	if err := s.variableStore.Set(req.Name, req.Value); err != nil {
+		return nil, fmt.Errorf("failed to store the value for %q: %w", req.Name, err)
+	}
+
+	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
+}
+
+// ClearStoredValue removes a variable's value from this machine's store. With no
+// store there is nothing to clear, which is a success, not a failure - saving the
+// Variables tab clears whatever stopped being stored either way.
+func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValueRequest) (*StoredValueResponse, error) {
+	if err := s.checkStoredValueAllowed(req.Name); err != nil {
+		return nil, err
+	}
+
+	if s.variableStoreAvailable() {
+		slog.Info("Clearing stored variable value", "name", req.Name)
+		if err := s.variableStore.Delete(req.Name); err != nil {
+			return nil, fmt.Errorf("failed to clear the value for %q: %w", req.Name, err)
+		}
+	}
+
+	return &StoredValueResponse{VariableStatus: s.Variables().Statuses()}, nil
+}
+
+func (s *ApiService) checkStoredValueAllowed(name string) error {
+	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
+	system := currentResponse.Configuration.System
+	if system == nil || !system.CanUpdateConfiguration {
+		return fmt.Errorf("updating configuration is not allowed")
+	}
+	if !variableNamePattern.MatchString(name) {
+		return fmt.Errorf("variable name %q must start with a letter or underscore and contain only letters, numbers and underscores", name)
+	}
+	return nil
 }
