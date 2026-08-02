@@ -54,24 +54,106 @@ test("defaultInput uses empty arrays for repeated scalars, one element for messa
   expect(expr).toContain("name:");
 });
 
-// google.protobuf.Value (used for free-form / polymorphic OpenAPI fields) must
-// not recurse into its "kind" oneof — that would emit every member at once, an
-// invalid shape. It renders as an empty, editable placeholder instead.
-test("defaultInput renders google.protobuf.Value as an empty placeholder", () => {
-  const value: MessageType<any> = new MessageType("google.protobuf.Value", [
+const anyValue = (): MessageType<any> =>
+  new MessageType("google.protobuf.Value", [
     { no: 1, name: "null_value", kind: "enum", oneof: "kind", T: () => ["google.protobuf.NullValue", {}] },
     { no: 3, name: "string_value", kind: "scalar", oneof: "kind", T: 9 /*ScalarType.STRING*/ },
     { no: 4, name: "bool_value", kind: "scalar", oneof: "kind", T: 8 /*ScalarType.BOOL*/ },
   ]);
-  const request: MessageType<any> = new MessageType("openapi.demo.Request", [{ no: 1, name: "data", kind: "message", T: () => value }]);
+
+// google.protobuf.Value (used for free-form / polymorphic OpenAPI fields) has no
+// fillable default: its "kind" oneof can neither be flattened into fields (not a
+// valid shape) nor left unset (the JSON encoder rejects it on send). A singular
+// one is omitted, the way a recursive field is.
+test("defaultInput omits a google.protobuf.Value field", () => {
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [
+    { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+    { no: 2, name: "data", kind: "message", T: anyValue },
+    { no: 3, name: "values", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: anyValue },
+  ]);
 
   const sources: Sources = [];
   const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
 
-  expect(expr).toContain("kind: { oneofKind: undefined }");
-  // No flat oneof members leaked out.
+  expect(expr).toContain("id:");
+  expect(expr).not.toContain("data:");
+  // Repeated: an empty array, not an element that can't be sent.
+  expect(expr).toContain("values: []");
+  // No flat oneof members, and no empty group, leaked out.
   expect(expr).not.toContain("stringValue");
-  expect(expr).not.toContain("boolValue");
+  expect(expr).not.toContain("oneofKind");
+});
+
+// A free-form OpenAPI object becomes map<string, google.protobuf.Value>. The map
+// itself is fine to send, so it stays — empty, for the caller to fill in.
+test("defaultInput renders a map of google.protobuf.Value as an empty map", () => {
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [
+    { no: 1, name: "schema_fields", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: anyValue } },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+
+  expect(expr).toContain("schemaFields: {}");
+});
+
+// A oneof of any kind is a single { oneofKind, <member> } property: its members
+// are never fields of their own.
+test("defaultInput renders a oneof as a single empty group", () => {
+  const request: MessageType<any> = new MessageType("demo.Request", [
+    { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+    { no: 2, name: "by_name", kind: "scalar", oneof: "selector", T: 9 /*ScalarType.STRING*/ },
+    { no: 3, name: "by_index", kind: "scalar", oneof: "selector", T: 5 /*ScalarType.INT32*/ },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+
+  expect(expr).toContain("id:");
+  expect(expr).toContain("selector: { oneofKind: undefined }");
+  expect(expr).not.toContain("byName");
+  expect(expr).not.toContain("byIndex");
+});
+
+// The point of the shape: a generated request has to survive the serializer.
+// A flattened oneof leaves the group itself missing, and protobuf-ts fails on
+// it with an error that names neither the field nor the request.
+test("defaultInput generates a request that serializes", () => {
+  const selector: MessageType<any> = new MessageType("demo.Selector", [
+    { no: 1, name: "by_name", kind: "scalar", oneof: "target", T: 9 /*ScalarType.STRING*/ },
+    { no: 2, name: "by_index", kind: "scalar", oneof: "target", T: 5 /*ScalarType.INT32*/ },
+  ]);
+  const request: MessageType<any> = new MessageType("openapi.demo.Request", [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+    { no: 2, name: "selector", kind: "message", T: () => selector },
+    { no: 3, name: "schema_fields", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: anyValue } },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const generated = new Function(`return ${expr.replace(/;\s*$/, "")}`)();
+
+  expect(() => request.toBinary(generated)).not.toThrow();
+});
+
+// The Timestamp default applies wherever a Timestamp appears, including as a
+// map value.
+test("defaultInput fills in a Timestamp map value", () => {
+  const timestamp: MessageType<any> = new MessageType("google.protobuf.Timestamp", [
+    { no: 1, name: "seconds", kind: "scalar", T: 3 /*ScalarType.INT64*/ },
+    { no: 2, name: "nanos", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+  ]);
+  const request: MessageType<any> = new MessageType("demo.Request", [
+    { no: 1, name: "seen_at", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => timestamp } },
+  ]);
+
+  const sources: Sources = [];
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+
+  expect(expr).toContain("seconds:");
+  expect(expr).toContain("nanos:");
+  // The current time, not the "0"/0 the generic recursion would produce.
+  expect(expr).not.toContain('seconds: "0"');
 });
 
 // A cycle across two messages (A -> B -> A) must also terminate.

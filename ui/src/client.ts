@@ -1,5 +1,6 @@
 import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import type { RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { IMessageType } from "@protobuf-ts/runtime";
+import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders } from "./appTypes";
 import { MethodCall, MethodCallHeaders } from "./kaja";
@@ -103,6 +104,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
   for (const method of service.methods) {
     const isServerStreaming = method.serverStreaming && !method.clientStreaming;
+    const inputType: IMessageType<any> | undefined = (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I;
 
     client.methods[method.name] = async (input: any) => {
       // Capture request headers from appRef at request time
@@ -127,7 +129,14 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         // The run's abort signal is read here rather than captured with the
         // client, so every call a script makes joins the run that issued it.
         const abort = client.kaja?._internal.abortSignal;
-        const call = clientStub[lcfirst(method.name)](input, abort ? { ...options, abort } : options);
+        // A request is a hand-written object literal, so it is routinely partial:
+        // a deleted field, or a oneof left unset, reaches the serializer as
+        // `undefined` and fails there with an error that names neither. create()
+        // fills those in with the zero values the wire format omits anyway. The
+        // literal itself stays on the method call, so the console and the value
+        // completions keep showing what was actually written.
+        const message = inputType ? inputType.create(input) : input;
+        const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
 
         if (isServerStreaming) {
           const streamCall = call as ServerStreamingCall<any, any>;

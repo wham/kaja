@@ -2,27 +2,71 @@ import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runt
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
 
+// google.protobuf.Value holds arbitrary JSON through a "kind" oneof, and an
+// OpenAPI spec's free-form properties are generated as one. It has no fillable
+// default: leaving the oneof unset is rejected on send ("none of the oneof
+// fields is set" from the JSON encoder), and picking a member would invent a
+// value. So, like a recursive type, it is left out of the generated request
+// rather than placed there only to fail.
+const unfillable = "google.protobuf.Value";
+
+// omitMessage reports whether a message type has no default worth generating:
+// either it is unfillable, or it is already on the recursion path.
+function omitMessage(typeName: string, visiting: Set<string>): boolean {
+  return typeName === unfillable || visiting.has(typeName);
+}
+
 export function defaultMessage<T extends object>(
   message: IMessageType<T>,
   sources: Sources,
   imports: Imports,
   visiting: Set<string> = new Set(),
 ): ts.ObjectLiteralExpression {
+  const typeName = message.typeName;
+
+  // Special case for Timestamp - default to current time
+  if (typeName === "google.protobuf.Timestamp") {
+    const now = new Date();
+    const seconds = Math.floor(now.getTime() / 1000);
+    const nanos = (now.getTime() % 1000) * 1_000_000;
+    return ts.factory.createObjectLiteralExpression([
+      ts.factory.createPropertyAssignment("seconds", ts.factory.createStringLiteral(seconds.toString())),
+      ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
+    ]);
+  }
+
   let properties: ts.PropertyAssignment[] = [];
 
-  const typeName = message.typeName;
   // Track the message types on the current recursion path so a self-referential
   // message (e.g. a recursive filter/expression type from an OpenAPI spec) stops
   // instead of recursing until the stack overflows.
   const nested = new Set(visiting).add(typeName);
+  const oneofs = new Set<string>();
 
   message.fields.forEach((field) => {
-    // Break recursive message cycles. A field whose message type is already on
-    // the current path can't be filled in without recursing forever: a repeated
-    // field defaults to an empty array and a singular (optional) field is omitted
-    // entirely, so the generated code stays type-correct instead of holding an
-    // unfillable placeholder.
-    if (field.kind === "message" && nested.has(field.T().typeName)) {
+    // A oneof's members live under a single `{ oneofKind, <member> }` property,
+    // so emitting them as fields would be both a type error and, since the group
+    // itself would then be missing, a serialization crash. It is generated once,
+    // empty: which member to set is the caller's choice.
+    if (field.oneof) {
+      if (!oneofs.has(field.oneof)) {
+        oneofs.add(field.oneof);
+        properties.push(
+          ts.factory.createPropertyAssignment(
+            field.oneof,
+            ts.factory.createObjectLiteralExpression([ts.factory.createPropertyAssignment("oneofKind", ts.factory.createIdentifier("undefined"))]),
+          ),
+        );
+      }
+      return;
+    }
+
+    // A field with no default worth generating — an unfillable type, or a
+    // message type already on the current path, which can't be filled in without
+    // recursing forever — is left out: a repeated field defaults to an empty
+    // array and a singular (optional) field is omitted entirely, so the generated
+    // code stays type-correct instead of holding a placeholder that can't be sent.
+    if (field.kind === "message" && omitMessage(field.T().typeName, nested)) {
       if (field.repeat) {
         properties.push(ts.factory.createPropertyAssignment(field.localName, ts.factory.createArrayLiteralExpression([])));
       }
@@ -75,9 +119,9 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   if (field.kind === "map") {
-    // An empty map is valid; if the value type would recurse into the current
-    // path, leave the map empty rather than emit an unfillable entry.
-    if (field.V.kind === "message" && visiting.has(field.V.T().typeName)) {
+    // An empty map is valid, so a value type with no default worth generating
+    // leaves the map empty rather than holding an entry that can't be sent.
+    if (field.V.kind === "message" && omitMessage(field.V.T().typeName, visiting)) {
       return ts.factory.createObjectLiteralExpression([]);
     }
     const properties: ts.PropertyAssignment[] = [];
@@ -91,30 +135,8 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   if (field.kind === "message") {
-    const messageType = field.T();
-    // Special case for Timestamp - default to current time
-    if (messageType.typeName === "google.protobuf.Timestamp") {
-      const now = new Date();
-      const seconds = Math.floor(now.getTime() / 1000);
-      const nanos = (now.getTime() % 1000) * 1_000_000;
-      return ts.factory.createObjectLiteralExpression([
-        ts.factory.createPropertyAssignment("seconds", ts.factory.createStringLiteral(seconds.toString())),
-        ts.factory.createPropertyAssignment("nanos", ts.factory.createNumericLiteral(nanos)),
-      ]);
-    }
-    // google.protobuf.Value holds arbitrary JSON through a "kind" oneof (used for
-    // free-form / polymorphic fields). Recursing would emit every oneof member at
-    // once, an invalid shape; an empty value is a valid, editable placeholder.
-    if (messageType.typeName === "google.protobuf.Value") {
-      return ts.factory.createObjectLiteralExpression([
-        ts.factory.createPropertyAssignment(
-          "kind",
-          ts.factory.createObjectLiteralExpression([ts.factory.createPropertyAssignment("oneofKind", ts.factory.createIdentifier("undefined"))]),
-        ),
-      ]);
-    }
     // For nested message types, recurse with the nested type name
-    return defaultMessage(messageType, sources, imports, visiting);
+    return defaultMessage(field.T(), sources, imports, visiting);
   }
 
   return ts.factory.createNull();
