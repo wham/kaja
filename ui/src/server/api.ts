@@ -80,6 +80,217 @@ export interface OpenAppResponse {
     protocol: string;
 }
 /**
+ * InspectOpenApi reads an OpenAPI document without creating an app, so the New
+ * OpenAPI app form can fill itself in from the document: its title and version,
+ * the servers it declares, and the security schemes it accepts. The app carries
+ * the same parameters the app would be opened with (spec_url or spec_content, and
+ * the credentials used to fetch a protected document).
+ *
+ * @generated from protobuf message InspectOpenApiRequest
+ */
+export interface InspectOpenApiRequest {
+    /**
+     * @generated from protobuf field: OpenApiApp openapi = 1
+     */
+    openapi?: OpenApiApp;
+}
+/**
+ * @generated from protobuf message InspectOpenApiResponse
+ */
+export interface InspectOpenApiResponse {
+    /**
+     * Set when the document was read; the form fills itself in from it.
+     *
+     * @generated from protobuf field: OpenApiDocument document = 1
+     */
+    document?: OpenApiDocument;
+    /**
+     * Set when it wasn't; the form shows it in place of the document summary.
+     *
+     * @generated from protobuf field: OpenApiProblem problem = 2
+     */
+    problem?: OpenApiProblem;
+}
+/**
+ * @generated from protobuf message OpenApiDocument
+ */
+export interface OpenApiDocument {
+    /**
+     * @generated from protobuf field: string title = 1
+     */
+    title: string;
+    /**
+     * The API's own version, from info.version.
+     *
+     * @generated from protobuf field: string version = 2
+     */
+    version: string;
+    /**
+     * The OpenAPI specification version, from the openapi field.
+     *
+     * @generated from protobuf field: string openapi_version = 3
+     */
+    openapiVersion: string;
+    /**
+     * @generated from protobuf field: int32 operation_count = 4
+     */
+    operationCount: number;
+    /**
+     * @generated from protobuf field: int32 tag_count = 5
+     */
+    tagCount: number;
+    /**
+     * @generated from protobuf field: repeated OpenApiServer servers = 6
+     */
+    servers: OpenApiServer[];
+    /**
+     * @generated from protobuf field: repeated OpenApiSecurityScheme security_schemes = 7
+     */
+    securitySchemes: OpenApiSecurityScheme[];
+    /**
+     * Base URL derived from the document URL's origin, set only when the document
+     * declares no servers of its own.
+     *
+     * @generated from protobuf field: string guessed_base_url = 8
+     */
+    guessedBaseUrl: string;
+    /**
+     * Whether any operation declares its own security. When it doesn't, every
+     * scheme applies to every operation and the coverage counts carry no
+     * information.
+     *
+     * @generated from protobuf field: bool per_operation_security = 9
+     */
+    perOperationSecurity: boolean;
+}
+/**
+ * @generated from protobuf message OpenApiServer
+ */
+export interface OpenApiServer {
+    /**
+     * @generated from protobuf field: string url = 1
+     */
+    url: string;
+    /**
+     * @generated from protobuf field: string description = 2
+     */
+    description: string;
+    /**
+     * @generated from protobuf field: repeated OpenApiServerVariable variables = 3
+     */
+    variables: OpenApiServerVariable[];
+}
+/**
+ * OpenApiServerVariable is one {placeholder} in a server URL. The form renders a
+ * select when the document enumerates the allowed values, and a text field
+ * otherwise.
+ *
+ * @generated from protobuf message OpenApiServerVariable
+ */
+export interface OpenApiServerVariable {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string default_value = 2
+     */
+    defaultValue: string;
+    /**
+     * @generated from protobuf field: repeated string enum_values = 3
+     */
+    enumValues: string[];
+    /**
+     * @generated from protobuf field: string description = 4
+     */
+    description: string;
+}
+/**
+ * @generated from protobuf message OpenApiSecurityScheme
+ */
+export interface OpenApiSecurityScheme {
+    /**
+     * Name of the scheme in components.securitySchemes; what security_scheme in
+     * OpenApiApp refers to.
+     *
+     * @generated from protobuf field: string key = 1
+     */
+    key: string;
+    /**
+     * apiKey | http | oauth2 | openIdConnect | mutualTLS
+     *
+     * @generated from protobuf field: string type = 2
+     */
+    type: string;
+    /**
+     * The HTTP authentication scheme (bearer, basic, digest, ...) for type http.
+     *
+     * @generated from protobuf field: string scheme = 3
+     */
+    scheme: string;
+    /**
+     * @generated from protobuf field: string bearer_format = 4
+     */
+    bearerFormat: string;
+    /**
+     * header | query | cookie, for type apiKey.
+     *
+     * @generated from protobuf field: string in = 5
+     */
+    in: string;
+    /**
+     * Parameter name for type apiKey.
+     *
+     * @generated from protobuf field: string parameter_name = 6
+     */
+    parameterName: string;
+    /**
+     * @generated from protobuf field: string open_id_connect_url = 7
+     */
+    openIdConnectUrl: string;
+    /**
+     * @generated from protobuf field: string description = 8
+     */
+    description: string;
+    /**
+     * Number of operations that accept this scheme on its own.
+     *
+     * @generated from protobuf field: int32 operation_count = 9
+     */
+    operationCount: number;
+    /**
+     * Whether the scheme only ever appears alongside another one, which a single
+     * credential per app can't satisfy.
+     *
+     * @generated from protobuf field: bool requires_others = 10
+     */
+    requiresOthers: boolean;
+}
+/**
+ * OpenApiProblem is a document that couldn't be read, classified so the form can
+ * name the next move instead of printing a raw error.
+ *
+ * @generated from protobuf message OpenApiProblem
+ */
+export interface OpenApiProblem {
+    /**
+     * @generated from protobuf field: OpenApiProblemKind kind = 1
+     */
+    kind: OpenApiProblemKind;
+    /**
+     * One line, addressed to the user.
+     *
+     * @generated from protobuf field: string message = 2
+     */
+    message: string;
+    /**
+     * The underlying transport or parser error, verbatim.
+     *
+     * @generated from protobuf field: string detail = 3
+     */
+    detail: string;
+}
+/**
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
@@ -341,6 +552,26 @@ export interface OpenApiApp {
      * @generated from protobuf field: string base_url = 7
      */
     baseUrl: string;
+    /**
+     * Which of the document's security schemes the credentials belong to, by its
+     * name in components.securitySchemes. Empty picks a scheme from the document;
+     * "none" sends no credentials at all.
+     *
+     * @generated from protobuf field: string security_scheme = 8
+     */
+    securityScheme: string;
+    /**
+     * A single header sent while fetching spec_url, for documents that are
+     * themselves behind a login. Kept apart from the credentials above because the
+     * document and the API it describes often want different tokens.
+     *
+     * @generated from protobuf field: string spec_header_name = 9
+     */
+    specHeaderName: string;
+    /**
+     * @generated from protobuf field: string spec_header_value = 10
+     */
+    specHeaderValue: string;
 }
 /**
  * OpenAiApp calls the OpenAI chat completions API.
@@ -409,6 +640,57 @@ export enum OpenStatus {
      * @generated from protobuf enum value: OPEN_STATUS_ERROR = 2;
      */
     ERROR = 2
+}
+/**
+ * @generated from protobuf enum OpenApiProblemKind
+ */
+export enum OpenApiProblemKind {
+    /**
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_UNKNOWN = 0;
+     */
+    OPEN_API_PROBLEM_UNKNOWN = 0,
+    /**
+     * The host couldn't be reached (DNS, TCP, TLS).
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_UNREACHABLE = 1;
+     */
+    OPEN_API_PROBLEM_UNREACHABLE = 1,
+    /**
+     * The document itself is behind a login (401/403).
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_UNAUTHORIZED = 2;
+     */
+    OPEN_API_PROBLEM_UNAUTHORIZED = 2,
+    /**
+     * Any other non-200 response.
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_HTTP_ERROR = 3;
+     */
+    OPEN_API_PROBLEM_HTTP_ERROR = 3,
+    /**
+     * The response is an HTML page, almost always a login redirect or docs page.
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_HTML = 4;
+     */
+    OPEN_API_PROBLEM_HTML = 4,
+    /**
+     * Parsed, but it isn't an OpenAPI document.
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_NOT_A_DOCUMENT = 5;
+     */
+    OPEN_API_PROBLEM_NOT_A_DOCUMENT = 5,
+    /**
+     * A Swagger 2.0 document, which kaja doesn't read.
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_SWAGGER2 = 6;
+     */
+    OPEN_API_PROBLEM_SWAGGER2 = 6,
+    /**
+     * Not parseable as JSON or YAML.
+     *
+     * @generated from protobuf enum value: OPEN_API_PROBLEM_MALFORMED = 7;
+     */
+    OPEN_API_PROBLEM_MALFORMED = 7
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -640,6 +922,532 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
  * @generated MessageType for protobuf message OpenAppResponse
  */
 export const OpenAppResponse = new OpenAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InspectOpenApiRequest$Type extends MessageType<InspectOpenApiRequest> {
+    constructor() {
+        super("InspectOpenApiRequest", [
+            { no: 1, name: "openapi", kind: "message", T: () => OpenApiApp }
+        ]);
+    }
+    create(value?: PartialMessage<InspectOpenApiRequest>): InspectOpenApiRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectOpenApiRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectOpenApiRequest): InspectOpenApiRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* OpenApiApp openapi */ 1:
+                    message.openapi = OpenApiApp.internalBinaryRead(reader, reader.uint32(), options, message.openapi);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectOpenApiRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* OpenApiApp openapi = 1; */
+        if (message.openapi)
+            OpenApiApp.internalBinaryWrite(message.openapi, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectOpenApiRequest
+ */
+export const InspectOpenApiRequest = new InspectOpenApiRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InspectOpenApiResponse$Type extends MessageType<InspectOpenApiResponse> {
+    constructor() {
+        super("InspectOpenApiResponse", [
+            { no: 1, name: "document", kind: "message", T: () => OpenApiDocument },
+            { no: 2, name: "problem", kind: "message", T: () => OpenApiProblem }
+        ]);
+    }
+    create(value?: PartialMessage<InspectOpenApiResponse>): InspectOpenApiResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectOpenApiResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectOpenApiResponse): InspectOpenApiResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* OpenApiDocument document */ 1:
+                    message.document = OpenApiDocument.internalBinaryRead(reader, reader.uint32(), options, message.document);
+                    break;
+                case /* OpenApiProblem problem */ 2:
+                    message.problem = OpenApiProblem.internalBinaryRead(reader, reader.uint32(), options, message.problem);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectOpenApiResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* OpenApiDocument document = 1; */
+        if (message.document)
+            OpenApiDocument.internalBinaryWrite(message.document, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* OpenApiProblem problem = 2; */
+        if (message.problem)
+            OpenApiProblem.internalBinaryWrite(message.problem, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectOpenApiResponse
+ */
+export const InspectOpenApiResponse = new InspectOpenApiResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenApiDocument$Type extends MessageType<OpenApiDocument> {
+    constructor() {
+        super("OpenApiDocument", [
+            { no: 1, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "openapi_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "operation_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 5, name: "tag_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 6, name: "servers", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => OpenApiServer },
+            { no: 7, name: "security_schemes", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => OpenApiSecurityScheme },
+            { no: 8, name: "guessed_base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "per_operation_security", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<OpenApiDocument>): OpenApiDocument {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.title = "";
+        message.version = "";
+        message.openapiVersion = "";
+        message.operationCount = 0;
+        message.tagCount = 0;
+        message.servers = [];
+        message.securitySchemes = [];
+        message.guessedBaseUrl = "";
+        message.perOperationSecurity = false;
+        if (value !== undefined)
+            reflectionMergePartial<OpenApiDocument>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenApiDocument): OpenApiDocument {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string title */ 1:
+                    message.title = reader.string();
+                    break;
+                case /* string version */ 2:
+                    message.version = reader.string();
+                    break;
+                case /* string openapi_version */ 3:
+                    message.openapiVersion = reader.string();
+                    break;
+                case /* int32 operation_count */ 4:
+                    message.operationCount = reader.int32();
+                    break;
+                case /* int32 tag_count */ 5:
+                    message.tagCount = reader.int32();
+                    break;
+                case /* repeated OpenApiServer servers */ 6:
+                    message.servers.push(OpenApiServer.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated OpenApiSecurityScheme security_schemes */ 7:
+                    message.securitySchemes.push(OpenApiSecurityScheme.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string guessed_base_url */ 8:
+                    message.guessedBaseUrl = reader.string();
+                    break;
+                case /* bool per_operation_security */ 9:
+                    message.perOperationSecurity = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenApiDocument, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string title = 1; */
+        if (message.title !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.title);
+        /* string version = 2; */
+        if (message.version !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.version);
+        /* string openapi_version = 3; */
+        if (message.openapiVersion !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.openapiVersion);
+        /* int32 operation_count = 4; */
+        if (message.operationCount !== 0)
+            writer.tag(4, WireType.Varint).int32(message.operationCount);
+        /* int32 tag_count = 5; */
+        if (message.tagCount !== 0)
+            writer.tag(5, WireType.Varint).int32(message.tagCount);
+        /* repeated OpenApiServer servers = 6; */
+        for (let i = 0; i < message.servers.length; i++)
+            OpenApiServer.internalBinaryWrite(message.servers[i], writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* repeated OpenApiSecurityScheme security_schemes = 7; */
+        for (let i = 0; i < message.securitySchemes.length; i++)
+            OpenApiSecurityScheme.internalBinaryWrite(message.securitySchemes[i], writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* string guessed_base_url = 8; */
+        if (message.guessedBaseUrl !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.guessedBaseUrl);
+        /* bool per_operation_security = 9; */
+        if (message.perOperationSecurity !== false)
+            writer.tag(9, WireType.Varint).bool(message.perOperationSecurity);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenApiDocument
+ */
+export const OpenApiDocument = new OpenApiDocument$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenApiServer$Type extends MessageType<OpenApiServer> {
+    constructor() {
+        super("OpenApiServer", [
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "variables", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => OpenApiServerVariable }
+        ]);
+    }
+    create(value?: PartialMessage<OpenApiServer>): OpenApiServer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.url = "";
+        message.description = "";
+        message.variables = [];
+        if (value !== undefined)
+            reflectionMergePartial<OpenApiServer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenApiServer): OpenApiServer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string url */ 1:
+                    message.url = reader.string();
+                    break;
+                case /* string description */ 2:
+                    message.description = reader.string();
+                    break;
+                case /* repeated OpenApiServerVariable variables */ 3:
+                    message.variables.push(OpenApiServerVariable.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenApiServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string url = 1; */
+        if (message.url !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.url);
+        /* string description = 2; */
+        if (message.description !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.description);
+        /* repeated OpenApiServerVariable variables = 3; */
+        for (let i = 0; i < message.variables.length; i++)
+            OpenApiServerVariable.internalBinaryWrite(message.variables[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenApiServer
+ */
+export const OpenApiServer = new OpenApiServer$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenApiServerVariable$Type extends MessageType<OpenApiServerVariable> {
+    constructor() {
+        super("OpenApiServerVariable", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "default_value", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "enum_values", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<OpenApiServerVariable>): OpenApiServerVariable {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.defaultValue = "";
+        message.enumValues = [];
+        message.description = "";
+        if (value !== undefined)
+            reflectionMergePartial<OpenApiServerVariable>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenApiServerVariable): OpenApiServerVariable {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string default_value */ 2:
+                    message.defaultValue = reader.string();
+                    break;
+                case /* repeated string enum_values */ 3:
+                    message.enumValues.push(reader.string());
+                    break;
+                case /* string description */ 4:
+                    message.description = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenApiServerVariable, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string default_value = 2; */
+        if (message.defaultValue !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.defaultValue);
+        /* repeated string enum_values = 3; */
+        for (let i = 0; i < message.enumValues.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.enumValues[i]);
+        /* string description = 4; */
+        if (message.description !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.description);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenApiServerVariable
+ */
+export const OpenApiServerVariable = new OpenApiServerVariable$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenApiSecurityScheme$Type extends MessageType<OpenApiSecurityScheme> {
+    constructor() {
+        super("OpenApiSecurityScheme", [
+            { no: 1, name: "key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "scheme", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "bearer_format", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "in", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "parameter_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "open_id_connect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "operation_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 10, name: "requires_others", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<OpenApiSecurityScheme>): OpenApiSecurityScheme {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.key = "";
+        message.type = "";
+        message.scheme = "";
+        message.bearerFormat = "";
+        message.in = "";
+        message.parameterName = "";
+        message.openIdConnectUrl = "";
+        message.description = "";
+        message.operationCount = 0;
+        message.requiresOthers = false;
+        if (value !== undefined)
+            reflectionMergePartial<OpenApiSecurityScheme>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenApiSecurityScheme): OpenApiSecurityScheme {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string key */ 1:
+                    message.key = reader.string();
+                    break;
+                case /* string type */ 2:
+                    message.type = reader.string();
+                    break;
+                case /* string scheme */ 3:
+                    message.scheme = reader.string();
+                    break;
+                case /* string bearer_format */ 4:
+                    message.bearerFormat = reader.string();
+                    break;
+                case /* string in */ 5:
+                    message.in = reader.string();
+                    break;
+                case /* string parameter_name */ 6:
+                    message.parameterName = reader.string();
+                    break;
+                case /* string open_id_connect_url */ 7:
+                    message.openIdConnectUrl = reader.string();
+                    break;
+                case /* string description */ 8:
+                    message.description = reader.string();
+                    break;
+                case /* int32 operation_count */ 9:
+                    message.operationCount = reader.int32();
+                    break;
+                case /* bool requires_others */ 10:
+                    message.requiresOthers = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenApiSecurityScheme, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string key = 1; */
+        if (message.key !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.key);
+        /* string type = 2; */
+        if (message.type !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.type);
+        /* string scheme = 3; */
+        if (message.scheme !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.scheme);
+        /* string bearer_format = 4; */
+        if (message.bearerFormat !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.bearerFormat);
+        /* string in = 5; */
+        if (message.in !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.in);
+        /* string parameter_name = 6; */
+        if (message.parameterName !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.parameterName);
+        /* string open_id_connect_url = 7; */
+        if (message.openIdConnectUrl !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.openIdConnectUrl);
+        /* string description = 8; */
+        if (message.description !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.description);
+        /* int32 operation_count = 9; */
+        if (message.operationCount !== 0)
+            writer.tag(9, WireType.Varint).int32(message.operationCount);
+        /* bool requires_others = 10; */
+        if (message.requiresOthers !== false)
+            writer.tag(10, WireType.Varint).bool(message.requiresOthers);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenApiSecurityScheme
+ */
+export const OpenApiSecurityScheme = new OpenApiSecurityScheme$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class OpenApiProblem$Type extends MessageType<OpenApiProblem> {
+    constructor() {
+        super("OpenApiProblem", [
+            { no: 1, name: "kind", kind: "enum", T: () => ["OpenApiProblemKind", OpenApiProblemKind] },
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "detail", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<OpenApiProblem>): OpenApiProblem {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = 0;
+        message.message = "";
+        message.detail = "";
+        if (value !== undefined)
+            reflectionMergePartial<OpenApiProblem>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: OpenApiProblem): OpenApiProblem {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* OpenApiProblemKind kind */ 1:
+                    message.kind = reader.int32();
+                    break;
+                case /* string message */ 2:
+                    message.message = reader.string();
+                    break;
+                case /* string detail */ 3:
+                    message.detail = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: OpenApiProblem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* OpenApiProblemKind kind = 1; */
+        if (message.kind !== 0)
+            writer.tag(1, WireType.Varint).int32(message.kind);
+        /* string message = 2; */
+        if (message.message !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        /* string detail = 3; */
+        if (message.detail !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.detail);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message OpenApiProblem
+ */
+export const OpenApiProblem = new OpenApiProblem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
@@ -1336,7 +2144,10 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
             { no: 4, name: "password", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 6, name: "spec_content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 7, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "security_scheme", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "spec_header_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 10, name: "spec_header_value", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<OpenApiApp>): OpenApiApp {
@@ -1348,6 +2159,9 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         message.headers = {};
         message.specContent = "";
         message.baseUrl = "";
+        message.securityScheme = "";
+        message.specHeaderName = "";
+        message.specHeaderValue = "";
         if (value !== undefined)
             reflectionMergePartial<OpenApiApp>(this, message, value);
         return message;
@@ -1377,6 +2191,15 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
                     break;
                 case /* string base_url */ 7:
                     message.baseUrl = reader.string();
+                    break;
+                case /* string security_scheme */ 8:
+                    message.securityScheme = reader.string();
+                    break;
+                case /* string spec_header_name */ 9:
+                    message.specHeaderName = reader.string();
+                    break;
+                case /* string spec_header_value */ 10:
+                    message.specHeaderValue = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1427,6 +2250,15 @@ class OpenApiApp$Type extends MessageType<OpenApiApp> {
         /* string base_url = 7; */
         if (message.baseUrl !== "")
             writer.tag(7, WireType.LengthDelimited).string(message.baseUrl);
+        /* string security_scheme = 8; */
+        if (message.securityScheme !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.securityScheme);
+        /* string spec_header_name = 9; */
+        if (message.specHeaderName !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.specHeaderName);
+        /* string spec_header_value = 10; */
+        if (message.specHeaderValue !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.specHeaderValue);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1661,6 +2493,7 @@ export const UpdateConfigurationResponse = new UpdateConfigurationResponse$Type(
 export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
+    { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
 ]);

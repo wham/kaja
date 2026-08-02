@@ -1,10 +1,13 @@
 package openapi
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -16,7 +19,11 @@ import (
 // understands. sigs.k8s.io/yaml honours the json tags and parses both JSON and
 // YAML documents.
 type spec struct {
-	OpenAPI    string               `json:"openapi"`
+	OpenAPI string `json:"openapi"`
+	// Swagger is the version field of the predecessor format. It is only read to
+	// tell a Swagger 2.0 document apart from a document that is not an API
+	// description at all.
+	Swagger    string               `json:"swagger"`
 	Info       info                 `json:"info"`
 	Servers    []server             `json:"servers"`
 	Paths      map[string]*pathItem `json:"paths"`
@@ -32,7 +39,16 @@ type info struct {
 }
 
 type server struct {
-	URL string `json:"url"`
+	URL         string                    `json:"url"`
+	Description string                    `json:"description"`
+	Variables   map[string]serverVariable `json:"variables"`
+}
+
+// serverVariable is one {placeholder} in a server URL.
+type serverVariable struct {
+	Default     string   `json:"default"`
+	Enum        []string `json:"enum"`
+	Description string   `json:"description"`
 }
 
 type pathItem struct {
@@ -70,6 +86,9 @@ type operation struct {
 	Parameters  []*parameter         `json:"parameters"`
 	RequestBody *requestBody         `json:"requestBody"`
 	Responses   map[string]*response `json:"responses"`
+	// Security overrides the document-level requirements for this operation. An
+	// empty (but present) list means the operation needs no credentials.
+	Security []map[string][]string `json:"security"`
 }
 
 type parameter struct {
@@ -98,20 +117,66 @@ type mediaType struct {
 }
 
 type components struct {
-	Schemas         map[string]*schema         `json:"schemas"`
-	Parameters      map[string]*parameter      `json:"parameters"`
-	SecuritySchemes map[string]*securityScheme `json:"securitySchemes"`
+	Schemas         map[string]*schema    `json:"schemas"`
+	Parameters      map[string]*parameter `json:"parameters"`
+	SecuritySchemes securitySchemes       `json:"securitySchemes"`
 }
 
 // securityScheme models the OpenAPI 3.x security scheme types kaja understands:
 // http (bearer/basic), apiKey (header/query/cookie), and oauth2/openIdConnect
 // (treated as bearer tokens).
 type securityScheme struct {
-	Type   string `json:"type"`   // http | apiKey | oauth2 | openIdConnect
-	Scheme string `json:"scheme"` // bearer | basic (for type http)
-	In     string `json:"in"`     // header | query | cookie (for type apiKey)
-	Name   string `json:"name"`   // parameter name (for type apiKey)
+	Type             string `json:"type"`   // http | apiKey | oauth2 | openIdConnect | mutualTLS
+	Scheme           string `json:"scheme"` // bearer | basic (for type http)
+	In               string `json:"in"`     // header | query | cookie (for type apiKey)
+	Name             string `json:"name"`   // parameter name (for type apiKey)
+	BearerFormat     string `json:"bearerFormat"`
+	Description      string `json:"description"`
+	OpenIDConnectURL string `json:"openIdConnectUrl"`
 }
+
+// securitySchemes is components.securitySchemes, keeping the order the document
+// declares them in. The order decides which scheme the app form preselects when
+// two are equally applicable, so it has to be stable across reads - a plain Go
+// map isn't.
+type securitySchemes struct {
+	names  []string
+	byName map[string]*securityScheme
+}
+
+func (s *securitySchemes) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &s.byName); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(b))
+	// Consume the opening brace, then read the keys in the order they appear.
+	if _, err := decoder.Token(); err != nil {
+		return err
+	}
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		name, ok := key.(string)
+		if !ok {
+			return fmt.Errorf("securitySchemes: unexpected key %v", key)
+		}
+		s.names = append(s.names, name)
+		var discard json.RawMessage
+		if err := decoder.Decode(&discard); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// names in declaration order.
+func (s *securitySchemes) order() []string { return s.names }
+
+func (s *securitySchemes) get(name string) *securityScheme { return s.byName[name] }
+
+func (s *securitySchemes) len() int { return len(s.byName) }
 
 // openAPIType is a schema "type". OpenAPI 3.0 writes a single string
 // ("string"), while OpenAPI 3.1 (JSON Schema) also allows an array such as
@@ -207,23 +272,62 @@ func textContent(content map[string]mediaType) bool {
 	return false
 }
 
+// problemKind classifies why a document couldn't be read. The app form shows a
+// different banner - and a different next move - for each one.
+type problemKind string
+
+const (
+	problemUnreachable  problemKind = "unreachable"  // DNS, TCP or TLS failure
+	problemUnauthorized problemKind = "unauthorized" // 401 or 403: the document itself is protected
+	problemHTTPError    problemKind = "httpError"    // any other non-200 response
+	problemHTML         problemKind = "html"         // a web page, usually a sign-in redirect
+	problemNotADocument problemKind = "notADocument" // parsed, but not an API description
+	problemSwagger2     problemKind = "swagger2"     // the predecessor format
+	problemMalformed    problemKind = "malformed"    // not parseable as JSON or YAML
+)
+
+// problem is a document that couldn't be read. Message is one line addressed to
+// the user; Detail carries the underlying transport or parser error verbatim.
+type problem struct {
+	Kind    problemKind
+	Message string
+	Detail  string
+}
+
+func (p *problem) Error() string {
+	if p.Detail == "" {
+		return p.Message
+	}
+	return p.Message + ": " + p.Detail
+}
+
+// fetchCredentials are the credentials used to fetch the document itself, which
+// are not necessarily the ones the API it describes wants.
+type fetchCredentials struct {
+	token       string
+	username    string
+	password    string
+	headerName  string
+	headerValue string
+}
+
 // loadSpec fetches and parses an OpenAPI document from a URL, authenticating the
 // request with the user's credentials so specs served behind a login (e.g. a
 // tenant's /api/v2/openapi.yaml) can be read. The spec's own security schemes are
 // not known yet, so it falls back the same way invocations do: username/password
-// as HTTP Basic, otherwise a bearer token.
-func loadSpec(specURL, token, username, password string, log func(string)) (*spec, error) {
+// as HTTP Basic, otherwise a bearer token. An explicit spec header wins over both.
+func loadSpec(specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem) {
 	req, err := http.NewRequest(http.MethodGet, specURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetching spec: %w", err)
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}
 	}
 	req.Header.Set("Accept", "application/yaml, application/json, text/yaml, text/plain, */*")
-	applyFetchAuth(req, token, username, password)
+	applyFetchAuth(req, credentials)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetching spec: %w", err)
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't reach " + hostOf(specURL), Detail: unwrapURLError(err)}
 	}
 	defer resp.Body.Close()
 
@@ -236,26 +340,76 @@ func loadSpec(specURL, token, username, password string, log func(string)) (*spe
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, specFetchError(specURL, resp)
+		return nil, specFetchProblem(specURL, resp)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, fmt.Errorf("reading spec: %w", err)
+		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't read the response from " + hostOf(specURL), Detail: err.Error()}
 	}
 	log(fmt.Sprintf("Read %d bytes of spec", len(body)))
 
-	s, err := parseSpec(body)
-	if err != nil {
-		// The response was fetched but is not a parseable OpenAPI document. Name
-		// what actually came back so the failure is diagnosable from the log
-		// instead of a cryptic YAML error against, e.g., an HTML sign-in page.
-		if isHTML(contentType, body) {
-			return nil, fmt.Errorf("spec URL %q returned an HTML page, not an OpenAPI document; it likely requires authentication (provide a token or username/password)", specURL)
+	return readSpec(body, contentType)
+}
+
+// readSpec parses a fetched or uploaded document, classifying what came back when
+// it isn't an OpenAPI 3.x document. Naming the actual content (an HTML sign-in
+// page, a Swagger 2.0 document) beats a cryptic YAML error against it.
+func readSpec(body []byte, contentType string) (*spec, *problem) {
+	if isHTML(contentType, body) {
+		return nil, &problem{
+			Kind:    problemHTML,
+			Message: "That URL returned a web page, not an OpenAPI document",
+			Detail:  "Look for a link labelled \"OpenAPI\", \"spec\", or an /openapi.json path.",
 		}
-		return nil, fmt.Errorf("%w (Content-Type %q, starts with %q)", err, contentType, snippet(body))
 	}
-	return s, nil
+
+	var s spec
+	if err := yaml.Unmarshal(body, &s); err != nil {
+		return nil, &problem{Kind: problemMalformed, Message: "Couldn't parse the document", Detail: err.Error()}
+	}
+
+	if s.OpenAPI == "" {
+		if strings.HasPrefix(s.Swagger, "2.") {
+			return nil, &problem{
+				Kind:    problemSwagger2,
+				Message: "This is Swagger " + s.Swagger + ", not OpenAPI 3.x",
+				Detail:  "Convert it to OpenAPI 3 first - kaja reads 3.0 and 3.1 documents.",
+			}
+		}
+		return nil, &problem{
+			Kind:    problemNotADocument,
+			Message: "That isn't an OpenAPI document",
+			Detail:  fmt.Sprintf("It declares no %q version (Content-Type %q, starts with %q)", "openapi", contentType, snippet(body)),
+		}
+	}
+	if len(s.Paths) == 0 {
+		return nil, &problem{
+			Kind:    problemNotADocument,
+			Message: "That document declares no paths",
+			Detail:  "There is nothing to call - check that it is the complete document.",
+		}
+	}
+	return &s, nil
+}
+
+// hostOf names the host in a URL for a user-facing message, falling back to the
+// whole URL when it doesn't parse.
+func hostOf(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return rawURL
+}
+
+// unwrapURLError returns the transport error without the "Get \"<url>\":" prefix
+// net/http adds - the URL is already on screen, right above the message.
+func unwrapURLError(err error) string {
+	var urlError *url.Error
+	if errors.As(err, &urlError) && urlError.Err != nil {
+		return urlError.Err.Error()
+	}
+	return err.Error()
 }
 
 // snippet returns a short, single-line preview of a fetched body for diagnostics.
@@ -269,25 +423,38 @@ func snippet(body []byte) string {
 	return s
 }
 
-// applyFetchAuth adds the user's credentials to a spec-fetch request. It mirrors
-// resolveAuth's no-scheme fallback since the spec is not parsed yet.
-func applyFetchAuth(req *http.Request, token, username, password string) {
+// applyFetchAuth adds the user's credentials to a spec-fetch request. An explicit
+// header is sent as given; otherwise it mirrors resolveAuth's no-scheme fallback,
+// since the spec is not parsed yet.
+func applyFetchAuth(req *http.Request, credentials fetchCredentials) {
+	if credentials.headerName != "" {
+		req.Header.Set(credentials.headerName, credentials.headerValue)
+		return
+	}
 	switch {
-	case username != "" || password != "":
-		req.SetBasicAuth(username, password)
-	case token != "":
-		req.Header.Set("Authorization", "Bearer "+token)
+	case credentials.username != "" || credentials.password != "":
+		req.SetBasicAuth(credentials.username, credentials.password)
+	case credentials.token != "":
+		req.Header.Set("Authorization", "Bearer "+credentials.token)
 	}
 }
 
-// specFetchError builds a helpful error for a non-200 spec response, calling out
-// authentication for the statuses that indicate it.
-func specFetchError(specURL string, resp *http.Response) error {
+// specFetchProblem classifies a non-200 spec response, calling out authentication
+// for the statuses that indicate it.
+func specFetchProblem(specURL string, resp *http.Response) *problem {
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("fetching spec: %q returned %s; it requires authentication (provide a token or username/password)", specURL, resp.Status)
+		return &problem{
+			Kind:    problemUnauthorized,
+			Message: fmt.Sprintf("That URL needs credentials - the host returned %d", resp.StatusCode),
+			Detail:  "Give a header to send while fetching. It's stored separately from the app's own auth.",
+		}
 	default:
-		return fmt.Errorf("fetching spec: unexpected status %s", resp.Status)
+		return &problem{
+			Kind:    problemHTTPError,
+			Message: fmt.Sprintf("%s returned HTTP %d", hostOf(specURL), resp.StatusCode),
+			Detail:  resp.Status,
+		}
 	}
 }
 
@@ -301,16 +468,12 @@ func isHTML(contentType string, body []byte) bool {
 	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
 }
 
+// parseSpec reads a document whose content type is unknown, as an error rather
+// than a classified problem.
 func parseSpec(body []byte) (*spec, error) {
-	var s spec
-	if err := yaml.Unmarshal(body, &s); err != nil {
-		return nil, fmt.Errorf("parsing spec: %w", err)
+	s, p := readSpec(body, "")
+	if p != nil {
+		return nil, p
 	}
-	if s.OpenAPI == "" {
-		return nil, fmt.Errorf("not an OpenAPI 3.x document (missing \"openapi\" field)")
-	}
-	if len(s.Paths) == 0 {
-		return nil, fmt.Errorf("spec has no paths")
-	}
-	return &s, nil
+	return s, nil
 }

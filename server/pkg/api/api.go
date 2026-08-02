@@ -130,6 +130,90 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 	}, nil
 }
 
+// InspectOpenApi reads an OpenAPI document without creating an app, so the New
+// OpenAPI app form can fill itself in from what the document declares.
+func (s *ApiService) InspectOpenApi(ctx context.Context, req *InspectOpenApiRequest) (*InspectOpenApiResponse, error) {
+	if req.Openapi == nil {
+		return nil, fmt.Errorf("openapi app is required")
+	}
+
+	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Openapi{Openapi: req.Openapi}})
+	variables := loadConfigurationFile(s.configurationPath, NewLogger()).Variables
+	expandAppParameters(parameters, variables, NewLogger())
+
+	document, problem := openapi.Inspect(parameters, func(message string) { slog.Info(message) })
+	if problem != nil {
+		return &InspectOpenApiResponse{Problem: &OpenApiProblem{
+			Kind:    problemKind(problem.Kind),
+			Message: problem.Message,
+			Detail:  problem.Detail,
+		}}, nil
+	}
+
+	return &InspectOpenApiResponse{Document: describeDocument(document)}, nil
+}
+
+var problemKinds = map[string]OpenApiProblemKind{
+	"unreachable":  OpenApiProblemKind_OPEN_API_PROBLEM_UNREACHABLE,
+	"unauthorized": OpenApiProblemKind_OPEN_API_PROBLEM_UNAUTHORIZED,
+	"httpError":    OpenApiProblemKind_OPEN_API_PROBLEM_HTTP_ERROR,
+	"html":         OpenApiProblemKind_OPEN_API_PROBLEM_HTML,
+	"notADocument": OpenApiProblemKind_OPEN_API_PROBLEM_NOT_A_DOCUMENT,
+	"swagger2":     OpenApiProblemKind_OPEN_API_PROBLEM_SWAGGER2,
+	"malformed":    OpenApiProblemKind_OPEN_API_PROBLEM_MALFORMED,
+}
+
+func problemKind(kind string) OpenApiProblemKind {
+	return problemKinds[kind]
+}
+
+func describeDocument(document *openapi.Document) *OpenApiDocument {
+	described := &OpenApiDocument{
+		Title:                document.Title,
+		Version:              document.Version,
+		OpenapiVersion:       document.OpenAPIVersion,
+		OperationCount:       int32(document.OperationCount),
+		TagCount:             int32(document.TagCount),
+		GuessedBaseUrl:       document.GuessedBaseURL,
+		PerOperationSecurity: document.PerOperationSecurity,
+	}
+	for _, server := range document.Servers {
+		described.Servers = append(described.Servers, &OpenApiServer{
+			Url:         server.URL,
+			Description: server.Description,
+			Variables:   describeServerVariables(server.Variables),
+		})
+	}
+	for _, scheme := range document.SecuritySchemes {
+		described.SecuritySchemes = append(described.SecuritySchemes, &OpenApiSecurityScheme{
+			Key:              scheme.Key,
+			Type:             scheme.Type,
+			Scheme:           scheme.Scheme,
+			BearerFormat:     scheme.BearerFormat,
+			In:               scheme.In,
+			ParameterName:    scheme.ParameterName,
+			OpenIdConnectUrl: scheme.OpenIDConnectURL,
+			Description:      scheme.Description,
+			OperationCount:   int32(scheme.OperationCount),
+			RequiresOthers:   scheme.RequiresOthers,
+		})
+	}
+	return described
+}
+
+func describeServerVariables(variables []openapi.DocumentServerVariable) []*OpenApiServerVariable {
+	described := make([]*OpenApiServerVariable, 0, len(variables))
+	for _, variable := range variables {
+		described = append(described, &OpenApiServerVariable{
+			Name:         variable.Name,
+			DefaultValue: variable.Default,
+			EnumValues:   variable.Enum,
+			Description:  variable.Description,
+		})
+	}
+	return described
+}
+
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 

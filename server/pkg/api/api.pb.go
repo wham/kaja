@@ -70,6 +70,77 @@ func (OpenStatus) EnumDescriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
+type OpenApiProblemKind int32
+
+const (
+	OpenApiProblemKind_OPEN_API_PROBLEM_UNKNOWN OpenApiProblemKind = 0
+	// The host couldn't be reached (DNS, TCP, TLS).
+	OpenApiProblemKind_OPEN_API_PROBLEM_UNREACHABLE OpenApiProblemKind = 1
+	// The document itself is behind a login (401/403).
+	OpenApiProblemKind_OPEN_API_PROBLEM_UNAUTHORIZED OpenApiProblemKind = 2
+	// Any other non-200 response.
+	OpenApiProblemKind_OPEN_API_PROBLEM_HTTP_ERROR OpenApiProblemKind = 3
+	// The response is an HTML page, almost always a login redirect or docs page.
+	OpenApiProblemKind_OPEN_API_PROBLEM_HTML OpenApiProblemKind = 4
+	// Parsed, but it isn't an OpenAPI document.
+	OpenApiProblemKind_OPEN_API_PROBLEM_NOT_A_DOCUMENT OpenApiProblemKind = 5
+	// A Swagger 2.0 document, which kaja doesn't read.
+	OpenApiProblemKind_OPEN_API_PROBLEM_SWAGGER2 OpenApiProblemKind = 6
+	// Not parseable as JSON or YAML.
+	OpenApiProblemKind_OPEN_API_PROBLEM_MALFORMED OpenApiProblemKind = 7
+)
+
+// Enum value maps for OpenApiProblemKind.
+var (
+	OpenApiProblemKind_name = map[int32]string{
+		0: "OPEN_API_PROBLEM_UNKNOWN",
+		1: "OPEN_API_PROBLEM_UNREACHABLE",
+		2: "OPEN_API_PROBLEM_UNAUTHORIZED",
+		3: "OPEN_API_PROBLEM_HTTP_ERROR",
+		4: "OPEN_API_PROBLEM_HTML",
+		5: "OPEN_API_PROBLEM_NOT_A_DOCUMENT",
+		6: "OPEN_API_PROBLEM_SWAGGER2",
+		7: "OPEN_API_PROBLEM_MALFORMED",
+	}
+	OpenApiProblemKind_value = map[string]int32{
+		"OPEN_API_PROBLEM_UNKNOWN":        0,
+		"OPEN_API_PROBLEM_UNREACHABLE":    1,
+		"OPEN_API_PROBLEM_UNAUTHORIZED":   2,
+		"OPEN_API_PROBLEM_HTTP_ERROR":     3,
+		"OPEN_API_PROBLEM_HTML":           4,
+		"OPEN_API_PROBLEM_NOT_A_DOCUMENT": 5,
+		"OPEN_API_PROBLEM_SWAGGER2":       6,
+		"OPEN_API_PROBLEM_MALFORMED":      7,
+	}
+)
+
+func (x OpenApiProblemKind) Enum() *OpenApiProblemKind {
+	p := new(OpenApiProblemKind)
+	*p = x
+	return p
+}
+
+func (x OpenApiProblemKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OpenApiProblemKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_api_proto_enumTypes[1].Descriptor()
+}
+
+func (OpenApiProblemKind) Type() protoreflect.EnumType {
+	return &file_proto_api_proto_enumTypes[1]
+}
+
+func (x OpenApiProblemKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OpenApiProblemKind.Descriptor instead.
+func (OpenApiProblemKind) EnumDescriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
+}
+
 type CompileStatus int32
 
 const (
@@ -106,11 +177,11 @@ func (x CompileStatus) String() string {
 }
 
 func (CompileStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[1].Descriptor()
+	return file_proto_api_proto_enumTypes[2].Descriptor()
 }
 
 func (CompileStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[1]
+	return &file_proto_api_proto_enumTypes[2]
 }
 
 func (x CompileStatus) Number() protoreflect.EnumNumber {
@@ -119,7 +190,7 @@ func (x CompileStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CompileStatus.Descriptor instead.
 func (CompileStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 type LogLevel int32
@@ -158,11 +229,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[2].Descriptor()
+	return file_proto_api_proto_enumTypes[3].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[2]
+	return &file_proto_api_proto_enumTypes[3]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -171,7 +242,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
 type CompileRequest struct {
@@ -367,6 +438,544 @@ func (x *OpenAppResponse) GetProtocol() string {
 	return ""
 }
 
+// InspectOpenApi reads an OpenAPI document without creating an app, so the New
+// OpenAPI app form can fill itself in from the document: its title and version,
+// the servers it declares, and the security schemes it accepts. The app carries
+// the same parameters the app would be opened with (spec_url or spec_content, and
+// the credentials used to fetch a protected document).
+type InspectOpenApiRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Openapi       *OpenApiApp            `protobuf:"bytes,1,opt,name=openapi,proto3" json:"openapi,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectOpenApiRequest) Reset() {
+	*x = InspectOpenApiRequest{}
+	mi := &file_proto_api_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectOpenApiRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectOpenApiRequest) ProtoMessage() {}
+
+func (x *InspectOpenApiRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectOpenApiRequest.ProtoReflect.Descriptor instead.
+func (*InspectOpenApiRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InspectOpenApiRequest) GetOpenapi() *OpenApiApp {
+	if x != nil {
+		return x.Openapi
+	}
+	return nil
+}
+
+type InspectOpenApiResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Set when the document was read; the form fills itself in from it.
+	Document *OpenApiDocument `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
+	// Set when it wasn't; the form shows it in place of the document summary.
+	Problem       *OpenApiProblem `protobuf:"bytes,2,opt,name=problem,proto3" json:"problem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectOpenApiResponse) Reset() {
+	*x = InspectOpenApiResponse{}
+	mi := &file_proto_api_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectOpenApiResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectOpenApiResponse) ProtoMessage() {}
+
+func (x *InspectOpenApiResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectOpenApiResponse.ProtoReflect.Descriptor instead.
+func (*InspectOpenApiResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *InspectOpenApiResponse) GetDocument() *OpenApiDocument {
+	if x != nil {
+		return x.Document
+	}
+	return nil
+}
+
+func (x *InspectOpenApiResponse) GetProblem() *OpenApiProblem {
+	if x != nil {
+		return x.Problem
+	}
+	return nil
+}
+
+type OpenApiDocument struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Title string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// The API's own version, from info.version.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// The OpenAPI specification version, from the openapi field.
+	OpenapiVersion  string                   `protobuf:"bytes,3,opt,name=openapi_version,json=openapiVersion,proto3" json:"openapi_version,omitempty"`
+	OperationCount  int32                    `protobuf:"varint,4,opt,name=operation_count,json=operationCount,proto3" json:"operation_count,omitempty"`
+	TagCount        int32                    `protobuf:"varint,5,opt,name=tag_count,json=tagCount,proto3" json:"tag_count,omitempty"`
+	Servers         []*OpenApiServer         `protobuf:"bytes,6,rep,name=servers,proto3" json:"servers,omitempty"`
+	SecuritySchemes []*OpenApiSecurityScheme `protobuf:"bytes,7,rep,name=security_schemes,json=securitySchemes,proto3" json:"security_schemes,omitempty"`
+	// Base URL derived from the document URL's origin, set only when the document
+	// declares no servers of its own.
+	GuessedBaseUrl string `protobuf:"bytes,8,opt,name=guessed_base_url,json=guessedBaseUrl,proto3" json:"guessed_base_url,omitempty"`
+	// Whether any operation declares its own security. When it doesn't, every
+	// scheme applies to every operation and the coverage counts carry no
+	// information.
+	PerOperationSecurity bool `protobuf:"varint,9,opt,name=per_operation_security,json=perOperationSecurity,proto3" json:"per_operation_security,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *OpenApiDocument) Reset() {
+	*x = OpenApiDocument{}
+	mi := &file_proto_api_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenApiDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenApiDocument) ProtoMessage() {}
+
+func (x *OpenApiDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenApiDocument.ProtoReflect.Descriptor instead.
+func (*OpenApiDocument) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *OpenApiDocument) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *OpenApiDocument) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *OpenApiDocument) GetOpenapiVersion() string {
+	if x != nil {
+		return x.OpenapiVersion
+	}
+	return ""
+}
+
+func (x *OpenApiDocument) GetOperationCount() int32 {
+	if x != nil {
+		return x.OperationCount
+	}
+	return 0
+}
+
+func (x *OpenApiDocument) GetTagCount() int32 {
+	if x != nil {
+		return x.TagCount
+	}
+	return 0
+}
+
+func (x *OpenApiDocument) GetServers() []*OpenApiServer {
+	if x != nil {
+		return x.Servers
+	}
+	return nil
+}
+
+func (x *OpenApiDocument) GetSecuritySchemes() []*OpenApiSecurityScheme {
+	if x != nil {
+		return x.SecuritySchemes
+	}
+	return nil
+}
+
+func (x *OpenApiDocument) GetGuessedBaseUrl() string {
+	if x != nil {
+		return x.GuessedBaseUrl
+	}
+	return ""
+}
+
+func (x *OpenApiDocument) GetPerOperationSecurity() bool {
+	if x != nil {
+		return x.PerOperationSecurity
+	}
+	return false
+}
+
+type OpenApiServer struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Url           string                   `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	Description   string                   `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Variables     []*OpenApiServerVariable `protobuf:"bytes,3,rep,name=variables,proto3" json:"variables,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenApiServer) Reset() {
+	*x = OpenApiServer{}
+	mi := &file_proto_api_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenApiServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenApiServer) ProtoMessage() {}
+
+func (x *OpenApiServer) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenApiServer.ProtoReflect.Descriptor instead.
+func (*OpenApiServer) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *OpenApiServer) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *OpenApiServer) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *OpenApiServer) GetVariables() []*OpenApiServerVariable {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
+}
+
+// OpenApiServerVariable is one {placeholder} in a server URL. The form renders a
+// select when the document enumerates the allowed values, and a text field
+// otherwise.
+type OpenApiServerVariable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	DefaultValue  string                 `protobuf:"bytes,2,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`
+	EnumValues    []string               `protobuf:"bytes,3,rep,name=enum_values,json=enumValues,proto3" json:"enum_values,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenApiServerVariable) Reset() {
+	*x = OpenApiServerVariable{}
+	mi := &file_proto_api_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenApiServerVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenApiServerVariable) ProtoMessage() {}
+
+func (x *OpenApiServerVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenApiServerVariable.ProtoReflect.Descriptor instead.
+func (*OpenApiServerVariable) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *OpenApiServerVariable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *OpenApiServerVariable) GetDefaultValue() string {
+	if x != nil {
+		return x.DefaultValue
+	}
+	return ""
+}
+
+func (x *OpenApiServerVariable) GetEnumValues() []string {
+	if x != nil {
+		return x.EnumValues
+	}
+	return nil
+}
+
+func (x *OpenApiServerVariable) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type OpenApiSecurityScheme struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the scheme in components.securitySchemes; what security_scheme in
+	// OpenApiApp refers to.
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// apiKey | http | oauth2 | openIdConnect | mutualTLS
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// The HTTP authentication scheme (bearer, basic, digest, ...) for type http.
+	Scheme       string `protobuf:"bytes,3,opt,name=scheme,proto3" json:"scheme,omitempty"`
+	BearerFormat string `protobuf:"bytes,4,opt,name=bearer_format,json=bearerFormat,proto3" json:"bearer_format,omitempty"`
+	// header | query | cookie, for type apiKey.
+	In string `protobuf:"bytes,5,opt,name=in,proto3" json:"in,omitempty"`
+	// Parameter name for type apiKey.
+	ParameterName    string `protobuf:"bytes,6,opt,name=parameter_name,json=parameterName,proto3" json:"parameter_name,omitempty"`
+	OpenIdConnectUrl string `protobuf:"bytes,7,opt,name=open_id_connect_url,json=openIdConnectUrl,proto3" json:"open_id_connect_url,omitempty"`
+	Description      string `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`
+	// Number of operations that accept this scheme on its own.
+	OperationCount int32 `protobuf:"varint,9,opt,name=operation_count,json=operationCount,proto3" json:"operation_count,omitempty"`
+	// Whether the scheme only ever appears alongside another one, which a single
+	// credential per app can't satisfy.
+	RequiresOthers bool `protobuf:"varint,10,opt,name=requires_others,json=requiresOthers,proto3" json:"requires_others,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *OpenApiSecurityScheme) Reset() {
+	*x = OpenApiSecurityScheme{}
+	mi := &file_proto_api_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenApiSecurityScheme) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenApiSecurityScheme) ProtoMessage() {}
+
+func (x *OpenApiSecurityScheme) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenApiSecurityScheme.ProtoReflect.Descriptor instead.
+func (*OpenApiSecurityScheme) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *OpenApiSecurityScheme) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetScheme() string {
+	if x != nil {
+		return x.Scheme
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetBearerFormat() string {
+	if x != nil {
+		return x.BearerFormat
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetIn() string {
+	if x != nil {
+		return x.In
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetParameterName() string {
+	if x != nil {
+		return x.ParameterName
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetOpenIdConnectUrl() string {
+	if x != nil {
+		return x.OpenIdConnectUrl
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *OpenApiSecurityScheme) GetOperationCount() int32 {
+	if x != nil {
+		return x.OperationCount
+	}
+	return 0
+}
+
+func (x *OpenApiSecurityScheme) GetRequiresOthers() bool {
+	if x != nil {
+		return x.RequiresOthers
+	}
+	return false
+}
+
+// OpenApiProblem is a document that couldn't be read, classified so the form can
+// name the next move instead of printing a raw error.
+type OpenApiProblem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  OpenApiProblemKind     `protobuf:"varint,1,opt,name=kind,proto3,enum=OpenApiProblemKind" json:"kind,omitempty"`
+	// One line, addressed to the user.
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// The underlying transport or parser error, verbatim.
+	Detail        string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenApiProblem) Reset() {
+	*x = OpenApiProblem{}
+	mi := &file_proto_api_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenApiProblem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenApiProblem) ProtoMessage() {}
+
+func (x *OpenApiProblem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenApiProblem.ProtoReflect.Descriptor instead.
+func (*OpenApiProblem) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *OpenApiProblem) GetKind() OpenApiProblemKind {
+	if x != nil {
+		return x.Kind
+	}
+	return OpenApiProblemKind_OPEN_API_PROBLEM_UNKNOWN
+}
+
+func (x *OpenApiProblem) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *OpenApiProblem) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 type CompileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CompileStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=CompileStatus" json:"status,omitempty"`
@@ -379,7 +988,7 @@ type CompileResponse struct {
 
 func (x *CompileResponse) Reset() {
 	*x = CompileResponse{}
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -391,7 +1000,7 @@ func (x *CompileResponse) String() string {
 func (*CompileResponse) ProtoMessage() {}
 
 func (x *CompileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -404,7 +1013,7 @@ func (x *CompileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompileResponse.ProtoReflect.Descriptor instead.
 func (*CompileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CompileResponse) GetStatus() CompileStatus {
@@ -445,7 +1054,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -457,7 +1066,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -470,7 +1079,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Log) GetLevel() LogLevel {
@@ -497,7 +1106,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +1118,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +1131,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Source) GetPath() string {
@@ -547,7 +1156,7 @@ type GetConfigurationRequest struct {
 
 func (x *GetConfigurationRequest) Reset() {
 	*x = GetConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -559,7 +1168,7 @@ func (x *GetConfigurationRequest) String() string {
 func (*GetConfigurationRequest) ProtoMessage() {}
 
 func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -572,7 +1181,7 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{13}
 }
 
 type GetConfigurationResponse struct {
@@ -585,7 +1194,7 @@ type GetConfigurationResponse struct {
 
 func (x *GetConfigurationResponse) Reset() {
 	*x = GetConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +1206,7 @@ func (x *GetConfigurationResponse) String() string {
 func (*GetConfigurationResponse) ProtoMessage() {}
 
 func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +1219,7 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{7}
+	return file_proto_api_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
@@ -649,7 +1258,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +1270,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +1283,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{8}
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -719,7 +1328,7 @@ type ConfigurationSystem struct {
 
 func (x *ConfigurationSystem) Reset() {
 	*x = ConfigurationSystem{}
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +1340,7 @@ func (x *ConfigurationSystem) String() string {
 func (*ConfigurationSystem) ProtoMessage() {}
 
 func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +1353,7 @@ func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationSystem.ProtoReflect.Descriptor instead.
 func (*ConfigurationSystem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{9}
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
@@ -789,7 +1398,7 @@ type ConfigurationApp struct {
 
 func (x *ConfigurationApp) Reset() {
 	*x = ConfigurationApp{}
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -801,7 +1410,7 @@ func (x *ConfigurationApp) String() string {
 func (*ConfigurationApp) ProtoMessage() {}
 
 func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -814,7 +1423,7 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
 func (*ConfigurationApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{10}
+	return file_proto_api_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ConfigurationApp) GetName() string {
@@ -925,7 +1534,7 @@ type GrpcApp struct {
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -937,7 +1546,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -950,7 +1559,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{11}
+	return file_proto_api_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -993,7 +1602,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1005,7 +1614,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1018,7 +1627,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{12}
+	return file_proto_api_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -1047,21 +1656,30 @@ func (x *TwirpApp) GetHeaders() map[string]string {
 // or YAML). Credentials are applied per the spec's security schemes. base_url
 // overrides the upstream base URL derived from the spec's servers list.
 type OpenApiApp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SpecUrl       string                 `protobuf:"bytes,1,opt,name=spec_url,json=specUrl,proto3" json:"spec_url,omitempty"`
-	Token         string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
-	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	Password      string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	SpecContent   string                 `protobuf:"bytes,6,opt,name=spec_content,json=specContent,proto3" json:"spec_content,omitempty"`
-	BaseUrl       string                 `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	SpecUrl     string                 `protobuf:"bytes,1,opt,name=spec_url,json=specUrl,proto3" json:"spec_url,omitempty"`
+	Token       string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Username    string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	Password    string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
+	Headers     map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	SpecContent string                 `protobuf:"bytes,6,opt,name=spec_content,json=specContent,proto3" json:"spec_content,omitempty"`
+	BaseUrl     string                 `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	// Which of the document's security schemes the credentials belong to, by its
+	// name in components.securitySchemes. Empty picks a scheme from the document;
+	// "none" sends no credentials at all.
+	SecurityScheme string `protobuf:"bytes,8,opt,name=security_scheme,json=securityScheme,proto3" json:"security_scheme,omitempty"`
+	// A single header sent while fetching spec_url, for documents that are
+	// themselves behind a login. Kept apart from the credentials above because the
+	// document and the API it describes often want different tokens.
+	SpecHeaderName  string `protobuf:"bytes,9,opt,name=spec_header_name,json=specHeaderName,proto3" json:"spec_header_name,omitempty"`
+	SpecHeaderValue string `protobuf:"bytes,10,opt,name=spec_header_value,json=specHeaderValue,proto3" json:"spec_header_value,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1073,7 +1691,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1086,7 +1704,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{13}
+	return file_proto_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -1138,6 +1756,27 @@ func (x *OpenApiApp) GetBaseUrl() string {
 	return ""
 }
 
+func (x *OpenApiApp) GetSecurityScheme() string {
+	if x != nil {
+		return x.SecurityScheme
+	}
+	return ""
+}
+
+func (x *OpenApiApp) GetSpecHeaderName() string {
+	if x != nil {
+		return x.SpecHeaderName
+	}
+	return ""
+}
+
+func (x *OpenApiApp) GetSpecHeaderValue() string {
+	if x != nil {
+		return x.SpecHeaderValue
+	}
+	return ""
+}
+
 // OpenAiApp calls the OpenAI chat completions API.
 type OpenAiApp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1150,7 +1789,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1162,7 +1801,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1175,7 +1814,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{14}
+	return file_proto_api_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -1210,7 +1849,7 @@ type MarkdownApp struct {
 
 func (x *MarkdownApp) Reset() {
 	*x = MarkdownApp{}
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1222,7 +1861,7 @@ func (x *MarkdownApp) String() string {
 func (*MarkdownApp) ProtoMessage() {}
 
 func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1874,7 @@ func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkdownApp.ProtoReflect.Descriptor instead.
 func (*MarkdownApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{15}
+	return file_proto_api_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *MarkdownApp) GetFolder() string {
@@ -1254,7 +1893,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1266,7 +1905,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1279,7 +1918,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{16}
+	return file_proto_api_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -1298,7 +1937,7 @@ type UpdateConfigurationResponse struct {
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1310,7 +1949,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,7 +1962,7 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{17}
+	return file_proto_api_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
@@ -1350,7 +1989,48 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x16\n" +
 	"\x06target\x18\x04 \x01(\tR\x06target\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\"\x8a\x01\n" +
+	"\bprotocol\x18\x05 \x01(\tR\bprotocol\">\n" +
+	"\x15InspectOpenApiRequest\x12%\n" +
+	"\aopenapi\x18\x01 \x01(\v2\v.OpenApiAppR\aopenapi\"q\n" +
+	"\x16InspectOpenApiResponse\x12,\n" +
+	"\bdocument\x18\x01 \x01(\v2\x10.OpenApiDocumentR\bdocument\x12)\n" +
+	"\aproblem\x18\x02 \x01(\v2\x0f.OpenApiProblemR\aproblem\"\xfd\x02\n" +
+	"\x0fOpenApiDocument\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12'\n" +
+	"\x0fopenapi_version\x18\x03 \x01(\tR\x0eopenapiVersion\x12'\n" +
+	"\x0foperation_count\x18\x04 \x01(\x05R\x0eoperationCount\x12\x1b\n" +
+	"\ttag_count\x18\x05 \x01(\x05R\btagCount\x12(\n" +
+	"\aservers\x18\x06 \x03(\v2\x0e.OpenApiServerR\aservers\x12A\n" +
+	"\x10security_schemes\x18\a \x03(\v2\x16.OpenApiSecuritySchemeR\x0fsecuritySchemes\x12(\n" +
+	"\x10guessed_base_url\x18\b \x01(\tR\x0eguessedBaseUrl\x124\n" +
+	"\x16per_operation_security\x18\t \x01(\bR\x14perOperationSecurity\"y\n" +
+	"\rOpenApiServer\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x124\n" +
+	"\tvariables\x18\x03 \x03(\v2\x16.OpenApiServerVariableR\tvariables\"\x93\x01\n" +
+	"\x15OpenApiServerVariable\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
+	"\rdefault_value\x18\x02 \x01(\tR\fdefaultValue\x12\x1f\n" +
+	"\venum_values\x18\x03 \x03(\tR\n" +
+	"enumValues\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\"\xd4\x02\n" +
+	"\x15OpenApiSecurityScheme\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x16\n" +
+	"\x06scheme\x18\x03 \x01(\tR\x06scheme\x12#\n" +
+	"\rbearer_format\x18\x04 \x01(\tR\fbearerFormat\x12\x0e\n" +
+	"\x02in\x18\x05 \x01(\tR\x02in\x12%\n" +
+	"\x0eparameter_name\x18\x06 \x01(\tR\rparameterName\x12-\n" +
+	"\x13open_id_connect_url\x18\a \x01(\tR\x10openIdConnectUrl\x12 \n" +
+	"\vdescription\x18\b \x01(\tR\vdescription\x12'\n" +
+	"\x0foperation_count\x18\t \x01(\x05R\x0eoperationCount\x12'\n" +
+	"\x0frequires_others\x18\n" +
+	" \x01(\bR\x0erequiresOthers\"k\n" +
+	"\x0eOpenApiProblem\x12'\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x13.OpenApiProblemKindR\x04kind\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x16\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\"\x8a\x01\n" +
 	"\x0fCompileResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.CompileStatusR\x06status\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12!\n" +
@@ -1404,7 +2084,7 @@ const file_proto_api_proto_rawDesc = "" +
 	"\aheaders\x18\x03 \x03(\v2\x16.TwirpApp.HeadersEntryR\aheaders\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa2\x03\n" +
 	"\n" +
 	"OpenApiApp\x12\x19\n" +
 	"\bspec_url\x18\x01 \x01(\tR\aspecUrl\x12\x14\n" +
@@ -1413,7 +2093,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"\bpassword\x18\x04 \x01(\tR\bpassword\x122\n" +
 	"\aheaders\x18\x05 \x03(\v2\x18.OpenApiApp.HeadersEntryR\aheaders\x12!\n" +
 	"\fspec_content\x18\x06 \x01(\tR\vspecContent\x12\x19\n" +
-	"\bbase_url\x18\a \x01(\tR\abaseUrl\x1a:\n" +
+	"\bbase_url\x18\a \x01(\tR\abaseUrl\x12'\n" +
+	"\x0fsecurity_scheme\x18\b \x01(\tR\x0esecurityScheme\x12(\n" +
+	"\x10spec_header_name\x18\t \x01(\tR\x0especHeaderName\x12*\n" +
+	"\x11spec_header_value\x18\n" +
+	" \x01(\tR\x0fspecHeaderValue\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x01\n" +
@@ -1434,7 +2118,16 @@ const file_proto_api_proto_rawDesc = "" +
 	"OpenStatus\x12\x17\n" +
 	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eOPEN_STATUS_OK\x10\x01\x12\x15\n" +
-	"\x11OPEN_STATUS_ERROR\x10\x02*[\n" +
+	"\x11OPEN_STATUS_ERROR\x10\x02*\x97\x02\n" +
+	"\x12OpenApiProblemKind\x12\x1c\n" +
+	"\x18OPEN_API_PROBLEM_UNKNOWN\x10\x00\x12 \n" +
+	"\x1cOPEN_API_PROBLEM_UNREACHABLE\x10\x01\x12!\n" +
+	"\x1dOPEN_API_PROBLEM_UNAUTHORIZED\x10\x02\x12\x1f\n" +
+	"\x1bOPEN_API_PROBLEM_HTTP_ERROR\x10\x03\x12\x19\n" +
+	"\x15OPEN_API_PROBLEM_HTML\x10\x04\x12#\n" +
+	"\x1fOPEN_API_PROBLEM_NOT_A_DOCUMENT\x10\x05\x12\x1d\n" +
+	"\x19OPEN_API_PROBLEM_SWAGGER2\x10\x06\x12\x1e\n" +
+	"\x1aOPEN_API_PROBLEM_MALFORMED\x10\a*[\n" +
 	"\rCompileStatus\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fSTATUS_READY\x10\x01\x12\x10\n" +
@@ -1446,10 +2139,11 @@ const file_proto_api_proto_rawDesc = "" +
 	"LEVEL_INFO\x10\x01\x12\x0e\n" +
 	"\n" +
 	"LEVEL_WARN\x10\x02\x12\x0f\n" +
-	"\vLEVEL_ERROR\x10\x032\xfc\x01\n" +
+	"\vLEVEL_ERROR\x10\x032\xbf\x02\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
-	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12G\n" +
+	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
+	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
 	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponseB\tZ\apkg/apib\x06proto3"
 
@@ -1465,73 +2159,90 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
-	(CompileStatus)(0),                  // 1: CompileStatus
-	(LogLevel)(0),                       // 2: LogLevel
-	(*CompileRequest)(nil),              // 3: CompileRequest
-	(*OpenAppRequest)(nil),              // 4: OpenAppRequest
-	(*OpenAppResponse)(nil),             // 5: OpenAppResponse
-	(*CompileResponse)(nil),             // 6: CompileResponse
-	(*Log)(nil),                         // 7: Log
-	(*Source)(nil),                      // 8: Source
-	(*GetConfigurationRequest)(nil),     // 9: GetConfigurationRequest
-	(*GetConfigurationResponse)(nil),    // 10: GetConfigurationResponse
-	(*Configuration)(nil),               // 11: Configuration
-	(*ConfigurationSystem)(nil),         // 12: ConfigurationSystem
-	(*ConfigurationApp)(nil),            // 13: ConfigurationApp
-	(*GrpcApp)(nil),                     // 14: GrpcApp
-	(*TwirpApp)(nil),                    // 15: TwirpApp
-	(*OpenApiApp)(nil),                  // 16: OpenApiApp
-	(*OpenAiApp)(nil),                   // 17: OpenAiApp
-	(*MarkdownApp)(nil),                 // 18: MarkdownApp
-	(*UpdateConfigurationRequest)(nil),  // 19: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 20: UpdateConfigurationResponse
-	nil,                                 // 21: Configuration.VariablesEntry
-	nil,                                 // 22: GrpcApp.HeadersEntry
-	nil,                                 // 23: TwirpApp.HeadersEntry
-	nil,                                 // 24: OpenApiApp.HeadersEntry
-	nil,                                 // 25: OpenAiApp.HeadersEntry
+	(OpenApiProblemKind)(0),             // 1: OpenApiProblemKind
+	(CompileStatus)(0),                  // 2: CompileStatus
+	(LogLevel)(0),                       // 3: LogLevel
+	(*CompileRequest)(nil),              // 4: CompileRequest
+	(*OpenAppRequest)(nil),              // 5: OpenAppRequest
+	(*OpenAppResponse)(nil),             // 6: OpenAppResponse
+	(*InspectOpenApiRequest)(nil),       // 7: InspectOpenApiRequest
+	(*InspectOpenApiResponse)(nil),      // 8: InspectOpenApiResponse
+	(*OpenApiDocument)(nil),             // 9: OpenApiDocument
+	(*OpenApiServer)(nil),               // 10: OpenApiServer
+	(*OpenApiServerVariable)(nil),       // 11: OpenApiServerVariable
+	(*OpenApiSecurityScheme)(nil),       // 12: OpenApiSecurityScheme
+	(*OpenApiProblem)(nil),              // 13: OpenApiProblem
+	(*CompileResponse)(nil),             // 14: CompileResponse
+	(*Log)(nil),                         // 15: Log
+	(*Source)(nil),                      // 16: Source
+	(*GetConfigurationRequest)(nil),     // 17: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil),    // 18: GetConfigurationResponse
+	(*Configuration)(nil),               // 19: Configuration
+	(*ConfigurationSystem)(nil),         // 20: ConfigurationSystem
+	(*ConfigurationApp)(nil),            // 21: ConfigurationApp
+	(*GrpcApp)(nil),                     // 22: GrpcApp
+	(*TwirpApp)(nil),                    // 23: TwirpApp
+	(*OpenApiApp)(nil),                  // 24: OpenApiApp
+	(*OpenAiApp)(nil),                   // 25: OpenAiApp
+	(*MarkdownApp)(nil),                 // 26: MarkdownApp
+	(*UpdateConfigurationRequest)(nil),  // 27: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 28: UpdateConfigurationResponse
+	nil,                                 // 29: Configuration.VariablesEntry
+	nil,                                 // 30: GrpcApp.HeadersEntry
+	nil,                                 // 31: TwirpApp.HeadersEntry
+	nil,                                 // 32: OpenApiApp.HeadersEntry
+	nil,                                 // 33: OpenAiApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	13, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	21, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
-	7,  // 2: OpenAppResponse.logs:type_name -> Log
-	1,  // 3: CompileResponse.status:type_name -> CompileStatus
-	7,  // 4: CompileResponse.logs:type_name -> Log
-	8,  // 5: CompileResponse.sources:type_name -> Source
-	2,  // 6: Log.level:type_name -> LogLevel
-	11, // 7: GetConfigurationResponse.configuration:type_name -> Configuration
-	7,  // 8: GetConfigurationResponse.logs:type_name -> Log
-	12, // 9: Configuration.system:type_name -> ConfigurationSystem
-	13, // 10: Configuration.apps:type_name -> ConfigurationApp
-	21, // 11: Configuration.variables:type_name -> Configuration.VariablesEntry
-	14, // 12: ConfigurationApp.grpc:type_name -> GrpcApp
-	15, // 13: ConfigurationApp.twirp:type_name -> TwirpApp
-	16, // 14: ConfigurationApp.openapi:type_name -> OpenApiApp
-	17, // 15: ConfigurationApp.openai:type_name -> OpenAiApp
-	18, // 16: ConfigurationApp.markdown:type_name -> MarkdownApp
-	22, // 17: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	23, // 18: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	24, // 19: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	25, // 20: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	11, // 21: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	11, // 22: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	3,  // 23: Api.Compile:input_type -> CompileRequest
-	4,  // 24: Api.OpenApp:input_type -> OpenAppRequest
-	9,  // 25: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	19, // 26: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	6,  // 27: Api.Compile:output_type -> CompileResponse
-	5,  // 28: Api.OpenApp:output_type -> OpenAppResponse
-	10, // 29: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	20, // 30: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	27, // [27:31] is the sub-list for method output_type
-	23, // [23:27] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	15, // 2: OpenAppResponse.logs:type_name -> Log
+	24, // 3: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	9,  // 4: InspectOpenApiResponse.document:type_name -> OpenApiDocument
+	13, // 5: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
+	10, // 6: OpenApiDocument.servers:type_name -> OpenApiServer
+	12, // 7: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
+	11, // 8: OpenApiServer.variables:type_name -> OpenApiServerVariable
+	1,  // 9: OpenApiProblem.kind:type_name -> OpenApiProblemKind
+	2,  // 10: CompileResponse.status:type_name -> CompileStatus
+	15, // 11: CompileResponse.logs:type_name -> Log
+	16, // 12: CompileResponse.sources:type_name -> Source
+	3,  // 13: Log.level:type_name -> LogLevel
+	19, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
+	15, // 15: GetConfigurationResponse.logs:type_name -> Log
+	20, // 16: Configuration.system:type_name -> ConfigurationSystem
+	21, // 17: Configuration.apps:type_name -> ConfigurationApp
+	29, // 18: Configuration.variables:type_name -> Configuration.VariablesEntry
+	22, // 19: ConfigurationApp.grpc:type_name -> GrpcApp
+	23, // 20: ConfigurationApp.twirp:type_name -> TwirpApp
+	24, // 21: ConfigurationApp.openapi:type_name -> OpenApiApp
+	25, // 22: ConfigurationApp.openai:type_name -> OpenAiApp
+	26, // 23: ConfigurationApp.markdown:type_name -> MarkdownApp
+	30, // 24: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	31, // 25: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	32, // 26: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	33, // 27: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	19, // 28: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	19, // 29: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	4,  // 30: Api.Compile:input_type -> CompileRequest
+	5,  // 31: Api.OpenApp:input_type -> OpenAppRequest
+	7,  // 32: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	17, // 33: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	27, // 34: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	14, // 35: Api.Compile:output_type -> CompileResponse
+	6,  // 36: Api.OpenApp:output_type -> OpenAppResponse
+	8,  // 37: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	18, // 38: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	28, // 39: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	35, // [35:40] is the sub-list for method output_type
+	30, // [30:35] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -1539,7 +2250,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[10].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[17].OneofWrappers = []any{
 		(*ConfigurationApp_Grpc)(nil),
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
@@ -1551,8 +2262,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   23,
+			NumEnums:      4,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

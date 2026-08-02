@@ -30,6 +30,10 @@ export interface AppTypeDefinition {
   // Experimental built-ins are gated behind the Apps feature preview. gRPC/Twirp
   // are always available.
   preview?: boolean;
+  // Types whose form is written by hand rather than rendered from `parameters`.
+  // The parameter list is still the contract with the config: it says which
+  // fields the type has, and the custom form supplies its own labels.
+  customForm?: boolean;
   // Optional one-click demo that prefills the form.
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
@@ -100,58 +104,23 @@ export const appTypes: AppTypeDefinition[] = [
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",
     icon: Globe,
+    // OpenApiForm renders these: it reads the document first and then offers what
+    // the document declares, instead of asking for it field by field.
+    customForm: true,
     requireOneOf: [["specUrl", "specContent"]],
     parameters: [
-      {
-        key: "specUrl",
-        label: "OpenAPI spec URL",
-        type: "url",
-        optional: true,
-        placeholder: "https://petstore3.swagger.io/api/v3/openapi.json",
-        caption:
-          "The OpenAPI 3.x document is converted into a service you can call like a gRPC or Twirp app. Credentials below are used to fetch it, so a spec behind a login can be read.",
-      },
-      {
-        key: "specContent",
-        label: "Or upload a spec file",
-        type: "upload",
-        optional: true,
-        caption: "Upload an OpenAPI 3.x document (JSON or YAML). Set the base URL below, or the spec must declare an absolute server URL.",
-      },
-      {
-        key: "baseUrl",
-        label: "Base URL",
-        type: "url",
-        optional: true,
-        placeholder: "https://api.example.com/v3",
-        caption: "Overrides the upstream base URL from the spec's servers list. Requests are sent here, with each operation's path appended.",
-      },
-      {
-        key: "token",
-        label: "API token or key",
-        type: "text",
-        optional: true,
-        placeholder: "Token or API key",
-        caption: "Sent per the spec's security scheme: as a Bearer token, or as the named API key header/query/cookie. Also used to fetch the spec URL.",
-      },
-      {
-        key: "username",
-        label: "Username",
-        type: "text",
-        optional: true,
-        placeholder: "For HTTP Basic auth",
-        caption: "Only for APIs that use HTTP Basic authentication.",
-      },
-      {
-        key: "password",
-        label: "Password",
-        type: "text",
-        optional: true,
-        placeholder: "For HTTP Basic auth",
-      },
+      { key: "specUrl", label: "OpenAPI document URL", type: "url", optional: true },
+      { key: "specContent", label: "Uploaded OpenAPI document", type: "upload", optional: true },
+      { key: "baseUrl", label: "Server", type: "url", optional: true },
+      { key: "securityScheme", label: "Authentication", type: "text", optional: true },
+      { key: "token", label: "Token or API key", type: "text", optional: true },
+      { key: "username", label: "Username", type: "text", optional: true },
+      { key: "password", label: "Password", type: "text", optional: true },
+      { key: "specHeaderName", label: "Document header", type: "text", optional: true },
+      { key: "specHeaderValue", label: "Document header value", type: "text", optional: true },
     ],
     demo: {
-      label: "Try the Swagger Petstore demo",
+      label: "try the Petstore demo",
       name: "Petstore",
       parameters: { specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" },
     },
@@ -242,7 +211,7 @@ export function appHeaders(app: ConfigurationApp): Record<string, string> {
 
 // typeForwardsHeaders reports whether an app type sends request headers upstream;
 // only the local Markdown app does not.
-function typeForwardsHeaders(type: string): boolean {
+export function typeForwardsHeaders(type: string): boolean {
   return type !== "markdown";
 }
 

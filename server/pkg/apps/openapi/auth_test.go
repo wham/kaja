@@ -7,22 +7,36 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 
 	"github.com/wham/kaja/v2/pkg/apps"
 )
+
+// schemesFrom builds the ordered securitySchemes a parsed document would carry,
+// ordering the names deterministically for the tests.
+func schemesFrom(byName map[string]*securityScheme) securitySchemes {
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return securitySchemes{names: names, byName: byName}
+}
 
 func TestResolveAuthFromScheme(t *testing.T) {
 	tests := []struct {
 		name       string
 		schemes    map[string]*securityScheme
 		security   []map[string][]string
+		schemeKey  string
 		token      string
 		username   string
 		password   string
 		wantKind   authKind
 		wantIn     string
 		wantKeyNam string
+		wantHTTP   string
 	}{
 		{
 			name:     "bearer http",
@@ -90,12 +104,55 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			username: "my-key",
 			wantKind: authBasic,
 		},
+		{
+			// The app pins the scheme its credentials belong to, so the user's pick
+			// in the app form wins over what the document lists first.
+			name: "pinned scheme wins over document order",
+			schemes: map[string]*securityScheme{
+				"bearerAuth": {Type: "http", Scheme: "bearer"},
+				"apiKeyAuth": {Type: "apiKey", In: "header", Name: "X-API-Key"},
+			},
+			security:   []map[string][]string{{"bearerAuth": {}}, {"apiKeyAuth": {}}},
+			schemeKey:  "apiKeyAuth",
+			token:      "t",
+			wantKind:   authAPIKey,
+			wantIn:     "header",
+			wantKeyNam: "X-API-Key",
+		},
+		{
+			// Kaja doesn't do the challenge handshake, but it does send the
+			// credential under the scheme the document names.
+			name:     "http scheme other than bearer keeps its name",
+			schemes:  map[string]*securityScheme{"digestAuth": {Type: "http", Scheme: "digest"}},
+			security: []map[string][]string{{"digestAuth": {}}},
+			token:    "t",
+			wantKind: authBearer,
+			wantHTTP: "Digest",
+		},
+		{
+			name:      "pinned scheme none sends nothing",
+			schemes:   map[string]*securityScheme{"bearerAuth": {Type: "http", Scheme: "bearer"}},
+			security:  []map[string][]string{{"bearerAuth": {}}},
+			schemeKey: "none",
+			token:     "t",
+			wantKind:  authNone,
+		},
+		{
+			// A stale pin (the scheme was renamed in the document) falls back to
+			// picking one rather than silently sending nothing.
+			name:      "unknown pinned scheme falls back",
+			schemes:   map[string]*securityScheme{"bearerAuth": {Type: "http", Scheme: "bearer"}},
+			security:  []map[string][]string{{"bearerAuth": {}}},
+			schemeKey: "gone",
+			token:     "t",
+			wantKind:  authBearer,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			s := &spec{Components: components{SecuritySchemes: tc.schemes}, Security: tc.security}
-			a := resolveAuth(s, tc.token, tc.username, tc.password)
+			s := &spec{Components: components{SecuritySchemes: schemesFrom(tc.schemes)}, Security: tc.security}
+			a := resolveAuth(s, tc.schemeKey, tc.token, tc.username, tc.password)
 			if a.kind != tc.wantKind {
 				t.Errorf("kind = %q, want %q", a.kind, tc.wantKind)
 			}
@@ -104,6 +161,9 @@ func TestResolveAuthFromScheme(t *testing.T) {
 			}
 			if a.apiKeyName != tc.wantKeyNam {
 				t.Errorf("apiKeyName = %q, want %q", a.apiKeyName, tc.wantKeyNam)
+			}
+			if a.httpScheme != tc.wantHTTP {
+				t.Errorf("httpScheme = %q, want %q", a.httpScheme, tc.wantHTTP)
 			}
 		})
 	}

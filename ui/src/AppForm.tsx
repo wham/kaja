@@ -1,4 +1,4 @@
-import { Folder, FileIcon, Lightbulb } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FileIcon, Lightbulb, Plus, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "./components/button";
 import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { appHeaders, appParameters, appType, buildApp, getAppType } from "./appTypes";
-import { ConfigurationApp } from "./server/api";
+import { appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { OpenApiForm } from "./OpenApiForm";
+import { VariableSuggestInput } from "./VariableSuggestInput";
+import { ConfigurationApp, OpenApiDocument } from "./server/api";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
 import { getVariables } from "./variableExpansion";
@@ -74,119 +76,14 @@ monaco.languages.registerCompletionItemProvider("json", {
   },
 });
 
-// matchVariableReferencePrefix finds an unfinished ${NAME reference ending at
-// the caret, returning where it starts and the name typed so far.
-function matchVariableReferencePrefix(value: string, caret: number): { start: number; query: string } | null {
-  const match = /\$\{([A-Za-z0-9_]*)$/.exec(value.slice(0, caret));
-  return match ? { start: caret - match[0].length, query: match[1] } : null;
-}
-
-interface VariableSuggestInputProps {
-  value: string;
-  onValueChange: (value: string) => void;
-  variables: { [key: string]: string };
-  placeholder?: string;
-  disabled?: boolean;
-  trailingAction?: React.ReactNode;
-}
-
-// A TextInput that suggests the configured variables once the user types "${",
-// completing the reference to ${NAME}.
-function VariableSuggestInput({ value, onValueChange, variables, placeholder, disabled, trailingAction }: VariableSuggestInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [suggestion, setSuggestion] = useState<{ start: number; query: string } | null>(null);
-  const [highlightIndex, setHighlightIndex] = useState(0);
-
-  const names = suggestion ? Object.keys(variables).filter((name) => name.toLowerCase().startsWith(suggestion.query.toLowerCase())) : [];
-  const open = names.length > 0;
-
-  const refreshSuggestion = () => {
-    const input = inputRef.current;
-    if (!input) return;
-    const next = matchVariableReferencePrefix(input.value, input.selectionStart ?? 0);
-    setSuggestion((prev) => {
-      if (prev?.start !== next?.start || prev?.query !== next?.query) {
-        setHighlightIndex(0);
-        return next;
-      }
-      return prev;
-    });
-  };
-
-  const insert = (name: string) => {
-    const input = inputRef.current;
-    if (!input || !suggestion) return;
-    const caret = input.selectionStart ?? input.value.length;
-    // Replace the unfinished ${query with ${name}, consuming a closing brace
-    // the user may already have typed.
-    let rest = value.slice(caret);
-    if (rest.startsWith("}")) rest = rest.slice(1);
-    onValueChange(value.slice(0, suggestion.start) + "${" + name + "}" + rest);
-    setSuggestion(null);
-    const position = suggestion.start + name.length + 3;
-    requestAnimationFrame(() => inputRef.current?.setSelectionRange(position, position));
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightIndex((prev) => (prev + (e.key === "ArrowDown" ? 1 : names.length - 1)) % names.length);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      insert(names[highlightIndex]);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setSuggestion(null);
-    }
-  };
-
-  return (
-    <div style={{ position: "relative" }}>
-      <div className="relative">
-        <Input
-          ref={inputRef}
-          value={value}
-          onChange={(e) => {
-            onValueChange(e.target.value);
-            refreshSuggestion();
-          }}
-          onSelect={refreshSuggestion}
-          onKeyDown={onKeyDown}
-          onBlur={() => setSuggestion(null)}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={trailingAction ? "pr-9" : undefined}
-        />
-        {trailingAction && <div className="absolute right-1 top-1/2 -translate-y-1/2">{trailingAction}</div>}
-      </div>
-      {open && (
-        // Keep focus in the input so a click on a suggestion isn't lost to blur.
-        <div
-          onMouseDown={(e) => e.preventDefault()}
-          className="absolute left-0 top-full z-10 mt-1 max-h-60 min-w-80 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
-        >
-          {names.map((name, index) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => insert(name)}
-              className={cn(
-                "flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left text-sm",
-                index === highlightIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
-              )}
-            >
-              <span className="font-mono">{"${" + name + "}"}</span>
-              <span className="text-xs text-muted-foreground">{variables[name]}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const NEW_APP_VALUE = "__new__";
+
+// A header the app sends with every request. Kept as a list rather than a map so
+// a name stays where it is while it is being typed.
+interface HeaderEntry {
+  name: string;
+  value: string;
+}
 
 interface AppFormProps {
   mode: "create" | "edit";
@@ -244,15 +141,100 @@ function missingRequiredParameter(type: string, parameters: Record<string, strin
   return undefined;
 }
 
+function operations(count: number): string {
+  return `${count} operation${count === 1 ? "" : "s"}`;
+}
+
+interface AdvancedSectionProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  headers: HeaderEntry[];
+  onHeadersChange: (update: (previous: HeaderEntry[]) => HeaderEntry[]) => void;
+  variables: { [key: string]: string };
+  readOnly: boolean;
+}
+
+// AdvancedSection holds what the app's own configuration can't derive: the
+// headers it sends with every request. Collapsed by default, with a count when
+// there is something inside.
+function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variables, readOnly }: AdvancedSectionProps) {
+  const configured = headers.filter((header) => header.name.trim()).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground"
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span>Advanced</span>
+        {configured > 0 && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">{configured} changed</span>}
+      </button>
+
+      {open && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm text-foreground">Headers sent with every request</span>
+          {headers.map((header, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                className="w-48"
+                value={header.name}
+                placeholder="X-Tenant-Id"
+                disabled={readOnly}
+                onChange={(event) => onHeadersChange((previous) => previous.map((entry, i) => (i === index ? { ...entry, name: event.target.value } : entry)))}
+              />
+              <div className="flex-1">
+                <VariableSuggestInput
+                  value={header.value}
+                  onValueChange={(value) => onHeadersChange((previous) => previous.map((entry, i) => (i === index ? { ...entry, value } : entry)))}
+                  variables={variables}
+                  placeholder="Value"
+                  disabled={readOnly}
+                />
+              </div>
+              <IconButton
+                icon={Trash2}
+                aria-label="Remove header"
+                variant="ghost"
+                size="sm"
+                disabled={readOnly}
+                onClick={() => onHeadersChange((previous) => previous.filter((_, i) => i !== index))}
+              />
+            </div>
+          ))}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => onHeadersChange((previous) => [...previous, { name: "", value: "" }])}
+              className="flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Plus size={12} />
+              <span>Add header</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppForm({ mode, initialData, allApps, variables, readOnly = false, onSubmit, onCancel, onAppSelect }: AppFormProps) {
   const [editMode, setEditMode] = useState<EditMode>("form");
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
+  const [headers, setHeaders] = useState<HeaderEntry[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   // Names of files chosen for "upload" parameters, shown next to the picker. The
   // parameter value itself holds the file's text content.
   const [uploadNames, setUploadNames] = useState<Record<string, string>>({});
   const [jsonError, setJsonError] = useState<string | null>(null);
+  // What the OpenAPI form last read, for the receipt in the footer, and whether
+  // it holds enough to create the app.
+  const [openApiDocument, setOpenApiDocument] = useState<OpenApiDocument | undefined>(undefined);
+  const [openApiReady, setOpenApiReady] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoModelRef = useRef<monaco.editor.ITextModel | null>(null);
@@ -264,14 +246,22 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
       const value = (parameters[parameter.key] ?? "").trim();
       if (value) params[parameter.key] = value;
     }
-    return buildApp(name, type, params, initialData ? appHeaders(initialData) : {});
-  }, [name, type, parameters, initialData]);
+    const headerMap: Record<string, string> = {};
+    for (const header of headers) {
+      const headerName = header.name.trim();
+      if (headerName) headerMap[headerName] = header.value;
+    }
+    return buildApp(name, type, params, headerMap);
+  }, [name, type, parameters, headers]);
 
   const updateFormFromApp = useCallback((app: ConfigurationApp) => {
     setName(app.name);
     setType(appType(app) || "grpc");
     setParameters(appParameters(app));
+    setHeaders(Object.entries(appHeaders(app)).map(([headerName, value]) => ({ name: headerName, value })));
     setUploadNames({});
+    setOpenApiDocument(undefined);
+    setOpenApiReady(false);
   }, []);
 
   const handleUpload = useCallback((key: string, file: File | undefined) => {
@@ -293,12 +283,9 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   // Track which app is currently loaded in the JSON editor
   const loadedAppNameRef = useRef<string | null>(null);
 
-  const getJsonAppData = useCallback((): ConfigurationApp => {
-    if (mode === "edit" && initialData) {
-      return initialData;
-    }
-    return createEmptyApp();
-  }, [mode, initialData]);
+  // The JSON editor opens on what the form currently holds, so switching between
+  // the two views doesn't drop what was filled in on either side.
+  const getJsonAppData = getCurrentApp;
 
   useEffect(() => {
     if (editMode === "json" && editorContainerRef.current) {
@@ -416,12 +403,16 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     onCancel();
   };
 
-  const submitLabel = mode === "edit" ? "Save Changes" : "Add App";
+  const submitLabel = mode === "edit" ? "Save" : "Add app";
 
   const originalName = mode === "edit" ? initialData?.name : undefined;
   const duplicateName = name.trim() !== "" && allApps.some((p) => p.name === name.trim() && p.name !== originalName);
 
-  const isValid = editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName) : !jsonError;
+  const definition = getAppType(type);
+  const customForm = Boolean(definition?.customForm);
+
+  const isValid =
+    editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || openApiReady)) : !jsonError;
 
   const selectedAppValue = mode === "edit" && initialData?.name ? initialData.name : NEW_APP_VALUE;
 
@@ -430,7 +421,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     onAppSelect(value === NEW_APP_VALUE ? null : value);
   };
 
-  const definition = getAppType(type);
   const demo = definition?.demo;
 
   const fillDemo = () => {
@@ -482,83 +472,110 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
       <div className="min-h-0 flex-1 overflow-auto">
         {editMode === "form" ? (
-          <div className="max-w-[600px] p-4">
+          <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
-              <FormControl>
-                <FormControl.Label>Name</FormControl.Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" disabled={readOnly} />
-                {duplicateName && <FormControl.Validation variant="error">An app with this name already exists</FormControl.Validation>}
-              </FormControl>
+              {customForm ? (
+                <OpenApiForm
+                  name={name}
+                  onNameChange={setName}
+                  duplicateName={duplicateName}
+                  parameters={parameters}
+                  onParametersChange={setParameters}
+                  variables={variables}
+                  readOnly={readOnly}
+                  onDocumentChange={setOpenApiDocument}
+                  onReadyChange={setOpenApiReady}
+                />
+              ) : (
+                <>
+                  <FormControl>
+                    <FormControl.Label>Name</FormControl.Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" disabled={readOnly} />
+                    {duplicateName && <FormControl.Validation variant="error">An app with this name already exists</FormControl.Validation>}
+                  </FormControl>
 
-              {(definition?.parameters ?? []).map((parameter) => (
-                <FormControl key={parameter.key}>
-                  <FormControl.Label>{parameter.label}</FormControl.Label>
-                  {parameter.type === "boolean" ? (
-                    <Checkbox
-                      checked={parameters[parameter.key] === "true"}
-                      disabled={readOnly}
-                      onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
-                    />
-                  ) : parameter.type === "upload" ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
-                        <FileIcon size={16} />
-                        {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
-                        <input
-                          type="file"
-                          accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
-                          hidden
+                  {(definition?.parameters ?? []).map((parameter) => (
+                    <FormControl key={parameter.key}>
+                      <FormControl.Label>{parameter.label}</FormControl.Label>
+                      {parameter.type === "boolean" ? (
+                        <Checkbox
+                          checked={parameters[parameter.key] === "true"}
                           disabled={readOnly}
-                          onChange={(e) => {
-                            handleUpload(parameter.key, e.target.files?.[0]);
-                            e.target.value = "";
-                          }}
+                          onCheckedChange={(checked) => setParameters((prev) => ({ ...prev, [parameter.key]: checked === true ? "true" : "" }))}
                         />
-                      </label>
-                      <span className="text-xs text-muted-foreground">
-                        {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
-                      </span>
-                    </div>
-                  ) : (
-                    <VariableSuggestInput
-                      value={parameters[parameter.key] ?? ""}
-                      onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
-                      variables={variables}
-                      placeholder={parameter.placeholder}
-                      disabled={readOnly}
-                      trailingAction={
-                        (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
-                          <IconButton
-                            icon={parameter.type === "folder" ? Folder : FileIcon}
-                            aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
-                            variant="ghost"
-                            size="sm"
-                            tooltip={false}
-                            onClick={async () => {
-                              const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
-                              if (path) {
-                                setParameters((prev) => ({ ...prev, [parameter.key]: path }));
-                              }
-                            }}
-                            disabled={readOnly}
-                          />
-                        ) : undefined
-                      }
-                    />
-                  )}
-                  {parameter.caption && <FormControl.Caption>{parameter.caption}</FormControl.Caption>}
-                </FormControl>
-              ))}
+                      ) : parameter.type === "upload" ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer", readOnly && "pointer-events-none opacity-50")}>
+                            <FileIcon size={16} />
+                            {(parameters[parameter.key] ?? "").trim() ? "Change file" : "Choose file"}
+                            <input
+                              type="file"
+                              accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain"
+                              hidden
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                handleUpload(parameter.key, e.target.files?.[0]);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          <span className="text-xs text-muted-foreground">
+                            {uploadNames[parameter.key] ?? ((parameters[parameter.key] ?? "").trim() ? "Spec loaded" : "No file chosen")}
+                          </span>
+                        </div>
+                      ) : (
+                        <VariableSuggestInput
+                          value={parameters[parameter.key] ?? ""}
+                          onValueChange={(value) => setParameters((prev) => ({ ...prev, [parameter.key]: value }))}
+                          variables={variables}
+                          placeholder={parameter.placeholder}
+                          disabled={readOnly}
+                          trailingAction={
+                            (parameter.type === "file" || parameter.type === "folder") && isWailsEnvironment() ? (
+                              <IconButton
+                                icon={parameter.type === "folder" ? Folder : FileIcon}
+                                aria-label={parameter.type === "folder" ? "Select folder" : "Select file"}
+                                variant="ghost"
+                                size="sm"
+                                tooltip={false}
+                                onClick={async () => {
+                                  const path = parameter.type === "folder" ? await OpenDirectoryDialog() : await OpenFileDialog();
+                                  if (path) {
+                                    setParameters((prev) => ({ ...prev, [parameter.key]: path }));
+                                  }
+                                }}
+                                disabled={readOnly}
+                              />
+                            ) : undefined
+                          }
+                        />
+                      )}
+                      {parameter.caption && <FormControl.Caption>{parameter.caption}</FormControl.Caption>}
+                    </FormControl>
+                  ))}
 
-              {demo && !readOnly && (
-                <button
-                  type="button"
-                  onClick={fillDemo}
-                  className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
-                >
-                  <Lightbulb size={12} />
-                  {demo.label}
-                </button>
+                  {demo && !readOnly && (
+                    <button
+                      type="button"
+                      onClick={fillDemo}
+                      className="inline-flex items-center gap-1 self-start text-xs leading-[18px] text-primary hover:underline"
+                    >
+                      <Lightbulb size={12} />
+                      {demo.label}
+                    </button>
+                  )}
+                </>
+              )}
+
+              {typeForwardsHeaders(type) && (!customForm || openApiDocument) && (
+                <AdvancedSection
+                  open={advancedOpen}
+                  onOpenChange={setAdvancedOpen}
+                  headers={headers}
+                  onHeadersChange={setHeaders}
+                  variables={variables}
+                  readOnly={readOnly}
+                />
               )}
             </div>
           </div>
@@ -576,15 +593,25 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         )}
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-border p-4">
-        <Button variant="outline" onClick={handleCancel}>
-          {readOnly ? "Close" : "Cancel"}
-        </Button>
-        {!readOnly && (
-          <Button onClick={handleSubmit} disabled={!isValid}>
-            {submitLabel}
+      <div className="flex items-center justify-between gap-4 border-t border-border p-4">
+        {/* The receipt: what clicking the button will add, counted from the document. */}
+        <p className="text-xs text-muted-foreground">
+          {openApiDocument && name.trim() && editMode === "form"
+            ? mode === "edit"
+              ? `${name.trim()} exposes ${operations(openApiDocument.operationCount)}.`
+              : `Adds ${operations(openApiDocument.operationCount)} under ${name.trim()} in the sidebar.`
+            : ""}
+        </p>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            {readOnly ? "Close" : "Cancel"}
           </Button>
-        )}
+          {!readOnly && (
+            <Button onClick={handleSubmit} disabled={!isValid}>
+              {submitLabel}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
