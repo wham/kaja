@@ -1,9 +1,7 @@
-import { Ellipsis, Play, X } from "lucide-react";
+import { Ellipsis, X } from "lucide-react";
 import { cn } from "./cn";
-import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
-import { SimpleTooltip } from "./components/tooltip";
 import { useMediaQuery } from "./useMediaQuery";
 
 import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
@@ -22,21 +20,19 @@ interface TabsProps {
   onCloseTab?: (index: number) => void;
   onCloseAll?: () => void;
   onCloseOthers?: (index: number) => void;
-  // When set, a compact Run button is docked into the tab-strip control cluster.
-  onRun?: () => void;
 }
 
 export function Tab({ children }: TabProps) {
   return <>{children}</>;
 }
 
-export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers, onRun }: TabsProps) {
+export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers }: TabsProps) {
   const isNarrow = useMediaQuery("(max-width: 767px)");
   const overflow = isNarrow ? "auto" : "hidden";
   const tabsHeaderRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  // Width of the right-hand control cluster (Run + Tab options), measured so tabs
-  // reserve room for it and scrolling keeps them clear of it.
+  // Width of the overflow menu, the only control pinned to the strip, measured so
+  // tabs reserve room for it and scrolling keeps them clear of it.
   const controlsRef = useRef<HTMLDivElement>(null);
   const controlsWidthRef = useRef(0);
   const [controlsWidth, setControlsWidth] = useState(0);
@@ -105,7 +101,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [onRun, onCloseAll, children]);
+  }, [onCloseAll, children]);
 
   const handleContextMenu = useCallback((event: React.MouseEvent, index: number) => {
     event.preventDefault();
@@ -171,21 +167,14 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           })}
           <div className="grow border-b border-border" />
         </div>
-        {tabCount > 0 && (onRun || onCloseAll) && (
-          <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1.5 border-b border-border bg-background pl-1 pr-2">
-            {onRun && (
-              <SimpleTooltip text="Run (F5)" side="bottom">
-                <Button
-                  onClick={onRun}
-                  size="sm"
-                  className="h-[22px] rounded-md bg-emerald-600 pl-[7px] pr-[9px] text-xs font-medium text-white hover:bg-emerald-700"
-                >
-                  <Play size={14} />
-                  Run
-                </Button>
-              </SimpleTooltip>
-            )}
-            {onCloseAll && (
+        {tabCount > 0 && onCloseAll && (
+          <>
+            {/* Tabs scroll under the menu, so they fade out instead of being clipped mid-label. */}
+            <div
+              className="pointer-events-none absolute bottom-px top-0 w-6 bg-gradient-to-r from-transparent to-background"
+              style={{ right: controlsWidth }}
+            />
+            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center border-b border-border bg-background pl-1 pr-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton icon={Ellipsis} aria-label="Tab options" variant="ghost" size="sm" tooltip={false} />
@@ -194,8 +183,8 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                   <DropdownMenuItem onSelect={onCloseAll}>Close All</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
-          </div>
+            </div>
+          </>
         )}
         {showScrollbar && scrollMetrics.width > scrollMetrics.clientWidth && (
           <div

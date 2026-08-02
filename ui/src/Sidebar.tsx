@@ -8,6 +8,10 @@ import { appType, appTypeLabel } from "./appTypes";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
+// Width the macOS traffic lights occupy at the window's left edge. The desktop
+// window hides its title bar, so whatever sits in that corner has to clear them.
+export const TRAFFIC_LIGHTS_INSET = 78;
+
 function hasMultiplePackages(services: Service[]): boolean {
   if (services.length === 0) return false;
   const first = services[0].packageName;
@@ -376,7 +380,7 @@ export function Sidebar({
                 alignItems: "center",
                 flexShrink: 0,
                 height: 28,
-                paddingLeft: 78,
+                paddingLeft: TRAFFIC_LIGHTS_INSET,
                 paddingRight: 8,
                 "--wails-draggable": "drag",
               } as React.CSSProperties)

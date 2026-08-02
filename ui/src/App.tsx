@@ -14,10 +14,10 @@ import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
-import { AskCancelledError, Kaja, MethodCall } from "./kaja";
+import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, createAppRef, getDefaultMethod, Method, App as AppModel, Script, Service, Transport, updateAppRef } from "./apps";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -86,9 +86,9 @@ const MIN_EDITOR_HEIGHT = 120;
 const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 // Above this window width the editor and the response fit side by side, which
 // suits the wide, short shape of a method call better than stacking them. Side
-// by side splits the window four ways — sidebar, editor, call list, response —
-// so the threshold has to leave the response a usable share of it; below this,
-// stacking gives it the full width instead.
+// by side splits the window three ways — sidebar, editor, response — so the
+// threshold has to leave the response a usable share of it; below this, stacking
+// gives it the full width instead.
 const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
 // Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
@@ -206,6 +206,10 @@ export function App() {
   const [deleteScript, setDeleteScript] = useState<Script | null>(null);
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
+  // The run in flight, if any: which tab issued it, when it started, and the
+  // controller its Stop button aborts. `settled` marks the script itself as
+  // finished — the run is only over once its calls have landed too.
+  const [activeRun, setActiveRun] = useState<{ tabId: string; startedAt: number; controller: AbortController; settled: boolean } | null>(null);
   // Pending debounced disk writes for open script tabs, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
@@ -1223,8 +1227,8 @@ export function App() {
     persistTabs();
   };
 
-  // Run the active task/script tab's editor contents. Triggered by the docked
-  // Run button in the tab strip and by F5.
+  // Run the active task/script tab's editor contents. Triggered by the Run
+  // button floating over the editor, by ⌘⏎ and by F5.
   const onRunActiveTab = useCallback(() => {
     const index = activeTabIndexRef.current;
     const tab = tabsRef.current[index];
@@ -1235,16 +1239,40 @@ export function App() {
     if (!editor) {
       return;
     }
-    runTask(editor.getValue(), kajaRef.current!, apps, onScriptError);
+    const controller = new AbortController();
+    setActiveRun({ tabId: tab.id, startedAt: Date.now(), controller, settled: false });
+    runTask(editor.getValue(), kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
+      setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
+    );
     if (tab.type === "task") {
       setTabs((tabs) => markInteraction(tabs, index));
       persistTabs();
     }
   }, [apps, persistTabs, onScriptError]);
 
+  // A generated method-call script issues its call without awaiting it, so the
+  // script's own promise settles well before the response lands. The run is over
+  // once the script has settled and nothing it started is still in flight.
+  useEffect(() => {
+    if (!activeRun?.settled) return;
+    const inFlight = consoleItems.some((item) => "method" in item && item.timestamp >= activeRun.startedAt && isCallInFlight(item));
+    if (!inFlight) {
+      setActiveRun(null);
+    }
+  }, [consoleItems, activeRun]);
+
+  // Stop aborts the calls the run has in flight; the script itself stops at the
+  // call it was awaiting.
+  const onStopActiveRun = useCallback(() => {
+    setActiveRun((run) => {
+      run?.controller.abort();
+      return null;
+    });
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "F5") {
+      if (event.key === "F5" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
         event.preventDefault();
         onRunActiveTab();
       }
@@ -1423,6 +1451,10 @@ export function App() {
     }
   };
 
+  // With the sidebar open its own header holds the macOS traffic lights; collapsed,
+  // this bar is what the window's left corner lands on, so it takes over the inset.
+  const topBarInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
+
   const activeTab = tabs[activeTabIndex];
   const isActiveTaskTab = activeTab?.type === "task" || activeTab?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
@@ -1491,7 +1523,33 @@ export function App() {
               className="flex h-[30px] shrink-0 items-center border-b border-border bg-background"
               style={{ "--wails-draggable": "drag" } as React.CSSProperties}
             >
-              <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }} />
+              {/* A panel toggle reads as "this edge", so it sits against the sidebar seam.
+                  It belongs to this pane, not to the sidebar, so it keeps its place when
+                  the sidebar collapses — except on the macOS desktop, where collapsing
+                  leaves this bar under the window's traffic lights and the toggle has to
+                  clear them the way the sidebar header does. */}
+              <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", paddingLeft: topBarInset }}>
+                <div style={{ display: "flex", "--wails-draggable": "no-drag" } as React.CSSProperties}>
+                  <SimpleTooltip
+                    text={
+                      sidebarCollapsed
+                        ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                        : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                    }
+                    side="bottom"
+                  >
+                    <IconButton
+                      icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+                      aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                      size="sm"
+                      variant="ghost"
+                      tooltip={false}
+                      className="[&_svg]:size-[17px]"
+                    />
+                  </SimpleTooltip>
+                </div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
                 <div
                   onClick={() => setIsSearchOpen(true)}
@@ -1507,29 +1565,12 @@ export function App() {
                     minWidth: 0,
                     display: "flex",
                     justifyContent: "flex-end",
-                    paddingRight: 8,
+                    paddingRight: 12,
                     gap: 2,
                     "--wails-draggable": "no-drag",
                   } as React.CSSProperties
                 }
               >
-                <SimpleTooltip
-                  text={
-                    sidebarCollapsed
-                      ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                      : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                  }
-                  side="bottom"
-                >
-                  <IconButton
-                    icon={sidebarCollapsed ? PanelLeftClose : PanelLeftOpen}
-                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                    size="sm"
-                    variant="ghost"
-                    tooltip={false}
-                  />
-                </SimpleTooltip>
                 <SimpleTooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
                   <IconButton
                     icon={editorLayout === "vertical" ? Columns2 : Rows2}
@@ -1538,6 +1579,7 @@ export function App() {
                     size="sm"
                     variant="ghost"
                     tooltip={false}
+                    className="[&_svg]:size-[17px]"
                   />
                 </SimpleTooltip>
               </div>
@@ -1559,14 +1601,7 @@ export function App() {
                     minWidth: 0,
                   }}
                 >
-                  <Tabs
-                    activeTabIndex={activeTabIndex}
-                    onSelectTab={onSelectTab}
-                    onCloseTab={onCloseTab}
-                    onCloseAll={onCloseAll}
-                    onCloseOthers={onCloseOthers}
-                    onRun={isActiveTaskTab ? onRunActiveTab : undefined}
-                  >
+                  <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
                         return (
@@ -1584,6 +1619,10 @@ export function App() {
                               onGoToDefinition={onGoToDefinition}
                               onEditorReady={(editor) => onEditorReady(tab.id, editor)}
                               viewState={tab.viewState}
+                              onRun={onRunActiveTab}
+                              onStop={onStopActiveRun}
+                              running={activeRun?.tabId === tab.id}
+                              startedAt={activeRun?.tabId === tab.id ? activeRun.startedAt : undefined}
                             />
                           </Tab>
                         );
@@ -1597,6 +1636,10 @@ export function App() {
                               onGoToDefinition={onGoToDefinition}
                               onEditorReady={(editor) => onEditorReady(tab.id, editor)}
                               viewState={tab.viewState}
+                              onRun={onRunActiveTab}
+                              onStop={onStopActiveRun}
+                              running={activeRun?.tabId === tab.id}
+                              startedAt={activeRun?.tabId === tab.id ? activeRun.startedAt : undefined}
                             />
                           </Tab>
                         );

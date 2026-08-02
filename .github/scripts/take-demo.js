@@ -174,24 +174,14 @@ async function takeDemo() {
     }
 
     // Wait for console to show results
-    // First wait for the call to appear in console
-    await waitFor(page, '[data-testid="console-row"]', "call to appear in console");
+    // The console header's call select appears as soon as the call is issued
+    await waitFor(page, '[data-testid="console-call-select"]', "call to appear in console");
 
-    // Wait for response to complete - the pending state shows hollow circle, completed shows filled
+    // The response status line only renders once the response (or error) lands
     console.log("  Waiting for: response to complete...");
-    try {
-      // Wait for filled status indicator (● means complete, ○ means pending)
-      await page.waitForFunction(() => {
-        const rows = document.querySelectorAll('[data-testid="console-row"]');
-        if (rows.length === 0) return false;
-        // Check if any row has the filled circle (success or error)
-        const text = rows[0].textContent || '';
-        return text.includes('●');
-      }, { timeout: 15000 });
-      console.log("  ✓ Response completed");
-    } catch {
+    await waitFor(page, '[data-testid="console-status"]', "response to complete").catch(() => {
       console.log("  ⚠ Response completion check timed out, proceeding anyway");
-    }
+    });
     await settleDelay(page, 500);
 
     await page.screenshot({ path: `${DEMO_DIR}/call.png` });

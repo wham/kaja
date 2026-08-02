@@ -100,7 +100,16 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
   return { args, runCode: printStatements(runStatements) };
 }
 
-export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void) {
+// runTask runs a script and resolves once it settles, so the caller can show it
+// as running. Passing a signal lets the caller abort the calls it makes.
+export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void, signal?: AbortSignal): Promise<void> {
+  const clearSignal = () => {
+    if (kaja._internal.abortSignal === signal) {
+      kaja._internal.abortSignal = undefined;
+    }
+  };
+  kaja._internal.abortSignal = signal;
+
   let result: any;
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
@@ -117,16 +126,21 @@ export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: 
 
     result = func(...Object.values(args));
   } catch (err) {
+    clearSignal();
     onError(err);
-    return;
+    return Promise.resolve();
   }
-  if (result && typeof result.then === "function") {
-    result.catch((err: unknown) => {
-      // A cancelled prompt simply stops the script; surface everything else.
-      if (err instanceof AskCancelledError) return;
-      onError(err);
-    });
-  }
+  return Promise.resolve(result)
+    .then(
+      () => {},
+      (err: unknown) => {
+        // A cancelled prompt or an aborted run simply stops the script; surface
+        // everything else.
+        if (err instanceof AskCancelledError || signal?.aborted) return;
+        onError(err);
+      },
+    )
+    .finally(clearSignal);
 }
 
 export interface CapturedRun {
