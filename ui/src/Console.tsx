@@ -1,5 +1,6 @@
 import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
+import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -19,6 +20,10 @@ const MAX_VISIBLE_CALL_ROWS = 8;
 // Beyond this the qualified call name is truncated from the left, so the method
 // — the part that identifies the call — survives.
 const MAX_TRIGGER_NAME_LENGTH = 28;
+// Both time columns are reserved: the longest value they can ever hold sets the
+// geometry once, so nothing moves as calls settle and age.
+const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
+const TIME_COLUMN_CLASS = "w-[8ch] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground";
 
 const consoleTabClass = "cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground";
 const consoleTabActiveClass = "font-medium text-foreground";
@@ -39,12 +44,14 @@ export function Console({ items, onClear }: ConsoleProps) {
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
-  // A call in flight counts up in tenths, so the tick has to be finer than the
-  // one that ages the settled calls.
+  // A settled call shows the wall-clock time it was made, which never changes —
+  // so the clock only runs while something is still in flight, counting up in
+  // tenths for the call that is.
   const hasInFlight = items.some((item) => !Array.isArray(item) && isCallInFlight(item));
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), hasInFlight ? 100 : 1000);
+    if (!hasInFlight) return;
+    const interval = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(interval);
   }, [hasInFlight]);
 
@@ -203,7 +210,12 @@ Console.CallSelect = function ({ items, selectedIndex, onSelect, onClear, now }:
         >
           {summary?.pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
           <span className="max-w-[190px] truncate font-mono text-xs text-foreground">{truncateStart(summary?.name ?? "", MAX_TRIGGER_NAME_LENGTH)}</span>
-          {summary?.meta && <span className="shrink-0 font-mono text-xs text-muted-foreground">{summary.meta}</span>}
+          {summary?.detail && (
+            <span className={DETAIL_COLUMN_CLASS} title={summary.detail}>
+              {summary.detail}
+            </span>
+          )}
+          {summary?.time && <span className={TIME_COLUMN_CLASS}>{summary.time}</span>}
           <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
@@ -213,18 +225,12 @@ Console.CallSelect = function ({ items, selectedIndex, onSelect, onClear, now }:
           <span className="font-mono text-xs text-muted-foreground">{items.length}</span>
         </div>
         <div className="overflow-y-auto" style={{ maxHeight: MAX_VISIBLE_CALL_ROWS * CALL_ROW_HEIGHT }}>
-          {items
-            .map((item, index) => ({ item, index }))
-            .reverse()
-            .map(({ item, index }) => (
-              <Console.CallRow
-                key={"method" in item ? `mc:${item.id}` : `log:${index}`}
-                {...itemSummary(item, now)}
-                index={index}
-                isSelected={index === selectedIndex}
-                onSelect={onSelect}
-              />
-            ))}
+          {dayGroupedRows(items, now).map(({ item, index, summary, dayLabel }) => (
+            <Fragment key={"method" in item ? `mc:${item.id}` : `log:${index}`}>
+              {dayLabel && <div className="px-3 pb-1 pt-2 font-mono text-[11px] text-muted-foreground/70">{dayLabel}</div>}
+              <Console.CallRow {...summary} index={index} isSelected={index === selectedIndex} onSelect={onSelect} />
+            </Fragment>
+          ))}
         </div>
         {onClear && (
           <DropdownMenuItem
@@ -249,14 +255,18 @@ interface CallRowProps extends ItemSummary {
   onSelect: (index: number) => void;
 }
 
-// Memoized so the per-second age tick only re-renders rows whose displayed time
-// actually changed, instead of every row on every tick.
-Console.CallRow = memo(function CallRow({ name, meta, dotClass, pending, index, isSelected, onSelect }: CallRowProps) {
+// Memoized so the tick that counts up an in-flight call only re-renders that
+// call's row; every settled row holds a value that no longer changes. Both
+// columns are rendered even when empty, so the list stays aligned.
+Console.CallRow = memo(function CallRow({ name, detail, time, dotClass, pending, index, isSelected, onSelect }: CallRowProps) {
   return (
     <DropdownMenuItem data-testid="console-row" className={cn("h-8 gap-3 rounded-none px-3", isSelected && "bg-accent")} onSelect={() => onSelect(index)}>
       {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} />}
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
-      {meta && <span className="shrink-0 font-mono text-xs text-muted-foreground">{meta}</span>}
+      <span className={DETAIL_COLUMN_CLASS} title={detail}>
+        {detail}
+      </span>
+      <span className={TIME_COLUMN_CLASS}>{time}</span>
     </DropdownMenuItem>
   );
 });
@@ -468,20 +478,23 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
 
 interface ItemSummary {
   name: string;
-  // Duration (or status code for a failed call) and the call's age.
-  meta?: string;
+  // Duration, or the status code of a failed call.
+  detail?: string;
+  // Wall-clock time the call was made.
+  time?: string;
+  timestamp?: number;
   dotClass: string;
   pending: boolean;
 }
 
-// The three columns every row in the history shares — the trigger shows them for
-// the selected item, the list for all of them.
+// The columns every row in the history shares — the trigger shows them for the
+// selected item, the list for all of them.
 function itemSummary(item: ConsoleItem, now: number): ItemSummary {
   if (Array.isArray(item)) {
     const level = item.length === 0 ? LogLevel.LEVEL_INFO : Math.max(...item.map((log) => log.level));
     return {
       name: item.length === 1 ? item[0].message.trim() : `${item.length} log messages`,
-      meta: labelForLogLevel(level),
+      detail: labelForLogLevel(level),
       dotClass: dotClassForLogLevel(level),
       pending: false,
     };
@@ -489,16 +502,39 @@ function itemSummary(item: ConsoleItem, now: number): ItemSummary {
 
   const status = callStatus(item);
   const pending = status === "pending" || status === "streaming";
-  const detail = callErrorCode(item) ?? formatDuration(item.durationMs);
-  const age = formatRelativeTime(item.timestamp, now);
   return {
     name: methodId(item.service, item.method),
     // While the call is in flight its own elapsed time is the interesting
-    // number; once it lands, how long it took and how long ago that was.
-    meta: pending ? `${Math.max(0, (now - item.timestamp) / 1000).toFixed(1)}s` : detail ? `${detail} · ${age}` : age,
+    // number; once it lands, how long it took.
+    detail: pending ? formatElapsed(now - item.timestamp) : (callErrorCode(item) ?? formatDuration(item.durationMs)),
+    time: formatClockTime(item.timestamp),
+    timestamp: item.timestamp,
     dotClass: dotClass(status),
     pending,
   };
+}
+
+interface DayGroupedRow {
+  item: ConsoleItem;
+  index: number;
+  summary: ItemSummary;
+  // Set on the first row of a day other than today, which is where the list
+  // says what day it has moved to.
+  dayLabel?: string;
+}
+
+// Newest first, so a label lands on the first row of each day the list moves
+// back into; today needs none.
+function dayGroupedRows(items: ConsoleItem[], now: number): DayGroupedRow[] {
+  const rows = items.map((item, index) => ({ item, index, summary: itemSummary(item, now) })).reverse();
+  let previousTimestamp = now;
+  return rows.map((row) => {
+    const timestamp = row.summary.timestamp;
+    if (timestamp === undefined) return row;
+    const dayLabel = isSameDay(timestamp, previousTimestamp) ? undefined : formatDayLabel(timestamp);
+    previousTimestamp = timestamp;
+    return { ...row, dayLabel };
+  });
 }
 
 // Keep the tail — for a qualified call name that is the method, the part that
@@ -601,17 +637,4 @@ function dotClassForLogLevel(level: LogLevel): string {
     default:
       return "bg-muted-foreground";
   }
-}
-
-// Kept short so the row still has room for the status and duration; the row's
-// tooltip carries the exact time.
-function formatRelativeTime(timestamp: number, now: number): string {
-  const seconds = Math.floor((now - timestamp) / 1000);
-  if (seconds < 5) return "now";
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
 }
