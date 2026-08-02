@@ -179,7 +179,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               className="pointer-events-none absolute bottom-px top-0 w-6 bg-gradient-to-r from-transparent to-background"
               style={{ right: controlsWidth }}
             />
-            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1 border-b border-border bg-background pl-1 pr-2">
+            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1 border-b border-border bg-background pl-1 pr-2.5">
               {controls}
               {onCloseAll && (
                 <DropdownMenu>

@@ -1560,7 +1560,6 @@ export function App() {
                       size="sm"
                       variant="ghost"
                       tooltip={false}
-                      className="[&_svg]:size-[17px]"
                     />
                   </SimpleTooltip>
                 </div>
@@ -1573,6 +1572,9 @@ export function App() {
                   {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>
               </div>
+              {/* Every control on this pane's right edge — here, in the tab strip, in the
+                  console header — puts its icon on the same vertical line, 16px in. The
+                  padding is that line minus the button's own centering room. */}
               <div
                 style={
                   {
@@ -1580,7 +1582,7 @@ export function App() {
                     minWidth: 0,
                     display: "flex",
                     justifyContent: "flex-end",
-                    paddingRight: 12,
+                    paddingRight: 10,
                     gap: 2,
                     "--wails-draggable": "no-drag",
                   } as React.CSSProperties
@@ -1594,7 +1596,6 @@ export function App() {
                     size="sm"
                     variant="ghost"
                     tooltip={false}
-                    className="[&_svg]:size-[17px]"
                   />
                 </SimpleTooltip>
               </div>
