@@ -17,7 +17,7 @@ import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, createAppRef, getDefaultMethod, Method, App as AppModel, Script, Service, Transport, updateAppRef } from "./apps";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
 import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -1451,6 +1451,10 @@ export function App() {
     }
   };
 
+  // With the sidebar open its own header holds the macOS traffic lights; collapsed,
+  // this bar is what the window's left corner lands on, so it takes over the inset.
+  const topBarInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
+
   const activeTab = tabs[activeTabIndex];
   const isActiveTaskTab = activeTab?.type === "task" || activeTab?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
@@ -1520,29 +1524,31 @@ export function App() {
               style={{ "--wails-draggable": "drag" } as React.CSSProperties}
             >
               {/* A panel toggle reads as "this edge", so it sits against the sidebar seam.
-                  It belongs to this pane, not to the sidebar, so it stays put when the
-                  sidebar collapses and the reopen target never moves. */}
-              <div
-                style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", paddingLeft: 12, "--wails-draggable": "no-drag" } as React.CSSProperties}
-              >
-                <SimpleTooltip
-                  text={
-                    sidebarCollapsed
-                      ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                      : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                  }
-                  side="bottom"
-                >
-                  <IconButton
-                    icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
-                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                    size="sm"
-                    variant="ghost"
-                    tooltip={false}
-                    className="[&_svg]:size-[17px]"
-                  />
-                </SimpleTooltip>
+                  It belongs to this pane, not to the sidebar, so it keeps its place when
+                  the sidebar collapses — except on the macOS desktop, where collapsing
+                  leaves this bar under the window's traffic lights and the toggle has to
+                  clear them the way the sidebar header does. */}
+              <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", paddingLeft: topBarInset }}>
+                <div style={{ display: "flex", "--wails-draggable": "no-drag" } as React.CSSProperties}>
+                  <SimpleTooltip
+                    text={
+                      sidebarCollapsed
+                        ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                        : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
+                    }
+                    side="bottom"
+                  >
+                    <IconButton
+                      icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+                      aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                      size="sm"
+                      variant="ghost"
+                      tooltip={false}
+                      className="[&_svg]:size-[17px]"
+                    />
+                  </SimpleTooltip>
+                </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
                 <div
