@@ -1,18 +1,30 @@
-import { Check, Copy, FoldVertical, Play, Trash2, UnfoldVertical } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "./cn";
-import { Gutter } from "./Gutter";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
+import { Spinner } from "./components/spinner";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
-import { MethodCall } from "./kaja";
+import { isCallInFlight, MethodCall } from "./kaja";
 import { methodId } from "./apps";
+import { runShortcutLabel } from "./RunButton";
 import { Log, LogLevel } from "./server/api";
 
 export type ConsoleItem = Log[] | MethodCall;
 
-const consoleRowClass = "flex cursor-pointer items-center border-b border-border px-3 py-1.5 font-mono text-xs";
-const consoleTabClass = "cursor-pointer border-b-2 border-transparent px-4 py-2 font-mono text-xs text-muted-foreground hover:text-foreground";
-const consoleTabActiveClass = "border-b-primary text-foreground";
+// The dropdown is a fixed 420px and scrolls after eight rows, so a long session
+// never turns the console header into a full-height surface.
+const CALL_ROW_HEIGHT = 32;
+const MAX_VISIBLE_CALL_ROWS = 8;
+// Beyond this the qualified call name is truncated from the left, so the method
+// — the part that identifies the call — survives.
+const MAX_TRIGGER_NAME_LENGTH = 28;
+
+const consoleTabClass = "cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground";
+const consoleTabActiveClass = "font-medium text-foreground";
+// Utilities carry no resting chrome: they are worth no more weight than the tabs
+// beside them.
+const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
 interface ConsoleProps {
   items: ConsoleItem[];
@@ -21,18 +33,20 @@ interface ConsoleProps {
 
 export function Console({ items, onClear }: ConsoleProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"request" | "response" | "headers">("response");
-  const [callListWidth, setCallListWidth] = useState(300);
+  const [activeTab, setActiveTab] = useState<ConsoleTab>("response");
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
+  // A call in flight counts up in tenths, so the tick has to be finer than the
+  // one that ages the settled calls.
+  const hasInFlight = items.some((item) => !Array.isArray(item) && isCallInFlight(item));
+
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const interval = setInterval(() => setNow(Date.now()), hasInFlight ? 100 : 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasInFlight]);
 
   // Reset selectedIndex when items are cleared or become invalid
   useEffect(() => {
@@ -43,203 +57,251 @@ export function Console({ items, onClear }: ConsoleProps) {
     }
   }, [items.length, selectedIndex]);
 
-  const onCallListResize = (delta: number) => {
-    setCallListWidth((prev) => Math.max(150, Math.min(600, prev + delta)));
-  };
+  const selectedItem = selectedIndex !== null ? items[selectedIndex] : undefined;
+  const selectedMethodCall = selectedItem && "method" in selectedItem ? selectedItem : null;
+  const selectedLogs = Array.isArray(selectedItem) ? selectedItem : null;
 
-  // Filter items into method calls for easier access
-  const methodCalls = items.map((item, index) => ({ item, index })).filter((entry): entry is { item: MethodCall; index: number } => "method" in entry.item);
-
-  // Get selected method call
-  const selectedMethodCall = selectedIndex !== null && items[selectedIndex] && "method" in items[selectedIndex] ? (items[selectedIndex] as MethodCall) : null;
-
-  // Auto-scroll and auto-select when the last item is selected (or nothing is)
+  // Follow the newest item, so an in-flight call is selected the moment it is
+  // issued instead of after its response lands.
   useEffect(() => {
     if (items.length === 0) return;
     const lastIndex = items.length - 1;
-    const prevLastIndex = items.length - 2;
-    if (selectedIndex === null || selectedIndex === prevLastIndex || selectedIndex === lastIndex) {
+    if (selectedIndex === null || selectedIndex >= lastIndex - 1) {
       setSelectedIndex(lastIndex);
-      requestAnimationFrame(() => {
-        if (listRef.current) {
-          listRef.current.scrollTop = listRef.current.scrollHeight;
-        }
-      });
     }
   }, [items.length]);
 
-  const handleRowClick = useCallback((index: number) => {
-    setSelectedIndex(index);
+  // ⌃↑ / ⌃↓ step through the history without opening the dropdown.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.metaKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+      if (items.length === 0) return;
+      event.preventDefault();
+      setSelectedIndex((index) => {
+        const current = index ?? items.length - 1;
+        const next = event.key === "ArrowUp" ? current - 1 : current + 1;
+        return Math.max(0, Math.min(items.length - 1, next));
+      });
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [items.length]);
+
+  const handleCopy = useCallback(() => {
+    jsonViewerRef.current?.copyToClipboard();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
   }, []);
 
-  const handleCopy = async () => {
-    if (jsonViewerRef.current) {
-      jsonViewerRef.current.copyToClipboard();
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleFoldAll = () => {
-    if (jsonViewerRef.current) {
-      jsonViewerRef.current.foldAll();
-    }
-  };
-
-  const handleUnfoldAll = () => {
-    if (jsonViewerRef.current) {
-      jsonViewerRef.current.unfoldAll();
-    }
-  };
+  const showUtilities = selectedMethodCall !== null && (activeTab === "request" || activeTab === "response");
+  const position = selectedIndex === null ? items.length : selectedIndex + 1;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      {/* Header row */}
-      <div className="flex h-[35px] shrink-0 border-b border-border">
-        <div className="flex shrink-0 items-center justify-between px-3" style={{ width: callListWidth }}>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Calls</span>
-          {onClear && items.length > 0 && <IconButton icon={Trash2} aria-label="Clear console" onClick={onClear} size="sm" variant="ghost" />}
-        </div>
-        <div className="w-px shrink-0 bg-border" />
-        <div className="flex min-w-0 flex-1 items-center">
-          {selectedMethodCall && <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />}
-          {selectedMethodCall && (activeTab === "request" || activeTab === "response") && (
-            <div className="ml-auto mr-3 flex gap-0.5 rounded-md bg-muted p-0.5">
-              <IconButton icon={FoldVertical} aria-label="Fold all" onClick={handleFoldAll} size="sm" variant="ghost" />
-              <IconButton icon={UnfoldVertical} aria-label="Unfold all" onClick={handleUnfoldAll} size="sm" variant="ghost" />
-              <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" onClick={handleCopy} size="sm" variant="ghost" />
+      {/* One row spanning the full console width: which call, how to step through
+          them, what to look at, and what to do with it. */}
+      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3">
+        {items.length === 0 ? (
+          <span className="text-xs text-muted-foreground">No calls yet</span>
+        ) : (
+          <>
+            <Console.CallSelect items={items} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onClear={onClear} now={now} />
+            <div className="flex items-center gap-1">
+              <IconButton
+                icon={ChevronUp}
+                aria-label="Previous call"
+                variant="ghost"
+                size="sm"
+                tooltip={false}
+                className="h-6 w-6"
+                disabled={position <= 1}
+                onClick={() => setSelectedIndex((index) => Math.max(0, (index ?? items.length - 1) - 1))}
+              />
+              <IconButton
+                icon={ChevronDown}
+                aria-label="Next call"
+                variant="ghost"
+                size="sm"
+                tooltip={false}
+                className="h-6 w-6"
+                disabled={position >= items.length}
+                onClick={() => setSelectedIndex((index) => Math.min(items.length - 1, (index ?? items.length - 1) + 1))}
+              />
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {position} of {items.length}
+              </span>
             </div>
-          )}
-        </div>
+          </>
+        )}
+        <div className="h-4 w-px bg-border" />
+        <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />
+        {showUtilities && (
+          <div className="ml-auto flex items-center gap-2">
+            <IconButton
+              icon={FoldVertical}
+              aria-label="Fold all"
+              variant="ghost"
+              size="sm"
+              className={utilityButtonClass}
+              onClick={() => jsonViewerRef.current?.foldAll()}
+            />
+            <IconButton
+              icon={UnfoldVertical}
+              aria-label="Unfold all"
+              variant="ghost"
+              size="sm"
+              className={utilityButtonClass}
+              onClick={() => jsonViewerRef.current?.unfoldAll()}
+            />
+            <div className="h-4 w-px bg-border" />
+            <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={handleCopy} />
+          </div>
+        )}
       </div>
 
-      {/* Content row */}
-      <div className="flex min-h-0 flex-1">
-        {/* Left panel - Call list */}
-        <div ref={listRef} className="shrink-0 overflow-y-auto" style={{ width: callListWidth }}>
-          {items.map((item, index) => {
-            if (Array.isArray(item)) {
-              return <Console.LogRow key={`log:${index}`} logs={item} />;
-            } else if ("method" in item) {
-              return (
-                <Console.MethodCallRow
-                  key={`mc:${item.id}`}
-                  methodCall={item}
-                  index={index}
-                  isSelected={selectedIndex === index}
-                  onSelect={handleRowClick}
-                  relativeTime={formatRelativeTime(item.timestamp, now)}
-                />
-              );
-            }
-            return null;
-          })}
-        </div>
-
-        <Gutter orientation="vertical" onResize={onCallListResize} />
-
-        {/* Right panel - Details. Elevated to the same surface as the editor:
-            payloads are content, the call list and headers around them are chrome. */}
-        <div className="flex min-w-0 flex-1 flex-col bg-muted">
-          {selectedMethodCall ? (
-            <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} jsonViewerRef={jsonViewerRef} />
-          ) : (
-            <div className="flex flex-1 items-center justify-center gap-1.5 text-xs text-muted-foreground">
-              Press <Play size={12} /> to run
-            </div>
-          )}
-        </div>
+      {/* The response owns the full width of the console below the header.
+          Elevated to the same surface as the editor: payloads are content, the
+          header around them is chrome. */}
+      <div className="flex min-h-0 flex-1 flex-col bg-muted">
+        {selectedMethodCall ? (
+          <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} jsonViewerRef={jsonViewerRef} />
+        ) : selectedLogs ? (
+          <Console.LogContent logs={selectedLogs} />
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+            Run a script to see its calls here — <span className="ml-1 font-mono">{runShortcutLabel}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-interface LogRowProps {
-  logs: Log[];
+interface CallSelectProps {
+  items: ConsoleItem[];
+  selectedIndex: number | null;
+  onSelect: (index: number) => void;
+  onClear?: () => void;
+  now: number;
 }
 
-Console.LogRow = function ({ logs }: LogRowProps) {
-  if (logs.length === 0) return null;
-
-  // Show summary of logs with highest severity
-  const highestSeverity = Math.max(...logs.map((l) => l.level));
+// The whole history behind one 26px trigger: the trigger answers "which run am I
+// looking at", the list answers "which other ones are there".
+Console.CallSelect = function ({ items, selectedIndex, onSelect, onClear, now }: CallSelectProps) {
+  const [open, setOpen] = useState(false);
+  const selected = selectedIndex !== null ? items[selectedIndex] : undefined;
+  const summary = selected ? itemSummary(selected, now) : undefined;
 
   return (
-    <div
-      data-testid="console-row"
-      className={cn(consoleRowClass, "opacity-80 hover:bg-accent/50", classForLogLevel(highestSeverity))}
-      title={logs.map((l) => l.message).join("\n")}
-    >
-      <span className="mr-2 text-[10px]">{labelForLogLevel(highestSeverity)}</span>
-      <span className="overflow-hidden text-ellipsis whitespace-nowrap">{logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`}</span>
-    </div>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex h-[26px] min-w-0 shrink-0 items-center gap-2 rounded-md border border-border bg-card px-2.5 hover:bg-accent"
+          title={summary?.name}
+        >
+          {summary?.pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
+          <span className="max-w-[190px] truncate font-mono text-xs text-foreground">{truncateStart(summary?.name ?? "", MAX_TRIGGER_NAME_LENGTH)}</span>
+          {summary?.meta && <span className="shrink-0 font-mono text-xs text-muted-foreground">{summary.meta}</span>}
+          <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="bottom" className="w-[420px] p-0">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-xs tracking-[0.06em] text-muted-foreground">RECENT CALLS</span>
+          <span className="font-mono text-xs text-muted-foreground">{items.length}</span>
+        </div>
+        <div className="overflow-y-auto" style={{ maxHeight: MAX_VISIBLE_CALL_ROWS * CALL_ROW_HEIGHT }}>
+          {items
+            .map((item, index) => ({ item, index }))
+            .reverse()
+            .map(({ item, index }) => (
+              <Console.CallRow
+                key={"method" in item ? `mc:${item.id}` : `log:${index}`}
+                {...itemSummary(item, now)}
+                index={index}
+                isSelected={index === selectedIndex}
+                onSelect={onSelect}
+              />
+            ))}
+        </div>
+        {onClear && (
+          <DropdownMenuItem
+            className="h-8 gap-2 rounded-none border-t border-border px-3 text-xs text-muted-foreground"
+            onSelect={() => {
+              onClear();
+              setOpen(false);
+            }}
+          >
+            <Trash2 size={13} />
+            Clear history
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
-interface MethodCallRowProps {
-  methodCall: MethodCall;
+interface CallRowProps extends ItemSummary {
   index: number;
   isSelected: boolean;
   onSelect: (index: number) => void;
-  relativeTime: string;
 }
 
-// Memoized so the per-second timestamp tick only re-renders rows whose displayed
-// relative time actually changed, instead of every row on every tick.
-Console.MethodCallRow = memo(function MethodCallRow({ methodCall, index, isSelected, onSelect, relativeTime }: MethodCallRowProps) {
-  const status = callStatus(methodCall);
-  const errorCode = callErrorCode(methodCall);
-  const duration = formatDuration(methodCall.durationMs);
-
-  const statusIcon = {
-    pending: "○",
-    streaming: "◉",
-    success: "●",
-    error: "●",
-  }[status];
-
+// Memoized so the per-second age tick only re-renders rows whose displayed time
+// actually changed, instead of every row on every tick.
+Console.CallRow = memo(function CallRow({ name, meta, dotClass, pending, index, isSelected, onSelect }: CallRowProps) {
   return (
-    <div
-      data-testid="console-row"
-      className={cn(consoleRowClass, isSelected ? "bg-accent" : "hover:bg-accent/50")}
-      onClick={() => onSelect(index)}
-      title={new Date(methodCall.timestamp).toLocaleTimeString()}
-    >
-      <span className={cn("mr-2 text-[10px]", statusClass(status))}>{statusIcon}</span>
-      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground">{methodId(methodCall.service, methodCall.method)}</span>
-      {errorCode && <span className="ml-2 shrink-0 overflow-hidden text-ellipsis text-[10px] font-medium text-destructive">{errorCode}</span>}
-      {duration && <span className="ml-2 shrink-0 text-[11px] tabular-nums text-muted-foreground">{duration}</span>}
-      <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">{relativeTime}</span>
-    </div>
+    <DropdownMenuItem data-testid="console-row" className={cn("h-8 gap-3 rounded-none px-3", isSelected && "bg-accent")} onSelect={() => onSelect(index)}>
+      {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} />}
+      <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
+      {meta && <span className="shrink-0 font-mono text-xs text-muted-foreground">{meta}</span>}
+    </DropdownMenuItem>
   );
 });
 
 type ConsoleTab = "request" | "response" | "headers";
 
 interface DetailTabsProps {
-  methodCall: MethodCall;
+  methodCall: MethodCall | null;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
 }
 
 Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
-  const isStreaming = methodCall.streamOutputs !== undefined;
-  const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
+  const isStreaming = methodCall?.streamOutputs !== undefined;
+  const streamCount = isStreaming ? methodCall!.streamOutputs!.length : 0;
 
+  const tab = (id: ConsoleTab, label: string) => (
+    <span className={cn(consoleTabClass, activeTab === id && consoleTabActiveClass)} onClick={() => methodCall && onTabChange(id)}>
+      {label}
+    </span>
+  );
+
+  // A failed call colours its dot and its status line, and nothing else — the
+  // header stays neutral.
   return (
-    <div className="flex">
-      <div className={cn(consoleTabClass, activeTab === "request" && consoleTabActiveClass)} onClick={() => onTabChange("request")}>
-        Request
-      </div>
-      <div
-        className={cn(consoleTabClass, activeTab === "response" && consoleTabActiveClass, methodCall.error && "text-destructive hover:text-destructive")}
-        onClick={() => onTabChange("response")}
-      >
-        Response{isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}
-      </div>
-      <div className={cn(consoleTabClass, activeTab === "headers" && consoleTabActiveClass)} onClick={() => onTabChange("headers")}>
-        Headers
-      </div>
+    <div className={cn("flex items-center gap-4", !methodCall && "pointer-events-none opacity-40")}>
+      {tab("request", "Request")}
+      {tab("response", `Response${isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}`)}
+      {tab("headers", "Headers")}
+    </div>
+  );
+};
+
+interface LogContentProps {
+  logs: Log[];
+}
+
+Console.LogContent = function ({ logs }: LogContentProps) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
+      {logs.map((log, index) => (
+        <div key={index} className={cn("whitespace-pre-wrap break-words", classForLogLevel(log.level))}>
+          <span className="mr-2 text-[10px] uppercase opacity-70">{labelForLogLevel(log.level)}</span>
+          {log.message.trim()}
+        </div>
+      ))}
     </div>
   );
 };
@@ -282,12 +344,12 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {activeTab === "response" && !hasResponse ? (
-        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for response...</div>
+        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
       ) : (
         <>
           {activeTab === "response" && <Console.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
           {activeTab === "response" && hasError && methodCall.url && (
-            <div className="border-b border-border bg-destructive/10 px-3 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
+            <div className="border-b border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
           )}
           <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
         </>
@@ -303,7 +365,8 @@ interface ResponseSummaryProps {
 }
 
 // A one-line readout above the payload: what came back, how long it took and how
-// big it is. Without it a successful call and an empty one look the same.
+// big it is. Without it a successful call and an empty one look the same. Status
+// colour appears here and in the call's dot, and nowhere else.
 Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
@@ -312,7 +375,7 @@ Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSu
   const streamCount = methodCall.streamOutputs?.length;
 
   return (
-    <div className="flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-border px-3 py-1 font-mono text-[11px]">
+    <div className="flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap px-4 pb-2 pt-3 font-mono text-xs">
       <span className={cn("shrink-0 font-medium", statusClass(status))}>{label}</span>
       {duration && <span className="shrink-0 tabular-nums text-muted-foreground">{duration}</span>}
       {size && <span className="shrink-0 tabular-nums text-muted-foreground">{size}</span>}
@@ -400,6 +463,47 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
   );
 };
 
+interface ItemSummary {
+  name: string;
+  // Duration (or status code for a failed call) and the call's age.
+  meta?: string;
+  dotClass: string;
+  pending: boolean;
+}
+
+// The three columns every row in the history shares — the trigger shows them for
+// the selected item, the list for all of them.
+function itemSummary(item: ConsoleItem, now: number): ItemSummary {
+  if (Array.isArray(item)) {
+    const level = item.length === 0 ? LogLevel.LEVEL_INFO : Math.max(...item.map((log) => log.level));
+    return {
+      name: item.length === 1 ? item[0].message.trim() : `${item.length} log messages`,
+      meta: labelForLogLevel(level),
+      dotClass: dotClassForLogLevel(level),
+      pending: false,
+    };
+  }
+
+  const status = callStatus(item);
+  const pending = status === "pending" || status === "streaming";
+  const detail = callErrorCode(item) ?? formatDuration(item.durationMs);
+  const age = formatRelativeTime(item.timestamp, now);
+  return {
+    name: methodId(item.service, item.method),
+    // While the call is in flight its own elapsed time is the interesting
+    // number; once it lands, how long it took and how long ago that was.
+    meta: pending ? `${Math.max(0, (now - item.timestamp) / 1000).toFixed(1)}s` : detail ? `${detail} · ${age}` : age,
+    dotClass: dotClass(status),
+    pending,
+  };
+}
+
+// Keep the tail — for a qualified call name that is the method, the part that
+// says which call this is.
+function truncateStart(text: string, maxLength: number): string {
+  return text.length > maxLength ? `…${text.slice(text.length - maxLength + 1)}` : text;
+}
+
 type CallStatus = "pending" | "streaming" | "success" | "error";
 
 function callStatus(methodCall: MethodCall): CallStatus {
@@ -415,6 +519,15 @@ function statusClass(status: CallStatus): string {
     streaming: "text-primary",
     success: "text-emerald-600 dark:text-emerald-400",
     error: "text-destructive",
+  }[status];
+}
+
+function dotClass(status: CallStatus): string {
+  return {
+    pending: "bg-muted-foreground",
+    streaming: "bg-primary",
+    success: "bg-emerald-500",
+    error: "bg-red-500",
   }[status];
 }
 
@@ -473,6 +586,17 @@ function classForLogLevel(level: LogLevel): string {
       return "text-amber-600 dark:text-amber-400";
     case LogLevel.LEVEL_ERROR:
       return "text-destructive";
+  }
+}
+
+function dotClassForLogLevel(level: LogLevel): string {
+  switch (level) {
+    case LogLevel.LEVEL_WARN:
+      return "bg-amber-500";
+    case LogLevel.LEVEL_ERROR:
+      return "bg-red-500";
+    default:
+      return "bg-muted-foreground";
   }
 }
 

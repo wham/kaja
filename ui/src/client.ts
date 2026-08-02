@@ -124,7 +124,10 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
       const elapsed = () => Math.round(performance.now() - startedAt);
 
       try {
-        const call = clientStub[lcfirst(method.name)](input, options);
+        // The run's abort signal is read here rather than captured with the
+        // client, so every call a script makes joins the run that issued it.
+        const abort = client.kaja?._internal.abortSignal;
+        const call = clientStub[lcfirst(method.name)](input, abort ? { ...options, abort } : options);
 
         if (isServerStreaming) {
           const streamCall = call as ServerStreamingCall<any, any>;

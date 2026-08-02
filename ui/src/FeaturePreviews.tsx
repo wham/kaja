@@ -13,9 +13,10 @@ export interface FeaturePreview {
 interface FeaturePreviewsProps {
   features: FeaturePreview[];
   onToggle: (key: string) => void;
+  className?: string;
 }
 
-export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
+export function FeaturePreviews({ features, onToggle, className }: FeaturePreviewsProps) {
   const [open, setOpen] = useState(false);
 
   if (features.length === 0) {
@@ -25,7 +26,7 @@ export function FeaturePreviews({ features, onToggle }: FeaturePreviewsProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <IconButton size="xs" variant="ghost" tooltip={false} icon={FlaskConical} aria-label="Feature previews" />
+        <IconButton size="xs" variant="ghost" tooltip={false} icon={FlaskConical} aria-label="Feature previews" className={className} />
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="p-2">
         <div className="flex min-w-[180px] flex-col gap-2">

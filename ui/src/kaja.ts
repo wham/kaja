@@ -88,7 +88,18 @@ export interface MethodCallUpdate {
   (methodCall: MethodCall): void;
 }
 
+// A call is in flight until it fails, produces a response, or its stream ends. A
+// stream sets `output` on every message, so it can't be judged by that alone.
+export function isCallInFlight(methodCall: MethodCall): boolean {
+  if (methodCall.error !== undefined) return false;
+  if (methodCall.streamOutputs !== undefined) return !methodCall.streamComplete;
+  return methodCall.output === undefined;
+}
+
 class KajaInternal {
+  // Signal of the run currently in flight, so the calls a script makes can be
+  // aborted from the editor's Stop button. Undefined when nothing is running.
+  abortSignal?: AbortSignal;
   #onMethodCallUpdate: MethodCallUpdate;
 
   constructor(onMethodCallUpdate: MethodCallUpdate) {
