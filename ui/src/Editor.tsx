@@ -1,8 +1,10 @@
 import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
+import { App } from "./apps";
 import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
+import { suggestValues } from "./valueCompletions";
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (_, label) {
@@ -112,6 +114,67 @@ monaco.languages.registerCompletionItemProvider("typescript", {
           additionalTextEdits: [{ range: new monaco.Range(1, 1, 1, 1), text: 'import { kaja } from "kaja";\n' }],
         },
       ],
+    };
+  },
+});
+
+// Apps the value completions resolve service names against. Kept in sync from
+// App.tsx as apps compile.
+let valueCompletionApps: App[] = [];
+
+export function setValueCompletionApps(apps: App[]): void {
+  valueCompletionApps = apps;
+}
+
+function truncate(text: string): string {
+  return text.length > 60 ? text.slice(0, 59) + "…" : text;
+}
+
+// Escape a value so it survives being dropped between quotes, whichever quote
+// style the literal under the cursor uses.
+function escapeForStringLiteral(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+}
+
+// Values from earlier calls are offered here rather than written into the
+// generated request, so filling a field in stays a deliberate keystroke.
+monaco.languages.registerCompletionItemProvider("typescript", {
+  triggerCharacters: ['"', "'", ":", " "],
+  provideCompletionItems(model, position) {
+    if (valueCompletionApps.length === 0) {
+      return { suggestions: [] };
+    }
+
+    const suggested = suggestValues(model.getValue(), model.getOffsetAt(position), valueCompletionApps);
+    if (!suggested) {
+      return { suggestions: [] };
+    }
+
+    const stringRange = suggested.position.stringRange;
+    let range: monaco.Range;
+    if (stringRange) {
+      const start = model.getPositionAt(stringRange.start);
+      const end = model.getPositionAt(stringRange.end);
+      range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
+    } else {
+      const word = model.getWordUntilPosition(position);
+      range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+    }
+
+    return {
+      suggestions: suggested.values.map((remembered, index) => {
+        const text = String(remembered.value);
+        const typeName = remembered.typeName.slice(remembered.typeName.lastIndexOf(".") + 1);
+        return {
+          label: truncate(text),
+          kind: monaco.languages.CompletionItemKind.Value,
+          detail: `${typeName}.${remembered.fieldName} · ${remembered.origin === "request" ? "sent to" : "returned by"} ${remembered.method}`,
+          insertText: stringRange ? escapeForStringLiteral(text) : JSON.stringify(remembered.value),
+          filterText: text,
+          sortText: String(index).padStart(3, "0"),
+          range,
+        };
+      }),
     };
   },
 });

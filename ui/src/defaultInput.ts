@@ -1,7 +1,6 @@
 import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
-import { getScalarMemorizedValue, getMessageMemorizedValue } from "./typeMemory";
 
 export function defaultMessage<T extends object>(
   message: IMessageType<T>,
@@ -39,10 +38,10 @@ export function defaultMessage<T extends object>(
       // makes multiple operators look "set". Repeated message and enum fields keep
       // one element: there the element carries a nested shape or a concrete valid
       // value that the field name alone doesn't convey.
-      const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested, typeName)];
+      const elements = field.kind === "scalar" ? [] : [defaultMessageField(field, sources, imports, nested)];
       value = ts.factory.createArrayLiteralExpression(elements);
     } else {
-      value = defaultMessageField(field, sources, imports, nested, typeName);
+      value = defaultMessageField(field, sources, imports, nested);
     }
 
     properties.push(ts.factory.createPropertyAssignment(field.localName, value));
@@ -67,21 +66,11 @@ export function addImport(imports: Imports, name: string, source: Source): Impor
   return imports;
 }
 
-function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>, parentTypeName?: string): ts.Expression {
-  // For scalar fields, try to get memorized value
+function defaultMessageField(field: FieldInfo, sources: Sources, imports: Imports, visiting: Set<string>): ts.Expression {
+  // Scalars start at their zero value. Values from earlier calls are offered as
+  // editor completions instead (see valueCompletions), so what is generated
+  // here is only ever the shape of the request, never a guess at its contents.
   if (field.kind === "scalar") {
-    // First check type memory (more specific - values seen in this exact type)
-    if (parentTypeName) {
-      const typeMemorized = getMessageMemorizedValue(parentTypeName, field.localName);
-      if (typeMemorized !== undefined) {
-        return valueToExpression(typeMemorized);
-      }
-    }
-    // Fall back to scalar memory (broader - any field with this name and protobuf type)
-    const memorized = getScalarMemorizedValue(field.localName, field.T);
-    if (memorized !== undefined) {
-      return valueToExpression(memorized);
-    }
     return defaultScalar(field.T);
   }
 
@@ -128,22 +117,6 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
     return defaultMessage(messageType, sources, imports, visiting);
   }
 
-  return ts.factory.createNull();
-}
-
-function valueToExpression(value: any): ts.Expression {
-  if (typeof value === "string") {
-    return ts.factory.createStringLiteral(value);
-  }
-  if (typeof value === "number") {
-    if (value < 0) {
-      return ts.factory.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, ts.factory.createNumericLiteral(Math.abs(value)));
-    }
-    return ts.factory.createNumericLiteral(value);
-  }
-  if (typeof value === "boolean") {
-    return value ? ts.factory.createTrue() : ts.factory.createFalse();
-  }
   return ts.factory.createNull();
 }
 

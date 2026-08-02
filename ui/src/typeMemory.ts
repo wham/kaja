@@ -1,47 +1,68 @@
 import { IMessageType, ScalarType } from "@protobuf-ts/runtime";
 import { clearTypeMemoryStore, deleteTypeMemoryValue, getAllTypeMemoryKeys, getTypeMemoryKeyCount, getTypeMemoryValue, setTypeMemoryValue } from "./storage";
 
-const MAX_VALUES_PER_FIELD = 1;
-const MAX_KEYS = 100;
+// Remembered values are offered as editor completions, never written into
+// generated code, so a handful per field is a list worth picking from rather
+// than a silent guess.
+const MAX_VALUES_PER_FIELD = 5;
+const MAX_TYPES_PER_NAME = 10;
+const MAX_KEYS = 400;
+// A list response repeats the same shape many times over; the first few
+// elements already carry everything worth suggesting.
+const MAX_ELEMENTS = 10;
+const MAX_DEPTH = 8;
 
-// Key prefixes for the memory store
-const MESSAGE_PREFIX = "message:";
-const SCALAR_PREFIX = "scalar:";
+// field:<typeName>:<fieldName> -> the values seen on that exact field.
+const FIELD_PREFIX = "field:";
+// name:<scalarType>:<fieldName> -> the type names that have such a field, so a
+// value seen on one type can be offered on a same-named field of another.
+const NAME_PREFIX = "name:";
 
-// Storage format: { t: timestamp, v: values[] }
-// Message memory: v = complete object snapshots
-// Scalar memory: v = individual values
+export type ScalarValue = string | number | boolean;
 
-interface StoredEntry {
+// Where a value came from: what the user sent, or what a service sent back.
+export type ValueOrigin = "request" | "response";
+
+export interface ValueSource {
+  // Method the value passed through, e.g. "MoviesService.ListMovies".
+  method: string;
+  origin: ValueOrigin;
+}
+
+export interface RememberedValue extends ValueSource {
+  value: ScalarValue;
+  // Message type the value was seen on, e.g. "movies.v1.Movie".
+  typeName: string;
+  fieldName: string;
+  // When it was last seen.
+  t: number;
+}
+
+interface StoredEntry<T> {
   t: number; // last updated timestamp
-  v: any[]; // values (FILO)
+  v: T[]; // values, most recent first
 }
 
 /**
- * Capture values from an object (request input or response output).
- * - Message fields are stored under the message name
- * - Scalar fields are stored by scalar type + field name
- * - If messageType is provided, nested messages are properly captured under their own names
+ * Record the scalar values of a request or response so they can be suggested
+ * later. Nested messages are recorded under their own type names.
  */
-export function captureValues(messageName: string, obj: any, messageType?: IMessageType<any>): void {
-  if (!messageName || !obj || typeof obj !== "object") {
+export function rememberValues(typeName: string, obj: any, messageType: IMessageType<any> | undefined, source: ValueSource): void {
+  if (!typeName || !obj || typeof obj !== "object") {
     return;
   }
 
   if (messageType) {
-    walkAndCaptureWithSchema(obj, messageName, messageType);
+    walkWithSchema(obj, typeName, messageType, source, 0);
   } else {
-    walkAndCapture(obj, messageName);
+    walkWithoutSchema(obj, typeName, source);
   }
 }
 
-function walkAndCaptureWithSchema(obj: any, messageName: string, messageType: IMessageType<any>): void {
-  if (obj === null || obj === undefined) {
+function walkWithSchema(obj: any, typeName: string, messageType: IMessageType<any>, source: ValueSource, depth: number): void {
+  if (!obj || typeof obj !== "object" || depth > MAX_DEPTH) {
     return;
   }
-
-  // Collect scalar fields for this message's snapshot
-  const snapshot: Record<string, any> = {};
 
   for (const field of messageType.fields) {
     const value = obj[field.localName];
@@ -50,258 +71,157 @@ function walkAndCaptureWithSchema(obj: any, messageName: string, messageType: IM
     }
 
     if (field.kind === "scalar") {
-      if (isScalar(value)) {
-        snapshot[field.localName] = value;
-        addToScalarMemory(field.localName, field.T, value);
+      if (field.repeat && Array.isArray(value)) {
+        value.slice(0, MAX_ELEMENTS).forEach((element) => remember(typeName, field.localName, element, field.T, source));
+      } else {
+        remember(typeName, field.localName, value, field.T, source);
       }
     } else if (field.kind === "message") {
       const nestedType = field.T();
-      if (field.repeat) {
-        // Repeated message field (array)
-        if (Array.isArray(value)) {
-          value.forEach((item) => {
-            if (item && typeof item === "object") {
-              walkAndCaptureWithSchema(item, nestedType.typeName, nestedType);
-            }
-          });
-        }
+      if (field.repeat && Array.isArray(value)) {
+        value.slice(0, MAX_ELEMENTS).forEach((element) => walkWithSchema(element, nestedType.typeName, nestedType, source, depth + 1));
       } else {
-        // Single message field - recurse to capture under nested type's name
-        if (typeof value === "object") {
-          walkAndCaptureWithSchema(value, nestedType.typeName, nestedType);
-        }
+        walkWithSchema(value, nestedType.typeName, nestedType, source, depth + 1);
       }
-    } else if (field.kind === "map") {
-      // Map fields - capture values if they're scalars
-      if (typeof value === "object" && field.V.kind === "scalar") {
-        for (const mapKey of Object.keys(value)) {
-          const mapValue = value[mapKey];
-          if (isScalar(mapValue)) {
-            addToScalarMemory(field.localName, field.V.T, mapValue);
-          }
-        }
+    } else if (field.kind === "map" && field.V.kind === "scalar" && typeof value === "object") {
+      for (const mapKey of Object.keys(value).slice(0, MAX_ELEMENTS)) {
+        remember(typeName, field.localName, value[mapKey], field.V.T, source);
       }
     }
-    // Enums are not captured as they're typically fixed values
-  }
-
-  // Store the snapshot if we captured any scalar fields
-  if (Object.keys(snapshot).length > 0) {
-    addMessageSnapshot(messageName, snapshot);
+    // Enums are not remembered; the generated code already names their values.
   }
 }
 
-function walkAndCapture(obj: any, messageName: string): void {
-  if (obj === null || obj === undefined) {
-    return;
-  }
-
-  // For non-schema capture, store the entire object as a snapshot
-  // Extract only scalar values (nested objects are different messages)
-  const snapshot = extractScalars(obj);
-
-  if (Object.keys(snapshot).length > 0) {
-    addMessageSnapshot(messageName, snapshot);
-  }
-}
-
-function extractScalars(obj: any): Record<string, any> {
-  const result: Record<string, any> = {};
-
-  if (obj === null || obj === undefined || typeof obj !== "object") {
-    return result;
-  }
-
+function walkWithoutSchema(obj: any, typeName: string, source: ValueSource): void {
+  // Without a schema there is no way to tell which type a nested object has, so
+  // only the top-level scalars are remembered, and without a scalar type they
+  // stay off the by-name index.
   for (const key of Object.keys(obj)) {
-    const value = obj[key];
-    if (isScalar(value)) {
-      result[key] = value;
-    }
-    // Don't recurse into nested objects - they would be different types
+    remember(typeName, key, obj[key], undefined, source);
   }
-
-  return result;
 }
 
-function isScalar(value: any): boolean {
-  if (value === null || value === undefined) {
-    return false;
-  }
+function isScalar(value: any): value is ScalarValue {
   const type = typeof value;
   return type === "string" || type === "number" || type === "boolean";
 }
 
-function getScalarKey(fieldName: string, scalarType: ScalarType): string {
-  return `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
+function fieldKey(typeName: string, fieldName: string): string {
+  return `${FIELD_PREFIX}${typeName}:${fieldName}`;
 }
 
-function getMessageKey(messageName: string): string {
-  return `${MESSAGE_PREFIX}${messageName}`;
+function nameKey(fieldName: string, scalarType: ScalarType): string {
+  return `${NAME_PREFIX}${scalarType}:${fieldName}`;
 }
 
-function normalizeEntry(raw: any): StoredEntry {
-  // Handle migration from old formats or corrupted data
-  if (!raw || typeof raw !== "object") {
+function readEntry<T>(key: string): StoredEntry<T> {
+  const raw = getTypeMemoryValue<any>(key);
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.v)) {
     return { t: 0, v: [] };
   }
-  // Old format was plain array
-  if (Array.isArray(raw)) {
-    return { t: 0, v: raw };
-  }
-  // Current format
-  if (Array.isArray(raw.v)) {
-    return { t: raw.t ?? 0, v: raw.v };
-  }
-  return { t: 0, v: [] };
+  return { t: raw.t ?? 0, v: raw.v };
 }
 
-function stableStringify(obj: any): string {
-  // Sort keys for consistent comparison
-  return JSON.stringify(obj, Object.keys(obj).sort());
+// Move `value` to the front of the entry, dropping any earlier occurrence, and
+// trim the entry to `max`.
+function promote<T>(entry: StoredEntry<T>, value: T, max: number, matches: (candidate: T) => boolean): StoredEntry<T> {
+  const kept = entry.v.filter((candidate) => !matches(candidate));
+  kept.unshift(value);
+  kept.length = Math.min(kept.length, max);
+  return { t: Date.now(), v: kept };
 }
 
-function addMessageSnapshot(messageName: string, snapshot: any): void {
-  const key = getMessageKey(messageName);
-  const entry = normalizeEntry(getTypeMemoryValue(key));
-
-  // Check if this exact snapshot already exists (deep equality check with stable key order)
-  const snapshotStr = stableStringify(snapshot);
-  const existingIndex = entry.v.findIndex((v) => stableStringify(v) === snapshotStr);
-
-  if (existingIndex >= 0) {
-    // Remove from current position
-    entry.v.splice(existingIndex, 1);
+function remember(typeName: string, fieldName: string, value: any, scalarType: ScalarType | undefined, source: ValueSource): void {
+  if (!isScalar(value)) {
+    return;
   }
 
-  // Add to front (most recent)
-  entry.v.unshift(snapshot);
+  const key = fieldKey(typeName, fieldName);
+  const remembered: RememberedValue = { value, typeName, fieldName, method: source.method, origin: source.origin, t: Date.now() };
+  setTypeMemoryValue(
+    key,
+    promote(readEntry<RememberedValue>(key), remembered, MAX_VALUES_PER_FIELD, (candidate) => candidate.value === value),
+  );
 
-  // Keep only the max values
-  if (entry.v.length > MAX_VALUES_PER_FIELD) {
-    entry.v.length = MAX_VALUES_PER_FIELD;
+  if (scalarType !== undefined) {
+    const index = nameKey(fieldName, scalarType);
+    setTypeMemoryValue(
+      index,
+      promote(readEntry<string>(index), typeName, MAX_TYPES_PER_NAME, (candidate) => candidate === typeName),
+    );
   }
 
-  // Update timestamp
-  entry.t = Date.now();
-
-  setTypeMemoryValue(key, entry);
-  evictOldKeys();
-}
-
-function addToScalarMemory(fieldName: string, scalarType: ScalarType, value: any): void {
-  const key = getScalarKey(fieldName, scalarType);
-  const entry = normalizeEntry(getTypeMemoryValue(key));
-
-  const existingIndex = entry.v.indexOf(value);
-
-  if (existingIndex >= 0) {
-    // Remove from current position
-    entry.v.splice(existingIndex, 1);
-  }
-
-  // Add to front (most recent)
-  entry.v.unshift(value);
-
-  // Keep only the max values
-  if (entry.v.length > MAX_VALUES_PER_FIELD) {
-    entry.v.length = MAX_VALUES_PER_FIELD;
-  }
-
-  // Update timestamp
-  entry.t = Date.now();
-
-  setTypeMemoryValue(key, entry);
   evictOldKeys();
 }
 
 function evictOldKeys(): void {
   // O(1) check - only evict when at 2x the limit
-  const count = getTypeMemoryKeyCount();
-  if (count <= MAX_KEYS * 2) {
+  if (getTypeMemoryKeyCount() <= MAX_KEYS * 2) {
     return;
   }
 
-  // Get all entries with their timestamps
-  const keys = getAllTypeMemoryKeys();
-  const entries: { key: string; t: number }[] = [];
-  for (const key of keys) {
-    const entry = normalizeEntry(getTypeMemoryValue(key));
-    entries.push({ key, t: entry.t });
-  }
-
-  // Sort by timestamp (oldest first)
+  const entries = getAllTypeMemoryKeys().map((key) => ({ key, t: readEntry(key).t }));
   entries.sort((a, b) => a.t - b.t);
 
-  // Delete oldest entries until we're at max
-  const toDelete = entries.slice(0, entries.length - MAX_KEYS);
-  for (const { key } of toDelete) {
+  for (const { key } of entries.slice(0, entries.length - MAX_KEYS)) {
     deleteTypeMemoryValue(key);
   }
 }
 
 /**
- * Get memorized value for a message field.
- * Extracts the field from the most recent snapshot of this message type.
+ * Values to suggest for a field, most recent first: the ones seen on this exact
+ * field, then the ones seen on same-named fields of other message types.
  */
-export function getMessageMemorizedValue(messageName: string, fieldName: string): any | undefined {
-  const key = getMessageKey(messageName);
-  const entry = normalizeEntry(getTypeMemoryValue(key));
-  if (entry.v.length === 0) {
-    return undefined;
+export function recallValues(typeName: string, fieldName: string, scalarType?: ScalarType): RememberedValue[] {
+  const exact = readEntry<RememberedValue>(fieldKey(typeName, fieldName)).v;
+
+  const related: RememberedValue[] = [];
+  if (scalarType !== undefined) {
+    for (const otherType of readEntry<string>(nameKey(fieldName, scalarType)).v) {
+      if (otherType !== typeName) {
+        related.push(...readEntry<RememberedValue>(fieldKey(otherType, fieldName)).v);
+      }
+    }
+    related.sort((a, b) => b.t - a.t);
   }
 
-  // Get from the most recent snapshot
-  const snapshot = entry.v[0];
-  if (!snapshot || typeof snapshot !== "object") {
-    return undefined;
+  const seen = new Set<string>();
+  const values: RememberedValue[] = [];
+  for (const remembered of [...exact, ...related]) {
+    const key = typeof remembered.value + ":" + String(remembered.value);
+    if (!seen.has(key)) {
+      seen.add(key);
+      values.push(remembered);
+    }
   }
-  return snapshot[fieldName];
+
+  return values;
 }
 
 /**
- * Get memorized value for a scalar field by field name and protobuf scalar type.
- * Used when generating defaults for scalar fields.
+ * Drop entries left behind by an earlier layout of the store, which are unread
+ * by the current keys but still count against the key budget.
  */
-export function getScalarMemorizedValue(fieldName: string, scalarType: ScalarType): any | undefined {
-  const key = `${SCALAR_PREFIX}${scalarType}:${fieldName}`;
-  const entry = normalizeEntry(getTypeMemoryValue(key));
-
-  if (entry.v.length === 0) {
-    return undefined;
+export function pruneTypeMemory(): void {
+  for (const key of getAllTypeMemoryKeys()) {
+    if (!key.startsWith(FIELD_PREFIX) && !key.startsWith(NAME_PREFIX)) {
+      deleteTypeMemoryValue(key);
+    }
   }
-
-  return entry.v[0];
 }
 
 /**
- * Get all memorized values for a scalar field (for suggestions).
- */
-export function getScalarMemorizedValues(fieldName: string, scalarType: ScalarType): any[] {
-  const entry = normalizeEntry(getTypeMemoryValue(`${SCALAR_PREFIX}${scalarType}:${fieldName}`));
-  return entry.v;
-}
-
-/**
- * Clear all type memory.
+ * Forget every remembered value.
  */
 export function clearTypeMemory(): void {
   clearTypeMemoryStore();
 }
 
 /**
- * Get all stored message names (for debugging).
+ * All fields that have remembered values, as "<typeName>:<fieldName>".
  */
-export function getAllStoredMessages(): string[] {
+export function getAllRememberedFields(): string[] {
   return getAllTypeMemoryKeys()
-    .filter((key) => key.startsWith(MESSAGE_PREFIX))
-    .map((key) => key.slice(MESSAGE_PREFIX.length));
-}
-
-/**
- * Get all stored scalar keys (for debugging).
- */
-export function getAllStoredScalars(): string[] {
-  return getAllTypeMemoryKeys()
-    .filter((key) => key.startsWith(SCALAR_PREFIX))
-    .map((key) => key.slice(SCALAR_PREFIX.length));
+    .filter((key) => key.startsWith(FIELD_PREFIX))
+    .map((key) => key.slice(FIELD_PREFIX.length));
 }

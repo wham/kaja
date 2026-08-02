@@ -1,6 +1,6 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
-import { captureValues } from "./typeMemory";
+import { rememberValues } from "./typeMemory";
 
 // Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
 // swallows it so a cancelled prompt quietly stops the script.
@@ -108,13 +108,12 @@ class KajaInternal {
 
   methodCallUpdate(methodCall: MethodCall) {
     if (methodCall.output && !methodCall.error) {
-      // Capture input values by input type
+      const method = `${methodCall.service.name}.${methodCall.method.name}`;
       if (methodCall.inputTypeName) {
-        captureValues(methodCall.inputTypeName, methodCall.input, methodCall.inputType);
+        rememberValues(methodCall.inputTypeName, methodCall.input, methodCall.inputType, { method, origin: "request" });
       }
-      // Capture output values by output type
       if (methodCall.outputTypeName) {
-        captureValues(methodCall.outputTypeName, methodCall.output, methodCall.outputType);
+        rememberValues(methodCall.outputTypeName, methodCall.output, methodCall.outputType, { method, origin: "response" });
       }
     }
     this.#onMethodCallUpdate(methodCall);
