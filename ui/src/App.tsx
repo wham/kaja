@@ -24,7 +24,7 @@ import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { registerKajaModule, setValueCompletionApps } from "./Editor";
-import { monacoTheme } from "./monacoTheme";
+import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -595,7 +595,7 @@ export function App() {
 
   useEffect(() => {
     monaco.editor.setTheme(monacoTheme(colorMode));
-    document.body.style.backgroundColor = colorMode === "night" ? "#0d1117" : "#ffffff";
+    document.body.style.backgroundColor = surfaceColor(colorMode);
     // Drive the shadcn theme tokens. The class goes on <html> so Radix portals
     // (rendered into <body>) are themed too.
     document.documentElement.classList.toggle("dark", colorMode === "night");
@@ -1613,7 +1613,7 @@ export function App() {
           <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <div
-              className="flex h-[30px] shrink-0 items-center border-b border-border bg-background"
+              className="flex h-[30px] shrink-0 items-center border-b border-border bg-chrome"
               style={{ "--wails-draggable": "drag" } as React.CSSProperties}
             >
               {/* A panel toggle reads as "this edge", so it sits against the sidebar seam.
@@ -1645,7 +1645,7 @@ export function App() {
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
                 <div
                   onClick={() => setIsSearchOpen(true)}
-                  className="flex shrink-0 cursor-pointer select-none items-center rounded-md border border-border bg-muted px-3 py-0.5 text-xs text-muted-foreground"
+                  className="flex shrink-0 cursor-pointer select-none items-center rounded-md border border-border bg-background px-3 py-0.5 text-xs text-muted-foreground"
                 >
                   {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
                 </div>

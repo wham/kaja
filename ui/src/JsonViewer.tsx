@@ -138,15 +138,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
 
   return (
     <div className="relative h-full">
-      <style>{`
-        .json-viewer-container .monaco-editor,
-        .json-viewer-container .monaco-editor-background,
-        .json-viewer-container .monaco-editor .margin {
-          background-color: var(--muted) !important;
-        }
-      `}</style>
-      {/* Editor */}
-      <div ref={containerRef} className="json-viewer-container h-full bg-muted" />
+      <div ref={containerRef} className="h-full bg-background" />
     </div>
   );
 });

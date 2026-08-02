@@ -369,16 +369,5 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
     };
   }, [model]);
 
-  return (
-    <>
-      <style>{`
-        .editor-container .monaco-editor,
-        .editor-container .monaco-editor-background,
-        .editor-container .monaco-editor .margin {
-          background-color: var(--muted) !important;
-        }
-      `}</style>
-      <div ref={containerRef} className="editor-container h-full w-full bg-muted" />
-    </>
-  );
+  return <div ref={containerRef} className="h-full w-full bg-background" />;
 }

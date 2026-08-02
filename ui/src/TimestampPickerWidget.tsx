@@ -61,7 +61,7 @@ function TimestampPicker({ initialSeconds, initialNanos, fieldName, onApply }: T
   const inputClass = "rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
 
   return (
-    <div className="min-w-[280px] rounded-md border border-border bg-muted p-4 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+    <div className="min-w-[280px] rounded-md border border-border bg-popover p-4 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
       <FormControl>
         <FormControl.Label>Date and time ({getTimezoneAbbr()})</FormControl.Label>
         <div className="flex gap-2">

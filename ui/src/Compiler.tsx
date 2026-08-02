@@ -72,7 +72,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }
   if (apps.length === 0) {
     if (!configurationLoaded) {
       return (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-muted text-muted-foreground">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-background text-muted-foreground">
           <div>
             <Spinner />
             <div className="mt-3">Loading configuration...</div>
@@ -85,7 +85,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-muted">
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {apps.map((app, index) => {
           const isExpanded = expandedApps.has(app.configuration.name);
@@ -129,7 +129,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }
                 </ActionList>
               </div>
               {isExpanded && (
-                <div data-testid="compiler-logs" className="bg-muted">
+                <div data-testid="compiler-logs" className="bg-background">
                   <div className="px-4 py-3 font-mono text-xs">
                     {app.compilation.logs.map((log, logIndex) => (
                       <div key={logIndex} className="mb-px flex leading-5">

@@ -561,16 +561,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
             </div>
           </div>
         ) : (
-          <>
-            <style>{`
-              .app-form-editor .monaco-editor,
-              .app-form-editor .monaco-editor-background,
-              .app-form-editor .monaco-editor .margin {
-                background-color: var(--background) !important;
-              }
-            `}</style>
-            <div ref={editorContainerRef} className="app-form-editor h-full min-h-[300px] bg-background" />
-          </>
+          <div ref={editorContainerRef} className="h-full min-h-[300px] bg-background" />
         )}
       </div>
 
