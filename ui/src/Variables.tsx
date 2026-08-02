@@ -194,7 +194,7 @@ export function Variables({ variables, status, storeAvailable, usage, readOnly =
   };
 
   return (
-    <div className="flex h-full flex-col bg-muted">
+    <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2">
         <Braces size={16} className="text-muted-foreground" />
         <span className="font-semibold">Variables</span>

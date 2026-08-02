@@ -197,7 +197,7 @@ export function StatusBar({
   // The right padding is 11, not 12: these glyphs are smaller than the rest of the
   // chrome's, so they need one pixel less to land on the same 16px right line.
   return (
-    <div className="flex h-[30px] shrink-0 items-center border-t border-border bg-background pl-3 pr-[11px]">
+    <div className="flex h-[30px] shrink-0 items-center border-t border-border bg-chrome pl-3 pr-[11px]">
       <div className="flex items-center gap-2">
         {leftItems.map((item, index) => (
           <Fragment key={index}>

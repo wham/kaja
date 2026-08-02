@@ -109,7 +109,7 @@ export function SearchPopup({ isOpen, apps, onClose, onSelect }: SearchPopupProp
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/50 pt-[15vh]" onClick={handleBackdropClick}>
-      <div className="w-full max-w-[560px] overflow-hidden rounded-xl border border-border bg-background shadow-[0_8px_32px_rgba(0,0,0,0.24)]">
+      <div className="w-full max-w-[560px] overflow-hidden rounded-xl border border-border bg-popover shadow-[0_8px_32px_rgba(0,0,0,0.24)]">
         <div className="p-3">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">

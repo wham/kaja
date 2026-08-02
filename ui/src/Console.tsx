@@ -166,10 +166,10 @@ export function Console({ items, onClear }: ConsoleProps) {
         )}
       </div>
 
-      {/* The response owns the full width of the console below the header.
-          Elevated to the same surface as the editor: payloads are content, the
-          header around them is chrome. */}
-      <div className="flex min-h-0 flex-1 flex-col bg-muted">
+      {/* The response owns the full width of the console below the header, on
+          the same sunken surface as the editor — the split between them is a
+          hairline, not a value step. */}
+      <div className="flex min-h-0 flex-1 flex-col bg-background">
         {selectedMethodCall ? (
           <Console.DetailContent methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} jsonViewerRef={jsonViewerRef} />
         ) : selectedLogs ? (

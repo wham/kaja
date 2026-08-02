@@ -140,7 +140,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 aria-selected={isActive}
                 className={cn(
                   "group box-border flex h-[35px] shrink-0 cursor-pointer items-center border-b border-r border-t-2 border-r-border border-t-transparent pl-4 pr-2.5 text-sm hover:bg-accent",
-                  isActive ? "border-b-transparent border-t-primary bg-muted" : "border-b-border bg-background",
+                  isActive ? "border-b-transparent border-t-primary bg-background" : "border-b-border bg-chrome",
                 )}
                 onClick={() => onSelectTab(index)}
                 onDoubleClick={() => onKeepTab?.(index)}
@@ -173,16 +173,13 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
               </div>
             );
           })}
-          <div className="grow border-b border-border" />
+          <div className="grow border-b border-border bg-chrome" />
         </div>
         {tabCount > 0 && (onCloseAll || controls) && (
           <>
             {/* Tabs scroll under the menu, so they fade out instead of being clipped mid-label. */}
-            <div
-              className="pointer-events-none absolute bottom-px top-0 w-6 bg-gradient-to-r from-transparent to-background"
-              style={{ right: controlsWidth }}
-            />
-            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1 border-b border-border bg-background pl-1 pr-2.5">
+            <div className="pointer-events-none absolute bottom-px top-0 w-6 bg-gradient-to-r from-transparent to-chrome" style={{ right: controlsWidth }} />
+            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1 border-b border-border bg-chrome pl-1 pr-2.5">
               {controls}
               {onCloseAll && (
                 <DropdownMenu>

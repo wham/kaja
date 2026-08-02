@@ -25,6 +25,11 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* The frame around the content: sidebar, tab strip, status bar. Content —
+     editors, responses, forms — sits on --background, one step below it, so the
+     thing you stare at longest is the quietest plane in the window. */
+  --chrome: oklch(0.97 0 0);
 }
 
 .dark {
@@ -47,6 +52,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+
+  --chrome: oklch(0.205 0 0);
 }
 
 @theme inline {
@@ -74,6 +81,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chrome: var(--chrome);
 
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
