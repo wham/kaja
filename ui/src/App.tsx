@@ -38,6 +38,7 @@ import {
   getAppFormTabLabel,
   getScriptTabLabel,
   getTabLabel,
+  getVariablesTabIndex,
   linkTabsToApps,
   markInteraction,
   PersistedTabState,
@@ -309,6 +310,10 @@ export function App() {
     ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
     { key: "previewApps", label: "Preview Apps", enabled: previewApps },
   ];
+
+  // Variables exist to be read by scripts and by app configuration, both of which
+  // are previews, so the tab rides along with whichever of them is on.
+  const variablesEnabled = previewScripts || previewApps;
 
   const onToggleFeaturePreview = useCallback((key: string) => {
     if (key === "scripts") {
@@ -1251,6 +1256,17 @@ export function App() {
     persistTabs();
   };
 
+  // Turning off the last preview that uses variables takes the open tab with it,
+  // rather than leaving a tab behind with no way to open it again.
+  useEffect(() => {
+    if (variablesEnabled) return;
+    const index = getVariablesTabIndex(tabsRef.current);
+    if (index === -1) return;
+    variablesDirtyRef.current = false;
+    closeTab(index);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variablesEnabled]);
+
   const onCloseAll = () => {
     setTabs((prevTabs) => {
       prevTabs.forEach(disposeTabEditor);
@@ -1586,7 +1602,7 @@ export function App() {
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
-                onVariablesClick={onVariablesClick}
+                onVariablesClick={variablesEnabled ? onVariablesClick : undefined}
                 autoExpandApp={autoExpandApp}
                 reserveTrafficLights={isDesktopMac}
                 onEditApp={onEditApp}
