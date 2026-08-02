@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { GitBranch, MessagesSquare, Moon, Sun, Plug } from "lucide-react";
 import { cn } from "./cn";
 import { Button } from "./components/button";
@@ -8,6 +8,9 @@ import { SegmentedControl } from "./components/segmented-control";
 import { isWailsEnvironment } from "./wails";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
+import { CompileStatus } from "./CompileStatus";
+import { summarizeCompilation } from "./compileSummary";
+import { App } from "./apps";
 import { main } from "./wailsjs/go/models";
 
 export type ColorMode = "day" | "night";
@@ -24,6 +27,10 @@ interface StatusBarProps {
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
   mcpInfo?: main.MCPInfo;
+  apps: App[];
+  configurationLoaded: boolean;
+  onShowCompileLog: (appName?: string) => void;
+  onRecompile: (appName?: string) => void;
 }
 
 // McpClient is one way to connect an agent to the local MCP server. Each client
@@ -132,7 +139,19 @@ function openFeedback() {
   }
 }
 
-export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, featurePreviews, onToggleFeaturePreview, mcpInfo }: StatusBarProps) {
+export function StatusBar({
+  colorMode,
+  onToggleColorMode,
+  gitRef,
+  buildNumber,
+  featurePreviews,
+  onToggleFeaturePreview,
+  mcpInfo,
+  apps,
+  configurationLoaded,
+  onShowCompileLog,
+  onRecompile,
+}: StatusBarProps) {
   const shortRef = gitRef ? (gitRef.length > 7 ? gitRef.slice(0, 7) : gitRef) : undefined;
   const githubUrl = gitRef ? `https://github.com/wham/kaja/tree/${gitRef}` : undefined;
 
@@ -143,25 +162,49 @@ export function StatusBar({ colorMode, onToggleColorMode, gitRef, buildNumber, f
     }
   };
 
+  // The left cluster is whatever this build has to say about itself, separated by
+  // rules. The compile status sits at the end so its label can grow and shrink
+  // without moving the ref and the build around.
+  const leftItems: React.ReactNode[] = [];
+  if (githubUrl && shortRef) {
+    leftItems.push(
+      <a
+        key="ref"
+        href={githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={handleLinkClick}
+        className="inline-flex items-center gap-2 text-xs text-muted-foreground no-underline hover:text-foreground"
+      >
+        <GitBranch size={14} />
+        <span>{shortRef}</span>
+      </a>,
+    );
+  }
+  if (buildNumber) {
+    leftItems.push(
+      <span key="build" className="font-mono text-xs text-muted-foreground">
+        build {buildNumber}
+      </span>,
+    );
+  }
+  if (summarizeCompilation(apps, configurationLoaded).state !== "empty") {
+    leftItems.push(
+      <CompileStatus key="compile" apps={apps} configurationLoaded={configurationLoaded} onShowLog={onShowCompileLog} onRecompile={onRecompile} />,
+    );
+  }
+
   // The right padding is 11, not 12: these glyphs are smaller than the rest of the
   // chrome's, so they need one pixel less to land on the same 16px right line.
   return (
     <div className="flex h-[30px] shrink-0 items-center border-t border-border bg-background pl-3 pr-[11px]">
       <div className="flex items-center gap-2">
-        {githubUrl && shortRef && (
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleLinkClick}
-            className="inline-flex items-center gap-2 text-xs text-muted-foreground no-underline hover:text-foreground"
-          >
-            <GitBranch size={14} />
-            <span>{shortRef}</span>
-          </a>
-        )}
-        {githubUrl && shortRef && buildNumber && <div className="h-3 w-px bg-border" />}
-        {buildNumber && <span className="font-mono text-xs text-muted-foreground">build {buildNumber}</span>}
+        {leftItems.map((item, index) => (
+          <Fragment key={index}>
+            {index > 0 && <div className="h-3 w-px bg-border" />}
+            {item}
+          </Fragment>
+        ))}
       </div>
       <div className="ml-auto flex items-center gap-3">
         {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}

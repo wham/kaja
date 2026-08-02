@@ -186,24 +186,18 @@ async function takeDemo() {
 
     await page.screenshot({ path: `${DEMO_DIR}/call.png` });
 
-    // 4. Compiler screenshot - click Compiler button and expand first project
+    // 4. Compile log screenshot - open it from the status bar and expand an app
     console.log("Taking compiler screenshot...");
 
-    // Click the Compiler button (CPU icon in sidebar header)
-    const compilerButton = page.locator('button[aria-label="Open Compiler"]');
-    const compilerButtonFallback = page.locator('button[aria-label="Open Compiler"]');
+    // The compile status in the status bar is the way in: it opens a popover
+    // listing every app, and picking one opens its log.
+    await page.locator('button[aria-label*="open app status"]').click();
+    await waitFor(page, '[data-testid="app-status-row"]', "app status popover");
+    await settleDelay(page, 300);
+    await page.locator('[data-testid="app-status-row"]').first().click();
 
-    if ((await compilerButton.count()) > 0) {
-      await compilerButton.click();
-    } else if ((await compilerButtonFallback.count()) > 0) {
-      await compilerButtonFallback.click();
-    } else {
-      // Last fallback
-      await page.locator('button[aria-label*="ompiler"]').click();
-    }
-
-    // Wait for compiler tab to become active
-    await waitFor(page, '[role="tab"][aria-selected="true"]:has-text("Compiler")', "Compiler tab to become active");
+    // Wait for the compile log tab to become active
+    await waitFor(page, '[role="tab"][aria-selected="true"]:has-text("Compile log")', "Compile log tab to become active");
 
     // Wait for compiler content to load - either project items or loading state to finish
     await waitForTextHidden(page, "Loading configuration", "configuration to load");
@@ -212,32 +206,7 @@ async function takeDemo() {
     });
     await settleDelay(page);
 
-    // Expand the first compiled project by clicking its list item
-    const compilerSelectors = ['[data-testid="compiler-item"] li'];
-
-    let clicked = false;
-    for (const selector of compilerSelectors) {
-      const item = page.locator(selector).first();
-      if ((await item.count()) > 0) {
-        await item.click();
-        clicked = true;
-        console.log(`  ✓ Clicked compiler item using: ${selector}`);
-        break;
-      }
-    }
-
-    if (!clicked) {
-      // Last resort: click by visible text
-      const textItem = page.getByText('seating').first();
-      if ((await textItem.count()) > 0) {
-        await textItem.click();
-        console.log("  ✓ Clicked compiler item using text: seating");
-      } else {
-        console.log("  ⚠ Could not find compiler item to expand");
-      }
-    }
-
-    // Wait for logs to expand - look for expanded state or logs container
+    // Opening the log from the popover expands that app's logs already
     await waitFor(page, '[data-testid="compiler-logs"]', "logs to expand", 5000).catch(() => {
       console.log("  ✓ Logs expansion state unknown, proceeding");
     });
