@@ -5,6 +5,7 @@ option go_package = "pkg/api";
 service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
+  rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
 }
@@ -44,6 +45,107 @@ message OpenAppResponse {
   string target = 4;
   // Transport the client uses to reach the target: "grpc" or "twirp".
   string protocol = 5;
+}
+
+// InspectOpenApi reads an OpenAPI document without creating an app, so the New
+// OpenAPI app form can fill itself in from the document: its title and version,
+// the servers it declares, and the security schemes it accepts. The app carries
+// the same parameters the app would be opened with (spec_url or spec_content, and
+// the credentials used to fetch a protected document).
+message InspectOpenApiRequest {
+  OpenApiApp openapi = 1;
+}
+
+message InspectOpenApiResponse {
+  // Set when the document was read; the form fills itself in from it.
+  OpenApiDocument document = 1;
+  // Set when it wasn't; the form shows it in place of the document summary.
+  OpenApiProblem problem = 2;
+}
+
+message OpenApiDocument {
+  string title = 1;
+  // The API's own version, from info.version.
+  string version = 2;
+  // The OpenAPI specification version, from the openapi field.
+  string openapi_version = 3;
+  int32 operation_count = 4;
+  int32 tag_count = 5;
+  repeated OpenApiServer servers = 6;
+  repeated OpenApiSecurityScheme security_schemes = 7;
+  // Base URL derived from the document URL's origin, set only when the document
+  // declares no servers of its own.
+  string guessed_base_url = 8;
+  // Whether any operation declares its own security. When it doesn't, every
+  // scheme applies to every operation and the coverage counts carry no
+  // information.
+  bool per_operation_security = 9;
+}
+
+message OpenApiServer {
+  string url = 1;
+  string description = 2;
+  repeated OpenApiServerVariable variables = 3;
+}
+
+// OpenApiServerVariable is one {placeholder} in a server URL. The form renders a
+// select when the document enumerates the allowed values, and a text field
+// otherwise.
+message OpenApiServerVariable {
+  string name = 1;
+  string default_value = 2;
+  repeated string enum_values = 3;
+  string description = 4;
+}
+
+message OpenApiSecurityScheme {
+  // Name of the scheme in components.securitySchemes; what security_scheme in
+  // OpenApiApp refers to.
+  string key = 1;
+  // apiKey | http | oauth2 | openIdConnect | mutualTLS
+  string type = 2;
+  // The HTTP authentication scheme (bearer, basic, digest, ...) for type http.
+  string scheme = 3;
+  string bearer_format = 4;
+  // header | query | cookie, for type apiKey.
+  string in = 5;
+  // Parameter name for type apiKey.
+  string parameter_name = 6;
+  string open_id_connect_url = 7;
+  string description = 8;
+  // Number of operations that accept this scheme on its own.
+  int32 operation_count = 9;
+  // Whether the scheme only ever appears alongside another one, which a single
+  // credential per app can't satisfy.
+  bool requires_others = 10;
+}
+
+// OpenApiProblem is a document that couldn't be read, classified so the form can
+// name the next move instead of printing a raw error.
+message OpenApiProblem {
+  OpenApiProblemKind kind = 1;
+  // One line, addressed to the user.
+  string message = 2;
+  // The underlying transport or parser error, verbatim.
+  string detail = 3;
+}
+
+enum OpenApiProblemKind {
+  OPEN_API_PROBLEM_UNKNOWN = 0;
+  // The host couldn't be reached (DNS, TCP, TLS).
+  OPEN_API_PROBLEM_UNREACHABLE = 1;
+  // The document itself is behind a login (401/403).
+  OPEN_API_PROBLEM_UNAUTHORIZED = 2;
+  // Any other non-200 response.
+  OPEN_API_PROBLEM_HTTP_ERROR = 3;
+  // The response is an HTML page, almost always a login redirect or docs page.
+  OPEN_API_PROBLEM_HTML = 4;
+  // Parsed, but it isn't an OpenAPI document.
+  OPEN_API_PROBLEM_NOT_A_DOCUMENT = 5;
+  // A Swagger 2.0 document, which kaja doesn't read.
+  OPEN_API_PROBLEM_SWAGGER2 = 6;
+  // Not parseable as JSON or YAML.
+  OPEN_API_PROBLEM_MALFORMED = 7;
 }
 
 message CompileResponse {
@@ -159,6 +261,15 @@ message OpenApiApp {
   map<string, string> headers = 5;
   string spec_content = 6;
   string base_url = 7;
+  // Which of the document's security schemes the credentials belong to, by its
+  // name in components.securitySchemes. Empty picks a scheme from the document;
+  // "none" sends no credentials at all.
+  string security_scheme = 8;
+  // A single header sent while fetching spec_url, for documents that are
+  // themselves behind a login. Kept apart from the credentials above because the
+  // document and the API it describes often want different tokens.
+  string spec_header_name = 9;
+  string spec_header_value = 10;
 }
 
 // OpenAiApp calls the OpenAI chat completions API.

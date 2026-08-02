@@ -1005,9 +1005,9 @@ paths:
 			}))
 			defer srv.Close()
 
-			s, err := loadSpec(srv.URL+"/openapi.yaml", tc.token, tc.user, tc.password, func(string) {})
-			if err != nil {
-				t.Fatalf("loadSpec: %v", err)
+			s, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{token: tc.token, username: tc.user, password: tc.password}, func(string) {})
+			if problem != nil {
+				t.Fatalf("loadSpec: %v", problem)
 			}
 			if s.Info.Title != "Guarded" {
 				t.Errorf("title = %q", s.Info.Title)
@@ -1018,7 +1018,7 @@ paths:
 
 // TestLoadSpecReportsLoginRedirect covers the real failure behind a misleading
 // YAML error: an unauthenticated fetch is redirected to an HTML sign-in page,
-// which must surface as an authentication error, not a parse error.
+// which must surface as a web page, not a parse error.
 func TestLoadSpecReportsLoginRedirect(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/signin" {
@@ -1031,12 +1031,12 @@ func TestLoadSpecReportsLoginRedirect(t *testing.T) {
 	defer srv.Close()
 
 	var logs []string
-	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(m string) { logs = append(logs, m) })
-	if err == nil {
-		t.Fatal("expected an error for an unauthenticated fetch")
+	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(m string) { logs = append(logs, m) })
+	if problem == nil {
+		t.Fatal("expected a problem for an unauthenticated fetch")
 	}
-	if !strings.Contains(err.Error(), "authentication") {
-		t.Errorf("error = %q, want it to mention authentication", err)
+	if problem.Kind != problemHTML {
+		t.Errorf("kind = %q, want %q (%v)", problem.Kind, problemHTML, problem)
 	}
 	// The compile log should make the redirect diagnosable.
 	joined := strings.Join(logs, "\n")
@@ -1053,9 +1053,9 @@ func TestLoadSpecReportsUnauthorizedStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(string) {})
-	if err == nil || !strings.Contains(err.Error(), "authentication") {
-		t.Fatalf("error = %v, want it to mention authentication", err)
+	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	if problem == nil || problem.Kind != problemUnauthorized {
+		t.Fatalf("problem = %v, want kind %q", problem, problemUnauthorized)
 	}
 }
 
@@ -1069,12 +1069,12 @@ func TestLoadSpecNonYAMLErrorIncludesSnippet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := loadSpec(srv.URL+"/openapi.yaml", "", "", "", func(string) {})
-	if err == nil {
-		t.Fatal("expected an error for a non-spec body")
+	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	if problem == nil {
+		t.Fatal("expected a problem for a non-spec body")
 	}
-	if !strings.Contains(err.Error(), "application/json") || !strings.Contains(err.Error(), "starts with") {
-		t.Errorf("error = %q, want content type and preview", err)
+	if !strings.Contains(problem.Detail, "application/json") || !strings.Contains(problem.Detail, "starts with") {
+		t.Errorf("detail = %q, want content type and preview", problem.Detail)
 	}
 }
 
@@ -1106,6 +1106,10 @@ paths:
 func TestBaseURLOverride(t *testing.T) {
 	specWithServer := &spec{Servers: []server{{URL: "https://spec.example.com/v1"}}}
 	specNoServer := &spec{}
+	specTemplatedServer := &spec{Servers: []server{{
+		URL:       "https://{region}.example.com/{version}",
+		Variables: map[string]serverVariable{"region": {Default: "eu-west"}, "version": {Default: "v2"}},
+	}}}
 
 	tests := []struct {
 		name     string
@@ -1118,6 +1122,7 @@ func TestBaseURLOverride(t *testing.T) {
 		{"override rescues uploaded spec without server", "", "https://api.example.com/v3", specNoServer, "https://api.example.com/v3"},
 		{"override trailing slash trimmed", "", "https://api.example.com/v3/", specNoServer, "https://api.example.com/v3"},
 		{"blank override falls back to spec server", "https://docs.example.com/openapi.json", "  ", specWithServer, "https://spec.example.com/v1"},
+		{"templated server falls back to its variable defaults", "", "", specTemplatedServer, "https://eu-west.example.com/v2"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

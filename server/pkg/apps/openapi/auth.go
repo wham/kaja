@@ -23,6 +23,10 @@ type auth struct {
 	kind       authKind
 	apiKeyIn   string // header | query | cookie (apiKey only)
 	apiKeyName string // parameter name (apiKey only)
+	// httpScheme is the name the credential is sent under in the Authorization
+	// header. "Bearer" unless the document declares another IANA scheme (digest,
+	// negotiate, ...), which kaja forwards verbatim without doing its handshake.
+	httpScheme string
 
 	token    string // bearer token or api key value
 	username string // basic auth user
@@ -54,7 +58,7 @@ func (a *auth) applyRequest(req *http.Request) {
 	switch a.kind {
 	case authBearer:
 		if a.token != "" {
-			req.Header.Set("Authorization", "Bearer "+a.token)
+			req.Header.Set("Authorization", a.authorizationScheme()+" "+a.token)
 		}
 	case authBasic:
 		req.SetBasicAuth(a.username, a.password)
@@ -73,12 +77,26 @@ func (a *auth) applyRequest(req *http.Request) {
 	}
 }
 
+// schemeNone is the security_scheme value that means "send no credentials",
+// chosen explicitly in the app form.
+const schemeNone = "none"
+
 // resolveAuth builds the auth for an opened app from the spec's security schemes
-// and the user's credentials. When the spec declares no usable scheme it falls
-// back to a sensible default based on which credentials were provided, so the app
-// still works against APIs whose specs omit their security section.
-func resolveAuth(s *spec, token, username, password string) *auth {
+// and the user's credentials. The app can pin the scheme its credentials belong
+// to (security_scheme); otherwise the scheme is picked from the document. When
+// the spec declares no usable scheme it falls back to a sensible default based on
+// which credentials were provided, so the app still works against APIs whose
+// specs omit their security section.
+func resolveAuth(s *spec, schemeKey, token, username, password string) *auth {
 	a := &auth{token: token, username: username, password: password}
+
+	if schemeKey == schemeNone {
+		return a
+	}
+	if pinned := s.Components.SecuritySchemes.get(schemeKey); schemeKey != "" && pinned != nil {
+		applyScheme(a, pinned)
+		return a
+	}
 
 	// The credential the user supplied decides the scheme. A username/password is
 	// unambiguously HTTP Basic, so honour it even when the spec's first security
@@ -91,21 +109,7 @@ func resolveAuth(s *spec, token, username, password string) *auth {
 	}
 
 	if scheme := pickScheme(s); scheme != nil {
-		switch scheme.Type {
-		case "http":
-			// Scheme names are case-insensitive; specs write "Bearer" and "bearer".
-			if strings.EqualFold(scheme.Scheme, "basic") {
-				a.kind = authBasic
-			} else {
-				a.kind = authBearer
-			}
-		case "apiKey":
-			a.kind = authAPIKey
-			a.apiKeyIn = scheme.In
-			a.apiKeyName = scheme.Name
-		case "oauth2", "openIdConnect":
-			a.kind = authBearer
-		}
+		applyScheme(a, scheme)
 	}
 
 	if a.kind == authNone && a.token != "" {
@@ -115,25 +119,63 @@ func resolveAuth(s *spec, token, username, password string) *auth {
 	return a
 }
 
+// authorizationScheme is the name a token is sent under, defaulting to Bearer.
+func (a *auth) authorizationScheme() string {
+	if a.httpScheme == "" {
+		return "Bearer"
+	}
+	return a.httpScheme
+}
+
+// applyScheme sets how the credentials are sent for one security scheme.
+func applyScheme(a *auth, scheme *securityScheme) {
+	switch scheme.Type {
+	case "http":
+		// Scheme names are case-insensitive; specs write "Bearer" and "bearer".
+		if strings.EqualFold(scheme.Scheme, "basic") {
+			a.kind = authBasic
+		} else {
+			a.kind = authBearer
+			if !strings.EqualFold(scheme.Scheme, "bearer") {
+				// digest, negotiate, hoba, ... - forwarded under their own name.
+				a.httpScheme = capitalize(scheme.Scheme)
+			}
+		}
+	case "apiKey":
+		a.kind = authAPIKey
+		a.apiKeyIn = scheme.In
+		a.apiKeyName = scheme.Name
+	case "oauth2", "openIdConnect":
+		a.kind = authBearer
+	}
+}
+
+// capitalize upper-cases the first letter, so a scheme written "digest" is sent
+// the way the Authorization header spells it.
+func capitalize(value string) string {
+	if value == "" {
+		return ""
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
+}
+
 // pickScheme chooses the security scheme to apply across the app. It honours the
 // document-level security requirement, falling back to the sole defined scheme
 // when the requirement is absent (common when security is declared per-operation).
 func pickScheme(s *spec) *securityScheme {
-	schemes := s.Components.SecuritySchemes
-	if len(schemes) == 0 {
+	schemes := &s.Components.SecuritySchemes
+	if schemes.len() == 0 {
 		return nil
 	}
 	for _, requirement := range s.Security {
 		for name := range requirement {
-			if sc, ok := schemes[name]; ok {
+			if sc := schemes.get(name); sc != nil {
 				return sc
 			}
 		}
 	}
-	if len(schemes) == 1 {
-		for _, sc := range schemes {
-			return sc
-		}
+	if names := schemes.order(); len(names) == 1 {
+		return schemes.get(names[0])
 	}
 	return nil
 }
@@ -146,7 +188,7 @@ func (a *auth) describe() string {
 	}
 	switch a.kind {
 	case authBearer:
-		return "sending token as Authorization: Bearer"
+		return "sending token as Authorization: " + a.authorizationScheme()
 	case authBasic:
 		return "sending username/password as HTTP Basic auth"
 	case authAPIKey:

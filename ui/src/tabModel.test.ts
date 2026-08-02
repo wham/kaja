@@ -1,5 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import { getTabLabel, linkTabsToApps, serializeTabs, TabModel } from "./tabModel";
+import {
+  AppFormTab,
+  getAppFormTabLabel,
+  getTabLabel,
+  keepAppFormTab,
+  linkTabsToApps,
+  openAppFormTab,
+  serializeTabs,
+  setAppFormEditMode,
+  TabModel,
+} from "./tabModel";
+import { buildApp } from "./appTypes";
 import { App } from "./apps";
 
 describe("getTabLabel", () => {
@@ -145,5 +156,60 @@ describe("linkTabsToApps", () => {
 
     expect(result.tabs).toEqual([compilerTab]);
     expect(result.removedTabIds).toHaveLength(0);
+  });
+});
+
+describe("openAppFormTab", () => {
+  const grpcApp = (name: string) => buildApp(name, "grpc", { url: "example.com:443" }, {});
+
+  it("opens an app's settings as a preview tab named after the app", () => {
+    const { tabs, activeIndex } = openAppFormTab([{ type: "compiler" }], "edit", grpcApp("orders"));
+
+    expect(activeIndex).toBe(1);
+    expect(tabs).toHaveLength(2);
+    const tab = tabs[1] as AppFormTab;
+    expect(tab.ephemeral).toBe(true);
+    expect(tab.editMode).toBe("form");
+    expect(getAppFormTabLabel(tab)).toBe("orders");
+  });
+
+  it("names a new app after its type until it is saved", () => {
+    const { tabs } = openAppFormTab([], "create", buildApp("", "openapi", {}, {}));
+    expect(getAppFormTabLabel(tabs[0] as AppFormTab)).toBe("New OpenAPI app");
+  });
+
+  // The preview tab is the single-tab feel: browsing settings doesn't stack tabs.
+  it("reuses a preview tab for another app, keeping its position", () => {
+    const first = openAppFormTab([{ type: "compiler" }], "edit", grpcApp("orders"));
+    const second = openAppFormTab(first.tabs, "edit", grpcApp("billing"));
+
+    expect(second.tabs).toHaveLength(2);
+    expect(second.activeIndex).toBe(1);
+    expect((second.tabs[1] as AppFormTab).editingAppName).toBe("billing");
+  });
+
+  it("leaves a tab that is being worked in alone and opens another", () => {
+    const first = openAppFormTab([], "edit", grpcApp("orders"));
+    const kept = keepAppFormTab(first.tabs, 0);
+    const second = openAppFormTab(kept, "edit", grpcApp("billing"));
+
+    expect(second.tabs).toHaveLength(2);
+    expect((second.tabs[0] as AppFormTab).editingAppName).toBe("orders");
+    expect((second.tabs[1] as AppFormTab).editingAppName).toBe("billing");
+  });
+
+  it("focuses the app's own tab when it is already open", () => {
+    const first = openAppFormTab([], "edit", grpcApp("orders"));
+    const kept = keepAppFormTab(first.tabs, 0);
+    const second = openAppFormTab(kept, "edit", grpcApp("billing"));
+    const again = openAppFormTab(second.tabs, "edit", grpcApp("orders"));
+
+    expect(again.tabs).toHaveLength(2);
+    expect(again.activeIndex).toBe(0);
+  });
+
+  it("remembers which view of the app the tab is showing", () => {
+    const { tabs } = openAppFormTab([], "edit", grpcApp("orders"));
+    expect((setAppFormEditMode(tabs, 0, "json")[0] as AppFormTab).editMode).toBe("json");
   });
 });

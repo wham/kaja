@@ -28,28 +28,23 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	specContent := strings.TrimSpace(parameters["spec_content"])
 
 	var s *spec
-	var err error
+	var p *problem
 	switch {
 	case specContent != "":
 		// The spec was uploaded as a file; parse it directly (JSON or YAML).
 		log("Parsing uploaded OpenAPI spec")
-		s, err = parseSpec([]byte(specContent))
+		s, p = readSpec([]byte(specContent), "")
 	case specURL != "":
 		if err := requireHTTPScheme(specURL); err != nil {
 			return nil, err
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, err = loadSpec(specURL,
-			strings.TrimSpace(parameters["token"]),
-			strings.TrimSpace(parameters["username"]),
-			strings.TrimSpace(parameters["password"]),
-			log,
-		)
+		s, p = loadSpec(specURL, specFetchCredentials(parameters), log)
 	default:
 		return nil, fmt.Errorf("missing required parameter: provide %q or %q", "spec_url", "spec_content")
 	}
-	if err != nil {
-		return nil, err
+	if p != nil {
+		return nil, p
 	}
 	log(fmt.Sprintf("Loaded %q (OpenAPI %s) with %d path(s)", s.Info.Title, s.OpenAPI, len(s.Paths)))
 
@@ -81,6 +76,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	log("Upstream base URL: " + baseURL)
 
 	authentication := resolveAuth(s,
+		strings.TrimSpace(parameters["security_scheme"]),
 		strings.TrimSpace(parameters["token"]),
 		strings.TrimSpace(parameters["username"]),
 		strings.TrimSpace(parameters["password"]),
@@ -168,7 +164,7 @@ func resolveBaseURL(specURL string, override string, s *spec) (string, error) {
 
 	var serverURL string
 	if len(s.Servers) > 0 {
-		serverURL = strings.TrimSpace(s.Servers[0].URL)
+		serverURL = applyServerDefaults(s.Servers[0])
 	}
 
 	if specURL == "" {

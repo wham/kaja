@@ -28,12 +28,22 @@ interface DefinitionTab {
   startColumn: number;
 }
 
-interface AppFormTab {
+// An app's settings, opened from the sidebar. The tab is the app: its title is
+// the app's name, and a new app is simply the unsaved instance of the same
+// document.
+export interface AppFormTab {
   type: "appForm";
   id: string;
   mode: "create" | "edit";
   editingAppName?: string;
   initialData?: ConfigurationApp;
+  // A preview tab, shown in italics: opening another app's settings reuses it
+  // instead of stacking tabs. Editing it, or double-clicking its title, makes it
+  // permanent, so work in progress is never replaced out from under the user.
+  ephemeral: boolean;
+  // Which view of the app the tab is showing. It lives here rather than in the
+  // form because the tab strip owns the control that switches it.
+  editMode: "form" | "json";
 }
 
 export interface ScriptTab {
@@ -180,52 +190,60 @@ export function addScriptTab(tabs: TabModel[], script: Script, content: string):
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
 }
 
-export function addAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): TabModel[] {
-  // Check if there's already an app form tab open
-  const existingIndex = tabs.findIndex((tab) => tab.type === "appForm");
-  if (existingIndex !== -1) {
-    // Update existing tab
-    const existingTab = tabs[existingIndex] as AppFormTab;
-    const updatedTabs = [...tabs];
-    updatedTabs[existingIndex] = {
-      type: "appForm",
-      id: existingTab.id,
-      mode,
-      editingAppName: initialData?.name,
-      initialData,
-    };
-    return updatedTabs;
+// openAppFormTab opens an app's settings. The app's own tab wins if it is already
+// open; otherwise a preview tab is reused, and only when there is none does a new
+// tab appear. A tab the user has started working in is permanent, so it is never
+// the one reused.
+export function openAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): { tabs: TabModel[]; activeIndex: number } {
+  const open = tabs.findIndex((tab) => tab.type === "appForm" && tab.mode === mode && tab.editingAppName === initialData?.name);
+  if (open !== -1) {
+    return { tabs, activeIndex: open };
   }
 
-  const newTab: AppFormTab = {
+  const reusable = tabs.findIndex((tab) => tab.type === "appForm" && tab.ephemeral);
+  const tab: AppFormTab = {
     type: "appForm",
-    id: generateId("appForm"),
+    id: reusable === -1 ? generateId("appForm") : (tabs[reusable] as AppFormTab).id,
     mode,
     editingAppName: initialData?.name,
     initialData,
+    ephemeral: true,
+    editMode: "form",
   };
-  return [...tabs, newTab];
+
+  if (reusable !== -1) {
+    const updated = [...tabs];
+    updated[reusable] = tab;
+    return { tabs: updated, activeIndex: reusable };
+  }
+  return { tabs: [...tabs, tab], activeIndex: tabs.length };
 }
 
-export function updateAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): TabModel[] {
-  const existingIndex = tabs.findIndex((tab) => tab.type === "appForm");
-  if (existingIndex === -1) return tabs;
+// updateAppFormTab replaces what an app form tab holds, keeping the tab itself.
+function updateAppFormTab(tabs: TabModel[], index: number, changes: Partial<AppFormTab>): TabModel[] {
+  const tab = tabs[index];
+  if (!tab || tab.type !== "appForm") return tabs;
+  const updated = [...tabs];
+  updated[index] = { ...tab, ...changes };
+  return updated;
+}
 
-  const existingTab = tabs[existingIndex] as AppFormTab;
-  const updatedTabs = [...tabs];
-  updatedTabs[existingIndex] = {
-    type: "appForm",
-    id: existingTab.id,
-    mode,
-    editingAppName: initialData?.name,
-    initialData,
-  };
-  return updatedTabs;
+// keepAppFormTab makes a preview tab permanent, which is what starting to work in
+// it - or double-clicking its title - means.
+export function keepAppFormTab(tabs: TabModel[], index: number): TabModel[] {
+  const tab = tabs[index];
+  if (!tab || tab.type !== "appForm" || !tab.ephemeral) return tabs;
+  return updateAppFormTab(tabs, index, { ephemeral: false });
+}
+
+export function setAppFormEditMode(tabs: TabModel[], index: number, editMode: "form" | "json"): TabModel[] {
+  return updateAppFormTab(tabs, index, { editMode });
 }
 
 export function getAppFormTabLabel(tab: AppFormTab): string {
   if (tab.mode === "edit" && tab.editingAppName) {
-    return `Edit ${tab.editingAppName}`;
+    // The tab is the app, so it is named after it.
+    return tab.editingAppName;
   }
   // In create mode the type is picked in the New dialog, so name the tab for it.
   const type = tab.initialData ? appType(tab.initialData) : "";
