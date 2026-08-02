@@ -274,11 +274,16 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     reader.readAsText(file);
   }, []);
 
-  useEffect(() => {
-    // In create mode initialData carries just the type picked in the New dialog;
-    // in edit mode it is the full app. Either way the form reflects it.
+  // In create mode initialData carries just the type picked in the New dialog;
+  // in edit mode it is the full app. Either way the form reflects it. This runs
+  // during render rather than in an effect so the fields are already the new
+  // app's when a keyed custom form below mounts - otherwise it would mount
+  // against the previous app's parameters and read the wrong document first.
+  const [loaded, setLoaded] = useState<{ mode: string; app?: ConfigurationApp } | null>(null);
+  if (loaded?.mode !== mode || loaded?.app !== initialData) {
+    setLoaded({ mode, app: initialData });
     updateFormFromApp(initialData ?? createEmptyApp());
-  }, [mode, initialData, updateFormFromApp]);
+  }
 
   // Track which app is currently loaded in the JSON editor
   const loadedAppNameRef = useRef<string | null>(null);
@@ -475,7 +480,11 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
               {customForm ? (
+                // Keyed by the app being edited: switching apps in the picker
+                // starts the form over rather than reading the next document
+                // behind the previous one's servers and credentials.
                 <OpenApiForm
+                  key={initialData?.name || "__new__"}
                   name={name}
                   onNameChange={setName}
                   duplicateName={duplicateName}

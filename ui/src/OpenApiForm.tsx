@@ -40,7 +40,7 @@ import {
   schemeIdentity,
   schemeLabel,
 } from "./openApiDocument";
-import { OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
+import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 // Where the document comes from. The value itself lives in specUrl (URL) or
@@ -53,6 +53,42 @@ type ReadState =
 
 const READ_DEBOUNCE_MS = 600;
 const PASTE_DEBOUNCE_MS = 400;
+
+// Documents already read, so flipping between apps in the picker doesn't fetch
+// and parse what hasn't changed. The refresh control reads past it. Only
+// successful reads are remembered - a host that was down should be tried again.
+const inspected = new Map<string, { document: OpenApiDocument; readAt: number }>();
+const INSPECTED_LIMIT = 20;
+
+// inspectionKey is everything the read depends on, including the credentials,
+// since a document behind a login can differ per token.
+function inspectionKey(parameters: Record<string, string>): string {
+  return JSON.stringify(["specUrl", "specContent", "specHeaderName", "specHeaderValue", "token", "username", "password"].map((key) => parameters[key] ?? ""));
+}
+
+// Reads already on the wire, so two forms - or one form mounted twice - ask the
+// server for the same document once.
+const reading = new Map<string, Promise<InspectOpenApiResponse>>();
+
+function inspect(key: string, openapi: OpenApiApp | undefined): Promise<InspectOpenApiResponse> {
+  const pending = reading.get(key);
+  if (pending) return pending;
+  const started = getApiClient()
+    .inspectOpenApi({ openapi })
+    .then(({ response }) => response)
+    .finally(() => reading.delete(key));
+  reading.set(key, started);
+  return started;
+}
+
+function remember(key: string, document: OpenApiDocument, readAt: number) {
+  inspected.delete(key);
+  inspected.set(key, { document, readAt });
+  for (const oldest of inspected.keys()) {
+    if (inspected.size <= INSPECTED_LIMIT) break;
+    inspected.delete(oldest);
+  }
+}
 
 interface OpenApiFormProps {
   name: string;
@@ -94,6 +130,9 @@ export function OpenApiForm({
   // Only the latest read may write to state; anything older is discarded.
   const readIdRef = useRef(0);
   const nameTouchedRef = useRef(Boolean(name));
+  // Whether the source changed because the user typed into it, which is the only
+  // change that waits for a pause before reading.
+  const typedRef = useRef(false);
   // Credentials typed for a scheme, kept while another scheme is selected so
   // flipping back and forth doesn't lose typing.
   const credentialsRef = useRef<Record<string, Credentials>>({});
@@ -103,16 +142,27 @@ export function OpenApiForm({
   const source = sourceMode === "url" ? specUrl : specContent;
   const document = state.status === "read" ? state.document : undefined;
 
-  const read = useCallback(async () => {
+  const read = useCallback(async (options?: { fresh?: boolean }) => {
+    const parameters = parametersRef.current;
+    const key = inspectionKey(parameters);
     const readId = ++readIdRef.current;
+
+    const cached = options?.fresh ? undefined : inspected.get(key);
+    if (cached) {
+      setState({ status: "read", document: cached.document, readAt: cached.readAt });
+      return;
+    }
+
     setState({ status: "reading" });
     try {
-      const app = buildApp("", "openapi", parametersRef.current, {});
+      const app = buildApp("", "openapi", parameters, {});
       const openapi = app.app.oneofKind === "openapi" ? app.app.openapi : undefined;
-      const { response } = await getApiClient().inspectOpenApi({ openapi });
+      const response = await inspect(key, openapi);
       if (readId !== readIdRef.current) return;
       if (response.document) {
-        setState({ status: "read", document: response.document, readAt: Date.now() });
+        const readAt = Date.now();
+        remember(key, response.document, readAt);
+        setState({ status: "read", document: response.document, readAt });
       } else {
         setState({
           status: "problem",
@@ -132,24 +182,23 @@ export function OpenApiForm({
     }
   }, []);
 
-  // Read the document once the source settles: on a pause in typing for a URL
-  // that parses, on a pause in a pasted document, and immediately for a file or
-  // for whatever an existing app was configured with.
-  const firstRunRef = useRef(true);
+  // Read the document once the source settles. Typing is the only change that
+  // waits: a file, the demo link, or the app this form was opened on are already
+  // complete and read at once.
   useEffect(() => {
-    const immediate = firstRunRef.current || sourceMode === "file";
-    firstRunRef.current = false;
+    const typed = typedRef.current;
+    typedRef.current = false;
 
     if (!source.trim() || (sourceMode === "url" && !isAbsoluteHttpUrl(source))) {
       readIdRef.current++;
       setState({ status: "idle" });
       return;
     }
-    if (immediate) {
+    if (!typed) {
       read();
       return;
     }
-    const timer = setTimeout(read, sourceMode === "paste" ? PASTE_DEBOUNCE_MS : READ_DEBOUNCE_MS);
+    const timer = setTimeout(() => read(), sourceMode === "paste" ? PASTE_DEBOUNCE_MS : READ_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [source, sourceMode, read]);
 
@@ -268,7 +317,10 @@ export function OpenApiForm({
           <VariableSuggestInput
             id="openapi-source"
             value={specUrl}
-            onValueChange={(value) => setParameter("specUrl", value)}
+            onValueChange={(value) => {
+              typedRef.current = true;
+              setParameter("specUrl", value);
+            }}
             variables={variables}
             placeholder="https://example.com/openapi.json"
             disabled={readOnly}
@@ -305,7 +357,10 @@ export function OpenApiForm({
           <textarea
             id="openapi-source"
             value={specContent}
-            onChange={(event) => setParameter("specContent", event.target.value)}
+            onChange={(event) => {
+              typedRef.current = true;
+              setParameter("specContent", event.target.value);
+            }}
             disabled={readOnly}
             spellCheck={false}
             placeholder="Paste the OpenAPI document (JSON or YAML)"
@@ -330,10 +385,10 @@ export function OpenApiForm({
             readIdRef.current++;
             setState({ status: "idle" });
           }}
-          onRefresh={read}
+          onRefresh={() => read({ fresh: true })}
           onUploadInstead={() => switchSourceMode("file")}
           onSpecHeaderChange={setParameter}
-          onRetry={read}
+          onRetry={() => read({ fresh: true })}
         />
       </div>
 
