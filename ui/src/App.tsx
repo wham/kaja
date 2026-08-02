@@ -23,7 +23,7 @@ import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
-import { registerKajaModule } from "./Editor";
+import { registerKajaModule, setValueCompletionApps } from "./Editor";
 import { monacoTheme } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel } from "./server/api";
@@ -560,6 +560,11 @@ export function App() {
   }, [applyConfiguration]);
 
   useConfigurationChanges(handleConfigurationFileChange);
+
+  // Let the editor's value completions resolve the services the open apps expose.
+  useEffect(() => {
+    setValueCompletionApps(apps);
+  }, [apps]);
 
   useEffect(() => {
     monaco.editor.setTheme(monacoTheme(colorMode));

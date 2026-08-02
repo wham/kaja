@@ -18,6 +18,7 @@
 - Ask me before adding a new shared UI primitive; one-off compositions of existing primitives are fine.
 - Keep pull-request descriptions super short - one or two sentences summarizing the change.
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
+- Values seen in earlier calls are never written into a generated request: `defaultInput.ts` only ever emits zero values, and `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions, each labelled with the field and call it came from.
 
 ## Experimental (Preview)
 
