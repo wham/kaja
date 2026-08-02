@@ -4,8 +4,6 @@ import { Checkbox } from "./components/checkbox";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { SegmentedControl } from "./components/segmented-control";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./components/select";
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -76,8 +74,6 @@ monaco.languages.registerCompletionItemProvider("json", {
   },
 });
 
-const NEW_APP_VALUE = "__new__";
-
 // A header the app sends with every request. Kept as a list rather than a map so
 // a name stays where it is while it is being typed.
 interface HeaderEntry {
@@ -93,9 +89,15 @@ interface AppFormProps {
   // suggestions when "${" is typed.
   variables: { [key: string]: string };
   readOnly?: boolean;
+  // Which view the tab is showing. The control that switches it lives in the tab
+  // strip, so the tab owns the choice.
+  editMode: EditMode;
   onSubmit: (app: ConfigurationApp, originalName?: string) => void;
   onCancel: () => void;
-  onAppSelect: (appName: string | null) => void;
+  // The user has started working here, so the tab should stop being a preview.
+  onEdited: () => void;
+  // Whether the JSON parses, which decides if the view can be switched back.
+  onJsonValidChange: (valid: boolean) => void;
 }
 
 function createEmptyApp(): ConfigurationApp {
@@ -220,8 +222,7 @@ function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variabl
   );
 }
 
-export function AppForm({ mode, initialData, allApps, variables, readOnly = false, onSubmit, onCancel, onAppSelect }: AppFormProps) {
-  const [editMode, setEditMode] = useState<EditMode>("form");
+export function AppForm({ mode, initialData, allApps, variables, readOnly = false, editMode, onSubmit, onCancel, onEdited, onJsonValidChange }: AppFormProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
@@ -320,6 +321,19 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           readOnly,
         });
 
+        monacoModelRef.current.onDidChangeContent(() => {
+          const value = monacoModelRef.current?.getValue() ?? "";
+          let valid = true;
+          try {
+            JSON.parse(value);
+          } catch {
+            valid = false;
+          }
+          setJsonError(valid ? null : "Invalid JSON. Fix it to go back to the form or save.");
+          onJsonValidChange(valid);
+          onEdited();
+        });
+
         formatJson(jsonStr).then((formatted) => {
           if (monacoModelRef.current) {
             monacoModelRef.current.setValue(formatted);
@@ -344,36 +358,31 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         monacoModelRef.current?.dispose();
         monacoModelRef.current = null;
         loadedAppNameRef.current = null;
+        // Nothing to be invalid once the editor is gone.
+        onJsonValidChange(true);
       }
     };
-  }, [editMode, mode, initialData, getJsonAppData, readOnly]);
+  }, [editMode, mode, initialData, getJsonAppData, readOnly, onJsonValidChange, onEdited]);
 
-  const handleModeChange = async (index: number) => {
-    const newMode = index === 0 ? "form" : "json";
-
-    if (newMode === "json" && editMode === "form") {
-      setEditMode(newMode);
-      setJsonError(null);
-    } else if (newMode === "form" && editMode === "json") {
-      if (editorRef.current) {
-        const jsonValue = editorRef.current.getValue();
-        try {
-          const parsed = JSON.parse(jsonValue);
-          updateFormFromApp(jsonToApp(parsed));
-          setJsonError(null);
-          editorRef.current?.dispose();
-          editorRef.current = null;
-          monacoModelRef.current?.dispose();
-          monacoModelRef.current = null;
-          setEditMode(newMode);
-        } catch {
-          setJsonError("Invalid JSON. Fix errors before switching to Form mode.");
-        }
-      } else {
-        setEditMode(newMode);
+  // Leaving the JSON view carries what was typed there back into the fields. The
+  // control is disabled while the JSON is invalid, so this only has to handle
+  // JSON that parses.
+  const leavingJsonRef = useRef(false);
+  if (editMode === "form" && leavingJsonRef.current) {
+    leavingJsonRef.current = false;
+    const jsonValue = editorRef.current?.getValue();
+    if (jsonValue) {
+      try {
+        updateFormFromApp(jsonToApp(JSON.parse(jsonValue)));
+        setJsonError(null);
+      } catch {
+        setJsonError("Invalid JSON. The fields still hold what was there before.");
       }
     }
-  };
+  }
+  if (editMode === "json") {
+    leavingJsonRef.current = true;
+  }
 
   const handleSubmit = () => {
     let appToSubmit: ConfigurationApp;
@@ -419,13 +428,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   const isValid =
     editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || openApiReady)) : !jsonError;
 
-  const selectedAppValue = mode === "edit" && initialData?.name ? initialData.name : NEW_APP_VALUE;
-
-  const handleAppChange = (value: string) => {
-    setJsonError(null);
-    onAppSelect(value === NEW_APP_VALUE ? null : value);
-  };
-
   const demo = definition?.demo;
 
   const fillDemo = () => {
@@ -436,37 +438,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
-        <div className="flex items-center gap-3">
-          <Select value={selectedAppValue} onValueChange={(value) => value != null && handleAppChange(value)}>
-            <SelectTrigger className="min-w-[200px]">
-              <SelectValue>{(value) => (value === NEW_APP_VALUE ? "+ New" : (value as string))}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NEW_APP_VALUE}>+ New</SelectItem>
-              {allApps.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Edit existing</SelectLabel>
-                  {allApps.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        <SegmentedControl aria-label="Edit mode">
-          <SegmentedControl.Button selected={editMode === "form"} onClick={() => handleModeChange(0)}>
-            Form
-          </SegmentedControl.Button>
-          <SegmentedControl.Button selected={editMode === "json"} onClick={() => handleModeChange(1)}>
-            JSON
-          </SegmentedControl.Button>
-        </SegmentedControl>
-      </div>
-
       {readOnly && (
         <div className="bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
           Configuration is read-only. Contact your administrator for changes.
@@ -475,7 +446,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
       {jsonError && <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{jsonError}</div>}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto" onInput={readOnly ? undefined : onEdited}>
         {editMode === "form" ? (
           <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
@@ -485,6 +456,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 // behind the previous one's servers and credentials.
                 <OpenApiForm
                   key={initialData?.name || "__new__"}
+                  onEdited={onEdited}
                   name={name}
                   onNameChange={setName}
                   duplicateName={duplicateName}

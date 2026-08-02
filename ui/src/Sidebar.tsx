@@ -3,7 +3,21 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
-import { Cpu, FileCode, FoldVertical, Pencil, Pin, Plus, SlidersHorizontal, Trash2, UnfoldVertical, ChevronRight, Package, Ellipsis } from "lucide-react";
+import {
+  Cpu,
+  FileCode,
+  FoldVertical,
+  Pencil,
+  Pin,
+  Plus,
+  Settings,
+  SlidersHorizontal,
+  Trash2,
+  UnfoldVertical,
+  ChevronRight,
+  Package,
+  Ellipsis,
+} from "lucide-react";
 import { appType, appTypeLabel } from "./appTypes";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -680,8 +694,8 @@ export function Sidebar({
               if (appName) onEditApp(appName);
             }}
           >
-            <Pencil size={16} />
-            Edit
+            <Settings size={16} />
+            Settings
           </DropdownMenuItem>
           {canDeleteApps && (
             <DropdownMenuItem

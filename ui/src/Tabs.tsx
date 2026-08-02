@@ -20,13 +20,17 @@ interface TabsProps {
   onCloseTab?: (index: number) => void;
   onCloseAll?: () => void;
   onCloseOthers?: (index: number) => void;
+  // Double-clicking a preview tab's title keeps it, the same gesture editors use.
+  onKeepTab?: (index: number) => void;
+  // Controls the active tab contributes to the strip, left of the overflow menu.
+  controls?: React.ReactNode;
 }
 
 export function Tab({ children }: TabProps) {
   return <>{children}</>;
 }
 
-export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers }: TabsProps) {
+export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onCloseAll, onCloseOthers, onKeepTab, controls }: TabsProps) {
   const isNarrow = useMediaQuery("(max-width: 767px)");
   const overflow = isNarrow ? "auto" : "hidden";
   const tabsHeaderRef = useRef<HTMLDivElement>(null);
@@ -137,6 +141,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                   isActive ? "border-b-transparent border-t-primary bg-muted" : "border-b-border bg-background",
                 )}
                 onClick={() => onSelectTab(index)}
+                onDoubleClick={() => onKeepTab?.(index)}
                 onContextMenu={(e) => handleContextMenu(e, index)}
               >
                 <span
@@ -167,22 +172,25 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           })}
           <div className="grow border-b border-border" />
         </div>
-        {tabCount > 0 && onCloseAll && (
+        {tabCount > 0 && (onCloseAll || controls) && (
           <>
             {/* Tabs scroll under the menu, so they fade out instead of being clipped mid-label. */}
             <div
               className="pointer-events-none absolute bottom-px top-0 w-6 bg-gradient-to-r from-transparent to-background"
               style={{ right: controlsWidth }}
             />
-            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center border-b border-border bg-background pl-1 pr-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <IconButton icon={Ellipsis} aria-label="Tab options" variant="ghost" size="sm" tooltip={false} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={onCloseAll}>Close All</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <div ref={controlsRef} className="absolute bottom-0 right-0 top-0 flex items-center gap-1 border-b border-border bg-background pl-1 pr-2">
+              {controls}
+              {onCloseAll && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <IconButton icon={Ellipsis} aria-label="Tab options" variant="ghost" size="sm" tooltip={false} />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={onCloseAll}>Close All</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </>
         )}

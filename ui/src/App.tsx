@@ -6,7 +6,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
-import { Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -30,7 +30,7 @@ import { Configuration, ConfigurationApp, LogLevel } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
-  addAppFormTab,
+  openAppFormTab,
   addScriptTab,
   addTaskTab,
   addVariablesTab,
@@ -45,7 +45,8 @@ import {
   restoreTabs,
   serializeTabs,
   TabModel,
-  updateAppFormTab,
+  keepAppFormTab,
+  setAppFormEditMode,
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
 import { Variables } from "./Variables";
@@ -198,6 +199,9 @@ export function App() {
   } | null>(null);
   // Whether the New app dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
+  // Whether the app settings tab's JSON parses. It gates switching back to the
+  // form, which is why it lives out here with the control that does the switch.
+  const [appFormJsonValid, setAppFormJsonValid] = useState(true);
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // Rename dialog and delete confirmation for scripts (right-click menu).
@@ -1227,6 +1231,26 @@ export function App() {
     persistTabs();
   };
 
+  const appFormTab = tabs[activeTabIndex];
+  const appFormControls =
+    appFormTab?.type === "appForm" ? (
+      <IconButton
+        icon={Code}
+        aria-label={appFormTab.editMode === "json" ? "Edit as a form" : "Edit as JSON"}
+        variant="ghost"
+        size="sm"
+        tooltip={false}
+        disabled={appFormTab.editMode === "json" && !appFormJsonValid}
+        className={appFormTab.editMode === "json" ? "bg-accent text-foreground" : undefined}
+        onClick={() => setTabs((tabs) => setAppFormEditMode(tabs, activeTabIndex, appFormTab.editMode === "json" ? "form" : "json"))}
+      />
+    ) : undefined;
+
+  // Double-clicking a preview tab's title keeps it, the same gesture editors use.
+  const onKeepTab = (index: number) => {
+    setTabs((tabs) => keepAppFormTab(tabs, index));
+  };
+
   // Run the active task/script tab's editor contents. Triggered by the Run
   // button floating over the editor, by ⌘⏎ and by F5.
   const onRunActiveTab = useCallback(() => {
@@ -1305,9 +1329,8 @@ export function App() {
   const onSelectAppType = (type: string) => {
     setNewAppOpen(false);
     setTabs((tabs) => {
-      const newTabs = addAppFormTab(tabs, "create", buildApp("", type, {}, {}));
-      const formIndex = getAppFormTabIndex(newTabs);
-      setActiveTabIndex(formIndex);
+      const { tabs: newTabs, activeIndex } = openAppFormTab(tabs, "create", buildApp("", type, {}, {}));
+      setActiveTabIndex(activeIndex);
       return newTabs;
     });
   };
@@ -1316,12 +1339,17 @@ export function App() {
     const app = apps.find((p) => p.configuration.name === appName);
     if (app) {
       setTabs((tabs) => {
-        const newTabs = addAppFormTab(tabs, "edit", app.configuration);
-        const formIndex = getAppFormTabIndex(newTabs);
-        setActiveTabIndex(formIndex);
+        const { tabs: newTabs, activeIndex } = openAppFormTab(tabs, "edit", app.configuration);
+        setActiveTabIndex(activeIndex);
         return newTabs;
       });
     }
+  };
+
+  // Working in an app's settings keeps the tab, so opening another app's settings
+  // no longer reuses it.
+  const onAppFormEdited = () => {
+    setTabs((tabs) => keepAppFormTab(tabs, getAppFormTabIndex(tabs)));
   };
 
   const closeAppFormTab = () => {
@@ -1415,19 +1443,6 @@ export function App() {
 
   const onVariablesCancel = () => {
     closeVariablesTab();
-  };
-
-  const onAppFormSelect = (appName: string | null) => {
-    if (appName === null) {
-      // "+ New" reopens the type picker, since the type is chosen there.
-      setNewAppOpen(true);
-    } else {
-      // Switch to edit mode for the selected app
-      const app = apps.find((p) => p.configuration.name === appName);
-      if (app) {
-        setTabs((tabs) => updateAppFormTab(tabs, "edit", app.configuration));
-      }
-    }
   };
 
   const onDeleteApp = async (appName: string) => {
@@ -1601,7 +1616,15 @@ export function App() {
                     minWidth: 0,
                   }}
                 >
-                  <Tabs activeTabIndex={activeTabIndex} onSelectTab={onSelectTab} onCloseTab={onCloseTab} onCloseAll={onCloseAll} onCloseOthers={onCloseOthers}>
+                  <Tabs
+                    activeTabIndex={activeTabIndex}
+                    onSelectTab={onSelectTab}
+                    onCloseTab={onCloseTab}
+                    onCloseAll={onCloseAll}
+                    onCloseOthers={onCloseOthers}
+                    onKeepTab={onKeepTab}
+                    controls={appFormControls}
+                  >
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
                         return (
@@ -1659,18 +1682,19 @@ export function App() {
                       }
 
                       if (tab.type === "appForm") {
-                        const label = getAppFormTabLabel(tab);
                         return (
-                          <Tab tabId={tab.id} tabLabel={label} key={tab.id}>
+                          <Tab tabId={tab.id} tabLabel={getAppFormTabLabel(tab)} isEphemeral={tab.ephemeral} key={tab.id}>
                             <AppForm
                               mode={tab.mode}
                               initialData={tab.initialData}
                               allApps={configuration?.apps ?? []}
                               variables={configuration?.variables ?? {}}
                               readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              editMode={tab.editMode}
                               onSubmit={onAppFormSubmit}
                               onCancel={onAppFormCancel}
-                              onAppSelect={onAppFormSelect}
+                              onEdited={onAppFormEdited}
+                              onJsonValidChange={setAppFormJsonValid}
                             />
                           </Tab>
                         );
