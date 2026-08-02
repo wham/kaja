@@ -197,6 +197,7 @@ Console.CallSelect = function ({ items, selectedIndex, onSelect, onClear, now }:
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          data-testid="console-call-select"
           className="flex h-[26px] min-w-0 shrink-0 items-center gap-2 rounded-md border border-border bg-card px-2.5 hover:bg-accent"
           title={summary?.name}
         >
@@ -376,7 +377,9 @@ Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSu
 
   return (
     <div className="flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap px-4 pb-2 pt-3 font-mono text-xs">
-      <span className={cn("shrink-0 font-medium", statusClass(status))}>{label}</span>
+      <span data-testid="console-status" className={cn("shrink-0 font-medium", statusClass(status))}>
+        {label}
+      </span>
       {duration && <span className="shrink-0 tabular-nums text-muted-foreground">{duration}</span>}
       {size && <span className="shrink-0 tabular-nums text-muted-foreground">{size}</span>}
       {streamCount !== undefined && (
