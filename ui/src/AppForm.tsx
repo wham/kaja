@@ -430,7 +430,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   };
 
   return (
-    <div className="flex h-full flex-col bg-muted">
+    <div className="flex h-full flex-col bg-background">
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-3">
           <Select value={selectedAppValue} onValueChange={(value) => value != null && handleAppChange(value)}>
@@ -585,10 +585,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
               .app-form-editor .monaco-editor,
               .app-form-editor .monaco-editor-background,
               .app-form-editor .monaco-editor .margin {
-                background-color: var(--muted) !important;
+                background-color: var(--background) !important;
               }
             `}</style>
-            <div ref={editorContainerRef} className="app-form-editor h-full min-h-[300px] bg-muted" />
+            <div ref={editorContainerRef} className="app-form-editor h-full min-h-[300px] bg-background" />
           </>
         )}
       </div>
