@@ -1,21 +1,20 @@
 package main
 
 import (
-	"errors"
-	"log/slog"
 	"sync"
-
-	"github.com/zalando/go-keyring"
 )
 
-// keychainService is the service name every kaja item is filed under in the OS
-// keychain.
+// keychainService is the service name every kaja item is filed under.
 const keychainService = "kaja"
+
+// probeAccount is an account no variable can be named (${NAME} rejects the
+// colon), so probing for it only ever asks the keychain whether it is there to
+// answer - it never collides with a stored value.
+const probeAccount = "kaja:probe"
 
 // keychainStore keeps a variable's value in the OS keychain, so kaja.json only
 // has to name it. Items are keyed by the configuration they belong to, so two
-// workspaces that both declare TOKEN keep their own value, and the account name
-// stays readable in Keychain Access.
+// workspaces that both declare TOKEN keep their own value.
 type keychainStore struct {
 	configurationPath string
 
@@ -32,40 +31,25 @@ func (s *keychainStore) account(name string) string {
 	return s.configurationPath + "#" + name
 }
 
-// Available probes the keychain once. A machine without a usable keyring (a
-// Linux desktop with no Secret Service running) reports false, and the UI asks
-// for the value in the environment instead of offering to store it.
+// Available probes the keychain once. A machine whose keychain can't be reached
+// - a Linux desktop with no Secret Service, or a macOS build without the
+// entitlement the data protection keychain needs - reports false, and the UI
+// asks for the value in the environment instead of offering to store it.
 func (s *keychainStore) Available() bool {
 	s.once.Do(func() {
-		_, err := keyring.Get(keychainService, s.account("\x00probe"))
-		// Not finding the probe item is the successful outcome: the keyring
-		// answered. Anything else means there is nothing to talk to.
-		s.available = err == nil || errors.Is(err, keyring.ErrNotFound)
-		if !s.available {
-			slog.Warn("No usable keyring; ${secret} variables will only resolve from the environment", "error", err)
-		}
+		s.available = probeKeychain(s.account(probeAccount))
 	})
 	return s.available
 }
 
 func (s *keychainStore) Get(name string) (string, bool) {
-	value, err := keyring.Get(keychainService, s.account(name))
-	if err != nil {
-		if !errors.Is(err, keyring.ErrNotFound) {
-			slog.Warn("Failed to read a stored variable value", "name", name, "error", err)
-		}
-		return "", false
-	}
-	return value, true
+	return keychainGet(s.account(name))
 }
 
 func (s *keychainStore) Set(name string, value string) error {
-	return keyring.Set(keychainService, s.account(name), value)
+	return keychainSet(s.account(name), value)
 }
 
 func (s *keychainStore) Delete(name string) error {
-	if err := keyring.Delete(keychainService, s.account(name)); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return err
-	}
-	return nil
+	return keychainDelete(s.account(name))
 }
