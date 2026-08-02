@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
 import {
+  Braces,
   CircleX,
   FileCode,
   FoldVertical,
@@ -12,7 +13,6 @@ import {
   Plus,
   RotateCw,
   Settings,
-  SlidersHorizontal,
   Trash2,
   TriangleAlert,
   UnfoldVertical,
@@ -82,7 +82,7 @@ interface SidebarProps {
   onRecompileApp: (appName: string) => void;
   // Opens the create form to add an app (gRPC, Twirp, or a built-in integration).
   onNewAppClick: () => void;
-  // Opens the variables manager tab. Undefined when the feature preview is off.
+  // Opens the variables manager tab.
   onVariablesClick?: () => void;
   // One-shot signal to auto-expand a just-added app (and its first service).
   autoExpandApp?: { name: string };
@@ -415,7 +415,7 @@ export function Sidebar({
           }
         >
           <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
-          {onVariablesClick && <IconButton icon={SlidersHorizontal} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
+          {onVariablesClick && <IconButton icon={Braces} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
         <div

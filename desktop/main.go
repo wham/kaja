@@ -95,7 +95,7 @@ func buildNumber() string {
 type App struct {
 	ctx                  context.Context
 	twirpHandler         api.TwirpServer
-	apps                 *apps.Manager
+	api                  *api.ApiService
 	configurationWatcher *api.ConfigurationWatcher
 	bookmarkStore        *BookmarkStore
 	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
@@ -112,10 +112,10 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(twirpHandler api.TwirpServer, appManager *apps.Manager, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
+func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
 		twirpHandler:         twirpHandler,
-		apps:                 appManager,
+		api:                  apiService,
 		configurationWatcher: configurationWatcher,
 		bookmarkStore:        bookmarkStore,
 		workspaceDir:         workspaceDir,
@@ -336,6 +336,14 @@ func (a *App) LogFromUI(level string, message string) error {
 // OpenDirectoryDialog opens a native directory picker dialog.
 // On macOS, it saves a security-scoped bookmark so the sandbox remembers
 // access across app restarts.
+// ResolvedVariables returns every configured variable's value, including the
+// ones kaja.json only names. Scripts read them as kaja.variables.<name>. This is
+// the desktop only: its UI runs inside this process, so there is no remote
+// browser being handed a value it shouldn't have.
+func (a *App) ResolvedVariables() (map[string]string, error) {
+	return a.api.Variables().Values(), nil
+}
+
 func (a *App) OpenDirectoryDialog() (string, error) {
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Workspace Directory",
@@ -445,8 +453,10 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	}
 
 	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
+	// InvokeApp expands the ${NAME} references the headers still carry and masks
+	// the resolved values back out of what it reports exchanging.
 	if apps.IsAppTarget(target) {
-		result, err := a.apps.Invoke(target, method, req, headers)
+		result, err := a.api.InvokeApp(target, method, req, headers)
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
 			// Hand the structured upstream failure to the transport instead of
@@ -471,6 +481,7 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	}
 
 	// Use the transport to determine which handler to use
+	headers = a.api.Variables().ExpandAll(headers)
 	switch protocol {
 	case 1: // gRPC
 		resp, err := a.targetGRPC(target, method, req, headers)
@@ -609,6 +620,8 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 		}
 	}
 
+	headers = a.api.Variables().ExpandAll(headers)
+
 	client, err := grpc.NewClientFromString(target)
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC client: %w", err)
@@ -678,8 +691,9 @@ func main() {
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
 	restoreBookmarks(bookmarkStore, configurationPath)
 
-	// Create API service
-	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber())
+	// Create API service. Variable values that kaja.json only names live in the
+	// OS keychain, filed under this configuration.
+	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
 	twirpHandler := api.NewApiServer(apiService)
 
 	// Start configuration file watcher
@@ -689,7 +703,7 @@ func main() {
 	}
 
 	// Create application with options
-	app := NewApp(twirpHandler, apiService.Apps(), configurationWatcher, bookmarkStore, kajaDir)
+	app := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
 
 	// The File menu starts hidden; the UI enables it once it reports the Scripts
 	// feature preview as on (see startup).

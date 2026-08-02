@@ -354,6 +354,71 @@ export interface GetConfigurationResponse {
      * @generated from protobuf field: repeated Log logs = 2
      */
     logs: Log[];
+    /**
+     * Where each configured variable's value came from, one entry per variable.
+     *
+     * @generated from protobuf field: repeated VariableStatus variable_status = 3
+     */
+    variableStatus: VariableStatus[];
+}
+/**
+ * VariableStatus reports where a variable's value came from. A variable whose
+ * value is not written in kaja.json is never sent to the UI, so this is all the
+ * Variables tab knows about it.
+ *
+ * @generated from protobuf message VariableStatus
+ */
+export interface VariableStatus {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: VariableSource source = 2
+     */
+    source: VariableSource;
+    /**
+     * The environment variable consulted for this variable: the name inside
+     * ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
+     * written in kaja.json.
+     *
+     * @generated from protobuf field: string env_name = 3
+     */
+    envName: string;
+}
+/**
+ * SetStoredValue writes a "${secret}" variable's value to the OS keychain. Only
+ * the desktop app has one; the web server rejects the call.
+ *
+ * @generated from protobuf message SetStoredValueRequest
+ */
+export interface SetStoredValueRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string value = 2
+     */
+    value: string;
+}
+/**
+ * @generated from protobuf message ClearStoredValueRequest
+ */
+export interface ClearStoredValueRequest {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+}
+/**
+ * @generated from protobuf message StoredValueResponse
+ */
+export interface StoredValueResponse {
+    /**
+     * @generated from protobuf field: repeated VariableStatus variable_status = 1
+     */
+    variableStatus: VariableStatus[];
 }
 /**
  * @generated from protobuf message Configuration
@@ -383,8 +448,12 @@ export interface Configuration {
      */
     apps: ConfigurationApp[];
     /**
-     * User-defined variables usable from scripts as `kaja.variables.<name>`.
-     * Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+     * User-defined variables, referenced as `${NAME}` in app configuration and read
+     * from scripts as `kaja.variables.<name>`. A value is either literal, or names
+     * the source that holds it outside this file: "${secret}" (the OS keychain, or
+     * KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
+     * which may sit inside a longer value). Only literal values are ever sent to a
+     * remote browser.
      *
      * @generated from protobuf field: map<string, string> variables = 6
      */
@@ -414,6 +483,15 @@ export interface ConfigurationSystem {
      * @generated from protobuf field: string build_number = 3
      */
     buildNumber: string;
+    /**
+     * Whether this machine has somewhere to store a variable's value outside
+     * kaja.json (the OS keychain). False on the web server, and on a desktop with
+     * no usable keyring, where "${secret}" variables can only come from the
+     * environment.
+     *
+     * @generated from protobuf field: bool variable_store_available = 4
+     */
+    variableStoreAvailable: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -623,6 +701,12 @@ export interface UpdateConfigurationResponse {
      * @generated from protobuf field: Configuration configuration = 1
      */
     configuration?: Configuration;
+    /**
+     * Where each variable's value came from, re-resolved against what was saved.
+     *
+     * @generated from protobuf field: repeated VariableStatus variable_status = 2
+     */
+    variableStatus: VariableStatus[];
 }
 /**
  * @generated from protobuf enum OpenStatus
@@ -733,6 +817,35 @@ export enum LogLevel {
      * @generated from protobuf enum value: LEVEL_ERROR = 3;
      */
     LEVEL_ERROR = 3
+}
+/**
+ * @generated from protobuf enum VariableSource
+ */
+export enum VariableSource {
+    /**
+     * The variable names a source, but the source holds nothing on this machine.
+     *
+     * @generated from protobuf enum value: VARIABLE_SOURCE_UNSET = 0;
+     */
+    UNSET = 0,
+    /**
+     * The value is written in kaja.json.
+     *
+     * @generated from protobuf enum value: VARIABLE_SOURCE_FILE = 1;
+     */
+    FILE = 1,
+    /**
+     * The value came from the OS keychain.
+     *
+     * @generated from protobuf enum value: VARIABLE_SOURCE_KEYCHAIN = 2;
+     */
+    KEYCHAIN = 2,
+    /**
+     * The value came from an environment variable.
+     *
+     * @generated from protobuf enum value: VARIABLE_SOURCE_ENVIRONMENT = 3;
+     */
+    ENVIRONMENT = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class CompileRequest$Type extends MessageType<CompileRequest> {
@@ -1672,12 +1785,14 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
     constructor() {
         super("GetConfigurationResponse", [
             { no: 1, name: "configuration", kind: "message", T: () => Configuration },
-            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log }
+            { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
+            { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
         ]);
     }
     create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.logs = [];
+        message.variableStatus = [];
         if (value !== undefined)
             reflectionMergePartial<GetConfigurationResponse>(this, message, value);
         return message;
@@ -1692,6 +1807,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
                     break;
                 case /* repeated Log logs */ 2:
                     message.logs.push(Log.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated VariableStatus variable_status */ 3:
+                    message.variableStatus.push(VariableStatus.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1711,6 +1829,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
         /* repeated Log logs = 2; */
         for (let i = 0; i < message.logs.length; i++)
             Log.internalBinaryWrite(message.logs[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* repeated VariableStatus variable_status = 3; */
+        for (let i = 0; i < message.variableStatus.length; i++)
+            VariableStatus.internalBinaryWrite(message.variableStatus[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1721,6 +1842,218 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
  * @generated MessageType for protobuf message GetConfigurationResponse
  */
 export const GetConfigurationResponse = new GetConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class VariableStatus$Type extends MessageType<VariableStatus> {
+    constructor() {
+        super("VariableStatus", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "source", kind: "enum", T: () => ["VariableSource", VariableSource, "VARIABLE_SOURCE_"] },
+            { no: 3, name: "env_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<VariableStatus>): VariableStatus {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.source = 0;
+        message.envName = "";
+        if (value !== undefined)
+            reflectionMergePartial<VariableStatus>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: VariableStatus): VariableStatus {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* VariableSource source */ 2:
+                    message.source = reader.int32();
+                    break;
+                case /* string env_name */ 3:
+                    message.envName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: VariableStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* VariableSource source = 2; */
+        if (message.source !== 0)
+            writer.tag(2, WireType.Varint).int32(message.source);
+        /* string env_name = 3; */
+        if (message.envName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.envName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message VariableStatus
+ */
+export const VariableStatus = new VariableStatus$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetStoredValueRequest$Type extends MessageType<SetStoredValueRequest> {
+    constructor() {
+        super("SetStoredValueRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "value", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SetStoredValueRequest>): SetStoredValueRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.value = "";
+        if (value !== undefined)
+            reflectionMergePartial<SetStoredValueRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetStoredValueRequest): SetStoredValueRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string value */ 2:
+                    message.value = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SetStoredValueRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string value = 2; */
+        if (message.value !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.value);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetStoredValueRequest
+ */
+export const SetStoredValueRequest = new SetStoredValueRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ClearStoredValueRequest$Type extends MessageType<ClearStoredValueRequest> {
+    constructor() {
+        super("ClearStoredValueRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ClearStoredValueRequest>): ClearStoredValueRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<ClearStoredValueRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClearStoredValueRequest): ClearStoredValueRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ClearStoredValueRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ClearStoredValueRequest
+ */
+export const ClearStoredValueRequest = new ClearStoredValueRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StoredValueResponse$Type extends MessageType<StoredValueResponse> {
+    constructor() {
+        super("StoredValueResponse", [
+            { no: 1, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
+        ]);
+    }
+    create(value?: PartialMessage<StoredValueResponse>): StoredValueResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.variableStatus = [];
+        if (value !== undefined)
+            reflectionMergePartial<StoredValueResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StoredValueResponse): StoredValueResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated VariableStatus variable_status */ 1:
+                    message.variableStatus.push(VariableStatus.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StoredValueResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated VariableStatus variable_status = 1; */
+        for (let i = 0; i < message.variableStatus.length; i++)
+            VariableStatus.internalBinaryWrite(message.variableStatus[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message StoredValueResponse
+ */
+export const StoredValueResponse = new StoredValueResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Configuration$Type extends MessageType<Configuration> {
     constructor() {
@@ -1813,7 +2146,8 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
         super("ConfigurationSystem", [
             { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
@@ -1821,6 +2155,7 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
         message.canUpdateConfiguration = false;
         message.gitRef = "";
         message.buildNumber = "";
+        message.variableStoreAvailable = false;
         if (value !== undefined)
             reflectionMergePartial<ConfigurationSystem>(this, message, value);
         return message;
@@ -1838,6 +2173,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
                     break;
                 case /* string build_number */ 3:
                     message.buildNumber = reader.string();
+                    break;
+                case /* bool variable_store_available */ 4:
+                    message.variableStoreAvailable = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1860,6 +2198,9 @@ class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
         /* string build_number = 3; */
         if (message.buildNumber !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.buildNumber);
+        /* bool variable_store_available = 4; */
+        if (message.variableStoreAvailable !== false)
+            writer.tag(4, WireType.Varint).bool(message.variableStoreAvailable);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2445,11 +2786,13 @@ export const UpdateConfigurationRequest = new UpdateConfigurationRequest$Type();
 class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationResponse> {
     constructor() {
         super("UpdateConfigurationResponse", [
-            { no: 1, name: "configuration", kind: "message", T: () => Configuration }
+            { no: 1, name: "configuration", kind: "message", T: () => Configuration },
+            { no: 2, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
         ]);
     }
     create(value?: PartialMessage<UpdateConfigurationResponse>): UpdateConfigurationResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.variableStatus = [];
         if (value !== undefined)
             reflectionMergePartial<UpdateConfigurationResponse>(this, message, value);
         return message;
@@ -2461,6 +2804,9 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
             switch (fieldNo) {
                 case /* Configuration configuration */ 1:
                     message.configuration = Configuration.internalBinaryRead(reader, reader.uint32(), options, message.configuration);
+                    break;
+                case /* repeated VariableStatus variable_status */ 2:
+                    message.variableStatus.push(VariableStatus.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2477,6 +2823,9 @@ class UpdateConfigurationResponse$Type extends MessageType<UpdateConfigurationRe
         /* Configuration configuration = 1; */
         if (message.configuration)
             Configuration.internalBinaryWrite(message.configuration, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* repeated VariableStatus variable_status = 2; */
+        for (let i = 0; i < message.variableStatus.length; i++)
+            VariableStatus.internalBinaryWrite(message.variableStatus[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2495,5 +2844,7 @@ export const Api = new ServiceType("Api", [
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
-    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse }
+    { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
+    { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },
+    { name: "ClearStoredValue", options: {}, I: ClearStoredValueRequest, O: StoredValueResponse }
 ]);

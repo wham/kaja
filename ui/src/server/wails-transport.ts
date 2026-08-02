@@ -12,7 +12,6 @@ import { Deferred, RpcOutputStreamController, ServerStreamingCall, UnaryCall as 
 import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { appHeaders } from "../appTypes";
-import { expandHeaders } from "../variableExpansion";
 import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER } from "../upstreamHeaders";
 import { AppRef, Transport } from "../apps";
 
@@ -185,7 +184,8 @@ export class WailsTransport implements RpcTransport {
     const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
     const inputArray = Array.from(inputBytes);
     const fullMethodPath = `${method.service.typeName}/${method.name}`;
-    const headersJson = JSON.stringify(expandHeaders(appHeaders(this.appRef!.configuration)));
+    // The ${NAME} references travel unexpanded; the Go side resolves them.
+    const headersJson = JSON.stringify(appHeaders(this.appRef!.configuration));
 
     TargetServerStream(this.appRef!.target, fullMethodPath, inputArray, headersJson, streamID).catch((err) => {
       responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
@@ -285,7 +285,7 @@ export class WailsTransport implements RpcTransport {
       } else {
         // mode === "target" - read URL and headers dynamically from appRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
-        const headersJson = JSON.stringify(expandHeaders(appHeaders(this.appRef!.configuration)));
+        const headersJson = JSON.stringify(appHeaders(this.appRef!.configuration));
         console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
         const result = await Target(this.appRef!.target, fullMethodPath, inputArray, this.protocol, headersJson);
 

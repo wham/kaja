@@ -245,6 +245,62 @@ func (LogLevel) EnumDescriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
+type VariableSource int32
+
+const (
+	// The variable names a source, but the source holds nothing on this machine.
+	VariableSource_VARIABLE_SOURCE_UNSET VariableSource = 0
+	// The value is written in kaja.json.
+	VariableSource_VARIABLE_SOURCE_FILE VariableSource = 1
+	// The value came from the OS keychain.
+	VariableSource_VARIABLE_SOURCE_KEYCHAIN VariableSource = 2
+	// The value came from an environment variable.
+	VariableSource_VARIABLE_SOURCE_ENVIRONMENT VariableSource = 3
+)
+
+// Enum value maps for VariableSource.
+var (
+	VariableSource_name = map[int32]string{
+		0: "VARIABLE_SOURCE_UNSET",
+		1: "VARIABLE_SOURCE_FILE",
+		2: "VARIABLE_SOURCE_KEYCHAIN",
+		3: "VARIABLE_SOURCE_ENVIRONMENT",
+	}
+	VariableSource_value = map[string]int32{
+		"VARIABLE_SOURCE_UNSET":       0,
+		"VARIABLE_SOURCE_FILE":        1,
+		"VARIABLE_SOURCE_KEYCHAIN":    2,
+		"VARIABLE_SOURCE_ENVIRONMENT": 3,
+	}
+)
+
+func (x VariableSource) Enum() *VariableSource {
+	p := new(VariableSource)
+	*p = x
+	return p
+}
+
+func (x VariableSource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VariableSource) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_api_proto_enumTypes[4].Descriptor()
+}
+
+func (VariableSource) Type() protoreflect.EnumType {
+	return &file_proto_api_proto_enumTypes[4]
+}
+
+func (x VariableSource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VariableSource.Descriptor instead.
+func (VariableSource) EnumDescriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
+}
+
 type CompileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1188,8 +1244,10 @@ type GetConfigurationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
 	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Where each configured variable's value came from, one entry per variable.
+	VariableStatus []*VariableStatus `protobuf:"bytes,3,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetConfigurationResponse) Reset() {
@@ -1236,6 +1294,221 @@ func (x *GetConfigurationResponse) GetLogs() []*Log {
 	return nil
 }
 
+func (x *GetConfigurationResponse) GetVariableStatus() []*VariableStatus {
+	if x != nil {
+		return x.VariableStatus
+	}
+	return nil
+}
+
+// VariableStatus reports where a variable's value came from. A variable whose
+// value is not written in kaja.json is never sent to the UI, so this is all the
+// Variables tab knows about it.
+type VariableStatus struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Name   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Source VariableSource         `protobuf:"varint,2,opt,name=source,proto3,enum=VariableSource" json:"source,omitempty"`
+	// The environment variable consulted for this variable: the name inside
+	// ${env:...}, or KAJA_<NAME> for a "${secret}" variable. Empty for a value
+	// written in kaja.json.
+	EnvName       string `protobuf:"bytes,3,opt,name=env_name,json=envName,proto3" json:"env_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VariableStatus) Reset() {
+	*x = VariableStatus{}
+	mi := &file_proto_api_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VariableStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VariableStatus) ProtoMessage() {}
+
+func (x *VariableStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VariableStatus.ProtoReflect.Descriptor instead.
+func (*VariableStatus) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *VariableStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *VariableStatus) GetSource() VariableSource {
+	if x != nil {
+		return x.Source
+	}
+	return VariableSource_VARIABLE_SOURCE_UNSET
+}
+
+func (x *VariableStatus) GetEnvName() string {
+	if x != nil {
+		return x.EnvName
+	}
+	return ""
+}
+
+// SetStoredValue writes a "${secret}" variable's value to the OS keychain. Only
+// the desktop app has one; the web server rejects the call.
+type SetStoredValueRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetStoredValueRequest) Reset() {
+	*x = SetStoredValueRequest{}
+	mi := &file_proto_api_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetStoredValueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetStoredValueRequest) ProtoMessage() {}
+
+func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetStoredValueRequest.ProtoReflect.Descriptor instead.
+func (*SetStoredValueRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetStoredValueRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SetStoredValueRequest) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type ClearStoredValueRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearStoredValueRequest) Reset() {
+	*x = ClearStoredValueRequest{}
+	mi := &file_proto_api_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearStoredValueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearStoredValueRequest) ProtoMessage() {}
+
+func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearStoredValueRequest.ProtoReflect.Descriptor instead.
+func (*ClearStoredValueRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ClearStoredValueRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type StoredValueResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	VariableStatus []*VariableStatus      `protobuf:"bytes,1,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StoredValueResponse) Reset() {
+	*x = StoredValueResponse{}
+	mi := &file_proto_api_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StoredValueResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StoredValueResponse) ProtoMessage() {}
+
+func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StoredValueResponse.ProtoReflect.Descriptor instead.
+func (*StoredValueResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
+	if x != nil {
+		return x.VariableStatus
+	}
+	return nil
+}
+
 type Configuration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// kaja can be deployed at a subpath - i.e. kaja.tools/demo
@@ -1249,8 +1522,12 @@ type Configuration struct {
 	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
 	// are apps too. kaja renders and invokes every app the same way.
 	Apps []*ConfigurationApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
-	// User-defined variables usable from scripts as `kaja.variables.<name>`.
-	// Non-sensitive values only (base URLs, ids); stored in plaintext in kaja.json.
+	// User-defined variables, referenced as `${NAME}` in app configuration and read
+	// from scripts as `kaja.variables.<name>`. A value is either literal, or names
+	// the source that holds it outside this file: "${secret}" (the OS keychain, or
+	// KAJA_<NAME> in the environment) or "${env:X}" (the environment variable X,
+	// which may sit inside a longer value). Only literal values are ever sent to a
+	// remote browser.
 	Variables     map[string]string `protobuf:"bytes,6,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1258,7 +1535,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1270,7 +1547,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1283,7 +1560,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{15}
+	return file_proto_api_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -1321,14 +1598,19 @@ type ConfigurationSystem struct {
 	// Git commit hash or tag for the currently running version
 	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
 	// TestFlight/App Store build number (CFBundleVersion), empty for other builds
-	BuildNumber   string `protobuf:"bytes,3,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	BuildNumber string `protobuf:"bytes,3,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	// Whether this machine has somewhere to store a variable's value outside
+	// kaja.json (the OS keychain). False on the web server, and on a desktop with
+	// no usable keyring, where "${secret}" variables can only come from the
+	// environment.
+	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ConfigurationSystem) Reset() {
 	*x = ConfigurationSystem{}
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1340,7 +1622,7 @@ func (x *ConfigurationSystem) String() string {
 func (*ConfigurationSystem) ProtoMessage() {}
 
 func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1353,7 +1635,7 @@ func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationSystem.ProtoReflect.Descriptor instead.
 func (*ConfigurationSystem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{16}
+	return file_proto_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
@@ -1377,6 +1659,13 @@ func (x *ConfigurationSystem) GetBuildNumber() string {
 	return ""
 }
 
+func (x *ConfigurationSystem) GetVariableStoreAvailable() bool {
+	if x != nil {
+		return x.VariableStoreAvailable
+	}
+	return false
+}
+
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
 // app's type. The block declares the parameters that type needs (so two types can
 // never be mixed in one app); the server flattens its scalar fields to a string map
@@ -1398,7 +1687,7 @@ type ConfigurationApp struct {
 
 func (x *ConfigurationApp) Reset() {
 	*x = ConfigurationApp{}
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1410,7 +1699,7 @@ func (x *ConfigurationApp) String() string {
 func (*ConfigurationApp) ProtoMessage() {}
 
 func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,7 +1712,7 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
 func (*ConfigurationApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{17}
+	return file_proto_api_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ConfigurationApp) GetName() string {
@@ -1534,7 +1823,7 @@ type GrpcApp struct {
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1546,7 +1835,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1559,7 +1848,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{18}
+	return file_proto_api_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -1602,7 +1891,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1614,7 +1903,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1627,7 +1916,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{19}
+	return file_proto_api_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -1679,7 +1968,7 @@ type OpenApiApp struct {
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1691,7 +1980,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1704,7 +1993,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{20}
+	return file_proto_api_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -1789,7 +2078,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1801,7 +2090,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1814,7 +2103,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{21}
+	return file_proto_api_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -1849,7 +2138,7 @@ type MarkdownApp struct {
 
 func (x *MarkdownApp) Reset() {
 	*x = MarkdownApp{}
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1861,7 +2150,7 @@ func (x *MarkdownApp) String() string {
 func (*MarkdownApp) ProtoMessage() {}
 
 func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1874,7 +2163,7 @@ func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkdownApp.ProtoReflect.Descriptor instead.
 func (*MarkdownApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{22}
+	return file_proto_api_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MarkdownApp) GetFolder() string {
@@ -1893,7 +2182,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1905,7 +2194,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,7 +2207,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{23}
+	return file_proto_api_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -1931,13 +2220,15 @@ func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
 type UpdateConfigurationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Where each variable's value came from, re-resolved against what was saved.
+	VariableStatus []*VariableStatus `protobuf:"bytes,2,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1949,7 +2240,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1962,12 +2253,19 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{24}
+	return file_proto_api_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
 	if x != nil {
 		return x.Configuration
+	}
+	return nil
+}
+
+func (x *UpdateConfigurationResponse) GetVariableStatus() []*VariableStatus {
+	if x != nil {
+		return x.VariableStatus
 	}
 	return nil
 }
@@ -2042,10 +2340,22 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x06Source\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\x19\n" +
-	"\x17GetConfigurationRequest\"j\n" +
+	"\x17GetConfigurationRequest\"\xa4\x01\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
-	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\"\x90\x02\n" +
+	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
+	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"h\n" +
+	"\x0eVariableStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
+	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
+	"\benv_name\x18\x03 \x01(\tR\aenvName\"A\n" +
+	"\x15SetStoredValueRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"-\n" +
+	"\x17ClearStoredValueRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"O\n" +
+	"\x13StoredValueResponse\x128\n" +
+	"\x0fvariable_status\x18\x01 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"\x90\x02\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
 	"pathPrefix\x12,\n" +
@@ -2054,11 +2364,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03R\bprojects\"\x8b\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03R\bprojects\"\xc5\x01\n" +
 	"\x13ConfigurationSystem\x128\n" +
 	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
 	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
-	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\"\xeb\x01\n" +
+	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
+	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\"\xeb\x01\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04grpc\x18\x02 \x01(\v2\b.GrpcAppH\x00R\x04grpc\x12!\n" +
@@ -2111,9 +2422,10 @@ const file_proto_api_proto_rawDesc = "" +
 	"\vMarkdownApp\x12\x16\n" +
 	"\x06folder\x18\x01 \x01(\tR\x06folder\"R\n" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"S\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\x8d\x01\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
-	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration*P\n" +
+	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x128\n" +
+	"\x0fvariable_status\x18\x02 \x03(\v2\x0f.VariableStatusR\x0evariableStatus*P\n" +
 	"\n" +
 	"OpenStatus\x12\x17\n" +
 	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
@@ -2139,13 +2451,20 @@ const file_proto_api_proto_rawDesc = "" +
 	"LEVEL_INFO\x10\x01\x12\x0e\n" +
 	"\n" +
 	"LEVEL_WARN\x10\x02\x12\x0f\n" +
-	"\vLEVEL_ERROR\x10\x032\xbf\x02\n" +
+	"\vLEVEL_ERROR\x10\x03*\x84\x01\n" +
+	"\x0eVariableSource\x12\x19\n" +
+	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
+	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
+	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xc3\x03\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
 	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
-	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponseB\tZ\apkg/apib\x06proto3"
+	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12>\n" +
+	"\x0eSetStoredValue\x12\x16.SetStoredValueRequest\x1a\x14.StoredValueResponse\x12B\n" +
+	"\x10ClearStoredValue\x12\x18.ClearStoredValueRequest\x1a\x14.StoredValueResponseB\tZ\apkg/apib\x06proto3"
 
 var (
 	file_proto_api_proto_rawDescOnce sync.Once
@@ -2159,90 +2478,103 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
 	(OpenApiProblemKind)(0),             // 1: OpenApiProblemKind
 	(CompileStatus)(0),                  // 2: CompileStatus
 	(LogLevel)(0),                       // 3: LogLevel
-	(*CompileRequest)(nil),              // 4: CompileRequest
-	(*OpenAppRequest)(nil),              // 5: OpenAppRequest
-	(*OpenAppResponse)(nil),             // 6: OpenAppResponse
-	(*InspectOpenApiRequest)(nil),       // 7: InspectOpenApiRequest
-	(*InspectOpenApiResponse)(nil),      // 8: InspectOpenApiResponse
-	(*OpenApiDocument)(nil),             // 9: OpenApiDocument
-	(*OpenApiServer)(nil),               // 10: OpenApiServer
-	(*OpenApiServerVariable)(nil),       // 11: OpenApiServerVariable
-	(*OpenApiSecurityScheme)(nil),       // 12: OpenApiSecurityScheme
-	(*OpenApiProblem)(nil),              // 13: OpenApiProblem
-	(*CompileResponse)(nil),             // 14: CompileResponse
-	(*Log)(nil),                         // 15: Log
-	(*Source)(nil),                      // 16: Source
-	(*GetConfigurationRequest)(nil),     // 17: GetConfigurationRequest
-	(*GetConfigurationResponse)(nil),    // 18: GetConfigurationResponse
-	(*Configuration)(nil),               // 19: Configuration
-	(*ConfigurationSystem)(nil),         // 20: ConfigurationSystem
-	(*ConfigurationApp)(nil),            // 21: ConfigurationApp
-	(*GrpcApp)(nil),                     // 22: GrpcApp
-	(*TwirpApp)(nil),                    // 23: TwirpApp
-	(*OpenApiApp)(nil),                  // 24: OpenApiApp
-	(*OpenAiApp)(nil),                   // 25: OpenAiApp
-	(*MarkdownApp)(nil),                 // 26: MarkdownApp
-	(*UpdateConfigurationRequest)(nil),  // 27: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 28: UpdateConfigurationResponse
-	nil,                                 // 29: Configuration.VariablesEntry
-	nil,                                 // 30: GrpcApp.HeadersEntry
-	nil,                                 // 31: TwirpApp.HeadersEntry
-	nil,                                 // 32: OpenApiApp.HeadersEntry
-	nil,                                 // 33: OpenAiApp.HeadersEntry
+	(VariableSource)(0),                 // 4: VariableSource
+	(*CompileRequest)(nil),              // 5: CompileRequest
+	(*OpenAppRequest)(nil),              // 6: OpenAppRequest
+	(*OpenAppResponse)(nil),             // 7: OpenAppResponse
+	(*InspectOpenApiRequest)(nil),       // 8: InspectOpenApiRequest
+	(*InspectOpenApiResponse)(nil),      // 9: InspectOpenApiResponse
+	(*OpenApiDocument)(nil),             // 10: OpenApiDocument
+	(*OpenApiServer)(nil),               // 11: OpenApiServer
+	(*OpenApiServerVariable)(nil),       // 12: OpenApiServerVariable
+	(*OpenApiSecurityScheme)(nil),       // 13: OpenApiSecurityScheme
+	(*OpenApiProblem)(nil),              // 14: OpenApiProblem
+	(*CompileResponse)(nil),             // 15: CompileResponse
+	(*Log)(nil),                         // 16: Log
+	(*Source)(nil),                      // 17: Source
+	(*GetConfigurationRequest)(nil),     // 18: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil),    // 19: GetConfigurationResponse
+	(*VariableStatus)(nil),              // 20: VariableStatus
+	(*SetStoredValueRequest)(nil),       // 21: SetStoredValueRequest
+	(*ClearStoredValueRequest)(nil),     // 22: ClearStoredValueRequest
+	(*StoredValueResponse)(nil),         // 23: StoredValueResponse
+	(*Configuration)(nil),               // 24: Configuration
+	(*ConfigurationSystem)(nil),         // 25: ConfigurationSystem
+	(*ConfigurationApp)(nil),            // 26: ConfigurationApp
+	(*GrpcApp)(nil),                     // 27: GrpcApp
+	(*TwirpApp)(nil),                    // 28: TwirpApp
+	(*OpenApiApp)(nil),                  // 29: OpenApiApp
+	(*OpenAiApp)(nil),                   // 30: OpenAiApp
+	(*MarkdownApp)(nil),                 // 31: MarkdownApp
+	(*UpdateConfigurationRequest)(nil),  // 32: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 33: UpdateConfigurationResponse
+	nil,                                 // 34: Configuration.VariablesEntry
+	nil,                                 // 35: GrpcApp.HeadersEntry
+	nil,                                 // 36: TwirpApp.HeadersEntry
+	nil,                                 // 37: OpenApiApp.HeadersEntry
+	nil,                                 // 38: OpenAiApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	21, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	26, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
-	15, // 2: OpenAppResponse.logs:type_name -> Log
-	24, // 3: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
-	9,  // 4: InspectOpenApiResponse.document:type_name -> OpenApiDocument
-	13, // 5: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
-	10, // 6: OpenApiDocument.servers:type_name -> OpenApiServer
-	12, // 7: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
-	11, // 8: OpenApiServer.variables:type_name -> OpenApiServerVariable
+	16, // 2: OpenAppResponse.logs:type_name -> Log
+	29, // 3: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	10, // 4: InspectOpenApiResponse.document:type_name -> OpenApiDocument
+	14, // 5: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
+	11, // 6: OpenApiDocument.servers:type_name -> OpenApiServer
+	13, // 7: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
+	12, // 8: OpenApiServer.variables:type_name -> OpenApiServerVariable
 	1,  // 9: OpenApiProblem.kind:type_name -> OpenApiProblemKind
 	2,  // 10: CompileResponse.status:type_name -> CompileStatus
-	15, // 11: CompileResponse.logs:type_name -> Log
-	16, // 12: CompileResponse.sources:type_name -> Source
+	16, // 11: CompileResponse.logs:type_name -> Log
+	17, // 12: CompileResponse.sources:type_name -> Source
 	3,  // 13: Log.level:type_name -> LogLevel
-	19, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
-	15, // 15: GetConfigurationResponse.logs:type_name -> Log
-	20, // 16: Configuration.system:type_name -> ConfigurationSystem
-	21, // 17: Configuration.apps:type_name -> ConfigurationApp
-	29, // 18: Configuration.variables:type_name -> Configuration.VariablesEntry
-	22, // 19: ConfigurationApp.grpc:type_name -> GrpcApp
-	23, // 20: ConfigurationApp.twirp:type_name -> TwirpApp
-	24, // 21: ConfigurationApp.openapi:type_name -> OpenApiApp
-	25, // 22: ConfigurationApp.openai:type_name -> OpenAiApp
-	26, // 23: ConfigurationApp.markdown:type_name -> MarkdownApp
-	30, // 24: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	31, // 25: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	32, // 26: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	33, // 27: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	19, // 28: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	19, // 29: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	4,  // 30: Api.Compile:input_type -> CompileRequest
-	5,  // 31: Api.OpenApp:input_type -> OpenAppRequest
-	7,  // 32: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	17, // 33: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	27, // 34: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	14, // 35: Api.Compile:output_type -> CompileResponse
-	6,  // 36: Api.OpenApp:output_type -> OpenAppResponse
-	8,  // 37: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	18, // 38: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	28, // 39: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	35, // [35:40] is the sub-list for method output_type
-	30, // [30:35] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	24, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
+	16, // 15: GetConfigurationResponse.logs:type_name -> Log
+	20, // 16: GetConfigurationResponse.variable_status:type_name -> VariableStatus
+	4,  // 17: VariableStatus.source:type_name -> VariableSource
+	20, // 18: StoredValueResponse.variable_status:type_name -> VariableStatus
+	25, // 19: Configuration.system:type_name -> ConfigurationSystem
+	26, // 20: Configuration.apps:type_name -> ConfigurationApp
+	34, // 21: Configuration.variables:type_name -> Configuration.VariablesEntry
+	27, // 22: ConfigurationApp.grpc:type_name -> GrpcApp
+	28, // 23: ConfigurationApp.twirp:type_name -> TwirpApp
+	29, // 24: ConfigurationApp.openapi:type_name -> OpenApiApp
+	30, // 25: ConfigurationApp.openai:type_name -> OpenAiApp
+	31, // 26: ConfigurationApp.markdown:type_name -> MarkdownApp
+	35, // 27: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	36, // 28: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	37, // 29: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	38, // 30: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	24, // 31: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	24, // 32: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	20, // 33: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	5,  // 34: Api.Compile:input_type -> CompileRequest
+	6,  // 35: Api.OpenApp:input_type -> OpenAppRequest
+	8,  // 36: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	18, // 37: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	32, // 38: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	21, // 39: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	22, // 40: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	15, // 41: Api.Compile:output_type -> CompileResponse
+	7,  // 42: Api.OpenApp:output_type -> OpenAppResponse
+	9,  // 43: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	19, // 44: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	33, // 45: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	23, // 46: Api.SetStoredValue:output_type -> StoredValueResponse
+	23, // 47: Api.ClearStoredValue:output_type -> StoredValueResponse
+	41, // [41:48] is the sub-list for method output_type
+	34, // [34:41] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -2250,7 +2582,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[17].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[21].OneofWrappers = []any{
 		(*ConfigurationApp_Grpc)(nil),
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
@@ -2262,8 +2594,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   30,
+			NumEnums:      5,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -1,6 +1,20 @@
 import { useRef, useState } from "react";
 import { Input } from "./components/input";
 import { cn } from "./cn";
+import { environmentReferences, variableKind } from "./variableExpansion";
+
+// variableSummary describes a variable in one line: its value when kaja.json
+// carries it, and where the value comes from when it doesn't.
+function variableSummary(value: string): string {
+  switch (variableKind(value)) {
+    case "stored":
+      return "Stored on this machine";
+    case "environment":
+      return "From " + environmentReferences(value).join(", ");
+    default:
+      return value;
+  }
+}
 
 // matchVariableReferencePrefix finds an unfinished ${NAME reference ending at
 // the caret, returning where it starts and the name typed so far.
@@ -132,7 +146,7 @@ export function VariableSuggestInput({
               )}
             >
               <span className="font-mono">{"${" + name + "}"}</span>
-              <span className="text-xs text-muted-foreground">{variables[name]}</span>
+              <span className="text-xs text-muted-foreground">{variableSummary(variables[name])}</span>
             </button>
           ))}
         </div>

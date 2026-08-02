@@ -41,7 +41,9 @@ func main() {
 	mime.AddExtensionType(".ts", "text/plain")
 	mux := http.NewServeMux()
 
-	apiService := api.NewApiService(configurationPath, false, GitRef, "")
+	// No variable store on the web server: a "${secret}" variable's value comes
+	// from the environment.
+	apiService := api.NewApiService(configurationPath, false, GitRef, "", nil)
 	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 
@@ -146,7 +148,10 @@ func main() {
 		contentType := r.Header.Get("Content-Type")
 		targetHeader := r.Header.Get("X-Target")
 
-		// Extract headers with X-Header- prefix to forward to target
+		// Extract headers with X-Header- prefix to forward to target. Their values
+		// still carry ${NAME} variable references: the browser sends them
+		// unexpanded because a variable's value may be one this server holds and
+		// the browser is not allowed to know.
 		forwardHeaders := make(map[string]string)
 		for name, values := range r.Header {
 			if strings.HasPrefix(name, "X-Header-") && len(values) > 0 {
@@ -157,14 +162,16 @@ func main() {
 
 		// App targets (kaja-app://<id>) are invoked in-process by the app manager
 		// instead of being proxied to an external host. Apps are gRPC apps, so the
-		// request arrives as gRPC-Web like a regular gRPC app.
+		// request arrives as gRPC-Web like a regular gRPC app. InvokeApp expands
+		// the headers and redacts what it reports back.
 		if apps.IsAppTarget(targetHeader) {
-			manager := apiService.Apps()
 			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
-				return manager.Invoke(targetHeader, method, message, headers)
+				return apiService.InvokeApp(targetHeader, method, message, headers)
 			}, forwardHeaders)
 			return
 		}
+
+		forwardHeaders = apiService.Variables().ExpandAll(forwardHeaders)
 
 		target, err := url.Parse(targetHeader)
 		if err != nil {

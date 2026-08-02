@@ -6,16 +6,16 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
-import { Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Braces, Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as monaco from "monaco-editor";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
 import { GetStartedBlankslate } from "./GetStartedBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
-import { appParameters, appType, buildApp } from "./appTypes";
+import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, createAppRef, getDefaultMethod, Method, App as AppModel, Script, Service, Transport, updateAppRef } from "./apps";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
@@ -26,7 +26,7 @@ import { AppForm } from "./AppForm";
 import { registerKajaModule, setValueCompletionApps } from "./Editor";
 import { monacoTheme } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationApp, LogLevel } from "./server/api";
+import { Configuration, ConfigurationApp, LogLevel, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
@@ -38,7 +38,6 @@ import {
   getAppFormTabLabel,
   getScriptTabLabel,
   getTabLabel,
-  getVariablesTabIndex,
   linkTabsToApps,
   markInteraction,
   PersistedTabState,
@@ -49,7 +48,7 @@ import {
   setAppFormEditMode,
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
-import { Variables } from "./Variables";
+import { Variables, VariablesSave } from "./Variables";
 import { Task } from "./Task";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
@@ -69,6 +68,7 @@ import {
   MCPSetEnabled,
   ReadScriptFile,
   RenameScript,
+  ResolvedVariables,
   WriteScriptFile,
 } from "./wailsjs/go/main/App";
 import { main } from "./wailsjs/go/models";
@@ -132,6 +132,13 @@ export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
+  // Where each variable's value came from. A value the configuration only names
+  // never travels, so this is all the Variables tab knows about it.
+  const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
+  const variablesDirtyRef = useRef(false);
+  // Index of the Variables tab a close gesture is waiting on, while it asks
+  // whether to discard the edits.
+  const [discardVariablesIndex, setDiscardVariablesIndex] = useState<number>();
   const [apps, setApps] = useState<AppModel[]>([]);
   const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
   const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
@@ -546,16 +553,29 @@ export function App() {
   useEffect(() => {
     const variables = configuration?.variables ?? {};
     setVariables(variables);
-    if (kajaRef.current) {
+    registerKajaModule(Object.keys(variables));
+    if (!kajaRef.current) return;
+    // Scripts read resolved values, including the ones kaja.json only names.
+    // That is the desktop only: its UI runs inside the app's own process, so
+    // there is no remote browser being handed a value it shouldn't have. On the
+    // web the configuration's own text is all there is — and no scripts to read
+    // it.
+    if (isWailsEnvironment()) {
+      ResolvedVariables()
+        .then((resolved) => {
+          if (kajaRef.current) kajaRef.current.variables = resolved;
+        })
+        .catch((error) => console.error("Failed to read the resolved variables", error));
+    } else {
       kajaRef.current.variables = variables;
     }
-    registerKajaModule(Object.keys(variables));
   }, [configuration?.variables]);
 
   // Handle external configuration file changes (hot reload)
   const handleConfigurationFileChange = useCallback(async () => {
     const client = getApiClient();
     const { response } = await client.getConfiguration({});
+    setVariableStatus(response.variableStatus);
     if (response.configuration) {
       applyConfiguration(response.configuration);
     }
@@ -755,7 +775,10 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, setConfiguration);
+  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (loaded, status) => {
+    setConfiguration(loaded);
+    setVariableStatus(status);
+  });
 
   const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
     captureActiveViewState();
@@ -1207,6 +1230,16 @@ export function App() {
   };
 
   const onCloseTab = (index: number) => {
+    // The Variables tab holds edits that aren't anywhere else yet, so closing it
+    // mid-edit asks first.
+    if (tabsRef.current[index]?.type === "variables" && variablesDirtyRef.current) {
+      setDiscardVariablesIndex(index);
+      return;
+    }
+    closeTab(index);
+  };
+
+  const closeTab = (index: number) => {
     setTabs((prevTabs) => {
       const tab = prevTabs[index];
       if (tab) disposeTabEditor(tab);
@@ -1419,6 +1452,26 @@ export function App() {
     closeAppFormTab();
   };
 
+  // Which apps reference each ${NAME}. Names no variable defines are in here
+  // too: the Variables tab shows them as a warning with the apps that use them.
+  const variableUsage = useMemo(() => {
+    const usage: { [name: string]: string[] } = {};
+    for (const name of Object.keys(configuration?.variables ?? {})) {
+      usage[name] = [];
+    }
+    for (const app of configuration?.apps ?? []) {
+      const values = [...Object.values(appParameters(app)), ...Object.values(appHeaders(app))];
+      for (const name of new Set(values.flatMap(variableReferences))) {
+        (usage[name] ??= []).push(app.name);
+      }
+    }
+    return usage;
+  }, [configuration?.apps, configuration?.variables]);
+
+  const onVariablesDirtyChange = useCallback((dirty: boolean) => {
+    variablesDirtyRef.current = dirty;
+  }, []);
+
   const onVariablesClick = () => {
     setTabs((tabs) => {
       const { tabs: newTabs, activeIndex } = addVariablesTab(tabs);
@@ -1427,34 +1480,30 @@ export function App() {
     });
   };
 
-  const closeVariablesTab = () => {
-    setTabs((prevTabs) => {
-      const index = getVariablesTabIndex(prevTabs);
-      if (index === -1) return prevTabs;
-      const newTabs = prevTabs.filter((_, i) => i !== index);
-      const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
-      setActiveTabIndex(newActiveIndex);
-      return newTabs;
-    });
-  };
-
-  const onVariablesSubmit = async (variables: { [key: string]: string }) => {
-    closeVariablesTab();
-
+  // Saving the Variables tab is two things: the configuration, which names the
+  // variables, and the values kaja.json doesn't carry, which go to this
+  // machine's store. The configuration goes first, so a failed save leaves
+  // nothing stored for a variable that doesn't exist.
+  const onVariablesSave = async ({ variables, stored, cleared }: VariablesSave) => {
     if (!configuration) {
       return;
     }
 
-    const updatedConfiguration: Configuration = { ...configuration, variables };
     const client = getApiClient();
-    const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
+    const { response } = await client.updateConfiguration({ configuration: { ...configuration, variables } });
+
+    let status = response.variableStatus;
+    for (const name of cleared) {
+      status = (await client.clearStoredValue({ name })).response.variableStatus;
+    }
+    for (const { name, value } of stored) {
+      status = (await client.setStoredValue({ name, value })).response.variableStatus;
+    }
+    setVariableStatus(status);
+
     if (response.configuration) {
       applyConfiguration(response.configuration);
     }
-  };
-
-  const onVariablesCancel = () => {
-    closeVariablesTab();
   };
 
   const onDeleteApp = async (appName: string) => {
@@ -1537,7 +1586,7 @@ export function App() {
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
-                onVariablesClick={previewScripts ? onVariablesClick : undefined}
+                onVariablesClick={onVariablesClick}
                 autoExpandApp={autoExpandApp}
                 reserveTrafficLights={isDesktopMac}
                 onEditApp={onEditApp}
@@ -1716,12 +1765,15 @@ export function App() {
 
                       if (tab.type === "variables") {
                         return (
-                          <Tab tabId={tab.id} tabLabel="Variables" key={tab.id}>
+                          <Tab tabId={tab.id} tabLabel="Variables" icon={Braces} key={tab.id}>
                             <Variables
                               variables={configuration?.variables ?? {}}
+                              status={variableStatus}
+                              storeAvailable={configuration?.system?.variableStoreAvailable ?? false}
+                              usage={variableUsage}
                               readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
-                              onSubmit={onVariablesSubmit}
-                              onCancel={onVariablesCancel}
+                              onSave={onVariablesSave}
+                              onDirtyChange={onVariablesDirtyChange}
                             />
                           </Tab>
                         );
@@ -1887,6 +1939,23 @@ export function App() {
           }}
         >
           Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
+      )}
+      {discardVariablesIndex !== undefined && (
+        <ConfirmationDialog
+          title="Discard variable changes?"
+          confirmButtonContent="Discard"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const index = discardVariablesIndex;
+            setDiscardVariablesIndex(undefined);
+            if (gesture === "confirm") {
+              variablesDirtyRef.current = false;
+              closeTab(index);
+            }
+          }}
+        >
+          The Variables tab has unsaved changes.
         </ConfirmationDialog>
       )}
       {fileError && (

@@ -1,4 +1,4 @@
-import { Ellipsis, X } from "lucide-react";
+import { Ellipsis, X, type LucideIcon } from "lucide-react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
@@ -11,6 +11,8 @@ interface TabProps {
   tabLabel: string;
   children: React.ReactNode;
   isEphemeral?: boolean;
+  // Icon for a tab that isn't a document, so it reads as what it is at a glance.
+  icon?: LucideIcon;
 }
 
 interface TabsProps {
@@ -124,7 +126,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           style={{ paddingRight: tabCount > 0 ? controlsWidth : 0 }}
         >
           {React.Children.map(children, (child, index) => {
-            const { tabId, tabLabel, isEphemeral } = child.props;
+            const { tabId, tabLabel, isEphemeral, icon: Icon } = child.props;
             const isActive = index === activeTabIndex;
 
             return (
@@ -144,6 +146,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 onDoubleClick={() => onKeepTab?.(index)}
                 onContextMenu={(e) => handleContextMenu(e, index)}
               >
+                {Icon && <Icon size={14} className={cn("mr-1.5 shrink-0", isActive ? "text-foreground" : "text-muted-foreground")} />}
                 <span
                   className={cn(
                     "mr-2 select-none whitespace-nowrap text-[length:inherit]",
