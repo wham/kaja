@@ -204,6 +204,8 @@ export function App() {
   const [appFormJsonValid, setAppFormJsonValid] = useState(true);
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
+  // One-shot signal to expand an app's logs when the compile log is opened for it.
+  const [compileLogExpandApp, setCompileLogExpandApp] = useState<{ name: string }>();
   // Rename dialog and delete confirmation for scripts (right-click menu).
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
@@ -1310,7 +1312,11 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onRunActiveTab]);
 
-  const onCompilerClick = () => {
+  // Opens the compile log, expanded on an app when one is named. Nothing else
+  // opens it: compiling is reported in the status bar, and the log is where you
+  // go when it has something to say.
+  const onShowCompileLog = (appName?: string) => {
+    setCompileLogExpandApp(appName ? { name: appName } : undefined);
     setTabs((tabs) => {
       const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
       if (compilerIndex === -1) {
@@ -1323,6 +1329,19 @@ export function App() {
       }
     });
     persistTabs();
+  };
+
+  // Recompiles one app, or every app when no name is given, by putting it back
+  // to pending — the compilation hook picks it up from there. An app already
+  // compiling is left to finish.
+  const onRecompile = (appName?: string) => {
+    setApps((prevApps) =>
+      prevApps.map((app) => {
+        if (appName !== undefined && app.configuration.name !== appName) return app;
+        if (app.compilation.status === "running" || app.compilation.status === "pending") return app;
+        return { ...app, compilation: { status: "pending" as const, logs: [] } };
+      }),
+    );
   };
 
   const onNewAppClick = () => {
@@ -1376,13 +1395,6 @@ export function App() {
     }
 
     const isEdit = originalName !== undefined;
-    const needsRecompilation =
-      isEdit &&
-      (() => {
-        const originalApp = apps.find((p) => p.configuration.name === originalName);
-        if (!originalApp) return false;
-        return appNeedsRecompile(originalApp.configuration, app);
-      })();
     const isNewApp = !isEdit;
 
     // Update configuration
@@ -1396,11 +1408,6 @@ export function App() {
     const { response } = await client.updateConfiguration({ configuration: updatedConfiguration });
     if (response.configuration) {
       applyConfiguration(response.configuration);
-    }
-
-    // Show compiler tab for new apps or when recompilation is needed
-    if (isNewApp || needsRecompilation) {
-      onCompilerClick();
     }
 
     if (isNewApp) {
@@ -1527,7 +1534,8 @@ export function App() {
                 currentMethod={selectedMethod}
                 currentScriptPath={activeScriptPath}
                 scrollToMethod={scrollToMethod}
-                onCompilerClick={onCompilerClick}
+                onShowCompileLog={onShowCompileLog}
+                onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
                 onVariablesClick={previewScripts ? onVariablesClick : undefined}
                 autoExpandApp={autoExpandApp}
@@ -1634,8 +1642,8 @@ export function App() {
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
                         return (
-                          <Tab tabId="compiler" tabLabel="Compiler" key="compiler">
-                            <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} />
+                          <Tab tabId="compiler" tabLabel="Compile log" key="compiler">
+                            <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
                           </Tab>
                         );
                       }
@@ -1751,6 +1759,10 @@ export function App() {
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={previewMcp ? mcpInfo : undefined}
+          apps={apps}
+          configurationLoaded={configurationLoaded}
+          onShowCompileLog={onShowCompileLog}
+          onRecompile={onRecompile}
         />
       </div>
       <SearchPopup isOpen={isSearchOpen} apps={apps} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />

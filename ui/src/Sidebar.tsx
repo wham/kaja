@@ -4,15 +4,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
 import {
-  Cpu,
+  CircleX,
   FileCode,
   FoldVertical,
   Pencil,
   Pin,
   Plus,
+  RotateCw,
   Settings,
   SlidersHorizontal,
   Trash2,
+  TriangleAlert,
   UnfoldVertical,
   ChevronRight,
   Package,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import { appType, appTypeLabel } from "./appTypes";
 import { Method, App, Script, Service, methodId } from "./apps";
+import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
 // Width the macOS traffic lights occupy at the window's left edge. The desktop
@@ -46,7 +49,7 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
 
 const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
 
-function AppPill({ type }: { type: string }) {
+export function AppPill({ type }: { type: string }) {
   return <span className={pillClass}>{appTypeLabel(type)}</span>;
 }
 
@@ -74,7 +77,9 @@ interface SidebarProps {
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
   onPinScript?: (script: Script) => void;
-  onCompilerClick: () => void;
+  // Opens the compile log for an app, from the marker on a failed or warned app.
+  onShowCompileLog: (appName: string) => void;
+  onRecompileApp: (appName: string) => void;
   // Opens the create form to add an app (gRPC, Twirp, or a built-in integration).
   onNewAppClick: () => void;
   // Opens the variables manager tab. Undefined when the feature preview is off.
@@ -101,7 +106,8 @@ export function Sidebar({
   onRenameScript,
   onDeleteScript,
   onPinScript,
-  onCompilerClick,
+  onShowCompileLog,
+  onRecompileApp,
   onNewAppClick,
   onVariablesClick,
   autoExpandApp,
@@ -409,7 +415,6 @@ export function Sidebar({
           }
         >
           <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
-          <IconButton icon={Cpu} size="sm" variant="ghost" aria-label="Open Compiler" onClick={onCompilerClick} />
           {onVariablesClick && <IconButton icon={SlidersHorizontal} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         <div style={{ flex: 1 }} />
@@ -524,6 +529,7 @@ export function Sidebar({
                     </span>
                     {appName}
                     <AppPill type={appType(app.configuration)} />
+                    <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
                   </span>
                   {(hoveredApp === appName || appMenu?.appName === appName) && (
                     <IconButton
@@ -697,6 +703,15 @@ export function Sidebar({
             <Settings size={16} />
             Settings
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              const appName = appMenu?.appName;
+              if (appName) onRecompileApp(appName);
+            }}
+          >
+            <RotateCw size={16} />
+            Recompile
+          </DropdownMenuItem>
           {canDeleteApps && (
             <DropdownMenuItem
               variant="danger"
@@ -712,6 +727,32 @@ export function Sidebar({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+// A failed app otherwise looks like an app with no services. The marker says
+// which app is broken and opens its log; warnings get the same treatment a shade
+// quieter.
+function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLog: (appName: string) => void }) {
+  const failed = app.compilation.status === "error";
+  const warned = appWarnings(app).length;
+  if (!failed && warned === 0) return null;
+
+  const label = failed ? (firstErrorMessage(app) ?? "Compilation failed") : `${warned} warning${warned === 1 ? "" : "s"}`;
+
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={`${app.configuration.name}: ${label}. Show compile log`}
+      className={cn("ml-1.5 inline-flex items-center", failed ? "text-destructive" : "text-amber-600 dark:text-amber-400")}
+      onClick={(e: React.MouseEvent) => {
+        e.stopPropagation();
+        onShowCompileLog(app.configuration.name);
+      }}
+    >
+      {failed ? <CircleX size={13} /> : <TriangleAlert size={13} />}
+    </button>
   );
 }
 

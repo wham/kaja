@@ -3,7 +3,7 @@ import { cn } from "./cn";
 import { ActionList } from "./components/action-list";
 import { Spinner } from "./components/spinner";
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CompilationStatus, App } from "./apps";
 import { appType, appTypeLabel } from "./appTypes";
 
@@ -11,13 +11,22 @@ interface CompilerProps {
   apps: App[];
   configurationLoaded: boolean;
   onNewAppClick?: () => void;
+  // The app the log was opened for; its logs are expanded and scrolled to.
+  expandApp?: { name: string };
 }
 
 const CHEVRON_SIZE = 16;
 const CHECK_ICON_SIZE = 12;
 
-export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerProps) {
+export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }: CompilerProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  useEffect(() => {
+    if (!expandApp) return;
+    setExpandedApps((prev) => new Set(prev).add(expandApp.name));
+    itemRefs.current.get(expandApp.name)?.scrollIntoView({ block: "nearest" });
+  }, [expandApp]);
 
   const toggleExpand = (appName: string) => {
     setExpandedApps((prev) => {
@@ -81,7 +90,15 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick }: CompilerP
         {apps.map((app, index) => {
           const isExpanded = expandedApps.has(app.configuration.name);
           return (
-            <div key={`app-${index}-${app.configuration.name}`} data-testid="compiler-item" className="relative">
+            <div
+              key={`app-${index}-${app.configuration.name}`}
+              data-testid="compiler-item"
+              className="relative"
+              ref={(el) => {
+                if (el) itemRefs.current.set(app.configuration.name, el);
+                else itemRefs.current.delete(app.configuration.name);
+              }}
+            >
               <div className={cn(isExpanded && "sticky top-0 z-10 bg-background")}>
                 <ActionList>
                   <ActionList.Item
