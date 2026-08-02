@@ -6,7 +6,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
-import { Braces, Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Braces, Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen, ScrollText } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Console, ConsoleItem } from "./Console";
@@ -34,6 +34,7 @@ import {
   addScriptTab,
   addTaskTab,
   addVariablesTab,
+  getAppFormTabIcon,
   getAppFormTabIndex,
   getAppFormTabLabel,
   getScriptTabLabel,
@@ -1707,7 +1708,7 @@ export function App() {
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
                         return (
-                          <Tab tabId="compiler" tabLabel="Compile log" key="compiler">
+                          <Tab tabId="compiler" tabLabel="Compile log" icon={ScrollText} key="compiler">
                             <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
                           </Tab>
                         );
@@ -1762,7 +1763,7 @@ export function App() {
 
                       if (tab.type === "appForm") {
                         return (
-                          <Tab tabId={tab.id} tabLabel={getAppFormTabLabel(tab)} isEphemeral={tab.ephemeral} key={tab.id}>
+                          <Tab tabId={tab.id} tabLabel={getAppFormTabLabel(tab)} icon={getAppFormTabIcon(tab)} isEphemeral={tab.ephemeral} key={tab.id}>
                             <AppForm
                               mode={tab.mode}
                               initialData={tab.initialData}

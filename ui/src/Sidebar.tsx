@@ -20,7 +20,8 @@ import {
   Package,
   Ellipsis,
 } from "lucide-react";
-import { appType, appTypeLabel } from "./appTypes";
+import { appType, getAppType } from "./appTypes";
+import { SimpleTooltip } from "./components/tooltip";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
@@ -49,8 +50,19 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
 
 const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
 
-export function AppPill({ type }: { type: string }) {
-  return <span className={pillClass}>{appTypeLabel(type)}</span>;
+// An app's type is its icon, the same one its New entry and its settings tab
+// carry. The word is a hover away for whoever needs it.
+export function AppTypeIcon({ type, size = 16, className }: { type: string; size?: number; className?: string }) {
+  const definition = getAppType(type);
+  if (!definition) return null;
+  const Icon = definition.icon;
+  return (
+    <SimpleTooltip text={definition.label}>
+      <span role="img" aria-label={definition.label} className={cn("inline-flex shrink-0 items-center text-muted-foreground", className)}>
+        <Icon size={size} />
+      </span>
+    </SimpleTooltip>
+  );
 }
 
 export function PreviewPill() {
@@ -527,8 +539,8 @@ export function Sidebar({
                     <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")}>
                       <ChevronRight size={16} />
                     </span>
-                    {appName}
-                    <AppPill type={appType(app.configuration)} />
+                    <AppTypeIcon type={appType(app.configuration)} />
+                    <span className="ml-1">{appName}</span>
                     <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
                   </span>
                   {(hoveredApp === appName || appMenu?.appName === appName) && (

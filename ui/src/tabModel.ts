@@ -1,7 +1,8 @@
 import * as monaco from "monaco-editor";
 import { createPendingApp, Method, App, Script, Service } from "./apps";
 import { generateMethodEditorCode } from "./appLoader";
-import { appType, appTypeLabel } from "./appTypes";
+import { appType, appTypeLabel, getAppType } from "./appTypes";
+import type { LucideIcon } from "lucide-react";
 import { ConfigurationApp } from "./server/api";
 
 interface CompilerTab {
@@ -248,6 +249,11 @@ export function getAppFormTabLabel(tab: AppFormTab): string {
   // In create mode the type is picked in the New dialog, so name the tab for it.
   const type = tab.initialData ? appType(tab.initialData) : "";
   return type ? `New ${appTypeLabel(type)} app` : "New app";
+}
+
+// The tab wears the icon of the app it edits, the same one the sidebar shows.
+export function getAppFormTabIcon(tab: AppFormTab): LucideIcon | undefined {
+  return tab.initialData ? getAppType(appType(tab.initialData))?.icon : undefined;
 }
 
 export function getAppFormTabIndex(tabs: TabModel[]): number {

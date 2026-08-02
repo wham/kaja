@@ -3,7 +3,7 @@ import { Check, CircleX, RotateCw, TriangleAlert } from "lucide-react";
 import { cn } from "./cn";
 import { App } from "./apps";
 import { appType } from "./appTypes";
-import { AppPill } from "./Sidebar";
+import { AppTypeIcon } from "./Sidebar";
 import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";
@@ -82,8 +82,8 @@ function AppRow({ app, onShowLog, onRecompile }: { app: App; onShowLog: () => vo
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center">
+            <AppTypeIcon type={appType(app.configuration)} size={ICON_SIZE} className="mr-1.5" />
             <span className="truncate text-xs font-medium text-foreground">{app.configuration.name}</span>
-            <AppPill type={appType(app.configuration)} />
           </span>
           <span className="truncate text-[11px] text-muted-foreground">{detail()}</span>
         </span>
