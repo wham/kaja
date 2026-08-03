@@ -13,6 +13,9 @@
 # - a component schema named exactly like an operation's request wrapper
 # - $ref'd parameters, explode:false arrays, deepObject objects, and a
 #   parameter declared via "content" instead of "schema"
+# - header parameters, inline and $ref'd, with hyphenated names
+# - an operation whose only input is an object body (no envelope), one whose
+#   body sits beside parameters, and one whose body is an array (envelope kept)
 # - structured "+json" request content types
 # - a $ref response resolving to an array (mixed-shape union), a text/plain
 #   response, and a 204 empty response
@@ -149,6 +152,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListReportsResult"
+  /reports/batch:
+    post:
+      operationId: createReports
+      tags: [Reports]
+      summary: Create reports in bulk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/Report"
+      responses:
+        "204":
+          description: created
   /status:
     get:
       operationId: getStatus
@@ -176,8 +195,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Widget"
+    put:
+      operationId: updateWidget
+      tags: [Widgets]
+      summary: Update a widget
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/traceId"
+        - name: If-Match
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WidgetBase"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
 components:
   parameters:
+    traceId:
+      name: X-Trace-Id
+      in: header
+      schema: { type: string }
     page:
       name: page
       in: query

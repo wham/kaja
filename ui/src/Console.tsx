@@ -5,6 +5,7 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
+import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { methodId } from "./apps";
@@ -347,9 +348,12 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
   } else if (hasError) {
     content = methodCall.error;
   } else if (isStreaming) {
-    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(msg, null, 2)).join("\n\n");
+    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
   } else {
-    content = methodCall.output;
+    // An app that carries HTTP inside gRPC has to put a body protobuf has no
+    // shape for — an array, a scalar — in a field of its own. That field is the
+    // encoding, not the response, so the response is what it holds.
+    content = unwrapEnvelope(methodCall.outputType, methodCall.output);
   }
 
   return (

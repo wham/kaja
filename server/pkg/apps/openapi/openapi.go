@@ -4,6 +4,7 @@
 package openapi
 
 import (
+	_ "embed"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,6 +18,34 @@ import (
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
+
+// httpProto declares the (kaja.http_payload) option the generated proto marks
+// its envelope fields with. It is written next to the generated service so the
+// marks survive into the compiled descriptors and reach the client.
+//
+//go:embed http.proto
+var httpProto []byte
+
+// write lays the generated proto surface out in protoDir: the service itself,
+// plus kaja/http.proto when the service marks any envelope field with it. Both
+// the app's own compile and the client-facing one read the directory, so the
+// marks survive into the descriptors the client is generated from.
+func (gen *generated) write(protoDir string) error {
+	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
+		return fmt.Errorf("writing proto: %w", err)
+	}
+	if !gen.usesHTTPPayload {
+		return nil
+	}
+	dir := filepath.Join(protoDir, "kaja")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating kaja proto directory: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "http.proto"), httpProto, 0o644); err != nil {
+		return fmt.Errorf("writing kaja/http.proto: %w", err)
+	}
+	return nil
+}
 
 // App is the openapi app factory. Register it with the apps.Manager.
 type App struct{}
@@ -54,8 +83,8 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 	}
 	log(fmt.Sprintf("Generated %d service(s) with %d method(s)", len(gen.serviceTypeNames), len(gen.bindings)))
 
-	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
-		return nil, fmt.Errorf("writing proto: %w", err)
+	if err := gen.write(protoDir); err != nil {
+		return nil, err
 	}
 
 	// Compile the generated proto to descriptors so invocations can decode the

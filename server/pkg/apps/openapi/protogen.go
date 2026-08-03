@@ -15,7 +15,9 @@ type methodBinding struct {
 	pathTemplate    string       // e.g. "/pets/{petId}"
 	pathParams      []string     // OpenAPI parameter names located in the path
 	queryParams     []queryParam // OpenAPI parameters located in the query string
+	headerParams    []string     // OpenAPI parameter names sent as HTTP request headers
 	bodyKey         string       // request-JSON key carrying the HTTP body, or "" if none
+	bodyWhole       bool         // the request message is the body: no envelope field
 	bodyContentType string       // Content-Type header to send with the body
 	responseWrap    string       // object | array | scalar | text | empty
 }
@@ -45,7 +47,18 @@ type generated struct {
 	proto            string
 	serviceTypeNames []string
 	bindings         map[string]*methodBinding
+	// usesHTTPPayload reports whether any field is marked with the
+	// (kaja.http_payload) option, so kaja/http.proto has to be compiled with it.
+	usesHTTPPayload bool
 }
+
+// The (kaja.http_payload) values a generated envelope field carries. See
+// http.proto for what the option means.
+const (
+	payloadBody  = "HTTP_PAYLOAD_BODY"
+	payloadItems = "HTTP_PAYLOAD_ITEMS"
+	payloadValue = "HTTP_PAYLOAD_VALUE"
+)
 
 type fieldDef struct {
 	typ      string
@@ -53,6 +66,9 @@ type fieldDef struct {
 	number   int
 	jsonName string
 	repeated bool
+	// payload marks the field as an HTTP payload envelope, carrying the
+	// (kaja.http_payload) value to emit. Empty for a field the API declares.
+	payload string
 }
 
 type messageDef struct {
@@ -92,7 +108,8 @@ type generator struct {
 
 	bindingByMethod map[string]*methodBinding
 
-	usesValue bool // a field maps to google.protobuf.Value, so struct.proto is imported
+	usesValue   bool // a field maps to google.protobuf.Value, so struct.proto is imported
+	usesPayload bool // a field is marked (kaja.http_payload), so http.proto is imported
 }
 
 // anyValueType is the proto type for a schema that admits arbitrary JSON (a
@@ -159,7 +176,16 @@ func generateProto(s *spec) (*generated, error) {
 		proto:            g.render(),
 		serviceTypeNames: serviceTypeNames,
 		bindings:         bindings,
+		usesHTTPPayload:  g.usesPayload,
 	}, nil
+}
+
+// envelope marks a field as an HTTP payload envelope and records that
+// kaja/http.proto has to be imported.
+func (g *generator) envelope(f fieldDef, payload string) fieldDef {
+	g.usesPayload = true
+	f.payload = payload
+	return f
 }
 
 // serviceFor returns the service an operation belongs to, creating it on first
@@ -203,45 +229,90 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	op := vo.op
 
 	methodName := g.uniqueRPCName(operationName(vo.verb, path, op))
-	reqName := g.uniqueMessageName(methodName + "Request")
-
 	binding := &methodBinding{verb: vo.verb, pathTemplate: path}
 
-	// Request message: path + query params, then an optional body field. Added
-	// up front so a component schema sharing its name (e.g. a body schema also
-	// called "<Method>Request") is renamed instead of swallowing the request.
-	req := &messageDef{name: reqName}
-	g.addMessage(req)
-	num := 1
+	// Parameters located somewhere other than the body. Whether there are any
+	// decides the shape of the request message, so they are collected before
+	// anything is generated.
+	var located []*parameter
 	for _, param := range g.mergedParameters(item, op) {
 		switch param.In {
-		case "path":
-			req.fields = append(req.fields, g.paramField(param, num))
-			binding.pathParams = append(binding.pathParams, param.Name)
-			num++
-		case "query":
-			req.fields = append(req.fields, g.paramField(param, num))
-			binding.queryParams = append(binding.queryParams, queryParam{name: param.Name, style: queryStyle(param)})
-			num++
+		case "path", "query", "header":
+			located = append(located, param)
 		}
 	}
+
+	var bodySchema *schema
+	bodyContentType := ""
 	if op.RequestBody != nil {
 		if ct, mt, ok := jsonContent(op.RequestBody.Content); ok && mt.Schema != nil {
-			typ, repeated := g.protoType(reqName, "Body", mt.Schema)
-			req.fields = append(req.fields, fieldDef{typ: typ, name: "body", number: num, jsonName: "body", repeated: repeated})
-			binding.bodyKey = "body"
-			binding.bodyContentType = ct
-			num++
+			bodySchema, bodyContentType = mt.Schema, ct
 		}
 	}
+
+	input := g.requestType(methodName, located, bodySchema, bodyContentType, binding)
 
 	// Response type + wrap kind.
 	output, wrap := g.responseType(methodName, op)
 	binding.responseWrap = wrap
 
 	svc := g.serviceFor(op)
-	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: reqName, output: output, summary: op.Summary})
+	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: input, output: output, summary: op.Summary})
 	g.bindingByMethod[methodName] = binding
+}
+
+// requestType resolves a method's input message and fills in the binding's
+// parameter and body wiring.
+//
+// An operation whose only input is an object body *is* that body: a "body" field
+// would be an envelope around the whole message, separating it from nothing. The
+// envelope appears only where it carries its weight - beside path, query or
+// header parameters, or around a body protobuf has no shape for (an array, a
+// scalar, a free-form value) - and is marked as such when it does.
+func (g *generator) requestType(methodName string, located []*parameter, bodySchema *schema, bodyContentType string, binding *methodBinding) string {
+	bodyType, bodyRepeated := "", false
+	if bodySchema != nil {
+		// The hint decides the generated name of an inline body schema, so it
+		// depends on whether the body ends up being the request or sitting in it.
+		hint := "Request"
+		if len(located) > 0 {
+			hint = "RequestBody"
+		}
+		bodyType, bodyRepeated = g.protoType(methodName, hint, bodySchema)
+	}
+
+	if len(located) == 0 && bodySchema != nil && !bodyRepeated && g.seenMsg[bodyType] {
+		binding.bodyWhole = true
+		binding.bodyContentType = bodyContentType
+		return bodyType
+	}
+
+	reqName := g.uniqueMessageName(methodName + "Request")
+	req := &messageDef{name: reqName}
+	g.addMessage(req)
+
+	num := 1
+	for _, param := range located {
+		req.fields = append(req.fields, g.paramField(param, num))
+		switch param.In {
+		case "path":
+			binding.pathParams = append(binding.pathParams, param.Name)
+		case "query":
+			binding.queryParams = append(binding.queryParams, queryParam{name: param.Name, style: queryStyle(param)})
+		case "header":
+			binding.headerParams = append(binding.headerParams, param.Name)
+		}
+		num++
+	}
+	if bodySchema != nil {
+		req.fields = append(req.fields, g.envelope(fieldDef{
+			typ: bodyType, name: "body", number: num, jsonName: "body", repeated: bodyRepeated,
+		}, payloadBody))
+		binding.bodyKey = "body"
+		binding.bodyContentType = bodyContentType
+	}
+
+	return reqName
 }
 
 // responseType resolves a method's output message name and how the HTTP response
@@ -259,7 +330,7 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 		respName := g.uniqueMessageName(methodName + "Response")
 		if resp != nil && !ok && textContent(resp.Content) {
 			g.addMessage(&messageDef{name: respName, fields: []fieldDef{
-				{typ: "string", name: "value", number: 1, jsonName: "value"},
+				g.envelope(fieldDef{typ: "string", name: "value", number: 1, jsonName: "value"}, payloadValue),
 			}})
 			return respName, "text"
 		}
@@ -272,7 +343,7 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 	case repeated:
 		respName := g.uniqueMessageName(methodName + "Response")
 		g.addMessage(&messageDef{name: respName, fields: []fieldDef{
-			{typ: typ, name: "items", number: 1, jsonName: "items", repeated: true},
+			g.envelope(fieldDef{typ: typ, name: "items", number: 1, jsonName: "items", repeated: true}, payloadItems),
 		}})
 		return respName, "array"
 	case g.seenMsg[typ]:
@@ -280,7 +351,7 @@ func (g *generator) responseType(methodName string, op *operation) (string, stri
 	default:
 		respName := g.uniqueMessageName(methodName + "Response")
 		g.addMessage(&messageDef{name: respName, fields: []fieldDef{
-			{typ: typ, name: "value", number: 1, jsonName: "value"},
+			g.envelope(fieldDef{typ: typ, name: "value", number: 1, jsonName: "value"}, payloadValue),
 		}})
 		return respName, "scalar"
 	}
@@ -663,8 +734,14 @@ func (g *generator) render() string {
 	var b strings.Builder
 	b.WriteString("syntax = \"proto3\";\n\n")
 	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
+	if g.usesPayload {
+		b.WriteString("import \"kaja/http.proto\";\n")
+	}
 	if g.usesValue {
-		b.WriteString("import \"google/protobuf/struct.proto\";\n\n")
+		b.WriteString("import \"google/protobuf/struct.proto\";\n")
+	}
+	if g.usesPayload || g.usesValue {
+		b.WriteString("\n")
 	}
 
 	for _, m := range g.messages {
@@ -674,7 +751,11 @@ func (g *generator) render() string {
 			if f.repeated {
 				prefix = "repeated "
 			}
-			fmt.Fprintf(&b, "  %s%s %s = %d [json_name = %q];\n", prefix, f.typ, f.name, f.number, f.jsonName)
+			options := fmt.Sprintf("json_name = %q", f.jsonName)
+			if f.payload != "" {
+				options += fmt.Sprintf(", (kaja.http_payload) = %s", f.payload)
+			}
+			fmt.Fprintf(&b, "  %s%s %s = %d [%s];\n", prefix, f.typ, f.name, f.number, options)
 		}
 		b.WriteString("}\n\n")
 	}

@@ -148,12 +148,13 @@ func TestGenerateProto(t *testing.T) {
 		"int32 id = 1 [json_name = \"id\"];",
 		"string name = 2 [json_name = \"name\"];",
 		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse);",
-		"rpc CreatePet(CreatePetRequest) returns (Pet);",
+		// The body is the operation's whole input, so it is the request itself.
+		"rpc CreatePet(Pet) returns (Pet);",
 		"rpc GetPetById(GetPetByIdRequest) returns (Pet);",
-		// array response is wrapped
-		"repeated Pet items = 1 [json_name = \"items\"];",
-		// request body becomes a single field
-		"Pet body = 1 [json_name = \"body\"];",
+		// An array response has no message to be, so it is wrapped - and the
+		// wrapper says it is one.
+		"repeated Pet items = 1 [json_name = \"items\", (kaja.http_payload) = HTTP_PAYLOAD_ITEMS];",
+		"import \"kaja/http.proto\";",
 		// path + query params become fields
 		"int32 pet_id = 1 [json_name = \"petId\"];",
 		"int32 limit = 1 [json_name = \"limit\"];",
@@ -487,13 +488,91 @@ func TestOpenAndInvoke(t *testing.T) {
 		t.Errorf("ListPets items = %d, want 2", len(listResp.Items))
 	}
 
-	// POST /pets with body
-	out, err = inst.Invoke(svc+"/CreatePet", encodeRequest(t, inst, svc+"/CreatePet", `{"body":{"name":"Milo","tag":"cat"}}`), nil)
+	// POST /pets: the request message is the body, so it is sent as written.
+	out, err = inst.Invoke(svc+"/CreatePet", encodeRequest(t, inst, svc+"/CreatePet", `{"name":"Milo","tag":"cat"}`), nil)
 	if err != nil {
 		t.Fatalf("CreatePet: %v", err)
 	}
 	assertJSONEq(t, []byte(lastBody), `{"name":"Milo","tag":"cat"}`)
 	assertJSONEq(t, decodeResponse(t, inst, svc+"/CreatePet", out), `{"id":7,"name":"Milo"}`)
+}
+
+const headerParamSpec = `
+openapi: 3.0.0
+info: { title: Trace, version: 1.0.0 }
+servers:
+  - url: https://example.invalid
+paths:
+  /items/{itemId}:
+    patch:
+      operationId: patchItem
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: X-Trace-Id
+          in: header
+          schema: { type: string }
+        - name: If-Match
+          in: header
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        "204": { description: done }
+`
+
+// TestHeaderParameters locks in that a header parameter is sent as an HTTP
+// request header rather than as part of the payload: it never reaches the body,
+// it is reported back among the exchanged request headers, and a value typed for
+// this one call outranks a header the app is configured to always send.
+func TestHeaderParameters(t *testing.T) {
+	var gotHeader http.Header
+	var gotBody string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, headerParamSpec) })
+	mux.HandleFunc("/items/42", func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Clone()
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	opened, err := New().Open(map[string]string{"spec_url": srv.URL + "/openapi.yaml", "base_url": srv.URL}, t.TempDir(), func(string) {})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inst := opened.Instance.(*instance)
+	const method = "openapi.trace.Trace/PatchItem"
+
+	request := encodeRequest(t, inst, method, `{"itemId":"42","X-Trace-Id":"abc-123","body":{"name":"Milo"}}`)
+	result, err := inst.Invoke(method, request, map[string]string{"X-Trace-Id": "configured", "X-Tenant": "acme"})
+	if err != nil {
+		t.Fatalf("PatchItem: %v", err)
+	}
+
+	if got := gotHeader.Get("X-Trace-Id"); got != "abc-123" {
+		t.Errorf("X-Trace-Id = %q, want the per-call value abc-123", got)
+	}
+	if got := gotHeader.Get("X-Tenant"); got != "acme" {
+		t.Errorf("X-Tenant = %q, want the configured value acme", got)
+	}
+	// Declared but left unset: an empty header parameter is not sent at all.
+	if _, ok := gotHeader["If-Match"]; ok {
+		t.Errorf("If-Match sent though it was left unset: %q", gotHeader.Get("If-Match"))
+	}
+	assertJSONEq(t, []byte(gotBody), `{"name":"Milo"}`)
+	if got := result.RequestHeaders["X-Trace-Id"]; got != "abc-123" {
+		t.Errorf("reported request header X-Trace-Id = %q, want abc-123", got)
+	}
 }
 
 // TestInvokeUpstreamError locks in that an HTTP error response surfaces as a
@@ -713,8 +792,9 @@ func TestUnionSchemas(t *testing.T) {
 	}
 
 	for _, frag := range []string{
-		// anyOf [Event, Event[]] models the single Event.
-		`Event body = 1 [json_name = "body"];`,
+		// anyOf [Event, Event[]] models the single Event, which is the whole
+		// request and so needs no envelope around it.
+		`rpc IngestEvents(Event) returns (IngestEventsResponse);`,
 		// integer formats
 		`uint64 total = `,
 		`uint32 count = `,
@@ -739,7 +819,7 @@ func TestUnionSchemas(t *testing.T) {
 	if ingest == nil {
 		t.Fatal("missing IngestEvents binding")
 	}
-	if ingest.bodyKey != "body" || ingest.bodyContentType != "application/vnd.kaja.events+json" {
+	if !ingest.bodyWhole || ingest.bodyContentType != "application/vnd.kaja.events+json" {
 		t.Errorf("IngestEvents binding unexpected: %+v", ingest)
 	}
 	metrics := gen.bindings["openapi.events.Events/GetMetrics"]
@@ -784,7 +864,7 @@ func TestIngestEventsInvoke(t *testing.T) {
 	const svc = "openapi.events.Events"
 
 	// POST /events with the single-event body.
-	out, err := inst.Invoke(svc+"/IngestEvents", encodeRequest(t, inst, svc+"/IngestEvents", `{"body":{"id":"1","type":"prompt"}}`), nil)
+	out, err := inst.Invoke(svc+"/IngestEvents", encodeRequest(t, inst, svc+"/IngestEvents", `{"id":"1","type":"prompt"}`), nil)
 	if err != nil {
 		t.Fatalf("IngestEvents: %v", err)
 	}
