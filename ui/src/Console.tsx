@@ -25,7 +25,7 @@ const MAX_TRIGGER_NAME_LENGTH = 28;
 const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
 const TIME_COLUMN_CLASS = "w-[8ch] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground";
 
-const consoleTabClass = "cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground";
+const consoleTabClass = "cursor-pointer select-none whitespace-nowrap text-sm text-muted-foreground hover:text-foreground";
 const consoleTabActiveClass = "font-medium text-foreground";
 // Utilities carry no resting chrome: they are worth no more weight than the tabs
 // beside them.
@@ -107,14 +107,19 @@ export function Console({ items, onClear }: ConsoleProps) {
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* One row spanning the full console width: which call, how to step through
           them, what to look at, and what to do with it. Its height is the tab
-          strip's, so side by side the two headers rule the same line. */}
-      <div className="flex h-[35px] shrink-0 items-center gap-3 border-b border-border px-3">
+          strip's, so side by side the two headers rule the same line.
+          Narrowing it never wraps a second line. Everything holds its size and
+          leaves in order of what it is worth — the call's time, then its
+          duration, then the stepper (whose history the trigger and ⌃↑/⌃↓ still
+          reach), then the payload utilities — and the call's name truncates
+          through all of it. */}
+      <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         {items.length === 0 ? (
-          <span className="text-xs text-muted-foreground">No calls yet</span>
+          <span className="shrink-0 text-xs text-muted-foreground">No calls yet</span>
         ) : (
           <>
             <Console.CallSelect items={items} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onClear={onClear} now={now} />
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1 @max-[540px]:hidden">
               <IconButton
                 icon={ChevronUp}
                 aria-label="Previous call"
@@ -135,16 +140,16 @@ export function Console({ items, onClear }: ConsoleProps) {
                 disabled={position >= items.length}
                 onClick={() => setSelectedIndex((index) => Math.min(items.length - 1, (index ?? items.length - 1) + 1))}
               />
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              <span className="whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground">
                 {position} of {items.length}
               </span>
             </div>
           </>
         )}
-        <div className="h-4 w-px bg-border" />
+        <div className="h-4 w-px shrink-0 bg-border" />
         <Console.DetailTabs methodCall={selectedMethodCall} activeTab={activeTab} onTabChange={setActiveTab} />
         {showUtilities && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
             <IconButton
               icon={FoldVertical}
               aria-label="Fold all"
@@ -206,17 +211,17 @@ Console.CallSelect = function ({ items, selectedIndex, onSelect, onClear, now }:
         <button
           type="button"
           data-testid="console-call-select"
-          className="flex h-[26px] min-w-0 shrink-0 items-center gap-2 rounded-md border border-border bg-card px-2.5 hover:bg-accent"
+          className="flex h-[26px] min-w-0 items-center gap-2 rounded-md border border-border bg-card px-2.5 hover:bg-accent"
           title={summary?.name}
         >
           {summary?.pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
           <span className="max-w-[190px] truncate font-mono text-xs text-foreground">{truncateStart(summary?.name ?? "", MAX_TRIGGER_NAME_LENGTH)}</span>
           {summary?.detail && (
-            <span className={DETAIL_COLUMN_CLASS} title={summary.detail}>
+            <span className={cn(DETAIL_COLUMN_CLASS, "@max-[620px]:hidden")} title={summary.detail}>
               {summary.detail}
             </span>
           )}
-          {summary?.time && <span className={TIME_COLUMN_CLASS}>{summary.time}</span>}
+          {summary?.time && <span className={cn(TIME_COLUMN_CLASS, "@max-[700px]:hidden")}>{summary.time}</span>}
           <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
@@ -293,7 +298,7 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
   // A failed call colours its dot and its status line, and nothing else — the
   // header stays neutral.
   return (
-    <div className={cn("flex items-center gap-4", !methodCall && "pointer-events-none opacity-40")}>
+    <div className={cn("flex shrink-0 items-center gap-4", !methodCall && "pointer-events-none opacity-40")}>
       {tab("request", "Request")}
       {tab("response", `Response${isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}`)}
       {tab("headers", "Headers")}
