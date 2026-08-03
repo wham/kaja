@@ -576,7 +576,12 @@ function dotClass(status: CallStatus): string {
 
 // gRPC and Twirp errors carry a status code (e.g. "INVALID_ARGUMENT"); anything
 // else just shows as a plain error.
+// How a failed call is labelled: an upstream HTTP failure by its status, and
+// anything else by its gRPC/Twirp status code. A call against an HTTP app failed
+// with a 404, not with NOT_FOUND — the gRPC code is the tunnel, not the failure.
 function callErrorCode(methodCall: MethodCall): string | undefined {
+  const status = methodCall.error?.status;
+  if (typeof status === "number" && status > 0) return String(status);
   const code = methodCall.error?.code;
   return typeof code === "string" && code.length > 0 && code.length <= 24 ? code : undefined;
 }

@@ -13,12 +13,15 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps"
 )
 
-// Trailer keys carrying the headers an in-process app exchanged with its
-// upstream service, each a JSON object of header name to value. The client
-// surfaces them in its Headers view alongside the transport headers.
+// Trailers carrying what an in-process app exchanged with its upstream service,
+// out of band from the response message. The headers ones are a JSON object of
+// header name to value each, surfaced in the client's Headers view; the error
+// one is the structured HTTP failure (apps.UpstreamError.JSON), which the client
+// shows *instead of* the gRPC error, so the tunnel doesn't show through.
 const (
 	upstreamRequestHeadersTrailer  = "kaja-upstream-request-headers"
 	upstreamResponseHeadersTrailer = "kaja-upstream-response-headers"
+	upstreamErrorTrailer           = "kaja-upstream-error"
 )
 
 // AppInvoker invokes an in-process app method given the de-framed request message
@@ -46,11 +49,14 @@ func ServeAppGRPCWeb(w http.ResponseWriter, r *http.Request, method string, invo
 		slog.Error("App invocation failed", "method", method, "error", err)
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
-			// An upstream HTTP failure maps to the closest gRPC status; the raw
-			// response body and the exchanged headers ride in trailers the client
-			// shows alongside it (a 401 is exactly when the headers matter).
+			// An upstream HTTP failure maps to the closest gRPC status so a plain
+			// gRPC-Web client still sees a sensible error, but the failure itself -
+			// status, message, request line, body - rides whole in its own trailer.
+			// That is what the client shows: the HTTP call failed, and the gRPC
+			// status it was tunnelled through is not part of the story. The
+			// exchanged headers come along too (a 401 is exactly when they matter).
 			trailers := upstreamHeaderTrailers(upstream.RequestHeaders, upstream.ResponseHeaders)
-			trailers["upstream-body"] = string(upstream.Body)
+			trailers[upstreamErrorTrailer] = string(upstream.JSON())
 			writeGRPCWebText(w, nil, grpcStatusFromHTTP(upstream.Status), upstream.Error(), trailers)
 			return
 		}
@@ -135,9 +141,9 @@ func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMes
 		full = frame
 	}
 
-	trailers := fmt.Sprintf("grpc-status: %d\r\ngrpc-message: %s\r\n", status, sanitizeTrailerValue(grpcMessage))
+	trailers := fmt.Sprintf("grpc-status: %d\r\ngrpc-message: %s\r\n", status, escapeTrailerValue(grpcMessage))
 	for name, value := range extraTrailers {
-		trailers += fmt.Sprintf("%s: %s\r\n", name, sanitizeTrailerValue(value))
+		trailers += fmt.Sprintf("%s: %s\r\n", name, escapeTrailerValue(value))
 	}
 	trailerBytes := []byte(trailers)
 	trailerFrame := make([]byte, 5+len(trailerBytes))
@@ -149,7 +155,22 @@ func writeGRPCWebText(w http.ResponseWriter, message []byte, status int, grpcMes
 	w.Write([]byte(base64.StdEncoding.EncodeToString(full)))
 }
 
-// sanitizeTrailerValue keeps a grpc-message on a single trailer line.
-func sanitizeTrailerValue(s string) string {
-	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+// escapeTrailerValue percent-encodes everything a gRPC-Web trailer line cannot
+// carry verbatim. Trailers are a text block a client splits on CRLF and reads
+// byte by byte as Latin-1, so a UTF-8 payload arrives mangled ("—" as "â€""),
+// and a newline in a value would end the line early. Encoding the bytes outside
+// printable ASCII - and "%" itself, so the escape is reversible - keeps ordinary
+// JSON readable on the wire while surviving the trip intact. This is also what
+// the gRPC-Web spec asks of grpc-message.
+func escapeTrailerValue(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c < 0x20 || c > 0x7e || c == '%' {
+			fmt.Fprintf(&b, "%%%02X", c)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }

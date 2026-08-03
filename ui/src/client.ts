@@ -4,7 +4,13 @@ import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCal
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders } from "./appTypes";
 import { MethodCall, MethodCallHeaders } from "./kaja";
-import { UPSTREAM_REQUEST_HEADERS_TRAILER, UPSTREAM_RESPONSE_HEADERS_TRAILER, parseUpstreamHeaders } from "./upstreamHeaders";
+import {
+  UPSTREAM_ERROR_TRAILER,
+  UPSTREAM_REQUEST_HEADERS_TRAILER,
+  UPSTREAM_RESPONSE_HEADERS_TRAILER,
+  parseUpstreamError,
+  parseUpstreamHeaders,
+} from "./upstreamHeaders";
 import { Client, AppRef, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
@@ -32,19 +38,33 @@ function collectResponseHeaders(methodCall: MethodCall, headers?: RpcMetadata, t
   methodCall.responseHeaders = responseHeaders;
 }
 
-// applyUpstreamHeadersFromError routes the upstream-header trailers carried on a
-// failed call's error metadata to the method call, so the Headers view is still
-// populated on an upstream failure (e.g. a 401). Web errors carry them in the
-// RpcError's trailer meta; the Wails transport mirrors them the same way.
-function applyUpstreamHeadersFromError(methodCall: MethodCall, error: unknown): void {
-  const meta = error && typeof error === "object" ? (error as { meta?: unknown }).meta : undefined;
-  if (!meta || typeof meta !== "object") return;
-  const metaRecord = meta as Record<string, unknown>;
-  if (UPSTREAM_REQUEST_HEADERS_TRAILER in metaRecord) {
-    methodCall.upstreamRequestHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_REQUEST_HEADERS_TRAILER]);
+// applyErrorMetadata routes a failed call's response metadata to the Headers
+// view, which is where headers belong whether or not the call succeeded — a 401
+// is exactly when they matter. The kaja trailers become the upstream hop; what a
+// server sent of its own (a gRPC error's trailers) becomes the response headers.
+// Web errors carry the metadata on the RpcError; the Wails transport mirrors it.
+function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
+  const metaRecord = errorMeta(error);
+  if (!metaRecord) return;
+
+  const responseHeaders: MethodCallHeaders = {};
+  for (const [key, value] of Object.entries(metaRecord)) {
+    switch (key) {
+      case UPSTREAM_REQUEST_HEADERS_TRAILER:
+        methodCall.upstreamRequestHeaders = parseUpstreamHeaders(value);
+        break;
+      case UPSTREAM_RESPONSE_HEADERS_TRAILER:
+        methodCall.upstreamResponseHeaders = parseUpstreamHeaders(value);
+        break;
+      case UPSTREAM_ERROR_TRAILER:
+        // The failure itself, already shown as the error.
+        break;
+      default:
+        responseHeaders[key] = String(value);
+    }
   }
-  if (UPSTREAM_RESPONSE_HEADERS_TRAILER in metaRecord) {
-    methodCall.upstreamResponseHeaders = parseUpstreamHeaders(metaRecord[UPSTREAM_RESPONSE_HEADERS_TRAILER]);
+  if (Object.keys(responseHeaders).length > 0) {
+    methodCall.responseHeaders = responseHeaders;
   }
 }
 
@@ -175,8 +195,8 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
         }
       } catch (error: any) {
         methodCall.durationMs = elapsed();
-        methodCall.error = serializeError(error);
-        applyUpstreamHeadersFromError(methodCall, error);
+        methodCall.error = callError(error);
+        applyErrorMetadata(methodCall, error);
       }
 
       client.kaja?._internal.methodCallUpdate(methodCall);
@@ -192,13 +212,50 @@ function lcfirst(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
+// callError turns a thrown error into what the console shows for the call.
+//
+// A failed call against an HTTP app is an HTTP failure. It reaches the client as
+// a gRPC error only because that is how the app is invoked, and the frame it
+// travelled in - the gRPC status code, the trailers carrying the real failure and
+// the exchanged headers - is not part of what went wrong. When the app reported a
+// structured failure, that failure *is* the error; everything else is transport.
+function callError(error: unknown): any {
+  const meta = errorMeta(error);
+  if (meta) {
+    const upstream = parseUpstreamError(meta[UPSTREAM_ERROR_TRAILER]);
+    if (upstream) return upstream;
+  }
+  return serializeError(error);
+}
+
+function errorMeta(error: unknown): Record<string, unknown> | undefined {
+  const meta = error && typeof error === "object" ? (error as { meta?: unknown }).meta : undefined;
+  return meta && typeof meta === "object" ? (meta as Record<string, unknown>) : undefined;
+}
+
 function serializeError(error: any): any {
   if (!(error instanceof Error)) {
     return error;
   }
-  const obj: any = { message: error.message };
+  const obj: any = { message: errorMessage(error) };
   for (const key of Object.keys(error)) {
+    // Response metadata is not the error: what it carries is already routed to
+    // the Headers view, and the rest is the transport talking about itself.
+    if (key === "meta") continue;
     obj[key] = (error as any)[key];
   }
   return obj;
+}
+
+// errorMessage reads a thrown error's message, undoing the percent-encoding a
+// gRPC status message travels under. grpc-message is percent-encoded UTF-8 by
+// spec, but the gRPC-Web client reads trailers byte by byte and hands the value
+// through as it found it, so anything non-ASCII arrives escaped.
+function errorMessage(error: Error): string {
+  if (typeof (error as { code?: unknown }).code !== "string") return error.message;
+  try {
+    return decodeURIComponent(error.message);
+  } catch {
+    return error.message;
+  }
 }
