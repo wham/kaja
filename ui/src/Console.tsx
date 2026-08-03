@@ -106,8 +106,9 @@ export function Console({ items, onClear }: ConsoleProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* One row spanning the full console width: which call, how to step through
-          them, what to look at, and what to do with it. */}
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3">
+          them, what to look at, and what to do with it. Its height is the tab
+          strip's, so side by side the two headers rule the same line. */}
+      <div className="flex h-[35px] shrink-0 items-center gap-3 border-b border-border px-3">
         {items.length === 0 ? (
           <span className="text-xs text-muted-foreground">No calls yet</span>
         ) : (
