@@ -3,9 +3,12 @@ package grpc
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -107,17 +110,20 @@ func TestServeAppGRPCWebError(t *testing.T) {
 	if !strings.Contains(trailers, "grpc-status: 2") {
 		t.Errorf("trailers = %q, want grpc-status: 2", trailers)
 	}
-	if !strings.Contains(trailers, "upstream 404 not found") {
-		t.Errorf("trailers = %q, want sanitized grpc-message", trailers)
+	if got := trailerValue(t, trailers, "grpc-message"); got != "upstream 404\nnot found" {
+		t.Errorf("grpc-message = %q, want the message round-tripped intact", got)
 	}
+	// The newline is escaped rather than dropped, so it cannot end the line early
+	// and the message still reads as it was written once decoded.
 	if strings.Count(trailers, "\n") != 2 {
-		t.Errorf("grpc-message newline not sanitized: %q", trailers)
+		t.Errorf("grpc-message newline not escaped: %q", trailers)
 	}
 }
 
 // TestServeAppGRPCWebUpstreamError locks in that an apps.UpstreamError maps to
-// the matching gRPC status with the extracted message, and that the raw
-// upstream body rides in its own trailer.
+// the matching gRPC status and that the failure itself — the status, message,
+// request line and body the client shows instead of the gRPC error — rides whole
+// in its own trailer.
 func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	body := `{"title":"Bad Request","detail":"request body has an error"}`
 	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
@@ -135,9 +141,26 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	if !strings.Contains(trailers, "request body has an error") {
 		t.Errorf("trailers = %q, want extracted message", trailers)
 	}
-	if !strings.Contains(trailers, "upstream-body: "+body) {
-		t.Errorf("trailers = %q, want upstream-body trailer", trailers)
+
+	failure := map[string]any{}
+	if err := json.Unmarshal([]byte(trailerValue(t, trailers, "kaja-upstream-error")), &failure); err != nil {
+		t.Fatalf("upstream error trailer: %v\ntrailers = %q", err, trailers)
 	}
+	if failure["status"] != float64(400) || failure["statusText"] != "Bad Request" {
+		t.Errorf("upstream error status = %v/%v, want 400/Bad Request", failure["status"], failure["statusText"])
+	}
+	if failure["message"] != "request body has an error" {
+		t.Errorf("upstream error message = %v", failure["message"])
+	}
+	if failure["request"] != "POST https://api.example.com/v1/events" {
+		t.Errorf("upstream error request = %v", failure["request"])
+	}
+	// The body stays JSON rather than a string of JSON, so the console shows it
+	// as a value instead of an escaped blob.
+	if nested, ok := failure["body"].(map[string]any); !ok || nested["title"] != "Bad Request" {
+		t.Errorf("upstream error body = %#v, want the parsed problem document", failure["body"])
+	}
+
 	// The exchanged headers ride along on the error too (a 401/4xx is exactly
 	// when they matter).
 	if !strings.Contains(trailers, `kaja-upstream-request-headers: {"Authorization":"Bearer secret"}`) {
@@ -146,6 +169,54 @@ func TestServeAppGRPCWebUpstreamError(t *testing.T) {
 	if !strings.Contains(trailers, `kaja-upstream-response-headers: {"Content-Type":"application/json"}`) {
 		t.Errorf("trailers = %q, want response-headers trailer on error", trailers)
 	}
+}
+
+// TestTrailerValuesSurviveNonASCII locks in that a value with characters outside
+// printable ASCII reaches the client intact. gRPC-Web trailers are a text block
+// clients read byte by byte as Latin-1, so an unescaped em dash arrives as
+// "â€"" — which is what used to show up in the console.
+func TestTrailerValuesSurviveNonASCII(t *testing.T) {
+	const detail = `no show "glass-mountainz" — list them all`
+	w := serveText("svc/Method", grpcWebTextFrame([]byte{1}), func(string, []byte, map[string]string) (*apps.InvokeResult, error) {
+		return nil, apps.NewUpstreamError(http.MethodGet, "https://api.example.com/shows/x", http.StatusNotFound,
+			[]byte(`{"detail":`+strconv.Quote(detail)+`}`))
+	})
+
+	_, trailers := parseGRPCWebText(t, w.Body.String())
+	for _, line := range strings.Split(trailers, "\r\n") {
+		for i := 0; i < len(line); i++ {
+			if line[i] > 0x7e {
+				t.Fatalf("trailer line is not ASCII: %q", line)
+			}
+		}
+	}
+
+	failure := map[string]any{}
+	if err := json.Unmarshal([]byte(trailerValue(t, trailers, "kaja-upstream-error")), &failure); err != nil {
+		t.Fatalf("upstream error trailer: %v", err)
+	}
+	if failure["message"] != detail {
+		t.Errorf("message = %q, want %q", failure["message"], detail)
+	}
+}
+
+// trailerValue reads one trailer by name, undoing the percent-escaping the
+// client undoes with decodeURIComponent.
+func trailerValue(t *testing.T, trailers string, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(trailers, "\r\n") {
+		key, value, found := strings.Cut(line, ": ")
+		if !found || key != name {
+			continue
+		}
+		decoded, err := url.QueryUnescape(value)
+		if err != nil {
+			t.Fatalf("trailer %q is not valid percent-encoding: %v", name, err)
+		}
+		return decoded
+	}
+	t.Fatalf("trailer %q missing from %q", name, trailers)
+	return ""
 }
 
 func TestGRPCStatusFromHTTP(t *testing.T) {

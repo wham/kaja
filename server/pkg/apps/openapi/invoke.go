@@ -131,7 +131,14 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 
 	var body io.Reader
 	hasBody := false
-	if binding.bodyKey != "" {
+	switch {
+	case binding.bodyWhole:
+		// The request message is the body; there is nothing else in it.
+		if raw := bytes.TrimSpace(request); len(raw) > 0 {
+			body = bytes.NewReader(raw)
+			hasBody = true
+		}
+	case binding.bodyKey != "":
 		if raw, ok := req[binding.bodyKey]; ok && len(raw) > 0 && string(raw) != "null" {
 			body = bytes.NewReader(raw)
 			hasBody = true
@@ -142,10 +149,19 @@ func (in *instance) transcode(binding *methodBinding, request []byte, headers ma
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("building request: %w", err)
 	}
-	// Apply the spec's auth first so an explicit per-request header can still override it.
+	// Least specific first: the spec's auth, then the app's configured headers,
+	// then the header parameters typed into this one call - so the more precise
+	// statement of what to send always wins.
 	in.auth.applyRequest(httpReq)
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
+	}
+	for _, name := range binding.headerParams {
+		if raw, ok := req[name]; ok {
+			if value := jsonScalar(raw); value != "" {
+				httpReq.Header.Set(name, value)
+			}
+		}
 	}
 	if httpReq.Header.Get("Accept") == "" {
 		httpReq.Header.Set("Accept", "application/json")

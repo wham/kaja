@@ -5,6 +5,7 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
+import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { methodId } from "./apps";
@@ -353,9 +354,12 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
   } else if (hasError) {
     content = methodCall.error;
   } else if (isStreaming) {
-    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(msg, null, 2)).join("\n\n");
+    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
   } else {
-    content = methodCall.output;
+    // An app that carries HTTP inside gRPC has to put a body protobuf has no
+    // shape for — an array, a scalar — in a field of its own. That field is the
+    // encoding, not the response, so the response is what it holds.
+    content = unwrapEnvelope(methodCall.outputType, methodCall.output);
   }
 
   return (
@@ -578,7 +582,12 @@ function dotClass(status: CallStatus): string {
 
 // gRPC and Twirp errors carry a status code (e.g. "INVALID_ARGUMENT"); anything
 // else just shows as a plain error.
+// How a failed call is labelled: an upstream HTTP failure by its status, and
+// anything else by its gRPC/Twirp status code. A call against an HTTP app failed
+// with a 404, not with NOT_FOUND — the gRPC code is the tunnel, not the failure.
 function callErrorCode(methodCall: MethodCall): string | undefined {
+  const status = methodCall.error?.status;
+  if (typeof status === "number" && status > 0) return String(status);
   const code = methodCall.error?.code;
   return typeof code === "string" && code.length > 0 && code.length <= 24 ? code : undefined;
 }

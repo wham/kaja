@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+// Kaja's contract for carrying an HTTP payload inside a protobuf message.
+//
+// An HTTP body is any JSON value, while a protobuf message is always an object
+// with named fields. Where the two don't line up - a body that is an array, a
+// bare scalar, or plain text - the payload has to sit in a field of its own.
+// That field is an envelope: it exists to satisfy protobuf, not because the API
+// declares it. Marking it says so, so a reader (the console, a script, a person)
+// can tell an envelope from a property the API really has, instead of guessing
+// from a name the API is free to use itself.
+package kaja;
+
+import "google/protobuf/descriptor.proto";
+
+// HttpPayload names the part of an HTTP exchange a field carries.
+enum HttpPayload {
+  HTTP_PAYLOAD_UNSPECIFIED = 0;
+  // The HTTP request body, which sits beside path, query or header parameters
+  // in the request message. An operation that takes nothing but an object body
+  // has no envelope at all: its request message is the body.
+  HTTP_PAYLOAD_BODY = 1;
+  // A response body that is a JSON array.
+  HTTP_PAYLOAD_ITEMS = 2;
+  // A response body that is a bare scalar or plain text.
+  HTTP_PAYLOAD_VALUE = 3;
+}
+
+extend google.protobuf.FieldOptions {
+  // Set on a field that holds an HTTP payload protobuf has no shape for. When a
+  // message's only field is marked, the payload is the message: the envelope is
+  // an artifact of the encoding and is unwrapped before the payload is shown.
+  HttpPayload http_payload = 79001;
+}

@@ -3,6 +3,7 @@ package openapi
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,7 +27,7 @@ func TestKitchenSinkSpec(t *testing.T) {
 
 	// The generated proto must compile into descriptors.
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
+	if err := gen.write(dir); err != nil {
 		t.Fatalf("write proto: %v", err)
 	}
 	methods, err := compileMethods(dir, gen)
@@ -39,9 +40,9 @@ func TestKitchenSinkSpec(t *testing.T) {
 
 	for _, frag := range []string{
 		// The ingest body is "anyOf: [Signal, Signal[]]"; the single Signal is
-		// the modeled happy path, with its fields present.
-		"message IngestSignalsRequest {",
-		`Signal body = `,
+		// the modeled happy path. It is the operation's whole input, so it is the
+		// request message itself rather than a field inside one.
+		"rpc IngestSignals(Signal) returns (IngestSignalsResponse);",
 		"message Signal {",
 		`string id = `,
 		`string source = `,
@@ -70,13 +71,20 @@ func TestKitchenSinkSpec(t *testing.T) {
 		"message Widget {",
 		`string created_at = `,
 		`string deprecated_name = `,
-		// A component schema named like the request wrapper is renamed instead
-		// of swallowing the wrapper's body field.
-		"message CreateProbeRequest {\n  CreateProbeRequest2 body = 1",
-		"message CreateProbeRequest2 {",
+		// A component schema named like the request the operation would have
+		// generated simply is that request.
+		"rpc CreateProbe(CreateProbeRequest) returns (Probe);",
+		"message CreateProbeRequest {\n  string target = 1",
 		// Probe is "allOf: [Resource, CreateProbeRequest]".
 		"message Probe {",
 		`rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);`,
+		// A body beside parameters keeps its envelope field, and says so.
+		`WidgetBase body = 4 [json_name = "body", (kaja.http_payload) = HTTP_PAYLOAD_BODY];`,
+		// Header parameters are ordinary fields carrying their header name.
+		`string x_trace_id = 2 [json_name = "X-Trace-Id"];`,
+		`string if_match = 3 [json_name = "If-Match"];`,
+		// An array body has no message to be, so its envelope stays too.
+		`repeated Report body = 1 [json_name = "body", (kaja.http_payload) = HTTP_PAYLOAD_BODY];`,
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
@@ -90,11 +98,27 @@ func TestKitchenSinkSpec(t *testing.T) {
 	if ingest == nil {
 		t.Fatal("missing IngestSignals binding")
 	}
-	if ingest.verb != "POST" || ingest.pathTemplate != "/signals" || ingest.bodyKey != "body" {
+	if ingest.verb != "POST" || ingest.pathTemplate != "/signals" || !ingest.bodyWhole || ingest.bodyKey != "" {
 		t.Errorf("IngestSignals binding unexpected: %+v", ingest)
 	}
 	if ingest.bodyContentType != "application/json" {
 		t.Errorf("IngestSignals bodyContentType = %q, want application/json", ingest.bodyContentType)
+	}
+
+	update := gen.bindings["openapi.kaja_kitchen_sink.Widgets/UpdateWidget"]
+	if update == nil {
+		t.Fatal("missing UpdateWidget binding")
+	}
+	if update.bodyWhole || update.bodyKey != "body" {
+		t.Errorf("UpdateWidget binding unexpected: %+v", update)
+	}
+	if want := []string{"X-Trace-Id", "If-Match"}; !slices.Equal(update.headerParams, want) {
+		t.Errorf("UpdateWidget headerParams = %q, want %q", update.headerParams, want)
+	}
+
+	// An array body cannot be a message, so the envelope survives.
+	if b := gen.bindings["openapi.kaja_kitchen_sink.Reports/CreateReports"]; b == nil || b.bodyWhole || b.bodyKey != "body" {
+		t.Errorf("CreateReports binding unexpected: %+v", b)
 	}
 
 	// Query styles: $ref'd page is explode:false, filterLabels is deepObject,

@@ -42,12 +42,13 @@ class UpstreamError extends Error {
   }
 }
 
-// upstreamError shapes a >= 400 Target result into an UpstreamError. The body
-// is the structured error JSON produced by the server (or a Twirp error), so
-// its message becomes the error message and the rest becomes error fields. The
-// exchanged upstream headers are mirrored onto the error's `meta` in the same
-// trailer shape the web transport uses, so the Headers view is populated on a
-// failure too.
+// upstreamError shapes a >= 400 Target result into an UpstreamError. The body is
+// the structured error JSON produced by the server (or a Twirp error), so its
+// message becomes the error message and the rest — status, statusText, request,
+// body — becomes error fields, the same shape the web transport arrives at from
+// its trailer. The exchanged upstream headers are mirrored onto the error's
+// `meta` in the trailer shape the web transport uses, so the Headers view is
+// populated on a failure too.
 function upstreamError(result: {
   body: unknown;
   statusCode: number;
