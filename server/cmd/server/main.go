@@ -34,7 +34,7 @@ func main() {
 	flag.Parse()
 
 	configurationPath := "../workspace/kaja.json"
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, *editable)
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath)
 	configuration := getConfigurationResponse.Configuration
 
 	// Start configuration file watcher

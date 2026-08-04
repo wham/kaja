@@ -132,6 +132,12 @@ function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
+  // Facts about the running kaja rather than the workspace it serves. They arrive
+  // alongside the configuration but are not part of it, and hold for the session.
+  const [canUpdateConfiguration, setCanUpdateConfiguration] = useState(false);
+  const [variableStoreAvailable, setVariableStoreAvailable] = useState(false);
+  const [gitRef, setGitRef] = useState("");
+  const [buildNumber, setBuildNumber] = useState("");
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   // Where each variable's value came from. A value the configuration only names
@@ -781,9 +787,15 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (loaded, status) => {
-    setConfiguration(loaded);
-    setVariableStatus(status);
+  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
+    if (response.configuration) {
+      setConfiguration(response.configuration);
+    }
+    setVariableStatus(response.variableStatus);
+    setCanUpdateConfiguration(response.canUpdateConfiguration);
+    setVariableStoreAvailable(response.variableStoreAvailable);
+    setGitRef(response.gitRef);
+    setBuildNumber(response.buildNumber);
   });
 
   const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
@@ -1590,7 +1602,7 @@ export function App() {
               <Sidebar
                 apps={apps}
                 scripts={scripts}
-                canDeleteApps={configuration?.system?.canUpdateConfiguration ?? false}
+                canDeleteApps={canUpdateConfiguration}
                 onSelect={onMethodSelect}
                 onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                 onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
@@ -1769,7 +1781,7 @@ export function App() {
                               initialData={tab.initialData}
                               allApps={configuration?.apps ?? []}
                               variables={configuration?.variables ?? {}}
-                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              readOnly={!canUpdateConfiguration}
                               editMode={tab.editMode}
                               onSubmit={onAppFormSubmit}
                               onCancel={onAppFormCancel}
@@ -1786,9 +1798,9 @@ export function App() {
                             <Variables
                               variables={configuration?.variables ?? {}}
                               status={variableStatus}
-                              storeAvailable={configuration?.system?.variableStoreAvailable ?? false}
+                              storeAvailable={variableStoreAvailable}
                               usage={variableUsage}
-                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              readOnly={!canUpdateConfiguration}
                               onSave={onVariablesSave}
                               onDirtyChange={onVariablesDirtyChange}
                             />
@@ -1823,8 +1835,8 @@ export function App() {
         <StatusBar
           colorMode={colorMode}
           onToggleColorMode={onToggleColorMode}
-          gitRef={configuration?.system?.gitRef}
-          buildNumber={configuration?.system?.buildNumber}
+          gitRef={gitRef}
+          buildNumber={buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={previewMcp ? mcpInfo : undefined}

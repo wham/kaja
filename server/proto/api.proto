@@ -188,6 +188,24 @@ message GetConfigurationResponse {
   repeated Log logs = 2;
   // Where each configured variable's value came from, one entry per variable.
   repeated VariableStatus variable_status = 3;
+
+  // The fields below describe the running kaja rather than the workspace it
+  // serves. They are fixed for the lifetime of the process, so only this
+  // response carries them - saving a configuration never round-trips them.
+
+  // Whether the UI can write to the configuration file. True in the desktop app,
+  // which owns its workspace; false in the server, which serves a workspace
+  // managed outside kaja - unless it was started with --editable.
+  bool can_update_configuration = 4;
+  // Git commit hash or tag for the currently running version
+  string git_ref = 5;
+  // TestFlight/App Store build number (CFBundleVersion), empty for other builds
+  string build_number = 6;
+  // Whether this machine has somewhere to store a variable's value outside
+  // kaja.json (the OS keychain). False on the server, and on a desktop with no
+  // usable keyring, where "${secret}" variables can only come from the
+  // environment.
+  bool variable_store_available = 7;
 }
 
 // VariableStatus reports where a variable's value came from. A variable whose
@@ -234,10 +252,6 @@ message Configuration {
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
   string path_prefix = 1;
-  // Settings describing the running kaja rather than the workspace. The server
-  // fills them in on every read; they are never loaded from, or written to, the
-  // configuration file.
-  ConfigurationSystem system = 4;
   // Apps are the single unit of configuration. A gRPC or Twirp service is just an
   // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
   // are apps too. kaja renders and invokes every app the same way.
@@ -254,22 +268,11 @@ message Configuration {
   // they were unified into `apps`. Legacy config files are migrated on load.
   reserved 2;
   reserved "projects";
-}
-
-message ConfigurationSystem {
-  // Whether the UI can update configuration. True in the desktop app, which owns
-  // its workspace; false in the server, which serves a workspace managed outside
-  // kaja - unless it was started with --editable.
-  bool can_update_configuration = 1;
-  // Git commit hash or tag for the currently running version
-  string git_ref = 2;
-  // TestFlight/App Store build number (CFBundleVersion), empty for other builds
-  string build_number = 3;
-  // Whether this machine has somewhere to store a variable's value outside
-  // kaja.json (the OS keychain). False on the web server, and on a desktop with
-  // no usable keyring, where "${secret}" variables can only come from the
-  // environment.
-  bool variable_store_available = 4;
+  // Field 4 used to hold a `system` block describing the running kaja. Those are
+  // facts about the process, not configuration, and they ride on
+  // GetConfigurationResponse now.
+  reserved 4;
+  reserved "system";
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAppRef, App, Transport, transportFromProtocol, updateAppRef } from "./apps";
 import { loadApp } from "./appLoader";
-import { CompileStatus as ApiCompileStatus, Configuration, OpenStatus, VariableStatus } from "./server/api";
+import { CompileStatus as ApiCompileStatus, GetConfigurationResponse, OpenStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 
 const POLL_INTERVAL_MS = 1000;
@@ -14,7 +14,7 @@ function formatDuration(milliseconds: number): string {
 export function useCompilation(
   apps: App[],
   onUpdate: (apps: App[] | ((prev: App[]) => App[])) => void,
-  onConfigurationLoaded: (configuration: Configuration, variableStatus: VariableStatus[]) => void,
+  onConfigurationLoaded: (response: GetConfigurationResponse) => void,
 ): { configurationLoaded: boolean } {
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const client = getApiClient();
@@ -220,7 +220,7 @@ export function useCompilation(
         const configApps = response.configuration?.apps || [];
 
         if (response.configuration) {
-          onConfigurationLoaded(response.configuration, response.variableStatus);
+          onConfigurationLoaded(response);
         }
 
         setConfigurationLoaded(true);

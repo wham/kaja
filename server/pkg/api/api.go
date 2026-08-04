@@ -258,28 +258,19 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
-	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
+	response := LoadGetConfigurationResponse(s.configurationPath)
 
-	system := response.Configuration.System
-	system.GitRef = s.gitRef
-	system.BuildNumber = s.buildNumber
-	system.VariableStoreAvailable = s.variableStoreAvailable()
+	response.CanUpdateConfiguration = s.canUpdateConfiguration
+	response.GitRef = s.gitRef
+	response.BuildNumber = s.buildNumber
+	response.VariableStoreAvailable = s.variableStoreAvailable()
 
 	// The variables travel as kaja.json writes them - a literal value, or the
 	// source that holds it ("${secret}", "${env:X}"). A value this machine
 	// resolved from a source is never part of the response.
-	configuration := &Configuration{
-		PathPrefix: response.Configuration.PathPrefix,
-		Apps:       response.Configuration.Apps,
-		System:     system,
-		Variables:  response.Configuration.Variables,
-	}
+	response.VariableStatus = NewResolver(response.Configuration.Variables, s.variableStore).Statuses()
 
-	return &GetConfigurationResponse{
-		Configuration:  configuration,
-		Logs:           response.Logs,
-		VariableStatus: NewResolver(response.Configuration.Variables, s.variableStore).Statuses(),
-	}, nil
+	return response, nil
 }
 
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {

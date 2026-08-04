@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json", false)
+	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json")
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -58,7 +58,7 @@ func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -128,7 +128,7 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	configuration := LoadGetConfigurationResponse(tmpfile.Name(), false).Configuration
+	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
 	if len(configuration.Apps) != 3 {
 		t.Fatalf("expected 3 migrated apps, got %d", len(configuration.Apps))
 	}
@@ -208,22 +208,23 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 		t.Fatalf("expected no error when canUpdateConfiguration is true, got %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), true)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 	if len(getConfigurationResponse.Configuration.Apps) != 1 {
 		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
 	}
 }
 
-func TestConfigurationFileCannotGrantUpdates(t *testing.T) {
-	// A configuration file is workspace data, not policy: a "system" block it
-	// carries - from an older kaja, or hand-written - must not unlock a server
-	// started without --editable.
+// Earlier versions wrote a "system" block into every saved file, so configurations
+// in the wild still carry one. It must be discarded without taking the rest of the
+// file with it, and it must never unlock a server started without --editable.
+func TestLegacySystemBlockIsDiscarded(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpfile.Name())
-	if _, err := tmpfile.Write([]byte(`{"system":{"canUpdateConfiguration":true}}`)); err != nil {
+	legacy := `{"system":{"canUpdateConfiguration":true},"apps":[{"name":"test-app","grpc":{"url":"http://localhost:8080"}}]}`
+	if _, err := tmpfile.Write([]byte(legacy)); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
@@ -233,7 +234,10 @@ func TestConfigurationFileCannotGrantUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get configuration: %v", err)
 	}
-	if response.Configuration.System.CanUpdateConfiguration {
+	if len(response.Configuration.Apps) != 1 {
+		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Configuration.Apps))
+	}
+	if response.CanUpdateConfiguration {
 		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
 	}
 
@@ -244,16 +248,14 @@ func TestConfigurationFileCannotGrantUpdates(t *testing.T) {
 	}
 }
 
+// Saving is what clears a legacy "system" block off disk for good.
 func TestUpdateConfiguration_DoesNotWriteSystemSettings(t *testing.T) {
-	// System settings describe the running kaja, so saving must not leak them into
-	// the workspace - a configuration authored in the desktop app is committed and
-	// then served read-only.
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpfile.Name())
-	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+	if _, err := tmpfile.Write([]byte(`{"system":{"canUpdateConfiguration":true}}`)); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
@@ -261,7 +263,6 @@ func TestUpdateConfiguration_DoesNotWriteSystemSettings(t *testing.T) {
 
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
-			System: &ConfigurationSystem{CanUpdateConfiguration: true},
 			Apps: []*ConfigurationApp{
 				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
 			},
@@ -424,7 +425,7 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")

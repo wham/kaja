@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func LoadGetConfigurationResponse(configurationPath string, canUpdateConfiguration bool) *GetConfigurationResponse {
+func LoadGetConfigurationResponse(configurationPath string) *GetConfigurationResponse {
 	logger := NewLogger()
 	logger.info(fmt.Sprintf("configurationPath %s", configurationPath))
 	configuration := loadConfigurationFile(configurationPath, logger)
@@ -21,12 +21,6 @@ func LoadGetConfigurationResponse(configurationPath string, canUpdateConfigurati
 	applyEnvironmentVariables(configuration, logger)
 	normalize(configuration, logger)
 	validateApps(configuration, logger)
-
-	// System settings describe the running kaja, not the workspace: whatever a
-	// configuration file says about them is discarded.
-	configuration.System = &ConfigurationSystem{
-		CanUpdateConfiguration: canUpdateConfiguration,
-	}
 
 	return &GetConfigurationResponse{Configuration: configuration, Logs: logger.logs}
 }
@@ -63,12 +57,16 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 	return configuration
 }
 
-// migrateConfiguration upgrades the pre-unification config shape - a top-level
-// "projects" list of gRPC/Twirp services - into the typed "apps" model in place, so
-// existing files keep working. Each project becomes an app whose set field is its
-// type, e.g. { "name", "grpc": { "url", ... } }; protojson would otherwise reject
-// the removed "projects" field. (The earlier "apps" form never shipped, so only
-// "projects" needs migrating.)
+// migrateConfiguration drops config shapes kaja no longer declares, which protojson
+// would otherwise reject as unknown fields, taking the whole file down with them:
+//
+//   - a top-level "projects" list of gRPC/Twirp services, migrated in place into the
+//     typed "apps" model. Each project becomes an app whose set field is its type,
+//     e.g. { "name", "grpc": { "url", ... } }. (The earlier "apps" form never
+//     shipped, so only "projects" needs migrating.)
+//   - a "system" block, which described the running kaja rather than the workspace.
+//     Earlier versions wrote it into every saved file; it is reported on
+//     GetConfigurationResponse now and simply discarded here.
 func migrateConfiguration(content []byte, logger *Logger) []byte {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(content, &raw); err != nil {
@@ -76,9 +74,21 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 		return content
 	}
 
-	projectsRaw, ok := raw["projects"]
-	if !ok {
+	projectsRaw, hasProjects := raw["projects"]
+	_, hasSystem := raw["system"]
+	if !hasProjects && !hasSystem {
 		return content
+	}
+
+	delete(raw, "system")
+
+	if !hasProjects {
+		migrated, err := json.Marshal(raw)
+		if err != nil {
+			logger.error("Failed to encode migrated configuration", err)
+			return content
+		}
+		return migrated
 	}
 
 	var projects []map[string]any
@@ -246,18 +256,12 @@ func validateApps(configuration *Configuration, logger *Logger) {
 }
 
 func SaveConfiguration(configurationPath string, configuration *Configuration) error {
-	configurationToSave := &Configuration{
-		PathPrefix: configuration.PathPrefix,
-		Apps:       configuration.Apps,
-		Variables:  configuration.Variables,
-	}
-
 	jsonBytes, err := protojson.MarshalOptions{
 		Multiline: true,
 		Indent:    "  ",
 		// Emit snake_case field names (proto_dir, spec_url) in kaja.json.
 		UseProtoNames: true,
-	}.Marshal(configurationToSave)
+	}.Marshal(configuration)
 	if err != nil {
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}

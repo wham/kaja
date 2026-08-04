@@ -360,6 +360,39 @@ export interface GetConfigurationResponse {
      * @generated from protobuf field: repeated VariableStatus variable_status = 3
      */
     variableStatus: VariableStatus[];
+    // The fields below describe the running kaja rather than the workspace it
+    // serves. They are fixed for the lifetime of the process, so only this
+    // response carries them - saving a configuration never round-trips them.
+
+    /**
+     * Whether the UI can write to the configuration file. True in the desktop app,
+     * which owns its workspace; false in the server, which serves a workspace
+     * managed outside kaja - unless it was started with --editable.
+     *
+     * @generated from protobuf field: bool can_update_configuration = 4
+     */
+    canUpdateConfiguration: boolean;
+    /**
+     * Git commit hash or tag for the currently running version
+     *
+     * @generated from protobuf field: string git_ref = 5
+     */
+    gitRef: string;
+    /**
+     * TestFlight/App Store build number (CFBundleVersion), empty for other builds
+     *
+     * @generated from protobuf field: string build_number = 6
+     */
+    buildNumber: string;
+    /**
+     * Whether this machine has somewhere to store a variable's value outside
+     * kaja.json (the OS keychain). False on the server, and on a desktop with no
+     * usable keyring, where "${secret}" variables can only come from the
+     * environment.
+     *
+     * @generated from protobuf field: bool variable_store_available = 7
+     */
+    variableStoreAvailable: boolean;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -434,14 +467,6 @@ export interface Configuration {
      */
     pathPrefix: string;
     /**
-     * Settings describing the running kaja rather than the workspace. The server
-     * fills them in on every read; they are never loaded from, or written to, the
-     * configuration file.
-     *
-     * @generated from protobuf field: ConfigurationSystem system = 4
-     */
-    system?: ConfigurationSystem;
-    /**
      * Apps are the single unit of configuration. A gRPC or Twirp service is just an
      * app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
      * are apps too. kaja renders and invokes every app the same way.
@@ -462,40 +487,6 @@ export interface Configuration {
     variables: {
         [key: string]: string;
     };
-}
-/**
- * @generated from protobuf message ConfigurationSystem
- */
-export interface ConfigurationSystem {
-    /**
-     * Whether the UI can update configuration. True in the desktop app, which owns
-     * its workspace; false in the server, which serves a workspace managed outside
-     * kaja - unless it was started with --editable.
-     *
-     * @generated from protobuf field: bool can_update_configuration = 1
-     */
-    canUpdateConfiguration: boolean;
-    /**
-     * Git commit hash or tag for the currently running version
-     *
-     * @generated from protobuf field: string git_ref = 2
-     */
-    gitRef: string;
-    /**
-     * TestFlight/App Store build number (CFBundleVersion), empty for other builds
-     *
-     * @generated from protobuf field: string build_number = 3
-     */
-    buildNumber: string;
-    /**
-     * Whether this machine has somewhere to store a variable's value outside
-     * kaja.json (the OS keychain). False on the web server, and on a desktop with
-     * no usable keyring, where "${secret}" variables can only come from the
-     * environment.
-     *
-     * @generated from protobuf field: bool variable_store_available = 4
-     */
-    variableStoreAvailable: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -1790,13 +1781,21 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
         super("GetConfigurationResponse", [
             { no: 1, name: "configuration", kind: "message", T: () => Configuration },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-            { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
+            { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus },
+            { no: 4, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.logs = [];
         message.variableStatus = [];
+        message.canUpdateConfiguration = false;
+        message.gitRef = "";
+        message.buildNumber = "";
+        message.variableStoreAvailable = false;
         if (value !== undefined)
             reflectionMergePartial<GetConfigurationResponse>(this, message, value);
         return message;
@@ -1814,6 +1813,18 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
                     break;
                 case /* repeated VariableStatus variable_status */ 3:
                     message.variableStatus.push(VariableStatus.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool can_update_configuration */ 4:
+                    message.canUpdateConfiguration = reader.bool();
+                    break;
+                case /* string git_ref */ 5:
+                    message.gitRef = reader.string();
+                    break;
+                case /* string build_number */ 6:
+                    message.buildNumber = reader.string();
+                    break;
+                case /* bool variable_store_available */ 7:
+                    message.variableStoreAvailable = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1836,6 +1847,18 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
         /* repeated VariableStatus variable_status = 3; */
         for (let i = 0; i < message.variableStatus.length; i++)
             VariableStatus.internalBinaryWrite(message.variableStatus[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* bool can_update_configuration = 4; */
+        if (message.canUpdateConfiguration !== false)
+            writer.tag(4, WireType.Varint).bool(message.canUpdateConfiguration);
+        /* string git_ref = 5; */
+        if (message.gitRef !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.gitRef);
+        /* string build_number = 6; */
+        if (message.buildNumber !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.buildNumber);
+        /* bool variable_store_available = 7; */
+        if (message.variableStoreAvailable !== false)
+            writer.tag(7, WireType.Varint).bool(message.variableStoreAvailable);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2063,7 +2086,6 @@ class Configuration$Type extends MessageType<Configuration> {
     constructor() {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
@@ -2084,9 +2106,6 @@ class Configuration$Type extends MessageType<Configuration> {
             switch (fieldNo) {
                 case /* string path_prefix */ 1:
                     message.pathPrefix = reader.string();
-                    break;
-                case /* ConfigurationSystem system */ 4:
-                    message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
                     break;
                 case /* repeated ConfigurationApp apps */ 5:
                     message.apps.push(ConfigurationApp.internalBinaryRead(reader, reader.uint32(), options));
@@ -2125,9 +2144,6 @@ class Configuration$Type extends MessageType<Configuration> {
         /* string path_prefix = 1; */
         if (message.pathPrefix !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.pathPrefix);
-        /* ConfigurationSystem system = 4; */
-        if (message.system)
-            ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         /* repeated ConfigurationApp apps = 5; */
         for (let i = 0; i < message.apps.length; i++)
             ConfigurationApp.internalBinaryWrite(message.apps[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
@@ -2144,77 +2160,6 @@ class Configuration$Type extends MessageType<Configuration> {
  * @generated MessageType for protobuf message Configuration
  */
 export const Configuration = new Configuration$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
-    constructor() {
-        super("ConfigurationSystem", [
-            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.canUpdateConfiguration = false;
-        message.gitRef = "";
-        message.buildNumber = "";
-        message.variableStoreAvailable = false;
-        if (value !== undefined)
-            reflectionMergePartial<ConfigurationSystem>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationSystem): ConfigurationSystem {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bool can_update_configuration */ 1:
-                    message.canUpdateConfiguration = reader.bool();
-                    break;
-                case /* string git_ref */ 2:
-                    message.gitRef = reader.string();
-                    break;
-                case /* string build_number */ 3:
-                    message.buildNumber = reader.string();
-                    break;
-                case /* bool variable_store_available */ 4:
-                    message.variableStoreAvailable = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ConfigurationSystem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bool can_update_configuration = 1; */
-        if (message.canUpdateConfiguration !== false)
-            writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
-        /* string git_ref = 2; */
-        if (message.gitRef !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.gitRef);
-        /* string build_number = 3; */
-        if (message.buildNumber !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.buildNumber);
-        /* bool variable_store_available = 4; */
-        if (message.variableStoreAvailable !== false)
-            writer.tag(4, WireType.Varint).bool(message.variableStoreAvailable);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message ConfigurationSystem
- */
-export const ConfigurationSystem = new ConfigurationSystem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     constructor() {
