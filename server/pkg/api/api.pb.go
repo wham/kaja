@@ -1516,7 +1516,9 @@ type Configuration struct {
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
 	PathPrefix string `protobuf:"bytes,1,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
-	// System-level settings (read-only, ignored in UpdateConfiguration)
+	// Settings describing the running kaja rather than the workspace. The server
+	// fills them in on every read; they are never loaded from, or written to, the
+	// configuration file.
 	System *ConfigurationSystem `protobuf:"bytes,4,opt,name=system,proto3" json:"system,omitempty"`
 	// Apps are the single unit of configuration. A gRPC or Twirp service is just an
 	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
@@ -1593,7 +1595,9 @@ func (x *Configuration) GetVariables() map[string]string {
 
 type ConfigurationSystem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the UI can update configuration (true in desktop app, false in web server)
+	// Whether the UI can update configuration. True in the desktop app, which owns
+	// its workspace; false in the server, which serves a workspace managed outside
+	// kaja - unless it was started with --editable.
 	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
 	// Git commit hash or tag for the currently running version
 	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`

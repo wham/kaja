@@ -434,7 +434,9 @@ export interface Configuration {
      */
     pathPrefix: string;
     /**
-     * System-level settings (read-only, ignored in UpdateConfiguration)
+     * Settings describing the running kaja rather than the workspace. The server
+     * fills them in on every read; they are never loaded from, or written to, the
+     * configuration file.
      *
      * @generated from protobuf field: ConfigurationSystem system = 4
      */
@@ -466,7 +468,9 @@ export interface Configuration {
  */
 export interface ConfigurationSystem {
     /**
-     * Whether the UI can update configuration (true in desktop app, false in web server)
+     * Whether the UI can update configuration. True in the desktop app, which owns
+     * its workspace; false in the server, which serves a workspace managed outside
+     * kaja - unless it was started with --editable.
      *
      * @generated from protobuf field: bool can_update_configuration = 1
      */

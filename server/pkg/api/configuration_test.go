@@ -214,10 +214,10 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 	}
 }
 
-func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
-	// Web/dev server constructs the service with canUpdateConfiguration=false, but
-	// the file-based dev override (system.canUpdateConfiguration) must still enable
-	// updates - the same effective flag GetConfiguration reports to the UI.
+func TestConfigurationFileCannotGrantUpdates(t *testing.T) {
+	// A configuration file is workspace data, not policy: a "system" block it
+	// carries - from an older kaja, or hand-written - must not unlock a server
+	// started without --editable.
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
@@ -229,20 +229,54 @@ func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
 
 	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
+	response, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
+	if err != nil {
+		t.Fatalf("failed to get configuration: %v", err)
+	}
+	if response.Configuration.System.CanUpdateConfiguration {
+		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
+	}
+
+	if _, err := service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{},
+	}); err == nil {
+		t.Fatal("expected the update to be denied")
+	}
+}
+
+func TestUpdateConfiguration_DoesNotWriteSystemSettings(t *testing.T) {
+	// System settings describe the running kaja, so saving must not leak them into
+	// the workspace - a configuration authored in the desktop app is committed and
+	// then served read-only.
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte("{}")); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), true, "", "", nil)
+
 	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
 		Configuration: &Configuration{
+			System: &ConfigurationSystem{CanUpdateConfiguration: true},
 			Apps: []*ConfigurationApp{
 				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
 			},
 		},
 	})
 	if err != nil {
-		t.Fatalf("expected no error when file override enables updates, got %v", err)
+		t.Fatalf("failed to update configuration: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
-	if len(getConfigurationResponse.Configuration.Apps) != 1 {
-		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
+	content, err := os.ReadFile(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("failed to read config file: %v", err)
+	}
+	if strings.Contains(string(content), "system") {
+		t.Errorf("expected no system settings in the saved file, got %q", string(content))
 	}
 }
 

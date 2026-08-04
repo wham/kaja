@@ -22,13 +22,10 @@ func LoadGetConfigurationResponse(configurationPath string, canUpdateConfigurati
 	normalize(configuration, logger)
 	validateApps(configuration, logger)
 
-	// Set system-level settings (file override takes precedence)
-	if configuration.System != nil && configuration.System.CanUpdateConfiguration {
-		// Keep the value from file (dev override)
-	} else {
-		configuration.System = &ConfigurationSystem{
-			CanUpdateConfiguration: canUpdateConfiguration,
-		}
+	// System settings describe the running kaja, not the workspace: whatever a
+	// configuration file says about them is discarded.
+	configuration.System = &ConfigurationSystem{
+		CanUpdateConfiguration: canUpdateConfiguration,
 	}
 
 	return &GetConfigurationResponse{Configuration: configuration, Logs: logger.logs}
@@ -252,7 +249,6 @@ func SaveConfiguration(configurationPath string, configuration *Configuration) e
 	configurationToSave := &Configuration{
 		PathPrefix: configuration.PathPrefix,
 		Apps:       configuration.Apps,
-		System:     configuration.System,
 		Variables:  configuration.Variables,
 	}
 

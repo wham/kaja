@@ -261,9 +261,6 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
 
 	system := response.Configuration.System
-	if system == nil {
-		system = &ConfigurationSystem{}
-	}
 	system.GitRef = s.gitRef
 	system.BuildNumber = s.buildNumber
 	system.VariableStoreAvailable = s.variableStoreAvailable()
@@ -290,13 +287,7 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 		return nil, fmt.Errorf("configuration is required")
 	}
 
-	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
-
-	// Enforce the effective flag, which honors both the constructor value and the
-	// file-based dev override (system.canUpdateConfiguration) - the same value
-	// GetConfiguration reports to the UI to gate config editing.
-	system := currentResponse.Configuration.System
-	if system == nil || !system.CanUpdateConfiguration {
+	if !s.canUpdateConfiguration {
 		return nil, fmt.Errorf("updating configuration is not allowed")
 	}
 
@@ -305,8 +296,6 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}
 
 	slog.Info("Updating configuration")
-
-	req.Configuration.System = system
 
 	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
@@ -359,9 +348,7 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 }
 
 func (s *ApiService) checkStoredValueAllowed(name string) error {
-	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
-	system := currentResponse.Configuration.System
-	if system == nil || !system.CanUpdateConfiguration {
+	if !s.canUpdateConfiguration {
 		return fmt.Errorf("updating configuration is not allowed")
 	}
 	if !variableNamePattern.MatchString(name) {

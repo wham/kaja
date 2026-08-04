@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log/slog"
 	"mime"
@@ -26,8 +27,14 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// The server serves a workspace it does not own - a Git checkout, a mounted
+	// volume - so its configuration is read-only. --editable opts out of that for
+	// development, where the workspace is the developer's own.
+	editable := flag.Bool("editable", false, "allow the UI to write to the configuration file")
+	flag.Parse()
+
 	configurationPath := "../workspace/kaja.json"
-	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, false)
+	getConfigurationResponse := api.LoadGetConfigurationResponse(configurationPath, *editable)
 	configuration := getConfigurationResponse.Configuration
 
 	// Start configuration file watcher
@@ -43,7 +50,7 @@ func main() {
 
 	// No variable store on the web server: a "${secret}" variable's value comes
 	// from the environment.
-	apiService := api.NewApiService(configurationPath, false, GitRef, "", nil)
+	apiService := api.NewApiService(configurationPath, *editable, GitRef, "", nil)
 	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
 

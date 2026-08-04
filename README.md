@@ -82,6 +82,8 @@ With **Docker**, create a `kaja.json` file and mount it into the container. Ever
 }
 ```
 
+The server serves a workspace it does not own, so the UI shows this configuration read-only: it is managed by whoever mounts the file — checked into Git, deployed with the container — and not edited by the engineers running it.
+
 ### App options
 
 Each app has a `name` and exactly one typed block:
@@ -133,7 +135,7 @@ After:
 
 The development scripts require [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh).
 
-- Run in local server: `scripts/server`
+- Run in local server: `scripts/server` (pass `--editable` to edit `workspace/kaja.json` from the UI)
 - Run in Docker: `scripts/docker`
 - Run the desktop app: `scripts/desktop`
 - Test UI: `(cd ui && bun test)`
