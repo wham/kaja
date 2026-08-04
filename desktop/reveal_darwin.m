@@ -13,3 +13,18 @@ void revealPathInFinder(char *path) {
         });
     }
 }
+
+// Opens the given file's directory in Finder with the file selected. Called
+// from Go (reveal_darwin.go).
+void selectPathInFinder(char *path) {
+    @autoreleasepool {
+        NSString *p = [NSString stringWithUTF8String:path];
+        if (p == nil) {
+            return;
+        }
+        NSURL *url = [NSURL fileURLWithPath:p isDirectory:NO];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[ url ]];
+        });
+    }
+}
