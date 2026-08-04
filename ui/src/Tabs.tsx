@@ -13,6 +13,8 @@ interface TabProps {
   isEphemeral?: boolean;
   // Icon for a tab that isn't a document, so it reads as what it is at a glance.
   icon?: LucideIcon;
+  // Unsaved edits the tab is the only copy of, marked with a dot after the title.
+  isDirty?: boolean;
 }
 
 interface TabsProps {
@@ -126,7 +128,7 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
           style={{ paddingRight: tabCount > 0 ? controlsWidth : 0 }}
         >
           {React.Children.map(children, (child, index) => {
-            const { tabId, tabLabel, isEphemeral, icon: Icon } = child.props;
+            const { tabId, tabLabel, isEphemeral, isDirty, icon: Icon } = child.props;
             const isActive = index === activeTabIndex;
 
             return (
@@ -156,6 +158,11 @@ export function Tabs({ children, activeTabIndex, onSelectTab, onCloseTab, onClos
                 >
                   {tabLabel}
                 </span>
+                {isDirty && (
+                  <span aria-label="Unsaved changes" className="mr-2 -ml-1 select-none text-muted-foreground">
+                    •
+                  </span>
+                )}
                 {onCloseTab && (
                   <IconButton
                     icon={X}
