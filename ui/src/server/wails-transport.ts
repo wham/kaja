@@ -8,7 +8,9 @@ import type {
   RpcTransport,
   UnaryCall,
 } from "@protobuf-ts/runtime-rpc";
-import { Deferred, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
+import { Deferred, RpcError, RpcOutputStreamController, ServerStreamingCall, UnaryCall as UnaryCallImpl } from "@protobuf-ts/runtime-rpc";
+import { parseTwirpErrorResponse } from "@protobuf-ts/twirp-transport";
+import { isJsonObject, type JsonValue } from "@protobuf-ts/runtime";
 import { Twirp, Target, TargetServerStream, CancelStream } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { appHeaders } from "../appTypes";
@@ -29,6 +31,24 @@ function wailsErrorMessage(error: unknown): string {
     if (typeof message === "string" && message) return message;
   }
   return "Unknown error";
+}
+
+// apiError recovers the error a failed API call carries. The desktop side hands
+// the Twirp error JSON back as the rejection - the same body the browser's fetch
+// transport reads - so a server's own message ("variable name ... must start
+// with a letter") reaches the UI as itself, instead of as whatever decoding that
+// JSON as protobuf happens to fail with.
+export function apiError(error: unknown): RpcError | undefined {
+  const message = wailsErrorMessage(error);
+  if (!message.startsWith("{")) return undefined;
+  let failure: JsonValue;
+  try {
+    failure = JSON.parse(message);
+  } catch {
+    return undefined;
+  }
+  if (!isJsonObject(failure) || typeof failure.code !== "string" || typeof failure.msg !== "string") return undefined;
+  return parseTwirpErrorResponse(failure);
 }
 
 // UpstreamError is an HTTP error response from the invoked app's upstream API
@@ -319,6 +339,10 @@ export class WailsTransport implements RpcTransport {
       console.error(`Wails ${this.mode} call failed:`, error);
       if (error instanceof UpstreamError) {
         throw error;
+      }
+      const failure = this.mode === "api" ? apiError(error) : undefined;
+      if (failure) {
+        throw failure;
       }
       throw new Error(`Wails ${this.mode} transport error: ${wailsErrorMessage(error)}`);
     }

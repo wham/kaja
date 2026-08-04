@@ -425,6 +425,17 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	response := recorder.Body.Bytes()
 	slog.Info("Twirp response", "status", recorder.Code, "response_length", len(response))
 
+	// A failed call answers with a Twirp error - JSON, not the protobuf the
+	// caller is about to decode - so it travels as an error instead of a body.
+	// It is the same JSON the browser's fetch transport reads, so both transports
+	// arrive at the same RpcError instead of one of them at a decoding failure.
+	if recorder.Code != http.StatusOK {
+		if len(response) == 0 {
+			return nil, errors.New(http.StatusText(recorder.Code))
+		}
+		return nil, errors.New(string(response))
+	}
+
 	return response, nil
 }
 
