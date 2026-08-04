@@ -179,11 +179,20 @@ func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
 	appMenu.Append(menu.WindowMenu())
 
 	helpMenu := appMenu.AddSubmenu("Help")
+	helpMenu.AddText("Show Config in Finder", nil, func(_ *menu.CallbackData) {
+		a.showConfigurationInFinder()
+	})
 	helpMenu.AddText("Show Logs in Finder", nil, func(_ *menu.CallbackData) {
 		a.showLogsInFinder()
 	})
 
 	return appMenu
+}
+
+// showConfigurationInFinder reveals kaja.json in the system file browser with
+// the file itself selected.
+func (a *App) showConfigurationInFinder() {
+	revealFileInFinder(filepath.Join(a.workspaceDir, "kaja.json"))
 }
 
 // showLogsInFinder reveals the logs directory (see LogFromUI) in the system

@@ -8,6 +8,7 @@ package main
 
 // Defined in reveal_darwin.m.
 void revealPathInFinder(char *path);
+void selectPathInFinder(char *path);
 */
 import "C"
 
@@ -19,4 +20,12 @@ func revealInFinder(path string) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 	C.revealPathInFinder(cpath)
+}
+
+// revealFileInFinder opens the given file's directory in Finder with the file
+// selected.
+func revealFileInFinder(path string) {
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	C.selectPathInFinder(cpath)
 }
