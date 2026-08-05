@@ -356,10 +356,55 @@ export interface GetConfigurationResponse {
     logs: Log[];
     /**
      * Where each configured variable's value came from, one entry per variable.
+     * Neither the file nor the process, but the result of resolving one against
+     * the other.
      *
      * @generated from protobuf field: repeated VariableStatus variable_status = 3
      */
     variableStatus: VariableStatus[];
+    /**
+     * @generated from protobuf field: Runtime runtime = 4
+     */
+    runtime?: Runtime;
+}
+/**
+ * Runtime is the kaja that is running, as opposed to the workspace it serves.
+ * Everything here is settled when the process starts and holds until it exits,
+ * and none of it is the user's to set: it is never read from, nor written to,
+ * kaja.json, and never accepted as input.
+ *
+ * @generated from protobuf message Runtime
+ */
+export interface Runtime {
+    /**
+     * Whether the UI can write to the configuration file. True in the desktop app,
+     * which owns its workspace; false in the server, which serves a workspace
+     * managed outside kaja - unless it was started with --editable.
+     *
+     * @generated from protobuf field: bool can_update_configuration = 1
+     */
+    canUpdateConfiguration: boolean;
+    /**
+     * Git commit hash or tag for the currently running version
+     *
+     * @generated from protobuf field: string git_ref = 2
+     */
+    gitRef: string;
+    /**
+     * TestFlight/App Store build number (CFBundleVersion), empty for other builds
+     *
+     * @generated from protobuf field: string build_number = 3
+     */
+    buildNumber: string;
+    /**
+     * Whether this machine has somewhere to store a variable's value outside
+     * kaja.json (the OS keychain). False on the server, and on a desktop with no
+     * usable keyring, where "${secret}" variables can only come from the
+     * environment.
+     *
+     * @generated from protobuf field: bool variable_store_available = 4
+     */
+    variableStoreAvailable: boolean;
 }
 /**
  * VariableStatus reports where a variable's value came from. A variable whose
@@ -434,12 +479,6 @@ export interface Configuration {
      */
     pathPrefix: string;
     /**
-     * System-level settings (read-only, ignored in UpdateConfiguration)
-     *
-     * @generated from protobuf field: ConfigurationSystem system = 4
-     */
-    system?: ConfigurationSystem;
-    /**
      * Apps are the single unit of configuration. A gRPC or Twirp service is just an
      * app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
      * are apps too. kaja renders and invokes every app the same way.
@@ -460,38 +499,6 @@ export interface Configuration {
     variables: {
         [key: string]: string;
     };
-}
-/**
- * @generated from protobuf message ConfigurationSystem
- */
-export interface ConfigurationSystem {
-    /**
-     * Whether the UI can update configuration (true in desktop app, false in web server)
-     *
-     * @generated from protobuf field: bool can_update_configuration = 1
-     */
-    canUpdateConfiguration: boolean;
-    /**
-     * Git commit hash or tag for the currently running version
-     *
-     * @generated from protobuf field: string git_ref = 2
-     */
-    gitRef: string;
-    /**
-     * TestFlight/App Store build number (CFBundleVersion), empty for other builds
-     *
-     * @generated from protobuf field: string build_number = 3
-     */
-    buildNumber: string;
-    /**
-     * Whether this machine has somewhere to store a variable's value outside
-     * kaja.json (the OS keychain). False on the web server, and on a desktop with
-     * no usable keyring, where "${secret}" variables can only come from the
-     * environment.
-     *
-     * @generated from protobuf field: bool variable_store_available = 4
-     */
-    variableStoreAvailable: boolean;
 }
 /**
  * ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -1786,7 +1793,8 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
         super("GetConfigurationResponse", [
             { no: 1, name: "configuration", kind: "message", T: () => Configuration },
             { no: 2, name: "logs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Log },
-            { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus }
+            { no: 3, name: "variable_status", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => VariableStatus },
+            { no: 4, name: "runtime", kind: "message", T: () => Runtime }
         ]);
     }
     create(value?: PartialMessage<GetConfigurationResponse>): GetConfigurationResponse {
@@ -1811,6 +1819,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
                 case /* repeated VariableStatus variable_status */ 3:
                     message.variableStatus.push(VariableStatus.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* Runtime runtime */ 4:
+                    message.runtime = Runtime.internalBinaryRead(reader, reader.uint32(), options, message.runtime);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1832,6 +1843,9 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
         /* repeated VariableStatus variable_status = 3; */
         for (let i = 0; i < message.variableStatus.length; i++)
             VariableStatus.internalBinaryWrite(message.variableStatus[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* Runtime runtime = 4; */
+        if (message.runtime)
+            Runtime.internalBinaryWrite(message.runtime, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1842,6 +1856,77 @@ class GetConfigurationResponse$Type extends MessageType<GetConfigurationResponse
  * @generated MessageType for protobuf message GetConfigurationResponse
  */
 export const GetConfigurationResponse = new GetConfigurationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Runtime$Type extends MessageType<Runtime> {
+    constructor() {
+        super("Runtime", [
+            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<Runtime>): Runtime {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.canUpdateConfiguration = false;
+        message.gitRef = "";
+        message.buildNumber = "";
+        message.variableStoreAvailable = false;
+        if (value !== undefined)
+            reflectionMergePartial<Runtime>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Runtime): Runtime {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool can_update_configuration */ 1:
+                    message.canUpdateConfiguration = reader.bool();
+                    break;
+                case /* string git_ref */ 2:
+                    message.gitRef = reader.string();
+                    break;
+                case /* string build_number */ 3:
+                    message.buildNumber = reader.string();
+                    break;
+                case /* bool variable_store_available */ 4:
+                    message.variableStoreAvailable = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Runtime, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool can_update_configuration = 1; */
+        if (message.canUpdateConfiguration !== false)
+            writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
+        /* string git_ref = 2; */
+        if (message.gitRef !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.gitRef);
+        /* string build_number = 3; */
+        if (message.buildNumber !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.buildNumber);
+        /* bool variable_store_available = 4; */
+        if (message.variableStoreAvailable !== false)
+            writer.tag(4, WireType.Varint).bool(message.variableStoreAvailable);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message Runtime
+ */
+export const Runtime = new Runtime$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class VariableStatus$Type extends MessageType<VariableStatus> {
     constructor() {
@@ -2059,7 +2144,6 @@ class Configuration$Type extends MessageType<Configuration> {
     constructor() {
         super("Configuration", [
             { no: 1, name: "path_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "system", kind: "message", T: () => ConfigurationSystem },
             { no: 5, name: "apps", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ConfigurationApp },
             { no: 6, name: "variables", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
         ]);
@@ -2080,9 +2164,6 @@ class Configuration$Type extends MessageType<Configuration> {
             switch (fieldNo) {
                 case /* string path_prefix */ 1:
                     message.pathPrefix = reader.string();
-                    break;
-                case /* ConfigurationSystem system */ 4:
-                    message.system = ConfigurationSystem.internalBinaryRead(reader, reader.uint32(), options, message.system);
                     break;
                 case /* repeated ConfigurationApp apps */ 5:
                     message.apps.push(ConfigurationApp.internalBinaryRead(reader, reader.uint32(), options));
@@ -2121,9 +2202,6 @@ class Configuration$Type extends MessageType<Configuration> {
         /* string path_prefix = 1; */
         if (message.pathPrefix !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.pathPrefix);
-        /* ConfigurationSystem system = 4; */
-        if (message.system)
-            ConfigurationSystem.internalBinaryWrite(message.system, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         /* repeated ConfigurationApp apps = 5; */
         for (let i = 0; i < message.apps.length; i++)
             ConfigurationApp.internalBinaryWrite(message.apps[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
@@ -2140,77 +2218,6 @@ class Configuration$Type extends MessageType<Configuration> {
  * @generated MessageType for protobuf message Configuration
  */
 export const Configuration = new Configuration$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ConfigurationSystem$Type extends MessageType<ConfigurationSystem> {
-    constructor() {
-        super("ConfigurationSystem", [
-            { no: 1, name: "can_update_configuration", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "git_ref", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "build_number", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "variable_store_available", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ConfigurationSystem>): ConfigurationSystem {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.canUpdateConfiguration = false;
-        message.gitRef = "";
-        message.buildNumber = "";
-        message.variableStoreAvailable = false;
-        if (value !== undefined)
-            reflectionMergePartial<ConfigurationSystem>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigurationSystem): ConfigurationSystem {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bool can_update_configuration */ 1:
-                    message.canUpdateConfiguration = reader.bool();
-                    break;
-                case /* string git_ref */ 2:
-                    message.gitRef = reader.string();
-                    break;
-                case /* string build_number */ 3:
-                    message.buildNumber = reader.string();
-                    break;
-                case /* bool variable_store_available */ 4:
-                    message.variableStoreAvailable = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ConfigurationSystem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bool can_update_configuration = 1; */
-        if (message.canUpdateConfiguration !== false)
-            writer.tag(1, WireType.Varint).bool(message.canUpdateConfiguration);
-        /* string git_ref = 2; */
-        if (message.gitRef !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.gitRef);
-        /* string build_number = 3; */
-        if (message.buildNumber !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.buildNumber);
-        /* bool variable_store_available = 4; */
-        if (message.variableStoreAvailable !== false)
-            writer.tag(4, WireType.Varint).bool(message.variableStoreAvailable);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message ConfigurationSystem
- */
-export const ConfigurationSystem = new ConfigurationSystem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
     constructor() {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoadGetConfigurationResponse_ConfigFileNotExists(t *testing.T) {
-	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json", false)
+	getConfigurationResponse := LoadGetConfigurationResponse("non_existent_config.json")
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -58,7 +58,7 @@ func TestLoadGetConfigurationResponse_AppsScenario(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")
@@ -128,7 +128,7 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	configuration := LoadGetConfigurationResponse(tmpfile.Name(), false).Configuration
+	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
 	if len(configuration.Apps) != 3 {
 		t.Fatalf("expected 3 migrated apps, got %d", len(configuration.Apps))
 	}
@@ -208,41 +208,44 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 		t.Fatalf("expected no error when canUpdateConfiguration is true, got %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), true)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 	if len(getConfigurationResponse.Configuration.Apps) != 1 {
 		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
 	}
 }
 
-func TestUpdateConfiguration_AllowedByFileOverride(t *testing.T) {
-	// Web/dev server constructs the service with canUpdateConfiguration=false, but
-	// the file-based dev override (system.canUpdateConfiguration) must still enable
-	// updates - the same effective flag GetConfiguration reports to the UI.
+// Earlier versions wrote a "system" block into every file they saved, so
+// configurations in the wild still carry one. It must be discarded without taking
+// the rest of the file with it, and it must never unlock a server started without
+// --editable.
+func TestLegacySystemBlockIsDiscarded(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpfile.Name())
-	if _, err := tmpfile.Write([]byte(`{"system":{"canUpdateConfiguration":true}}`)); err != nil {
+	legacy := `{"system":{"canUpdateConfiguration":true},"apps":[{"name":"test-app","grpc":{"url":"http://localhost:8080"}}]}`
+	if _, err := tmpfile.Write([]byte(legacy)); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
 	service := NewApiService(tmpfile.Name(), false, "", "", nil)
 
-	_, err = service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
-		Configuration: &Configuration{
-			Apps: []*ConfigurationApp{
-				{Name: "test-app", App: &ConfigurationApp_Grpc{Grpc: &GrpcApp{Url: "http://localhost:8080"}}},
-			},
-		},
-	})
+	response, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
 	if err != nil {
-		t.Fatalf("expected no error when file override enables updates, got %v", err)
+		t.Fatalf("failed to get configuration: %v", err)
+	}
+	if len(response.Configuration.Apps) != 1 {
+		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Configuration.Apps))
+	}
+	if response.Runtime.CanUpdateConfiguration {
+		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
-	if len(getConfigurationResponse.Configuration.Apps) != 1 {
-		t.Fatalf("expected 1 saved app, got %d", len(getConfigurationResponse.Configuration.Apps))
+	if _, err := service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{},
+	}); err == nil {
+		t.Fatal("expected the update to be denied")
 	}
 }
 
@@ -390,7 +393,7 @@ func TestLoadGetConfigurationResponse_PathPrefixNormalization(t *testing.T) {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name(), false)
+	getConfigurationResponse := LoadGetConfigurationResponse(tmpfile.Name())
 
 	if getConfigurationResponse == nil {
 		t.Fatal("expected non-nil response")

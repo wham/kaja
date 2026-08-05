@@ -26,7 +26,7 @@ import { AppForm } from "./AppForm";
 import { registerKajaModule, setValueCompletionApps } from "./Editor";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationApp, LogLevel, VariableStatus } from "./server/api";
+import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
@@ -133,6 +133,9 @@ function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
+  // The running kaja, as opposed to the workspace it serves. It arrives alongside
+  // the configuration but is not part of it, and holds until the process exits.
+  const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   // Where each variable's value came from. A value the configuration only names
@@ -797,9 +800,14 @@ export function App() {
     }
   };
 
-  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (loaded, status) => {
-    setConfiguration(loaded);
-    setVariableStatus(status);
+  const { configurationLoaded } = useCompilation(apps, onCompilationUpdate, (response) => {
+    if (response.configuration) {
+      setConfiguration(response.configuration);
+    }
+    setVariableStatus(response.variableStatus);
+    if (response.runtime) {
+      setRuntime(response.runtime);
+    }
   });
 
   const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
@@ -1634,7 +1642,7 @@ export function App() {
               <Sidebar
                 apps={apps}
                 scripts={scripts}
-                canDeleteApps={configuration?.system?.canUpdateConfiguration ?? false}
+                canDeleteApps={runtime.canUpdateConfiguration}
                 onSelect={onMethodSelect}
                 onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                 onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
@@ -1813,7 +1821,7 @@ export function App() {
                               initialData={tab.initialData}
                               allApps={configuration?.apps ?? []}
                               variables={configuration?.variables ?? {}}
-                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              readOnly={!runtime.canUpdateConfiguration}
                               editMode={tab.editMode}
                               onSubmit={onAppFormSubmit}
                               onCancel={onAppFormCancel}
@@ -1830,9 +1838,9 @@ export function App() {
                             <Variables
                               variables={configuration?.variables ?? {}}
                               status={variableStatus}
-                              storeAvailable={configuration?.system?.variableStoreAvailable ?? false}
+                              storeAvailable={runtime.variableStoreAvailable}
                               usage={variableUsage}
-                              readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              readOnly={!runtime.canUpdateConfiguration}
                               editMode={tab.editMode}
                               onEditModeChange={(editMode) => setTabs((tabs) => setVariablesEditMode(tabs, index, editMode))}
                               onJsonValidChange={setTabJsonValid}
@@ -1872,8 +1880,8 @@ export function App() {
         <StatusBar
           colorMode={colorMode}
           onToggleColorMode={onToggleColorMode}
-          gitRef={configuration?.system?.gitRef}
-          buildNumber={configuration?.system?.buildNumber}
+          gitRef={runtime.gitRef}
+          buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={previewMcp ? mcpInfo : undefined}

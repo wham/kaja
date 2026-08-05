@@ -258,31 +258,21 @@ func describeServerVariables(variables []openapi.DocumentServerVariable) []*Open
 func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 	slog.Info("Getting configuration")
 
-	response := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
+	response := LoadGetConfigurationResponse(s.configurationPath)
 
-	system := response.Configuration.System
-	if system == nil {
-		system = &ConfigurationSystem{}
+	response.Runtime = &Runtime{
+		CanUpdateConfiguration: s.canUpdateConfiguration,
+		GitRef:                 s.gitRef,
+		BuildNumber:            s.buildNumber,
+		VariableStoreAvailable: s.variableStoreAvailable(),
 	}
-	system.GitRef = s.gitRef
-	system.BuildNumber = s.buildNumber
-	system.VariableStoreAvailable = s.variableStoreAvailable()
 
 	// The variables travel as kaja.json writes them - a literal value, or the
 	// source that holds it ("${secret}", "${env:X}"). A value this machine
 	// resolved from a source is never part of the response.
-	configuration := &Configuration{
-		PathPrefix: response.Configuration.PathPrefix,
-		Apps:       response.Configuration.Apps,
-		System:     system,
-		Variables:  response.Configuration.Variables,
-	}
+	response.VariableStatus = NewResolver(response.Configuration.Variables, s.variableStore).Statuses()
 
-	return &GetConfigurationResponse{
-		Configuration:  configuration,
-		Logs:           response.Logs,
-		VariableStatus: NewResolver(response.Configuration.Variables, s.variableStore).Statuses(),
-	}, nil
+	return response, nil
 }
 
 func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigurationRequest) (*UpdateConfigurationResponse, error) {
@@ -290,13 +280,7 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 		return nil, fmt.Errorf("configuration is required")
 	}
 
-	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
-
-	// Enforce the effective flag, which honors both the constructor value and the
-	// file-based dev override (system.canUpdateConfiguration) - the same value
-	// GetConfiguration reports to the UI to gate config editing.
-	system := currentResponse.Configuration.System
-	if system == nil || !system.CanUpdateConfiguration {
+	if !s.canUpdateConfiguration {
 		return nil, fmt.Errorf("updating configuration is not allowed")
 	}
 
@@ -305,8 +289,6 @@ func (s *ApiService) UpdateConfiguration(ctx context.Context, req *UpdateConfigu
 	}
 
 	slog.Info("Updating configuration")
-
-	req.Configuration.System = system
 
 	if err := SaveConfiguration(s.configurationPath, req.Configuration); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
@@ -359,9 +341,7 @@ func (s *ApiService) ClearStoredValue(ctx context.Context, req *ClearStoredValue
 }
 
 func (s *ApiService) checkStoredValueAllowed(name string) error {
-	currentResponse := LoadGetConfigurationResponse(s.configurationPath, s.canUpdateConfiguration)
-	system := currentResponse.Configuration.System
-	if system == nil || !system.CanUpdateConfiguration {
+	if !s.canUpdateConfiguration {
 		return fmt.Errorf("updating configuration is not allowed")
 	}
 	if !variableNamePattern.MatchString(name) {

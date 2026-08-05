@@ -31,8 +31,5 @@
         "reflection": true
       }
     }
-  ],
-  "system": {
-    "canUpdateConfiguration": true
-  }
+  ]
 }

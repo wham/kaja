@@ -1245,7 +1245,10 @@ type GetConfigurationResponse struct {
 	Configuration *Configuration         `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
 	Logs          []*Log                 `protobuf:"bytes,2,rep,name=logs,proto3" json:"logs,omitempty"`
 	// Where each configured variable's value came from, one entry per variable.
+	// Neither the file nor the process, but the result of resolving one against
+	// the other.
 	VariableStatus []*VariableStatus `protobuf:"bytes,3,rep,name=variable_status,json=variableStatus,proto3" json:"variable_status,omitempty"`
+	Runtime        *Runtime          `protobuf:"bytes,4,opt,name=runtime,proto3" json:"runtime,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1301,6 +1304,94 @@ func (x *GetConfigurationResponse) GetVariableStatus() []*VariableStatus {
 	return nil
 }
 
+func (x *GetConfigurationResponse) GetRuntime() *Runtime {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
+// Runtime is the kaja that is running, as opposed to the workspace it serves.
+// Everything here is settled when the process starts and holds until it exits,
+// and none of it is the user's to set: it is never read from, nor written to,
+// kaja.json, and never accepted as input.
+type Runtime struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the UI can write to the configuration file. True in the desktop app,
+	// which owns its workspace; false in the server, which serves a workspace
+	// managed outside kaja - unless it was started with --editable.
+	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
+	// Git commit hash or tag for the currently running version
+	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
+	// TestFlight/App Store build number (CFBundleVersion), empty for other builds
+	BuildNumber string `protobuf:"bytes,3,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
+	// Whether this machine has somewhere to store a variable's value outside
+	// kaja.json (the OS keychain). False on the server, and on a desktop with no
+	// usable keyring, where "${secret}" variables can only come from the
+	// environment.
+	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *Runtime) Reset() {
+	*x = Runtime{}
+	mi := &file_proto_api_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Runtime) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Runtime) ProtoMessage() {}
+
+func (x *Runtime) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Runtime.ProtoReflect.Descriptor instead.
+func (*Runtime) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *Runtime) GetCanUpdateConfiguration() bool {
+	if x != nil {
+		return x.CanUpdateConfiguration
+	}
+	return false
+}
+
+func (x *Runtime) GetGitRef() string {
+	if x != nil {
+		return x.GitRef
+	}
+	return ""
+}
+
+func (x *Runtime) GetBuildNumber() string {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return ""
+}
+
+func (x *Runtime) GetVariableStoreAvailable() bool {
+	if x != nil {
+		return x.VariableStoreAvailable
+	}
+	return false
+}
+
 // VariableStatus reports where a variable's value came from. A variable whose
 // value is not written in kaja.json is never sent to the UI, so this is all the
 // Variables tab knows about it.
@@ -1318,7 +1409,7 @@ type VariableStatus struct {
 
 func (x *VariableStatus) Reset() {
 	*x = VariableStatus{}
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1330,7 +1421,7 @@ func (x *VariableStatus) String() string {
 func (*VariableStatus) ProtoMessage() {}
 
 func (x *VariableStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1343,7 +1434,7 @@ func (x *VariableStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VariableStatus.ProtoReflect.Descriptor instead.
 func (*VariableStatus) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{15}
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *VariableStatus) GetName() string {
@@ -1379,7 +1470,7 @@ type SetStoredValueRequest struct {
 
 func (x *SetStoredValueRequest) Reset() {
 	*x = SetStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1391,7 +1482,7 @@ func (x *SetStoredValueRequest) String() string {
 func (*SetStoredValueRequest) ProtoMessage() {}
 
 func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1404,7 +1495,7 @@ func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*SetStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{16}
+	return file_proto_api_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SetStoredValueRequest) GetName() string {
@@ -1430,7 +1521,7 @@ type ClearStoredValueRequest struct {
 
 func (x *ClearStoredValueRequest) Reset() {
 	*x = ClearStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1533,7 @@ func (x *ClearStoredValueRequest) String() string {
 func (*ClearStoredValueRequest) ProtoMessage() {}
 
 func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1455,7 +1546,7 @@ func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*ClearStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{17}
+	return file_proto_api_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ClearStoredValueRequest) GetName() string {
@@ -1474,7 +1565,7 @@ type StoredValueResponse struct {
 
 func (x *StoredValueResponse) Reset() {
 	*x = StoredValueResponse{}
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1486,7 +1577,7 @@ func (x *StoredValueResponse) String() string {
 func (*StoredValueResponse) ProtoMessage() {}
 
 func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1499,7 +1590,7 @@ func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredValueResponse.ProtoReflect.Descriptor instead.
 func (*StoredValueResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{18}
+	return file_proto_api_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
@@ -1516,8 +1607,6 @@ type Configuration struct {
 	// The server uses it to generate the correct paths in HTML and redirects.
 	// The JS code is using relative paths and should be not dependent on this.
 	PathPrefix string `protobuf:"bytes,1,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
-	// System-level settings (read-only, ignored in UpdateConfiguration)
-	System *ConfigurationSystem `protobuf:"bytes,4,opt,name=system,proto3" json:"system,omitempty"`
 	// Apps are the single unit of configuration. A gRPC or Twirp service is just an
 	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
 	// are apps too. kaja renders and invokes every app the same way.
@@ -1535,7 +1624,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1547,7 +1636,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1560,7 +1649,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{19}
+	return file_proto_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -1568,13 +1657,6 @@ func (x *Configuration) GetPathPrefix() string {
 		return x.PathPrefix
 	}
 	return ""
-}
-
-func (x *Configuration) GetSystem() *ConfigurationSystem {
-	if x != nil {
-		return x.System
-	}
-	return nil
 }
 
 func (x *Configuration) GetApps() []*ConfigurationApp {
@@ -1589,81 +1671,6 @@ func (x *Configuration) GetVariables() map[string]string {
 		return x.Variables
 	}
 	return nil
-}
-
-type ConfigurationSystem struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the UI can update configuration (true in desktop app, false in web server)
-	CanUpdateConfiguration bool `protobuf:"varint,1,opt,name=can_update_configuration,json=canUpdateConfiguration,proto3" json:"can_update_configuration,omitempty"`
-	// Git commit hash or tag for the currently running version
-	GitRef string `protobuf:"bytes,2,opt,name=git_ref,json=gitRef,proto3" json:"git_ref,omitempty"`
-	// TestFlight/App Store build number (CFBundleVersion), empty for other builds
-	BuildNumber string `protobuf:"bytes,3,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
-	// Whether this machine has somewhere to store a variable's value outside
-	// kaja.json (the OS keychain). False on the web server, and on a desktop with
-	// no usable keyring, where "${secret}" variables can only come from the
-	// environment.
-	VariableStoreAvailable bool `protobuf:"varint,4,opt,name=variable_store_available,json=variableStoreAvailable,proto3" json:"variable_store_available,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
-}
-
-func (x *ConfigurationSystem) Reset() {
-	*x = ConfigurationSystem{}
-	mi := &file_proto_api_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConfigurationSystem) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConfigurationSystem) ProtoMessage() {}
-
-func (x *ConfigurationSystem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConfigurationSystem.ProtoReflect.Descriptor instead.
-func (*ConfigurationSystem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *ConfigurationSystem) GetCanUpdateConfiguration() bool {
-	if x != nil {
-		return x.CanUpdateConfiguration
-	}
-	return false
-}
-
-func (x *ConfigurationSystem) GetGitRef() string {
-	if x != nil {
-		return x.GitRef
-	}
-	return ""
-}
-
-func (x *ConfigurationSystem) GetBuildNumber() string {
-	if x != nil {
-		return x.BuildNumber
-	}
-	return ""
-}
-
-func (x *ConfigurationSystem) GetVariableStoreAvailable() bool {
-	if x != nil {
-		return x.VariableStoreAvailable
-	}
-	return false
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the
@@ -2340,11 +2347,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x06Source\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\x19\n" +
-	"\x17GetConfigurationRequest\"\xa4\x01\n" +
+	"\x17GetConfigurationRequest\"\xc8\x01\n" +
 	"\x18GetConfigurationResponse\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\x12\x18\n" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x128\n" +
-	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"h\n" +
+	"\x0fvariable_status\x18\x03 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\x12\"\n" +
+	"\aruntime\x18\x04 \x01(\v2\b.RuntimeR\aruntime\"\xb9\x01\n" +
+	"\aRuntime\x128\n" +
+	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
+	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
+	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
+	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\"h\n" +
 	"\x0eVariableStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
 	"\x06source\x18\x02 \x01(\x0e2\x0f.VariableSourceR\x06source\x12\x19\n" +
@@ -2355,21 +2368,15 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x17ClearStoredValueRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"O\n" +
 	"\x13StoredValueResponse\x128\n" +
-	"\x0fvariable_status\x18\x01 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"\x90\x02\n" +
+	"\x0fvariable_status\x18\x01 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"\xf0\x01\n" +
 	"\rConfiguration\x12\x1f\n" +
 	"\vpath_prefix\x18\x01 \x01(\tR\n" +
-	"pathPrefix\x12,\n" +
-	"\x06system\x18\x04 \x01(\v2\x14.ConfigurationSystemR\x06system\x12%\n" +
+	"pathPrefix\x12%\n" +
 	"\x04apps\x18\x05 \x03(\v2\x11.ConfigurationAppR\x04apps\x12;\n" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03R\bprojects\"\xc5\x01\n" +
-	"\x13ConfigurationSystem\x128\n" +
-	"\x18can_update_configuration\x18\x01 \x01(\bR\x16canUpdateConfiguration\x12\x17\n" +
-	"\agit_ref\x18\x02 \x01(\tR\x06gitRef\x12!\n" +
-	"\fbuild_number\x18\x03 \x01(\tR\vbuildNumber\x128\n" +
-	"\x18variable_store_available\x18\x04 \x01(\bR\x16variableStoreAvailable\"\xeb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"\xeb\x01\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04grpc\x18\x02 \x01(\v2\b.GrpcAppH\x00R\x04grpc\x12!\n" +
@@ -2501,12 +2508,12 @@ var file_proto_api_proto_goTypes = []any{
 	(*Source)(nil),                      // 17: Source
 	(*GetConfigurationRequest)(nil),     // 18: GetConfigurationRequest
 	(*GetConfigurationResponse)(nil),    // 19: GetConfigurationResponse
-	(*VariableStatus)(nil),              // 20: VariableStatus
-	(*SetStoredValueRequest)(nil),       // 21: SetStoredValueRequest
-	(*ClearStoredValueRequest)(nil),     // 22: ClearStoredValueRequest
-	(*StoredValueResponse)(nil),         // 23: StoredValueResponse
-	(*Configuration)(nil),               // 24: Configuration
-	(*ConfigurationSystem)(nil),         // 25: ConfigurationSystem
+	(*Runtime)(nil),                     // 20: Runtime
+	(*VariableStatus)(nil),              // 21: VariableStatus
+	(*SetStoredValueRequest)(nil),       // 22: SetStoredValueRequest
+	(*ClearStoredValueRequest)(nil),     // 23: ClearStoredValueRequest
+	(*StoredValueResponse)(nil),         // 24: StoredValueResponse
+	(*Configuration)(nil),               // 25: Configuration
 	(*ConfigurationApp)(nil),            // 26: ConfigurationApp
 	(*GrpcApp)(nil),                     // 27: GrpcApp
 	(*TwirpApp)(nil),                    // 28: TwirpApp
@@ -2536,12 +2543,12 @@ var file_proto_api_proto_depIdxs = []int32{
 	16, // 11: CompileResponse.logs:type_name -> Log
 	17, // 12: CompileResponse.sources:type_name -> Source
 	3,  // 13: Log.level:type_name -> LogLevel
-	24, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
+	25, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
 	16, // 15: GetConfigurationResponse.logs:type_name -> Log
-	20, // 16: GetConfigurationResponse.variable_status:type_name -> VariableStatus
-	4,  // 17: VariableStatus.source:type_name -> VariableSource
-	20, // 18: StoredValueResponse.variable_status:type_name -> VariableStatus
-	25, // 19: Configuration.system:type_name -> ConfigurationSystem
+	21, // 16: GetConfigurationResponse.variable_status:type_name -> VariableStatus
+	20, // 17: GetConfigurationResponse.runtime:type_name -> Runtime
+	4,  // 18: VariableStatus.source:type_name -> VariableSource
+	21, // 19: StoredValueResponse.variable_status:type_name -> VariableStatus
 	26, // 20: Configuration.apps:type_name -> ConfigurationApp
 	34, // 21: Configuration.variables:type_name -> Configuration.VariablesEntry
 	27, // 22: ConfigurationApp.grpc:type_name -> GrpcApp
@@ -2553,23 +2560,23 @@ var file_proto_api_proto_depIdxs = []int32{
 	36, // 28: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
 	37, // 29: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
 	38, // 30: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	24, // 31: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	24, // 32: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	20, // 33: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	25, // 31: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	25, // 32: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	21, // 33: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
 	5,  // 34: Api.Compile:input_type -> CompileRequest
 	6,  // 35: Api.OpenApp:input_type -> OpenAppRequest
 	8,  // 36: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
 	18, // 37: Api.GetConfiguration:input_type -> GetConfigurationRequest
 	32, // 38: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	21, // 39: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	22, // 40: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	22, // 39: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	23, // 40: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
 	15, // 41: Api.Compile:output_type -> CompileResponse
 	7,  // 42: Api.OpenApp:output_type -> OpenAppResponse
 	9,  // 43: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
 	19, // 44: Api.GetConfiguration:output_type -> GetConfigurationResponse
 	33, // 45: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	23, // 46: Api.SetStoredValue:output_type -> StoredValueResponse
-	23, // 47: Api.ClearStoredValue:output_type -> StoredValueResponse
+	24, // 46: Api.SetStoredValue:output_type -> StoredValueResponse
+	24, // 47: Api.ClearStoredValue:output_type -> StoredValueResponse
 	41, // [41:48] is the sub-list for method output_type
 	34, // [34:41] is the sub-list for method input_type
 	34, // [34:34] is the sub-list for extension type_name

@@ -63,4 +63,5 @@ protoc --proto_path=. --plugin=protoc-gen-go=./build/protoc-gen-go --go_out=. --
 mkdir -p /tmp/kaja
 GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
 go build -tags development -ldflags "-X main.GitRef=$GIT_REF" -o /tmp/kaja/kaja ./cmd/server
-/tmp/kaja/kaja
+# Pass --editable to let the UI write to workspace/kaja.json.
+/tmp/kaja/kaja "$@"
