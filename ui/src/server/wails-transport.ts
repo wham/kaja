@@ -51,6 +51,20 @@ export function apiError(error: unknown): RpcError | undefined {
   return parseTwirpErrorResponse(failure);
 }
 
+// responseBytes decodes the body a Wails binding hands back. Wails marshals a
+// []byte as base64 - but a nil or empty one as JSON null, and atob("null")
+// decodes to three bytes of noise that fail as protobuf ("illegal tag: field no
+// 208531"). An empty body is a message with every field at its default, which is
+// an ordinary answer: SetStoredValue reports no statuses for a variable kaja.json
+// doesn't name yet, and a gRPC method may return an empty message. So nothing
+// decodes as an empty message.
+export function responseBytes(body: unknown): Uint8Array {
+  if (typeof body !== "string" || body === "") {
+    return new Uint8Array(0);
+  }
+  return Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+}
+
 // UpstreamError is an HTTP error response from the invoked app's upstream API
 // (or a Twirp error body). Unlike transport failures it is thrown as-is — no
 // "transport error" wrapping — and its extra fields (status, request, body,
@@ -78,8 +92,7 @@ function upstreamError(result: {
 }): UpstreamError {
   let errorJson: unknown;
   try {
-    const bodyBytes = Uint8Array.from(atob(result.body as string), (c) => c.charCodeAt(0));
-    errorJson = JSON.parse(new TextDecoder().decode(bodyBytes));
+    errorJson = JSON.parse(new TextDecoder().decode(responseBytes(result.body)));
   } catch {
     // Body missing or not JSON; fall back to the HTTP status line.
   }
@@ -170,8 +183,7 @@ export class WailsTransport implements RpcTransport {
     unsubscribers.push(
       EventsOn("stream:" + streamID, (base64Data: string) => {
         try {
-          const responseBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-          const message = method.O.fromBinary(responseBytes);
+          const message = method.O.fromBinary(responseBytes(base64Data));
           responseStream.notifyMessage(message);
         } catch (err) {
           responseStream.notifyError(err instanceof Error ? err : new Error(String(err)));
@@ -297,12 +309,12 @@ export class WailsTransport implements RpcTransport {
         }
       }
 
-      let responseBase64: unknown;
+      let responseBody: unknown;
       const trailers: RpcMetadata = {};
 
       if (this.mode === "api") {
         console.log("Calling Wails Twirp with method:", method.name);
-        responseBase64 = await Twirp(method.name, inputArray);
+        responseBody = await Twirp(method.name, inputArray);
       } else {
         // mode === "target" - read URL and headers dynamically from appRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
@@ -324,15 +336,13 @@ export class WailsTransport implements RpcTransport {
           trailers[UPSTREAM_RESPONSE_HEADERS_TRAILER] = JSON.stringify(result.responseHeaders);
         }
 
-        responseBase64 = result.body;
+        responseBody = result.body;
       }
 
-      console.log(`Wails ${this.mode} result:`, responseBase64);
+      console.log(`Wails ${this.mode} result:`, responseBody);
 
       // Both API and Target modes use the same response handling (base64 decoding)
-      const responseBytes = Uint8Array.from(atob(responseBase64 as string), (c) => c.charCodeAt(0));
-
-      const output = method.O.fromBinary(responseBytes);
+      const output = method.O.fromBinary(responseBytes(responseBody));
       console.log(`Wails ${this.mode} output:`, output);
       return { output, trailers };
     } catch (error) {
