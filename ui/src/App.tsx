@@ -48,9 +48,10 @@ import {
   TabModel,
   keepAppFormTab,
   setAppFormEditMode,
+  setVariablesEditMode,
 } from "./tabModel";
 import { Tab, Tabs } from "./Tabs";
-import { Variables, VariablesSave } from "./Variables";
+import { Variables, VariablesSave, VariablesState } from "./Variables";
 import { Task } from "./Task";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
@@ -137,10 +138,15 @@ export function App() {
   // Where each variable's value came from. A value the configuration only names
   // never travels, so this is all the Variables tab knows about it.
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
-  const variablesDirtyRef = useRef(false);
+  // What the Variables tab holds that nothing else does: whether it is dirty,
+  // whether it could save, and how to make it. The tab strip marks the dot and
+  // the close gesture offers the save, so both live out here.
+  const [variablesState, setVariablesState] = useState<VariablesState>({ dirty: false, canSave: false, save: async () => {} });
+  const variablesStateRef = useRef(variablesState);
+  variablesStateRef.current = variablesState;
   // Index of the Variables tab a close gesture is waiting on, while it asks
-  // whether to discard the edits.
-  const [discardVariablesIndex, setDiscardVariablesIndex] = useState<number>();
+  // whether to save the edits, discard them, or stay.
+  const [closingVariablesIndex, setClosingVariablesIndex] = useState<number>();
   const [apps, setApps] = useState<AppModel[]>([]);
   const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
   const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
@@ -208,9 +214,12 @@ export function App() {
   } | null>(null);
   // Whether the New app dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
-  // Whether the app settings tab's JSON parses. It gates switching back to the
-  // form, which is why it lives out here with the control that does the switch.
-  const [appFormJsonValid, setAppFormJsonValid] = useState(true);
+  // Whether the active tab's JSON parses. It gates switching back to the form or
+  // the table, which is why it lives out here with the control that does the
+  // switch.
+  const [tabJsonValid, setTabJsonValid] = useState(true);
+  const tabJsonValidRef = useRef(tabJsonValid);
+  tabJsonValidRef.current = tabJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
@@ -652,6 +661,13 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setIsSearchOpen(true);
+        return;
+      }
+      // The same key as the </> button beside the tab options, on every tab that
+      // has a JSON representation.
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault();
+        toggleJsonViewRef.current();
         return;
       }
     };
@@ -1238,8 +1254,8 @@ export function App() {
   const onCloseTab = (index: number) => {
     // The Variables tab holds edits that aren't anywhere else yet, so closing it
     // mid-edit asks first.
-    if (tabsRef.current[index]?.type === "variables" && variablesDirtyRef.current) {
-      setDiscardVariablesIndex(index);
+    if (tabsRef.current[index]?.type === "variables" && variablesStateRef.current.dirty) {
+      setClosingVariablesIndex(index);
       return;
     }
     closeTab(index);
@@ -1263,7 +1279,7 @@ export function App() {
     if (variablesEnabled) return;
     const index = getVariablesTabIndex(tabsRef.current);
     if (index === -1) return;
-    variablesDirtyRef.current = false;
+    setVariablesState({ dirty: false, canSave: false, save: async () => {} });
     closeTab(index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variablesEnabled]);
@@ -1288,20 +1304,44 @@ export function App() {
     persistTabs();
   };
 
-  const appFormTab = tabs[activeTabIndex];
-  const appFormControls =
-    appFormTab?.type === "appForm" ? (
-      <IconButton
-        icon={Code}
-        aria-label={appFormTab.editMode === "json" ? "Edit as a form" : "Edit as JSON"}
-        variant="ghost"
-        size="sm"
-        tooltip={false}
-        disabled={appFormTab.editMode === "json" && !appFormJsonValid}
-        className={appFormTab.editMode === "json" ? "bg-accent text-foreground" : undefined}
-        onClick={() => setTabs((tabs) => setAppFormEditMode(tabs, activeTabIndex, appFormTab.editMode === "json" ? "form" : "json"))}
-      />
-    ) : undefined;
+  // The </> button in the tab strip edits the active tab's content as JSON: same
+  // position, same icon, same ⌘J, on every tab type that has a JSON
+  // representation, and absent on the ones that don't.
+  const jsonViewTab = tabs[activeTabIndex];
+  const jsonView =
+    jsonViewTab?.type === "appForm"
+      ? { showing: jsonViewTab.editMode === "json", back: "Edit as a form (⌘J)" }
+      : jsonViewTab?.type === "variables"
+        ? { showing: jsonViewTab.editMode === "json", back: "Edit as a table (⌘J)" }
+        : undefined;
+
+  const toggleJsonView = useCallback((): void => {
+    const index = activeTabIndexRef.current;
+    const tab = tabsRef.current[index];
+    if (tab?.type === "appForm") {
+      if (tab.editMode === "json" && !tabJsonValidRef.current) return;
+      setTabs((tabs) => setAppFormEditMode(tabs, index, tab.editMode === "json" ? "form" : "json"));
+      return;
+    }
+    if (tab?.type === "variables") {
+      if (tab.editMode === "json" && !tabJsonValidRef.current) return;
+      setTabs((tabs) => setVariablesEditMode(tabs, index, tab.editMode === "json" ? "table" : "json"));
+    }
+  }, []);
+  const toggleJsonViewRef = useRef(toggleJsonView);
+  toggleJsonViewRef.current = toggleJsonView;
+
+  const tabControls = jsonView ? (
+    <IconButton
+      icon={Code}
+      aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
+      variant="ghost"
+      size="sm"
+      disabled={jsonView.showing && !tabJsonValid}
+      className={jsonView.showing ? "bg-accent text-foreground" : undefined}
+      onClick={toggleJsonView}
+    />
+  ) : undefined;
 
   // Double-clicking a preview tab's title keeps it, the same gesture editors use.
   const onKeepTab = (index: number) => {
@@ -1485,8 +1525,8 @@ export function App() {
     return usage;
   }, [configuration?.apps, configuration?.variables]);
 
-  const onVariablesDirtyChange = useCallback((dirty: boolean) => {
-    variablesDirtyRef.current = dirty;
+  const onVariablesStateChange = useCallback((state: VariablesState) => {
+    setVariablesState((previous) => (previous.dirty === state.dirty && previous.canSave === state.canSave && previous.save === state.save ? previous : state));
   }, []);
 
   const onVariablesClick = () => {
@@ -1497,11 +1537,11 @@ export function App() {
     });
   };
 
-  // Saving the Variables tab is two things: the configuration, which names the
-  // variables, and the values kaja.json doesn't carry, which go to this
-  // machine's store. The configuration goes first, so a failed save leaves
-  // nothing stored for a variable that doesn't exist.
-  const onVariablesSave = async ({ variables, stored, cleared }: VariablesSave) => {
+  // Saving the Variables tab writes the configuration, which names the
+  // variables, and clears what this machine was holding for a variable that
+  // stopped being stored. Values going the other way don't come through here:
+  // they are written the moment they are entered.
+  const onVariablesSave = async ({ variables, cleared }: VariablesSave) => {
     if (!configuration) {
       return;
     }
@@ -1513,14 +1553,18 @@ export function App() {
     for (const name of cleared) {
       status = (await client.clearStoredValue({ name })).response.variableStatus;
     }
-    for (const { name, value } of stored) {
-      status = (await client.setStoredValue({ name, value })).response.variableStatus;
-    }
     setVariableStatus(status);
 
     if (response.configuration) {
       applyConfiguration(response.configuration);
     }
+  };
+
+  // A value the machine holds is machine state, not file state, so it is written
+  // when it is entered rather than waiting for a save that may never come.
+  const onStoreVariableValue = async (name: string, value: string) => {
+    const { response } = await getApiClient().setStoredValue({ name, value });
+    setVariableStatus(response.variableStatus);
   };
 
   const onDeleteApp = async (appName: string) => {
@@ -1703,7 +1747,7 @@ export function App() {
                     onCloseAll={onCloseAll}
                     onCloseOthers={onCloseOthers}
                     onKeepTab={onKeepTab}
-                    controls={appFormControls}
+                    controls={tabControls}
                   >
                     {tabs.map((tab, index) => {
                       if (tab.type === "compiler") {
@@ -1774,7 +1818,7 @@ export function App() {
                               onSubmit={onAppFormSubmit}
                               onCancel={onAppFormCancel}
                               onEdited={onAppFormEdited}
-                              onJsonValidChange={setAppFormJsonValid}
+                              onJsonValidChange={setTabJsonValid}
                             />
                           </Tab>
                         );
@@ -1782,15 +1826,20 @@ export function App() {
 
                       if (tab.type === "variables") {
                         return (
-                          <Tab tabId={tab.id} tabLabel="Variables" icon={Braces} key={tab.id}>
+                          <Tab tabId={tab.id} tabLabel="Variables" icon={Braces} isDirty={variablesState.dirty} key={tab.id}>
                             <Variables
                               variables={configuration?.variables ?? {}}
                               status={variableStatus}
                               storeAvailable={configuration?.system?.variableStoreAvailable ?? false}
                               usage={variableUsage}
                               readOnly={!(configuration?.system?.canUpdateConfiguration ?? false)}
+                              editMode={tab.editMode}
+                              onEditModeChange={(editMode) => setTabs((tabs) => setVariablesEditMode(tabs, index, editMode))}
+                              onJsonValidChange={setTabJsonValid}
+                              active={index === activeTabIndex}
                               onSave={onVariablesSave}
-                              onDirtyChange={onVariablesDirtyChange}
+                              onStoreValue={onStoreVariableValue}
+                              onStateChange={onVariablesStateChange}
                             />
                           </Tab>
                         );
@@ -1958,22 +2007,42 @@ export function App() {
           Permanently delete <strong>{deleteScript.name}</strong>?
         </ConfirmationDialog>
       )}
-      {discardVariablesIndex !== undefined && (
-        <ConfirmationDialog
-          title="Discard variable changes?"
-          confirmButtonContent="Discard"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const index = discardVariablesIndex;
-            setDiscardVariablesIndex(undefined);
-            if (gesture === "confirm") {
-              variablesDirtyRef.current = false;
-              closeTab(index);
-            }
-          }}
+      {closingVariablesIndex !== undefined && (
+        <Dialog
+          title="Variables has unsaved changes"
+          width="sm"
+          onClose={() => setClosingVariablesIndex(undefined)}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setClosingVariablesIndex(undefined) },
+            {
+              content: "Discard",
+              variant: "destructive",
+              onClick: () => {
+                const index = closingVariablesIndex;
+                setClosingVariablesIndex(undefined);
+                setVariablesState({ dirty: false, canSave: false, save: async () => {} });
+                closeTab(index);
+              },
+            },
+            ...(variablesState.canSave
+              ? [
+                  {
+                    content: "Save",
+                    variant: "default" as const,
+                    onClick: () => {
+                      const index = closingVariablesIndex;
+                      setClosingVariablesIndex(undefined);
+                      void variablesState.save().then(() => closeTab(index));
+                    },
+                  },
+                ]
+              : []),
+          ]}
         >
-          The Variables tab has unsaved changes.
-        </ConfirmationDialog>
+          <p className="text-sm text-muted-foreground">
+            The rows are the only copy of these edits. Values already written to this machine's keychain are kept either way.
+          </p>
+        </Dialog>
       )}
       {fileError && (
         <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
