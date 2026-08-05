@@ -26,9 +26,10 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
 
-  /* The frame around the content: sidebar, tab strip, status bar. Content —
-     editors, responses, forms — sits on --background, one step below it, so the
-     thing you stare at longest is the quietest plane in the window. */
+  /* The frame around the content: sidebar, top bar, status bar. Content —
+     editors, responses, forms, and the tab strip naming them — sits on
+     --background, one step below it, so the thing you stare at longest is the
+     quietest plane in the window. */
   --chrome: oklch(0.97 0 0);
 }
 

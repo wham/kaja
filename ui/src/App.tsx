@@ -81,7 +81,7 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 const MAX_CONSOLE_ITEMS = 500;
 
 // Height of the tab strip sitting above the editor, part of the editor pane.
-const TAB_STRIP_HEIGHT = 35;
+const TAB_STRIP_HEIGHT = 38;
 // Vertical padding the editor reserves around the code (see Editor.tsx).
 const EDITOR_PADDING = 32;
 // Bounds for the editor pane in the top-bottom layout. The maximum is a share of
@@ -1312,6 +1312,22 @@ export function App() {
     persistTabs();
   };
 
+  // Dragging a tab moves it in the strip; the tab that was open stays open,
+  // wherever the move left it. persistTabs reads the refs a render assigns, so
+  // they are moved forward here for the write to see the new order.
+  const onReorderTab = (from: number, to: number) => {
+    const newTabs = [...tabsRef.current];
+    const [moved] = newTabs.splice(from, 1);
+    newTabs.splice(to, 0, moved);
+    const current = activeTabIndexRef.current;
+    const newActiveIndex = current === from ? to : current > from && current <= to ? current - 1 : current < from && current >= to ? current + 1 : current;
+    tabsRef.current = newTabs;
+    activeTabIndexRef.current = newActiveIndex;
+    setTabs(newTabs);
+    setActiveTabIndex(newActiveIndex);
+    persistTabs();
+  };
+
   // The </> button in the tab strip edits the active tab's content as JSON: same
   // position, same icon, same ⌘J, on every tab type that has a JSON
   // representation, and absent on the ones that don't.
@@ -1755,6 +1771,7 @@ export function App() {
                     onCloseAll={onCloseAll}
                     onCloseOthers={onCloseOthers}
                     onKeepTab={onKeepTab}
+                    onReorderTab={onReorderTab}
                     controls={tabControls}
                   >
                     {tabs.map((tab, index) => {

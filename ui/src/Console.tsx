@@ -114,7 +114,7 @@ export function Console({ items, onClear }: ConsoleProps) {
           duration, then the stepper (whose history the trigger and ⌃↑/⌃↓ still
           reach), then the payload utilities — and the call's name truncates
           through all of it. */}
-      <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
+      <div className="@container flex h-[38px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         {items.length === 0 ? (
           <span className="shrink-0 text-xs text-muted-foreground">No calls yet</span>
         ) : (
