@@ -268,16 +268,6 @@ message Configuration {
   // which may sit inside a longer value). Only literal values are ever sent to a
   // remote browser.
   map<string, string> variables = 6;
-
-  // Field 2 used to hold a separate `projects` list (gRPC/Twirp services) before
-  // they were unified into `apps`. Legacy config files are migrated on load.
-  reserved 2;
-  reserved "projects";
-  // Field 4 used to hold a `system` block describing the running kaja. Those are
-  // facts about the process, not configuration, and they ride on
-  // GetConfigurationResponse now.
-  reserved 4;
-  reserved "system";
 }
 
 // ConfigurationApp is one app: a name and exactly one typed block whose key is the

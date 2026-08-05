@@ -57,16 +57,12 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 	return configuration
 }
 
-// migrateConfiguration drops config shapes kaja no longer declares, which protojson
-// would otherwise reject as unknown fields, taking the whole file down with them:
-//
-//   - a top-level "projects" list of gRPC/Twirp services, migrated in place into the
-//     typed "apps" model. Each project becomes an app whose set field is its type,
-//     e.g. { "name", "grpc": { "url", ... } }. (The earlier "apps" form never
-//     shipped, so only "projects" needs migrating.)
-//   - a "system" block, which described the running kaja rather than the workspace.
-//     Earlier versions wrote it into every saved file; it is reported on
-//     GetConfigurationResponse now and simply discarded here.
+// migrateConfiguration upgrades the pre-unification config shape - a top-level
+// "projects" list of gRPC/Twirp services - into the typed "apps" model in place, so
+// existing files keep working. Each project becomes an app whose set field is its
+// type, e.g. { "name", "grpc": { "url", ... } }; protojson would otherwise reject
+// the removed "projects" field. (The earlier "apps" form never shipped, so only
+// "projects" needs migrating.)
 func migrateConfiguration(content []byte, logger *Logger) []byte {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(content, &raw); err != nil {
@@ -74,21 +70,9 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 		return content
 	}
 
-	projectsRaw, hasProjects := raw["projects"]
-	_, hasSystem := raw["system"]
-	if !hasProjects && !hasSystem {
+	projectsRaw, ok := raw["projects"]
+	if !ok {
 		return content
-	}
-
-	delete(raw, "system")
-
-	if !hasProjects {
-		migrated, err := json.Marshal(raw)
-		if err != nil {
-			logger.error("Failed to encode migrated configuration", err)
-			return content
-		}
-		return migrated
 	}
 
 	var projects []map[string]any
