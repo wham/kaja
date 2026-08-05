@@ -4,6 +4,7 @@
 - Only add code comments for really tricky parts; otherwise keep it clean.
 - If API is called "getConfiguration", use "configuration" not "config" in code.
 - Don't run `go build` directly; use `scripts/server`, `scripts/desktop`, or `scripts/docker`. Kill `scripts/server` when done. Make sure the server port is not in use.
+- The Wails CLI rewrites `desktop/go.mod` to whatever version the CLI is. `desktop/go.mod` is the source of truth: `scripts/desktop` installs that version into `server/build` and puts it first on `PATH`, and `scripts/testflight` and CI refuse to build with a CLI that disagrees. Don't run a globally installed `wails` against this repo.
 - Don't run `scripts/build-ui` separately; when `scripts/server` is running, the UI is recompiled automatically on page load.
 - The UI uses shadcn/ui-style primitives built on Base UI (`@base-ui-components/react`) + Tailwind CSS, stock neutral theme. Reusable primitives live in `ui/src/components/`; compose them and style with Tailwind utility classes. Reach for a raw HTML element + Tailwind before adding a new primitive.
 - Don't update generated files directly; they will be overwritten.

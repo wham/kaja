@@ -3,22 +3,6 @@ set -e
 
 source "$(dirname "$0")/common"
 
-# Check if Wails is installed
-if ! command -v wails &> /dev/null
-then
-    if [ -t 0 ]; then
-        echo "Wails is not installed."
-        read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Wails installation skipped. Exiting script."
-            exit 1
-        fi
-    fi
-    echo "Installing Wails using Homebrew..."
-    brew install wails
-fi
-
 # Check if Bun is installed (wails dev invokes it via frontend:install)
 if ! command -v bun &> /dev/null
 then
@@ -39,6 +23,11 @@ cd "$(dirname "$0")/.."
 
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
+
+# The Wails CLI must match what desktop/go.mod requires; it rewrites go.mod to
+# its own version otherwise. Keep it in server/build so PATH prefers it over
+# whatever `wails` is installed globally.
+install_wails
 
 # Frontend prep (bun install + bundle UI + copy static assets) is now driven
 # by Wails via the frontend:install / frontend:build / frontend:dev:watcher

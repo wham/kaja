@@ -24,7 +24,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go -C desktop list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
 
       - name: Build desktop app
         run: wails build

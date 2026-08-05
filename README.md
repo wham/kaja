@@ -131,7 +131,7 @@ After:
 
 ## Development
 
-The development scripts require [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh).
+The development scripts require [Go](https://go.dev/doc/install) and [Bun](https://bun.sh/) installed. If not installed, they will offer to install them for you via [Homebrew](https://brew.sh). `scripts/desktop` installs the [Wails](https://wails.io) CLI itself, pinned to the version `desktop/go.mod` requires — the CLI rewrites `go.mod` to whatever version it is, so a different one on `PATH` would change the dependency.
 
 - Run in local server: `scripts/server`
 - Run in Docker: `scripts/docker`

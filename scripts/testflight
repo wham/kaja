@@ -55,8 +55,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+WAILS_VERSION=$(cd "$DESKTOP_DIR" && go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+WAILS_INSTALL="go install github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
 if ! command -v wails &>/dev/null; then
-    echo "error: wails not found. Install with: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0"
+    echo "error: wails not found. Install with: $WAILS_INSTALL"
+    exit 1
+fi
+
+# The CLI rewrites desktop/go.mod to its own version, so a release must not be
+# built with one that disagrees with the pinned dependency.
+if ! wails version 2>/dev/null | grep -qF "$WAILS_VERSION"; then
+    echo "error: wails $(wails version 2>/dev/null | tr -d '[:space:]') is on PATH, but desktop/go.mod requires $WAILS_VERSION."
+    echo "       Install the pinned version with: $WAILS_INSTALL"
     exit 1
 fi
 

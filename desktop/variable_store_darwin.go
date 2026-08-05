@@ -14,6 +14,11 @@ package main
 // asks for the environment instead.
 
 /*
+// kSecUseDataProtectionKeychain arrived in macOS 10.15, later than the 10.13
+// deployment target Go's cgo defaults to, so this file states its own. Nothing
+// is lost: the Go toolchain this builds with already requires a newer macOS
+// than either number.
+#cgo CFLAGS: -mmacosx-version-min=10.15
 #cgo LDFLAGS: -framework CoreFoundation -framework Security
 
 #include <CoreFoundation/CoreFoundation.h>

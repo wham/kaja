@@ -21,3 +21,31 @@ install_protoc() {
     mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
 }
 
+# Read the Wails version desktop/go.mod requires. That is the single source of
+# truth for which CLI to run.
+wails_version() {
+    (cd "$PWD/desktop" && go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+}
+
+# Install the Wails CLI to a target directory, pinned to wails_version.
+# The CLI rewrites desktop/go.mod to its own version on every run, so an older
+# CLI on PATH (Homebrew's formula lags) silently downgrades the dependency.
+#
+# Usage: install_wails [target_dir]
+#   target_dir: Directory to install to (defaults to $PWD/server/build)
+install_wails() {
+    local BUILD_DIR="${1:-$PWD/server/build}"
+
+    mkdir -p "$BUILD_DIR"
+
+    local VERSION
+    VERSION=$(wails_version)
+
+    if [ -x "$BUILD_DIR/wails" ] && "$BUILD_DIR/wails" version 2>/dev/null | grep -qF "$VERSION"; then
+        return
+    fi
+
+    echo "Installing Wails $VERSION..."
+    GOBIN="$BUILD_DIR" go install "github.com/wailsapp/wails/v2/cmd/wails@$VERSION"
+}
+
