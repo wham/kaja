@@ -122,6 +122,7 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
         <button
           type="button"
           role="combobox"
+          data-testid="file-switcher"
           aria-expanded={open}
           aria-controls="file-switcher"
           aria-label={current ? `${current.name} — switch file` : "Open a file"}
