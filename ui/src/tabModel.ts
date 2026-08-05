@@ -56,9 +56,12 @@ export interface ScriptTab {
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
-interface VariablesTab {
+export interface VariablesTab {
   type: "variables";
   id: string;
+  // Which view of the variables the tab is showing. Like the app form's, it
+  // lives here because the tab strip owns the control that switches it.
+  editMode: "table" | "json";
 }
 
 export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab | VariablesTab;
@@ -267,9 +270,17 @@ export function addVariablesTab(tabs: TabModel[]): { tabs: TabModel[]; activeInd
   if (existingIndex !== -1) {
     return { tabs, activeIndex: existingIndex };
   }
-  const newTab: VariablesTab = { type: "variables", id: generateId("variables") };
+  const newTab: VariablesTab = { type: "variables", id: generateId("variables"), editMode: "table" };
   const newTabs = [...tabs, newTab];
   return { tabs: newTabs, activeIndex: newTabs.length - 1 };
+}
+
+export function setVariablesEditMode(tabs: TabModel[], index: number, editMode: "table" | "json"): TabModel[] {
+  const tab = tabs[index];
+  if (!tab || tab.type !== "variables") return tabs;
+  const updated = [...tabs];
+  updated[index] = { ...tab, editMode };
+  return updated;
 }
 
 export function getVariablesTabIndex(tabs: TabModel[]): number {

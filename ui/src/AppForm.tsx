@@ -13,34 +13,11 @@ import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp, OpenApiDocument } from "./server/api";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
+import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
 import { getVariables } from "./variableExpansion";
 import { isWailsEnvironment } from "./wails";
 
-const jsonDefaults = monaco.json.jsonDefaults;
-
 type EditMode = "form" | "json";
-
-// An app is { name, <type>: { ...params, headers } }, so the variant key is
-// open-ended; validate only the stable part and require a name.
-const appJsonSchema = {
-  type: "object",
-  properties: {
-    name: { type: "string" },
-  },
-  required: ["name"],
-  additionalProperties: true,
-};
-
-jsonDefaults.setDiagnosticsOptions({
-  validate: true,
-  schemas: [
-    {
-      uri: "http://kaja/app-schema.json",
-      fileMatch: ["*"],
-      schema: appJsonSchema,
-    },
-  ],
-});
 
 // Suggest ${NAME} variable references while editing the app JSON (the only
 // place headers are edited). Values are read from the registry at completion
@@ -302,7 +279,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         loadedAppNameRef.current = currentAppKey ?? null;
         const jsonStr = JSON.stringify(appToJson(appData), null, 2);
 
-        const modelUri = monaco.Uri.file("/app-config.json");
+        const modelUri = APP_CONFIG_JSON_URI;
         const existingModel = monaco.editor.getModel(modelUri);
         if (existingModel) {
           existingModel.dispose();
@@ -320,6 +297,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           tabSize: 2,
           readOnly,
         });
+
+        // The editor opens on what the form holds, so it parses; say so, in case
+        // another tab left the shared flag reporting otherwise.
+        onJsonValidChange(true);
 
         monacoModelRef.current.onDidChangeContent(() => {
           const value = monacoModelRef.current?.getValue() ?? "";
