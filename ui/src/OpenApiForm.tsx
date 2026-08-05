@@ -32,6 +32,7 @@ import {
   credentialPlaceholder,
   defaultSecurityScheme,
   defaultVariableValues,
+  holdsVariableReference,
   isAbsoluteHttpUrl,
   isBasicScheme,
   isUsableBaseUrl,
@@ -53,6 +54,13 @@ type ReadState =
 
 const READ_DEBOUNCE_MS = 600;
 const PASTE_DEBOUNCE_MS = 400;
+
+// A document URL that reads a variable is sent to the server as it is written -
+// only the server knows what ${NAME} holds - so it is read rather than rejected
+// for not looking like a URL.
+function isReadableSourceUrl(value: string): boolean {
+  return isAbsoluteHttpUrl(value) || holdsVariableReference(value);
+}
 
 // Documents already read, so flipping between apps in the picker doesn't fetch
 // and parse what hasn't changed. The refresh control reads past it. Only
@@ -193,7 +201,7 @@ export function OpenApiForm({
     const typed = typedRef.current;
     typedRef.current = false;
 
-    if (!source.trim() || (sourceMode === "url" && !isAbsoluteHttpUrl(source))) {
+    if (!source.trim() || (sourceMode === "url" && !isReadableSourceUrl(source))) {
       readIdRef.current++;
       setState({ status: "idle" });
       return;
@@ -334,7 +342,7 @@ export function OpenApiForm({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                if (isAbsoluteHttpUrl(specUrl)) read();
+                if (isReadableSourceUrl(specUrl)) read();
               }
             }}
           />
@@ -378,6 +386,7 @@ export function OpenApiForm({
         <SourceStatus
           state={state}
           parameters={parameters}
+          variables={variables}
           readOnly={readOnly}
           demoLabel={demo?.label}
           onDemo={
@@ -426,6 +435,7 @@ export function OpenApiForm({
 
           <ServerSection
             document={document}
+            variables={variables}
             readOnly={readOnly}
             choice={serverChoice}
             onChoice={(choice) => {
@@ -445,6 +455,7 @@ export function OpenApiForm({
 
           <AuthenticationSection
             document={document}
+            variables={variables}
             readOnly={readOnly}
             selected={selectedScheme}
             onSelect={selectScheme}
@@ -466,6 +477,7 @@ interface Credentials {
 interface SourceStatusProps {
   state: ReadState;
   parameters: Record<string, string>;
+  variables: { [key: string]: string };
   readOnly: boolean;
   demoLabel?: string;
   onDemo?: () => void;
@@ -482,6 +494,7 @@ interface SourceStatusProps {
 function SourceStatus({
   state,
   parameters,
+  variables,
   readOnly,
   demoLabel,
   onDemo,
@@ -528,6 +541,7 @@ function SourceStatus({
     <ProblemBanner
       problem={state.problem}
       parameters={parameters}
+      variables={variables}
       readOnly={readOnly}
       onUploadInstead={onUploadInstead}
       onSpecHeaderChange={onSpecHeaderChange}
@@ -589,13 +603,14 @@ function DocumentSummary({ document, readAt, onRefresh }: { document: OpenApiDoc
 interface ProblemBannerProps {
   problem: OpenApiProblem;
   parameters: Record<string, string>;
+  variables: { [key: string]: string };
   readOnly: boolean;
   onUploadInstead: () => void;
   onSpecHeaderChange: (key: string, value: string) => void;
   onRetry: () => void;
 }
 
-function ProblemBanner({ problem, parameters, readOnly, onUploadInstead, onSpecHeaderChange, onRetry }: ProblemBannerProps) {
+function ProblemBanner({ problem, parameters, variables, readOnly, onUploadInstead, onSpecHeaderChange, onRetry }: ProblemBannerProps) {
   // The one case where a credential is needed before anything can be read. It is
   // asked for right here, and kept apart from the API's own credentials.
   if (problem.kind === OpenApiProblemKind.OPEN_API_PROBLEM_UNAUTHORIZED) {
@@ -618,13 +633,15 @@ function ProblemBanner({ problem, parameters, readOnly, onUploadInstead, onSpecH
             disabled={readOnly}
             onChange={(event) => onSpecHeaderChange("specHeaderName", event.target.value)}
           />
-          <Input
-            className="flex-1"
-            value={parameters.specHeaderValue ?? ""}
-            placeholder="Bearer …"
-            disabled={readOnly}
-            onChange={(event) => onSpecHeaderChange("specHeaderValue", event.target.value)}
-          />
+          <div className="flex-1">
+            <VariableSuggestInput
+              value={parameters.specHeaderValue ?? ""}
+              onValueChange={(value) => onSpecHeaderChange("specHeaderValue", value)}
+              variables={variables}
+              placeholder="Bearer …"
+              disabled={readOnly}
+            />
+          </div>
           <Button variant="secondary" size="sm" onClick={onRetry} disabled={readOnly}>
             Retry
           </Button>
@@ -665,6 +682,7 @@ function ProblemBanner({ problem, parameters, readOnly, onUploadInstead, onSpecH
 
 interface ServerSectionProps {
   document: OpenApiDocument;
+  variables: { [key: string]: string };
   readOnly: boolean;
   choice: number | "custom";
   onChoice: (choice: number | "custom") => void;
@@ -681,6 +699,7 @@ interface ServerSectionProps {
 // choice, so it is stated rather than offered.
 function ServerSection({
   document,
+  variables,
   readOnly,
   choice,
   onChoice,
@@ -700,7 +719,7 @@ function ServerSection({
           </label>
           <span className="text-xs text-muted-foreground">Required</span>
         </div>
-        <Input id="openapi-base-url" value={baseUrl} disabled={readOnly} onChange={(event) => onBaseUrlChange(event.target.value)} />
+        <VariableSuggestInput id="openapi-base-url" value={baseUrl} onValueChange={onBaseUrlChange} variables={variables} disabled={readOnly} />
         <p className="text-xs text-muted-foreground">
           {document.guessedBaseUrl && baseUrl === document.guessedBaseUrl
             ? "Guessed from where the document was fetched. The document itself doesn't say."
@@ -769,10 +788,11 @@ function ServerSection({
                             </SelectContent>
                           </Select>
                         ) : (
-                          <Input
+                          <VariableSuggestInput
                             value={values[variable.name] ?? variable.defaultValue}
+                            onValueChange={(value) => onVariableChange(index, variable.name, value)}
+                            variables={variables}
                             disabled={readOnly}
-                            onChange={(event) => onVariableChange(index, variable.name, event.target.value)}
                           />
                         )}
                       </div>
@@ -803,7 +823,7 @@ function ServerSection({
           </ChoiceRow>
           {choice === "custom" && (
             <div className="border-t border-border px-3 py-3">
-              <Input value={customUrl} disabled={readOnly} onChange={(event) => onCustomUrlChange(event.target.value)} />
+              <VariableSuggestInput value={customUrl} onValueChange={onCustomUrlChange} variables={variables} disabled={readOnly} />
             </div>
           )}
         </div>
@@ -814,6 +834,7 @@ function ServerSection({
 
 interface AuthenticationSectionProps {
   document: OpenApiDocument;
+  variables: { [key: string]: string };
   readOnly: boolean;
   selected: string;
   onSelect: (key: string) => void;
@@ -824,7 +845,7 @@ interface AuthenticationSectionProps {
 // AuthenticationSection is one row per security scheme the document declares, in
 // coverage order, plus a row for sending nothing. Only the selected row asks for
 // a credential, in the shape its scheme expects.
-function AuthenticationSection({ document, readOnly, selected, onSelect, parameters, onParameterChange }: AuthenticationSectionProps) {
+function AuthenticationSection({ document, variables, readOnly, selected, onSelect, parameters, onParameterChange }: AuthenticationSectionProps) {
   if (document.securitySchemes.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -832,13 +853,13 @@ function AuthenticationSection({ document, readOnly, selected, onSelect, paramet
           Authentication
         </label>
         <p className="text-xs text-muted-foreground">The document declares no security schemes. A token here is sent as a bearer token.</p>
-        <Input
+        <VariableSuggestInput
           id="openapi-token"
-          type="password"
           value={parameters.token ?? ""}
+          onValueChange={(value) => onParameterChange("token", value)}
+          variables={variables}
           placeholder="Token, if the API needs one"
           disabled={readOnly}
-          onChange={(event) => onParameterChange("token", event.target.value)}
         />
       </div>
     );
@@ -872,7 +893,9 @@ function AuthenticationSection({ document, readOnly, selected, onSelect, paramet
                   )
                 )}
               </ChoiceRow>
-              {isSelected && <SchemeCredentials scheme={scheme} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />}
+              {isSelected && (
+                <SchemeCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
+              )}
             </div>
           );
         })}
@@ -889,14 +912,16 @@ function AuthenticationSection({ document, readOnly, selected, onSelect, paramet
 
 interface SchemeCredentialsProps {
   scheme: OpenApiSecurityScheme;
+  variables: { [key: string]: string };
   readOnly: boolean;
   parameters: Record<string, string>;
   onParameterChange: (key: string, value: string) => void;
 }
 
 // SchemeCredentials is what the selected scheme asks for: one field for a key or
-// a token, two for HTTP Basic.
-function SchemeCredentials({ scheme, readOnly, parameters, onParameterChange }: SchemeCredentialsProps) {
+// a token, two for HTTP Basic. Each of them takes a ${NAME} variable, so a
+// credential can name where it is held instead of being written into kaja.json.
+function SchemeCredentials({ scheme, variables, readOnly, parameters, onParameterChange }: SchemeCredentialsProps) {
   const basic = isBasicScheme(scheme);
 
   return (
@@ -912,29 +937,32 @@ function SchemeCredentials({ scheme, readOnly, parameters, onParameterChange }: 
 
       {basic ? (
         <div className="flex items-center gap-2">
-          <Input
-            className="flex-1"
-            value={parameters.username ?? ""}
-            placeholder="Username"
-            disabled={readOnly}
-            onChange={(event) => onParameterChange("username", event.target.value)}
-          />
-          <Input
-            className="flex-1"
-            type="password"
-            value={parameters.password ?? ""}
-            placeholder="Password"
-            disabled={readOnly}
-            onChange={(event) => onParameterChange("password", event.target.value)}
-          />
+          <div className="flex-1">
+            <VariableSuggestInput
+              value={parameters.username ?? ""}
+              onValueChange={(value) => onParameterChange("username", value)}
+              variables={variables}
+              placeholder="Username"
+              disabled={readOnly}
+            />
+          </div>
+          <div className="flex-1">
+            <VariableSuggestInput
+              value={parameters.password ?? ""}
+              onValueChange={(value) => onParameterChange("password", value)}
+              variables={variables}
+              placeholder="Password"
+              disabled={readOnly}
+            />
+          </div>
         </div>
       ) : (
-        <Input
-          type="password"
+        <VariableSuggestInput
           value={parameters.token ?? ""}
+          onValueChange={(value) => onParameterChange("token", value)}
+          variables={variables}
           placeholder={credentialPlaceholder(scheme)}
           disabled={readOnly}
-          onChange={(event) => onParameterChange("token", event.target.value)}
         />
       )}
 
