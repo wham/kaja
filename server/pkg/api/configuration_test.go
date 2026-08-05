@@ -237,7 +237,7 @@ func TestLegacySystemBlockIsDiscarded(t *testing.T) {
 	if len(response.Configuration.Apps) != 1 {
 		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Configuration.Apps))
 	}
-	if response.CanUpdateConfiguration {
+	if response.Runtime.CanUpdateConfiguration {
 		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
 	}
 

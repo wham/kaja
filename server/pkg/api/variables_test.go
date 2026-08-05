@@ -227,7 +227,7 @@ func TestGetConfigurationSendsNoResolvedValues(t *testing.T) {
 	if sources["PLAIN"] != VariableSource_VARIABLE_SOURCE_FILE {
 		t.Errorf("expected PLAIN to report FILE, got %v", sources["PLAIN"])
 	}
-	if response.VariableStoreAvailable {
+	if response.Runtime.VariableStoreAvailable {
 		t.Error("expected no variable store without one bound")
 	}
 }

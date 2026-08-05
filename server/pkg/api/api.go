@@ -260,10 +260,12 @@ func (s *ApiService) GetConfiguration(ctx context.Context, req *GetConfiguration
 
 	response := LoadGetConfigurationResponse(s.configurationPath)
 
-	response.CanUpdateConfiguration = s.canUpdateConfiguration
-	response.GitRef = s.gitRef
-	response.BuildNumber = s.buildNumber
-	response.VariableStoreAvailable = s.variableStoreAvailable()
+	response.Runtime = &Runtime{
+		CanUpdateConfiguration: s.canUpdateConfiguration,
+		GitRef:                 s.gitRef,
+		BuildNumber:            s.buildNumber,
+		VariableStoreAvailable: s.variableStoreAvailable(),
+	}
 
 	// The variables travel as kaja.json writes them - a literal value, or the
 	// source that holds it ("${secret}", "${env:X}"). A value this machine

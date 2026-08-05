@@ -187,25 +187,30 @@ message GetConfigurationResponse {
   Configuration configuration = 1;
   repeated Log logs = 2;
   // Where each configured variable's value came from, one entry per variable.
+  // Neither the file nor the process, but the result of resolving one against
+  // the other.
   repeated VariableStatus variable_status = 3;
+  Runtime runtime = 4;
+}
 
-  // The fields below describe the running kaja rather than the workspace it
-  // serves. They are fixed for the lifetime of the process, so only this
-  // response carries them - saving a configuration never round-trips them.
-
+// Runtime is the kaja that is running, as opposed to the workspace it serves.
+// Everything here is settled when the process starts and holds until it exits,
+// and none of it is the user's to set: it is never read from, nor written to,
+// kaja.json, and never accepted as input.
+message Runtime {
   // Whether the UI can write to the configuration file. True in the desktop app,
   // which owns its workspace; false in the server, which serves a workspace
   // managed outside kaja - unless it was started with --editable.
-  bool can_update_configuration = 4;
+  bool can_update_configuration = 1;
   // Git commit hash or tag for the currently running version
-  string git_ref = 5;
+  string git_ref = 2;
   // TestFlight/App Store build number (CFBundleVersion), empty for other builds
-  string build_number = 6;
+  string build_number = 3;
   // Whether this machine has somewhere to store a variable's value outside
   // kaja.json (the OS keychain). False on the server, and on a desktop with no
   // usable keyring, where "${secret}" variables can only come from the
   // environment.
-  bool variable_store_available = 7;
+  bool variable_store_available = 4;
 }
 
 // VariableStatus reports where a variable's value came from. A variable whose

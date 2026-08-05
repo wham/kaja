@@ -26,7 +26,7 @@ import { AppForm } from "./AppForm";
 import { registerKajaModule, setValueCompletionApps } from "./Editor";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
-import { Configuration, ConfigurationApp, LogLevel, VariableStatus } from "./server/api";
+import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
   addDefinitionTab,
@@ -132,12 +132,9 @@ function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
 
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
-  // Facts about the running kaja rather than the workspace it serves. They arrive
-  // alongside the configuration but are not part of it, and hold for the session.
-  const [canUpdateConfiguration, setCanUpdateConfiguration] = useState(false);
-  const [variableStoreAvailable, setVariableStoreAvailable] = useState(false);
-  const [gitRef, setGitRef] = useState("");
-  const [buildNumber, setBuildNumber] = useState("");
+  // The running kaja, as opposed to the workspace it serves. It arrives alongside
+  // the configuration but is not part of it, and holds until the process exits.
+  const [runtime, setRuntime] = useState<Runtime>(Runtime.create());
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   // Where each variable's value came from. A value the configuration only names
@@ -792,10 +789,9 @@ export function App() {
       setConfiguration(response.configuration);
     }
     setVariableStatus(response.variableStatus);
-    setCanUpdateConfiguration(response.canUpdateConfiguration);
-    setVariableStoreAvailable(response.variableStoreAvailable);
-    setGitRef(response.gitRef);
-    setBuildNumber(response.buildNumber);
+    if (response.runtime) {
+      setRuntime(response.runtime);
+    }
   });
 
   const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
@@ -1602,7 +1598,7 @@ export function App() {
               <Sidebar
                 apps={apps}
                 scripts={scripts}
-                canDeleteApps={canUpdateConfiguration}
+                canDeleteApps={runtime.canUpdateConfiguration}
                 onSelect={onMethodSelect}
                 onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                 onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
@@ -1781,7 +1777,7 @@ export function App() {
                               initialData={tab.initialData}
                               allApps={configuration?.apps ?? []}
                               variables={configuration?.variables ?? {}}
-                              readOnly={!canUpdateConfiguration}
+                              readOnly={!runtime.canUpdateConfiguration}
                               editMode={tab.editMode}
                               onSubmit={onAppFormSubmit}
                               onCancel={onAppFormCancel}
@@ -1798,9 +1794,9 @@ export function App() {
                             <Variables
                               variables={configuration?.variables ?? {}}
                               status={variableStatus}
-                              storeAvailable={variableStoreAvailable}
+                              storeAvailable={runtime.variableStoreAvailable}
                               usage={variableUsage}
-                              readOnly={!canUpdateConfiguration}
+                              readOnly={!runtime.canUpdateConfiguration}
                               onSave={onVariablesSave}
                               onDirtyChange={onVariablesDirtyChange}
                             />
@@ -1835,8 +1831,8 @@ export function App() {
         <StatusBar
           colorMode={colorMode}
           onToggleColorMode={onToggleColorMode}
-          gitRef={gitRef}
-          buildNumber={buildNumber}
+          gitRef={runtime.gitRef}
+          buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={previewMcp ? mcpInfo : undefined}
