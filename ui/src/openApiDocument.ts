@@ -1,4 +1,5 @@
 import { OpenApiDocument, OpenApiSecurityScheme, OpenApiServer } from "./server/api";
+import { variableReferences } from "./variableExpansion";
 
 // Sending no credentials is a choice like any other scheme, so it is a row in the
 // same list. It is stored in security_scheme, which the server understands.
@@ -13,9 +14,17 @@ export function isAbsoluteHttpUrl(value: string): boolean {
   }
 }
 
+// holdsVariableReference reports whether a value reads a ${NAME} variable. The
+// browser is never handed what one expands to, so a value that reads one is
+// taken on trust here and settled by the server.
+export function holdsVariableReference(value: string): boolean {
+  return variableReferences(value).length > 0;
+}
+
 // isUsableBaseUrl also rejects a URL with a {placeholder} left in it, which would
 // otherwise be sent as part of the host.
 export function isUsableBaseUrl(value: string): boolean {
+  if (holdsVariableReference(value)) return true;
   return isAbsoluteHttpUrl(value) && !value.includes("{");
 }
 

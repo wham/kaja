@@ -110,6 +110,9 @@ describe("isUsableBaseUrl", () => {
     ["", false],
     // An unresolved placeholder would be sent as part of the host.
     ["https://{region}.acme.com", false],
+    // A ${NAME} variable is the server's to expand, so it is taken on trust.
+    ["${API_URL}", true],
+    ["https://${TENANT}.acme.com/v1", true],
   ])("%s is %p", (url, usable) => {
     expect(isUsableBaseUrl(url as string)).toBe(usable);
   });
