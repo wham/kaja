@@ -84,8 +84,9 @@ interface SidebarProps {
   pinnedScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteApps?: boolean;
-  onSelect: (method: Method, service: Service, app: App) => void;
-  onScriptSelect?: (script: Script) => void;
+  // A single click opens a preview; a double click opens it for good.
+  onSelect: (method: Method, service: Service, app: App, permanent?: boolean) => void;
+  onScriptSelect?: (script: Script, permanent?: boolean) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
   onPinScript?: (script: Script) => void;
@@ -405,18 +406,20 @@ export function Sidebar({
   return (
     <div className="bg-chrome" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div
+        // 40px, the same as the command row next to it, so the two line up
+        // across the seam.
         style={
           reserveTrafficLights
             ? ({
                 display: "flex",
                 alignItems: "center",
                 flexShrink: 0,
-                height: 28,
+                height: 40,
                 paddingLeft: TRAFFIC_LIGHTS_INSET,
                 paddingRight: 8,
                 "--wails-draggable": "drag",
               } as React.CSSProperties)
-            : { display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }
+            : { display: "flex", alignItems: "center", height: 40, padding: "0 12px", flexShrink: 0 }
         }
       >
         <div
@@ -473,6 +476,7 @@ export function Sidebar({
                       }
                     }}
                     onSelect={() => onScriptSelect?.(script)}
+                    onActivate={() => onScriptSelect?.(script, true)}
                     current={currentScriptPath === script.path}
                   >
                     {/* Pin lives in the leading slot so it never shifts when the kebab appears on
@@ -606,6 +610,7 @@ export function Sidebar({
                                       else elementRefs.current.delete(mId);
                                     }}
                                     onSelect={() => onSelect(method, service, app)}
+                                    onActivate={() => onSelect(method, service, app, true)}
                                     current={currentMethod === method}
                                   >
                                     {method.name}

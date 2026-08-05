@@ -5,54 +5,51 @@ import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { SimpleTooltip } from "./components/tooltip";
-import { Braces, Code, Columns2, Rows2, PanelLeftClose, PanelLeftOpen, ScrollText } from "lucide-react";
+import { Braces, Code, FileCode, ScrollText } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "./cn";
+import { CommandRow } from "./CommandRow";
 import { Console, ConsoleItem } from "./Console";
-import { GetStartedBlankslate } from "./GetStartedBlankslate";
+import { NoFileBlankslate } from "./NoFileBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
+import { FileSwitcher, OpenSwitcherFile, SwitcherFile } from "./FileSwitcher";
 import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
-import { createPendingApp, createAppRef, getDefaultMethod, Method, App as AppModel, Script, Service, Transport, updateAppRef } from "./apps";
+import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
+import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
-import { SearchPopup } from "./SearchPopup";
 import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
-import { registerKajaModule, setValueCompletionApps } from "./Editor";
+import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
-  addDefinitionTab,
-  openAppFormTab,
-  addScriptTab,
-  addTaskTab,
-  addVariablesTab,
-  getAppFormTabIcon,
-  getAppFormTabIndex,
-  getAppFormTabLabel,
-  getScriptTabLabel,
-  getTabLabel,
-  getVariablesTabIndex,
+  activateTab,
+  closeTab,
+  keepTab,
   linkTabsToApps,
-  markInteraction,
+  openAppFormTab,
+  openCompilerTab,
+  openDefinitionTab,
+  openScriptTab,
+  openTaskTab,
+  openVariablesTab,
   PersistedTabState,
   restoreTabs,
   serializeTabs,
-  TabModel,
-  keepAppFormTab,
   setAppFormEditMode,
   setVariablesEditMode,
+  tabIdentity,
+  TabModel,
 } from "./tabModel";
-import { Tab, Tabs } from "./Tabs";
 import { Variables, VariablesSave, VariablesState } from "./Variables";
-import { Task } from "./Task";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
 import { usePersistedState } from "./usePersistedState";
@@ -80,8 +77,6 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 // Maximum number of console items kept in memory; older calls are dropped.
 const MAX_CONSOLE_ITEMS = 500;
 
-// Height of the tab strip sitting above the editor, part of the editor pane.
-const TAB_STRIP_HEIGHT = 35;
 // Vertical padding the editor reserves around the code (see Editor.tsx).
 const EDITOR_PADDING = 32;
 // Bounds for the editor pane in the top-bottom layout. The maximum is a share of
@@ -147,14 +142,13 @@ export function App() {
   const [variablesState, setVariablesState] = useState<VariablesState>({ dirty: false, canSave: false, save: async () => {} });
   const variablesStateRef = useRef(variablesState);
   variablesStateRef.current = variablesState;
-  // Index of the Variables tab a close gesture is waiting on, while it asks
+  // What a close gesture on the Variables tab is waiting on, while it asks
   // whether to save the edits, discard them, or stay.
-  const [closingVariablesIndex, setClosingVariablesIndex] = useState<number>();
+  const [closingVariablesId, setClosingVariablesId] = useState<string>();
   const [apps, setApps] = useState<AppModel[]>([]);
-  const restoredState = useRef(restoreTabs(getPersistedValue<PersistedTabState>("tabs"))).current;
-  const [tabs, setTabs] = useState<TabModel[]>(restoredState?.tabs ?? []);
-  const [activeTabIndex, setActiveTabIndex] = useState(restoredState?.activeIndex ?? 0);
-  const [selectedMethod, setSelectedMethod] = useState<Method>();
+  // The open files, most-recently-visited first: tabs[0] is what the window is
+  // showing. Nothing else records which file is current.
+  const [tabs, setTabs] = useState<TabModel[]>(() => restoreTabs(getPersistedValue<PersistedTabState>("tabs")));
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
@@ -174,15 +168,15 @@ export function App() {
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Whether the file switcher is open, and where it opened: ⌘P lands on the
+  // previous file so ⌘P⏎ goes back, everything else on the first row.
+  const [switcher, setSwitcher] = useState<"first" | "previous">();
   const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; app: AppModel }>();
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
-  const activeTabIndexRef = useRef(activeTabIndex);
-  activeTabIndexRef.current = activeTabIndex;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
-  const tabsRestoredRef = useRef(restoredState !== null && restoredState.tabs.some((t) => t.type === "task"));
+  const tabsRestoredRef = useRef(tabs.some((tab) => tab.type === "task"));
   const [scripts, setScripts] = useState<Script[]>();
   // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
@@ -242,6 +236,70 @@ export function App() {
   // Tab ids whose next content change is a programmatic revalidation poke (see
   // refreshOpenScriptEditors), not a user edit — skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
+
+  const showFileError = useCallback((message: string) => {
+    setFileError(message);
+    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
+  }, []);
+
+  // Flush a script tab's pending debounced write immediately (e.g. before its
+  // model is disposed). No-op if nothing is pending.
+  const flushScriptWrite = useCallback(
+    (tab: TabModel) => {
+      if (tab.type !== "script") return;
+      const timer = scriptSaveTimers.current.get(tab.id);
+      if (!timer) return;
+      clearTimeout(timer);
+      scriptSaveTimers.current.delete(tab.id);
+      WriteScriptFile(tab.script.path, tab.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+    },
+    [showFileError],
+  );
+
+  const persistTabs = useCallback(() => {
+    setPersistedValue(
+      "tabs",
+      serializeTabs(tabsRef.current, (tabId) => editorRegistryRef.current.get(tabId)?.saveViewState()),
+    );
+  }, []);
+
+  const disposeTab = useCallback(
+    (tab: TabModel) => {
+      if (tab.type !== "task" && tab.type !== "script") return;
+      flushScriptWrite(tab);
+      editorRegistryRef.current.delete(tab.id);
+      setEditorContentHeights(({ [tab.id]: _removed, ...rest }) => rest);
+      tab.model.dispose();
+    },
+    [flushScriptWrite],
+  );
+
+  // Every change to the open files goes through here, which makes this the one
+  // place that has to remember the rest: the file being left keeps its cursor,
+  // whatever left the list is disposed, and the new list is persisted.
+  const applyTabs = useCallback(
+    (update: (tabs: TabModel[]) => TabModel[]) => {
+      const previous = tabsRef.current;
+      const current = previous[0];
+      if (current?.type === "task" || current?.type === "script") {
+        const editor = editorRegistryRef.current.get(current.id);
+        if (editor) current.viewState = editor.saveViewState() ?? undefined;
+      }
+
+      const next = update(previous);
+      if (next === previous) return;
+
+      const kept = new Set(next.map((tab) => tab.id));
+      for (const tab of previous) {
+        if (!kept.has(tab.id)) disposeTab(tab);
+      }
+
+      tabsRef.current = next;
+      setTabs(next);
+      persistTabs();
+    },
+    [disposeTab, persistTabs],
+  );
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
     const collector = mcpRunCollectorRef.current;
@@ -367,20 +425,6 @@ export function App() {
     });
   }, []);
 
-  // Dispose task tabs for given app names, returns filtered tabs
-  const disposeTaskTabsForApps = useCallback((appNames: Set<string>, prevTabs: TabModel[]): TabModel[] => {
-    const newTabs: TabModel[] = [];
-    for (const tab of prevTabs) {
-      if (tab.type === "task" && appNames.has(tab.originApp.configuration.name)) {
-        editorRegistryRef.current.delete(tab.id);
-        tab.model.dispose();
-      } else {
-        newTabs.push(tab);
-      }
-    }
-    return newTabs;
-  }, []);
-
   // Refresh open task editors to trigger re-validation
   const refreshOpenTaskEditors = useCallback(() => {
     tabsRef.current.forEach((tab) => {
@@ -409,27 +453,6 @@ export function App() {
       }
     });
   }, []);
-
-  const captureActiveViewState = useCallback(() => {
-    const currentTabs = tabsRef.current;
-    const currentIndex = activeTabIndexRef.current;
-    const activeTab = currentTabs[currentIndex];
-    if (activeTab?.type === "task") {
-      const editor = editorRegistryRef.current.get(activeTab.id);
-      if (editor) {
-        activeTab.viewState = editor.saveViewState() ?? undefined;
-      }
-    }
-  }, []);
-
-  const persistTabs = useCallback(() => {
-    captureActiveViewState();
-    const state = serializeTabs(tabsRef.current, activeTabIndexRef.current, (tabId) => {
-      const editor = editorRegistryRef.current.get(tabId);
-      return editor?.saveViewState();
-    });
-    setPersistedValue("tabs", state);
-  }, [captureActiveViewState]);
 
   // Core function: Sync apps state from a new configuration
   // This is the single source of truth for app state changes
@@ -523,18 +546,9 @@ export function App() {
       setApps((prevApps) => {
         const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
 
-        // Clean up task tabs for removed apps
+        // Close the calls of apps that are gone
         if (removedNames.size > 0) {
-          setTabs((prevTabs) => {
-            const newTabs = disposeTaskTabsForApps(removedNames, prevTabs);
-            if (updatedApps.length === 0) {
-              setSelectedMethod(undefined);
-            }
-            if (newTabs.length !== prevTabs.length) {
-              setActiveTabIndex((idx) => Math.min(idx, Math.max(0, newTabs.length - 1)));
-            }
-            return newTabs;
-          });
+          applyTabs((prevTabs) => prevTabs.filter((tab) => !(tab.type === "task" && removedNames.has(tab.originApp.configuration.name))));
         }
 
         // Remap import paths in open task editors and refresh
@@ -553,7 +567,7 @@ export function App() {
         return updatedApps;
       });
     },
-    [syncAppsFromConfiguration, disposeTaskTabsForApps],
+    [syncAppsFromConfiguration, applyTabs],
   );
 
   // Toggling the Apps preview adds or removes the configured apps from the sidebar
@@ -615,18 +629,18 @@ export function App() {
   }, [colorMode]);
 
   useEffect(() => {
-    const active = tabs[activeTabIndex];
+    const current = tabs[0];
     let title = "Kaja";
-    if (active?.type === "task" && active.originApp) {
-      title = `${active.originApp.configuration.name} - Kaja`;
-    } else if (active?.type === "script") {
-      title = `${active.script.name} - Kaja`;
+    if (current?.type === "task" && current.originApp) {
+      title = `${current.originApp.configuration.name} - Kaja`;
+    } else if (current?.type === "script") {
+      title = `${current.script.name} - Kaja`;
     }
     document.title = title;
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
-  }, [tabs, activeTabIndex]);
+  }, [tabs]);
 
   // Load the global scripts directory (desktop only). Scripts are independent
   // of apps; they bind to an app at run time via their import paths.
@@ -661,12 +675,20 @@ export function App() {
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      // ⌘P opens the switcher on the previous file, so ⌘P⏎ is "back". ⌘K is the
+      // same surface: the open-files list is the file finder.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
-        setIsSearchOpen(true);
+        setSwitcher(e.key === "p" ? "previous" : "first");
         return;
       }
-      // The same key as the </> button beside the tab options, on every tab that
+      if ((e.metaKey || e.ctrlKey) && e.key === "w") {
+        e.preventDefault();
+        const current = tabsRef.current[0];
+        if (current) onCloseTabRef.current(current.id);
+        return;
+      }
+      // The same key as the </> button in the command row, on every file that
       // has a JSON representation.
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
         e.preventDefault();
@@ -758,19 +780,7 @@ export function App() {
       // If tabs were restored from persisted state, link them to compiled apps
       if (tabsRestoredRef.current) {
         tabsRestoredRef.current = false;
-        setTabs((prevTabs) => {
-          const { tabs: linkedTabs, removedTabIds } = linkTabsToApps(prevTabs, updatedApps);
-          removedTabIds.forEach((id) => editorRegistryRef.current.delete(id));
-          if (removedTabIds.length > 0) {
-            setActiveTabIndex((idx) => Math.min(idx, Math.max(0, linkedTabs.length - 1)));
-          }
-          const clampedIndex = Math.min(activeTabIndexRef.current, Math.max(0, linkedTabs.length - 1));
-          const activeTab = linkedTabs[clampedIndex];
-          if (activeTab?.type === "task") {
-            setSelectedMethod(activeTab.originMethod);
-          }
-          return linkedTabs;
-        });
+        applyTabs((prevTabs) => linkTabsToApps(prevTabs, updatedApps));
         // Force TypeScript to revalidate restored models now that source models exist
         refreshOpenTaskEditors();
         return;
@@ -779,23 +789,10 @@ export function App() {
       // Only auto-open the first method on first-time use (no previous tab memory)
       if (!hasTabMemory.current) {
         const defaultMethodAndService = getDefaultMethod(updatedApps[0].services);
-        setSelectedMethod(defaultMethodAndService?.method);
-
         if (!defaultMethodAndService) {
           return;
         }
-
-        setTabs((prevTabs) => {
-          prevTabs.forEach((tab) => {
-            if (tab.type === "task") {
-              editorRegistryRef.current.delete(tab.id);
-              tab.model.dispose();
-            }
-          });
-          const result = addTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedApps[0]);
-          setActiveTabIndex(result.activeIndex);
-          return result.tabs;
-        });
+        applyTabs(() => openTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedApps[0]));
       }
     }
   };
@@ -810,40 +807,27 @@ export function App() {
     }
   });
 
-  const onMethodSelect = (method: Method, service: Service, app: AppModel) => {
-    captureActiveViewState();
-    setSelectedMethod(method);
-    setTabs((tabs) => {
-      const result = addTaskTab(tabs, method, service, app);
-      setActiveTabIndex(result.activeIndex);
-      return result.tabs;
-    });
-    persistTabs();
-  };
-
-  const showFileError = useCallback((message: string) => {
-    setFileError(message);
-    window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
-  }, []);
+  // A single click from the sidebar opens a preview; a double click — or a
+  // pick from the switcher — opens it for good.
+  const onMethodSelect = useCallback(
+    (method: Method, service: Service, app: AppModel, permanent = false) => {
+      applyTabs((tabs) => openTaskTab(tabs, method, service, app, permanent));
+    },
+    [applyTabs],
+  );
 
   const onScriptSelect = useCallback(
-    async (script: Script) => {
+    async (script: Script, permanent = false) => {
       if (!isWailsEnvironment()) return;
       try {
         const file = await ReadScriptFile(script.path);
         if (!file) return;
-        captureActiveViewState();
-        setTabs((prevTabs) => {
-          const result = addScriptTab(prevTabs, { path: file.path, name: file.name }, file.content);
-          setActiveTabIndex(result.activeIndex);
-          return result.tabs;
-        });
-        persistTabs();
+        applyTabs((tabs) => openScriptTab(tabs, { path: file.path, name: file.name }, file.content, permanent));
       } catch (err) {
         showFileError(`Open failed: ${err}`);
       }
     },
-    [captureActiveViewState, persistTabs, showFileError],
+    [applyTabs, showFileError],
   );
 
   // Persist the pinned script path so the macOS text service keeps targeting it
@@ -890,20 +874,6 @@ export function App() {
     const unsub = EventsOn("service:runScript", (text: string) => runContextMenuScriptRef.current(text));
     return () => unsub();
   }, []);
-
-  // Flush any pending debounced write for a script tab immediately (e.g. before
-  // its model is disposed). No-op if nothing is pending.
-  const flushScriptTab = useCallback(
-    (tab: TabModel) => {
-      if (tab.type !== "script") return;
-      const timer = scriptSaveTimers.current.get(tab.id);
-      if (!timer) return;
-      clearTimeout(timer);
-      scriptSaveTimers.current.delete(tab.id);
-      WriteScriptFile(tab.script.path, tab.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
-    },
-    [showFileError],
-  );
 
   // Auto-save: open script tabs persist to disk on edit (debounced). No ⌘S, no
   // dirty indicator.
@@ -966,12 +936,12 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ⌘S saves the active editor (a method or a script) as a new named script.
+  // ⌘S saves the current editor (a method or a script) as a new named script.
   const onRequestSaveAsScript = useCallback(() => {
     if (!isWailsEnvironment() || !previewScriptsRef.current) return;
-    const tab = tabsRef.current[activeTabIndexRef.current];
+    const tab = tabsRef.current[0];
     if (!tab || (tab.type !== "task" && tab.type !== "script")) return;
-    const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : getScriptTabLabel(tab);
+    const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : tab.script.name.replace(/\.ts$/, "");
     setSaveAsError(undefined);
     setSaveAs({ name: defaultName, content: tab.model.getValue() });
   }, []);
@@ -1048,19 +1018,13 @@ export function App() {
       if (!file) return;
       const script: Script = { path: file.path, name: file.name };
       setScripts((prev) => [...(prev ?? []), script].sort((a, b) => a.name.localeCompare(b.name)));
-      captureActiveViewState();
-      setTabs((prevTabs) => {
-        const result = addScriptTab(prevTabs, script, file.content);
-        setActiveTabIndex(result.activeIndex);
-        return result.tabs;
-      });
-      persistTabs();
+      applyTabs((tabs) => openScriptTab(tabs, script, file.content, true));
       setSaveAs(null);
       setSaveAsError(undefined);
     } catch (err) {
       setSaveAsError(String(err));
     }
-  }, [saveAs, captureActiveViewState, persistTabs]);
+  }, [saveAs, applyTabs]);
 
   // Right-click → Rename: open a dialog prefilled with the current name.
   const onRenameScript = useCallback((script: Script) => {
@@ -1073,11 +1037,10 @@ export function App() {
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
-      setTabs((prev) => prev.map((t) => (t.type === "script" && t.script.path === oldPath ? { ...t, script: renamed } : t)));
+      applyTabs((tabs) => tabs.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
       setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
-      persistTabs();
     },
-    [persistTabs],
+    [applyTabs],
   );
 
   const onConfirmRenameScript = useCallback(async () => {
@@ -1115,26 +1078,20 @@ export function App() {
     (path: string) => {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
       setPinnedScriptPath((current) => (current === path ? undefined : current));
-      setTabs((prevTabs) => {
-        const idx = prevTabs.findIndex((t) => t.type === "script" && t.script.path === path);
-        if (idx === -1) return prevTabs;
-        const tab = prevTabs[idx];
-        if (tab.type !== "script") return prevTabs;
-        // Cancel any pending auto-save so we don't recreate the deleted file.
+      applyTabs((tabs) => {
+        const tab = tabs.find((candidate) => candidate.type === "script" && candidate.script.path === path);
+        if (!tab) return tabs;
+        // Cancel the pending auto-save so closing the tab can't recreate the
+        // file that was just deleted.
         const timer = scriptSaveTimers.current.get(tab.id);
         if (timer) {
           clearTimeout(timer);
           scriptSaveTimers.current.delete(tab.id);
         }
-        editorRegistryRef.current.delete(tab.id);
-        tab.model.dispose();
-        const newTabs = prevTabs.filter((_, i) => i !== idx);
-        setActiveTabIndex((cur) => (idx === cur ? Math.max(0, newTabs.length - 1) : idx < cur ? cur - 1 : cur));
-        return newTabs;
+        return closeTab(tabs, tab.id);
       });
-      persistTabs();
     },
-    [persistTabs],
+    [applyTabs],
   );
 
   // Right-click → Delete: confirm, then remove the file and close its tab.
@@ -1192,17 +1149,18 @@ export function App() {
     return () => unsub();
   }, [applyScriptRename, removeScriptFromUI, persistTabs]);
 
-  const onSearchMethodSelect = (method: Method, service: Service, app: AppModel) => {
-    onMethodSelect(method, service, app);
-    setScrollToMethod({ method, service, app });
-  };
+  // Picking a call from the switcher opens it for good and reveals it in the
+  // sidebar, so the tree stays in step with what is on screen.
+  const onSwitcherMethodSelect = useCallback(
+    (method: Method, service: Service, app: AppModel) => {
+      onMethodSelect(method, service, app, true);
+      setScrollToMethod({ method, service, app });
+    },
+    [onMethodSelect],
+  );
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
-    setTabs((tabs) => {
-      tabs = addDefinitionTab(tabs, model, startLineNumber, startColumn);
-      setActiveTabIndex(tabs.length - 1);
-      return tabs;
-    });
+    applyTabs((tabs) => openDefinitionTab(tabs, model, startLineNumber, startColumn));
   };
 
   const sidebarCollapseThreshold = 60;
@@ -1227,140 +1185,104 @@ export function App() {
     });
   };
 
-  const onSelectTab = (index: number) => {
-    captureActiveViewState();
-    setActiveTabIndex(index);
-    persistTabs();
-  };
+  const onSelectTab = useCallback((id: string) => applyTabs((tabs) => activateTab(tabs, id)), [applyTabs]);
 
   // Track how tall each open editor's code is so the pane can be sized to it.
   // Derived from the line count rather than Monaco's content height: with
   // scrollBeyondLastLine on, content height grows with the editor itself, so
   // feeding it back into the pane height would only ever settle at the maximum.
   // The listeners belong to the editor and go away when the editor is disposed.
-  const onEditorReady = useCallback((tabId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
-    editorRegistryRef.current.set(tabId, editorInstance);
-    const report = () => {
-      const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
-      const height = (editorInstance.getModel()?.getLineCount() ?? 1) * lineHeight + EDITOR_PADDING;
-      setEditorContentHeights((heights) => (heights[tabId] === height ? heights : { ...heights, [tabId]: height }));
-    };
-    report();
-    editorInstance.onDidChangeModelContent(report);
-    editorInstance.onDidChangeModel(report);
-  }, []);
+  const onEditorReady = useCallback(
+    (tabId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
+      editorRegistryRef.current.set(tabId, editorInstance);
+      const report = () => {
+        const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
+        const height = (editorInstance.getModel()?.getLineCount() ?? 1) * lineHeight + EDITOR_PADDING;
+        setEditorContentHeights((heights) => (heights[tabId] === height ? heights : { ...heights, [tabId]: height }));
+      };
+      report();
+      editorInstance.onDidChangeModelContent(() => {
+        report();
+        // The first keystroke of an edit makes a preview file permanent. Only a
+        // real one counts: the editor formats its model on open, and that must
+        // not keep a file the user only glanced at.
+        if (editorInstance.hasTextFocus()) applyTabs((tabs) => keepTab(tabs, tabId));
+      });
+      editorInstance.onDidChangeModel(report);
+    },
+    [applyTabs],
+  );
 
-  const disposeTabEditor = (tab: TabModel) => {
-    if (tab.type === "task" || tab.type === "script") {
-      flushScriptTab(tab);
-      editorRegistryRef.current.delete(tab.id);
-      setEditorContentHeights(({ [tab.id]: _removed, ...rest }) => rest);
-      tab.model.dispose();
-    }
-  };
-
-  const onCloseTab = (index: number) => {
-    // The Variables tab holds edits that aren't anywhere else yet, so closing it
-    // mid-edit asks first.
-    if (tabsRef.current[index]?.type === "variables" && variablesStateRef.current.dirty) {
-      setClosingVariablesIndex(index);
-      return;
-    }
-    closeTab(index);
-  };
-
-  const closeTab = (index: number) => {
-    setTabs((prevTabs) => {
-      const tab = prevTabs[index];
-      if (tab) disposeTabEditor(tab);
-      const newTabs = prevTabs.filter((_, i) => i !== index);
-      const newActiveIndex = index === activeTabIndex ? Math.max(0, newTabs.length - 1) : index < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
-      setActiveTabIndex(newActiveIndex);
-      return newTabs;
-    });
-    persistTabs();
-  };
+  const onCloseTab = useCallback(
+    (id: string) => {
+      // The Variables tab holds edits that aren't anywhere else yet, so closing
+      // it mid-edit asks first.
+      if (tabsRef.current.find((tab) => tab.id === id)?.type === "variables" && variablesStateRef.current.dirty) {
+        setClosingVariablesId(id);
+        return;
+      }
+      applyTabs((tabs) => closeTab(tabs, id));
+    },
+    [applyTabs],
+  );
 
   // Turning off the last preview that uses variables takes the open tab with it,
   // rather than leaving a tab behind with no way to open it again.
   useEffect(() => {
     if (variablesEnabled) return;
-    const index = getVariablesTabIndex(tabsRef.current);
-    if (index === -1) return;
+    const tab = tabsRef.current.find((candidate) => candidate.type === "variables");
+    if (!tab) return;
     setVariablesState({ dirty: false, canSave: false, save: async () => {} });
-    closeTab(index);
+    applyTabs((tabs) => closeTab(tabs, tab.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variablesEnabled]);
 
-  const onCloseAll = () => {
-    setTabs((prevTabs) => {
-      prevTabs.forEach(disposeTabEditor);
-      setActiveTabIndex(0);
-      return [];
-    });
-    persistTabs();
-  };
+  // Close all drops to the empty state; the files stay in the switcher's "All
+  // files" group, so nothing closed here is hard to get back.
+  const onCloseAll = useCallback(() => {
+    const variables = tabsRef.current.find((tab) => tab.type === "variables");
+    if (variables && variablesStateRef.current.dirty) {
+      setClosingVariablesId(variables.id);
+      return;
+    }
+    applyTabs(() => []);
+  }, [applyTabs]);
 
-  const onCloseOthers = (keepIndex: number) => {
-    setTabs((prevTabs) => {
-      prevTabs.forEach((tab, i) => {
-        if (i !== keepIndex) disposeTabEditor(tab);
-      });
-      setActiveTabIndex(0);
-      return prevTabs.filter((_, i) => i === keepIndex);
-    });
-    persistTabs();
-  };
-
-  // The </> button in the tab strip edits the active tab's content as JSON: same
-  // position, same icon, same ⌘J, on every tab type that has a JSON
-  // representation, and absent on the ones that don't.
-  const jsonViewTab = tabs[activeTabIndex];
+  // The </> button in the command row edits the current file as JSON: same
+  // position, same icon, same ⌘J, on every file that has a JSON representation,
+  // and absent on the ones that don't. It shares the row's action slot with Run
+  // — a file is never both a script and a form.
+  const currentTab = tabs[0];
   const jsonView =
-    jsonViewTab?.type === "appForm"
-      ? { showing: jsonViewTab.editMode === "json", back: "Edit as a form (⌘J)" }
-      : jsonViewTab?.type === "variables"
-        ? { showing: jsonViewTab.editMode === "json", back: "Edit as a table (⌘J)" }
+    currentTab?.type === "appForm"
+      ? { showing: currentTab.editMode === "json", back: "Edit as a form (⌘J)" }
+      : currentTab?.type === "variables"
+        ? { showing: currentTab.editMode === "json", back: "Edit as a table (⌘J)" }
         : undefined;
 
   const toggleJsonView = useCallback((): void => {
-    const index = activeTabIndexRef.current;
-    const tab = tabsRef.current[index];
-    if (tab?.type === "appForm") {
-      if (tab.editMode === "json" && !tabJsonValidRef.current) return;
-      setTabs((tabs) => setAppFormEditMode(tabs, index, tab.editMode === "json" ? "form" : "json"));
-      return;
-    }
-    if (tab?.type === "variables") {
-      if (tab.editMode === "json" && !tabJsonValidRef.current) return;
-      setTabs((tabs) => setVariablesEditMode(tabs, index, tab.editMode === "json" ? "table" : "json"));
-    }
-  }, []);
+    const tab = tabsRef.current[0];
+    if (tab?.type !== "appForm" && tab?.type !== "variables") return;
+    if (tab.editMode === "json" && !tabJsonValidRef.current) return;
+    applyTabs((tabs) =>
+      tab.type === "appForm"
+        ? setAppFormEditMode(tabs, tab.id, tab.editMode === "json" ? "form" : "json")
+        : setVariablesEditMode(tabs, tab.id, tab.editMode === "json" ? "table" : "json"),
+    );
+  }, [applyTabs]);
   const toggleJsonViewRef = useRef(toggleJsonView);
   toggleJsonViewRef.current = toggleJsonView;
+  const onCloseTabRef = useRef(onCloseTab);
+  onCloseTabRef.current = onCloseTab;
 
-  const tabControls = jsonView ? (
-    <IconButton
-      icon={Code}
-      aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
-      variant="ghost"
-      size="sm"
-      disabled={jsonView.showing && !tabJsonValid}
-      className={jsonView.showing ? "bg-accent text-foreground" : undefined}
-      onClick={toggleJsonView}
-    />
-  ) : undefined;
+  // The file on screen is the one Run runs, so its errors are the ones the row
+  // reports — on the trigger, and as Run's reason for being disabled.
+  const syntaxErrors = useSyntaxErrors(currentTab?.type === "task" || currentTab?.type === "script" ? currentTab.model : undefined);
 
-  // Double-clicking a preview tab's title keeps it, the same gesture editors use.
-  const onKeepTab = (index: number) => {
-    setTabs((tabs) => keepAppFormTab(tabs, index));
-  };
-
-  // Run the active task/script tab's editor contents. Triggered by the Run
-  // button floating over the editor, by ⌘⏎ and by F5.
-  const onRunActiveTab = useCallback(() => {
-    const index = activeTabIndexRef.current;
-    const tab = tabsRef.current[index];
+  // Run the current file's editor contents. Triggered by Run in the command
+  // row, by ⌘⏎ and by F5.
+  const onRunCurrentTab = useCallback(() => {
+    const tab = tabsRef.current[0];
     if (!tab || (tab.type !== "task" && tab.type !== "script")) {
       return;
     }
@@ -1373,11 +1295,9 @@ export function App() {
     runTask(editor.getValue(), kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
       setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
     );
-    if (tab.type === "task") {
-      setTabs((tabs) => markInteraction(tabs, index));
-      persistTabs();
-    }
-  }, [apps, persistTabs, onScriptError]);
+    // Running a file is working in it, so it stops being a preview.
+    applyTabs((tabs) => keepTab(tabs, tab.id));
+  }, [apps, applyTabs, onScriptError]);
 
   // A generated method-call script issues its call without awaiting it, so the
   // script's own promise settles well before the response lands. The run is over
@@ -1403,31 +1323,23 @@ export function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "F5" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
         event.preventDefault();
-        onRunActiveTab();
+        onRunCurrentTab();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onRunActiveTab]);
+  }, [onRunCurrentTab]);
 
   // Opens the compile log, expanded on an app when one is named. Nothing else
   // opens it: compiling is reported in the status bar, and the log is where you
   // go when it has something to say.
-  const onShowCompileLog = (appName?: string) => {
-    setCompileLogExpandApp(appName ? { name: appName } : undefined);
-    setTabs((tabs) => {
-      const compilerIndex = tabs.findIndex((tab) => tab.type === "compiler");
-      if (compilerIndex === -1) {
-        const newTabs: TabModel[] = [...tabs, { type: "compiler" as const }];
-        setActiveTabIndex(newTabs.length - 1);
-        return newTabs;
-      } else {
-        setActiveTabIndex(compilerIndex);
-        return tabs;
-      }
-    });
-    persistTabs();
-  };
+  const onShowCompileLog = useCallback(
+    (appName?: string) => {
+      setCompileLogExpandApp(appName ? { name: appName } : undefined);
+      applyTabs(openCompilerTab);
+    },
+    [applyTabs],
+  );
 
   // Recompiles one app, or every app when no name is given, by putting it back
   // to pending — the compilation hook picks it up from there. An app already
@@ -1450,38 +1362,26 @@ export function App() {
   // type is fixed at creation and not editable in the form afterwards.
   const onSelectAppType = (type: string) => {
     setNewAppOpen(false);
-    setTabs((tabs) => {
-      const { tabs: newTabs, activeIndex } = openAppFormTab(tabs, "create", buildApp("", type, {}, {}));
-      setActiveTabIndex(activeIndex);
-      return newTabs;
-    });
+    applyTabs((tabs) => openAppFormTab(tabs, "create", buildApp("", type, {}, {})));
   };
 
   const onEditApp = (appName: string) => {
     const app = apps.find((p) => p.configuration.name === appName);
     if (app) {
-      setTabs((tabs) => {
-        const { tabs: newTabs, activeIndex } = openAppFormTab(tabs, "edit", app.configuration);
-        setActiveTabIndex(activeIndex);
-        return newTabs;
-      });
+      applyTabs((tabs) => openAppFormTab(tabs, "edit", app.configuration));
     }
   };
 
   // Working in an app's settings keeps the tab, so opening another app's settings
   // no longer reuses it.
-  const onAppFormEdited = () => {
-    setTabs((tabs) => keepAppFormTab(tabs, getAppFormTabIndex(tabs)));
+  const onAppFormEdited = (id: string) => {
+    applyTabs((tabs) => keepTab(tabs, id));
   };
 
   const closeAppFormTab = () => {
-    setTabs((prevTabs) => {
-      const formIndex = getAppFormTabIndex(prevTabs);
-      if (formIndex === -1) return prevTabs;
-      const newTabs = prevTabs.filter((_, i) => i !== formIndex);
-      const newActiveIndex = formIndex === activeTabIndex ? Math.max(0, newTabs.length - 1) : formIndex < activeTabIndex ? activeTabIndex - 1 : activeTabIndex;
-      setActiveTabIndex(newActiveIndex);
-      return newTabs;
+    applyTabs((tabs) => {
+      const form = tabs.find((tab) => tab.type === "appForm");
+      return form ? closeTab(tabs, form.id) : tabs;
     });
   };
 
@@ -1537,13 +1437,9 @@ export function App() {
     setVariablesState((previous) => (previous.dirty === state.dirty && previous.canSave === state.canSave && previous.save === state.save ? previous : state));
   }, []);
 
-  const onVariablesClick = () => {
-    setTabs((tabs) => {
-      const { tabs: newTabs, activeIndex } = addVariablesTab(tabs);
-      setActiveTabIndex(activeIndex);
-      return newTabs;
-    });
-  };
+  const onVariablesClick = useCallback(() => {
+    applyTabs(openVariablesTab);
+  }, [applyTabs]);
 
   // Saving the Variables tab writes the configuration, which names the
   // variables, and clears what this machine was holding for a variable that
@@ -1597,24 +1493,108 @@ export function App() {
   };
 
   // With the sidebar open its own header holds the macOS traffic lights; collapsed,
-  // this bar is what the window's left corner lands on, so it takes over the inset.
-  const topBarInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
+  // the command row is what the window's left corner lands on, so it takes over
+  // the inset.
+  const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
 
-  const activeTab = tabs[activeTabIndex];
-  const isActiveTaskTab = activeTab?.type === "task" || activeTab?.type === "script";
-  const isHorizontalLayout = editorLayout === "horizontal" && isActiveTaskTab;
-  const activeScriptPath = activeTab?.type === "script" ? activeTab.script.path : undefined;
+  const currentIsEditor = currentTab?.type === "task" || currentTab?.type === "script";
+  const isHorizontalLayout = editorLayout === "horizontal" && currentIsEditor;
 
-  const activeEditorContentHeight = activeTab?.type === "task" || activeTab?.type === "script" ? editorContentHeights[activeTab.id] : undefined;
+  const currentEditorContentHeight = currentIsEditor ? editorContentHeights[currentTab.id] : undefined;
   const autoEditorHeight =
-    activeEditorContentHeight === undefined
+    currentEditorContentHeight === undefined
       ? undefined
-      : Math.min(
-          Math.max(activeEditorContentHeight + TAB_STRIP_HEIGHT, MIN_EDITOR_HEIGHT),
-          Math.max(MIN_EDITOR_HEIGHT, Math.round(windowHeight * MAX_EDITOR_HEIGHT_RATIO)),
-        );
+      : Math.min(Math.max(currentEditorContentHeight, MIN_EDITOR_HEIGHT), Math.max(MIN_EDITOR_HEIGHT, Math.round(windowHeight * MAX_EDITOR_HEIGHT_RATIO)));
   const effectiveEditorHeight = editorHeightAuto && autoEditorHeight !== undefined ? autoEditorHeight : editorHeight;
   effectiveEditorHeightRef.current = effectiveEditorHeight;
+
+  // Only the Variables tab can hold edits nothing else has a copy of; a script
+  // auto-saves and a call is scratch.
+  const isDirty = (tab: TabModel) => tab.type === "variables" && variablesState.dirty;
+
+  const openFiles: OpenSwitcherFile[] = tabs.map((tab) => ({
+    ...tabIdentity(tab),
+    key: tab.id,
+    id: tab.id,
+    preview: tab.preview,
+    dirty: isDirty(tab),
+    onOpen: () => onSelectTab(tab.id),
+  }));
+
+  // Everything else the sidebar can reach. Typing narrows across both groups, so
+  // the switcher is also the file finder — which is why ⌘K lands here too.
+  const otherFiles = useMemo<SwitcherFile[]>(() => {
+    const openCalls = new Set(
+      tabs.filter((tab) => tab.type === "task").map((tab) => `${tab.originApp.configuration.name}/${tab.originService.name}/${tab.originMethod.name}`),
+    );
+    const openScripts = new Set(tabs.filter((tab) => tab.type === "script").map((tab) => tab.script.path));
+    const files: SwitcherFile[] = [];
+
+    for (const script of scripts ?? []) {
+      if (openScripts.has(script.path)) continue;
+      files.push({
+        key: `script:${script.path}`,
+        name: script.name,
+        path: "Scripts",
+        origin: "",
+        icon: FileCode,
+        onOpen: () => void onScriptSelect(script, true),
+      });
+    }
+
+    // The workspace surfaces come before the calls: there are two of them and
+    // hundreds of calls, so at rest they'd never make the list otherwise.
+    if (variablesEnabled && !tabs.some((tab) => tab.type === "variables")) {
+      files.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, onOpen: onVariablesClick });
+    }
+    if (!tabs.some((tab) => tab.type === "compiler")) {
+      files.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, onOpen: () => onShowCompileLog() });
+    }
+
+    for (const app of apps) {
+      for (const service of app.services) {
+        for (const method of service.methods) {
+          const key = `${app.configuration.name}/${service.name}/${method.name}`;
+          if (openCalls.has(key)) continue;
+          files.push({
+            key: `call:${key}`,
+            name: method.name,
+            path: `${app.configuration.name} / ${service.name}`,
+            origin: app.configuration.name,
+            icon: FileCode,
+            onOpen: () => onSwitcherMethodSelect(method, service, app),
+          });
+        }
+      }
+    }
+
+    return files;
+  }, [apps, scripts, tabs, variablesEnabled, onScriptSelect, onSwitcherMethodSelect, onVariablesClick, onShowCompileLog]);
+
+  const running = currentTab !== undefined && activeRun?.tabId === currentTab.id;
+  const action = currentIsEditor ? (
+    <RunButton
+      onRun={onRunCurrentTab}
+      onStop={onStopActiveRun}
+      running={running}
+      startedAt={running ? activeRun?.startedAt : undefined}
+      error={syntaxErrors.first}
+    />
+  ) : jsonView ? (
+    <IconButton
+      icon={Code}
+      aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
+      variant="ghost"
+      size="sm"
+      className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
+      disabled={jsonView.showing && !tabJsonValid}
+      onClick={toggleJsonView}
+    />
+  ) : undefined;
+
+  // Bodies render in creation order, so bringing a file to the front never moves
+  // a live editor in the DOM.
+  const bodies = [...tabs].sort((a, b) => a.seq - b.seq);
 
   return (
     <>
@@ -1649,8 +1629,8 @@ export function App() {
                 onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
-                currentMethod={selectedMethod}
-                currentScriptPath={activeScriptPath}
+                currentMethod={currentTab?.type === "task" ? currentTab.originMethod : undefined}
+                currentScriptPath={currentTab?.type === "script" ? currentTab.script.path : undefined}
                 scrollToMethod={scrollToMethod}
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
@@ -1665,199 +1645,99 @@ export function App() {
           )}
           <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
-            <div
-              className="flex h-[30px] shrink-0 items-center border-b border-border bg-chrome"
-              style={{ "--wails-draggable": "drag" } as React.CSSProperties}
-            >
-              {/* A panel toggle reads as "this edge", so it sits against the sidebar seam.
-                  It belongs to this pane, not to the sidebar, so it keeps its place when
-                  the sidebar collapses — except on the macOS desktop, where collapsing
-                  leaves this bar under the window's traffic lights and the toggle has to
-                  clear them the way the sidebar header does. */}
-              <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", paddingLeft: topBarInset }}>
-                <div style={{ display: "flex", "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                  <SimpleTooltip
-                    text={
-                      sidebarCollapsed
-                        ? `Show sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                        : `Hide sidebar (${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+"}B)`
-                    }
-                    side="bottom"
-                  >
-                    <IconButton
-                      icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
-                      aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                      size="sm"
-                      variant="ghost"
-                      tooltip={false}
-                    />
-                  </SimpleTooltip>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, "--wails-draggable": "no-drag" } as React.CSSProperties}>
-                <div
-                  onClick={() => setIsSearchOpen(true)}
-                  className="flex shrink-0 cursor-pointer select-none items-center rounded-md border border-border bg-background px-3 py-0.5 text-xs text-muted-foreground"
-                >
-                  {navigator.platform.startsWith("Mac") ? "⌘K" : "Ctrl+K"} to search
-                </div>
-              </div>
-              {/* Every control on this pane's right edge — here, in the tab strip, in the
-                  console header — puts its icon on the same vertical line, 16px in. The
-                  padding is that line minus the button's own centering room. */}
-              <div
-                style={
-                  {
-                    flex: 1,
-                    minWidth: 0,
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    paddingRight: 10,
-                    gap: 2,
-                    "--wails-draggable": "no-drag",
-                  } as React.CSSProperties
-                }
-              >
-                <SimpleTooltip text={editorLayout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
-                  <IconButton
-                    icon={editorLayout === "vertical" ? Columns2 : Rows2}
-                    aria-label={editorLayout === "vertical" ? "Switch to side-by-side layout" : "Switch to top-bottom layout"}
-                    onClick={onToggleEditorLayout}
-                    size="sm"
-                    variant="ghost"
-                    tooltip={false}
-                  />
-                </SimpleTooltip>
-              </div>
-            </div>
+            <CommandRow
+              leftInset={commandRowInset}
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              switcher={
+                <FileSwitcher
+                  openFiles={openFiles}
+                  otherFiles={otherFiles}
+                  errorCount={currentIsEditor ? syntaxErrors.count : 0}
+                  open={switcher !== undefined}
+                  onOpenChange={(open) => setSwitcher(open ? "first" : undefined)}
+                  highlightPrevious={switcher === "previous"}
+                  onClose={onCloseTab}
+                  onCloseAll={onCloseAll}
+                />
+              }
+              recent={tabs.slice(1, 3).map((tab) => ({ id: tab.id, name: tabIdentity(tab).name, dirty: isDirty(tab) }))}
+              onSelectRecent={onSelectTab}
+              action={action}
+              onSearch={() => setSwitcher("first")}
+              layout={editorLayout}
+              onToggleLayout={onToggleEditorLayout}
+            />
             {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
-            {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <GetStartedBlankslate />}
+            {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <NoFileBlankslate onOpenSwitcher={() => setSwitcher("first")} />}
             {tabs.length > 0 && (
               <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                 <div
                   style={{
-                    height: isActiveTaskTab && !isHorizontalLayout ? effectiveEditorHeight : undefined,
-                    width: isActiveTaskTab && isHorizontalLayout ? editorWidth : undefined,
-                    flexGrow: isActiveTaskTab ? 0 : 1,
+                    height: currentIsEditor && !isHorizontalLayout ? effectiveEditorHeight : undefined,
+                    width: currentIsEditor && isHorizontalLayout ? editorWidth : undefined,
+                    flexGrow: currentIsEditor ? 0 : 1,
                     flexShrink: 0,
-                    flexBasis: isActiveTaskTab ? "auto" : 0,
+                    flexBasis: currentIsEditor ? "auto" : 0,
                     display: "flex",
                     flexDirection: "column",
                     minHeight: 0,
                     minWidth: 0,
+                    overflow,
                   }}
                 >
-                  <Tabs
-                    activeTabIndex={activeTabIndex}
-                    onSelectTab={onSelectTab}
-                    onCloseTab={onCloseTab}
-                    onCloseAll={onCloseAll}
-                    onCloseOthers={onCloseOthers}
-                    onKeepTab={onKeepTab}
-                    controls={tabControls}
-                  >
-                    {tabs.map((tab, index) => {
-                      if (tab.type === "compiler") {
-                        return (
-                          <Tab tabId="compiler" tabLabel="Compile log" icon={ScrollText} key="compiler">
-                            <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
-                          </Tab>
-                        );
-                      }
-
-                      if (tab.type === "task") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={tab.originMethod.name} isEphemeral={!tab.hasInteraction && index === tabs.length - 1} key="task">
-                            <Task
-                              model={tab.model}
-                              onGoToDefinition={onGoToDefinition}
-                              onEditorReady={(editor) => onEditorReady(tab.id, editor)}
-                              viewState={tab.viewState}
-                              onRun={onRunActiveTab}
-                              onStop={onStopActiveRun}
-                              running={activeRun?.tabId === tab.id}
-                              startedAt={activeRun?.tabId === tab.id ? activeRun.startedAt : undefined}
-                            />
-                          </Tab>
-                        );
-                      }
-
-                      if (tab.type === "script") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={tab.script.name} key={tab.id}>
-                            <Task
-                              model={tab.model}
-                              onGoToDefinition={onGoToDefinition}
-                              onEditorReady={(editor) => onEditorReady(tab.id, editor)}
-                              viewState={tab.viewState}
-                              onRun={onRunActiveTab}
-                              onStop={onStopActiveRun}
-                              running={activeRun?.tabId === tab.id}
-                              startedAt={activeRun?.tabId === tab.id ? activeRun.startedAt : undefined}
-                            />
-                          </Tab>
-                        );
-                      }
-
-                      if (tab.type === "definition") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={getTabLabel(tab.model.uri.path)} isEphemeral={true} key="definition">
-                            <Definition
-                              model={tab.model}
-                              onGoToDefinition={onGoToDefinition}
-                              startLineNumber={tab.startLineNumber}
-                              startColumn={tab.startColumn}
-                            />
-                          </Tab>
-                        );
-                      }
-
-                      if (tab.type === "appForm") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel={getAppFormTabLabel(tab)} icon={getAppFormTabIcon(tab)} isEphemeral={tab.ephemeral} key={tab.id}>
-                            <AppForm
-                              mode={tab.mode}
-                              initialData={tab.initialData}
-                              allApps={configuration?.apps ?? []}
-                              variables={configuration?.variables ?? {}}
-                              readOnly={!runtime.canUpdateConfiguration}
-                              editMode={tab.editMode}
-                              onSubmit={onAppFormSubmit}
-                              onCancel={onAppFormCancel}
-                              onEdited={onAppFormEdited}
-                              onJsonValidChange={setTabJsonValid}
-                            />
-                          </Tab>
-                        );
-                      }
-
-                      if (tab.type === "variables") {
-                        return (
-                          <Tab tabId={tab.id} tabLabel="Variables" icon={Braces} isDirty={variablesState.dirty} key={tab.id}>
-                            <Variables
-                              variables={configuration?.variables ?? {}}
-                              status={variableStatus}
-                              storeAvailable={runtime.variableStoreAvailable}
-                              usage={variableUsage}
-                              readOnly={!runtime.canUpdateConfiguration}
-                              editMode={tab.editMode}
-                              onEditModeChange={(editMode) => setTabs((tabs) => setVariablesEditMode(tabs, index, editMode))}
-                              onJsonValidChange={setTabJsonValid}
-                              active={index === activeTabIndex}
-                              onSave={onVariablesSave}
-                              onStoreValue={onStoreVariableValue}
-                              onStateChange={onVariablesStateChange}
-                            />
-                          </Tab>
-                        );
-                      }
-
-                      throw new Error("Unknown tab type");
-                    })}
-                  </Tabs>
+                  {bodies.map((tab) => (
+                    <div key={tab.id} style={{ display: tab.id === currentTab?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                      {tab.type === "compiler" && (
+                        <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
+                      )}
+                      {(tab.type === "task" || tab.type === "script") && (
+                        <div className="relative flex min-h-0 flex-1 flex-col">
+                          <Editor
+                            model={tab.model}
+                            onMount={(editor) => onEditorReady(tab.id, editor)}
+                            onGoToDefinition={onGoToDefinition}
+                            viewState={tab.viewState}
+                          />
+                        </div>
+                      )}
+                      {tab.type === "definition" && (
+                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
+                      )}
+                      {tab.type === "appForm" && (
+                        <AppForm
+                          mode={tab.mode}
+                          initialData={tab.initialData}
+                          allApps={configuration?.apps ?? []}
+                          variables={configuration?.variables ?? {}}
+                          readOnly={!runtime.canUpdateConfiguration}
+                          editMode={tab.editMode}
+                          onSubmit={onAppFormSubmit}
+                          onCancel={onAppFormCancel}
+                          onEdited={() => onAppFormEdited(tab.id)}
+                          onJsonValidChange={setTabJsonValid}
+                        />
+                      )}
+                      {tab.type === "variables" && (
+                        <Variables
+                          variables={configuration?.variables ?? {}}
+                          status={variableStatus}
+                          storeAvailable={runtime.variableStoreAvailable}
+                          usage={variableUsage}
+                          readOnly={!runtime.canUpdateConfiguration}
+                          editMode={tab.editMode}
+                          onEditModeChange={(editMode) => applyTabs((tabs) => setVariablesEditMode(tabs, tab.id, editMode))}
+                          onJsonValidChange={setTabJsonValid}
+                          active={tab.id === currentTab?.id}
+                          onSave={onVariablesSave}
+                          onStoreValue={onStoreVariableValue}
+                          onStateChange={onVariablesStateChange}
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {isActiveTaskTab && (
+                {currentIsEditor && (
                   <>
                     <Gutter orientation={isHorizontalLayout ? "vertical" : "horizontal"} onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize} />
                     <div
@@ -1891,7 +1771,6 @@ export function App() {
           onRecompile={onRecompile}
         />
       </div>
-      <SearchPopup isOpen={isSearchOpen} apps={apps} onClose={() => setIsSearchOpen(false)} onSelect={onSearchMethodSelect} />
       {saveAs && (
         <Dialog
           title="Save as script"
@@ -2015,21 +1894,21 @@ export function App() {
           Permanently delete <strong>{deleteScript.name}</strong>?
         </ConfirmationDialog>
       )}
-      {closingVariablesIndex !== undefined && (
+      {closingVariablesId !== undefined && (
         <Dialog
           title="Variables has unsaved changes"
           width="sm"
-          onClose={() => setClosingVariablesIndex(undefined)}
+          onClose={() => setClosingVariablesId(undefined)}
           footerButtons={[
-            { content: "Cancel", onClick: () => setClosingVariablesIndex(undefined) },
+            { content: "Cancel", onClick: () => setClosingVariablesId(undefined) },
             {
               content: "Discard",
               variant: "destructive",
               onClick: () => {
-                const index = closingVariablesIndex;
-                setClosingVariablesIndex(undefined);
+                const id = closingVariablesId;
+                setClosingVariablesId(undefined);
                 setVariablesState({ dirty: false, canSave: false, save: async () => {} });
-                closeTab(index);
+                applyTabs((tabs) => closeTab(tabs, id));
               },
             },
             ...(variablesState.canSave
@@ -2038,9 +1917,9 @@ export function App() {
                     content: "Save",
                     variant: "default" as const,
                     onClick: () => {
-                      const index = closingVariablesIndex;
-                      setClosingVariablesIndex(undefined);
-                      void variablesState.save().then(() => closeTab(index));
+                      const id = closingVariablesId;
+                      setClosingVariablesId(undefined);
+                      void variablesState.save().then(() => applyTabs((tabs) => closeTab(tabs, id)));
                     },
                   },
                 ]

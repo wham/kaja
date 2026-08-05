@@ -1,215 +1,191 @@
 import { describe, expect, it } from "bun:test";
 import {
+  activateTab,
   AppFormTab,
-  getAppFormTabLabel,
-  getTabLabel,
-  keepAppFormTab,
+  closeTab,
+  keepTab,
   linkTabsToApps,
   openAppFormTab,
+  openCompilerTab,
+  openVariablesTab,
   serializeTabs,
   setAppFormEditMode,
+  tabIdentity,
   TabModel,
 } from "./tabModel";
 import { buildApp } from "./appTypes";
 import { App } from "./apps";
 
-describe("getTabLabel", () => {
-  it("should return just the filename from a path", () => {
-    expect(getTabLabel("ts:/grpc/web/code.ts")).toBe("code.ts");
+// The open files carry Monaco models in the app; here they are stubs, so the
+// tabs are built by hand rather than through the openers that create models.
+function tab(id: string, seq: number, preview = false): TabModel {
+  return { type: "compiler", id, seq, preview };
+}
+
+function taskTab(id: string, appName: string, serviceName: string, methodName: string): TabModel {
+  let disposed = false;
+  return {
+    type: "task",
+    id,
+    seq: 1,
+    preview: false,
+    originMethod: { name: methodName },
+    originService: { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] },
+    originApp: { configuration: { name: appName } } as any,
+    model: { dispose: () => (disposed = true), isDisposed: () => disposed, getValue: () => "code" } as any,
+    originalCode: "original",
+  };
+}
+
+describe("activateTab", () => {
+  it("brings a tab to the front, which is the only way one becomes current", () => {
+    const tabs = [tab("a", 1), tab("b", 2), tab("c", 3)];
+    expect(activateTab(tabs, "c").map((t) => t.id)).toEqual(["c", "a", "b"]);
   });
 
-  it("should handle paths with no slashes", () => {
-    expect(getTabLabel("ts:/simple.ts")).toBe("simple.ts");
+  it("leaves the list alone when the tab is already current or unknown", () => {
+    const tabs = [tab("a", 1), tab("b", 2)];
+    expect(activateTab(tabs, "a")).toBe(tabs);
+    expect(activateTab(tabs, "gone")).toBe(tabs);
+  });
+});
+
+describe("closeTab", () => {
+  it("falls through to the most recently visited file, not a neighbour", () => {
+    const tabs = [tab("a", 1), tab("b", 2), tab("c", 3)];
+    expect(closeTab(tabs, "a").map((t) => t.id)).toEqual(["b", "c"]);
+  });
+});
+
+describe("preview", () => {
+  const grpcApp = (name: string) => buildApp(name, "grpc", { url: "example.com:443" }, {});
+
+  it("opens an app's settings as a preview named after the app", () => {
+    const tabs = openAppFormTab([tab("a", 1)], "edit", grpcApp("orders"));
+
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].preview).toBe(true);
+    expect(tabIdentity(tabs[0]).name).toBe("orders");
+    expect((tabs[0] as AppFormTab).editMode).toBe("form");
   });
 
-  it("should handle paths with multiple slashes", () => {
-    expect(getTabLabel("ts:/a/b/c/d/file.ts")).toBe("file.ts");
+  it("names a new app after its type until it is saved", () => {
+    const tabs = openAppFormTab([], "create", buildApp("", "openapi", {}, {}));
+    expect(tabIdentity(tabs[0]).name).toBe("New OpenAPI app");
+  });
+
+  // One preview slot for the whole pane: browsing never stacks tabs.
+  it("takes the preview slot from whatever was in it", () => {
+    const first = openAppFormTab([], "edit", grpcApp("orders"));
+    const second = openAppFormTab(first, "edit", grpcApp("billing"));
+
+    expect(second).toHaveLength(1);
+    expect((second[0] as AppFormTab).editingAppName).toBe("billing");
+  });
+
+  it("leaves a tab that is being worked in alone and opens another", () => {
+    const first = openAppFormTab([], "edit", grpcApp("orders"));
+    const kept = keepTab(first, first[0].id);
+    const second = openAppFormTab(kept, "edit", grpcApp("billing"));
+
+    expect(second).toHaveLength(2);
+    expect((second[0] as AppFormTab).editingAppName).toBe("billing");
+    expect((second[1] as AppFormTab).editingAppName).toBe("orders");
+  });
+
+  it("brings the app's own tab to the front when it is already open", () => {
+    const orders = openAppFormTab([], "edit", grpcApp("orders"));
+    const both = openAppFormTab(keepTab(orders, orders[0].id), "edit", grpcApp("billing"));
+    const again = openAppFormTab(both, "edit", grpcApp("orders"));
+
+    expect(again).toHaveLength(2);
+    expect((again[0] as AppFormTab).editingAppName).toBe("orders");
+  });
+
+  it("remembers which view of the app the tab is showing", () => {
+    const tabs = openAppFormTab([], "edit", grpcApp("orders"));
+    expect((setAppFormEditMode(tabs, tabs[0].id, "json")[0] as AppFormTab).editMode).toBe("json");
+  });
+
+  it("keeps the singleton surfaces to one tab each", () => {
+    const once = openCompilerTab(openVariablesTab([]));
+    const twice = openCompilerTab(openVariablesTab(once));
+
+    expect(twice).toHaveLength(2);
+    expect(twice[0].type).toBe("compiler");
+  });
+});
+
+describe("tabIdentity", () => {
+  it("names a call by its method and places it under its app and service", () => {
+    const identity = tabIdentity(taskTab("task-1", "users", "UserService", "GetUser"));
+
+    expect(identity.name).toBe("GetUser");
+    expect(identity.path).toBe("users / UserService");
+    expect(identity.origin).toBe("users");
   });
 });
 
 describe("serializeTabs", () => {
-  it("should serialize task and compiler tabs, skipping definition and appForm tabs", () => {
+  it("serializes task and compiler tabs in visit order, skipping the rest", () => {
     const tabs: TabModel[] = [
-      { type: "compiler" },
-      {
-        type: "task",
-        id: "task-1",
-        originMethod: { name: "GetUser" },
-        originService: { name: "UserService", packageName: "users.v1", sourcePath: "", clientStubModuleId: "", methods: [] },
-        originApp: { configuration: { name: "users" } } as any,
-        hasInteraction: true,
-        model: { getValue: () => "some code" } as any,
-        originalCode: "original code",
-        viewState: { cursorState: [] } as any,
-      },
-      {
-        type: "definition",
-        id: "def-1",
-        model: {} as any,
-        startLineNumber: 10,
-        startColumn: 5,
-      },
+      tab("compiler-1", 1),
+      taskTab("task-1", "users", "UserService", "GetUser"),
+      { type: "definition", id: "def-1", seq: 3, preview: true, model: {} as any, startLineNumber: 10, startColumn: 5 },
     ];
 
-    const result = serializeTabs(tabs, 1, () => undefined);
+    const result = serializeTabs(tabs, () => undefined);
 
     expect(result.tabs).toHaveLength(2);
-    expect(result.activeIndex).toBe(1);
-    expect(result.tabs[0]).toEqual({ type: "compiler" });
+    expect(result.tabs[0]).toEqual({ type: "compiler", preview: false });
     expect(result.tabs[1]).toEqual({
       type: "task",
+      preview: false,
       appName: "users",
       serviceName: "UserService",
       methodName: "GetUser",
-      code: "some code",
-      originalCode: "original code",
-      hasInteraction: true,
-      viewState: { cursorState: [] },
+      code: "code",
+      originalCode: "original",
+      viewState: undefined,
     });
   });
 
-  it("should adjust active index when non-serialized tabs are before the active tab", () => {
-    const tabs: TabModel[] = [{ type: "definition", id: "def-1", model: {} as any, startLineNumber: 1, startColumn: 1 }, { type: "compiler" }];
-
-    const result = serializeTabs(tabs, 1, () => undefined);
-    expect(result.activeIndex).toBe(0);
-    expect(result.tabs).toHaveLength(1);
-  });
-
-  it("should use live editor view state over stored view state", () => {
+  it("uses live editor view state over stored view state", () => {
     const liveViewState = { cursorState: [{ position: { lineNumber: 5 } }] } as any;
-    const tabs: TabModel[] = [
-      {
-        type: "task",
-        id: "task-1",
-        originMethod: { name: "M" },
-        originService: { name: "S", packageName: "", sourcePath: "", clientStubModuleId: "", methods: [] },
-        originApp: { configuration: { name: "p" } } as any,
-        hasInteraction: false,
-        model: { getValue: () => "" } as any,
-        originalCode: "",
-        viewState: { cursorState: [{ position: { lineNumber: 1 } }] } as any,
-      },
-    ];
+    const tabs = [taskTab("task-1", "p", "S", "M")];
 
-    const result = serializeTabs(tabs, 0, () => liveViewState);
+    const result = serializeTabs(tabs, () => liveViewState);
     expect((result.tabs[0] as any).viewState).toBe(liveViewState);
   });
 });
 
 describe("linkTabsToApps", () => {
-  function taskTab(id: string, appName: string, serviceName: string, methodName: string): TabModel {
-    let disposed = false;
-    return {
-      type: "task",
-      id,
-      originMethod: { name: methodName },
-      originService: { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] },
-      originApp: { configuration: { name: appName } } as any,
-      hasInteraction: false,
-      model: { dispose: () => (disposed = true), isDisposed: () => disposed } as any,
-      originalCode: "",
-    };
-  }
-
   function app(name: string, serviceName: string, methodName: string): App {
     const service = { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] };
     return { configuration: { name }, services: [service] } as any;
   }
 
   it("re-binds a task tab to the matching compiled app by identity", () => {
-    const tab = taskTab("task-1", "users", "UserService", "GetUser");
     const compiled = app("users", "UserService", "GetUser");
+    const tabs = linkTabsToApps([taskTab("task-1", "users", "UserService", "GetUser")], [compiled]);
 
-    const result = linkTabsToApps([tab], [compiled]);
-
-    expect(result.tabs).toHaveLength(1);
-    expect(result.removedTabIds).toHaveLength(0);
-    expect((result.tabs[0] as any).originApp).toBe(compiled);
-    expect((result.tabs[0] as any).originService).toBe(compiled.services[0]);
+    expect(tabs).toHaveLength(1);
+    expect((tabs[0] as any).originApp).toBe(compiled);
+    expect((tabs[0] as any).originService).toBe(compiled.services[0]);
   });
 
-  it("drops and disposes a task tab whose app was deleted", () => {
-    const tab = taskTab("task-1", "teams", "Teams", "GetAllTeams");
-
-    const result = linkTabsToApps([tab], [app("users", "UserService", "GetUser")]);
-
-    expect(result.tabs).toHaveLength(0);
-    expect(result.removedTabIds).toEqual(["task-1"]);
-    expect((tab as any).model.isDisposed()).toBe(true);
-  });
-
-  it("drops a task tab whose service or method no longer exists", () => {
-    const goneMethod = taskTab("task-1", "users", "UserService", "RemovedMethod");
-    const goneService = taskTab("task-2", "users", "RemovedService", "GetUser");
+  it("drops a task tab whose app, service or method no longer exists", () => {
+    const goneApp = taskTab("task-1", "teams", "Teams", "GetAllTeams");
+    const goneMethod = taskTab("task-2", "users", "UserService", "RemovedMethod");
     const kept = taskTab("task-3", "users", "UserService", "GetUser");
 
-    const result = linkTabsToApps([goneMethod, goneService, kept], [app("users", "UserService", "GetUser")]);
+    const tabs = linkTabsToApps([goneApp, goneMethod, kept], [app("users", "UserService", "GetUser")]);
 
-    expect(result.tabs.map((t) => (t as any).id)).toEqual(["task-3"]);
-    expect(result.removedTabIds).toEqual(["task-1", "task-2"]);
+    expect(tabs.map((t) => t.id)).toEqual(["task-3"]);
   });
 
   it("keeps non-task tabs untouched", () => {
-    const compilerTab: TabModel = { type: "compiler" };
-    const result = linkTabsToApps([compilerTab], []);
-
-    expect(result.tabs).toEqual([compilerTab]);
-    expect(result.removedTabIds).toHaveLength(0);
-  });
-});
-
-describe("openAppFormTab", () => {
-  const grpcApp = (name: string) => buildApp(name, "grpc", { url: "example.com:443" }, {});
-
-  it("opens an app's settings as a preview tab named after the app", () => {
-    const { tabs, activeIndex } = openAppFormTab([{ type: "compiler" }], "edit", grpcApp("orders"));
-
-    expect(activeIndex).toBe(1);
-    expect(tabs).toHaveLength(2);
-    const tab = tabs[1] as AppFormTab;
-    expect(tab.ephemeral).toBe(true);
-    expect(tab.editMode).toBe("form");
-    expect(getAppFormTabLabel(tab)).toBe("orders");
-  });
-
-  it("names a new app after its type until it is saved", () => {
-    const { tabs } = openAppFormTab([], "create", buildApp("", "openapi", {}, {}));
-    expect(getAppFormTabLabel(tabs[0] as AppFormTab)).toBe("New OpenAPI app");
-  });
-
-  // The preview tab is the single-tab feel: browsing settings doesn't stack tabs.
-  it("reuses a preview tab for another app, keeping its position", () => {
-    const first = openAppFormTab([{ type: "compiler" }], "edit", grpcApp("orders"));
-    const second = openAppFormTab(first.tabs, "edit", grpcApp("billing"));
-
-    expect(second.tabs).toHaveLength(2);
-    expect(second.activeIndex).toBe(1);
-    expect((second.tabs[1] as AppFormTab).editingAppName).toBe("billing");
-  });
-
-  it("leaves a tab that is being worked in alone and opens another", () => {
-    const first = openAppFormTab([], "edit", grpcApp("orders"));
-    const kept = keepAppFormTab(first.tabs, 0);
-    const second = openAppFormTab(kept, "edit", grpcApp("billing"));
-
-    expect(second.tabs).toHaveLength(2);
-    expect((second.tabs[0] as AppFormTab).editingAppName).toBe("orders");
-    expect((second.tabs[1] as AppFormTab).editingAppName).toBe("billing");
-  });
-
-  it("focuses the app's own tab when it is already open", () => {
-    const first = openAppFormTab([], "edit", grpcApp("orders"));
-    const kept = keepAppFormTab(first.tabs, 0);
-    const second = openAppFormTab(kept, "edit", grpcApp("billing"));
-    const again = openAppFormTab(second.tabs, "edit", grpcApp("orders"));
-
-    expect(again.tabs).toHaveLength(2);
-    expect(again.activeIndex).toBe(0);
-  });
-
-  it("remembers which view of the app the tab is showing", () => {
-    const { tabs } = openAppFormTab([], "edit", grpcApp("orders"));
-    expect((setAppFormEditMode(tabs, 0, "json")[0] as AppFormTab).editMode).toBe("json");
+    const compilerTab = tab("compiler-1", 1);
+    expect(linkTabsToApps([compilerTab], [])).toEqual([compilerTab]);
   });
 });

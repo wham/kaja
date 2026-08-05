@@ -1,250 +1,233 @@
+import { Braces, FileCode, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
-import { createPendingApp, Method, App, Script, Service } from "./apps";
 import { generateMethodEditorCode } from "./appLoader";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
-import type { LucideIcon } from "lucide-react";
+import { createPendingApp, App, Method, Script, Service } from "./apps";
 import { ConfigurationApp } from "./server/api";
 
-interface CompilerTab {
+// Every open document is one of these, and the list they live in is kept in
+// most-recently-visited order: index 0 is the file the window is showing, index
+// 1 is what ⌘P⏎ goes back to, and closing the current file falls through to
+// whatever is next. There is no other notion of "active", and no positional
+// order to preserve — the window has no tab strip to put one in.
+interface TabBase {
+  id: string;
+  // Creation order. Tab bodies are rendered in it, so a live Monaco editor is
+  // never moved in the DOM when the visit order changes.
+  seq: number;
+  // A preview tab reads in italics and is replaced by the next preview open
+  // instead of stacking. Editing it, running it, or opening it deliberately
+  // (double click) makes it permanent.
+  preview: boolean;
+}
+
+export interface CompilerTab extends TabBase {
   type: "compiler";
 }
 
-interface TaskTab {
+export interface TaskTab extends TabBase {
   type: "task";
-  id: string;
   originMethod: Method;
   originService: Service;
   originApp: App;
-  hasInteraction: boolean;
   model: monaco.editor.ITextModel;
   originalCode: string;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
-interface DefinitionTab {
+export interface DefinitionTab extends TabBase {
   type: "definition";
-  id: string;
   model: monaco.editor.ITextModel;
   startLineNumber: number;
   startColumn: number;
 }
 
-// An app's settings, opened from the sidebar. The tab is the app: its title is
-// the app's name, and a new app is simply the unsaved instance of the same
-// document.
-export interface AppFormTab {
+// An app's settings, opened from the sidebar. The tab is the app: it is named
+// after it, and a new app is simply the unsaved instance of the same document.
+export interface AppFormTab extends TabBase {
   type: "appForm";
-  id: string;
   mode: "create" | "edit";
   editingAppName?: string;
   initialData?: ConfigurationApp;
-  // A preview tab, shown in italics: opening another app's settings reuses it
-  // instead of stacking tabs. Editing it, or double-clicking its title, makes it
-  // permanent, so work in progress is never replaced out from under the user.
-  ephemeral: boolean;
   // Which view of the app the tab is showing. It lives here rather than in the
-  // form because the tab strip owns the control that switches it.
+  // form because the command row owns the control that switches it.
   editMode: "form" | "json";
 }
 
-export interface ScriptTab {
+export interface ScriptTab extends TabBase {
   type: "script";
-  id: string;
   // File-backed script in the global scripts directory; content auto-saves to disk.
   script: Script;
   model: monaco.editor.ITextModel;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
-export interface VariablesTab {
+export interface VariablesTab extends TabBase {
   type: "variables";
-  id: string;
-  // Which view of the variables the tab is showing. Like the app form's, it
-  // lives here because the tab strip owns the control that switches it.
+  // Like the app form's, this lives here because the command row owns the
+  // control that switches it.
   editMode: "table" | "json";
 }
 
 export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab | VariablesTab;
 
-let idGenerator = 0;
+let sequence = 0;
 
-function generateId(type: string): string {
-  return `${type}-${idGenerator++}`;
+function nextTab(type: string, preview: boolean): TabBase {
+  sequence++;
+  return { id: `${type}-${sequence}`, seq: sequence, preview };
 }
 
-export interface AddTaskTabResult {
-  tabs: TabModel[];
-  activeIndex: number;
+function createModel(id: string, code: string): monaco.editor.ITextModel {
+  return monaco.editor.createModel(code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
 }
 
-export function addTaskTab(tabs: TabModel[], originMethod: Method, originService: Service, originApp: App): AddTaskTabResult {
-  // Check if there's an existing tab with the same original code - if so, reuse it
-  const generatedCode = generateMethodEditorCode(originApp, originService, originMethod);
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
-    if (tab.type === "task" && tab.originalCode === generatedCode) {
-      return { tabs, activeIndex: i };
-    }
+// --- Visiting, keeping, closing ---
+
+// Bringing a tab to the front is the only way one becomes current.
+export function activateTab(tabs: TabModel[], id: string): TabModel[] {
+  const index = tabs.findIndex((tab) => tab.id === id);
+  if (index <= 0) return tabs;
+  return [tabs[index], ...tabs.slice(0, index), ...tabs.slice(index + 1)];
+}
+
+// A preview open takes the one preview slot with it; a permanent open leaves
+// whatever was in it alone.
+function open(tabs: TabModel[], tab: TabModel): TabModel[] {
+  return [tab, ...(tab.preview ? tabs.filter((other) => !other.preview) : tabs)];
+}
+
+export function keepTab(tabs: TabModel[], id: string): TabModel[] {
+  const index = tabs.findIndex((tab) => tab.id === id);
+  if (index === -1 || !tabs[index].preview) return tabs;
+  return tabs.map((tab, i) => (i === index ? { ...tab, preview: false } : tab));
+}
+
+export function closeTab(tabs: TabModel[], id: string): TabModel[] {
+  return tabs.filter((tab) => tab.id !== id);
+}
+
+function update<T extends TabModel>(tabs: TabModel[], id: string, type: T["type"], changes: Partial<T>): TabModel[] {
+  return tabs.map((tab) => (tab.id === id && tab.type === type ? ({ ...tab, ...changes } as TabModel) : tab));
+}
+
+// --- Opening ---
+
+export function openTaskTab(tabs: TabModel[], method: Method, service: Service, app: App, permanent = false): TabModel[] {
+  const code = generateMethodEditorCode(app, service, method);
+  const existing = tabs.find((tab) => tab.type === "task" && tab.originalCode === code);
+  if (existing) {
+    return activateTab(permanent ? keepTab(tabs, existing.id) : tabs, existing.id);
   }
 
-  const newTab = newTaskTab(originMethod, originService, originApp, generatedCode);
-  const lastTab = tabs[tabs.length - 1];
-  // If the last task tab has no interaction, replace it with the new tab.
-  // This is to prevent opening many tabs when the user is just clicking through available methods.
-  // Open new tab in case the user keep clicking on the same method - perhaps they want to compare different outputs.
-  // Always replace definition tabs.
-  const replaceLastTab =
-    lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction && lastTab.originMethod !== originMethod) || lastTab.type === "definition");
-
-  if (replaceLastTab) {
-    const newTabs = [...tabs.slice(0, -1), newTab];
-    return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-  }
-
-  const newTabs = [...tabs, newTab];
-  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-}
-
-function newTaskTab(originMethod: Method, originService: Service, originApp: App, editorCode: string): TaskTab {
-  const id = generateId("task");
-
-  return {
+  const tab = nextTab("task", !permanent);
+  return open(tabs, {
+    ...tab,
     type: "task",
-    id,
-    originMethod,
-    originService,
-    originApp,
-    hasInteraction: false,
-    model: monaco.editor.createModel(editorCode, "typescript", monaco.Uri.parse("ts:/" + id + ".ts")),
-    originalCode: editorCode,
-  };
+    originMethod: method,
+    originService: service,
+    originApp: app,
+    model: createModel(tab.id, code),
+    originalCode: code,
+  });
 }
 
-export function addDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): TabModel[] {
-  const newTab = newDefinitionTab(model, startLineNumber, startColumn);
-  const lastTab = tabs[tabs.length - 1];
-  // If the last tab has no interaction, replace it with the new tab.
-  // This is to prevent opening many tabs when the user is just clicking through available methods.
-  // Always replace definition tabs.
-  const replaceLastTab = lastTab && ((lastTab.type === "task" && !lastTab.hasInteraction) || lastTab.type === "definition");
-
-  if (replaceLastTab) {
-    return [...tabs.slice(0, -1), newTab];
+export function openScriptTab(tabs: TabModel[], script: Script, content: string, permanent = false): TabModel[] {
+  const existing = tabs.find((tab) => tab.type === "script" && tab.script.path === script.path);
+  if (existing?.type === "script") {
+    // Refresh contents in case the file changed on disk.
+    existing.model.setValue(content);
+    existing.script = script;
+    return activateTab(permanent ? keepTab([...tabs], existing.id) : [...tabs], existing.id);
   }
 
-  return [...tabs, newTab];
+  const tab = nextTab("script", !permanent);
+  return open(tabs, { ...tab, type: "script", script, model: createModel(tab.id, content) });
 }
 
-function newDefinitionTab(model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): DefinitionTab {
-  return {
-    type: "definition",
-    id: generateId("definition"),
-    model,
-    startLineNumber,
-    startColumn,
-  };
+// A definition is always a look, never a document you work in, so it is only
+// ever a preview.
+export function openDefinitionTab(tabs: TabModel[], model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): TabModel[] {
+  return open(tabs, { ...nextTab("definition", true), type: "definition", model, startLineNumber, startColumn });
 }
 
-export function markInteraction(tabs: TabModel[], index: number): TabModel[] {
-  if (!tabs[index] || tabs[index].type !== "task" || tabs[index].hasInteraction) {
-    return tabs;
+// The app's own tab wins if it is already open; otherwise this is a preview
+// open, so browsing settings never stacks tabs.
+export function openAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): TabModel[] {
+  const existing = tabs.find((tab) => tab.type === "appForm" && tab.mode === mode && tab.editingAppName === initialData?.name);
+  if (existing) {
+    return activateTab(tabs, existing.id);
   }
 
-  tabs[index].hasInteraction = true;
-  return [...tabs];
-}
-
-export function getTabLabel(path: string): string {
-  return path.split("/").pop() || path;
-}
-
-export function getScriptTabLabel(tab: ScriptTab): string {
-  return tab.script.name.replace(/\.ts$/, "");
-}
-
-export function addScriptTab(tabs: TabModel[], script: Script, content: string): { tabs: TabModel[]; activeIndex: number } {
-  // Reuse an existing tab for the same file.
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
-    if (tab.type === "script" && tab.script.path === script.path) {
-      // Refresh contents in case the file changed on disk.
-      tab.model.setValue(content);
-      tab.script = script;
-      return { tabs: [...tabs], activeIndex: i };
-    }
-  }
-
-  const id = generateId("script");
-  const model = monaco.editor.createModel(content, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
-  const newTab: ScriptTab = {
-    type: "script",
-    id,
-    script,
-    model,
-  };
-
-  // Replace a trailing ephemeral task tab the same way addTaskTab does.
-  const last = tabs[tabs.length - 1];
-  const replaceLast = last && ((last.type === "task" && !last.hasInteraction) || last.type === "definition");
-  if (replaceLast) {
-    const newTabs = [...tabs.slice(0, -1), newTab];
-    return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-  }
-  const newTabs = [...tabs, newTab];
-  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-}
-
-// openAppFormTab opens an app's settings. The app's own tab wins if it is already
-// open; otherwise a preview tab is reused, and only when there is none does a new
-// tab appear. A tab the user has started working in is permanent, so it is never
-// the one reused.
-export function openAppFormTab(tabs: TabModel[], mode: "create" | "edit", initialData?: ConfigurationApp): { tabs: TabModel[]; activeIndex: number } {
-  const open = tabs.findIndex((tab) => tab.type === "appForm" && tab.mode === mode && tab.editingAppName === initialData?.name);
-  if (open !== -1) {
-    return { tabs, activeIndex: open };
-  }
-
-  const reusable = tabs.findIndex((tab) => tab.type === "appForm" && tab.ephemeral);
-  const tab: AppFormTab = {
+  return open(tabs, {
+    ...nextTab("appForm", true),
     type: "appForm",
-    id: reusable === -1 ? generateId("appForm") : (tabs[reusable] as AppFormTab).id,
     mode,
     editingAppName: initialData?.name,
     initialData,
-    ephemeral: true,
     editMode: "form",
-  };
+  });
+}
 
-  if (reusable !== -1) {
-    const updated = [...tabs];
-    updated[reusable] = tab;
-    return { tabs: updated, activeIndex: reusable };
+export function openVariablesTab(tabs: TabModel[]): TabModel[] {
+  const existing = tabs.find((tab) => tab.type === "variables");
+  if (existing) return activateTab(tabs, existing.id);
+  return open(tabs, { ...nextTab("variables", false), type: "variables", editMode: "table" });
+}
+
+export function openCompilerTab(tabs: TabModel[]): TabModel[] {
+  const existing = tabs.find((tab) => tab.type === "compiler");
+  if (existing) return activateTab(tabs, existing.id);
+  return open(tabs, { ...nextTab("compiler", false), type: "compiler" });
+}
+
+export function setAppFormEditMode(tabs: TabModel[], id: string, editMode: "form" | "json"): TabModel[] {
+  return update<AppFormTab>(tabs, id, "appForm", { editMode });
+}
+
+export function setVariablesEditMode(tabs: TabModel[], id: string, editMode: "table" | "json"): TabModel[] {
+  return update<VariablesTab>(tabs, id, "variables", { editMode });
+}
+
+// --- What a tab is called ---
+
+export interface TabIdentity {
+  name: string;
+  // Where the file sits, for the switcher's list: "benchling / Folders".
+  path: string;
+  // The qualifier the trigger carries beside the name, empty where the name is
+  // already the whole answer.
+  origin: string;
+  icon: LucideIcon;
+}
+
+export function tabIdentity(tab: TabModel): TabIdentity {
+  switch (tab.type) {
+    case "task":
+      return {
+        name: tab.originMethod.name,
+        path: `${tab.originApp.configuration.name} / ${tab.originService.name}`,
+        origin: tab.originApp.configuration.name,
+        icon: FileCode,
+      };
+    case "script":
+      return { name: tab.script.name, path: "Scripts", origin: "", icon: FileCode };
+    case "definition":
+      return { name: fileName(tab.model.uri.path), path: "Definition", origin: "", icon: FileCode };
+    case "appForm":
+      return { name: appFormTabName(tab), path: "Settings", origin: "", icon: appFormTabIcon(tab) };
+    case "variables":
+      return { name: "Variables", path: "Workspace", origin: "", icon: Braces };
+    case "compiler":
+      return { name: "Compile log", path: "Output", origin: "", icon: ScrollText };
   }
-  return { tabs: [...tabs, tab], activeIndex: tabs.length };
 }
 
-// updateAppFormTab replaces what an app form tab holds, keeping the tab itself.
-function updateAppFormTab(tabs: TabModel[], index: number, changes: Partial<AppFormTab>): TabModel[] {
-  const tab = tabs[index];
-  if (!tab || tab.type !== "appForm") return tabs;
-  const updated = [...tabs];
-  updated[index] = { ...tab, ...changes };
-  return updated;
+function fileName(path: string): string {
+  return path.split("/").pop() || path;
 }
 
-// keepAppFormTab makes a preview tab permanent, which is what starting to work in
-// it - or double-clicking its title - means.
-export function keepAppFormTab(tabs: TabModel[], index: number): TabModel[] {
-  const tab = tabs[index];
-  if (!tab || tab.type !== "appForm" || !tab.ephemeral) return tabs;
-  return updateAppFormTab(tabs, index, { ephemeral: false });
-}
-
-export function setAppFormEditMode(tabs: TabModel[], index: number, editMode: "form" | "json"): TabModel[] {
-  return updateAppFormTab(tabs, index, { editMode });
-}
-
-export function getAppFormTabLabel(tab: AppFormTab): string {
+function appFormTabName(tab: AppFormTab): string {
   if (tab.mode === "edit" && tab.editingAppName) {
     // The tab is the app, so it is named after it.
     return tab.editingAppName;
@@ -255,57 +238,31 @@ export function getAppFormTabLabel(tab: AppFormTab): string {
 }
 
 // The tab wears the icon of the app it edits, the same one the sidebar shows.
-export function getAppFormTabIcon(tab: AppFormTab): LucideIcon | undefined {
-  return tab.initialData ? getAppType(appType(tab.initialData))?.icon : undefined;
+function appFormTabIcon(tab: AppFormTab): LucideIcon {
+  return (tab.initialData ? getAppType(appType(tab.initialData))?.icon : undefined) ?? Settings;
 }
 
-export function getAppFormTabIndex(tabs: TabModel[]): number {
-  return tabs.findIndex((tab) => tab.type === "appForm");
-}
-
-// Like the app form tab, the variables tab is a singleton: reuse an open one
-// instead of stacking duplicates. It is intentionally not persisted.
-export function addVariablesTab(tabs: TabModel[]): { tabs: TabModel[]; activeIndex: number } {
-  const existingIndex = tabs.findIndex((tab) => tab.type === "variables");
-  if (existingIndex !== -1) {
-    return { tabs, activeIndex: existingIndex };
-  }
-  const newTab: VariablesTab = { type: "variables", id: generateId("variables"), editMode: "table" };
-  const newTabs = [...tabs, newTab];
-  return { tabs: newTabs, activeIndex: newTabs.length - 1 };
-}
-
-export function setVariablesEditMode(tabs: TabModel[], index: number, editMode: "table" | "json"): TabModel[] {
-  const tab = tabs[index];
-  if (!tab || tab.type !== "variables") return tabs;
-  const updated = [...tabs];
-  updated[index] = { ...tab, editMode };
-  return updated;
-}
-
-export function getVariablesTabIndex(tabs: TabModel[]): number {
-  return tabs.findIndex((tab) => tab.type === "variables");
-}
-
-// --- Tab state persistence ---
+// --- Persistence ---
 
 interface PersistedTaskTab {
   type: "task";
+  preview: boolean;
   appName: string;
   serviceName: string;
   methodName: string;
   code: string;
   originalCode: string;
-  hasInteraction: boolean;
   viewState?: object;
 }
 
 interface PersistedCompilerTab {
   type: "compiler";
+  preview: boolean;
 }
 
 interface PersistedScriptTab {
   type: "script";
+  preview: boolean;
   scriptPath: string;
   scriptName: string;
   code: string;
@@ -314,40 +271,33 @@ interface PersistedScriptTab {
 
 type PersistedTab = PersistedTaskTab | PersistedCompilerTab | PersistedScriptTab;
 
+// The visit order is the order of the list, so nothing else has to be stored:
+// the file that was on screen is the one that restores first.
 export interface PersistedTabState {
-  activeIndex: number;
   tabs: PersistedTab[];
 }
 
-export function serializeTabs(
-  tabs: TabModel[],
-  activeIndex: number,
-  getViewState: (tabId: string) => monaco.editor.ICodeEditorViewState | null | undefined,
-): PersistedTabState {
-  const serializedTabs: PersistedTab[] = [];
-  const indexMap: number[] = [];
+export function serializeTabs(tabs: TabModel[], getViewState: (tabId: string) => monaco.editor.ICodeEditorViewState | null | undefined): PersistedTabState {
+  const serialized: PersistedTab[] = [];
 
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
+  for (const tab of tabs) {
     if (tab.type === "compiler") {
-      indexMap.push(serializedTabs.length);
-      serializedTabs.push({ type: "compiler" });
+      serialized.push({ type: "compiler", preview: tab.preview });
     } else if (tab.type === "task") {
-      indexMap.push(serializedTabs.length);
-      serializedTabs.push({
+      serialized.push({
         type: "task",
+        preview: tab.preview,
         appName: tab.originApp.configuration.name,
         serviceName: tab.originService.name,
         methodName: tab.originMethod.name,
         code: tab.model.getValue(),
         originalCode: tab.originalCode,
-        hasInteraction: tab.hasInteraction,
         viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
       });
     } else if (tab.type === "script") {
-      indexMap.push(serializedTabs.length);
-      serializedTabs.push({
+      serialized.push({
         type: "script",
+        preview: tab.preview,
         scriptPath: tab.script.path,
         scriptName: tab.script.name,
         code: tab.model.getValue(),
@@ -356,36 +306,31 @@ export function serializeTabs(
     }
   }
 
-  const adjustedIndex = activeIndex < indexMap.length ? (indexMap[activeIndex] ?? 0) : 0;
-
-  return { activeIndex: adjustedIndex, tabs: serializedTabs };
+  return { tabs: serialized };
 }
 
-export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabModel[]; activeIndex: number } | null {
-  if (!state) return null;
+export function restoreTabs(state: PersistedTabState | undefined): TabModel[] {
   const tabs: TabModel[] = [];
 
-  for (const persisted of state.tabs) {
+  for (const persisted of state?.tabs ?? []) {
     if (persisted.type === "compiler") {
-      tabs.push({ type: "compiler" });
+      tabs.push({ ...nextTab("compiler", persisted.preview), type: "compiler" });
       continue;
     }
 
     if (persisted.type === "script") {
-      const sid = generateId("script");
-      const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + sid + ".ts"));
+      const tab = nextTab("script", persisted.preview);
       tabs.push({
+        ...tab,
         type: "script",
-        id: sid,
         script: { path: persisted.scriptPath, name: persisted.scriptName },
-        model,
+        model: createModel(tab.id, persisted.code),
         viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
       });
       continue;
     }
 
-    const id = generateId("task");
-    const model = monaco.editor.createModel(persisted.code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+    const tab = nextTab("task", persisted.preview);
     const method: Method = { name: persisted.methodName };
     const service: Service = {
       name: persisted.serviceName,
@@ -397,45 +342,34 @@ export function restoreTabs(state: PersistedTabState | undefined): { tabs: TabMo
     const configuration = ConfigurationApp.create({ name: persisted.appName });
 
     tabs.push({
+      ...tab,
       type: "task",
-      id,
       originMethod: method,
       originService: service,
-      originApp: {
-        ...createPendingApp(configuration),
-        services: [service],
-      },
-      hasInteraction: persisted.hasInteraction,
-      model,
+      originApp: { ...createPendingApp(configuration), services: [service] },
+      model: createModel(tab.id, persisted.code),
       originalCode: persisted.originalCode,
       viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
     });
   }
 
-  if (tabs.length === 0) return null;
-
-  const activeIndex = Math.min(state.activeIndex, tabs.length - 1);
-  return { tabs, activeIndex };
+  return tabs;
 }
 
 // Re-bind restored task tabs to the compiled apps by name. A task tab whose
 // app/service/method no longer exists (e.g. the app was deleted while the tab
 // was closed) can no longer resolve its import, so it is dropped instead of
 // lingering as a stale stub. Runs only once compilation has succeeded, so a
-// missing app means removed, not still-compiling. Returns the surviving tabs
-// and the ids of the dropped tabs so the caller can clean up editor state.
-export function linkTabsToApps(tabs: TabModel[], apps: App[]): { tabs: TabModel[]; removedTabIds: string[] } {
+// missing app means removed, not still-compiling.
+export function linkTabsToApps(tabs: TabModel[], apps: App[]): TabModel[] {
   const kept: TabModel[] = [];
-  const removedTabIds: string[] = [];
 
   for (const tab of tabs) {
     if (tab.type === "task") {
-      const app = apps.find((p) => p.configuration.name === tab.originApp.configuration.name);
+      const app = apps.find((candidate) => candidate.configuration.name === tab.originApp.configuration.name);
       const service = app?.services.find((s) => s.name === tab.originService.name);
       const method = service?.methods.find((m) => m.name === tab.originMethod.name);
       if (!app || !service || !method) {
-        tab.model.dispose();
-        removedTabIds.push(tab.id);
         continue;
       }
 
@@ -446,5 +380,5 @@ export function linkTabsToApps(tabs: TabModel[], apps: App[]): { tabs: TabModel[
     kept.push(tab);
   }
 
-  return { tabs: kept, removedTabIds };
+  return kept;
 }
