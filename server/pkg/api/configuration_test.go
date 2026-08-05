@@ -214,6 +214,41 @@ func TestUpdateConfiguration_AllowedWhenEnabled(t *testing.T) {
 	}
 }
 
+// Earlier versions wrote a "system" block into every file they saved, so
+// configurations in the wild still carry one. It must be discarded without taking
+// the rest of the file with it, and it must never unlock a server started without
+// --editable.
+func TestLegacySystemBlockIsDiscarded(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	legacy := `{"system":{"canUpdateConfiguration":true},"apps":[{"name":"test-app","grpc":{"url":"http://localhost:8080"}}]}`
+	if _, err := tmpfile.Write([]byte(legacy)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	service := NewApiService(tmpfile.Name(), false, "", "", nil)
+
+	response, err := service.GetConfiguration(context.Background(), &GetConfigurationRequest{})
+	if err != nil {
+		t.Fatalf("failed to get configuration: %v", err)
+	}
+	if len(response.Configuration.Apps) != 1 {
+		t.Fatalf("expected the rest of the file to survive the system block, got %d apps", len(response.Configuration.Apps))
+	}
+	if response.Runtime.CanUpdateConfiguration {
+		t.Error("expected the file's system block to be ignored, got canUpdateConfiguration true")
+	}
+
+	if _, err := service.UpdateConfiguration(context.Background(), &UpdateConfigurationRequest{
+		Configuration: &Configuration{},
+	}); err == nil {
+		t.Fatal("expected the update to be denied")
+	}
+}
+
 func TestUpdateConfiguration_PersistsVariables(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {
