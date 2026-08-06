@@ -4,7 +4,6 @@ import {
   AppFormTab,
   closeTab,
   keepTab,
-  linkTabsToApps,
   openAppFormTab,
   openCompilerTab,
   openVariablesTab,
@@ -14,7 +13,6 @@ import {
   TabModel,
 } from "./tabModel";
 import { buildApp } from "./appTypes";
-import { App } from "./apps";
 
 // The open files carry Monaco models in the app; here they are stubs, so the
 // tabs are built by hand rather than through the openers that create models.
@@ -22,19 +20,8 @@ function tab(id: string, seq: number, preview = false): TabModel {
   return { type: "compiler", id, seq, preview };
 }
 
-function taskTab(id: string, appName: string, serviceName: string, methodName: string): TabModel {
-  let disposed = false;
-  return {
-    type: "task",
-    id,
-    seq: 1,
-    preview: false,
-    originMethod: { name: methodName },
-    originService: { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] },
-    originApp: { configuration: { name: appName } } as any,
-    model: { dispose: () => (disposed = true), isDisposed: () => disposed, getValue: () => "code" } as any,
-    originalCode: "original",
-  };
+function scratchTab(id: string, scratchId: string): TabModel {
+  return { type: "scratch", id, seq: 1, preview: false, scratchId, model: {} as any };
 }
 
 describe("activateTab", () => {
@@ -117,20 +104,21 @@ describe("preview", () => {
 });
 
 describe("tabIdentity", () => {
-  it("names a call by its method and places it under its app and service", () => {
-    const identity = tabIdentity(taskTab("task-1", "users", "UserService", "GetUser"));
+  it("takes a scratch's name from the store, so the two can't drift apart", () => {
+    const scratch = { id: "s1", title: "GetShow · vera-lune", origin: { appName: "theatre", serviceName: "TheKajaTheatre", methodName: "GetShow" } } as any;
+    const identity = tabIdentity(scratchTab("scratch-1", "s1"), [scratch]);
 
-    expect(identity.name).toBe("GetUser");
-    expect(identity.path).toBe("users / UserService");
-    expect(identity.origin).toBe("users");
+    expect(identity.name).toBe("GetShow · vera-lune");
+    expect(identity.path).toBe("Scratches");
+    expect(identity.origin).toBe("theatre");
   });
 });
 
 describe("serializeTabs", () => {
-  it("serializes task and compiler tabs in visit order, skipping the rest", () => {
+  it("stores which scratch a tab shows, never its code", () => {
     const tabs: TabModel[] = [
       tab("compiler-1", 1),
-      taskTab("task-1", "users", "UserService", "GetUser"),
+      scratchTab("scratch-1", "s1"),
       { type: "definition", id: "def-1", seq: 3, preview: true, model: {} as any, startLineNumber: 10, startColumn: 5 },
     ];
 
@@ -138,54 +126,13 @@ describe("serializeTabs", () => {
 
     expect(result.tabs).toHaveLength(2);
     expect(result.tabs[0]).toEqual({ type: "compiler", preview: false });
-    expect(result.tabs[1]).toEqual({
-      type: "task",
-      preview: false,
-      appName: "users",
-      serviceName: "UserService",
-      methodName: "GetUser",
-      code: "code",
-      originalCode: "original",
-      viewState: undefined,
-    });
+    expect(result.tabs[1]).toEqual({ type: "scratch", preview: false, scratchId: "s1", viewState: undefined });
   });
 
   it("uses live editor view state over stored view state", () => {
     const liveViewState = { cursorState: [{ position: { lineNumber: 5 } }] } as any;
-    const tabs = [taskTab("task-1", "p", "S", "M")];
+    const result = serializeTabs([scratchTab("scratch-1", "s1")], () => liveViewState);
 
-    const result = serializeTabs(tabs, () => liveViewState);
     expect((result.tabs[0] as any).viewState).toBe(liveViewState);
-  });
-});
-
-describe("linkTabsToApps", () => {
-  function app(name: string, serviceName: string, methodName: string): App {
-    const service = { name: serviceName, packageName: "", sourcePath: "", clientStubModuleId: "", methods: [{ name: methodName }] };
-    return { configuration: { name }, services: [service] } as any;
-  }
-
-  it("re-binds a task tab to the matching compiled app by identity", () => {
-    const compiled = app("users", "UserService", "GetUser");
-    const tabs = linkTabsToApps([taskTab("task-1", "users", "UserService", "GetUser")], [compiled]);
-
-    expect(tabs).toHaveLength(1);
-    expect((tabs[0] as any).originApp).toBe(compiled);
-    expect((tabs[0] as any).originService).toBe(compiled.services[0]);
-  });
-
-  it("drops a task tab whose app, service or method no longer exists", () => {
-    const goneApp = taskTab("task-1", "teams", "Teams", "GetAllTeams");
-    const goneMethod = taskTab("task-2", "users", "UserService", "RemovedMethod");
-    const kept = taskTab("task-3", "users", "UserService", "GetUser");
-
-    const tabs = linkTabsToApps([goneApp, goneMethod, kept], [app("users", "UserService", "GetUser")]);
-
-    expect(tabs.map((t) => t.id)).toEqual(["task-3"]);
-  });
-
-  it("keeps non-task tabs untouched", () => {
-    const compilerTab = tab("compiler-1", 1);
-    expect(linkTabsToApps([compilerTab], [])).toEqual([compilerTab]);
   });
 });

@@ -22,6 +22,56 @@
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
 - Values seen in earlier calls are never written into a generated request: `defaultInput.ts` only ever emits zero values, and `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions, each labelled with the field and call it came from.
 
+## Scratches, scripts and the sidebar
+
+**Everything you run is a script; the only axis is whether it has a name.** A
+method in the sidebar is a *template*, not a document — clicking it fills a
+**scratch**, and a scratch is the unit of exploration.
+
+- **A scratch is kept in the app; a script is on disk.** That is the whole
+  distinction, and it is not "temporary vs. permanent" — both persist. Scratches
+  live in IndexedDB (`scratches.ts`, `Scratch`), unlimited, on web and desktop
+  alike. Saving one **writes a file**, which is what makes it visible to the MCP
+  server, the macOS text service, and anything else outside Kaja — so saving is
+  desktop-only, and the scratch it came from goes away with it rather than
+  lingering as a copy.
+- **Clicking a method never asks what to do with it** (`onMethodSelect`). The
+  current scratch decides: an **untouched** one (still exactly its generated
+  code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
+  a worked-in one is left alone and the call starts a **new** scratch. So
+  browsing the tree leaves one scratch behind, not a trail, and work is never
+  silently overwritten. Appending is the deliberate gesture — **⌥click, or the
+  `+` on the row** — so a scratch never grows a second call by drifting.
+  `appendCall` merges the import lines instead of stacking a second copy, and
+  edits the text rather than reprinting it so the author's formatting survives.
+- **A scratch names itself from its own code** (`scratchTitle.ts`), which Kaja
+  can do better than a chat app names conversations: the content is typed code
+  against a known schema, so the title is a formatting job rather than a
+  summarization one, and it comes out the same every time. `ListShows`,
+  `GetShow · vera-lune` (the first literal bound to an identifying field —
+  zero values don't count, since that is what a generated request starts with),
+  `ListShows → GetShow`, `CreateShow +2`.
+- **The title re-derives at deliberate moments, never while typing**: on a run
+  (`markRun`) and on an append (`withCode`), because both are punctuation. A
+  rename (`renameScratch`) **pins** it and the code stops deciding.
+- **Unlimited only works because the browsing buffers clear themselves out.**
+  `pruneScratches` drops scratches that were never run and never edited past
+  their generated form after 14 days, and never touches one that is open.
+  Anything run or edited is kept forever.
+- **A scratch is not bound to an app.** Deleting an app leaves your scratches
+  alone — they just stop compiling. Only a *rename* is followed, so the imports
+  keep resolving. (This is why `linkTabsToApps` is gone: there is nothing to
+  re-bind.)
+- **The sidebar reads top to bottom as: your rough work · your kept work · the
+  API's catalog** — `Scratches` (the six most recent; the rest are `⌘P` away,
+  which is what makes an unlimited history usable), then `Scripts`, then the
+  apps. `origin` on a scratch is only a hint for the tree highlight; the scratch
+  is free to grow past the method it came from.
+- **Not built yet**: the console still keeps one global stream in memory, so
+  reopening an old scratch gives you the code without last time's responses.
+  Storing code is free; storing responses is not, so that needs its own
+  retention rule (most recent N scratches, or a size cap).
+
 ## The command row and the file switcher
 
 **There is no tab strip.** The window's right pane opens with one 40px
@@ -38,7 +88,7 @@ takes over the inset only when the sidebar is collapsed).
   one. There is no `activeIndex` and no positional order, because there is no
   strip to put one in. Every tab carries `id`, `seq` (creation order — bodies
   render in it so a live Monaco editor is never moved in the DOM when the visit
-  order changes) and `preview`. `tabIdentity(tab)` is the one place a tab's
+  order changes) and `preview`. `tabIdentity(tab, scratches)` is the one place a tab's
   `name` / `path` ("app / Service") / `origin` (the trigger's qualifier) / `icon`
   come from.
 - **One preview slot** — a single click in the sidebar opens a **preview**:
@@ -46,7 +96,9 @@ takes over the inset only when the sidebar is collapsed).
   stacking. A double click, a pick from the switcher, the first keystroke of an
   edit, or running it makes it permanent. This replaced the old positional
   "last tab with no interaction" rule and the `ephemeral` flag on app form tabs;
-  every tab type now uses the same `preview` boolean.
+  every tab type now uses the same `preview` boolean. Preview is about the
+  *tab*, not the document: closing a scratch tab puts the scratch away, it
+  never throws the work out.
 - **`applyTabs` in `App.tsx`** — every change to the open files goes through it,
   which makes it the one place that has to remember the rest: the file being left
   keeps its cursor, whatever left the list is disposed, and the new list is

@@ -5,7 +5,7 @@ import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { Braces, Code, FileCode, ScrollText } from "lucide-react";
+import { Braces, Code, FileCode, PenLine, ScrollText } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
@@ -19,6 +19,8 @@ import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
+import { appendCall, createScratch, isUntouched, markRun, pruneScratches, renameScratch, Scratch, ScratchOrigin, takeOver, withCode } from "./scratches";
+import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
@@ -34,12 +36,11 @@ import {
   activateTab,
   closeTab,
   keepTab,
-  linkTabsToApps,
   openAppFormTab,
   openCompilerTab,
   openDefinitionTab,
+  openScratchTab,
   openScriptTab,
-  openTaskTab,
   openVariablesTab,
   PersistedTabState,
   restoreTabs,
@@ -76,6 +77,13 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 
 // Maximum number of console items kept in memory; older calls are dropped.
 const MAX_CONSOLE_ITEMS = 500;
+
+// Scratch ids the last session had open, so start-up pruning can't drop one
+// that is about to reopen.
+function openScratchIds(): string[] {
+  const persisted = getPersistedValue<PersistedTabState>("tabs");
+  return (persisted?.tabs ?? []).flatMap((tab) => ("scratchId" in tab ? [tab.scratchId] : []));
+}
 
 // Vertical padding the editor reserves around the code (see Editor.tsx).
 const EDITOR_PADDING = 32;
@@ -146,9 +154,17 @@ export function App() {
   // whether to save the edits, discard them, or stay.
   const [closingVariablesId, setClosingVariablesId] = useState<string>();
   const [apps, setApps] = useState<AppModel[]>([]);
+  // Every scratch ever made, newest activity first — unlimited, kept in the
+  // app, named from its own code. Independent of what is open: closing a tab
+  // puts a scratch away, it doesn't throw it out.
+  const [scratches, setScratches] = useState<Scratch[]>(() =>
+    pruneScratches(getPersistedValue<Scratch[]>("scratches") ?? [], Date.now(), new Set(openScratchIds())),
+  );
   // The open files, most-recently-visited first: tabs[0] is what the window is
   // showing. Nothing else records which file is current.
-  const [tabs, setTabs] = useState<TabModel[]>(() => restoreTabs(getPersistedValue<PersistedTabState>("tabs")));
+  const [tabs, setTabs] = useState<TabModel[]>(() =>
+    restoreTabs(getPersistedValue<PersistedTabState>("tabs"), getPersistedValue<Scratch[]>("scratches") ?? []),
+  );
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
@@ -174,9 +190,11 @@ export function App() {
   const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; app: AppModel }>();
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const scratchesRef = useRef(scratches);
+  scratchesRef.current = scratches;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
-  const tabsRestoredRef = useRef(tabs.some((tab) => tab.type === "task"));
+  const tabsRestoredRef = useRef(tabs.some((tab) => tab.type === "scratch"));
   const [scripts, setScripts] = useState<Script[]>();
   // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
@@ -200,7 +218,9 @@ export function App() {
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
   // Save-as dialog state for ⌘S; null when closed.
-  const [saveAs, setSaveAs] = useState<{ name: string; content: string } | null>(null);
+  // Saving is what turns a scratch into a file. The scratch it came from goes
+  // away with it — the same buffer, now on disk.
+  const [saveAs, setSaveAs] = useState<{ name: string; content: string; fromScratchId?: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
   // Active `kaja.ask(...)` prompt; null when no script is waiting for input.
   const [askPrompt, setAskPrompt] = useState<{
@@ -225,6 +245,9 @@ export function App() {
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
   const [deleteScript, setDeleteScript] = useState<Script | null>(null);
+  // Renaming a scratch is the one naming step there is: it pins the title, so
+  // the code stops deciding it.
+  const [renameScratchTarget, setRenameScratchTarget] = useState<{ scratch: Scratch; title: string } | null>(null);
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
   // The run in flight, if any: which tab issued it, when it started, and the
@@ -236,6 +259,8 @@ export function App() {
   // Tab ids whose next content change is a programmatic revalidation poke (see
   // refreshOpenScriptEditors), not a user edit — skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
+  // Pending debounced writes of scratch text back to the store, keyed by scratch id.
+  const scratchSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const showFileError = useCallback((message: string) => {
     setFileError(message);
@@ -263,9 +288,31 @@ export function App() {
     );
   }, []);
 
+  // Every change to a scratch goes through here: the list is kept newest-first
+  // and written straight through, because a scratch has no save step — it is
+  // already kept.
+  const applyScratches = useCallback((update: (scratches: Scratch[]) => Scratch[]) => {
+    const next = update(scratchesRef.current);
+    if (next === scratchesRef.current) return;
+    const ordered = [...next].sort((a, b) => b.updatedAt - a.updatedAt);
+    scratchesRef.current = ordered;
+    setScratches(ordered);
+    setPersistedValue("scratches", ordered);
+  }, []);
+
+  const updateScratch = useCallback(
+    (id: string, change: (scratch: Scratch) => Scratch) => {
+      applyScratches((list) => {
+        const index = list.findIndex((scratch) => scratch.id === id);
+        return index === -1 ? list : list.map((scratch, i) => (i === index ? change(scratch) : scratch));
+      });
+    },
+    [applyScratches],
+  );
+
   const disposeTab = useCallback(
     (tab: TabModel) => {
-      if (tab.type !== "task" && tab.type !== "script") return;
+      if (tab.type !== "scratch" && tab.type !== "script") return;
       flushScriptWrite(tab);
       editorRegistryRef.current.delete(tab.id);
       setEditorContentHeights(({ [tab.id]: _removed, ...rest }) => rest);
@@ -281,7 +328,7 @@ export function App() {
     (update: (tabs: TabModel[]) => TabModel[]) => {
       const previous = tabsRef.current;
       const current = previous[0];
-      if (current?.type === "task" || current?.type === "script") {
+      if (current?.type === "scratch" || current?.type === "script") {
         const editor = editorRegistryRef.current.get(current.id);
         if (editor) current.viewState = editor.saveViewState() ?? undefined;
       }
@@ -426,9 +473,9 @@ export function App() {
   }, []);
 
   // Refresh open task editors to trigger re-validation
-  const refreshOpenTaskEditors = useCallback(() => {
+  const refreshOpenScratchEditors = useCallback(() => {
     tabsRef.current.forEach((tab) => {
-      if (tab.type === "task") {
+      if (tab.type === "scratch") {
         const value = tab.model.getValue();
         tab.model.setValue(value);
       }
@@ -544,22 +591,21 @@ export function App() {
       setConfiguration(newConfiguration);
 
       setApps((prevApps) => {
-        const { updatedApps, removedNames, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
+        const { updatedApps, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
 
-        // Close the calls of apps that are gone
-        if (removedNames.size > 0) {
-          applyTabs((prevTabs) => prevTabs.filter((tab) => !(tab.type === "task" && removedNames.has(tab.originApp.configuration.name))));
-        }
-
-        // Remap import paths in open task editors and refresh
+        // A scratch isn't bound to an app — deleting one leaves the scratch
+        // alone, it just stops compiling. Only a rename needs following, so the
+        // imports keep resolving.
         if (renames.size > 0) {
           tabsRef.current.forEach((tab) => {
-            if (tab.type === "task") {
-              let value = tab.model.getValue();
-              for (const [oldName, newName] of renames) {
-                value = remapEditorCode(value, oldName, newName);
-              }
+            if (tab.type !== "scratch") return;
+            let value = tab.model.getValue();
+            for (const [oldName, newName] of renames) {
+              value = remapEditorCode(value, oldName, newName);
+            }
+            if (value !== tab.model.getValue()) {
               tab.model.setValue(value);
+              updateScratch(tab.scratchId, (scratch) => ({ ...scratch, code: value }));
             }
           });
         }
@@ -567,7 +613,7 @@ export function App() {
         return updatedApps;
       });
     },
-    [syncAppsFromConfiguration, applyTabs],
+    [syncAppsFromConfiguration, updateScratch],
   );
 
   // Toggling the Apps preview adds or removes the configured apps from the sidebar
@@ -631,8 +677,8 @@ export function App() {
   useEffect(() => {
     const current = tabs[0];
     let title = "Kaja";
-    if (current?.type === "task" && current.originApp) {
-      title = `${current.originApp.configuration.name} - Kaja`;
+    if (current?.type === "scratch") {
+      title = `${tabIdentity(current, scratchesRef.current).name} - Kaja`;
     } else if (current?.type === "script") {
       title = `${current.script.name} - Kaja`;
     }
@@ -777,12 +823,11 @@ export function App() {
         return;
       }
 
-      // If tabs were restored from persisted state, link them to compiled apps
+      // Restored scratches were created before the source models existed, so
+      // poke their editors to revalidate now that the imports resolve.
       if (tabsRestoredRef.current) {
         tabsRestoredRef.current = false;
-        applyTabs((prevTabs) => linkTabsToApps(prevTabs, updatedApps));
-        // Force TypeScript to revalidate restored models now that source models exist
-        refreshOpenTaskEditors();
+        refreshOpenScratchEditors();
         return;
       }
 
@@ -792,7 +837,7 @@ export function App() {
         if (!defaultMethodAndService) {
           return;
         }
-        applyTabs(() => openTaskTab([], defaultMethodAndService.method, defaultMethodAndService.service, updatedApps[0]));
+        onMethodSelect(defaultMethodAndService.method, defaultMethodAndService.service, updatedApps[0]);
       }
     }
   };
@@ -807,14 +852,63 @@ export function App() {
     }
   });
 
-  // A single click from the sidebar opens a preview; a double click — or a
-  // pick from the switcher — opens it for good.
+  /**
+   * Clicking a method never asks what to do with it. The current scratch
+   * decides: an untouched one is a browsing buffer and gets taken over, a
+   * worked-in one is left alone and the call starts a new scratch. Appending to
+   * what you already have is the deliberate gesture (⌥click, or the + on the
+   * row), so it can't happen by drifting.
+   */
   const onMethodSelect = useCallback(
-    (method: Method, service: Service, app: AppModel, permanent = false) => {
-      applyTabs((tabs) => openTaskTab(tabs, method, service, app, permanent));
+    (method: Method, service: Service, app: AppModel, mode: "preview" | "permanent" | "append" = "preview") => {
+      const code = generateMethodEditorCode(app, service, method);
+      const origin: ScratchOrigin = { appName: app.configuration.name, serviceName: service.name, methodName: method.name };
+      const now = Date.now();
+      const current = tabsRef.current[0];
+      const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
+
+      if (mode === "append" && current?.type === "scratch" && currentScratch) {
+        const merged = appendCall(current.model.getValue(), code);
+        current.model.setValue(merged);
+        updateScratch(currentScratch.id, (scratch) => withCode(scratch, merged, now));
+        applyTabs((tabs) => keepTab(tabs, current.id));
+        return;
+      }
+
+      if (currentScratch && isUntouched(currentScratch) && mode !== "permanent") {
+        current.type === "scratch" && current.model.setValue(code);
+        updateScratch(currentScratch.id, (scratch) => takeOver(scratch, code, origin, now));
+        return;
+      }
+
+      const scratch = createScratch(code, origin, now);
+      applyScratches((list) => [scratch, ...list]);
+      applyTabs((tabs) => openScratchTab(tabs, scratch, mode === "permanent"));
+    },
+    [applyScratches, applyTabs, updateScratch],
+  );
+
+  const onScratchSelect = useCallback(
+    (scratch: Scratch, permanent = false) => {
+      applyTabs((tabs) => openScratchTab(tabs, scratch, permanent));
     },
     [applyTabs],
   );
+
+  const onDeleteScratch = useCallback(
+    (scratch: Scratch) => {
+      const open = tabsRef.current.find((tab) => tab.type === "scratch" && tab.scratchId === scratch.id);
+      if (open) applyTabs((tabs) => closeTab(tabs, open.id));
+      applyScratches((list) => list.filter((candidate) => candidate.id !== scratch.id));
+    },
+    [applyScratches, applyTabs],
+  );
+
+  const onConfirmRenameScratch = useCallback(() => {
+    if (!renameScratchTarget) return;
+    updateScratch(renameScratchTarget.scratch.id, (scratch) => renameScratch(scratch, renameScratchTarget.title, Date.now()));
+    setRenameScratchTarget(null);
+  }, [renameScratchTarget, updateScratch]);
 
   const onScriptSelect = useCallback(
     async (script: Script, permanent = false) => {
@@ -940,10 +1034,32 @@ export function App() {
   const onRequestSaveAsScript = useCallback(() => {
     if (!isWailsEnvironment() || !previewScriptsRef.current) return;
     const tab = tabsRef.current[0];
-    if (!tab || (tab.type !== "task" && tab.type !== "script")) return;
-    const defaultName = tab.type === "task" ? lowerFirst(tab.originMethod.name) : tab.script.name.replace(/\.ts$/, "");
+    if (!tab || (tab.type !== "scratch" && tab.type !== "script")) return;
+    const defaultName =
+      tab.type === "scratch"
+        ? lowerFirst(
+            tabIdentity(tab, scratchesRef.current)
+              .name.replace(/[^A-Za-z0-9]+/g, " ")
+              .trim()
+              .split(" ")[0] || "scratch",
+          )
+        : tab.script.name.replace(/\.ts$/, "");
     setSaveAsError(undefined);
-    setSaveAs({ name: defaultName, content: tab.model.getValue() });
+    setSaveAs({ name: defaultName, content: tab.model.getValue(), fromScratchId: tab.type === "scratch" ? tab.scratchId : undefined });
+  }, []);
+
+  const onSaveScratchAsScript = useCallback((scratch: Scratch) => {
+    setSaveAsError(undefined);
+    setSaveAs({
+      name: lowerFirst(
+        scratch.title
+          .replace(/[^A-Za-z0-9]+/g, " ")
+          .trim()
+          .split(" ")[0] || "scratch",
+      ),
+      content: scratch.code,
+      fromScratchId: scratch.id,
+    });
   }, []);
 
   const onRequestSaveAsScriptRef = useRef(onRequestSaveAsScript);
@@ -1018,13 +1134,22 @@ export function App() {
       if (!file) return;
       const script: Script = { path: file.path, name: file.name };
       setScripts((prev) => [...(prev ?? []), script].sort((a, b) => a.name.localeCompare(b.name)));
-      applyTabs((tabs) => openScriptTab(tabs, script, file.content, true));
+      applyTabs((tabs) => {
+        const opened = openScriptTab(tabs, script, file.content, true);
+        // The scratch became the file, so it doesn't linger as a copy.
+        const source = saveAs.fromScratchId && opened.find((tab) => tab.type === "scratch" && tab.scratchId === saveAs.fromScratchId);
+        return source ? closeTab(opened, source.id) : opened;
+      });
+      if (saveAs.fromScratchId) {
+        const id = saveAs.fromScratchId;
+        applyScratches((list) => list.filter((candidate) => candidate.id !== id));
+      }
       setSaveAs(null);
       setSaveAsError(undefined);
     } catch (err) {
       setSaveAsError(String(err));
     }
-  }, [saveAs, applyTabs]);
+  }, [saveAs, applyScratches, applyTabs]);
 
   // Right-click → Rename: open a dialog prefilled with the current name.
   const onRenameScript = useCallback((script: Script) => {
@@ -1153,7 +1278,7 @@ export function App() {
   // sidebar, so the tree stays in step with what is on screen.
   const onSwitcherMethodSelect = useCallback(
     (method: Method, service: Service, app: AppModel) => {
-      onMethodSelect(method, service, app, true);
+      onMethodSelect(method, service, app, "permanent");
       setScrollToMethod({ method, service, app });
     },
     [onMethodSelect],
@@ -1206,11 +1331,26 @@ export function App() {
         // The first keystroke of an edit makes a preview file permanent. Only a
         // real one counts: the editor formats its model on open, and that must
         // not keep a file the user only glanced at.
-        if (editorInstance.hasTextFocus()) applyTabs((tabs) => keepTab(tabs, tabId));
+        if (!editorInstance.hasTextFocus()) return;
+        applyTabs((tabs) => keepTab(tabs, tabId));
+
+        const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
+        if (tab?.type !== "scratch") return;
+        // A scratch has no save step, so its text is written back as it is
+        // typed — debounced, because every keystroke would be a store write.
+        const pending = scratchSaveTimers.current.get(tab.scratchId);
+        if (pending) clearTimeout(pending);
+        scratchSaveTimers.current.set(
+          tab.scratchId,
+          setTimeout(() => {
+            scratchSaveTimers.current.delete(tab.scratchId);
+            updateScratch(tab.scratchId, (scratch) => ({ ...scratch, code: tab.model.getValue(), updatedAt: Date.now() }));
+          }, 400),
+        );
       });
       editorInstance.onDidChangeModel(report);
     },
-    [applyTabs],
+    [applyTabs, updateScratch],
   );
 
   const onCloseTab = useCallback(
@@ -1277,13 +1417,13 @@ export function App() {
 
   // The file on screen is the one Run runs, so its errors are the ones the row
   // reports — on the trigger, and as Run's reason for being disabled.
-  const syntaxErrors = useSyntaxErrors(currentTab?.type === "task" || currentTab?.type === "script" ? currentTab.model : undefined);
+  const syntaxErrors = useSyntaxErrors(currentTab?.type === "scratch" || currentTab?.type === "script" ? currentTab.model : undefined);
 
   // Run the current file's editor contents. Triggered by Run in the command
   // row, by ⌘⏎ and by F5.
   const onRunCurrentTab = useCallback(() => {
     const tab = tabsRef.current[0];
-    if (!tab || (tab.type !== "task" && tab.type !== "script")) {
+    if (!tab || (tab.type !== "scratch" && tab.type !== "script")) {
       return;
     }
     const editor = editorRegistryRef.current.get(tab.id);
@@ -1297,7 +1437,12 @@ export function App() {
     );
     // Running a file is working in it, so it stops being a preview.
     applyTabs((tabs) => keepTab(tabs, tab.id));
-  }, [apps, applyTabs, onScriptError]);
+    // A run is the punctuation that settles a scratch: it is when the title is
+    // re-read from the code, rather than jittering as you type.
+    if (tab.type === "scratch") {
+      updateScratch(tab.scratchId, (scratch) => markRun(scratch, editor.getValue(), Date.now()));
+    }
+  }, [apps, applyTabs, onScriptError, updateScratch]);
 
   // A generated method-call script issues its call without awaiting it, so the
   // script's own promise settles well before the response lands. The run is over
@@ -1488,7 +1633,7 @@ export function App() {
     if (response.configuration) {
       applyConfiguration(response.configuration);
       // Refresh remaining editors to show broken import errors
-      refreshOpenTaskEditors();
+      refreshOpenScratchEditors();
     }
   };
 
@@ -1497,7 +1642,7 @@ export function App() {
   // the inset.
   const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
 
-  const currentIsEditor = currentTab?.type === "task" || currentTab?.type === "script";
+  const currentIsEditor = currentTab?.type === "scratch" || currentTab?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && currentIsEditor;
 
   const currentEditorContentHeight = currentIsEditor ? editorContentHeights[currentTab.id] : undefined;
@@ -1513,7 +1658,7 @@ export function App() {
   const isDirty = (tab: TabModel) => tab.type === "variables" && variablesState.dirty;
 
   const openFiles: OpenSwitcherFile[] = tabs.map((tab) => ({
-    ...tabIdentity(tab),
+    ...tabIdentity(tab, scratches),
     key: tab.id,
     id: tab.id,
     preview: tab.preview,
@@ -1524,11 +1669,23 @@ export function App() {
   // Everything else the sidebar can reach. Typing narrows across both groups, so
   // the switcher is also the file finder — which is why ⌘K lands here too.
   const otherFiles = useMemo<SwitcherFile[]>(() => {
-    const openCalls = new Set(
-      tabs.filter((tab) => tab.type === "task").map((tab) => `${tab.originApp.configuration.name}/${tab.originService.name}/${tab.originMethod.name}`),
-    );
+    const openScratches = new Set(tabs.filter((tab) => tab.type === "scratch").map((tab) => tab.scratchId));
     const openScripts = new Set(tabs.filter((tab) => tab.type === "script").map((tab) => tab.script.path));
     const files: SwitcherFile[] = [];
+
+    // Scratches lead: unlimited history is only usable if it is searchable, and
+    // this list is where you go looking for last week's call.
+    for (const scratch of scratches) {
+      if (openScratches.has(scratch.id)) continue;
+      files.push({
+        key: `scratch:${scratch.id}`,
+        name: scratch.title,
+        path: "Scratches",
+        origin: scratch.origin?.appName ?? "",
+        icon: PenLine,
+        onOpen: () => onScratchSelect(scratch, true),
+      });
+    }
 
     for (const script of scripts ?? []) {
       if (openScripts.has(script.path)) continue;
@@ -1555,7 +1712,6 @@ export function App() {
       for (const service of app.services) {
         for (const method of service.methods) {
           const key = `${app.configuration.name}/${service.name}/${method.name}`;
-          if (openCalls.has(key)) continue;
           files.push({
             key: `call:${key}`,
             name: method.name,
@@ -1569,7 +1725,7 @@ export function App() {
     }
 
     return files;
-  }, [apps, scripts, tabs, variablesEnabled, onScriptSelect, onSwitcherMethodSelect, onVariablesClick, onShowCompileLog]);
+  }, [apps, scratches, scripts, tabs, variablesEnabled, onScratchSelect, onScriptSelect, onSwitcherMethodSelect, onVariablesClick, onShowCompileLog]);
 
   const running = currentTab !== undefined && activeRun?.tabId === currentTab.id;
   const action = currentIsEditor ? (
@@ -1629,7 +1785,14 @@ export function App() {
                 onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
-                currentMethod={currentTab?.type === "task" ? currentTab.originMethod : undefined}
+                scratches={scratches}
+                currentScratchId={currentTab?.type === "scratch" ? currentTab.scratchId : undefined}
+                currentScratchOrigin={currentTab?.type === "scratch" ? scratches.find((s) => s.id === currentTab.scratchId)?.origin : undefined}
+                onScratchSelect={onScratchSelect}
+                onRenameScratch={(scratch) => setRenameScratchTarget({ scratch, title: scratch.title })}
+                onDeleteScratch={onDeleteScratch}
+                onSaveScratchAsScript={isWailsEnvironment() && previewScripts ? onSaveScratchAsScript : undefined}
+                onShowAllScratches={() => setSwitcher("first")}
                 currentScriptPath={currentTab?.type === "script" ? currentTab.script.path : undefined}
                 scrollToMethod={scrollToMethod}
                 onShowCompileLog={onShowCompileLog}
@@ -1661,7 +1824,7 @@ export function App() {
                   onCloseAll={onCloseAll}
                 />
               }
-              recent={tabs.slice(1, 3).map((tab) => ({ id: tab.id, name: tabIdentity(tab).name, dirty: isDirty(tab) }))}
+              recent={tabs.slice(1, 3).map((tab) => ({ id: tab.id, name: tabIdentity(tab, scratches).name, dirty: isDirty(tab) }))}
               onSelectRecent={onSelectTab}
               action={action}
               onSearch={() => setSwitcher("first")}
@@ -1691,7 +1854,7 @@ export function App() {
                       {tab.type === "compiler" && (
                         <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
                       )}
-                      {(tab.type === "task" || tab.type === "script") && (
+                      {(tab.type === "scratch" || tab.type === "script") && (
                         <div className="relative flex min-h-0 flex-1 flex-col">
                           <Editor
                             model={tab.model}
@@ -1847,6 +2010,32 @@ export function App() {
         </Dialog>
       )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
+      {renameScratchTarget && (
+        <Dialog
+          title="Rename scratch"
+          onClose={() => setRenameScratchTarget(null)}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setRenameScratchTarget(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScratch },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <Input
+              autoFocus
+              value={renameScratchTarget.title}
+              onChange={(e) => setRenameScratchTarget((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onConfirmRenameScratch();
+                }
+              }}
+            />
+            <FormControl.Caption>A scratch names itself from the code it runs. Naming it yourself settles it for good.</FormControl.Caption>
+          </FormControl>
+        </Dialog>
+      )}
       {renameScript && (
         <Dialog
           title="Rename script"

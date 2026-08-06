@@ -24,7 +24,8 @@ interface ItemProps {
   current?: boolean;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  onSelect?: () => void;
+  // The event is passed so a caller can read a modifier, e.g. ⌥click.
+  onSelect?: (event: React.MouseEvent) => void;
   // Double click, the editor gesture for "I mean it": a single click opens a
   // preview, this opens for good.
   onActivate?: () => void;
@@ -56,7 +57,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
       <div
         ref={ref}
         id={id}
-        onClick={() => (hasSubtree ? onExpandedChange?.(!expanded) : onSelect?.())}
+        onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
           "group flex h-7 items-center gap-1.5 rounded-md pr-1.5 text-sm",

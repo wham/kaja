@@ -1,8 +1,8 @@
-import { Braces, FileCode, ScrollText, Settings, type LucideIcon } from "lucide-react";
+import { Braces, FileCode, PenLine, ScrollText, Settings, type LucideIcon } from "lucide-react";
 import * as monaco from "monaco-editor";
-import { generateMethodEditorCode } from "./appLoader";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
-import { createPendingApp, App, Method, Script, Service } from "./apps";
+import { Script } from "./apps";
+import { Scratch } from "./scratches";
 import { ConfigurationApp } from "./server/api";
 
 // Every open document is one of these, and the list they live in is kept in
@@ -25,13 +25,13 @@ export interface CompilerTab extends TabBase {
   type: "compiler";
 }
 
-export interface TaskTab extends TabBase {
-  type: "task";
-  originMethod: Method;
-  originService: Service;
-  originApp: App;
+// A window onto a scratch. The scratch itself lives in the scratch store and
+// outlives this tab — closing the tab puts the buffer away, it doesn't throw
+// the work out.
+export interface ScratchTab extends TabBase {
+  type: "scratch";
+  scratchId: string;
   model: monaco.editor.ITextModel;
-  originalCode: string;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
@@ -69,7 +69,7 @@ export interface VariablesTab extends TabBase {
   editMode: "table" | "json";
 }
 
-export type TabModel = CompilerTab | TaskTab | DefinitionTab | AppFormTab | ScriptTab | VariablesTab;
+export type TabModel = CompilerTab | ScratchTab | DefinitionTab | AppFormTab | ScriptTab | VariablesTab;
 
 let sequence = 0;
 
@@ -78,8 +78,16 @@ function nextTab(type: string, preview: boolean): TabBase {
   return { id: `${type}-${sequence}`, seq: sequence, preview };
 }
 
-function createModel(id: string, code: string): monaco.editor.ITextModel {
-  return monaco.editor.createModel(code, "typescript", monaco.Uri.parse("ts:/" + id + ".ts"));
+// A scratch keeps the same model URI across sessions, so its identity in the
+// editor is the same one the store uses.
+function editorModel(uri: string, code: string): monaco.editor.ITextModel {
+  const parsed = monaco.Uri.parse("ts:/" + uri + ".ts");
+  const existing = monaco.editor.getModel(parsed);
+  if (existing) {
+    if (existing.getValue() !== code) existing.setValue(code);
+    return existing;
+  }
+  return monaco.editor.createModel(code, "typescript", parsed);
 }
 
 // --- Visiting, keeping, closing ---
@@ -113,22 +121,17 @@ function update<T extends TabModel>(tabs: TabModel[], id: string, type: T["type"
 
 // --- Opening ---
 
-export function openTaskTab(tabs: TabModel[], method: Method, service: Service, app: App, permanent = false): TabModel[] {
-  const code = generateMethodEditorCode(app, service, method);
-  const existing = tabs.find((tab) => tab.type === "task" && tab.originalCode === code);
+export function openScratchTab(tabs: TabModel[], scratch: Scratch, permanent = false): TabModel[] {
+  const existing = tabs.find((tab) => tab.type === "scratch" && tab.scratchId === scratch.id);
   if (existing) {
     return activateTab(permanent ? keepTab(tabs, existing.id) : tabs, existing.id);
   }
 
-  const tab = nextTab("task", !permanent);
   return open(tabs, {
-    ...tab,
-    type: "task",
-    originMethod: method,
-    originService: service,
-    originApp: app,
-    model: createModel(tab.id, code),
-    originalCode: code,
+    ...nextTab("scratch", !permanent),
+    type: "scratch",
+    scratchId: scratch.id,
+    model: editorModel(scratch.id, scratch.code),
   });
 }
 
@@ -142,7 +145,7 @@ export function openScriptTab(tabs: TabModel[], script: Script, content: string,
   }
 
   const tab = nextTab("script", !permanent);
-  return open(tabs, { ...tab, type: "script", script, model: createModel(tab.id, content) });
+  return open(tabs, { ...tab, type: "script", script, model: editorModel(tab.id, content) });
 }
 
 // A definition is always a look, never a document you work in, so it is only
@@ -201,15 +204,14 @@ export interface TabIdentity {
   icon: LucideIcon;
 }
 
-export function tabIdentity(tab: TabModel): TabIdentity {
+export function tabIdentity(tab: TabModel, scratches: Scratch[] = []): TabIdentity {
   switch (tab.type) {
-    case "task":
-      return {
-        name: tab.originMethod.name,
-        path: `${tab.originApp.configuration.name} / ${tab.originService.name}`,
-        origin: tab.originApp.configuration.name,
-        icon: FileCode,
-      };
+    case "scratch": {
+      // The scratch store owns the name — it is read from the code, so the tab
+      // can't have its own copy without the two drifting apart.
+      const scratch = scratches.find((candidate) => candidate.id === tab.scratchId);
+      return { name: scratch?.title ?? "Scratch", path: "Scratches", origin: scratch?.origin?.appName ?? "", icon: PenLine };
+    }
     case "script":
       return { name: tab.script.name, path: "Scripts", origin: "", icon: FileCode };
     case "definition":
@@ -244,14 +246,12 @@ function appFormTabIcon(tab: AppFormTab): LucideIcon {
 
 // --- Persistence ---
 
-interface PersistedTaskTab {
-  type: "task";
+// A scratch tab stores only which scratch it shows; the code belongs to the
+// scratch store, which outlives the tab.
+interface PersistedScratchTab {
+  type: "scratch";
   preview: boolean;
-  appName: string;
-  serviceName: string;
-  methodName: string;
-  code: string;
-  originalCode: string;
+  scratchId: string;
   viewState?: object;
 }
 
@@ -269,7 +269,7 @@ interface PersistedScriptTab {
   viewState?: object;
 }
 
-type PersistedTab = PersistedTaskTab | PersistedCompilerTab | PersistedScriptTab;
+type PersistedTab = PersistedScratchTab | PersistedCompilerTab | PersistedScriptTab;
 
 // The visit order is the order of the list, so nothing else has to be stored:
 // the file that was on screen is the one that restores first.
@@ -283,15 +283,11 @@ export function serializeTabs(tabs: TabModel[], getViewState: (tabId: string) =>
   for (const tab of tabs) {
     if (tab.type === "compiler") {
       serialized.push({ type: "compiler", preview: tab.preview });
-    } else if (tab.type === "task") {
+    } else if (tab.type === "scratch") {
       serialized.push({
-        type: "task",
+        type: "scratch",
         preview: tab.preview,
-        appName: tab.originApp.configuration.name,
-        serviceName: tab.originService.name,
-        methodName: tab.originMethod.name,
-        code: tab.model.getValue(),
-        originalCode: tab.originalCode,
+        scratchId: tab.scratchId,
         viewState: (getViewState(tab.id) ?? tab.viewState) as object | undefined,
       });
     } else if (tab.type === "script") {
@@ -309,7 +305,7 @@ export function serializeTabs(tabs: TabModel[], getViewState: (tabId: string) =>
   return { tabs: serialized };
 }
 
-export function restoreTabs(state: PersistedTabState | undefined): TabModel[] {
+export function restoreTabs(state: PersistedTabState | undefined, scratches: Scratch[]): TabModel[] {
   const tabs: TabModel[] = [];
 
   for (const persisted of state?.tabs ?? []) {
@@ -324,61 +320,24 @@ export function restoreTabs(state: PersistedTabState | undefined): TabModel[] {
         ...tab,
         type: "script",
         script: { path: persisted.scriptPath, name: persisted.scriptName },
-        model: createModel(tab.id, persisted.code),
+        model: editorModel(tab.id, persisted.code),
         viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
       });
       continue;
     }
 
-    const tab = nextTab("task", persisted.preview);
-    const method: Method = { name: persisted.methodName };
-    const service: Service = {
-      name: persisted.serviceName,
-      packageName: "",
-      sourcePath: "",
-      clientStubModuleId: "",
-      methods: [method],
-    };
-    const configuration = ConfigurationApp.create({ name: persisted.appName });
+    // A scratch that was pruned while its tab was open simply doesn't reopen.
+    const scratch = scratches.find((candidate) => candidate.id === persisted.scratchId);
+    if (!scratch) continue;
 
     tabs.push({
-      ...tab,
-      type: "task",
-      originMethod: method,
-      originService: service,
-      originApp: { ...createPendingApp(configuration), services: [service] },
-      model: createModel(tab.id, persisted.code),
-      originalCode: persisted.originalCode,
+      ...nextTab("scratch", persisted.preview),
+      type: "scratch",
+      scratchId: scratch.id,
+      model: editorModel(scratch.id, scratch.code),
       viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
     });
   }
 
   return tabs;
-}
-
-// Re-bind restored task tabs to the compiled apps by name. A task tab whose
-// app/service/method no longer exists (e.g. the app was deleted while the tab
-// was closed) can no longer resolve its import, so it is dropped instead of
-// lingering as a stale stub. Runs only once compilation has succeeded, so a
-// missing app means removed, not still-compiling.
-export function linkTabsToApps(tabs: TabModel[], apps: App[]): TabModel[] {
-  const kept: TabModel[] = [];
-
-  for (const tab of tabs) {
-    if (tab.type === "task") {
-      const app = apps.find((candidate) => candidate.configuration.name === tab.originApp.configuration.name);
-      const service = app?.services.find((s) => s.name === tab.originService.name);
-      const method = service?.methods.find((m) => m.name === tab.originMethod.name);
-      if (!app || !service || !method) {
-        continue;
-      }
-
-      tab.originApp = app;
-      tab.originService = service;
-      tab.originMethod = method;
-    }
-    kept.push(tab);
-  }
-
-  return kept;
 }
