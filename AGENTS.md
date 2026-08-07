@@ -115,12 +115,13 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   the ✕. The menu survives for the rarer items. A **saved** row keeps only the
   kebab: taking a file off disk is not the loop this is for, and it still asks
   first.
-- **Rows reserve their trailing slot.** `TreeView.TrailingVisual` is a fixed 24px
-  whether or not it holds anything, so a label's truncation point doesn't move
-  under the cursor when the row grows a kebab on hover. Three buttons don't fit
-  in that slot beside a leading glyph in a 22px row, so the one row that carries
-  three — an unsaved script — widens the slot and **spends its dot** to seat
-  them, and only for as long as the cursor is on it.
+- **Nothing in a row moves under the cursor.** `TreeView.TrailingVisual` is a
+  fixed 24px whether or not it holds anything, so a label's truncation point
+  doesn't shift when the row grows a kebab on hover; the row that carries three
+  buttons widens that slot instead, and **keeps its leading dot** — trading the
+  dot for 11px was tried and it makes the label jump exactly as you reach for it.
+  A label truncating a little sooner is the cheaper cost, and it is what
+  truncation is for.
 - **The pile has a size and two verbs.** The `Scripts` header states how many
   scripts there are, and how many of them are unsaved, in amber. Under the cursor
   that count becomes **save them all** and **discard the unsaved**, each confirmed
@@ -134,9 +135,14 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   absent — not disabled — once there is nothing unsaved, so a saved file's row is
   just its name and Run. Same two verbs as the sidebar row, so the model stays
   single; they answer different moments (mid-edit, versus tidying up after).
-- **The web is the same app minus one verb.** Scratches are IndexedDB on both
-  platforms, so the list, the titles and the history are identical; only Save is
-  missing, because only the desktop has a disk to write to.
+- **The web is the same app minus one verb, and minus the state that verb
+  produces.** Scratches are IndexedDB on both platforms, so the list, the titles
+  and the history are identical; only Save is missing, because only the desktop
+  has a disk to write to. So the **dot, the amber count and the word "unsaved"
+  are desktop-only** — on the web every row is in the same state, and a mark
+  every row carries marks nothing. The command row's save/discard pair goes with
+  them: it is defined by collapsing away when there is nothing unsaved, and on
+  the web it never could.
 
 ## The tree is an index, so it reads as a list of names
 

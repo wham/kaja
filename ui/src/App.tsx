@@ -1856,12 +1856,13 @@ export function App() {
   // The pair you reach for mid-edit, beside the name of what it acts on: a dot
   // that says this isn't on disk, Save, and a discard that closes the file with
   // it. All three collapse away once there is nothing unsaved, so the row is
-  // just name + Run for a file that has one.
+  // just name + Run for a file that has one — which is also why the whole group
+  // is absent on the web, where there is no Save and it could never collapse.
   const unsavedView = currentView?.type === "scratch" ? scratches.find((scratch) => scratch.id === currentView.scratchId) : undefined;
-  const fileActions = unsavedView ? (
-    <div className="flex shrink-0 items-center gap-1">
-      <span aria-hidden title="Not saved" className="size-[5px] shrink-0 rounded-full bg-amber-500" />
-      {isWailsEnvironment() && (
+  const fileActions =
+    unsavedView && isWailsEnvironment() ? (
+      <div className="flex shrink-0 items-center gap-1">
+        <span aria-hidden title="Not on disk" className="size-[5px] shrink-0 rounded-full bg-amber-500" />
         <button
           type="button"
           onClick={onRequestSaveAsScript}
@@ -1871,17 +1872,16 @@ export function App() {
           Save
           <span className="font-mono text-muted-foreground">{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"}</span>
         </button>
-      )}
-      <IconButton
-        icon={X}
-        aria-label={`Discard ${unsavedView.title}`}
-        variant="ghost"
-        size="sm"
-        className="size-6 [&_svg]:size-[13px]"
-        onClick={() => onDiscardScratch(unsavedView)}
-      />
-    </div>
-  ) : undefined;
+        <IconButton
+          icon={X}
+          aria-label={`Discard ${unsavedView.title}`}
+          variant="ghost"
+          size="sm"
+          className="size-6 [&_svg]:size-[13px]"
+          onClick={() => onDiscardScratch(unsavedView)}
+        />
+      </div>
+    ) : undefined;
 
   // The filenames a bulk save would write, so the confirm lists what it does.
   const bulkNames = useMemo(
@@ -2249,9 +2249,13 @@ export function App() {
       {bulkScratches && (
         <ConfirmationDialog
           title={
-            bulkScratches.verb === "discard"
-              ? `Discard ${bulkScratches.scratches.length} unsaved ${bulkScratches.scratches.length === 1 ? "script" : "scripts"}?`
-              : `Save ${bulkScratches.scratches.length} unsaved ${bulkScratches.scratches.length === 1 ? "script" : "scripts"}?`
+            bulkScratches.verb === "save"
+              ? `Save ${bulkScratches.scratches.length} unsaved ${bulkScratches.scratches.length === 1 ? "script" : "scripts"}?`
+              : // Nothing is on disk on the web, so there is no "unsaved" subset
+                // to name — it is simply all of them.
+                `Discard ${bulkScratches.scratches.length} ${isWailsEnvironment() ? "unsaved " : ""}${
+                  bulkScratches.scratches.length === 1 ? "script" : "scripts"
+                }?`
           }
           confirmButtonContent={bulkScratches.verb === "discard" ? "Discard" : "Save"}
           confirmButtonType={bulkScratches.verb === "discard" ? "danger" : "primary"}
@@ -2267,7 +2271,7 @@ export function App() {
             <span className="flex max-h-48 flex-col gap-1 overflow-y-auto">
               {bulkScratches.scratches.map((scratch, index) => (
                 <span key={scratch.id} className="flex items-center gap-2">
-                  <span aria-hidden className="size-[5px] shrink-0 rounded-full bg-amber-500" />
+                  {isWailsEnvironment() && <span aria-hidden className="size-[5px] shrink-0 rounded-full bg-amber-500" />}
                   <span className="truncate font-mono text-xs">{bulkScratches.verb === "save" ? `${bulkNames[index]}.ts` : scratch.title}</span>
                 </span>
               ))}

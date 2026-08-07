@@ -197,6 +197,10 @@ export function Sidebar({
   const hasScratches = (scratches?.length ?? 0) > 0;
   const unsavedCount = scratches?.length ?? 0;
   const scriptCount = (scripts?.length ?? 0) + unsavedCount;
+  // On disk versus not is only a distinction where there is a disk. The web has
+  // no Save, so every row is in the same state and the dot, the amber count and
+  // the word "unsaved" would all be marking a difference that can't exist.
+  const canSave = onSaveScratch !== undefined;
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
   // The Scripts header trades its count for the bulk verbs while it is hovered.
   const [scriptsHeaderHovered, setScriptsHeaderHovered] = useState(false);
@@ -491,7 +495,7 @@ export function Sidebar({
               {/* The pile of drafts is a number you can act on, so the header
                   says how big it is and, under the cursor, offers the two verbs
                   that only ever touch it. Saved scripts are never in scope. */}
-              {unsavedCount > 0 && <span className="shrink-0 text-amber-600 dark:text-amber-400">{unsavedCount} unsaved</span>}
+              {canSave && unsavedCount > 0 && <span className="shrink-0 text-amber-600 dark:text-amber-400">{unsavedCount} unsaved</span>}
               <span className="ml-auto flex shrink-0 items-center gap-0.5">
                 {scriptsHeaderHovered && unsavedCount > 0 ? (
                   <>
@@ -501,7 +505,11 @@ export function Sidebar({
                     {onDiscardAllScratches && (
                       <RowAction
                         icon={Trash2}
-                        label={`Discard ${unsavedCount} unsaved ${unsavedCount === 1 ? "script" : "scripts"}`}
+                        label={
+                          canSave
+                            ? `Discard ${unsavedCount} unsaved ${unsavedCount === 1 ? "script" : "scripts"}`
+                            : `Discard all ${unsavedCount} ${unsavedCount === 1 ? "script" : "scripts"}`
+                        }
                         onClick={onDiscardAllScratches}
                       />
                     )}
@@ -599,11 +607,10 @@ export function Sidebar({
                       }}
                       current={currentScratchId === scratch.id}
                     >
-                      {/* Three buttons don't fit beside the dot in 22px, so the
-                          row spends the dot to seat them — it is only ever gone
-                          while the cursor is on the row, which is when the state
-                          it reports is the least of what the row is saying. */}
-                      {!active && (
+                      {/* The dot stays put under the cursor. Dropping it to seat
+                          the three buttons buys 11px the row doesn't need, and
+                          costs a label that moves as you reach for it. */}
+                      {canSave && (
                         <TreeView.LeadingVisual>
                           {runningFileIds?.has(scratch.id) ? <Spinner className="size-3" /> : <ScriptDot dim={isUntouched(scratch)} />}
                         </TreeView.LeadingVisual>
