@@ -47,6 +47,23 @@ Scripts can import a `kaja` object with `import { kaja } from "kaja";`:
   script quietly stops. Avoid `kaja.ask` in scripts you run via MCP unless the
   user is present, since it blocks on a human.
 - `kaja.uuid.v4(): string` — generate a random version 4 UUID.
+- `kaja.value(input): Value`, `kaja.struct(input): Struct`,
+  `kaja.listValue(input): ListValue` — build `google.protobuf.Value`, `Struct`
+  and `ListValue` from plain JSON. Do not hand-write the `kind` oneof, and do
+  not declare your own `str`/`num`/`bool` helpers for it.
+
+```ts
+import { kaja } from "kaja";
+import { Seating } from "seating/";
+
+await Seating.Annotate({
+  performanceId: "matinee-1",
+  // A google.protobuf.Value field.
+  note: kaja.value("held for the box office"),
+  // A google.protobuf.Struct field. Objects and arrays convert all the way down.
+  attributes: kaja.struct({ rows: ["F", "G"], accessible: true, holds: 2 }),
+});
+```
 
 ## Working effectively
 

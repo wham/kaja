@@ -107,3 +107,88 @@ describe("kaja.uuid", () => {
     expect(kaja.uuid.v4()).not.toBe(kaja.uuid.v4());
   });
 });
+
+// The shape protoc-gen-kaja generates for google/protobuf/struct.proto. The
+// builders are only useful if what they return drops into a generated request,
+// so the assignments below are the test - tsc fails if they drift apart.
+enum GeneratedNullValue {
+  NULL_VALUE = 0,
+}
+interface GeneratedValue {
+  kind:
+    | { oneofKind: "nullValue"; nullValue: GeneratedNullValue }
+    | { oneofKind: "numberValue"; numberValue: number }
+    | { oneofKind: "stringValue"; stringValue: string }
+    | { oneofKind: "boolValue"; boolValue: boolean }
+    | { oneofKind: "structValue"; structValue: GeneratedStruct }
+    | { oneofKind: "listValue"; listValue: GeneratedListValue }
+    | { oneofKind: undefined };
+}
+interface GeneratedStruct {
+  fields: { [key: string]: GeneratedValue };
+}
+interface GeneratedListValue {
+  values: GeneratedValue[];
+}
+
+describe("kaja.value", () => {
+  it("builds a Value from each JSON type", () => {
+    const kaja = makeKaja();
+
+    expect(kaja.value("held")).toEqual({ kind: { oneofKind: "stringValue", stringValue: "held" } });
+    expect(kaja.value(3)).toEqual({ kind: { oneofKind: "numberValue", numberValue: 3 } });
+    expect(kaja.value(true)).toEqual({ kind: { oneofKind: "boolValue", boolValue: true } });
+    expect(kaja.value(null)).toEqual({ kind: { oneofKind: "nullValue", nullValue: 0 } });
+  });
+
+  it("converts objects and arrays all the way down", () => {
+    const kaja = makeKaja();
+
+    expect(kaja.value({ tags: ["a"], nested: { n: 1 } })).toEqual({
+      kind: {
+        oneofKind: "structValue",
+        structValue: {
+          fields: {
+            tags: { kind: { oneofKind: "listValue", listValue: { values: [{ kind: { oneofKind: "stringValue", stringValue: "a" } }] } } },
+            nested: { kind: { oneofKind: "structValue", structValue: { fields: { n: { kind: { oneofKind: "numberValue", numberValue: 1 } } } } } },
+          },
+        },
+      },
+    });
+  });
+
+  it("builds a Struct and a ListValue", () => {
+    const kaja = makeKaja();
+
+    expect(kaja.struct({ region: "eu" })).toEqual({ fields: { region: { kind: { oneofKind: "stringValue", stringValue: "eu" } } } });
+    expect(kaja.listValue([1])).toEqual({ values: [{ kind: { oneofKind: "numberValue", numberValue: 1 } }] });
+    expect(kaja.struct({})).toEqual({ fields: {} });
+    expect(kaja.listValue([])).toEqual({ values: [] });
+  });
+
+  it("returns values a generated request field accepts", () => {
+    const kaja = makeKaja();
+
+    const value: GeneratedValue = kaja.value({ rows: ["F", "G"], accessible: true, holds: null });
+    const struct: GeneratedStruct = kaja.struct({ region: "eu" });
+    const list: GeneratedListValue = kaja.listValue(["a", 1, true]);
+
+    expect([value, struct, list]).toHaveLength(3);
+  });
+
+  it("builds values from scripts", async () => {
+    const kaja = makeKaja();
+
+    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.value(["a", 1]);`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toEqual({
+      kind: {
+        oneofKind: "listValue",
+        listValue: {
+          values: [{ kind: { oneofKind: "stringValue", stringValue: "a" } }, { kind: { oneofKind: "numberValue", numberValue: 1 } }],
+        },
+      },
+    });
+  });
+});

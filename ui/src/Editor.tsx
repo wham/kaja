@@ -52,7 +52,31 @@ function kajaVariablesType(variableNames: string[]): string {
 // go-to-definition lands here. Called again whenever the configured variables
 // change (see App.tsx) to refresh the typed `variables` member.
 export function registerKajaModule(variableNames: string[]): void {
-  const content = `/** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
+  const content = `/** A plain JSON value, as accepted by kaja.value and friends. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** google.protobuf.Value. */
+export interface Value {
+  kind:
+    | { oneofKind: "nullValue"; nullValue: 0 }
+    | { oneofKind: "numberValue"; numberValue: number }
+    | { oneofKind: "stringValue"; stringValue: string }
+    | { oneofKind: "boolValue"; boolValue: boolean }
+    | { oneofKind: "structValue"; structValue: Struct }
+    | { oneofKind: "listValue"; listValue: ListValue };
+}
+
+/** google.protobuf.Struct. */
+export interface Struct {
+  fields: { [key: string]: Value };
+}
+
+/** google.protobuf.ListValue. */
+export interface ListValue {
+  values: Value[];
+}
+
+/** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
    * The selected text passed in when the script is launched from the macOS
@@ -82,6 +106,26 @@ export declare const kaja: {
      */
     v4(): string;
   };
+  /**
+   * Build a google.protobuf.Value from a plain JSON value, instead of writing
+   * its oneof out by hand. Objects and arrays are converted all the way down.
+   *
+   *   kaja.value("ready");
+   *   kaja.value({ retries: 3, tags: ["a", "b"] });
+   */
+  value(input: JsonValue): Value;
+  /**
+   * Build a google.protobuf.Struct from a plain object.
+   *
+   *   kaja.struct({ region: "eu", replicas: 2 });
+   */
+  struct(input: { [key: string]: JsonValue }): Struct;
+  /**
+   * Build a google.protobuf.ListValue from a plain array.
+   *
+   *   kaja.listValue(["a", 1, true]);
+   */
+  listValue(input: JsonValue[]): ListValue;
 };
 `;
   const uri = monaco.Uri.parse("ts:/kaja.ts");
@@ -109,7 +153,7 @@ monaco.languages.registerCompletionItemProvider("typescript", {
           label: { label: "kaja", description: 'import from "kaja"' },
           kind: monaco.languages.CompletionItemKind.Variable,
           detail: 'Add import from "kaja"',
-          documentation: "The Kaja runtime object (kaja.input, kaja.variables, kaja.ask).",
+          documentation: "The Kaja runtime object (kaja.input, kaja.variables, kaja.ask, kaja.value).",
           insertText: "kaja",
           range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
           additionalTextEdits: [{ range: new monaco.Range(1, 1, 1, 1), text: 'import { kaja } from "kaja";\n' }],

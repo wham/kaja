@@ -15,6 +15,58 @@ export interface AskRequest {
   (message: string): Promise<string>;
 }
 
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// google.protobuf.Value and friends, declared structurally so they match the
+// types protoc-gen-kaja generates for any app that uses them.
+export interface Value {
+  kind:
+    | { oneofKind: "nullValue"; nullValue: 0 }
+    | { oneofKind: "numberValue"; numberValue: number }
+    | { oneofKind: "stringValue"; stringValue: string }
+    | { oneofKind: "boolValue"; boolValue: boolean }
+    | { oneofKind: "structValue"; structValue: Struct }
+    | { oneofKind: "listValue"; listValue: ListValue };
+}
+
+export interface Struct {
+  fields: { [key: string]: Value };
+}
+
+export interface ListValue {
+  values: Value[];
+}
+
+function toValue(input: JsonValue | undefined): Value {
+  if (input === null || input === undefined) {
+    return { kind: { oneofKind: "nullValue", nullValue: 0 } };
+  }
+  switch (typeof input) {
+    case "string":
+      return { kind: { oneofKind: "stringValue", stringValue: input } };
+    case "number":
+      return { kind: { oneofKind: "numberValue", numberValue: input } };
+    case "boolean":
+      return { kind: { oneofKind: "boolValue", boolValue: input } };
+  }
+  if (Array.isArray(input)) {
+    return { kind: { oneofKind: "listValue", listValue: toListValue(input) } };
+  }
+  return { kind: { oneofKind: "structValue", structValue: toStruct(input) } };
+}
+
+function toStruct(input: { [key: string]: JsonValue }): Struct {
+  const fields: { [key: string]: Value } = {};
+  for (const [name, value] of Object.entries(input)) {
+    fields[name] = toValue(value);
+  }
+  return { fields };
+}
+
+function toListValue(input: JsonValue[]): ListValue {
+  return { values: input.map((item) => toValue(item)) };
+}
+
 export class Kaja {
   readonly _internal: KajaInternal;
   // Text passed in when a script is run from the macOS "Run Kaja Script" text
@@ -51,6 +103,20 @@ export class Kaja {
   // with the submitted text; rejects (aborting the script) if the user cancels.
   ask(message: string): Promise<string> {
     return this.#onAsk(message);
+  }
+
+  // Builders for google.protobuf.Value, Struct and ListValue, so a field of one
+  // of those types is written as the JSON it stands for.
+  value(input: JsonValue): Value {
+    return toValue(input);
+  }
+
+  struct(input: { [key: string]: JsonValue }): Struct {
+    return toStruct(input);
+  }
+
+  listValue(input: JsonValue[]): ListValue {
+    return toListValue(input);
   }
 }
 
