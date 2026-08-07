@@ -4,17 +4,36 @@ import * as React from "react";
 import { cn } from "../cn";
 
 // Covers what the sidebar uses: controlled expand/collapse, a current
-// (selected) leaf, leading/trailing visuals, depth-based indentation, and a
-// loading SubTree. Rows toggle when they have a SubTree, otherwise they call
-// onSelect.
-const DepthContext = React.createContext(0);
-const INDENT = 16;
-const BASE_PADDING = 8;
+// (selected) leaf, leading/trailing visuals, and a loading SubTree. Rows toggle
+// when they have a SubTree, otherwise they call onSelect.
+//
+// Depth is drawn as a hairline rather than paid for in icons: a package and a
+// service repeat the same glyph on every row, so the column costs width to say
+// what the indent already says. Levels that branch nest inside a guide; a list
+// of leaves takes the indent without one, because a line nothing hangs off is
+// noise, and its rows drop the chevron slot they would never fill.
+const LeafContext = React.createContext(false);
 
-function TreeView({ children, ...props }: { children: React.ReactNode; "aria-label"?: string }) {
+const GUIDE = "relative pl-3.5 before:absolute before:inset-y-0 before:left-3.5 before:w-px before:bg-border before:content-['']";
+const LEAF = "pl-5";
+
+function TreeView({
+  children,
+  guide,
+  leaf,
+  ...props
+}: {
+  children: React.ReactNode;
+  // Nest the whole list under a hairline, for a tree hung off a header that is
+  // not itself an Item (an app in the sidebar).
+  guide?: boolean;
+  // A list that never branches, indented but unguided.
+  leaf?: boolean;
+  "aria-label"?: string;
+}) {
   return (
-    <ul role="tree" className="select-none" {...props}>
-      {children}
+    <ul role="tree" className={cn("select-none", guide && GUIDE, leaf && LEAF)} {...props}>
+      <LeafContext.Provider value={!!leaf}>{children}</LeafContext.Provider>
     </ul>
   );
 }
@@ -29,11 +48,13 @@ interface ItemProps {
   // Double click, the editor gesture for "I mean it": a single click opens a
   // preview, this opens for good.
   onActivate?: () => void;
+  // Makes the row focusable, for the rows that answer to a key of their own.
+  onKeyDown?: (event: React.KeyboardEvent) => void;
   children: React.ReactNode;
 }
 
-const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expanded, onExpandedChange, onSelect, onActivate, children }, ref) => {
-  const depth = React.useContext(DepthContext);
+const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expanded, onExpandedChange, onSelect, onActivate, onKeyDown, children }, ref) => {
+  const leaf = React.useContext(LeafContext);
 
   let leading: React.ReactNode = null;
   let trailing: React.ReactNode = null;
@@ -57,17 +78,21 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
       <div
         ref={ref}
         id={id}
+        tabIndex={onKeyDown ? 0 : undefined}
+        onKeyDown={onKeyDown}
         onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
-          "group flex h-7 items-center gap-1.5 rounded-md pr-1.5 text-sm",
+          "group flex h-[22px] cursor-pointer items-center gap-1.5 pl-2 pr-1 text-xs outline-none",
           current ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/50",
+          "focus-visible:bg-accent/50",
         )}
-        style={{ paddingLeft: BASE_PADDING + depth * INDENT, cursor: "pointer" }}
       >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
-          {hasSubtree && <ChevronRight size={16} className={cn("transition-transform", expanded && "rotate-90")} />}
-        </span>
+        {!leaf && (
+          <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+            {hasSubtree && <ChevronRight size={12} className={cn("transition-transform", expanded && "rotate-90")} />}
+          </span>
+        )}
         {leading}
         <span className="flex-1 truncate">
           {labels.map((label, index) => (
@@ -76,7 +101,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         </span>
         {trailing}
       </div>
-      {hasSubtree && expanded && <DepthContext.Provider value={depth + 1}>{subtree}</DepthContext.Provider>}
+      {hasSubtree && expanded && subtree}
     </li>
   );
 });
@@ -85,26 +110,31 @@ Item.displayName = "TreeView.Item";
 interface SubTreeProps {
   state?: "initial" | "loading" | "done";
   count?: number;
+  leaf?: boolean;
   children?: React.ReactNode;
 }
 
-function SubTree({ state, count = 3, children }: SubTreeProps) {
-  const depth = React.useContext(DepthContext);
+function SubTree({ state, count = 3, leaf, children }: SubTreeProps) {
+  const className = cn("select-none", leaf ? LEAF : GUIDE);
   if (state === "loading") {
     return (
-      <ul role="group">
+      <ul role="group" className={className}>
         {Array.from({ length: count }).map((_, index) => (
           <li key={index} role="treeitem">
-            <div className="flex h-7 items-center gap-1.5 pr-1.5" style={{ paddingLeft: BASE_PADDING + depth * INDENT }}>
-              <span className="h-4 w-4 shrink-0" />
-              <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+            <div className="flex h-[22px] items-center gap-1.5 pl-2 pr-1">
+              <span className="size-3 shrink-0" />
+              <div className="h-2.5 w-24 animate-pulse rounded bg-muted" />
             </div>
           </li>
         ))}
       </ul>
     );
   }
-  return <ul role="group">{children}</ul>;
+  return (
+    <ul role="group" className={className}>
+      <LeafContext.Provider value={!!leaf}>{children}</LeafContext.Provider>
+    </ul>
+  );
 }
 
 function LeadingVisual({ children }: { children: React.ReactNode }) {
@@ -113,8 +143,10 @@ function LeadingVisual({ children }: { children: React.ReactNode }) {
 
 // The slot keeps its width whether or not it holds anything, so a row that grows
 // a kebab on hover doesn't move the label's truncation point under the cursor.
-function TrailingVisual({ children }: { children: React.ReactNode }) {
-  return <span className="ml-auto flex w-6 shrink-0 items-center justify-center">{children}</span>;
+// A row whose hover actions are several buttons wide overrides the width, and
+// buys the room back by dropping its leading glyph for as long as it is hovered.
+function TrailingVisual({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <span className={cn("ml-auto flex w-6 shrink-0 items-center justify-center", className)}>{children}</span>;
 }
 
 TreeView.Item = Item;

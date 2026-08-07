@@ -5,7 +5,7 @@ import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
-import { Braces, Code, FileCode, PenLine, ScrollText } from "lucide-react";
+import { Braces, Code, FileCode, PenLine, Save as SaveIcon, ScrollText, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
@@ -41,7 +41,7 @@ import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
 import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, takeOver, withCode } from "./scratches";
-import { deriveScratchTitle } from "./scratchTitle";
+import { deriveScratchTitle, proposeFileName, proposeFileNames } from "./scratchTitle";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
@@ -121,11 +121,6 @@ const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 // gives it the full width instead.
 const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
-// Lowercase the first letter (e.g. method name "GetUser" -> "getUser").
-function lowerFirst(s: string): string {
-  return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-}
-
 // Compare the parts of an app's configuration that require recompilation when
 // changed: its type and parameters. Headers are excluded.
 function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
@@ -185,7 +180,8 @@ export function App() {
   const [views, setViews] = useState<View[]>(() =>
     restoreViews(getPersistedValue<PersistedViewState>("views"), getPersistedValue<Scratch[]>("scratches") ?? []),
   );
-  const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
+  // A tree of names at 22px a row needs less width than one of icons at 34px.
+  const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 240);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   sidebarCollapsedRef.current = sidebarCollapsed;
@@ -224,6 +220,8 @@ export function App() {
   const hasViewMemory = useRef(getPersistedValue<PersistedViewState>("views") !== undefined);
   const viewsRestoredRef = useRef(views.some((tab) => tab.type === "scratch"));
   const [scripts, setScripts] = useState<Script[]>();
+  const scriptsRef = useRef(scripts);
+  scriptsRef.current = scripts;
   // "Preview Apps" toggle: reveals the experimental built-in app types in the New
   // dialog (openapi/openai/markdown). gRPC/Twirp are always available.
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
@@ -269,6 +267,9 @@ export function App() {
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
   const [deleteScript, setDeleteScript] = useState<Script | null>(null);
+  // The Scripts header's bulk verbs, each confirmed against the list it is about
+  // to act on. Nothing here can reach a saved script.
+  const [bulkScratches, setBulkScratches] = useState<{ verb: "save" | "discard"; scratches: Scratch[] } | null>(null);
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
   // The run in flight, if any: which tab issued it, when it started, and the
@@ -1124,32 +1125,65 @@ export function App() {
     if (!isWailsEnvironment()) return;
     const tab = viewsRef.current[0];
     if (!tab || (tab.type !== "scratch" && tab.type !== "script")) return;
-    const defaultName =
-      tab.type === "scratch"
-        ? lowerFirst(
-            viewIdentity(tab, scratchesRef.current)
-              .name.replace(/[^A-Za-z0-9]+/g, " ")
-              .trim()
-              .split(" ")[0] || "scratch",
-          )
-        : tab.script.name.replace(/\.ts$/, "");
+    const defaultName = tab.type === "scratch" ? proposeFileName(viewIdentity(tab, scratchesRef.current).name) : tab.script.name.replace(/\.ts$/, "");
     setSaveAsError(undefined);
     setSaveAs({ name: defaultName, content: tab.model.getValue(), fromScratchId: tab.type === "scratch" ? tab.scratchId : undefined });
   }, []);
 
   const onSaveScratch = useCallback((scratch: Scratch) => {
     setSaveAsError(undefined);
-    setSaveAs({
-      name: lowerFirst(
-        scratch.title
-          .replace(/[^A-Za-z0-9]+/g, " ")
-          .trim()
-          .split(" ")[0] || "scratch",
-      ),
-      content: scratch.code,
-      fromScratchId: scratch.id,
-    });
+    setSaveAs({ name: proposeFileName(scratch.title), content: scratch.code, fromScratchId: scratch.id });
   }, []);
+
+  // "How do I dump everything I'm not keeping" — one click, and the confirm says
+  // exactly what goes and what stays. Saved scripts are out of scope by
+  // construction, so the destructive half can't reach a file.
+  const onDiscardAllScratches = useCallback(() => {
+    if (scratchesRef.current.length > 0) setBulkScratches({ verb: "discard", scratches: scratchesRef.current });
+  }, []);
+
+  const onSaveAllScratches = useCallback(() => {
+    if (scratchesRef.current.length > 0) setBulkScratches({ verb: "save", scratches: scratchesRef.current });
+  }, []);
+
+  const onConfirmBulkScratches = useCallback(
+    async (verb: "save" | "discard", list: Scratch[]) => {
+      const ids = new Set(list.map((scratch) => scratch.id));
+      if (verb === "discard") {
+        applyViews((views) => views.filter((view) => !(view.type === "scratch" && ids.has(view.scratchId))));
+        applyScratches((current) => current.filter((scratch) => !ids.has(scratch.id)));
+        return;
+      }
+      // Bulk save names each file from its own title, disambiguating against
+      // what is already on disk and against the ones written a moment ago.
+      const names = proposeFileNames(
+        list.map((scratch) => scratch.title),
+        (scriptsRef.current ?? []).map((script) => script.name),
+      );
+      const written: Script[] = [];
+      const saved = new Set<string>();
+      for (const [index, scratch] of list.entries()) {
+        try {
+          const file = await CreateScript(names[index], scratch.code);
+          if (!file) continue;
+          written.push({ path: file.path, name: file.name });
+          saved.add(scratch.id);
+        } catch (err) {
+          showFileError(`Save failed: ${err}`);
+          break;
+        }
+      }
+      if (written.length > 0) {
+        setScripts((prev) => [...(prev ?? []), ...written].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      if (saved.size > 0) {
+        // Each scratch became its file, so it doesn't linger as a copy.
+        applyViews((views) => views.filter((view) => !(view.type === "scratch" && saved.has(view.scratchId))));
+        applyScratches((current) => current.filter((scratch) => !saved.has(scratch.id)));
+      }
+    },
+    [applyScratches, applyViews, showFileError],
+  );
 
   const onRequestSaveAsScriptRef = useRef(onRequestSaveAsScript);
   onRequestSaveAsScriptRef.current = onRequestSaveAsScript;
@@ -1819,6 +1853,48 @@ export function App() {
     return files;
   }, [scratches, scripts, onScratchSelect, onScriptSelect]);
 
+  // The pair you reach for mid-edit, beside the name of what it acts on: a dot
+  // that says this isn't on disk, Save, and a discard that closes the file with
+  // it. All three collapse away once there is nothing unsaved, so the row is
+  // just name + Run for a file that has one.
+  const unsavedView = currentView?.type === "scratch" ? scratches.find((scratch) => scratch.id === currentView.scratchId) : undefined;
+  const fileActions = unsavedView ? (
+    <div className="flex shrink-0 items-center gap-1">
+      <span aria-hidden title="Not saved" className="size-[5px] shrink-0 rounded-full bg-amber-500" />
+      {isWailsEnvironment() && (
+        <button
+          type="button"
+          onClick={onRequestSaveAsScript}
+          className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
+        >
+          <SaveIcon size={12} />
+          Save
+          <span className="font-mono text-muted-foreground">{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"}</span>
+        </button>
+      )}
+      <IconButton
+        icon={X}
+        aria-label={`Discard ${unsavedView.title}`}
+        variant="ghost"
+        size="sm"
+        className="size-6 [&_svg]:size-[13px]"
+        onClick={() => onDiscardScratch(unsavedView)}
+      />
+    </div>
+  ) : undefined;
+
+  // The filenames a bulk save would write, so the confirm lists what it does.
+  const bulkNames = useMemo(
+    () =>
+      bulkScratches?.verb === "save"
+        ? proposeFileNames(
+            bulkScratches.scratches.map((scratch) => scratch.title),
+            (scripts ?? []).map((script) => script.name),
+          )
+        : [],
+    [bulkScratches, scripts],
+  );
+
   // Stop aborts what the button is showing, so it tracks the active run rather
   // than the file's in-flight state — a run started elsewhere says so in the
   // sidebar instead.
@@ -1886,6 +1962,8 @@ export function App() {
                 onScratchSelect={onScratchSelect}
                 onDeleteScratch={onDiscardScratch}
                 onSaveScratch={isWailsEnvironment() ? onSaveScratch : undefined}
+                onSaveAllScratches={isWailsEnvironment() ? onSaveAllScratches : undefined}
+                onDiscardAllScratches={onDiscardAllScratches}
                 onShowAllScratches={() => setFinder("first")}
                 currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
                 onShowCompileLog={onShowCompileLog}
@@ -1915,6 +1993,7 @@ export function App() {
                   highlightPrevious={finder === "previous"}
                 />
               }
+              fileActions={fileActions}
               action={action}
               onSearch={() => setFinder("first")}
               layout={editorLayout}
@@ -2162,6 +2241,43 @@ export function App() {
           }}
         >
           Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
+      )}
+      {/* The bulk verbs name every script they are about to touch, and say that
+          the saved ones are kept — which is the whole reason clearing the pile
+          is safe to offer in one click. */}
+      {bulkScratches && (
+        <ConfirmationDialog
+          title={
+            bulkScratches.verb === "discard"
+              ? `Discard ${bulkScratches.scratches.length} unsaved ${bulkScratches.scratches.length === 1 ? "script" : "scripts"}?`
+              : `Save ${bulkScratches.scratches.length} unsaved ${bulkScratches.scratches.length === 1 ? "script" : "scripts"}?`
+          }
+          confirmButtonContent={bulkScratches.verb === "discard" ? "Discard" : "Save"}
+          confirmButtonType={bulkScratches.verb === "discard" ? "danger" : "primary"}
+          onClose={(gesture) => {
+            const pending = bulkScratches;
+            setBulkScratches(null);
+            if (gesture === "confirm" && pending) void onConfirmBulkScratches(pending.verb, pending.scratches);
+          }}
+        >
+          <span className="flex flex-col gap-1">
+            {/* The history is unlimited, so the list scrolls rather than growing
+                the dialog past the buttons. */}
+            <span className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+              {bulkScratches.scratches.map((scratch, index) => (
+                <span key={scratch.id} className="flex items-center gap-2">
+                  <span aria-hidden className="size-[5px] shrink-0 rounded-full bg-amber-500" />
+                  <span className="truncate font-mono text-xs">{bulkScratches.verb === "save" ? `${bulkNames[index]}.ts` : scratch.title}</span>
+                </span>
+              ))}
+            </span>
+            {(scripts?.length ?? 0) > 0 && bulkScratches.verb === "discard" && (
+              <span className="mt-1 text-xs">
+                {scripts!.length === 1 ? `${scripts![0].name} is saved and will be kept.` : `${scripts!.length} saved scripts will be kept.`}
+              </span>
+            )}
+          </span>
         </ConfirmationDialog>
       )}
       {fileError && (

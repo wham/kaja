@@ -11,6 +11,10 @@ interface CommandRowProps {
   onToggleSidebar: () => void;
   // The finder's trigger; it owns its own popover.
   finder: React.ReactNode;
+  // Save and discard for the file being edited, next to its name. Absent
+  // entirely once there is nothing to save — this is the pair you reach for
+  // mid-edit, not a permanent fixture.
+  fileActions?: React.ReactNode;
   // What you do with the current file: Run for a script, the JSON toggle for a
   // form. A file is never both, so they share the slot and the row keeps its
   // shape.
@@ -21,9 +25,10 @@ interface CommandRowProps {
 }
 
 // One 40px row instead of a top bar and a tab strip: sidebar toggle · finder ·
-// spacer · action · hairline · search · layout. Nothing else may be added to it
-// — new controls go in the sidebar header or the console header.
-export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, action, onSearch, layout, onToggleLayout }: CommandRowProps) {
+// the file's own save/discard · spacer · action · hairline · search · layout.
+// Nothing else may be added to it — new controls go in the sidebar header or the
+// console header.
+export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, onSearch, layout, onToggleLayout }: CommandRowProps) {
   const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
 
   return (
@@ -44,6 +49,7 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
           />
         </SimpleTooltip>
         {finder}
+        {fileActions}
       </div>
       <div className="flex-1" />
       <div className="flex shrink-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>

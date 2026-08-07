@@ -75,12 +75,14 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   re-bind.)
 - **There is one list, not two.** The sidebar and the finder both show saved
   and unsaved together under a single `Scripts` heading, in one vocabulary — two
-  headings would teach a taxonomy the model doesn't have. **The icon is the whole
-  difference**: `FileCode` for a script on disk, `PenLine` for one that isn't.
+  headings would teach a taxonomy the model doesn't have. **A dot is the whole
+  difference**: amber for a script that isn't on disk, hollow grey for one that
+  is. It replaced the file icon, which spent 13px of a 22px row saying what five
+  make clear; the finder, which has the room, keeps `FileCode` / `PenLine`.
   Saved sit above, then the six most recent unsaved; the rest are `⌘P` away,
   which is what makes an unlimited history usable. So saving is a change of
-  state, not a move between places — the row gains an icon and rises, it doesn't
-  vanish from one section and reappear in another. The word "scratch" survives in
+  state, not a move between places — the row's dot goes hollow and it rises, it
+  doesn't vanish from one section and reappear in another. The word "scratch" survives in
   the code, where it names the storage tier precisely, and nowhere in the UI.
   `origin` on a scratch is only the app name the trigger shows beside the title,
   to tell two same-named calls in different apps apart. **Nothing in the method
@@ -92,7 +94,7 @@ method in the sidebar is a *template*, not a document — clicking it fills a
 - **The browsing buffer says so.** "An untouched one gets taken over, a
   worked-in one doesn't" is a good rule you could otherwise only learn by being
   surprised by it, so it has a tell: a scratch that is still `isUntouched` is
-  **dimmed** — label and icon, in the sidebar row and in the finder's trigger and
+  **dimmed** — label and dot, in the sidebar row and in the finder's trigger and
   rows (`provisional` on `ViewIdentity` and on a finder `Destination`) — and
   resolves to full weight the moment it is edited or run. Not italics, and not a
   word; the dim is the reading. Beside it, `titleParts` splits the qualifier the
@@ -103,14 +105,59 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   it takes a file off disk. An unsaved row's is `Save…` / **`Discard`**, neutral
   and **undoable** — the row goes and a bar offers it back for eight seconds
   (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove. Saving proposes
-  the filename from the derived name, so the section converges on one naming
-  convention instead of splitting into files and not-files by casing.
+  the filename from the derived name (`proposeFileName`), so the section
+  converges on one naming convention instead of splitting into files and
+  not-files by casing.
+- **The frequent verbs are on the row, not behind the menu.** A script is made by
+  clicking a method, run twice and thrown away — a several-times-a-minute loop
+  that shouldn't cost hover → ⋯ → click → click. So an unsaved row's hover
+  carries **✓ save · ✕ discard · ⋯**, and `⌫` on the focused row does the same as
+  the ✕. The menu survives for the rarer items. A **saved** row keeps only the
+  kebab: taking a file off disk is not the loop this is for, and it still asks
+  first.
 - **Rows reserve their trailing slot.** `TreeView.TrailingVisual` is a fixed 24px
   whether or not it holds anything, so a label's truncation point doesn't move
-  under the cursor when the row grows a kebab on hover.
+  under the cursor when the row grows a kebab on hover. Three buttons don't fit
+  in that slot beside a leading glyph in a 22px row, so the one row that carries
+  three — an unsaved script — widens the slot and **spends its dot** to seat
+  them, and only for as long as the cursor is on it.
+- **The pile has a size and two verbs.** The `Scripts` header states how many
+  scripts there are, and how many of them are unsaved, in amber. Under the cursor
+  that count becomes **save them all** and **discard the unsaved**, each confirmed
+  against the list it is about to touch — a bulk save names every file from its
+  own title (`proposeFileNames`, disambiguated against disk and against each
+  other), and the discard says which saved scripts it is keeping. Neither verb
+  can reach a file, which is what makes "dump everything I'm not keeping" a
+  one-click action rather than a destructive one.
+- **The one you are editing has the pair beside its name**, in the command row:
+  a dot, `Save ⌘S`, and a discard that closes the file with it. All three are
+  absent — not disabled — once there is nothing unsaved, so a saved file's row is
+  just its name and Run. Same two verbs as the sidebar row, so the model stays
+  single; they answer different moments (mid-edit, versus tidying up after).
 - **The web is the same app minus one verb.** Scratches are IndexedDB on both
   platforms, so the list, the titles and the history are identical; only Save is
   missing, because only the desktop has a disk to write to.
+
+## The tree is an index, so it reads as a list of names
+
+Rows are **22px** at `text-xs`, chevrons 12px — a dense desktop client's sizing,
+not a web page's. The three levers are row height, indent, and how many icons
+repeat per row, and the last one is what buys the horizontal room:
+
+- **Depth is a hairline, not an icon column.** `TreeView.SubTree` nests inside a
+  guide (14px indent, a 1px rule at its left edge). A package and a service
+  repeated the same glyph on every row, saying what the indent already said, so
+  those icons are gone. The **app keeps its** `AppTypeIcon` — that one says gRPC
+  or OpenAPI or Markdown, which nothing else does.
+- **A list of leaves takes the indent without the guide** (`leaf` on `TreeView`
+  and on `SubTree`): a line nothing hangs off is noise, and its rows drop the
+  chevron slot they would never fill, so methods start where the eye already is
+  rather than 20px right of it.
+- **Rows are full-bleed** — no radius, no inset — so the panel edge is the row
+  edge and hover reads as a band. The one hairline that remains is the one
+  between your scripts and the API's catalog.
+- The sidebar **header stays 40px** regardless, because it lines up with the
+  command row across the seam.
 
 ## The console reports runs
 
@@ -201,10 +248,13 @@ illustration, and it degrades correctly: on a first run the recent list is
 **There is no tab strip, and no open files either.** The pane shows one thing —
 whatever you last selected — and the window's right side opens with one 40px
 **command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
-sidebar toggle · finder · spacer · action · hairline · search · layout. There are
+sidebar toggle · finder · the file's own save/discard · spacer · action ·
+hairline · search · layout. There are
 no recent chips — with one pane and a finder, they were the last echo of a tab
 strip. Nothing else may be added to it; new controls go in the sidebar header or
-the console header. The sidebar header is 40px too, so the two line up
+the console header. The save/discard pair is the one exception, and it earned it
+by belonging to the file the trigger just named rather than to the window — it is
+absent whenever there is nothing unsaved, which is most of the time. The sidebar header is 40px too, so the two line up
 across the seam, and the macOS traffic lights stay in it (the row takes over the
 inset only when the sidebar is collapsed).
 
