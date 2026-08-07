@@ -24,6 +24,9 @@ export interface Destination {
   // already the whole answer.
   origin: string;
   icon: LucideIcon;
+  // A browsing buffer — still exactly its generated code and never run. Dimmed
+  // here and in the sidebar, because the next call you pick takes it over.
+  provisional?: boolean;
   go: () => void;
 }
 
@@ -210,8 +213,10 @@ function Row({
       onMouseEnter={() => onHighlight(index)}
       onClick={() => onSelect(destination)}
     >
-      <Icon size={13} className="shrink-0 text-muted-foreground" />
-      <span className={cn("shrink-0 truncate text-sm", recent ? "text-foreground" : "text-muted-foreground")}>{destination.name}</span>
+      <Icon size={13} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
+      <span className={cn("shrink-0 truncate text-sm", recent && !destination.provisional ? "text-foreground" : "text-muted-foreground")}>
+        {destination.name}
+      </span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
       {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
     </div>
@@ -246,9 +251,9 @@ function TriggerContent({ destination, errorCount }: { destination?: Destination
           {qualifier && <span className="text-xs">{qualifier}</span>}
         </span>
       </span>
-      <Icon size={13} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground")} />
+      <Icon size={13} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground", destination.provisional && "opacity-60")} />
       <span
-        className="min-w-0 truncate text-sm font-medium text-foreground"
+        className={cn("min-w-0 truncate text-sm font-medium", destination.provisional ? "text-muted-foreground" : "text-foreground")}
         // Truncating from the left keeps the call name, which is the end of a
         // qualified one.
         style={{ direction: "rtl", textAlign: "left" }}

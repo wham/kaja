@@ -111,8 +111,10 @@ function LeadingVisual({ children }: { children: React.ReactNode }) {
   return <span className="flex shrink-0 items-center text-muted-foreground">{children}</span>;
 }
 
+// The slot keeps its width whether or not it holds anything, so a row that grows
+// a kebab on hover doesn't move the label's truncation point under the cursor.
 function TrailingVisual({ children }: { children: React.ReactNode }) {
-  return <span className="ml-auto flex shrink-0 items-center">{children}</span>;
+  return <span className="ml-auto flex w-6 shrink-0 items-center justify-center">{children}</span>;
 }
 
 TreeView.Item = Item;

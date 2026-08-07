@@ -76,7 +76,7 @@ function filledValues(object: ts.ObjectLiteralExpression): string[] | undefined 
     if (!ts.isPropertyAssignment(property)) return undefined;
     const value = property.initializer;
     if (ts.isStringLiteral(value)) {
-      if (value.text.trim() !== "") values.push(value.text);
+      if (!isZeroText(value.text)) values.push(value.text);
     } else if (ts.isNumericLiteral(value)) {
       if (Number(value.text) !== 0) values.push(value.text);
     } else if (value.kind === ts.SyntaxKind.TrueKeyword) {
@@ -96,7 +96,7 @@ function findLiteral(object: ts.ObjectLiteralExpression, pattern: RegExp, depth:
     const value = property.initializer;
 
     if (name && pattern.test(name)) {
-      if (ts.isStringLiteral(value) && value.text.trim() !== "") return truncate(value.text);
+      if (ts.isStringLiteral(value) && !isZeroText(value.text)) return truncate(value.text);
       if (ts.isNumericLiteral(value) && Number(value.text) !== 0) return value.text;
     }
     if (depth < 2 && ts.isObjectLiteralExpression(value)) {
@@ -105,6 +105,14 @@ function findLiteral(object: ts.ObjectLiteralExpression, pattern: RegExp, depth:
     }
   }
   return undefined;
+}
+
+// A 64-bit field is generated as a string, so its zero value is the text "0"
+// rather than the number — without this a request nobody has filled in gets
+// titled `Sum · 0, 0`.
+function isZeroText(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed === "" || /^-?0+$/.test(trimmed);
 }
 
 function truncate(value: string): string {
@@ -120,6 +128,16 @@ function truncate(value: string): string {
  * formatting job rather than a summarization one, and it comes out the same
  * every time.
  */
+/**
+ * The title is one string wherever it is stored, but a row can dim the part that
+ * only qualifies it. That is what tells an unsaved script apart from the method
+ * of the same name a few rows below it in the tree.
+ */
+export function titleParts(title: string): { name: string; qualifier?: string } {
+  const at = title.indexOf(" · ");
+  return at === -1 ? { name: title } : { name: title.slice(0, at), qualifier: title.slice(at + 1) };
+}
+
 export function deriveScratchTitle(code: string): string | undefined {
   const calls = readCalls(code);
   if (calls.length === 0) return undefined;

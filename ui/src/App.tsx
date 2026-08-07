@@ -10,8 +10,10 @@ import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
-import { Console, ConsoleItem } from "./Console";
-import { NoFileBlankslate } from "./NoFileBlankslate";
+import { Console } from "./Console";
+import { ConsoleItem, newItemId, newRunId, Run } from "./runs";
+import { loadLastRun, clearArchive, saveLastRun, LoadedRun } from "./runStore";
+import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
@@ -20,6 +22,7 @@ import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
 import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, ScratchOrigin, takeOver, withCode } from "./scratches";
+import { deriveScratchTitle } from "./scratchTitle";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
@@ -77,6 +80,11 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 
 // Maximum number of console items kept in memory; older calls are dropped.
 const MAX_CONSOLE_ITEMS = 500;
+// Runs are the unit the console reports, so the history is capped in runs too.
+const MAX_RUNS = 100;
+// How long a discarded scratch is held before it is really gone. Nothing was on
+// disk, so this is undo rather than a confirmation.
+const UNDO_DISCARD_MS = 8000;
 
 // Scratch ids the last session had open, so start-up pruning can't drop one
 // that is about to reopen.
@@ -180,7 +188,19 @@ export function App() {
     window.innerWidth >= SIDE_BY_SIDE_MIN_WIDTH ? "horizontal" : "vertical",
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
+  // What the console reports: one run per press of Run, and the calls and log
+  // lines that ran under it.
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const runsRef = useRef(runs);
+  runsRef.current = runs;
+  // The run calls are being attributed to. Cleared once the run settles, so a
+  // stray call afterwards starts one of its own rather than joining a run that
+  // is over.
+  const currentRunRef = useRef<Run | null>(null);
+  // The last run of the file on screen, read back from the store. It happened in
+  // an earlier session and is shown as such — never as something live.
+  const [staleRun, setStaleRun] = useState<LoadedRun | undefined>();
   // Whether the finder is open, and where it opened: ⌘P lands on the
   // previous file so ⌘P⏎ goes back, everything else on the first row.
   const [finder, setFinder] = useState<"first" | "previous">();
@@ -243,7 +263,13 @@ export function App() {
   // The run in flight, if any: which tab issued it, when it started, and the
   // controller its Stop button aborts. `settled` marks the script itself as
   // finished — the run is only over once its calls have landed too.
-  const [activeRun, setActiveRun] = useState<{ viewId: string; startedAt: number; controller: AbortController; settled: boolean } | null>(null);
+  const [activeRun, setActiveRun] = useState<{ runId: string; viewId?: string; startedAt: number; controller?: AbortController; settled: boolean } | null>(
+    null,
+  );
+  // A discarded scratch, held long enough to take it back. Nothing was on disk,
+  // so discarding is undoable rather than confirmed.
+  const [discarded, setDiscarded] = useState<Scratch | null>(null);
+  const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending debounced disk writes for open script views, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
@@ -338,34 +364,63 @@ export function App() {
     [disposeView, persistViews],
   );
 
-  const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
-    const collector = mcpRunCollectorRef.current;
-    if (collector) {
-      const i = collector.findIndex((m) => m.id === methodCall.id);
-      if (i > -1) collector[i] = methodCall;
-      else collector.push(methodCall);
-    }
-    setConsoleItems((consoleItems) => {
-      const index = consoleItems.findIndex((item) => "id" in item && item.id === methodCall.id);
-      if (index > -1) {
-        return consoleItems.map((item, i) => (i === index ? { ...methodCall } : item));
-      }
-      const next = [...consoleItems, { ...methodCall }];
+  // One press of Run opens a run; everything the script does lands under it.
+  // Nothing else creates one, except a call that arrives with no run open —
+  // which gets a run of its own rather than joining one that is over.
+  const beginRun = useCallback((title: string, sourceId?: string, viewId?: string, controller?: AbortController): Run => {
+    const run: Run = { id: newRunId(), title, sourceId, startedAt: Date.now() };
+    currentRunRef.current = run;
+    setRuns((list) => {
+      const next = [...list, run];
+      return next.length > MAX_RUNS ? next.slice(next.length - MAX_RUNS) : next;
+    });
+    setActiveRun({ runId: run.id, viewId, startedAt: run.startedAt, controller, settled: false });
+    return run;
+  }, []);
+
+  const beginRunRef = useRef(beginRun);
+  beginRunRef.current = beginRun;
+
+  const appendConsoleItem = useCallback((item: ConsoleItem) => {
+    setConsoleItems((items) => {
+      const next = [...items, item];
       // Cap history so a long session can't grow the console unbounded.
       return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
     });
   }, []);
 
+  const onMethodCallUpdate = useCallback(
+    (methodCall: MethodCall) => {
+      const collector = mcpRunCollectorRef.current;
+      if (collector) {
+        const i = collector.findIndex((m) => m.id === methodCall.id);
+        if (i > -1) collector[i] = methodCall;
+        else collector.push(methodCall);
+      }
+      const run = currentRunRef.current ?? beginRun(methodCall.method.name);
+      setConsoleItems((items) => {
+        const index = items.findIndex((item) => item.call?.id === methodCall.id);
+        if (index > -1) {
+          return items.map((item, i) => (i === index ? { ...item, call: { ...methodCall } } : item));
+        }
+        const next = [...items, { id: newItemId(), runId: run.id, timestamp: methodCall.timestamp, call: { ...methodCall } }];
+        return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
+      });
+    },
+    [beginRun],
+  );
+
   // Show a failed script run in the console; a script that dies silently looks
   // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
-  const onScriptError = useCallback((error: unknown) => {
-    console.error("Script error:", error);
-    const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
-    setConsoleItems((consoleItems) => {
-      const next: ConsoleItem[] = [...consoleItems, [{ level: LogLevel.LEVEL_ERROR, message }]];
-      return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
-    });
-  }, []);
+  const onScriptError = useCallback(
+    (error: unknown) => {
+      console.error("Script error:", error);
+      const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
+      const run = currentRunRef.current ?? beginRun("Script error");
+      appendConsoleItem({ id: newItemId(), runId: run.id, timestamp: Date.now(), logs: [{ level: LogLevel.LEVEL_ERROR, message }] });
+    },
+    [appendConsoleItem, beginRun],
+  );
 
   // Open the input dialog for a `kaja.ask(...)` call, resolving once the user
   // submits. Rejecting on cancel is handled by the dialog itself.
@@ -380,8 +435,14 @@ export function App() {
     kajaRef.current = new Kaja(onMethodCallUpdate, onAsk);
   }
 
+  // Clearing the history clears what is being held for next time too; leaving
+  // yesterday's run behind would make "cleared" a half-truth.
   const onClearConsole = useCallback(() => {
     setConsoleItems([]);
+    setRuns([]);
+    setStaleRun(undefined);
+    currentRunRef.current = null;
+    clearArchive();
   }, []);
 
   // Kept in sync during render so the first drag can pick up wherever the gutter
@@ -711,6 +772,12 @@ export function App() {
         setFinder(e.key === "p" ? "previous" : "first");
         return;
       }
+      // A blank script — the other half of "pick a call and Kaja writes one".
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "n") {
+        e.preventDefault();
+        onNewScratchRef.current();
+        return;
+      }
       // The same key as the </> button in the command row, on every file that
       // has a JSON representation.
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
@@ -876,14 +943,37 @@ export function App() {
     [applyViews],
   );
 
-  const onDeleteScratch = useCallback(
+  // Discarding an unsaved script takes nothing off disk, so it is undone rather
+  // than confirmed: the row goes, and a bar offers it back for a few seconds.
+  const onDiscardScratch = useCallback(
     (scratch: Scratch) => {
       const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === scratch.id);
       if (shown) applyViews((views) => dropView(views, shown.id));
       applyScratches((list) => list.filter((candidate) => candidate.id !== scratch.id));
+      if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
+      setDiscarded(scratch);
+      discardTimerRef.current = setTimeout(() => setDiscarded(null), UNDO_DISCARD_MS);
     },
     [applyScratches, applyViews],
   );
+
+  const onUndoDiscard = useCallback(() => {
+    if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
+    setDiscarded((scratch) => {
+      if (scratch) applyScratches((list) => [scratch, ...list]);
+      return null;
+    });
+  }, [applyScratches]);
+
+  // A blank script, for when you know what you want to write and don't need a
+  // call to start it. The empty state names the key, so it has to exist.
+  const onNewScratch = useCallback(() => {
+    const scratch = createScratch("", undefined, Date.now());
+    applyScratches((list) => [scratch, ...list]);
+    applyViews((views) => showScratch(views, scratch));
+  }, [applyScratches, applyViews]);
+  const onNewScratchRef = useRef(onNewScratch);
+  onNewScratchRef.current = onNewScratch;
 
   const onScriptSelect = useCallback(
     async (script: Script) => {
@@ -926,12 +1016,15 @@ export function App() {
         await onScriptSelect({ path: file.path, name: file.name });
         const kaja = kajaRef.current!;
         kaja.input = text;
-        runTask(file.content, kaja, apps, onScriptError);
+        const run = beginRun(file.name, file.path);
+        runTask(file.content, kaja, apps, onScriptError).finally(() =>
+          setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)),
+        );
       } catch (err) {
         showFileError(`Run failed: ${err}`);
       }
     },
-    [pinnedScriptPath, onScriptSelect, apps, showFileError, onScriptError],
+    [pinnedScriptPath, onScriptSelect, apps, showFileError, onScriptError, beginRun],
   );
 
   const runContextMenuScriptRef = useRef(runContextMenuScript);
@@ -1071,6 +1164,7 @@ export function App() {
       const collected: MethodCall[] = [];
       mcpRunCollectorRef.current = collected;
       let result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[] };
+      const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : "Agent script", payload.path || undefined);
       try {
         let source = payload.code;
         if (payload.path) {
@@ -1085,6 +1179,7 @@ export function App() {
         result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: collected.map(toMethodCallLog) };
       } finally {
         mcpRunCollectorRef.current = null;
+        setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active));
       }
       MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
     });
@@ -1359,34 +1454,62 @@ export function App() {
     if (!editor) {
       return;
     }
+    const code = editor.getValue();
     const controller = new AbortController();
-    setActiveRun({ viewId: tab.id, startedAt: Date.now(), controller, settled: false });
-    runTask(editor.getValue(), kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
+    // Run names reuse the derived script names, so the console and the sidebar
+    // speak the same language.
+    const title = tab.type === "script" ? tab.script.name : (deriveScratchTitle(code) ?? viewIdentity(tab, scratchesRef.current).name);
+    const sourceId = tab.type === "script" ? tab.script.path : tab.scratchId;
+    beginRun(title, sourceId, tab.id, controller);
+    runTask(code, kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
       setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
     );
     // A run is the punctuation that settles a scratch: it is when the title is
     // re-read from the code, rather than jittering as you type.
     if (tab.type === "scratch") {
-      updateScratch(tab.scratchId, (scratch) => markRun(scratch, editor.getValue(), Date.now()));
+      updateScratch(tab.scratchId, (scratch) => markRun(scratch, code, Date.now()));
     }
-  }, [apps, applyViews, onScriptError, updateScratch]);
+  }, [apps, beginRun, onScriptError, updateScratch]);
 
   // A generated method-call script issues its call without awaiting it, so the
   // script's own promise settles well before the response lands. The run is over
-  // once the script has settled and nothing it started is still in flight.
+  // once the script has settled and nothing it started is still in flight — and
+  // that is when its wall duration is known and it is worth keeping for the next
+  // time the file is opened.
   useEffect(() => {
     if (!activeRun?.settled) return;
-    const inFlight = consoleItems.some((item) => "method" in item && item.timestamp >= activeRun.startedAt && isCallInFlight(item));
-    if (!inFlight) {
-      setActiveRun(null);
+    const items = consoleItems.filter((item) => item.runId === activeRun.runId);
+    if (items.some((item) => item.call !== undefined && isCallInFlight(item.call))) return;
+
+    const finished = runsRef.current.find((run) => run.id === activeRun.runId);
+    if (finished) {
+      const settled: Run = { ...finished, durationMs: Date.now() - activeRun.startedAt };
+      setRuns((list) => list.map((run) => (run.id === settled.id ? settled : run)));
+      if (settled.sourceId) saveLastRun(settled.sourceId, settled, items);
     }
+    if (currentRunRef.current?.id === activeRun.runId) currentRunRef.current = null;
+    setActiveRun(null);
   }, [consoleItems, activeRun]);
+
+  // Which file the console is reporting on, so its last run can be found again.
+  const currentSourceId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "scratch" ? currentView.scratchId : undefined;
+
+  // Reopening a script gives you its code and, if we still hold it, its last
+  // run. A run made in this session already says what happened, so the stored
+  // one only appears when there isn't one.
+  useEffect(() => {
+    if (!currentSourceId || runs.some((run) => run.sourceId === currentSourceId)) {
+      setStaleRun(undefined);
+      return;
+    }
+    setStaleRun(loadLastRun(currentSourceId));
+  }, [currentSourceId, runs]);
 
   // Stop aborts the calls the run has in flight; the script itself stops at the
   // call it was awaiting.
   const onStopActiveRun = useCallback(() => {
     setActiveRun((run) => {
-      run?.controller.abort();
+      run?.controller?.abort();
       return null;
     });
   }, []);
@@ -1611,6 +1734,7 @@ export function App() {
         path: "Scripts",
         origin: scratch.origin?.appName ?? "",
         icon: PenLine,
+        provisional: isUntouched(scratch),
         go: () => onScratchSelect(scratch),
       });
     }
@@ -1641,6 +1765,35 @@ export function App() {
 
     return destinations;
   }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onFinderMethodSelect, onVariablesClick, onShowCompileLog]);
+
+  // The console reports runs. A run whose calls have all aged out of the item
+  // cap would be a header with nothing under it, so it goes with them; the one
+  // in flight is kept even before it has produced anything.
+  const consoleRuns = useMemo(() => {
+    const withItems = new Set(consoleItems.map((item) => item.runId));
+    const live = runs.filter((run) => withItems.has(run.id) || run.id === activeRun?.runId);
+    return staleRun ? [staleRun.run, ...live] : live;
+  }, [runs, consoleItems, activeRun?.runId, staleRun]);
+
+  const consoleEntries = useMemo(() => (staleRun ? [...staleRun.items, ...consoleItems] : consoleItems), [staleRun, consoleItems]);
+
+  // What the empty state offers instead of an illustration: the last few things
+  // you were in. On a first run there are none and the list is simply absent.
+  const recentFiles = useMemo<RecentFile[]>(() => {
+    const files: RecentFile[] = scratches.slice(0, 3).map((scratch) => ({
+      key: scratch.id,
+      name: scratch.title,
+      icon: PenLine,
+      updatedAt: scratch.updatedAt,
+      saved: false,
+      go: () => onScratchSelect(scratch),
+    }));
+    for (const script of scripts ?? []) {
+      if (files.length >= 3) break;
+      files.push({ key: script.path, name: script.name, icon: FileCode, saved: true, go: () => void onScriptSelect(script) });
+    }
+    return files;
+  }, [scratches, scripts, onScratchSelect, onScriptSelect]);
 
   const running = currentView !== undefined && activeRun?.viewId === currentView.id;
   const action = currentIsEditor ? (
@@ -1703,7 +1856,7 @@ export function App() {
                 scratches={scratches}
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
                 onScratchSelect={onScratchSelect}
-                onDeleteScratch={onDeleteScratch}
+                onDeleteScratch={onDiscardScratch}
                 onSaveScratch={isWailsEnvironment() ? onSaveScratch : undefined}
                 onShowAllScratches={() => setFinder("first")}
                 currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
@@ -1741,7 +1894,9 @@ export function App() {
               onToggleLayout={onToggleEditorLayout}
             />
             {views.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
-            {views.length === 0 && (apps.length > 0 || !configurationLoaded) && <NoFileBlankslate onOpenSwitcher={() => setFinder("first")} />}
+            {views.length === 0 && (apps.length > 0 || !configurationLoaded) && (
+              <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewScratch={onNewScratch} recent={recentFiles} />
+            )}
             {views.length > 0 && (
               <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                 <div
@@ -1820,7 +1975,7 @@ export function App() {
                         flexDirection: "column",
                       }}
                     >
-                      <Console items={consoleItems} onClear={onClearConsole} />
+                      <Console runs={consoleRuns} items={consoleEntries} onClear={onClearConsole} />
                     </div>
                   </>
                 )}
@@ -1857,9 +2012,13 @@ export function App() {
           <FormControl>
             <FormControl.Label>Name</FormControl.Label>
             <div className="relative">
+              {/* Saved rows read as filenames and unsaved ones as call names;
+                  proposing the filename from the derived name is what keeps the
+                  section from splitting into two conventions the icon was
+                  supposed to carry alone. */}
               <Input
                 autoFocus
-                className="pr-9"
+                className="pr-9 font-mono"
                 value={saveAs.name}
                 onChange={(e) => setSaveAs((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
                 onKeyDown={(e) => {
@@ -1869,11 +2028,12 @@ export function App() {
                   }
                 }}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">.ts</span>
             </div>
             {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
             <FormControl.Caption>
-              Writes the script to disk, where agents and other tools can see it. Unsaved ones are kept in Kaja either way.
+              Proposed from the script's contents. Renaming here is the only rename there is — it writes the file to disk, where agents and other tools can see
+              it.
             </FormControl.Caption>
           </FormControl>
         </Dialog>
@@ -1968,197 +2128,21 @@ export function App() {
           Permanently delete <strong>{deleteScript.name}</strong>?
         </ConfirmationDialog>
       )}
-      {renameScript && (
-        <Dialog
-          title="Rename script"
-          onClose={() => {
-            setRenameScript(null);
-            setRenameError(undefined);
-          }}
-          footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScript(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
-          ]}
-        >
-          <FormControl>
-            <FormControl.Label>Name</FormControl.Label>
-            <div className="relative">
-              <Input
-                autoFocus
-                className="pr-9"
-                value={renameScript.name}
-                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmRenameScript();
-                  }
-                }}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
-            </div>
-            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
-          </FormControl>
-        </Dialog>
-      )}
-      {deleteScript && (
-        <ConfirmationDialog
-          title="Delete script?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const script = deleteScript;
-            setDeleteScript(null);
-            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-          }}
-        >
-          Permanently delete <strong>{deleteScript.name}</strong>?
-        </ConfirmationDialog>
-      )}
-      {renameScript && (
-        <Dialog
-          title="Rename script"
-          onClose={() => {
-            setRenameScript(null);
-            setRenameError(undefined);
-          }}
-          footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScript(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
-          ]}
-        >
-          <FormControl>
-            <FormControl.Label>Name</FormControl.Label>
-            <div className="relative">
-              <Input
-                autoFocus
-                className="pr-9"
-                value={renameScript.name}
-                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmRenameScript();
-                  }
-                }}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
-            </div>
-            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
-          </FormControl>
-        </Dialog>
-      )}
-      {deleteScript && (
-        <ConfirmationDialog
-          title="Delete script?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const script = deleteScript;
-            setDeleteScript(null);
-            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-          }}
-        >
-          Permanently delete <strong>{deleteScript.name}</strong>?
-        </ConfirmationDialog>
-      )}
-      {renameScript && (
-        <Dialog
-          title="Rename script"
-          onClose={() => {
-            setRenameScript(null);
-            setRenameError(undefined);
-          }}
-          footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScript(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
-          ]}
-        >
-          <FormControl>
-            <FormControl.Label>Name</FormControl.Label>
-            <div className="relative">
-              <Input
-                autoFocus
-                className="pr-9"
-                value={renameScript.name}
-                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmRenameScript();
-                  }
-                }}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
-            </div>
-            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
-          </FormControl>
-        </Dialog>
-      )}
-      {deleteScript && (
-        <ConfirmationDialog
-          title="Delete script?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const script = deleteScript;
-            setDeleteScript(null);
-            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-          }}
-        >
-          Permanently delete <strong>{deleteScript.name}</strong>?
-        </ConfirmationDialog>
-      )}
-      {renameScript && (
-        <Dialog
-          title="Rename script"
-          onClose={() => {
-            setRenameScript(null);
-            setRenameError(undefined);
-          }}
-          footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScript(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
-          ]}
-        >
-          <FormControl>
-            <FormControl.Label>Name</FormControl.Label>
-            <div className="relative">
-              <Input
-                autoFocus
-                className="pr-9"
-                value={renameScript.name}
-                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onConfirmRenameScript();
-                  }
-                }}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
-            </div>
-            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
-          </FormControl>
-        </Dialog>
-      )}
-      {deleteScript && (
-        <ConfirmationDialog
-          title="Delete script?"
-          confirmButtonContent="Delete"
-          confirmButtonType="danger"
-          onClose={(gesture) => {
-            const script = deleteScript;
-            setDeleteScript(null);
-            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
-          }}
-        >
-          Permanently delete <strong>{deleteScript.name}</strong>?
-        </ConfirmationDialog>
-      )}
       {fileError && (
         <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>
           <Alert variant="danger">{fileError}</Alert>
+        </div>
+      )}
+      {/* Nothing was on disk, so discarding is taken back rather than confirmed
+          up front. */}
+      {discarded && (
+        <div className="fixed bottom-10 left-1/2 z-[1000] flex h-9 -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-popover px-3 shadow-lg">
+          <span className="text-sm text-muted-foreground">
+            Discarded <span className="text-foreground">{discarded.title}</span>
+          </span>
+          <button type="button" className="text-sm font-medium text-foreground hover:underline" onClick={onUndoDiscard}>
+            Undo
+          </button>
         </div>
       )}
     </>
