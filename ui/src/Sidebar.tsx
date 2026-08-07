@@ -19,10 +19,13 @@ import {
   ChevronRight,
   Package,
   Ellipsis,
+  PenLine,
+  Plus as PlusIcon,
 } from "lucide-react";
 import { appType, getAppType } from "./appTypes";
 import { SimpleTooltip } from "./components/tooltip";
 import { Method, App, Script, Service, methodId } from "./apps";
+import { Scratch } from "./scratches";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -47,6 +50,8 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
   }
   return [...groups.entries()];
 }
+
+const RECENT_SCRATCHES = 6;
 
 const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
 
@@ -78,13 +83,23 @@ interface ScrollToMethod {
 interface SidebarProps {
   apps: App[];
   scripts?: Script[];
-  currentMethod?: Method;
+  // Scratches, newest activity first. Only the most recent few are listed; the
+  // rest are a ⌘P away, which is what makes an unlimited history usable.
+  scratches?: Scratch[];
+  currentScratchId?: string;
   currentScriptPath?: string;
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   pinnedScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteApps?: boolean;
-  onSelect: (method: Method, service: Service, app: App) => void;
+  // Clicking goes to the call; ⌥click (or the + on the row) adds it to the
+  // script already on screen.
+  onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
+  onScratchSelect?: (scratch: Scratch) => void;
+  onDeleteScratch?: (scratch: Scratch) => void;
+  onSaveScratch?: (scratch: Scratch) => void;
+  // Opens the finder on the full list.
+  onShowAllScratches?: () => void;
   onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
@@ -108,12 +123,17 @@ interface SidebarProps {
 export function Sidebar({
   apps,
   scripts,
-  currentMethod,
+  scratches,
+  currentScratchId,
   currentScriptPath,
   pinnedScriptPath,
   scrollToMethod,
   canDeleteApps = true,
   onSelect,
+  onScratchSelect,
+  onDeleteScratch,
+  onSaveScratch,
+  onShowAllScratches,
   onScriptSelect,
   onRenameScript,
   onDeleteScript,
@@ -127,6 +147,8 @@ export function Sidebar({
   onEditApp,
   onDeleteApp,
 }: SidebarProps) {
+  const hasScripts = (scripts?.length ?? 0) > 0;
+  const hasScratches = (scratches?.length ?? 0) > 0;
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
   // Right-click context menu for a script, anchored at the cursor.
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
@@ -138,6 +160,12 @@ export function Sidebar({
   const appMenuAnchorRef = useRef<HTMLDivElement>(null);
   // App row hovered, used to reveal the kebab actions button.
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
+  // Method row hovered, used to reveal the "add to scratch" button.
+  const [hoveredMethod, setHoveredMethod] = useState<string | null>(null);
+  // Right-click context menu for a scratch, anchored at the cursor.
+  const [scratchMenu, setScratchMenu] = useState<{ scratch: Scratch; top: number; left: number } | null>(null);
+  const scratchMenuAnchorRef = useRef<HTMLDivElement>(null);
+  const [hoveredScratch, setHoveredScratch] = useState<string | null>(null);
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
@@ -405,18 +433,20 @@ export function Sidebar({
   return (
     <div className="bg-chrome" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div
+        // 40px, the same as the command row next to it, so the two line up
+        // across the seam.
         style={
           reserveTrafficLights
             ? ({
                 display: "flex",
                 alignItems: "center",
                 flexShrink: 0,
-                height: 28,
+                height: 40,
                 paddingLeft: TRAFFIC_LIGHTS_INSET,
                 paddingRight: 8,
                 "--wails-draggable": "drag",
               } as React.CSSProperties)
-            : { display: "flex", alignItems: "center", padding: "4px 12px", flexShrink: 0 }
+            : { display: "flex", alignItems: "center", height: 40, padding: "0 12px", flexShrink: 0 }
         }
       >
         <div
@@ -442,7 +472,12 @@ export function Sidebar({
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
-        {scripts && scripts.length > 0 && (
+        {/* One list, not two. A script that has been saved and one that hasn't
+            are the same kind of thing — the only difference is whether it is on
+            disk, which is what the icon says. Saved ones sit on top because they
+            are a library; the rest are recent work, and the whole history is a
+            ⌘P away. */}
+        {(hasScripts || hasScratches) && (
           <nav aria-label="Scripts">
             <div
               className="-ml-3 flex h-7 cursor-pointer select-none items-center gap-0.5 pl-1 text-xs font-bold text-muted-foreground"
@@ -453,11 +488,10 @@ export function Sidebar({
               </span>
               <FileCode size={16} />
               <span className="ml-1">Scripts</span>
-              <PreviewPill />
             </div>
             {scriptsExpanded && (
               <TreeView aria-label="Scripts">
-                {scripts.map((script) => (
+                {(scripts ?? []).map((script) => (
                   <TreeView.Item
                     id={`script-${script.path}`}
                     key={script.path}
@@ -477,11 +511,7 @@ export function Sidebar({
                   >
                     {/* Pin lives in the leading slot so it never shifts when the kebab appears on
                         hover, and it lines a pinned script up with the package/expand icons above. */}
-                    {pinnedScriptPath === script.path && (
-                      <TreeView.LeadingVisual>
-                        <Pin size={12} />
-                      </TreeView.LeadingVisual>
-                    )}
+                    <TreeView.LeadingVisual>{pinnedScriptPath === script.path ? <Pin size={12} /> : <FileCode size={13} />}</TreeView.LeadingVisual>
                     {script.name}
                     <TreeView.TrailingVisual>
                       {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
@@ -501,6 +531,56 @@ export function Sidebar({
                     </TreeView.TrailingVisual>
                   </TreeView.Item>
                 ))}
+                {(scratches ?? []).slice(0, RECENT_SCRATCHES).map((scratch) => (
+                  <TreeView.Item
+                    id={`scratch-${scratch.id}`}
+                    key={scratch.id}
+                    ref={(el: HTMLElement | null) => {
+                      if (el) {
+                        el.oncontextmenu = (e) => {
+                          e.preventDefault();
+                          setScratchMenu({ scratch, top: e.clientY, left: e.clientX });
+                        };
+                        el.onmouseenter = () => setHoveredScratch(scratch.id);
+                        el.onmouseleave = () => setHoveredScratch((prev) => (prev === scratch.id ? null : prev));
+                      }
+                    }}
+                    onSelect={() => onScratchSelect?.(scratch)}
+                    current={currentScratchId === scratch.id}
+                  >
+                    {/* Not saved: the pen is the whole difference. */}
+                    <TreeView.LeadingVisual>
+                      <PenLine size={13} />
+                    </TreeView.LeadingVisual>
+                    {scratch.title}
+                    <TreeView.TrailingVisual>
+                      {(hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id) && (
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          tooltip={false}
+                          aria-label={`Actions for ${scratch.title}`}
+                          icon={Ellipsis}
+                          style={{ minHeight: 0, minWidth: 0 }}
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setScratchMenu({ scratch, top: e.clientY, left: e.clientX });
+                          }}
+                        />
+                      )}
+                    </TreeView.TrailingVisual>
+                  </TreeView.Item>
+                ))}
+                {(scratches?.length ?? 0) > RECENT_SCRATCHES && (
+                  <li role="treeitem">
+                    <div
+                      onClick={onShowAllScratches}
+                      className="flex h-7 cursor-pointer items-center rounded-md pl-2 text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    >
+                      Show all {(scripts?.length ?? 0) + (scratches?.length ?? 0)}…
+                    </div>
+                  </li>
+                )}
               </TreeView>
             )}
           </nav>
@@ -509,7 +589,7 @@ export function Sidebar({
           const appName = app.configuration.name;
           const isExpanded = expandedApps.has(appName);
           const showAppHeader = true;
-          const showTopMargin = appIndex > 0 || (scripts && scripts.length > 0);
+          const showTopMargin = appIndex > 0 || hasScripts || hasScratches;
 
           return (
             <nav
@@ -602,13 +682,34 @@ export function Sidebar({
                                     id={mId}
                                     key={mId}
                                     ref={(el: HTMLElement | null) => {
-                                      if (el) elementRefs.current.set(mId, el);
-                                      else elementRefs.current.delete(mId);
+                                      if (el) {
+                                        elementRefs.current.set(mId, el);
+                                        // TreeView.Item doesn't forward these, so attach them to the node.
+                                        el.onmouseenter = () => setHoveredMethod(mId);
+                                        el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
+                                      } else elementRefs.current.delete(mId);
                                     }}
-                                    onSelect={() => onSelect(method, service, app)}
-                                    current={currentMethod === method}
+                                    onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
                                   >
                                     {method.name}
+                                    <TreeView.TrailingVisual>
+                                      {/* Adding a call to the scratch you already have open is
+                                          deliberate, so it gets its own target rather than
+                                          happening because you clicked in the wrong mood. */}
+                                      {hoveredMethod === mId && (
+                                        <IconButton
+                                          size="xs"
+                                          variant="ghost"
+                                          aria-label={`Add ${method.name} to the open scratch`}
+                                          icon={PlusIcon}
+                                          style={{ minHeight: 0, minWidth: 0 }}
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            onSelect(method, service, app, "append");
+                                          }}
+                                        />
+                                      )}
+                                    </TreeView.TrailingVisual>
                                   </TreeView.Item>
                                 );
                               })}
@@ -703,6 +804,38 @@ export function Sidebar({
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Cursor-anchored context menu for an app. */}
+      <div
+        ref={scratchMenuAnchorRef}
+        style={{ position: "fixed", top: scratchMenu?.top ?? 0, left: scratchMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }}
+      />
+      <DropdownMenu open={scratchMenu !== null} onOpenChange={(open: boolean) => !open && setScratchMenu(null)}>
+        <DropdownMenuTrigger asChild>
+          <span />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent anchor={scratchMenuAnchorRef} align="start">
+          {onSaveScratch && (
+            <DropdownMenuItem
+              onSelect={() => {
+                if (scratchMenu) onSaveScratch(scratchMenu.scratch);
+                setScratchMenu(null);
+              }}
+            >
+              <FileCode size={16} />
+              Save
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            variant="danger"
+            onSelect={() => {
+              if (scratchMenu) onDeleteScratch?.(scratchMenu.scratch);
+              setScratchMenu(null);
+            }}
+          >
+            <Trash2 size={16} />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
         <DropdownMenuContent align="start" anchor={appMenuAnchorRef} className="w-48">

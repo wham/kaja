@@ -22,17 +22,141 @@
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
 - Values seen in earlier calls are never written into a generated request: `defaultInput.ts` only ever emits zero values, and `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions, each labelled with the field and call it came from.
 
+## Scratches, scripts and the sidebar
+
+**Everything you run is a script; the only axis is whether it has a name.** A
+method in the sidebar is a *template*, not a document — clicking it fills a
+**scratch**, and a scratch is the unit of exploration.
+
+- **A scratch is kept in the app; a script is on disk.** That is the whole
+  distinction, and it is not "temporary vs. permanent" — both persist. Scratches
+  live in IndexedDB (`scratches.ts`, `Scratch`), unlimited, on web and desktop
+  alike. The verb is just **Save** (never "save as script", never "save
+  permanently" — the unsaved ones are permanent too): it **writes a file**, which
+  is what makes it visible to the MCP server, the macOS text service, and
+  anything else outside Kaja. So saving is desktop-only, and the scratch it came
+  from goes away with it rather than lingering as a copy.
+- **Clicking a method never asks what to do with it** (`onMethodSelect`). The
+  current scratch decides: an **untouched** one (still exactly its generated
+  code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
+  a worked-in one is left alone and the call starts a **new** scratch. So
+  browsing the tree leaves one scratch behind, not a trail, and work is never
+  silently overwritten. Appending is the deliberate gesture — **⌥click, or the
+  `+` on the row** — so a scratch never grows a second call by drifting.
+  `appendCall` merges the import lines instead of stacking a second copy, and
+  edits the text rather than reprinting it so the author's formatting survives.
+  Generated code is run through prettier **before it reaches the model**: the
+  editor's format-on-open only fires when a model is created, and taking over a
+  scratch writes into a model that already exists, so a twenty-field request
+  would otherwise sit on one line. The editor wraps rather than scrolling
+  sideways — the pane is short on purpose, and horizontal scrolling is worse
+  than vertical.
+- **A scratch names itself from its own code** (`scratchTitle.ts`), which Kaja
+  can do better than a chat app names conversations: the content is typed code
+  against a known schema, so the title is a formatting job rather than a
+  summarization one, and it comes out the same every time. `ListShows`,
+  `GetShow · vera-lune` (the first literal bound to an identifying field),
+  `Sum · 5, 3` (a request of three fields or fewer is described by the values
+  filled into it, which is usually what tells two goes at the same call apart;
+  anything bigger or nested stays quiet rather than picking a field out of a
+  crowd), `ListShows → GetShow`, `CreateShow +2`. Zero values never count —
+  that is what a generated request starts with.
+- **The title re-derives at deliberate moments, never while typing**: on a run
+  (`markRun`) and on an append (`withCode`), because both are punctuation. There
+  is **no rename** — naming a script and saving it are the same act, so the code
+  decides until you save, and then the filename does.
+- **Unlimited only works because the browsing buffers clear themselves out.**
+  `pruneScratches` drops scratches that were never run and never edited past
+  their generated form after 14 days, and never touches one that is on screen.
+  Anything run or edited is kept forever.
+- **A scratch is not bound to an app.** Deleting an app leaves your scratches
+  alone — they just stop compiling. Only a *rename* is followed, so the imports
+  keep resolving. (This is why `linkTabsToApps` is gone: there is nothing to
+  re-bind.)
+- **There is one list, not two.** The sidebar and the finder both show saved
+  and unsaved together under a single `Scripts` heading, in one vocabulary — two
+  headings would teach a taxonomy the model doesn't have. **The icon is the whole
+  difference**: `FileCode` for a script on disk, `PenLine` for one that isn't.
+  Saved sit above, then the six most recent unsaved; the rest are `⌘P` away,
+  which is what makes an unlimited history usable. So saving is a change of
+  state, not a move between places — the row gains an icon and rises, it doesn't
+  vanish from one section and reappear in another. The word "scratch" survives in
+  the code, where it names the storage tier precisely, and nowhere in the UI.
+  `origin` on a scratch is only the app name the trigger shows beside the title,
+  to tell two same-named calls in different apps apart. **Nothing in the method
+  tree is ever "current"** — the tree is the API's catalog, not a reflection of
+  what you are looking at, and a scratch is free to grow past the method it came
+  from anyway.
+- **The web is the same app minus one verb.** Scratches are IndexedDB on both
+  platforms, so the list, the titles and the history are identical; only Save is
+  missing, because only the desktop has a disk to write to.
+- **Not built yet**: the console still keeps one global stream in memory, so
+  reopening an old scratch gives you the code without last time's responses.
+  Storing code is free; storing responses is not, so that needs its own
+  retention rule (most recent N scratches, or a size cap).
+
+## The command row and the finder
+
+**There is no tab strip, and no open files either.** The pane shows one thing —
+whatever you last selected — and the window's right side opens with one 40px
+**command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
+sidebar toggle · finder · spacer · action · hairline · search · layout. There are
+no recent chips — with one pane and a finder, they were the last echo of a tab
+strip. Nothing else may be added to it; new controls go in the sidebar header or
+the console header. The sidebar header is 40px too, so the two line up
+across the seam, and the macOS traffic lights stay in it (the row takes over the
+inset only when the sidebar is collapsed).
+
+- **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
+  only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing
+  that existed to serve itself. What is left is a **cache**: `MOUNTED_LIMIT`
+  views kept mounted in most-recently-visited order so going back is instant and
+  keeps its cursor. It has no UI, nothing can be closed out of it, and a view
+  holding edits that exist nowhere else (`holdsWork` — Variables, an app form) is
+  never the one evicted. `views[0]` is on screen; `views[1]` is what `⌘P⏎`
+  returns to.
+- **Preview went with it.** Italic tabs, double-click-to-keep and
+  "the first keystroke promotes it" only ever existed to stop tabs accumulating.
+  With one pane showing one thing nothing accumulates, so `preview`, `keepTab`,
+  `closeTab`, `⌘W`, `⌘⌫`, the row close buttons, `Close all` and the
+  Variables close-confirmation are all gone. Navigating away from a dirty
+  Variables tab now simply keeps the edits.
+- **The finder** (`Finder.tsx`) — the trigger is a `role="combobox"` button,
+  26px, carrying icon · name · qualifier · `ChevronsUpDown`, capped at 260px
+  (over that the qualifier drops — measured with a clipped probe — then the name
+  truncates from the left so the call name survives). It is a **label first**:
+  with the sidebar collapsed it is the only thing that says where you are. Its
+  popover is one list — `Recent`, then `All files` — and typing narrows both.
+  That is why `⌘K` lands here too: the finder is the only surface that can search
+  the calls, which the tree can't. `⌘P` opens it on the previous place so `⌘P⏎`
+  is "back" — the only way back, now that the chips are gone; `⌘K` and the
+  trigger open on the first row. Only the response is
+  120ms opacity — no slide, no scale, because movement makes fast repeated `⌘P`
+  feel unstable.
+- **The action slot** — Run and the `</>` JSON toggle share one position, since a
+  file is never both a script and a form. Run is absent (not disabled) on
+  non-script surfaces. Its disabled state and the trigger's `N errors` state come
+  from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
+  with itself.
+- **Shortcuts** — `⌘P` finder on the previous place · `⌘K` same surface · `⌘⏎`/F5
+  run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save. `⌃Tab`, `⌘1–9` and `⌘W` are
+  gone: there are no positions to number and nothing to close.
+- **Split panes** are specified but not built; when they are, the row divides at
+  the pane seam and each half gets its own finder.
+
 ## Experimental (Preview)
 
 Experimental features are opt-in through the **feature previews** menu — a beaker
 button in the footer next to the theme selector (`FeaturePreviews.tsx`) that opens a
 small popup with a toggle per experimental feature. Enabled features are marked with a
 "Preview" pill in the UI (`PreviewPill` in `Sidebar.tsx`). Toggle state persists via
-`usePersistedState` under `featurePreview:<key>` keys. The **Variables** tab has no
-toggle of its own: it is what scripts and app configuration read, so it shows when
-**Scripts** or **Preview Apps** is on and is hidden otherwise.
+`usePersistedState` under `featurePreview:<key>` keys.
 
-- **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to apps through their import paths and run from their own tabs.
+**Scripts and Variables are not previews** — they are the app. Scripts are what
+everything you run is, and Variables is what they and app configuration read, so
+both ship. The only thing gating scripts now is the platform: saving writes a
+file, so it needs a disk (`isWailsEnvironment()`).
+
 - **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
 - **MCP server** (`featurePreview:mcp`, desktop only) — a localhost Model Context Protocol server that lets an agent (e.g. Claude Code) read, write, and run the saved scripts and discover the services they can call. The footer shows a plug button with the one-line `claude mcp add` command to connect.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"markdown"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; MarkdownApp markdown; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Markdown app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp always; the experimental built-ins (openapi/openai/markdown) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load.
@@ -51,8 +175,8 @@ toggle of its own: it is what scripts and app configuration read, so it shows wh
 - **Trailer encoding** — every gRPC-Web trailer `writeGRPCWebText` emits, `grpc-message` included, is percent-encoded (`escapeTrailerValue`, undone client-side with `decodeURIComponent`). gRPC-Web trailers are a text block clients split on CRLF and read byte by byte as Latin-1, so unescaped UTF-8 arrives mangled (an em dash as `â€"`) and a newline in a value would end the line early. Only bytes outside printable ASCII and `%` itself are escaped, so ordinary JSON stays readable on the wire. This is also what the gRPC-Web spec asks of `grpc-message`; protobuf-ts does not decode it, so `client.ts` does (`errorMessage`).
 - **UI** — `ui/src/apps.ts` models every app from a `ConfigurationApp` plus a runtime `target`/`protocol` (`Transport`) filled in by `OpenApp`; `useCompilation` always calls `OpenApp` (passing the whole `ConfigurationApp`) and the transport is selected from `protocol`. `ui/src/appTypes.ts` is the single registry of app types (grpc/twirp + preview built-ins) and also bridges the typed `oneof` to the generic form: `appType` is the set field, `appParameters`/`appHeaders` read the variant, `buildApp` constructs it. Its parameter keys are the generated (camelCase) field names (`protoDir`, `specUrl`).
 - **App type icon** — each app type's `icon` in `ui/src/appTypes.ts` is how the type is shown wherever an app is named: the sidebar row, the compile-status rows, and the app settings tab. `AppTypeIcon` (`Sidebar.tsx`) renders it with the type's label as a hover tooltip, so the word is still there when it is needed. The "Preview" pill is unaffected — a preview app carries both.
-- **App settings tab** — an app's settings are a document identified by the app: the tab is titled with the app's name (a new app is `New <Type> app`, the unsaved instance of the same document) and is opened from the sidebar, by right-clicking an app → **Settings**. New apps are created from the sidebar's **+**, not from inside the editor. The tab is a **preview tab** (`ephemeral` in `AppFormTab`, rendered in italics): opening another app's settings reuses it, so browsing settings never stacks tabs. Typing in it, or double-clicking its title, makes it permanent, so work in progress is never replaced. Its `editMode` lives on the tab too, because the control that switches it — the `</>` icon next to the tab strip's overflow menu, passed to `Tabs` as `controls` — sits in the strip rather than in the form. It is disabled while the JSON doesn't parse, which `AppForm` reports up as it is typed.
-- **Editing a tab as JSON** — **the `</>` button in the tab strip edits the active tab's content as JSON.** Same position, same icon, same `⌘J`, on every tab type that has a JSON representation (app settings, Variables); it renders in its active state while the JSON view is showing, and is absent on tabs that have none. Because the button belongs to the strip, the view it selects belongs to the tab (`AppFormTab.editMode`, `VariablesTab.editMode`) and the "does it parse" flag belongs to `App.tsx` (`tabJsonValid`), which is what disables the way back. Any future editable tab is the third one to follow it, not a third placement.
+- **App settings tab** — an app's settings are a document identified by the app: the tab is titled with the app's name (a new app is `New <Type> app`, the unsaved instance of the same document) and is opened from the sidebar, by right-clicking an app → **Settings**. New apps are created from the sidebar's **+**, not from inside the editor. The tab opens as a **preview** (see the command row section): it takes the single preview slot, so browsing settings never stacks tabs, and typing in it makes it permanent so work in progress is never replaced. Its `editMode` lives on the tab too, because the control that switches it — the `</>` icon in the command row's action slot — sits in the row rather than in the form. It is disabled while the JSON doesn't parse, which `AppForm` reports up as it is typed.
+- **Editing a tab as JSON** — **the `</>` button in the command row edits the current file's content as JSON.** Same position, same icon, same `⌘J`, on every tab type that has a JSON representation (app settings, Variables); it renders in its active state while the JSON view is showing, and is absent on files that have none — where Run takes the slot instead. Because the button belongs to the row, the view it selects belongs to the tab (`AppFormTab.editMode`, `VariablesTab.editMode`) and the "does it parse" flag belongs to `App.tsx` (`tabJsonValid`), which is what disables the way back. Any future editable tab is the third one to follow it, not a third placement.
 - **App form** — `AppForm.tsx` is the form body: the **Advanced** disclosure that edits the headers every request carries, and the footer, whose left-hand sentence is the receipt of what the button will add. The JSON view opens on what the form currently holds, so switching views loses nothing. A type marked `customForm` renders its own body instead of the generic parameter list; its `parameters` list stays the contract with the config (which fields exist), and the custom form supplies the labels.
 - **OpenAPI app form** — `OpenApiForm.tsx` asks for one thing, the document (URL, uploaded file, or pasted text), and everything after it is a choice between things the document already declared. It calls `InspectOpenApi` 600ms after typing stops (400ms for a pasted document, immediately for a file, an existing app, or ⏎), discarding all but the latest read. One slot under the field carries every state — caption, reading, the document that was read, each classified failure — so nothing jumps; a 401 asks for the fetch header right there and retries. Nothing below the divider exists until a document parses. The server section adapts to the `servers` list: a list of one is stated rather than offered, several become a radio list, `{placeholders}` become selects (with an `enum`) or inputs with the resolved URL underneath, and no servers at all fall back to a plain base URL seeded from the document URL's origin. The chosen server is written out as `base_url` — and matched back to a row when the app is edited (`matchServerUrl` recovers the variable values) — so requests go where the form says they go. Authentication is a row per scheme plus "Send no credentials", with only the selected row asking for a credential in the shape its scheme expects; credentials typed for one scheme survive a flip to another. Every text field here takes a `${NAME}` variable and suggests the configured ones, so a URL a variable can't be checked against (`isUsableBaseUrl`, `isReadableSourceUrl`) is taken on trust and settled by the server. The pure parts (URL resolution and matching, scheme labels and notes) live in `ui/src/openApiDocument.ts` and are unit-tested.
 - **Variables** — the `variables` map in `kaja.json` (managed in the Variables tab, read by scripts as `kaja.variables.<name>`) is also usable in app configuration through `${NAME}` expansion, including inside longer values (e.g. part of a URL). A variable's value either **is** the value, or names the source that holds it outside the file: `"${secret}"` (the OS keychain, else `KAJA_<NAME>` in the environment) or `"${env:X}"` (the environment variable `X`, which may sit inside a longer value). "Secret" is not a kind of variable — there is one list, one namespace, one syntax; the only axis is where the value lives. The invariant everything rests on: **a value that isn't written in `kaja.json` is never displayed and never sent to a remote browser**, so kaja.json is safe to commit and only names what a workspace needs.
@@ -60,7 +184,7 @@ toggle of its own: it is what scripts and app configuration read, so it shows wh
   - **Expanding** — creation parameters in `OpenApp` (`expandAppParameters`), and **headers in Go, both builds**: the browser sends `${NAME}` unexpanded (`client.ts`, `wails-transport.ts` no longer expand anything), and the `/target/{method...}` handler / the Wails `Target`+`TargetServerStream` resolve them. `ApiService.InvokeApp` is the single door for in-process apps — it expands the headers and **redacts** the resolved values back out of what the app reports exchanging with its upstream, so the Headers view shows `Bearer ${TOKEN}`. Redaction restores headers the client sent exactly, and masks anything the app synthesized by content (only values ≥ 8 chars, below which a value is indistinguishable from ordinary text).
   - **Scripts** read resolved values, including stored ones, via the desktop-only `ResolvedVariables` Wails binding — scripts are desktop-only (`isWailsEnvironment()`), where the UI runs inside the app's own process, so there is no asymmetry to observe. On the web `kaja.variables` is the configuration's own text.
   - **Storing** — `desktop/variable_store.go`, service `kaja`, account `<configurationPath>#<NAME>` so two workspaces keep their own value. macOS goes through the **Security framework directly** (`variable_store_darwin.go`, cgo, following `bookmark_darwin.go`): kaja ships sandboxed through the App Store, where shelling out to `/usr/bin/security` — what a keyring library does — neither works nor files items under the app. Queries set `kSecUseDataProtectionKeychain` (TN3137) so items are scoped to the app's access group from its `com.apple.application-identifier` entitlement; the trade-off is that an **unsigned local `wails build` has no such entitlement** and gets `errSecMissingEntitlement`, so the keychain path only works in a signed build. Windows/Linux keep `go-keyring` (`variable_store_other.go`) — it talks to the Credential Manager and Secret Service directly, no CLI. `Available()` probes once for an item that isn't there; anything but success-or-not-found reports false and the UI asks for the environment instead. `SetStoredValue`/`ClearStoredValue` write it; the value never travels back out and there is no reveal. **A stored value is written the moment it is entered** (⏎ or blur in the row's field, `onStoreValue` → `SetStoredValue`), not on Save: it is machine state, not file state. That is the one asymmetry in the screen and the row says so while a value is being typed; Cancel doesn't take it back. Clearing still rides the save, because what clears it is a row that stopped being stored — a file edit Cancel can undo.
-  - **The tab** — `Variables.tsx`, reached from the sidebar's `{}` button, which is only there while the **Scripts** or **Preview Apps** preview is on: variables exist to be read by scripts and by app configuration, so the tab rides along with whichever of those is enabled and an open tab closes when the last one goes off. **No subheader**: the tab is already named Variables with the same `{}` glyph, so the body starts at the table. Three bands — tab strip, body, and a 52px footer holding Cancel and Save Changes that never scrolls away. The table is Name `168px` · Value `flex` · Used by `64px` · a `20px` actions column, header row `26px`, data rows `44px`, and a trailing `36px` **add row** that sits where the new row will appear. One list; the value cell renders from the value's own text (typing `${secret}` does what the source picker does), so the table and the JSON never diverge. The source is the one decision on a row, so it is stated on the row: a `bg-muted` picker welded to the left edge of the value field names where the value comes from (Value / Keychain / Environment) and changes it in one click, and the field to its right is whatever that source needs — a text box, the keychain's `Held on this machine · Replace` (`Not set · Set`), or an environment reference with a trailing **resolved** / **not set**. Delete isn't a mode, so it left that list for a hover-revealed trash at the row end; while it is under the pointer the row's **Used by** count turns `text-destructive`, because deleting a variable two apps read breaks those references. The empty state is centred in the body band — between tab strip and footer, capped at `340px` — and carries the whole story, since there is no header line to. A read-only configuration (`canUpdateConfiguration` false, i.e. Docker) is a different screen rather than a disabled one: name, source and resolved / not resolved, no footer, under a line saying to set `KAJA_<NAME>` in the container environment. Banners name references no variable defines — read from the rows, so deleting a variable an app uses says so at once — and variables that didn't resolve. Names are validated against `[A-Za-z_][A-Za-z0-9_]*` and `${secret}` must be the whole value (`variableExpansion.ts`, unit-tested; mirrored server-side in `validateVariables`). Saving keeps the tab open; a dirty tab wears a dot after its title and closing it offers Save / Discard / Cancel. Keyboard: `⌘J` switches views, `⏎` in the last row's value opens a new row, `⌫` on an empty new row removes it, `Esc` leaves the JSON view when it parses, `⌘S` saves. Saving a variable recompiles the apps whose parameters reference it (`appReferencesChangedVariable` in `App.tsx`) — an environment change can't be observed, so that only happens on save or config reload. The app form suggests variables when `${` is typed (`VariableSuggestInput` in `AppForm.tsx`, showing the source rather than the value for source-backed rows), and the JSON edit mode does the same via a Monaco completion provider. **Every field that ends up as an app parameter is one of those inputs**, the custom OpenAPI form included — document URL, fetch header, server and base URL, token, username, password — so there is no field a variable can be written into by hand but not suggested in. Credentials are plain text rather than masked: what a field holds may be a `${NAME}` naming where the value is kept, and a masked field can't be read back to tell which.
+  - **The tab** — `Variables.tsx`, reached from the sidebar's `{}` button, which is only there while the **Scripts** or **Preview Apps** preview is on: variables exist to be read by scripts and by app configuration, so the tab rides along with whichever of those is enabled and an open tab closes when the last one goes off. **No subheader**: the tab is already named Variables with the same `{}` glyph, so the body starts at the table. Three bands — command row, body, and a 52px footer holding Cancel and Save Changes that never scrolls away. The table is Name `168px` · Value `flex` · Used by `64px` · a `20px` actions column, header row `26px`, data rows `44px`, and a trailing `36px` **add row** that sits where the new row will appear. One list; the value cell renders from the value's own text (typing `${secret}` does what the source picker does), so the table and the JSON never diverge. The source is the one decision on a row, so it is stated on the row: a `bg-muted` picker welded to the left edge of the value field names where the value comes from (Value / Keychain / Environment) and changes it in one click, and the field to its right is whatever that source needs — a text box, the keychain's `Held on this machine · Replace` (`Not set · Set`), or an environment reference with a trailing **resolved** / **not set**. Delete isn't a mode, so it left that list for a hover-revealed trash at the row end; while it is under the pointer the row's **Used by** count turns `text-destructive`, because deleting a variable two apps read breaks those references. The empty state is centred in the body band — between the command row and the footer, capped at `340px` — and carries the whole story, since there is no header line to. A read-only configuration (`canUpdateConfiguration` false, i.e. Docker) is a different screen rather than a disabled one: name, source and resolved / not resolved, no footer, under a line saying to set `KAJA_<NAME>` in the container environment. Banners name references no variable defines — read from the rows, so deleting a variable an app uses says so at once — and variables that didn't resolve. Names are validated against `[A-Za-z_][A-Za-z0-9_]*` and `${secret}` must be the whole value (`variableExpansion.ts`, unit-tested; mirrored server-side in `validateVariables`). Saving keeps the tab open; a dirty tab wears a dot after its title and closing it offers Save / Discard / Cancel. Keyboard: `⌘J` switches views, `⏎` in the last row's value opens a new row, `⌫` on an empty new row removes it, `Esc` leaves the JSON view when it parses, `⌘S` saves. Saving a variable recompiles the apps whose parameters reference it (`appReferencesChangedVariable` in `App.tsx`) — an environment change can't be observed, so that only happens on save or config reload. The app form suggests variables when `${` is typed (`VariableSuggestInput` in `AppForm.tsx`, showing the source rather than the value for source-backed rows), and the JSON edit mode does the same via a Monaco completion provider. **Every field that ends up as an app parameter is one of those inputs**, the custom OpenAPI form included — document URL, fetch header, server and base URL, token, username, password — so there is no field a variable can be written into by hand but not suggested in. Credentials are plain text rather than masked: what a field holds may be a `${NAME}` naming where the value is kept, and a masked field can't be read back to tell which.
   - **The JSON view** — the same Monaco editor the app settings tab uses, on the same `</>` rule (below), seeded from what the table currently holds so switching loses nothing and parsed back into rows on the way out. A line above it says which file and which block, because config-versus-document is the confusion an editor on a tab invites, and that keychain values appear as `${secret}` rather than as themselves. A failure to parse is a `34px` bar above the footer, not a toast, naming the line (`variablesJson.ts`, unit-tested: the editor's own diagnostic when there is one, else the engine's message, whose wording and position differ between V8 and WebKit); Save and the way back to the table are both disabled while it is red. Monaco resolves JSON diagnostics globally, so both editors' schemas are registered together in `jsonSchemas.ts`, each matched to its own model URI.
 
 ### MCP server architecture
@@ -234,7 +358,7 @@ off `data-starting-style` / `data-ending-style`.
 - Icons: import from `lucide-react` directly, under lucide's own names (e.g. `Trash2`, `Ellipsis`, `PanelLeftClose`). Standalone icons take a numeric `size` prop; inside `IconButton` the size comes from the button.
 - Class names: compose with `cn()` from `ui/src/cn.ts` (tailwind-merge over a plain join). The same file holds `cva()` for variant maps and `cnState()` for the Base UI parts whose `className` may be a function of the part's state.
 - Theme tokens: the shadcn CSS variables live in `ui/src/tailwind.css`, stock neutral plus one addition, `--chrome`. Style with Tailwind utilities (`bg-muted`, `text-muted-foreground`, `border-border`). Day/night is a `dark` class toggled on `<html>` (so Base UI portals are themed too); Monaco is themed separately (see below).
-- Surfaces: three planes, and a pane belongs to exactly one of them. **Content** — every tab body (editor, response viewer, compile log, app settings, variables) — is `bg-background`, the deepest plane, so the thing you stare at longest is the quietest. **Chrome** — sidebar, top bar, tab strip, status bar — is `bg-chrome`, one step above it; the active tab wears `bg-background` so it reads as continuous with its own content. **Floating** — dialogs, popovers, menus, Monaco's suggest/hover widgets — is `bg-card`/`bg-popover`. `bg-muted` is a highlight for chips and pills, never a pane.
+- Surfaces: three planes, and a pane belongs to exactly one of them. **Content** — every tab body (editor, response viewer, compile log, app settings, variables) — is `bg-background`, the deepest plane, so the thing you stare at longest is the quietest. **Chrome** — sidebar, command row, status bar — is `bg-chrome`, one step above it. **Floating** — dialogs, popovers, menus, Monaco's suggest/hover widgets — is `bg-card`/`bg-popover`. `bg-muted` is a highlight for chips and pills, never a pane.
 - Code colors: `ui/src/monacoTheme.ts` is the whole palette, for TypeScript and JSON alike. Structure is carried by the neutral ramp; the only hues are the ones Kaja already owns — emerald for strings, amber for numbers and literals, a muted blue for types — at roughly half the chroma of VS Dark+, so nothing in a request body outshines the Run button. Monaco can't read the CSS variables, so it repeats the surfaces it paints as hex; keep them in step with the tokens.
 - Status colors beyond the tokens: warnings are `text-amber-600 dark:text-amber-400` over `bg-amber-500/10`, successes `text-emerald-600 dark:text-emerald-400` over `bg-emerald-500/10`, errors `text-destructive` over `bg-destructive/10`.
 - Tailwind build: `ui/src/tailwind.css` is compiled by the Tailwind CLI (run through `bun`) inside an esbuild `OnStart` plugin in `server/internal/ui/builder.go`; the generated `server/build/tailwind.css` is imported by `main.tsx` and folded into `main.css`.

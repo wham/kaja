@@ -141,8 +141,8 @@ async function takeDemo() {
     await waitForLocator(methodItem, "ListShows method in sidebar");
     await methodItem.click();
 
-    // Wait for method tab to become active
-    await waitFor(page, '[role="tab"][aria-selected="true"]', "method tab to become active");
+    // Wait for the command row's switcher to name the method
+    await waitFor(page, '[data-testid="file-switcher"]:has-text("ListShows")', "switcher to show the method");
     await settleDelay(page);
 
     // Click the Run button
@@ -196,8 +196,8 @@ async function takeDemo() {
     await settleDelay(page, 300);
     await page.locator('[data-testid="app-status-row"]').first().click();
 
-    // Wait for the compile log tab to become active
-    await waitFor(page, '[role="tab"][aria-selected="true"]:has-text("Compile log")', "Compile log tab to become active");
+    // Wait for the compile log to become the current file
+    await waitFor(page, '[data-testid="file-switcher"]:has-text("Compile log")', "Compile log to become current");
 
     // Wait for compiler content to load - either project items or loading state to finish
     await waitForTextHidden(page, "Loading configuration", "configuration to load");

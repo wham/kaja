@@ -112,7 +112,6 @@ interface OpenApiFormProps {
   onReadyChange: (ready: boolean) => void;
   // A choice the user made here, for the tab to stop being a preview. Typing is
   // caught by the form shell; this is for the picks that aren't text.
-  onEdited: () => void;
 }
 
 // OpenApiForm is the New/Edit form for an OpenAPI app. It asks for one thing -
@@ -128,7 +127,6 @@ export function OpenApiForm({
   readOnly,
   onDocumentChange,
   onReadyChange,
-  onEdited,
 }: OpenApiFormProps) {
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => ((parameters.specContent ?? "").trim() ? "paste" : "url"));
   const [state, setState] = useState<ReadState>({ status: "idle" });
@@ -281,7 +279,6 @@ export function OpenApiForm({
 
   const switchSourceMode = (mode: SourceMode) => {
     if (mode === sourceMode) return;
-    onEdited();
     setSourceMode(mode);
     setUploadName("");
     onParametersChange((previous) => ({ ...previous, specUrl: "", specContent: "" }));
@@ -289,7 +286,6 @@ export function OpenApiForm({
 
   const upload = (file: File | undefined) => {
     if (!file) return;
-    onEdited();
     const reader = new FileReader();
     reader.onload = () => {
       setUploadName(file.name);
@@ -302,7 +298,6 @@ export function OpenApiForm({
   const selectedScheme = (parameters.securityScheme ?? "").trim() || (document ? defaultSecurityScheme(document) : NO_CREDENTIALS);
 
   const selectScheme = (key: string) => {
-    onEdited();
     credentialsRef.current[selectedScheme] = {
       token: parametersRef.current.token ?? "",
       username: parametersRef.current.username ?? "",
@@ -392,7 +387,6 @@ export function OpenApiForm({
           onDemo={
             demo
               ? () => {
-                  onEdited();
                   setSourceMode("url");
                   onParametersChange((previous) => ({ ...previous, ...demo.parameters, specContent: "" }));
                 }
@@ -439,12 +433,10 @@ export function OpenApiForm({
             readOnly={readOnly}
             choice={serverChoice}
             onChoice={(choice) => {
-              onEdited();
               setServerChoice(choice);
             }}
             variableValues={serverVariables}
             onVariableChange={(index, variable, value) => {
-              onEdited();
               setServerVariables((previous) => ({ ...previous, [index]: { ...previous[index], [variable]: value } }));
             }}
             customUrl={customServerUrl}
