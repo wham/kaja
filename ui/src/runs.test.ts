@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
-import { callCount, ConsoleItem, groupRuns, isSingleItemRun, Run, worstStatus } from "./runs";
+import { callCount, ConsoleItem, followSelection, groupRuns, isSingleItemRun, Run, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -91,5 +91,37 @@ describe("callCount", () => {
   it("treats a run of one as a single row, so the common case gains no chrome", () => {
     const [group] = groupRuns([run("r1")], [call("a", "r1")]);
     expect(isSingleItemRun(group)).toBe(true);
+  });
+});
+
+describe("followSelection", () => {
+  const history = groupRuns([run("r1", { startedAt: NOW }), run("r2", { startedAt: NOW + 1 })], [call("a", "r1"), call("b", "r2"), call("c", "r2")]);
+
+  it("opens a run that has just arrived, whichever run was being read", () => {
+    expect(followSelection({ runId: "r1", itemId: "a" }, history, true)).toEqual({ runId: "r2", itemId: "c" });
+  });
+
+  it("opens the first run there is", () => {
+    expect(followSelection(null, groupRuns([run("r1")], [call("a", "r1")]), true)).toEqual({ runId: "r1", itemId: "a" });
+  });
+
+  it("follows the newest call inside the run being watched, so one in flight is selected as it is issued", () => {
+    expect(followSelection({ runId: "r2", itemId: "b" }, history, false)).toEqual({ runId: "r2", itemId: "c" });
+  });
+
+  it("leaves a run stepped back to alone when a call lands in a later one", () => {
+    expect(followSelection({ runId: "r1", itemId: "a" }, history, false)).toEqual({ runId: "r1", itemId: "a" });
+  });
+
+  it("follows the newest run when the selected one has gone", () => {
+    expect(followSelection({ runId: "gone", itemId: "x" }, history, false)).toEqual({ runId: "r2", itemId: "c" });
+  });
+
+  it("selects the header of a run that has produced nothing yet", () => {
+    expect(followSelection(null, groupRuns([run("r3")], []), true)).toEqual({ runId: "r3", itemId: undefined });
+  });
+
+  it("has nothing to select once the history is cleared", () => {
+    expect(followSelection({ runId: "r1", itemId: "a" }, [], true)).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { callCount, ConsoleItem, groupRuns, itemName, itemStatus, Run, RunGroup, RunStatus } from "./runs";
+import { callCount, ConsoleItem, followSelection, groupRuns, itemName, itemStatus, Run, RunGroup, RunSelection, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { Log, LogLevel } from "./server/api";
 
@@ -32,13 +32,6 @@ const consoleTabActiveClass = "font-medium text-foreground";
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
-// Which run is being looked at, and which of its calls. No call means the run
-// header itself is selected, which shows the run's own summary.
-interface Selection {
-  runId: string;
-  itemId?: string;
-}
-
 interface ConsoleProps {
   runs: Run[];
   items: ConsoleItem[];
@@ -46,7 +39,7 @@ interface ConsoleProps {
 }
 
 export function Console({ runs, items, onClear }: ConsoleProps) {
-  const [selection, setSelection] = useState<Selection | null>(null);
+  const [selection, setSelection] = useState<RunSelection | null>(null);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("response");
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
@@ -67,19 +60,15 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
     return () => clearInterval(interval);
   }, [hasInFlight]);
 
-  // Follow the newest run, and the newest call inside it, so a call in flight is
-  // selected the moment it is issued instead of after its response lands. A run
-  // you deliberately stepped back to is left alone.
+  // The newest run the console has followed, which is what tells a run arriving
+  // apart from a call arriving inside the one already on screen.
+  const followedRunRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (!newest) {
-      setSelection(null);
-      return;
-    }
-    setSelection((current) => {
-      if (current && current.runId !== newest.run.id && groups.some((group) => group.run.id === current.runId)) return current;
-      const last = newest.items[newest.items.length - 1];
-      return { runId: newest.run.id, itemId: last?.id };
-    });
+    const isNewRun = followedRunRef.current !== newest?.run.id;
+    followedRunRef.current = newest?.run.id;
+    setSelection((current) => followSelection(current, groups, isNewRun));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newest?.run.id, newest?.items.length, groups.length]);
 
   // Opening a file whose last run we still hold is a reason to show that run:

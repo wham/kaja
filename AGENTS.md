@@ -130,8 +130,16 @@ calls, and three unrelated rows say nothing about the thing you actually pressed
   run with its call count, today's above a dimmed date header for older ones.
   `⌃↑`/`⌃↓` step through runs. Selecting a call fills the response below;
   selecting the run header shows the run's own summary instead.
+- **A new run always takes the console** (`followSelection`), because pressing Run
+  is a request to see what it did — from an older run stepped back to as much as
+  from the last one. Everything short of a new run stays where it is put: a call
+  landing in a later run leaves a stepped-back one alone, and only inside the run
+  being watched does the cursor follow the newest call, which is what selects one
+  in flight the moment it is issued rather than when its response lands.
 - **Run names reuse the derived script names**, so the console and the sidebar
-  speak the same language.
+  speak the same language. The window title follows the same name, from the
+  scratch list rather than the view — running or appending re-derives a title
+  without the view itself changing.
 - **Live and last-time are different states, and the header is the only place
   that can say which.** Reopening a script gives you its code and, if we still
   hold it, its last run (`runStore.ts`): the header carries a `Last run` pill and

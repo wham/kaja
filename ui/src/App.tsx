@@ -718,11 +718,15 @@ export function App() {
     document.documentElement.classList.toggle("dark", colorMode === "night");
   }, [colorMode]);
 
+  // A scratch names itself from its own code, so the window follows the list
+  // rather than the view: running or appending re-derives the title without the
+  // view itself changing, and reading it through a ref would leave the window on
+  // the name the row has already stopped showing.
   useEffect(() => {
     const current = views[0];
     let title = "Kaja";
     if (current?.type === "scratch") {
-      title = `${viewIdentity(current, scratchesRef.current).name} - Kaja`;
+      title = `${viewIdentity(current, scratches).name} - Kaja`;
     } else if (current?.type === "script") {
       title = `${current.script.name} - Kaja`;
     }
@@ -730,7 +734,7 @@ export function App() {
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
-  }, [views]);
+  }, [views, scratches]);
 
   // Load the global scripts directory (desktop only). Scripts are independent
   // of apps; they bind to an app at run time via their import paths.

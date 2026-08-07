@@ -133,3 +133,27 @@ export function callCount(group: RunGroup): number {
 export function isSingleItemRun(group: RunGroup): boolean {
   return group.items.length <= 1;
 }
+
+// Which run is being looked at, and which of its calls. No call means the run
+// header itself is selected, which shows the run's own summary.
+export interface RunSelection {
+  runId: string;
+  itemId?: string;
+}
+
+/**
+ * Where the console points after the run list changes. Pressing Run is a request
+ * to see what it did, so a run arriving (`isNewRun`) always takes the selection —
+ * including from an older run that was deliberately stepped back to. Anything
+ * else only moves the cursor within the run being watched: a call landing in a
+ * later run leaves a stepped-back one alone, while inside the watched run it
+ * follows the newest call, which is what selects one in flight the moment it is
+ * issued. A selection whose run has gone has nothing left to point at and
+ * follows the newest too.
+ */
+export function followSelection(current: RunSelection | null, groups: RunGroup[], isNewRun: boolean): RunSelection | null {
+  const newest = groups[groups.length - 1];
+  if (!newest) return null;
+  if (!isNewRun && current && current.runId !== newest.run.id && groups.some((group) => group.run.id === current.runId)) return current;
+  return { runId: newest.run.id, itemId: newest.items[newest.items.length - 1]?.id };
+}
