@@ -31,10 +31,11 @@ method in the sidebar is a *template*, not a document — clicking it fills a
 - **A scratch is kept in the app; a script is on disk.** That is the whole
   distinction, and it is not "temporary vs. permanent" — both persist. Scratches
   live in IndexedDB (`scratches.ts`, `Scratch`), unlimited, on web and desktop
-  alike. Saving one **writes a file**, which is what makes it visible to the MCP
-  server, the macOS text service, and anything else outside Kaja — so saving is
-  desktop-only, and the scratch it came from goes away with it rather than
-  lingering as a copy.
+  alike. The verb is just **Save** (never "save as script", never "save
+  permanently" — the unsaved ones are permanent too): it **writes a file**, which
+  is what makes it visible to the MCP server, the macOS text service, and
+  anything else outside Kaja. So saving is desktop-only, and the scratch it came
+  from goes away with it rather than lingering as a copy.
 - **Clicking a method never asks what to do with it** (`onMethodSelect`). The
   current scratch decides: an **untouched** one (still exactly its generated
   code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
@@ -56,13 +57,13 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   rename (`renameScratch`) **pins** it and the code stops deciding.
 - **Unlimited only works because the browsing buffers clear themselves out.**
   `pruneScratches` drops scratches that were never run and never edited past
-  their generated form after 14 days, and never touches one that is open.
+  their generated form after 14 days, and never touches one that is on screen.
   Anything run or edited is kept forever.
 - **A scratch is not bound to an app.** Deleting an app leaves your scratches
   alone — they just stop compiling. Only a *rename* is followed, so the imports
   keep resolving. (This is why `linkTabsToApps` is gone: there is nothing to
   re-bind.)
-- **There is one list, not two.** The sidebar and the switcher both show saved
+- **There is one list, not two.** The sidebar and the finder both show saved
   and unsaved together under a single `Scripts` heading, in one vocabulary — two
   headings would teach a taxonomy the model doesn't have. **The icon is the whole
   difference**: `FileCode` for a script on disk, `PenLine` for one that isn't.
@@ -81,60 +82,52 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   Storing code is free; storing responses is not, so that needs its own
   retention rule (most recent N scratches, or a size cap).
 
-## The command row and the file switcher
+## The command row and the finder
 
-**There is no tab strip.** The window's right pane opens with one 40px
-**command row** (`CommandRow.tsx`) that replaced both the old top bar and the
-tab strip: sidebar toggle · switcher · hairline · recent chips · spacer · action
-· hairline · search · layout. Nothing else may be added to it — new controls go
-in the sidebar header or the console header. The sidebar header is 40px too, so
-the two line up across the seam, and the macOS traffic lights stay in it (the row
-takes over the inset only when the sidebar is collapsed).
+**There is no tab strip, and no open files either.** The pane shows one thing —
+whatever you last selected — and the window's right side opens with one 40px
+**command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
+sidebar toggle · finder · hairline · recent chips · spacer · action · hairline ·
+search · layout. Nothing else may be added to it; new controls go in the sidebar
+header or the console header. The sidebar header is 40px too, so the two line up
+across the seam, and the macOS traffic lights stay in it (the row takes over the
+inset only when the sidebar is collapsed).
 
-- **The model** — `tabModel.ts`. Open files live in one list kept in
-  **most-recently-visited order**: `tabs[0]` is the file on screen, `tabs[1]` is
-  what `⌘P⏎` goes back to, and closing the current file falls through to the next
-  one. There is no `activeIndex` and no positional order, because there is no
-  strip to put one in. Every tab carries `id`, `seq` (creation order — bodies
-  render in it so a live Monaco editor is never moved in the DOM when the visit
-  order changes) and `preview`. `tabIdentity(tab, scratches)` is the one place a tab's
-  `name` / `path` ("app / Service") / `origin` (the trigger's qualifier) / `icon`
-  come from.
-- **One preview slot** — a single click in the sidebar opens a **preview**:
-  italic, and it takes the preview slot from whatever was in it rather than
-  stacking. A double click, a pick from the switcher, the first keystroke of an
-  edit, or running it makes it permanent. This replaced the old positional
-  "last tab with no interaction" rule and the `ephemeral` flag on app form tabs;
-  every tab type now uses the same `preview` boolean. Preview is about the
-  *tab*, not the document: closing a scratch tab puts the scratch away, it
-  never throws the work out.
-- **`applyTabs` in `App.tsx`** — every change to the open files goes through it,
-  which makes it the one place that has to remember the rest: the file being left
-  keeps its cursor, whatever left the list is disposed, and the new list is
-  persisted. Nothing else disposes a model or calls `persistTabs`.
-- **The switcher** (`FileSwitcher.tsx`) — the trigger is a `role="combobox"`
-  button, 26px, carrying icon · name · qualifier · `ChevronsUpDown`, capped at
-  260px (over that the qualifier drops — measured with a clipped probe — then the
-  name truncates from the left so the call name survives). Its popover is a
-  **filter list, not a menu**: 380px, `Open · N` then `All files`, typing narrows
-  both. That is why `⌘K` lands here too and there is no separate search popup —
-  the file list *is* the finder. `⌘P` opens it on the previous file, `⌘K` and the
-  trigger on the first row; `⌘⌫` closes the highlighted row without leaving the
-  list; `Close all` sits in the footer. Only the response is 120ms opacity — no
-  slide, no scale, because movement makes fast repeated `⌘P` feel unstable.
+- **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
+  only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing
+  that existed to serve itself. What is left is a **cache**: `MOUNTED_LIMIT`
+  views kept mounted in most-recently-visited order so going back is instant and
+  keeps its cursor. It has no UI, nothing can be closed out of it, and a view
+  holding edits that exist nowhere else (`holdsWork` — Variables, an app form) is
+  never the one evicted. `views[0]` is on screen; `views[1]` is what `⌘P⏎`
+  returns to.
+- **Preview went with it.** Italic tabs, double-click-to-keep and
+  "the first keystroke promotes it" only ever existed to stop tabs accumulating.
+  With one pane showing one thing nothing accumulates, so `preview`, `keepTab`,
+  `closeTab`, `⌘W`, `⌘⌫`, the row close buttons, `Close all` and the
+  Variables close-confirmation are all gone. Navigating away from a dirty
+  Variables tab now simply keeps the edits.
+- **The finder** (`Finder.tsx`) — the trigger is a `role="combobox"` button,
+  26px, carrying icon · name · qualifier · `ChevronsUpDown`, capped at 260px
+  (over that the qualifier drops — measured with a clipped probe — then the name
+  truncates from the left so the call name survives). It is a **label first**:
+  with the sidebar collapsed it is the only thing that says where you are. Its
+  popover is one list — `Recent`, then `All files` — and typing narrows both.
+  That is why `⌘K` lands here too: the finder is the only surface that can search
+  the calls, which the tree can't. `⌘P` opens it on the previous place so `⌘P⏎`
+  is "back"; `⌘K` and the trigger open on the first row. Only the response is
+  120ms opacity — no slide, no scale, because movement makes fast repeated `⌘P`
+  feel unstable.
 - **The action slot** — Run and the `</>` JSON toggle share one position, since a
   file is never both a script and a form. Run is absent (not disabled) on
   non-script surfaces. Its disabled state and the trigger's `N errors` state come
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
   with itself.
-- **Shortcuts** — `⌘P` switcher · `⌘K` same surface · `⌘⏎`/F5 run · `⌘W` close the
-  current file · `⌘⌫` close the highlighted row · `⌘J` JSON view · `⌘B` sidebar.
-  `⌃Tab` and `⌘1–9` are gone: without positions there is nothing to number.
-- **What was dropped** — spatial memory, drag-reorder, middle-click-to-close and
-  "Close others". If that turns out to hurt, the recent-chip row is where to grow
-  (up to four chips) before reintroducing a strip. Split panes are specified but
-  not built; when they are, the row divides at the pane seam and each half gets
-  its own switcher.
+- **Shortcuts** — `⌘P` finder on the previous place · `⌘K` same surface · `⌘⏎`/F5
+  run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save. `⌃Tab`, `⌘1–9` and `⌘W` are
+  gone: there are no positions to number and nothing to close.
+- **Split panes** are specified but not built; when they are, the row divides at
+  the pane seam and each half gets its own finder.
 
 ## Experimental (Preview)
 

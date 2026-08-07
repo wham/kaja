@@ -12,7 +12,6 @@ const ONE_CHIP_MIN_WIDTH = 760;
 export interface RecentChip {
   id: string;
   name: string;
-  dirty: boolean;
 }
 
 interface CommandRowProps {
@@ -21,8 +20,8 @@ interface CommandRowProps {
   leftInset: number;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
-  // The file switcher's trigger; it owns its own popover.
-  switcher: React.ReactNode;
+  // The finder's trigger; it owns its own popover.
+  finder: React.ReactNode;
   // The two most recently visited files other than the current one.
   recent: RecentChip[];
   onSelectRecent: (id: string) => void;
@@ -35,7 +34,7 @@ interface CommandRowProps {
   onToggleLayout: () => void;
 }
 
-// One 40px row instead of a top bar and a tab strip: sidebar toggle · switcher ·
+// One 40px row instead of a top bar and a tab strip: sidebar toggle · finder ·
 // hairline · recent chips · spacer · action · hairline · search · layout.
 // Nothing else may be added to it — new controls go in the sidebar header or the
 // console header.
@@ -43,7 +42,7 @@ export function CommandRow({
   leftInset,
   sidebarCollapsed,
   onToggleSidebar,
-  switcher,
+  finder,
   recent,
   onSelectRecent,
   action,
@@ -73,7 +72,7 @@ export function CommandRow({
             tooltip={false}
           />
         </SimpleTooltip>
-        {switcher}
+        {finder}
         {chips.length > 0 && <Hairline />}
         {chips.map((chip) => (
           <button
@@ -82,7 +81,6 @@ export function CommandRow({
             onClick={() => onSelectRecent(chip.id)}
             className="flex h-[26px] max-w-[160px] shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            {chip.dirty && <span aria-label="Unsaved changes" className="size-[5px] shrink-0 rounded-full bg-muted-foreground opacity-70" />}
             <span className="truncate">{chip.name}</span>
           </button>
         ))}

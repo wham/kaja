@@ -94,16 +94,16 @@ interface SidebarProps {
   pinnedScriptPath?: string;
   scrollToMethod?: ScrollToMethod;
   canDeleteApps?: boolean;
-  // A single click opens a preview, a double click opens it for good, and
-  // ⌥click (or the + on the row) adds the call to the scratch already open.
-  onSelect: (method: Method, service: Service, app: App, mode?: "preview" | "permanent" | "append") => void;
-  onScratchSelect?: (scratch: Scratch, permanent?: boolean) => void;
+  // Clicking goes to the call; ⌥click (or the + on the row) adds it to the
+  // script already on screen.
+  onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
+  onScratchSelect?: (scratch: Scratch) => void;
   onRenameScratch?: (scratch: Scratch) => void;
   onDeleteScratch?: (scratch: Scratch) => void;
-  onSaveScratchAsScript?: (scratch: Scratch) => void;
-  // Opens the switcher on the full scratch list.
+  onSaveScratch?: (scratch: Scratch) => void;
+  // Opens the finder on the full list.
   onShowAllScratches?: () => void;
-  onScriptSelect?: (script: Script, permanent?: boolean) => void;
+  onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
   onPinScript?: (script: Script) => void;
@@ -137,7 +137,7 @@ export function Sidebar({
   onScratchSelect,
   onRenameScratch,
   onDeleteScratch,
-  onSaveScratchAsScript,
+  onSaveScratch,
   onShowAllScratches,
   onScriptSelect,
   onRenameScript,
@@ -513,7 +513,6 @@ export function Sidebar({
                       }
                     }}
                     onSelect={() => onScriptSelect?.(script)}
-                    onActivate={() => onScriptSelect?.(script, true)}
                     current={currentScriptPath === script.path}
                   >
                     {/* Pin lives in the leading slot so it never shifts when the kebab appears on
@@ -553,7 +552,6 @@ export function Sidebar({
                       }
                     }}
                     onSelect={() => onScratchSelect?.(scratch)}
-                    onActivate={() => onScratchSelect?.(scratch, true)}
                     current={currentScratchId === scratch.id}
                   >
                     {/* Not saved: the pen is the whole difference. */}
@@ -697,8 +695,7 @@ export function Sidebar({
                                         el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
                                       } else elementRefs.current.delete(mId);
                                     }}
-                                    onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "preview")}
-                                    onActivate={() => onSelect(method, service, app, "permanent")}
+                                    onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
                                     current={
                                       currentScratchOrigin?.appName === appName &&
                                       currentScratchOrigin?.serviceName === service.name &&
@@ -836,15 +833,15 @@ export function Sidebar({
             <Pencil size={16} />
             Rename
           </DropdownMenuItem>
-          {onSaveScratchAsScript && (
+          {onSaveScratch && (
             <DropdownMenuItem
               onSelect={() => {
-                if (scratchMenu) onSaveScratchAsScript(scratchMenu.scratch);
+                if (scratchMenu) onSaveScratch(scratchMenu.scratch);
                 setScratchMenu(null);
               }}
             >
               <FileCode size={16} />
-              Save as script
+              Save
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

@@ -14,7 +14,7 @@ import { Console, ConsoleItem } from "./Console";
 import { NoFileBlankslate } from "./NoFileBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
-import { FileSwitcher, OpenSwitcherFile, SwitcherFile } from "./FileSwitcher";
+import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
@@ -33,23 +33,22 @@ import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
-  activateTab,
-  closeTab,
-  keepTab,
-  openAppFormTab,
-  openCompilerTab,
-  openDefinitionTab,
-  openScratchTab,
-  openScriptTab,
-  openVariablesTab,
-  PersistedTabState,
-  restoreTabs,
-  serializeTabs,
+  dropView,
+  PersistedViewState,
+  restoreViews,
+  serializeViews,
   setAppFormEditMode,
   setVariablesEditMode,
-  tabIdentity,
-  TabModel,
-} from "./tabModel";
+  showAppForm,
+  showCompiler,
+  showDefinition,
+  showScratch,
+  showScript,
+  showVariables,
+  View,
+  viewIdentity,
+  visit,
+} from "./views";
 import { Variables, VariablesSave, VariablesState } from "./Variables";
 import { useCompilation } from "./useCompilation";
 import { useConfigurationChanges } from "./useConfigurationChanges";
@@ -81,8 +80,8 @@ const MAX_CONSOLE_ITEMS = 500;
 // Scratch ids the last session had open, so start-up pruning can't drop one
 // that is about to reopen.
 function openScratchIds(): string[] {
-  const persisted = getPersistedValue<PersistedTabState>("tabs");
-  return (persisted?.tabs ?? []).flatMap((tab) => ("scratchId" in tab ? [tab.scratchId] : []));
+  const persisted = getPersistedValue<PersistedViewState>("views");
+  return (persisted?.views ?? []).flatMap((tab) => ("scratchId" in tab ? [tab.scratchId] : []));
 }
 
 // Vertical padding the editor reserves around the code (see Editor.tsx).
@@ -150,9 +149,6 @@ export function App() {
   const [variablesState, setVariablesState] = useState<VariablesState>({ dirty: false, canSave: false, save: async () => {} });
   const variablesStateRef = useRef(variablesState);
   variablesStateRef.current = variablesState;
-  // What a close gesture on the Variables tab is waiting on, while it asks
-  // whether to save the edits, discard them, or stay.
-  const [closingVariablesId, setClosingVariablesId] = useState<string>();
   const [apps, setApps] = useState<AppModel[]>([]);
   // Every scratch ever made, newest activity first — unlimited, kept in the
   // app, named from its own code. Independent of what is open: closing a tab
@@ -160,10 +156,10 @@ export function App() {
   const [scratches, setScratches] = useState<Scratch[]>(() =>
     pruneScratches(getPersistedValue<Scratch[]>("scratches") ?? [], Date.now(), new Set(openScratchIds())),
   );
-  // The open files, most-recently-visited first: tabs[0] is what the window is
+  // The open files, most-recently-visited first: views[0] is what the window is
   // showing. Nothing else records which file is current.
-  const [tabs, setTabs] = useState<TabModel[]>(() =>
-    restoreTabs(getPersistedValue<PersistedTabState>("tabs"), getPersistedValue<Scratch[]>("scratches") ?? []),
+  const [views, setViews] = useState<View[]>(() =>
+    restoreViews(getPersistedValue<PersistedViewState>("views"), getPersistedValue<Scratch[]>("scratches") ?? []),
   );
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 300);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
@@ -176,7 +172,7 @@ export function App() {
   const [editorHeightAuto, setEditorHeightAuto] = usePersistedState("editorHeightAuto", true);
   const editorHeightAutoRef = useRef(editorHeightAuto);
   editorHeightAutoRef.current = editorHeightAuto;
-  const [editorContentHeights, setEditorContentHeights] = useState<{ [tabId: string]: number }>({});
+  const [editorContentHeights, setEditorContentHeights] = useState<{ [viewId: string]: number }>({});
   const [windowHeight, setWindowHeight] = useState(() => window.innerHeight);
   const [editorWidth, setEditorWidth] = usePersistedState("editorWidth", 600);
   const [editorLayout, setEditorLayout] = usePersistedState<"vertical" | "horizontal">("editorLayout", () =>
@@ -184,17 +180,17 @@ export function App() {
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
   const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
-  // Whether the file switcher is open, and where it opened: ⌘P lands on the
+  // Whether the finder is open, and where it opened: ⌘P lands on the
   // previous file so ⌘P⏎ goes back, everything else on the first row.
-  const [switcher, setSwitcher] = useState<"first" | "previous">();
+  const [finder, setFinder] = useState<"first" | "previous">();
   const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; app: AppModel }>();
-  const tabsRef = useRef(tabs);
-  tabsRef.current = tabs;
+  const viewsRef = useRef(views);
+  viewsRef.current = views;
   const scratchesRef = useRef(scratches);
   scratchesRef.current = scratches;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
-  const hasTabMemory = useRef(getPersistedValue<PersistedTabState>("tabs") !== undefined);
-  const tabsRestoredRef = useRef(tabs.some((tab) => tab.type === "scratch"));
+  const hasViewMemory = useRef(getPersistedValue<PersistedViewState>("views") !== undefined);
+  const viewsRestoredRef = useRef(views.some((tab) => tab.type === "scratch"));
   const [scripts, setScripts] = useState<Script[]>();
   // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
   const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
@@ -234,9 +230,9 @@ export function App() {
   // Whether the active tab's JSON parses. It gates switching back to the form or
   // the table, which is why it lives out here with the control that does the
   // switch.
-  const [tabJsonValid, setTabJsonValid] = useState(true);
-  const tabJsonValidRef = useRef(tabJsonValid);
-  tabJsonValidRef.current = tabJsonValid;
+  const [viewJsonValid, setTabJsonValid] = useState(true);
+  const viewJsonValidRef = useRef(viewJsonValid);
+  viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
   const [autoExpandApp, setAutoExpandApp] = useState<{ name: string }>();
   // One-shot signal to expand an app's logs when the compile log is opened for it.
@@ -253,8 +249,8 @@ export function App() {
   // The run in flight, if any: which tab issued it, when it started, and the
   // controller its Stop button aborts. `settled` marks the script itself as
   // finished — the run is only over once its calls have landed too.
-  const [activeRun, setActiveRun] = useState<{ tabId: string; startedAt: number; controller: AbortController; settled: boolean } | null>(null);
-  // Pending debounced disk writes for open script tabs, keyed by tab id.
+  const [activeRun, setActiveRun] = useState<{ viewId: string; startedAt: number; controller: AbortController; settled: boolean } | null>(null);
+  // Pending debounced disk writes for open script views, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
   // refreshOpenScriptEditors), not a user edit — skip the debounced disk save.
@@ -270,7 +266,7 @@ export function App() {
   // Flush a script tab's pending debounced write immediately (e.g. before its
   // model is disposed). No-op if nothing is pending.
   const flushScriptWrite = useCallback(
-    (tab: TabModel) => {
+    (tab: View) => {
       if (tab.type !== "script") return;
       const timer = scriptSaveTimers.current.get(tab.id);
       if (!timer) return;
@@ -281,10 +277,10 @@ export function App() {
     [showFileError],
   );
 
-  const persistTabs = useCallback(() => {
+  const persistViews = useCallback(() => {
     setPersistedValue(
-      "tabs",
-      serializeTabs(tabsRef.current, (tabId) => editorRegistryRef.current.get(tabId)?.saveViewState()),
+      "views",
+      serializeViews(viewsRef.current, (viewId) => editorRegistryRef.current.get(viewId)?.saveViewState()),
     );
   }, []);
 
@@ -310,8 +306,8 @@ export function App() {
     [applyScratches],
   );
 
-  const disposeTab = useCallback(
-    (tab: TabModel) => {
+  const disposeView = useCallback(
+    (tab: View) => {
       if (tab.type !== "scratch" && tab.type !== "script") return;
       flushScriptWrite(tab);
       editorRegistryRef.current.delete(tab.id);
@@ -324,9 +320,9 @@ export function App() {
   // Every change to the open files goes through here, which makes this the one
   // place that has to remember the rest: the file being left keeps its cursor,
   // whatever left the list is disposed, and the new list is persisted.
-  const applyTabs = useCallback(
-    (update: (tabs: TabModel[]) => TabModel[]) => {
-      const previous = tabsRef.current;
+  const applyViews = useCallback(
+    (update: (views: View[]) => View[]) => {
+      const previous = viewsRef.current;
       const current = previous[0];
       if (current?.type === "scratch" || current?.type === "script") {
         const editor = editorRegistryRef.current.get(current.id);
@@ -338,14 +334,14 @@ export function App() {
 
       const kept = new Set(next.map((tab) => tab.id));
       for (const tab of previous) {
-        if (!kept.has(tab.id)) disposeTab(tab);
+        if (!kept.has(tab.id)) disposeView(tab);
       }
 
-      tabsRef.current = next;
-      setTabs(next);
-      persistTabs();
+      viewsRef.current = next;
+      setViews(next);
+      persistViews();
     },
-    [disposeTab, persistTabs],
+    [disposeView, persistViews],
   );
 
   const onMethodCallUpdate = useCallback((methodCall: MethodCall) => {
@@ -474,7 +470,7 @@ export function App() {
 
   // Refresh open task editors to trigger re-validation
   const refreshOpenScratchEditors = useCallback(() => {
-    tabsRef.current.forEach((tab) => {
+    viewsRef.current.forEach((tab) => {
       if (tab.type === "scratch") {
         const value = tab.model.getValue();
         tab.model.setValue(value);
@@ -489,7 +485,7 @@ export function App() {
   // never clears it on its own. Use an identity edit — not setValue — to keep
   // undo history, and suppress the auto-save it would otherwise trigger.
   const refreshOpenScriptEditors = useCallback(() => {
-    tabsRef.current.forEach((tab) => {
+    viewsRef.current.forEach((tab) => {
       if (tab.type === "script") {
         // onDidChangeContent fires synchronously within pushEditOperations, so
         // bracketing the poke leaves the set empty afterwards — a later real
@@ -597,7 +593,7 @@ export function App() {
         // alone, it just stops compiling. Only a rename needs following, so the
         // imports keep resolving.
         if (renames.size > 0) {
-          tabsRef.current.forEach((tab) => {
+          viewsRef.current.forEach((tab) => {
             if (tab.type !== "scratch") return;
             let value = tab.model.getValue();
             for (const [oldName, newName] of renames) {
@@ -675,10 +671,10 @@ export function App() {
   }, [colorMode]);
 
   useEffect(() => {
-    const current = tabs[0];
+    const current = views[0];
     let title = "Kaja";
     if (current?.type === "scratch") {
-      title = `${tabIdentity(current, scratchesRef.current).name} - Kaja`;
+      title = `${viewIdentity(current, scratchesRef.current).name} - Kaja`;
     } else if (current?.type === "script") {
       title = `${current.script.name} - Kaja`;
     }
@@ -686,7 +682,7 @@ export function App() {
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
-  }, [tabs]);
+  }, [views]);
 
   // Load the global scripts directory (desktop only). Scripts are independent
   // of apps; they bind to an app at run time via their import paths.
@@ -721,17 +717,11 @@ export function App() {
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
-      // ⌘P opens the switcher on the previous file, so ⌘P⏎ is "back". ⌘K is the
-      // same surface: the open-files list is the file finder.
+      // ⌘P opens the finder on the previous place, so ⌘P⏎ is "back". ⌘K is the
+      // same surface, opened on the first row.
       if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
-        setSwitcher(e.key === "p" ? "previous" : "first");
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === "w") {
-        e.preventDefault();
-        const current = tabsRef.current[0];
-        if (current) onCloseTabRef.current(current.id);
+        setFinder(e.key === "p" ? "previous" : "first");
         return;
       }
       // The same key as the </> button in the command row, on every file that
@@ -749,19 +739,19 @@ export function App() {
   useEffect(() => {
     const handler = () => {
       // Flush any pending debounced script auto-saves before the page goes away.
-      for (const tab of tabsRef.current) {
+      for (const tab of viewsRef.current) {
         if (tab.type === "script" && scriptSaveTimers.current.has(tab.id)) {
           clearTimeout(scriptSaveTimers.current.get(tab.id)!);
           WriteScriptFile(tab.script.path, tab.model.getValue()).catch(() => {});
         }
       }
       scriptSaveTimers.current.clear();
-      persistTabs();
+      persistViews();
       flushPersistedWrites();
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [persistTabs]);
+  }, [persistViews]);
 
   const onCompilationUpdate = (updatedApps: AppModel[] | ((prev: AppModel[]) => AppModel[])) => {
     // Handle both direct array and functional updates
@@ -809,7 +799,7 @@ export function App() {
 
     // A source model appearing after a script tab's own model was created does
     // not retroactively clear the stale "cannot find module" error on the
-    // script; poke the open script editors so TypeScript re-resolves. (Task tabs
+    // script; poke the open script editors so TypeScript re-resolves. (Task views
     // are opened only after their app has compiled, so they resolve on creation
     // and are additionally refreshed below when restored.)
     if (sourceModelsChanged) {
@@ -825,14 +815,14 @@ export function App() {
 
       // Restored scratches were created before the source models existed, so
       // poke their editors to revalidate now that the imports resolve.
-      if (tabsRestoredRef.current) {
-        tabsRestoredRef.current = false;
+      if (viewsRestoredRef.current) {
+        viewsRestoredRef.current = false;
         refreshOpenScratchEditors();
         return;
       }
 
       // Only auto-open the first method on first-time use (no previous tab memory)
-      if (!hasTabMemory.current) {
+      if (!hasViewMemory.current) {
         const defaultMethodAndService = getDefaultMethod(updatedApps[0].services);
         if (!defaultMethodAndService) {
           return;
@@ -860,22 +850,21 @@ export function App() {
    * row), so it can't happen by drifting.
    */
   const onMethodSelect = useCallback(
-    (method: Method, service: Service, app: AppModel, mode: "preview" | "permanent" | "append" = "preview") => {
+    (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
       const code = generateMethodEditorCode(app, service, method);
       const origin: ScratchOrigin = { appName: app.configuration.name, serviceName: service.name, methodName: method.name };
       const now = Date.now();
-      const current = tabsRef.current[0];
+      const current = viewsRef.current[0];
       const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
 
       if (mode === "append" && current?.type === "scratch" && currentScratch) {
         const merged = appendCall(current.model.getValue(), code);
         current.model.setValue(merged);
         updateScratch(currentScratch.id, (scratch) => withCode(scratch, merged, now));
-        applyTabs((tabs) => keepTab(tabs, current.id));
         return;
       }
 
-      if (currentScratch && isUntouched(currentScratch) && mode !== "permanent") {
+      if (currentScratch && isUntouched(currentScratch)) {
         current.type === "scratch" && current.model.setValue(code);
         updateScratch(currentScratch.id, (scratch) => takeOver(scratch, code, origin, now));
         return;
@@ -883,25 +872,25 @@ export function App() {
 
       const scratch = createScratch(code, origin, now);
       applyScratches((list) => [scratch, ...list]);
-      applyTabs((tabs) => openScratchTab(tabs, scratch, mode === "permanent"));
+      applyViews((views) => showScratch(views, scratch));
     },
-    [applyScratches, applyTabs, updateScratch],
+    [applyScratches, applyViews, updateScratch],
   );
 
   const onScratchSelect = useCallback(
-    (scratch: Scratch, permanent = false) => {
-      applyTabs((tabs) => openScratchTab(tabs, scratch, permanent));
+    (scratch: Scratch) => {
+      applyViews((views) => showScratch(views, scratch));
     },
-    [applyTabs],
+    [applyViews],
   );
 
   const onDeleteScratch = useCallback(
     (scratch: Scratch) => {
-      const open = tabsRef.current.find((tab) => tab.type === "scratch" && tab.scratchId === scratch.id);
-      if (open) applyTabs((tabs) => closeTab(tabs, open.id));
+      const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === scratch.id);
+      if (shown) applyViews((views) => dropView(views, shown.id));
       applyScratches((list) => list.filter((candidate) => candidate.id !== scratch.id));
     },
-    [applyScratches, applyTabs],
+    [applyScratches, applyViews],
   );
 
   const onConfirmRenameScratch = useCallback(() => {
@@ -911,17 +900,17 @@ export function App() {
   }, [renameScratchTarget, updateScratch]);
 
   const onScriptSelect = useCallback(
-    async (script: Script, permanent = false) => {
+    async (script: Script) => {
       if (!isWailsEnvironment()) return;
       try {
         const file = await ReadScriptFile(script.path);
         if (!file) return;
-        applyTabs((tabs) => openScriptTab(tabs, { path: file.path, name: file.name }, file.content, permanent));
+        applyViews((views) => showScript(views, { path: file.path, name: file.name }, file.content));
       } catch (err) {
         showFileError(`Open failed: ${err}`);
       }
     },
-    [applyTabs, showFileError],
+    [applyViews, showFileError],
   );
 
   // Persist the pinned script path so the macOS text service keeps targeting it
@@ -969,12 +958,12 @@ export function App() {
     return () => unsub();
   }, []);
 
-  // Auto-save: open script tabs persist to disk on edit (debounced). No ⌘S, no
+  // Auto-save: open script views persist to disk on edit (debounced). No ⌘S, no
   // dirty indicator.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const disposables: monaco.IDisposable[] = [];
-    for (const tab of tabs) {
+    for (const tab of views) {
       if (tab.type !== "script") continue;
       const { id, model } = tab;
       const path = tab.script.path;
@@ -994,9 +983,9 @@ export function App() {
       );
     }
     return () => disposables.forEach((d) => d.dispose());
-  }, [tabs, showFileError]);
+  }, [views, showFileError]);
 
-  // Script tabs are file-backed, so disk is their source of truth. The persisted
+  // Script views are file-backed, so disk is their source of truth. The persisted
   // tab-state cache can go stale while the app is closed — an MCP write_script, an
   // external editor, or another window can change the file — so on mount re-read
   // each restored script tab from disk and reconcile its model. Without this a
@@ -1007,7 +996,7 @@ export function App() {
     let cancelled = false;
     (async () => {
       let reconciled = false;
-      for (const tab of tabsRef.current) {
+      for (const tab of viewsRef.current) {
         if (tab.type !== "script") continue;
         try {
           const file = await ReadScriptFile(tab.script.path);
@@ -1022,7 +1011,7 @@ export function App() {
           // restored buffer rather than dropping the user's tab.
         }
       }
-      if (!cancelled && reconciled) persistTabs();
+      if (!cancelled && reconciled) persistViews();
     })();
     return () => {
       cancelled = true;
@@ -1030,15 +1019,15 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ⌘S saves the current editor (a method or a script) as a new named script.
+  // ⌘S names a script and writes it to disk, which is what makes it a file.
   const onRequestSaveAsScript = useCallback(() => {
     if (!isWailsEnvironment() || !previewScriptsRef.current) return;
-    const tab = tabsRef.current[0];
+    const tab = viewsRef.current[0];
     if (!tab || (tab.type !== "scratch" && tab.type !== "script")) return;
     const defaultName =
       tab.type === "scratch"
         ? lowerFirst(
-            tabIdentity(tab, scratchesRef.current)
+            viewIdentity(tab, scratchesRef.current)
               .name.replace(/[^A-Za-z0-9]+/g, " ")
               .trim()
               .split(" ")[0] || "scratch",
@@ -1048,7 +1037,7 @@ export function App() {
     setSaveAs({ name: defaultName, content: tab.model.getValue(), fromScratchId: tab.type === "scratch" ? tab.scratchId : undefined });
   }, []);
 
-  const onSaveScratchAsScript = useCallback((scratch: Scratch) => {
+  const onSaveScratch = useCallback((scratch: Scratch) => {
     setSaveAsError(undefined);
     setSaveAs({
       name: lowerFirst(
@@ -1134,11 +1123,11 @@ export function App() {
       if (!file) return;
       const script: Script = { path: file.path, name: file.name };
       setScripts((prev) => [...(prev ?? []), script].sort((a, b) => a.name.localeCompare(b.name)));
-      applyTabs((tabs) => {
-        const opened = openScriptTab(tabs, script, file.content, true);
+      applyViews((views) => {
+        const shown = showScript(views, script, file.content);
         // The scratch became the file, so it doesn't linger as a copy.
-        const source = saveAs.fromScratchId && opened.find((tab) => tab.type === "scratch" && tab.scratchId === saveAs.fromScratchId);
-        return source ? closeTab(opened, source.id) : opened;
+        const source = saveAs.fromScratchId && shown.find((view) => view.type === "scratch" && view.scratchId === saveAs.fromScratchId);
+        return source ? dropView(shown, source.id) : shown;
       });
       if (saveAs.fromScratchId) {
         const id = saveAs.fromScratchId;
@@ -1149,7 +1138,7 @@ export function App() {
     } catch (err) {
       setSaveAsError(String(err));
     }
-  }, [saveAs, applyScratches, applyTabs]);
+  }, [saveAs, applyScratches, applyViews]);
 
   // Right-click → Rename: open a dialog prefilled with the current name.
   const onRenameScript = useCallback((script: Script) => {
@@ -1162,10 +1151,10 @@ export function App() {
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
-      applyTabs((tabs) => tabs.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
+      applyViews((views) => views.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
       setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
     },
-    [applyTabs],
+    [applyViews],
   );
 
   const onConfirmRenameScript = useCallback(async () => {
@@ -1178,7 +1167,7 @@ export function App() {
     const original = renameScript.script;
     try {
       // Flush any pending auto-save to the current path so the rename moves fresh content.
-      const openTab = tabsRef.current.find((t) => t.type === "script" && t.script.path === original.path);
+      const openTab = viewsRef.current.find((t) => t.type === "script" && t.script.path === original.path);
       if (openTab?.type === "script") {
         const timer = scriptSaveTimers.current.get(openTab.id);
         if (timer) {
@@ -1203,20 +1192,20 @@ export function App() {
     (path: string) => {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
       setPinnedScriptPath((current) => (current === path ? undefined : current));
-      applyTabs((tabs) => {
-        const tab = tabs.find((candidate) => candidate.type === "script" && candidate.script.path === path);
-        if (!tab) return tabs;
-        // Cancel the pending auto-save so closing the tab can't recreate the
+      applyViews((views) => {
+        const shown = views.find((candidate) => candidate.type === "script" && candidate.script.path === path);
+        if (!shown) return views;
+        // Cancel the pending auto-save so dropping the view can't recreate the
         // file that was just deleted.
-        const timer = scriptSaveTimers.current.get(tab.id);
+        const timer = scriptSaveTimers.current.get(shown.id);
         if (timer) {
           clearTimeout(timer);
-          scriptSaveTimers.current.delete(tab.id);
+          scriptSaveTimers.current.delete(shown.id);
         }
-        return closeTab(tabs, tab.id);
+        return dropView(views, shown.id);
       });
     },
-    [applyTabs],
+    [applyViews],
   );
 
   // Right-click → Delete: confirm, then remove the file and close its tab.
@@ -1241,7 +1230,7 @@ export function App() {
     const unsub = EventsOn("mcp:scriptsChanged", (payload: { action: string; path: string; name?: string; content?: string; oldPath?: string }) => {
       switch (payload.action) {
         case "write": {
-          const tab = tabsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
+          const tab = viewsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
           const content = payload.content ?? "";
           if (tab?.type === "script" && tab.model.getValue() !== content) {
             // The content just came from disk. Apply it as an edit (not setValue)
@@ -1252,7 +1241,7 @@ export function App() {
             suppressScriptSave.current.delete(tab.id);
             // Keep the persisted tab-state cache in step so a reload restores this
             // content, not the stale copy captured before the write.
-            persistTabs();
+            persistViews();
           }
           break;
         }
@@ -1272,20 +1261,20 @@ export function App() {
       }
     });
     return () => unsub();
-  }, [applyScriptRename, removeScriptFromUI, persistTabs]);
+  }, [applyScriptRename, removeScriptFromUI, persistViews]);
 
-  // Picking a call from the switcher opens it for good and reveals it in the
-  // sidebar, so the tree stays in step with what is on screen.
-  const onSwitcherMethodSelect = useCallback(
+  // Going to a call from the finder also reveals it in the sidebar, so the tree
+  // stays in step with what is on screen.
+  const onFinderMethodSelect = useCallback(
     (method: Method, service: Service, app: AppModel) => {
-      onMethodSelect(method, service, app, "permanent");
+      onMethodSelect(method, service, app);
       setScrollToMethod({ method, service, app });
     },
     [onMethodSelect],
   );
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
-    applyTabs((tabs) => openDefinitionTab(tabs, model, startLineNumber, startColumn));
+    applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
   };
 
   const sidebarCollapseThreshold = 60;
@@ -1310,7 +1299,7 @@ export function App() {
     });
   };
 
-  const onSelectTab = useCallback((id: string) => applyTabs((tabs) => activateTab(tabs, id)), [applyTabs]);
+  const onGoToView = useCallback((id: string) => applyViews((views) => visit(views, id)), [applyViews]);
 
   // Track how tall each open editor's code is so the pane can be sized to it.
   // Derived from the line count rather than Monaco's content height: with
@@ -1318,23 +1307,21 @@ export function App() {
   // feeding it back into the pane height would only ever settle at the maximum.
   // The listeners belong to the editor and go away when the editor is disposed.
   const onEditorReady = useCallback(
-    (tabId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
-      editorRegistryRef.current.set(tabId, editorInstance);
+    (viewId: string, editorInstance: monaco.editor.IStandaloneCodeEditor) => {
+      editorRegistryRef.current.set(viewId, editorInstance);
       const report = () => {
         const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
         const height = (editorInstance.getModel()?.getLineCount() ?? 1) * lineHeight + EDITOR_PADDING;
-        setEditorContentHeights((heights) => (heights[tabId] === height ? heights : { ...heights, [tabId]: height }));
+        setEditorContentHeights((heights) => (heights[viewId] === height ? heights : { ...heights, [viewId]: height }));
       };
       report();
       editorInstance.onDidChangeModelContent(() => {
         report();
-        // The first keystroke of an edit makes a preview file permanent. Only a
-        // real one counts: the editor formats its model on open, and that must
-        // not keep a file the user only glanced at.
+        // Only a real edit writes back: the editor formats its model on open,
+        // and that isn't the user typing.
         if (!editorInstance.hasTextFocus()) return;
-        applyTabs((tabs) => keepTab(tabs, tabId));
 
-        const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
+        const tab = viewsRef.current.find((candidate) => candidate.id === viewId);
         if (tab?.type !== "scratch") return;
         // A scratch has no save step, so its text is written back as it is
         // typed — debounced, because every keystroke would be a store write.
@@ -1350,79 +1337,52 @@ export function App() {
       });
       editorInstance.onDidChangeModel(report);
     },
-    [applyTabs, updateScratch],
+    [applyViews, updateScratch],
   );
 
-  const onCloseTab = useCallback(
-    (id: string) => {
-      // The Variables tab holds edits that aren't anywhere else yet, so closing
-      // it mid-edit asks first.
-      if (tabsRef.current.find((tab) => tab.id === id)?.type === "variables" && variablesStateRef.current.dirty) {
-        setClosingVariablesId(id);
-        return;
-      }
-      applyTabs((tabs) => closeTab(tabs, id));
-    },
-    [applyTabs],
-  );
-
-  // Turning off the last preview that uses variables takes the open tab with it,
-  // rather than leaving a tab behind with no way to open it again.
+  // Turning off the last preview that uses variables takes its view away,
+  // rather than leaving one behind with no way to reach it again.
   useEffect(() => {
     if (variablesEnabled) return;
-    const tab = tabsRef.current.find((candidate) => candidate.type === "variables");
-    if (!tab) return;
+    const shown = viewsRef.current.find((candidate) => candidate.type === "variables");
+    if (!shown) return;
     setVariablesState({ dirty: false, canSave: false, save: async () => {} });
-    applyTabs((tabs) => closeTab(tabs, tab.id));
+    applyViews((views) => dropView(views, shown.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variablesEnabled]);
-
-  // Close all drops to the empty state; the files stay in the switcher's "All
-  // files" group, so nothing closed here is hard to get back.
-  const onCloseAll = useCallback(() => {
-    const variables = tabsRef.current.find((tab) => tab.type === "variables");
-    if (variables && variablesStateRef.current.dirty) {
-      setClosingVariablesId(variables.id);
-      return;
-    }
-    applyTabs(() => []);
-  }, [applyTabs]);
 
   // The </> button in the command row edits the current file as JSON: same
   // position, same icon, same ⌘J, on every file that has a JSON representation,
   // and absent on the ones that don't. It shares the row's action slot with Run
   // — a file is never both a script and a form.
-  const currentTab = tabs[0];
+  const currentView = views[0];
   const jsonView =
-    currentTab?.type === "appForm"
-      ? { showing: currentTab.editMode === "json", back: "Edit as a form (⌘J)" }
-      : currentTab?.type === "variables"
-        ? { showing: currentTab.editMode === "json", back: "Edit as a table (⌘J)" }
+    currentView?.type === "appForm"
+      ? { showing: currentView.editMode === "json", back: "Edit as a form (⌘J)" }
+      : currentView?.type === "variables"
+        ? { showing: currentView.editMode === "json", back: "Edit as a table (⌘J)" }
         : undefined;
 
   const toggleJsonView = useCallback((): void => {
-    const tab = tabsRef.current[0];
+    const tab = viewsRef.current[0];
     if (tab?.type !== "appForm" && tab?.type !== "variables") return;
-    if (tab.editMode === "json" && !tabJsonValidRef.current) return;
-    applyTabs((tabs) =>
+    if (tab.editMode === "json" && !viewJsonValidRef.current) return;
+    applyViews((views) =>
       tab.type === "appForm"
-        ? setAppFormEditMode(tabs, tab.id, tab.editMode === "json" ? "form" : "json")
-        : setVariablesEditMode(tabs, tab.id, tab.editMode === "json" ? "table" : "json"),
+        ? setAppFormEditMode(views, tab.id, tab.editMode === "json" ? "form" : "json")
+        : setVariablesEditMode(views, tab.id, tab.editMode === "json" ? "table" : "json"),
     );
-  }, [applyTabs]);
+  }, [applyViews]);
   const toggleJsonViewRef = useRef(toggleJsonView);
   toggleJsonViewRef.current = toggleJsonView;
-  const onCloseTabRef = useRef(onCloseTab);
-  onCloseTabRef.current = onCloseTab;
-
   // The file on screen is the one Run runs, so its errors are the ones the row
   // reports — on the trigger, and as Run's reason for being disabled.
-  const syntaxErrors = useSyntaxErrors(currentTab?.type === "scratch" || currentTab?.type === "script" ? currentTab.model : undefined);
+  const syntaxErrors = useSyntaxErrors(currentView?.type === "scratch" || currentView?.type === "script" ? currentView.model : undefined);
 
   // Run the current file's editor contents. Triggered by Run in the command
   // row, by ⌘⏎ and by F5.
   const onRunCurrentTab = useCallback(() => {
-    const tab = tabsRef.current[0];
+    const tab = viewsRef.current[0];
     if (!tab || (tab.type !== "scratch" && tab.type !== "script")) {
       return;
     }
@@ -1431,18 +1391,16 @@ export function App() {
       return;
     }
     const controller = new AbortController();
-    setActiveRun({ tabId: tab.id, startedAt: Date.now(), controller, settled: false });
+    setActiveRun({ viewId: tab.id, startedAt: Date.now(), controller, settled: false });
     runTask(editor.getValue(), kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
       setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
     );
-    // Running a file is working in it, so it stops being a preview.
-    applyTabs((tabs) => keepTab(tabs, tab.id));
     // A run is the punctuation that settles a scratch: it is when the title is
     // re-read from the code, rather than jittering as you type.
     if (tab.type === "scratch") {
       updateScratch(tab.scratchId, (scratch) => markRun(scratch, editor.getValue(), Date.now()));
     }
-  }, [apps, applyTabs, onScriptError, updateScratch]);
+  }, [apps, applyViews, onScriptError, updateScratch]);
 
   // A generated method-call script issues its call without awaiting it, so the
   // script's own promise settles well before the response lands. The run is over
@@ -1481,9 +1439,9 @@ export function App() {
   const onShowCompileLog = useCallback(
     (appName?: string) => {
       setCompileLogExpandApp(appName ? { name: appName } : undefined);
-      applyTabs(openCompilerTab);
+      applyViews(showCompiler);
     },
-    [applyTabs],
+    [applyViews],
   );
 
   // Recompiles one app, or every app when no name is given, by putting it back
@@ -1507,31 +1465,25 @@ export function App() {
   // type is fixed at creation and not editable in the form afterwards.
   const onSelectAppType = (type: string) => {
     setNewAppOpen(false);
-    applyTabs((tabs) => openAppFormTab(tabs, "create", buildApp("", type, {}, {})));
+    applyViews((views) => showAppForm(views, "create", buildApp("", type, {}, {})));
   };
 
   const onEditApp = (appName: string) => {
     const app = apps.find((p) => p.configuration.name === appName);
     if (app) {
-      applyTabs((tabs) => openAppFormTab(tabs, "edit", app.configuration));
+      applyViews((views) => showAppForm(views, "edit", app.configuration));
     }
   };
 
-  // Working in an app's settings keeps the tab, so opening another app's settings
-  // no longer reuses it.
-  const onAppFormEdited = (id: string) => {
-    applyTabs((tabs) => keepTab(tabs, id));
-  };
-
-  const closeAppFormTab = () => {
-    applyTabs((tabs) => {
-      const form = tabs.find((tab) => tab.type === "appForm");
-      return form ? closeTab(tabs, form.id) : tabs;
+  const dropAppForm = () => {
+    applyViews((views) => {
+      const form = views.find((view) => view.type === "appForm");
+      return form ? dropView(views, form.id) : views;
     });
   };
 
   const onAppFormSubmit = async (app: ConfigurationApp, originalName?: string) => {
-    closeAppFormTab();
+    dropAppForm();
 
     if (!configuration) {
       return;
@@ -1559,7 +1511,7 @@ export function App() {
   };
 
   const onAppFormCancel = () => {
-    closeAppFormTab();
+    dropAppForm();
   };
 
   // Which apps reference each ${NAME}. Names no variable defines are in here
@@ -1583,8 +1535,8 @@ export function App() {
   }, []);
 
   const onVariablesClick = useCallback(() => {
-    applyTabs(openVariablesTab);
-  }, [applyTabs]);
+    applyViews(showVariables);
+  }, [applyViews]);
 
   // Saving the Variables tab writes the configuration, which names the
   // variables, and clears what this machine was holding for a variable that
@@ -1642,10 +1594,10 @@ export function App() {
   // the inset.
   const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
 
-  const currentIsEditor = currentTab?.type === "scratch" || currentTab?.type === "script";
+  const currentIsEditor = currentView?.type === "scratch" || currentView?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && currentIsEditor;
 
-  const currentEditorContentHeight = currentIsEditor ? editorContentHeights[currentTab.id] : undefined;
+  const currentEditorContentHeight = currentIsEditor ? editorContentHeights[currentView.id] : undefined;
   const autoEditorHeight =
     currentEditorContentHeight === undefined
       ? undefined
@@ -1653,81 +1605,75 @@ export function App() {
   const effectiveEditorHeight = editorHeightAuto && autoEditorHeight !== undefined ? autoEditorHeight : editorHeight;
   effectiveEditorHeightRef.current = effectiveEditorHeight;
 
-  // Only the Variables tab can hold edits nothing else has a copy of; a script
-  // auto-saves and a call is scratch.
-  const isDirty = (tab: TabModel) => tab.type === "variables" && variablesState.dirty;
-
-  const openFiles: OpenSwitcherFile[] = tabs.map((tab) => ({
-    ...tabIdentity(tab, scratches),
-    key: tab.id,
-    id: tab.id,
-    preview: tab.preview,
-    dirty: isDirty(tab),
-    onOpen: () => onSelectTab(tab.id),
+  // Where you have been, most recent first. This is the mounted-view cache read
+  // as history, which is all "recent" ever meant.
+  const recent: Destination[] = views.map((view) => ({
+    ...viewIdentity(view, scratches),
+    key: view.id,
+    go: () => onGoToView(view.id),
   }));
 
-  // Everything else the sidebar can reach. Typing narrows across both groups, so
-  // the switcher is also the file finder — which is why ⌘K lands here too.
-  const otherFiles = useMemo<SwitcherFile[]>(() => {
-    const openScratches = new Set(tabs.filter((tab) => tab.type === "scratch").map((tab) => tab.scratchId));
-    const openScripts = new Set(tabs.filter((tab) => tab.type === "script").map((tab) => tab.script.path));
-    const files: SwitcherFile[] = [];
+  // Everywhere else you can go. Typing narrows across both, which is why ⌘K
+  // lands here too — the finder is the only surface that can search the calls.
+  const elsewhere = useMemo<Destination[]>(() => {
+    const shownScratches = new Set(views.filter((view) => view.type === "scratch").map((view) => view.scratchId));
+    const shownScripts = new Set(views.filter((view) => view.type === "script").map((view) => view.script.path));
+    const destinations: Destination[] = [];
 
     // Saved and unsaved sit in one run, in one vocabulary: they are all
     // scripts, and the icon is the whole difference.
     for (const script of scripts ?? []) {
-      if (openScripts.has(script.path)) continue;
-      files.push({
+      if (shownScripts.has(script.path)) continue;
+      destinations.push({
         key: `script:${script.path}`,
         name: script.name,
         path: "Scripts",
         origin: "",
         icon: FileCode,
-        onOpen: () => void onScriptSelect(script, true),
+        go: () => void onScriptSelect(script),
       });
     }
 
     for (const scratch of scratches) {
-      if (openScratches.has(scratch.id)) continue;
-      files.push({
+      if (shownScratches.has(scratch.id)) continue;
+      destinations.push({
         key: `scratch:${scratch.id}`,
         name: scratch.title,
         path: "Scripts",
         origin: scratch.origin?.appName ?? "",
         icon: PenLine,
-        onOpen: () => onScratchSelect(scratch, true),
+        go: () => onScratchSelect(scratch),
       });
     }
 
     // The workspace surfaces come before the calls: there are two of them and
     // hundreds of calls, so at rest they'd never make the list otherwise.
-    if (variablesEnabled && !tabs.some((tab) => tab.type === "variables")) {
-      files.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, onOpen: onVariablesClick });
+    if (variablesEnabled && !views.some((view) => view.type === "variables")) {
+      destinations.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, go: onVariablesClick });
     }
-    if (!tabs.some((tab) => tab.type === "compiler")) {
-      files.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, onOpen: () => onShowCompileLog() });
+    if (!views.some((view) => view.type === "compiler")) {
+      destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
 
     for (const app of apps) {
       for (const service of app.services) {
         for (const method of service.methods) {
-          const key = `${app.configuration.name}/${service.name}/${method.name}`;
-          files.push({
-            key: `call:${key}`,
+          destinations.push({
+            key: `call:${app.configuration.name}/${service.name}/${method.name}`,
             name: method.name,
             path: `${app.configuration.name} / ${service.name}`,
             origin: app.configuration.name,
             icon: FileCode,
-            onOpen: () => onSwitcherMethodSelect(method, service, app),
+            go: () => onFinderMethodSelect(method, service, app),
           });
         }
       }
     }
 
-    return files;
-  }, [apps, scratches, scripts, tabs, variablesEnabled, onScratchSelect, onScriptSelect, onSwitcherMethodSelect, onVariablesClick, onShowCompileLog]);
+    return destinations;
+  }, [apps, scratches, scripts, views, variablesEnabled, onScratchSelect, onScriptSelect, onFinderMethodSelect, onVariablesClick, onShowCompileLog]);
 
-  const running = currentTab !== undefined && activeRun?.tabId === currentTab.id;
+  const running = currentView !== undefined && activeRun?.viewId === currentView.id;
   const action = currentIsEditor ? (
     <RunButton
       onRun={onRunCurrentTab}
@@ -1743,14 +1689,14 @@ export function App() {
       variant="ghost"
       size="sm"
       className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
-      disabled={jsonView.showing && !tabJsonValid}
+      disabled={jsonView.showing && !viewJsonValid}
       onClick={toggleJsonView}
     />
   ) : undefined;
 
   // Bodies render in creation order, so bringing a file to the front never moves
   // a live editor in the DOM.
-  const bodies = [...tabs].sort((a, b) => a.seq - b.seq);
+  const bodies = [...views].sort((a, b) => a.seq - b.seq);
 
   return (
     <>
@@ -1786,14 +1732,14 @@ export function App() {
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
                 scratches={scratches}
-                currentScratchId={currentTab?.type === "scratch" ? currentTab.scratchId : undefined}
-                currentScratchOrigin={currentTab?.type === "scratch" ? scratches.find((s) => s.id === currentTab.scratchId)?.origin : undefined}
+                currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
+                currentScratchOrigin={currentView?.type === "scratch" ? scratches.find((s) => s.id === currentView.scratchId)?.origin : undefined}
                 onScratchSelect={onScratchSelect}
                 onRenameScratch={(scratch) => setRenameScratchTarget({ scratch, title: scratch.title })}
                 onDeleteScratch={onDeleteScratch}
-                onSaveScratchAsScript={isWailsEnvironment() && previewScripts ? onSaveScratchAsScript : undefined}
-                onShowAllScratches={() => setSwitcher("first")}
-                currentScriptPath={currentTab?.type === "script" ? currentTab.script.path : undefined}
+                onSaveScratch={isWailsEnvironment() && previewScripts ? onSaveScratch : undefined}
+                onShowAllScratches={() => setFinder("first")}
+                currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
                 scrollToMethod={scrollToMethod}
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
@@ -1812,28 +1758,26 @@ export function App() {
               leftInset={commandRowInset}
               sidebarCollapsed={sidebarCollapsed}
               onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
-              switcher={
-                <FileSwitcher
-                  openFiles={openFiles}
-                  otherFiles={otherFiles}
+              finder={
+                <Finder
+                  recent={recent}
+                  elsewhere={elsewhere}
                   errorCount={currentIsEditor ? syntaxErrors.count : 0}
-                  open={switcher !== undefined}
-                  onOpenChange={(open) => setSwitcher(open ? "first" : undefined)}
-                  highlightPrevious={switcher === "previous"}
-                  onClose={onCloseTab}
-                  onCloseAll={onCloseAll}
+                  open={finder !== undefined}
+                  onOpenChange={(open: boolean) => setFinder(open ? "first" : undefined)}
+                  highlightPrevious={finder === "previous"}
                 />
               }
-              recent={tabs.slice(1, 3).map((tab) => ({ id: tab.id, name: tabIdentity(tab, scratches).name, dirty: isDirty(tab) }))}
-              onSelectRecent={onSelectTab}
+              recent={views.slice(1, 3).map((view) => ({ id: view.id, name: viewIdentity(view, scratches).name }))}
+              onSelectRecent={onGoToView}
               action={action}
-              onSearch={() => setSwitcher("first")}
+              onSearch={() => setFinder("first")}
               layout={editorLayout}
               onToggleLayout={onToggleEditorLayout}
             />
-            {tabs.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
-            {tabs.length === 0 && (apps.length > 0 || !configurationLoaded) && <NoFileBlankslate onOpenSwitcher={() => setSwitcher("first")} />}
-            {tabs.length > 0 && (
+            {views.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
+            {views.length === 0 && (apps.length > 0 || !configurationLoaded) && <NoFileBlankslate onOpenSwitcher={() => setFinder("first")} />}
+            {views.length > 0 && (
               <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
                 <div
                   style={{
@@ -1850,7 +1794,7 @@ export function App() {
                   }}
                 >
                   {bodies.map((tab) => (
-                    <div key={tab.id} style={{ display: tab.id === currentTab?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                    <div key={tab.id} style={{ display: tab.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
                       {tab.type === "compiler" && (
                         <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
                       )}
@@ -1877,7 +1821,6 @@ export function App() {
                           editMode={tab.editMode}
                           onSubmit={onAppFormSubmit}
                           onCancel={onAppFormCancel}
-                          onEdited={() => onAppFormEdited(tab.id)}
                           onJsonValidChange={setTabJsonValid}
                         />
                       )}
@@ -1889,9 +1832,9 @@ export function App() {
                           usage={variableUsage}
                           readOnly={!runtime.canUpdateConfiguration}
                           editMode={tab.editMode}
-                          onEditModeChange={(editMode) => applyTabs((tabs) => setVariablesEditMode(tabs, tab.id, editMode))}
+                          onEditModeChange={(editMode) => applyViews((views) => setVariablesEditMode(views, tab.id, editMode))}
                           onJsonValidChange={setTabJsonValid}
-                          active={tab.id === currentTab?.id}
+                          active={tab.id === currentView?.id}
                           onSave={onVariablesSave}
                           onStoreValue={onStoreVariableValue}
                           onStateChange={onVariablesStateChange}
@@ -1936,7 +1879,7 @@ export function App() {
       </div>
       {saveAs && (
         <Dialog
-          title="Save as script"
+          title="Save script"
           onClose={() => {
             setSaveAs(null);
             setSaveAsError(undefined);
@@ -1964,6 +1907,9 @@ export function App() {
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
             </div>
             {saveAsError && <FormControl.Validation variant="error">{saveAsError}</FormControl.Validation>}
+            <FormControl.Caption>
+              Writes the script to disk, where agents and other tools can see it. Unsaved ones are kept in Kaja either way.
+            </FormControl.Caption>
           </FormControl>
         </Dialog>
       )}
@@ -2083,42 +2029,78 @@ export function App() {
           Permanently delete <strong>{deleteScript.name}</strong>?
         </ConfirmationDialog>
       )}
-      {closingVariablesId !== undefined && (
+      {renameScratchTarget && (
         <Dialog
-          title="Variables has unsaved changes"
-          width="sm"
-          onClose={() => setClosingVariablesId(undefined)}
+          title="Rename scratch"
+          onClose={() => setRenameScratchTarget(null)}
           footerButtons={[
-            { content: "Cancel", onClick: () => setClosingVariablesId(undefined) },
-            {
-              content: "Discard",
-              variant: "destructive",
-              onClick: () => {
-                const id = closingVariablesId;
-                setClosingVariablesId(undefined);
-                setVariablesState({ dirty: false, canSave: false, save: async () => {} });
-                applyTabs((tabs) => closeTab(tabs, id));
-              },
-            },
-            ...(variablesState.canSave
-              ? [
-                  {
-                    content: "Save",
-                    variant: "default" as const,
-                    onClick: () => {
-                      const id = closingVariablesId;
-                      setClosingVariablesId(undefined);
-                      void variablesState.save().then(() => applyTabs((tabs) => closeTab(tabs, id)));
-                    },
-                  },
-                ]
-              : []),
+            { content: "Cancel", onClick: () => setRenameScratchTarget(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScratch },
           ]}
         >
-          <p className="text-sm text-muted-foreground">
-            The rows are the only copy of these edits. Values already written to this machine's keychain are kept either way.
-          </p>
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <Input
+              autoFocus
+              value={renameScratchTarget.title}
+              onChange={(e) => setRenameScratchTarget((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onConfirmRenameScratch();
+                }
+              }}
+            />
+            <FormControl.Caption>A scratch names itself from the code it runs. Naming it yourself settles it for good.</FormControl.Caption>
+          </FormControl>
         </Dialog>
+      )}
+      {renameScript && (
+        <Dialog
+          title="Rename script"
+          onClose={() => {
+            setRenameScript(null);
+            setRenameError(undefined);
+          }}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setRenameScript(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <div className="relative">
+              <Input
+                autoFocus
+                className="pr-9"
+                value={renameScript.name}
+                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmRenameScript();
+                  }
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
+          </FormControl>
+        </Dialog>
+      )}
+      {deleteScript && (
+        <ConfirmationDialog
+          title="Delete script?"
+          confirmButtonContent="Delete"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const script = deleteScript;
+            setDeleteScript(null);
+            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+          }}
+        >
+          Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
       )}
       {fileError && (
         <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>

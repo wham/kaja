@@ -1,0 +1,89 @@
+import { describe, expect, it } from "bun:test";
+import { dropView, serializeViews, setAppFormEditMode, showAppForm, showCompiler, showVariables, View, viewIdentity, visit } from "./views";
+import { buildApp } from "./appTypes";
+
+// Views carry Monaco models in the app; here they are stubs, so they are built
+// by hand rather than through the openers that create models.
+function view(id: string, seq: number): View {
+  return { type: "compiler", id, seq };
+}
+
+function scratchView(id: string, scratchId: string): View {
+  return { type: "scratch", id, seq: 1, scratchId, model: {} as any };
+}
+
+describe("visit", () => {
+  it("brings a view to the front, which is the only way one becomes current", () => {
+    const views = [view("a", 1), view("b", 2), view("c", 3)];
+    expect(visit(views, "c").map((v) => v.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("leaves the list alone when the view is already current or unknown", () => {
+    const views = [view("a", 1), view("b", 2)];
+    expect(visit(views, "a")).toBe(views);
+    expect(visit(views, "gone")).toBe(views);
+  });
+});
+
+describe("the mounted cache", () => {
+  const grpcApp = (name: string) => buildApp(name, "grpc", { url: "example.com:443" }, {});
+
+  it("keeps at most ten views, dropping the least recently visited", () => {
+    let views: View[] = [];
+    for (let i = 0; i < 14; i++) views = showCompiler(dropView(views, views.find((v) => v.type === "compiler")?.id ?? ""));
+    expect(views.length).toBeLessThanOrEqual(10);
+  });
+
+  // A form holds edits that exist nowhere else, so it is never the one evicted.
+  it("never evicts a view holding work", () => {
+    let views = showVariables([]);
+    const variablesId = views[0].id;
+    for (let i = 0; i < 15; i++) {
+      views = showAppForm(views, "edit", grpcApp(`app-${i}`));
+    }
+    expect(views.some((v) => v.id === variablesId)).toBe(true);
+  });
+
+  it("goes back to a surface it already has instead of mounting a second one", () => {
+    const once = showCompiler(showVariables([]));
+    const twice = showCompiler(showVariables(once));
+
+    expect(twice).toHaveLength(2);
+    expect(twice[0].type).toBe("compiler");
+  });
+
+  it("names an app's settings after the app, and a new one after its type", () => {
+    expect(viewIdentity(showAppForm([], "edit", grpcApp("orders"))[0]).name).toBe("orders");
+    expect(viewIdentity(showAppForm([], "create", buildApp("", "openapi", {}, {}))[0]).name).toBe("New OpenAPI app");
+  });
+
+  it("remembers which view of the app is showing", () => {
+    const views = showAppForm([], "edit", grpcApp("orders"));
+    expect((setAppFormEditMode(views, views[0].id, "json")[0] as any).editMode).toBe("json");
+  });
+});
+
+describe("viewIdentity", () => {
+  it("takes a scratch's name from the store, so the two can't drift apart", () => {
+    const scratch = { id: "s1", title: "GetShow · vera-lune", origin: { appName: "theatre", serviceName: "S", methodName: "GetShow" } } as any;
+    const identity = viewIdentity(scratchView("scratch-1", "s1"), [scratch]);
+
+    expect(identity.name).toBe("GetShow · vera-lune");
+    expect(identity.path).toBe("Scripts");
+    expect(identity.origin).toBe("theatre");
+  });
+});
+
+describe("serializeViews", () => {
+  it("stores which scratch a view shows, never its code", () => {
+    const views: View[] = [view("compiler-1", 1), scratchView("scratch-1", "s1")];
+    const result = serializeViews(views, () => undefined);
+
+    expect(result.views).toEqual([{ type: "compiler" }, { type: "scratch", scratchId: "s1", viewState: undefined }]);
+  });
+
+  it("uses live editor view state over stored view state", () => {
+    const live = { cursorState: [{ position: { lineNumber: 5 } }] } as any;
+    expect((serializeViews([scratchView("scratch-1", "s1")], () => live).views[0] as any).viewState).toBe(live);
+  });
+});

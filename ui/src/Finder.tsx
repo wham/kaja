@@ -1,4 +1,4 @@
-import { ChevronsUpDown, CircleAlert, Search, X, type LucideIcon } from "lucide-react";
+import { ChevronsUpDown, CircleAlert, Search, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
@@ -10,74 +10,66 @@ const TRIGGER_MAX_WIDTH = 260;
 // Icon, gaps, chevron and padding: what the trigger spends on everything that
 // isn't the two labels.
 const TRIGGER_CHROME = 66;
-// With an empty query the list is the open files plus a glance at the rest,
-// not the whole project.
+// With an empty query the list is where you have been, plus a glance at the
+// rest — not the whole project.
 const RESTING_OTHERS = 8;
 const LIST_MAX_HEIGHT = 420;
 
-export interface SwitcherFile {
+export interface Destination {
   key: string;
   name: string;
-  // Where the file sits: "benchling / Folders", "Scripts", "Workspace".
+  // Where it sits: "benchling / Folders", "Scripts", "Workspace".
   path: string;
   // The qualifier the trigger carries beside the name, empty where the name is
   // already the whole answer.
   origin: string;
   icon: LucideIcon;
-  onOpen: () => void;
+  go: () => void;
 }
 
-export interface OpenSwitcherFile extends SwitcherFile {
-  id: string;
-  preview: boolean;
-  dirty: boolean;
-}
-
-interface FileSwitcherProps {
-  // Open files, most-recently-visited first: the first is the one on screen and
-  // the second is what ⌘P⏎ goes back to.
-  openFiles: OpenSwitcherFile[];
-  // Everything else the sidebar can reach.
-  otherFiles: SwitcherFile[];
+interface FinderProps {
+  // Where you have been, most recent first; the first is where you are.
+  recent: Destination[];
+  // Everywhere else you can go.
+  elsewhere: Destination[];
   // Errors in the current file. The trigger says so, and Run beside it goes
   // disabled on the same condition.
   errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // ⌘P opens on the previous file so ⌘P⏎ is "back"; ⌘K and a click on the
+  // ⌘P opens on the previous place so ⌘P⏎ is "back"; ⌘K and a click on the
   // trigger open on the first row.
   highlightPrevious: boolean;
-  onClose: (id: string) => void;
-  onCloseAll: () => void;
 }
 
-interface Row {
-  file: SwitcherFile;
-  openFile?: OpenSwitcherFile;
-}
-
-export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenChange, highlightPrevious, onClose, onCloseAll }: FileSwitcherProps) {
+/**
+ * Where you are, and where you can go. There is no notion of open files — the
+ * pane shows one thing, and this is how you reach another without walking the
+ * tree. So it is a finder, not a tab list: nothing here can be closed, because
+ * nothing was ever opened.
+ */
+export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, highlightPrevious }: FinderProps) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const current = openFiles[0];
+  const current = recent[0];
 
-  const { openRows, otherRows } = useMemo(() => {
+  const { recentRows, otherRows } = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const matches = (file: SwitcherFile) => `${file.name} ${file.path}`.toLowerCase().includes(term);
-    const open: Row[] = openFiles.filter(matches).map((file) => ({ file, openFile: file }));
-    const others: Row[] = otherFiles.filter(matches).map((file) => ({ file }));
-    return { openRows: open, otherRows: term ? others : others.slice(0, RESTING_OTHERS) };
-  }, [openFiles, otherFiles, query]);
+    const matches = (destination: Destination) => `${destination.name} ${destination.path}`.toLowerCase().includes(term);
+    const been = recent.filter(matches);
+    const rest = elsewhere.filter(matches);
+    return { recentRows: been, otherRows: term ? rest : rest.slice(0, RESTING_OTHERS) };
+  }, [recent, elsewhere, query]);
 
-  const rows = useMemo(() => [...openRows, ...otherRows], [openRows, otherRows]);
+  const rows = useMemo(() => [...recentRows, ...otherRows], [recentRows, otherRows]);
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    // ⌘P⏎ is the ⌃Tab replacement, so the previous file starts highlighted.
-    setHighlight(highlightPrevious && openFiles.length > 1 ? 1 : 0);
+    // ⌘P⏎ is how you get back to the last thing, so it starts highlighted.
+    setHighlight(highlightPrevious && recent.length > 1 ? 1 : 0);
     const focus = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(focus);
   }, [open, highlightPrevious]);
@@ -87,12 +79,12 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
   }, [rows.length]);
 
   useEffect(() => {
-    listRef.current?.querySelector<HTMLElement>(`#switcher-row-${highlight}`)?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector<HTMLElement>(`#finder-row-${highlight}`)?.scrollIntoView({ block: "nearest" });
   }, [highlight, rows.length]);
 
-  const select = (row: Row | undefined) => {
-    if (!row) return;
-    row.file.onOpen();
+  const select = (destination: Destination | undefined) => {
+    if (!destination) return;
+    destination.go();
     onOpenChange(false);
   };
 
@@ -106,13 +98,6 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
     } else if (event.key === "Enter") {
       event.preventDefault();
       select(rows[highlight]);
-    } else if (event.key === "Backspace" && (event.metaKey || event.ctrlKey)) {
-      // Closing a file from inside the list doesn't leave it.
-      const id = rows[highlight]?.openFile?.id;
-      if (id) {
-        event.preventDefault();
-        onClose(id);
-      }
     }
   };
 
@@ -124,8 +109,8 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
           role="combobox"
           data-testid="file-switcher"
           aria-expanded={open}
-          aria-controls="file-switcher"
-          aria-label={current ? `${current.name} — switch file` : "Open a file"}
+          aria-controls="finder"
+          aria-label={current ? `${current.name} — go to another file` : "Go to a file"}
           className={cn(
             "relative flex h-[26px] shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
             open && "bg-accent",
@@ -133,12 +118,12 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
           )}
           style={{ maxWidth: TRIGGER_MAX_WIDTH }}
         >
-          <TriggerContent file={current} errorCount={errorCount} />
+          <TriggerContent destination={current} errorCount={errorCount} />
           <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        id="file-switcher"
+        id="finder"
         align="start"
         sideOffset={2}
         // It is a finder: movement makes fast repeated ⌘P feel unstable, so it
@@ -152,52 +137,40 @@ export function FileSwitcher({ openFiles, otherFiles, errorCount, open, onOpenCh
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search files and calls…"
-            aria-label="Search files and calls"
-            aria-activedescendant={rows.length > 0 ? `switcher-row-${highlight}` : undefined}
+            placeholder="Go to a file or call…"
+            aria-label="Go to a file or call"
+            aria-activedescendant={rows.length > 0 ? `finder-row-${highlight}` : undefined}
             className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div ref={listRef} role="listbox" aria-label="Files" className="min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: LIST_MAX_HEIGHT }}>
           {rows.length === 0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing matches “{query}”.</div>}
-          {openRows.length > 0 && <GroupHeader>{query.trim() ? "Open" : `Open · ${openRows.length}`}</GroupHeader>}
-          {openRows.map((row, index) => (
-            <SwitcherRow
-              key={row.file.key}
-              row={row}
+          {recentRows.length > 0 && <GroupHeader>Recent</GroupHeader>}
+          {recentRows.map((destination, index) => (
+            <Row
+              key={destination.key}
+              destination={destination}
               index={index}
+              recent
               highlighted={highlight === index}
               onHighlight={setHighlight}
               onSelect={select}
-              onClose={onClose}
             />
           ))}
-          {otherRows.length > 0 && <GroupHeader border={openRows.length > 0}>All files</GroupHeader>}
-          {otherRows.map((row, index) => (
-            <SwitcherRow
-              key={row.file.key}
-              row={row}
-              index={openRows.length + index}
-              highlighted={highlight === openRows.length + index}
+          {otherRows.length > 0 && <GroupHeader border={recentRows.length > 0}>All files</GroupHeader>}
+          {otherRows.map((destination, index) => (
+            <Row
+              key={destination.key}
+              destination={destination}
+              index={recentRows.length + index}
+              highlighted={highlight === recentRows.length + index}
               onHighlight={setHighlight}
               onSelect={select}
-              onClose={onClose}
             />
           ))}
         </div>
-        <div className="flex h-[32px] shrink-0 items-center justify-between border-t border-border px-3">
-          <span className="text-xs text-muted-foreground">↑↓ move · ⏎ open · ⌘⌫ close</span>
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-            disabled={openFiles.length === 0}
-            onClick={() => {
-              onCloseAll();
-              onOpenChange(false);
-            }}
-          >
-            Close all
-          </button>
+        <div className="flex h-[32px] shrink-0 items-center border-t border-border px-3">
+          <span className="text-xs text-muted-foreground">↑↓ move · ⏎ go</span>
         </div>
       </PopoverContent>
     </Popover>
@@ -212,76 +185,56 @@ function GroupHeader({ border, children }: { border?: boolean; children: React.R
   );
 }
 
-function SwitcherRow({
-  row,
+function Row({
+  destination,
   index,
+  recent,
   highlighted,
   onHighlight,
   onSelect,
-  onClose,
 }: {
-  row: Row;
+  destination: Destination;
   index: number;
+  recent?: boolean;
   highlighted: boolean;
   onHighlight: (index: number) => void;
-  onSelect: (row: Row) => void;
-  onClose: (id: string) => void;
+  onSelect: (destination: Destination) => void;
 }) {
-  const { file, openFile } = row;
-  const Icon = file.icon;
+  const Icon = destination.icon;
   return (
     <div
-      id={`switcher-row-${index}`}
+      id={`finder-row-${index}`}
       role="option"
       aria-selected={highlighted}
       className={cn("group flex h-[30px] cursor-pointer items-center gap-2 px-3", highlighted && "bg-accent")}
       onMouseEnter={() => onHighlight(index)}
-      onClick={() => onSelect(row)}
+      onClick={() => onSelect(destination)}
     >
       <Icon size={13} className="shrink-0 text-muted-foreground" />
-      <span className={cn("shrink-0 truncate text-sm", openFile ? "text-foreground" : "text-muted-foreground", openFile?.preview && "italic")}>
-        {file.name}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{file.path}</span>
+      <span className={cn("shrink-0 truncate text-sm", recent ? "text-foreground" : "text-muted-foreground")}>{destination.name}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
       {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
-      {openFile?.dirty ? (
-        <span aria-label="Unsaved changes" className="size-[5px] shrink-0 rounded-full bg-muted-foreground" />
-      ) : (
-        openFile && (
-          <button
-            type="button"
-            aria-label={`Close ${file.name}`}
-            className={cn("shrink-0 text-muted-foreground hover:text-foreground", highlighted ? "opacity-100" : "opacity-0 group-hover:opacity-100")}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose(openFile.id);
-            }}
-          >
-            <X size={12} />
-          </button>
-        )
-      )}
     </div>
   );
 }
 
-// The trigger carries everything the old active tab carried, in 26px: icon,
-// name, and the one qualifier that tells two identically named calls apart.
-function TriggerContent({ file, errorCount }: { file?: OpenSwitcherFile; errorCount: number }) {
+// The trigger says where you are, in 26px: icon, name, and the one qualifier
+// that tells two identically named calls apart.
+function TriggerContent({ destination, errorCount }: { destination?: Destination; errorCount: number }) {
   const [dropLabel, setDropLabel] = useState(false);
   const probeRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const probe = probeRef.current;
     setDropLabel(probe ? probe.offsetWidth > TRIGGER_MAX_WIDTH - TRIGGER_CHROME : false);
-  }, [file?.name, file?.origin, errorCount]);
+  }, [destination?.name, destination?.origin, errorCount]);
 
-  if (!file) {
-    return <span className="truncate text-sm text-muted-foreground">No file open</span>;
+  if (!destination) {
+    return <span className="truncate text-sm text-muted-foreground">Nothing open</span>;
   }
 
-  const Icon = errorCount > 0 ? CircleAlert : file.icon;
-  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : file.origin;
+  const Icon = errorCount > 0 ? CircleAlert : destination.icon;
+  const qualifier = errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : destination.origin;
 
   return (
     <>
@@ -289,23 +242,20 @@ function TriggerContent({ file, errorCount }: { file?: OpenSwitcherFile; errorCo
           can never make it fit and then unfit. */}
       <span aria-hidden className="pointer-events-none invisible absolute h-0 w-0 overflow-hidden">
         <span ref={probeRef} className="inline-block whitespace-nowrap text-sm font-medium">
-          {file.name}
+          {destination.name}
           {qualifier && <span className="text-xs">{qualifier}</span>}
         </span>
       </span>
       <Icon size={13} className={cn("shrink-0", errorCount > 0 ? "text-destructive" : "text-muted-foreground")} />
       <span
-        className={cn("min-w-0 truncate text-sm font-medium text-foreground", file.preview && "font-normal italic")}
+        className="min-w-0 truncate text-sm font-medium text-foreground"
         // Truncating from the left keeps the call name, which is the end of a
         // qualified one.
         style={{ direction: "rtl", textAlign: "left" }}
       >
-        {file.name}
+        {destination.name}
       </span>
-      {file.dirty && <span aria-label="Unsaved changes" className="size-[5px] shrink-0 rounded-full bg-muted-foreground" />}
-      {qualifier && !dropLabel && !file.dirty && (
-        <span className={cn("shrink-0 text-xs", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
-      )}
+      {qualifier && !dropLabel && <span className={cn("shrink-0 text-xs", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>}
     </>
   );
 }

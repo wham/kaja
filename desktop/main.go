@@ -138,7 +138,7 @@ func (a *App) startup(ctx context.Context) {
 		})
 	}
 
-	// Toggle the File → "Save as script" menu item with the Scripts feature
+	// Toggle the File → "Save" menu item with the Scripts feature
 	// preview. The UI reports the current state on load and whenever it changes.
 	runtime.EventsOn(ctx, "scripts:previewEnabled", func(optionalData ...interface{}) {
 		enabled := false
@@ -158,7 +158,7 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 // buildAppMenu assembles the native application menu. The File menu holds only
-// the experimental "Save as script" action, so it is included only when the
+// the experimental "Save" action, so it is included only when the
 // Scripts feature preview is enabled.
 func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
 	appMenu := menu.NewMenu()
@@ -166,7 +166,7 @@ func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
 
 	if scriptsEnabled {
 		fileMenu := appMenu.AddSubmenu("File")
-		fileMenu.AddText("Save as script", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+		fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
 			runtime.EventsEmit(a.ctx, "menu:saveScript")
 		})
 	}

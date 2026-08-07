@@ -72,7 +72,6 @@ interface AppFormProps {
   onSubmit: (app: ConfigurationApp, originalName?: string) => void;
   onCancel: () => void;
   // The user has started working here, so the tab should stop being a preview.
-  onEdited: () => void;
   // Whether the JSON parses, which decides if the view can be switched back.
   onJsonValidChange: (valid: boolean) => void;
 }
@@ -199,7 +198,7 @@ function AdvancedSection({ open, onOpenChange, headers, onHeadersChange, variabl
   );
 }
 
-export function AppForm({ mode, initialData, allApps, variables, readOnly = false, editMode, onSubmit, onCancel, onEdited, onJsonValidChange }: AppFormProps) {
+export function AppForm({ mode, initialData, allApps, variables, readOnly = false, editMode, onSubmit, onCancel, onJsonValidChange }: AppFormProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState("grpc");
   const [parameters, setParameters] = useState<Record<string, string>>({});
@@ -312,7 +311,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           }
           setJsonError(valid ? null : "Invalid JSON. Fix it to go back to the form or save.");
           onJsonValidChange(valid);
-          onEdited();
         });
 
         formatJson(jsonStr).then((formatted) => {
@@ -343,7 +341,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         onJsonValidChange(true);
       }
     };
-  }, [editMode, mode, initialData, getJsonAppData, readOnly, onJsonValidChange, onEdited]);
+  }, [editMode, mode, initialData, getJsonAppData, readOnly, onJsonValidChange]);
 
   // Leaving the JSON view carries what was typed there back into the fields. The
   // control is disabled while the JSON is invalid, so this only has to handle
@@ -427,7 +425,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
       {jsonError && <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{jsonError}</div>}
 
-      <div className="min-h-0 flex-1 overflow-auto" onInput={readOnly ? undefined : onEdited}>
+      <div className="min-h-0 flex-1 overflow-auto">
         {editMode === "form" ? (
           <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
@@ -437,7 +435,6 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 // behind the previous one's servers and credentials.
                 <OpenApiForm
                   key={initialData?.name || "__new__"}
-                  onEdited={onEdited}
                   name={name}
                   onNameChange={setName}
                   duplicateName={duplicateName}
