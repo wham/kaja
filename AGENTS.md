@@ -49,9 +49,12 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   can do better than a chat app names conversations: the content is typed code
   against a known schema, so the title is a formatting job rather than a
   summarization one, and it comes out the same every time. `ListShows`,
-  `GetShow · vera-lune` (the first literal bound to an identifying field —
-  zero values don't count, since that is what a generated request starts with),
-  `ListShows → GetShow`, `CreateShow +2`.
+  `GetShow · vera-lune` (the first literal bound to an identifying field),
+  `Sum · 5, 3` (a request of three fields or fewer is described by the values
+  filled into it, which is usually what tells two goes at the same call apart;
+  anything bigger or nested stays quiet rather than picking a field out of a
+  crowd), `ListShows → GetShow`, `CreateShow +2`. Zero values never count —
+  that is what a generated request starts with.
 - **The title re-derives at deliberate moments, never while typing**: on a run
   (`markRun`) and on an append (`withCode`), because both are punctuation. There
   is **no rename** — naming a script and saving it are the same act, so the code
@@ -73,8 +76,11 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   state, not a move between places — the row gains an icon and rises, it doesn't
   vanish from one section and reappear in another. The word "scratch" survives in
   the code, where it names the storage tier precisely, and nowhere in the UI.
-  `origin` on a scratch is only a hint for the tree highlight; the scratch is
-  free to grow past the method it came from.
+  `origin` on a scratch is only the app name the trigger shows beside the title,
+  to tell two same-named calls in different apps apart. **Nothing in the method
+  tree is ever "current"** — the tree is the API's catalog, not a reflection of
+  what you are looking at, and a scratch is free to grow past the method it came
+  from anyway.
 - **The web is the same app minus one verb.** Scratches are IndexedDB on both
   platforms, so the list, the titles and the history are identical; only Save is
   missing, because only the desktop has a disk to write to.

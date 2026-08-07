@@ -43,6 +43,23 @@ describe("deriveScratchTitle", () => {
     expect(deriveScratchTitle(code)).toBe("GetShow · an-extremely-long-ident…");
   });
 
+  // Two explorations of the same call usually differ in their arguments, which
+  // is what tells the two rows apart.
+  it("describes a small request by the values that were filled in", () => {
+    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, b: 3 });`, "Add"))).toBe("Sum · 5, 3");
+    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, b: 0 });`, "Add"))).toBe("Sum · 5");
+    expect(deriveScratchTitle(generated(`Add.Sum({ a: 0, b: 0 });`, "Add"))).toBe("Sum");
+  });
+
+  it("stays quiet about a request too big to read at a glance", () => {
+    const code = generated(`TheKajaTheatre.ListShows({ genre: "jazz", limit: 10, offset: 0, page: 1 });`);
+    expect(deriveScratchTitle(code)).toBe("ListShows");
+  });
+
+  it("stays quiet when a small request holds something that isn't a scalar", () => {
+    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, rest: [1, 2] });`, "Add"))).toBe("Sum");
+  });
+
   it("reads two methods as a sequence", () => {
     const code = generated(`TheKajaTheatre.ListShows({});\nTheKajaTheatre.GetShow({});`);
     expect(deriveScratchTitle(code)).toBe("ListShows → GetShow");

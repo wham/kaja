@@ -1696,7 +1696,6 @@ export function App() {
                 pinnedScriptPath={pinnedScriptPath}
                 scratches={scratches}
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
-                currentScratchOrigin={currentView?.type === "scratch" ? scratches.find((s) => s.id === currentView.scratchId)?.origin : undefined}
                 onScratchSelect={onScratchSelect}
                 onDeleteScratch={onDeleteScratch}
                 onSaveScratch={isWailsEnvironment() ? onSaveScratch : undefined}

@@ -3,6 +3,10 @@ import ts from "typescript";
 // Fields whose value identifies the thing a call is about, so it is worth
 // putting in the title. Ordered: an explicit id beats a name.
 const SUBJECT_FIELDS = [/^id$/i, /_id$/i, /Id$/, /^slug$/i, /^key$/i, /^code$/i, /^name$/i, /^email$/i, /^title$/i];
+// A request small enough to read at a glance is described by its values, which
+// is usually where two explorations of the same call differ. A bigger one stays
+// quiet rather than picking an arbitrary field out of a crowd.
+const SMALL_REQUEST_FIELDS = 3;
 const MAX_SUBJECT = 24;
 
 // A call a scratch makes, in source order.
@@ -48,8 +52,8 @@ function importedNames(file: ts.SourceFile): Set<string> {
   return names;
 }
 
-// The generated request only ever holds zero values, so an empty string or a 0
-// is the absence of an answer rather than one worth showing.
+// The generated request only ever holds zero values, so an empty string, a 0 or
+// a false is the absence of an answer rather than one worth showing.
 function subjectOf(argument: ts.Expression | undefined): string | undefined {
   if (!argument || !ts.isObjectLiteralExpression(argument)) return undefined;
 
@@ -57,7 +61,32 @@ function subjectOf(argument: ts.Expression | undefined): string | undefined {
     const found = findLiteral(argument, pattern, 0);
     if (found) return found;
   }
-  return undefined;
+  const filled = filledValues(argument);
+  return filled ? truncate(filled.join(", ")) : undefined;
+}
+
+// The values of a small, all-scalar request that have actually been filled in.
+// Undefined for anything bigger or nested, so a large body never gets a title
+// made of whichever field happened to come first.
+function filledValues(object: ts.ObjectLiteralExpression): string[] | undefined {
+  if (object.properties.length === 0 || object.properties.length > SMALL_REQUEST_FIELDS) return undefined;
+
+  const values: string[] = [];
+  for (const property of object.properties) {
+    if (!ts.isPropertyAssignment(property)) return undefined;
+    const value = property.initializer;
+    if (ts.isStringLiteral(value)) {
+      if (value.text.trim() !== "") values.push(value.text);
+    } else if (ts.isNumericLiteral(value)) {
+      if (Number(value.text) !== 0) values.push(value.text);
+    } else if (value.kind === ts.SyntaxKind.TrueKeyword) {
+      values.push("true");
+    } else if (value.kind !== ts.SyntaxKind.FalseKeyword) {
+      // An object, an array, an expression: not a request you can read at a glance.
+      return undefined;
+    }
+  }
+  return values.length > 0 ? values : undefined;
 }
 
 function findLiteral(object: ts.ObjectLiteralExpression, pattern: RegExp, depth: number): string | undefined {

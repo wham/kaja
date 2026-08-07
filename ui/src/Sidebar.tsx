@@ -25,7 +25,7 @@ import {
 import { appType, getAppType } from "./appTypes";
 import { SimpleTooltip } from "./components/tooltip";
 import { Method, App, Script, Service, methodId } from "./apps";
-import { Scratch, ScratchOrigin } from "./scratches";
+import { Scratch } from "./scratches";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -86,8 +86,6 @@ interface SidebarProps {
   // Scratches, newest activity first. Only the most recent few are listed; the
   // rest are a ⌘P away, which is what makes an unlimited history usable.
   scratches?: Scratch[];
-  // Which method the current scratch came from, for the tree highlight.
-  currentScratchOrigin?: ScratchOrigin;
   currentScratchId?: string;
   currentScriptPath?: string;
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
@@ -126,7 +124,6 @@ export function Sidebar({
   apps,
   scripts,
   scratches,
-  currentScratchOrigin,
   currentScratchId,
   currentScriptPath,
   pinnedScriptPath,
@@ -693,11 +690,6 @@ export function Sidebar({
                                       } else elementRefs.current.delete(mId);
                                     }}
                                     onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
-                                    current={
-                                      currentScratchOrigin?.appName === appName &&
-                                      currentScratchOrigin?.serviceName === service.name &&
-                                      currentScratchOrigin?.methodName === method.name
-                                    }
                                   >
                                     {method.name}
                                     <TreeView.TrailingVisual>
