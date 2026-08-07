@@ -5,14 +5,6 @@ import { deriveScratchTitle } from "./scratchTitle";
 // not work. It is dropped once it is this old.
 const STALE_DAYS = 14;
 
-// Where a scratch came from, so the sidebar can show which method you are
-// looking at. Only a hint — the scratch is free to grow past it.
-export interface ScratchOrigin {
-  appName: string;
-  serviceName: string;
-  methodName: string;
-}
-
 /**
  * A scratch is the unit of exploration: unlimited, kept in the app, and named
  * from its own code. It is not a file — saving it as a script is what puts it
@@ -29,7 +21,11 @@ export interface Scratch {
   // starting another one.
   generatedCode: string;
   ran: boolean;
-  origin?: ScratchOrigin;
+  // The app the call it was generated from belongs to, and nothing more: it is
+  // the qualifier beside the title, which is what tells two same-named calls in
+  // different apps apart. A scratch is not bound to the method it came from and
+  // is free to grow past it.
+  originAppName?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -41,14 +37,14 @@ export function newScratchId(): string {
   return `scratch-${Date.now().toString(36)}-${sequence}`;
 }
 
-export function createScratch(code: string, origin: ScratchOrigin | undefined, now: number): Scratch {
+export function createScratch(code: string, originAppName: string | undefined, now: number): Scratch {
   return {
     id: newScratchId(),
     title: deriveScratchTitle(code) ?? "Scratch",
     code,
     generatedCode: code,
     ran: false,
-    origin,
+    originAppName,
     createdAt: now,
     updatedAt: now,
   };
@@ -60,13 +56,13 @@ export function isUntouched(scratch: Scratch): boolean {
   return !scratch.ran && scratch.code === scratch.generatedCode;
 }
 
-export function takeOver(scratch: Scratch, code: string, origin: ScratchOrigin | undefined, now: number): Scratch {
+export function takeOver(scratch: Scratch, code: string, originAppName: string | undefined, now: number): Scratch {
   return {
     ...scratch,
     title: deriveScratchTitle(code) ?? "Scratch",
     code,
     generatedCode: code,
-    origin,
+    originAppName,
     updatedAt: now,
   };
 }

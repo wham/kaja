@@ -65,7 +65,7 @@ describe("the mounted cache", () => {
 
 describe("viewIdentity", () => {
   it("takes a scratch's name from the store, so the two can't drift apart", () => {
-    const scratch = { id: "s1", title: "GetShow · vera-lune", origin: { appName: "theatre", serviceName: "S", methodName: "GetShow" } } as any;
+    const scratch = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
     const identity = viewIdentity(scratchView("scratch-1", "s1"), [scratch]);
 
     expect(identity.name).toBe("GetShow · vera-lune");

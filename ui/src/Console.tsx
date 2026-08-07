@@ -8,7 +8,7 @@ import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { callCount, ConsoleItem, followSelection, groupRuns, itemName, itemStatus, Run, RunGroup, RunSelection, RunStatus } from "./runs";
+import { callCount, ConsoleItem, ConsoleTab, followSelection, groupRuns, itemName, itemStatus, Run, RunGroup, RunSelection, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { Log, LogLevel } from "./server/api";
 
@@ -33,14 +33,21 @@ const consoleTabActiveClass = "font-medium text-foreground";
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
 interface ConsoleProps {
+  // Which file's console this is. It is the whole scope: the runs are that
+  // file's runs, and changing it swaps consoles rather than reporting a new run.
+  fileId?: string;
   runs: Run[];
   items: ConsoleItem[];
+  // Where the console is pointing and what it is showing of the selected call.
+  // Both are kept per file by the caller, so coming back finds it as it was.
+  selection: RunSelection | null;
+  tab: ConsoleTab;
+  onSelect: (selection: RunSelection | null) => void;
+  onTabChange: (tab: ConsoleTab) => void;
   onClear?: () => void;
 }
 
-export function Console({ runs, items, onClear }: ConsoleProps) {
-  const [selection, setSelection] = useState<RunSelection | null>(null);
-  const [activeTab, setActiveTab] = useState<ConsoleTab>("response");
+export function Console({ fileId, runs, items, selection, tab: activeTab, onSelect, onTabChange, onClear }: ConsoleProps) {
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
 
@@ -60,55 +67,51 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
     return () => clearInterval(interval);
   }, [hasInFlight]);
 
-  // The newest run the console has followed, which is what tells a run arriving
-  // apart from a call arriving inside the one already on screen.
-  const followedRunRef = useRef<string | undefined>(undefined);
+  // The file and run the console has followed, which is what tells a run
+  // arriving apart from a call arriving inside the one already on screen — and
+  // both apart from the console being handed a different file altogether.
+  const followedRef = useRef<{ fileId?: string; runId?: string }>({});
 
   useEffect(() => {
-    const isNewRun = followedRunRef.current !== newest?.run.id;
-    followedRunRef.current = newest?.run.id;
-    setSelection((current) => followSelection(current, groups, isNewRun));
+    const sameFile = followedRef.current.fileId === fileId;
+    const isNewRun = sameFile && followedRef.current.runId !== newest?.run.id;
+    followedRef.current = { fileId, runId: newest?.run.id };
+    // Arriving at another file is not a run arriving: its own selection has just
+    // been restored, and only a selection with nothing left to point at is
+    // moved on to the newest run.
+    const next = followSelection(selection, groups, isNewRun);
+    if (next?.runId !== selection?.runId || next?.itemId !== selection?.itemId) onSelect(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newest?.run.id, newest?.items.length, groups.length]);
-
-  // Opening a file whose last run we still hold is a reason to show that run:
-  // it is what happened here, even though it isn't live.
-  const staleRunId = groups.find((group) => group.run.stale)?.run.id;
-
-  useEffect(() => {
-    if (!staleRunId) return;
-    const group = groups.find((candidate) => candidate.run.id === staleRunId);
-    if (group) setSelection({ runId: staleRunId, itemId: group.items[group.items.length - 1]?.id });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staleRunId]);
+  }, [fileId, newest?.run.id, newest?.items.length, groups.length]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
   const selectedItem = selectedGroup?.items.find((item) => item.id === selection?.itemId);
   const selectedCall = selectedItem?.call;
   const selectedLogs = selectedItem?.logs;
 
-  const selectRun = useCallback((group: RunGroup) => {
-    const last = group.items[group.items.length - 1];
-    setSelection({ runId: group.run.id, itemId: last?.id });
-  }, []);
+  const selectRun = useCallback(
+    (group: RunGroup) => {
+      const last = group.items[group.items.length - 1];
+      onSelect({ runId: group.run.id, itemId: last?.id });
+    },
+    [onSelect],
+  );
 
-  // ⌃↑ / ⌃↓ step through the runs without opening the dropdown.
+  // ⌃↑ / ⌃↓ step through this file's runs without opening the dropdown, which is
+  // what makes one go at a call comparable against the last.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey || event.metaKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
       if (groups.length === 0) return;
       event.preventDefault();
-      setSelection((current) => {
-        const index = groups.findIndex((group) => group.run.id === current?.runId);
-        const from = index === -1 ? groups.length - 1 : index;
-        const next = Math.max(0, Math.min(groups.length - 1, from + (event.key === "ArrowUp" ? -1 : 1)));
-        const group = groups[next];
-        return { runId: group.run.id, itemId: group.items[group.items.length - 1]?.id };
-      });
+      const index = groups.findIndex((group) => group.run.id === selection?.runId);
+      const from = index === -1 ? groups.length - 1 : index;
+      const next = Math.max(0, Math.min(groups.length - 1, from + (event.key === "ArrowUp" ? -1 : 1)));
+      selectRun(groups[next]);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [groups]);
+  }, [groups, selection?.runId, selectRun]);
 
   const handleCopy = useCallback(() => {
     jsonViewerRef.current?.copyToClipboard();
@@ -173,7 +176,7 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
         {selectedCall && (
           <>
             <div className="h-4 w-px shrink-0 bg-border" />
-            <Console.DetailTabs methodCall={selectedCall} activeTab={activeTab} onTabChange={setActiveTab} />
+            <Console.DetailTabs methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} />
           </>
         )}
         {showUtilities && (
@@ -209,7 +212,7 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
             group={selectedGroup}
             selected={selection?.itemId === undefined}
             expanded={showRunChildren}
-            onSelect={() => setSelection({ runId: selectedGroup.run.id })}
+            onSelect={() => onSelect({ runId: selectedGroup.run.id })}
             now={now}
           />
         )}
@@ -220,7 +223,7 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
               key={item.id}
               item={item}
               selected={item.id === selection?.itemId}
-              onSelect={() => setSelection({ runId: selectedGroup.run.id, itemId: item.id })}
+              onSelect={() => onSelect({ runId: selectedGroup.run.id, itemId: item.id })}
               now={now}
             />
           ))}
@@ -231,7 +234,7 @@ export function Console({ runs, items, onClear }: ConsoleProps) {
               <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
             </div>
           ) : selectedCall ? (
-            <Console.DetailContent methodCall={selectedCall} activeTab={activeTab} onTabChange={setActiveTab} jsonViewerRef={jsonViewerRef} />
+            <Console.DetailContent methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
           ) : selectedLogs ? (
             <Console.LogContent logs={selectedLogs} />
           ) : selectedGroup ? (
@@ -438,7 +441,6 @@ Console.RunSummary = function ({ group }: { group: RunGroup }) {
   );
 };
 
-type ConsoleTab = "request" | "response" | "headers";
 
 interface DetailTabsProps {
   methodCall: MethodCall;
