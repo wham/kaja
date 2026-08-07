@@ -86,14 +86,85 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   to tell two same-named calls in different apps apart. **Nothing in the method
   tree is ever "current"** — the tree is the API's catalog, not a reflection of
   what you are looking at, and a scratch is free to grow past the method it came
-  from anyway.
+  from anyway. A **hairline** separates the two halves, because a script and the
+  method it was written from can carry the same label a few rows apart and must
+  never read as one list.
+- **The browsing buffer says so.** "An untouched one gets taken over, a
+  worked-in one doesn't" is a good rule you could otherwise only learn by being
+  surprised by it, so it has a tell: a scratch that is still `isUntouched` is
+  **dimmed** — label and icon, in the sidebar row and in the finder's trigger and
+  rows (`provisional` on `ViewIdentity` and on a finder `Destination`) — and
+  resolves to full weight the moment it is edited or run. Not italics, and not a
+  word; the dim is the reading. Beside it, `titleParts` splits the qualifier the
+  naming rule produced (`· vera-lune`, `· 5, 3`) off the name so the row can dim
+  that too.
+- **Delete and discard are different words for different consequences.** A saved
+  row's menu is `Rename…` / **`Delete file`**, destructive and confirmed, because
+  it takes a file off disk. An unsaved row's is `Save…` / **`Discard`**, neutral
+  and **undoable** — the row goes and a bar offers it back for eight seconds
+  (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove. Saving proposes
+  the filename from the derived name, so the section converges on one naming
+  convention instead of splitting into files and not-files by casing.
+- **Rows reserve their trailing slot.** `TreeView.TrailingVisual` is a fixed 24px
+  whether or not it holds anything, so a label's truncation point doesn't move
+  under the cursor when the row grows a kebab on hover.
 - **The web is the same app minus one verb.** Scratches are IndexedDB on both
   platforms, so the list, the titles and the history are identical; only Save is
   missing, because only the desktop has a disk to write to.
-- **Not built yet**: the console still keeps one global stream in memory, so
-  reopening an old scratch gives you the code without last time's responses.
-  Storing code is free; storing responses is not, so that needs its own
-  retention rule (most recent N scratches, or a size cap).
+
+## The console reports runs
+
+**A run is the unit** (`runs.ts`): one press of Run, one header, one duration,
+one verdict, with the calls it made nested under it. One script can make three
+calls, and three unrelated rows say nothing about the thing you actually pressed.
+
+- **Three rules make the grouping hold.** ① A run's status is the **worst status
+  it contains** (`worstStatus`) — there is no "partially succeeded", and the
+  header dot is the only thing anyone needs to read after a press. ② A
+  **single-item run renders as one row**, header and call merged, so the 90% case
+  stays as flat as it was. ③ Calls inside a run are ordered by start, never
+  re-sorted, and keep their own durations; the header's duration is **wall time
+  for the whole script**, which is the number that differs from the sum when
+  calls run concurrently.
+- **The history lists runs, not calls.** Same select, one level up: each row is a
+  run with its call count, today's above a dimmed date header for older ones.
+  `⌃↑`/`⌃↓` step through runs. Selecting a call fills the response below;
+  selecting the run header shows the run's own summary instead.
+- **A new run always takes the console** (`followSelection`), because pressing Run
+  is a request to see what it did — from an older run stepped back to as much as
+  from the last one. Everything short of a new run stays where it is put: a call
+  landing in a later run leaves a stepped-back one alone, and only inside the run
+  being watched does the cursor follow the newest call, which is what selects one
+  in flight the moment it is issued rather than when its response lands.
+- **Run names reuse the derived script names**, so the console and the sidebar
+  speak the same language. The window title follows the same name, from the
+  scratch list rather than the view — running or appending re-derives a title
+  without the view itself changing.
+- **Live and last-time are different states, and the header is the only place
+  that can say which.** Reopening a script gives you its code and, if we still
+  hold it, its last run (`runStore.ts`): the header carries a `Last run` pill and
+  a date instead of a clock, and the body sits at 70% opacity. Pressing Run
+  replaces it in place — a run made in this session always wins over a stored
+  one. Retention can be short because **expiry is a stated state, not a silent
+  hole**: headers are kept for the fifty most recently run files, payloads for
+  seven days (or dropped at once if they don't fit), and a run whose payloads have
+  gone keeps its header over a single line — `Response no longer kept — run to
+  see it live`. Clearing the history clears the store too.
+- **With no run there is nothing to select.** The console drops its header
+  entirely until something has been run, rather than showing Response as
+  selected and the other two as disabled over an empty panel.
+
+## The empty state
+
+With nothing open, the pane has one job: **say that clicking a call in the tree
+writes you a script** (`NoFileBlankslate.tsx`). That sentence is the whole model
+of the product and is said nowhere else. Under it sit the last few things you
+were in, and `⌘P find a call` · `⌘N blank script`.
+
+The people who see this screen most are not new — every missed `⌘P` and every
+fresh window lands here — so it is a shortcut rather than a teaching
+illustration, and it degrades correctly: on a first run the recent list is
+**absent**, not an empty box, leaving the sentence and the two keys.
 
 ## The command row and the finder
 
@@ -138,11 +209,17 @@ inset only when the sidebar is collapsed).
   non-script surfaces. Its disabled state and the trigger's `N errors` state come
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
   with itself.
-- **Shortcuts** — `⌘P` finder on the previous place · `⌘K` same surface · `⌘⏎`/F5
-  run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save. `⌃Tab`, `⌘1–9` and `⌘W` are
-  gone: there are no positions to number and nothing to close.
-- **Split panes** are specified but not built; when they are, the row divides at
-  the pane seam and each half gets its own finder.
+- **Shortcuts** — `⌘P` finder on the previous place · `⌘K` same surface · `⌘N`
+  blank script · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save.
+  `⌃Tab`, `⌘1–9` and `⌘W` are gone: there are no positions to number and nothing
+  to close.
+- **Split panes are cut, not deferred.** The pane holds one thing by
+  construction; splitting it reintroduces "which one is current", which is the
+  exact question removing the strip answered — two panes, one trigger, one `⌘P`.
+  Comparing one response against another is a console problem, and the run
+  history above is where it belongs, not the editor. (The `Columns2`/`Rows2`
+  control in the row is not this: it decides whether the console sits beside the
+  editor or under it, which is one file either way.)
 
 ## Experimental (Preview)
 

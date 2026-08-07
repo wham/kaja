@@ -2,7 +2,7 @@ import { Braces, FileCode, PenLine, ScrollText, Settings, type LucideIcon } from
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
-import { Scratch } from "./scratches";
+import { isUntouched, Scratch } from "./scratches";
 import { ConfigurationApp } from "./server/api";
 
 // How many views the pane keeps mounted. There is no "open files" set: this is
@@ -190,6 +190,10 @@ export interface ViewIdentity {
   // already the whole answer.
   origin: string;
   icon: LucideIcon;
+  // A browsing buffer: still exactly its generated code and never run, so the
+  // next call you pick takes it over. Wherever it is named it is dimmed, which
+  // is the only tell that rule has.
+  provisional?: boolean;
 }
 
 export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentity {
@@ -199,7 +203,13 @@ export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentit
       // can't have its own copy without the two drifting apart. Same vocabulary
       // as a saved script: only the icon says it isn't on disk.
       const scratch = scratches.find((candidate) => candidate.id === view.scratchId);
-      return { name: scratch?.title ?? "Scratch", path: "Scripts", origin: scratch?.origin?.appName ?? "", icon: PenLine };
+      return {
+        name: scratch?.title ?? "Scratch",
+        path: "Scripts",
+        origin: scratch?.origin?.appName ?? "",
+        icon: PenLine,
+        provisional: scratch !== undefined && isUntouched(scratch),
+      };
     }
     case "script":
       return { name: view.script.name, path: "Scripts", origin: "", icon: FileCode };

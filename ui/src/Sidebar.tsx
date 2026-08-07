@@ -21,11 +21,13 @@ import {
   Ellipsis,
   PenLine,
   Plus as PlusIcon,
+  X,
 } from "lucide-react";
 import { appType, getAppType } from "./appTypes";
 import { SimpleTooltip } from "./components/tooltip";
 import { Method, App, Script, Service, methodId } from "./apps";
-import { Scratch } from "./scratches";
+import { isUntouched, Scratch } from "./scratches";
+import { titleParts } from "./scratchTitle";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
@@ -550,9 +552,9 @@ export function Sidebar({
                   >
                     {/* Not saved: the pen is the whole difference. */}
                     <TreeView.LeadingVisual>
-                      <PenLine size={13} />
+                      <PenLine size={13} className={cn(isUntouched(scratch) && "opacity-60")} />
                     </TreeView.LeadingVisual>
-                    {scratch.title}
+                    <ScratchLabel scratch={scratch} />
                     <TreeView.TrailingVisual>
                       {(hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id) && (
                         <IconButton
@@ -585,6 +587,10 @@ export function Sidebar({
             )}
           </nav>
         )}
+        {/* Your scripts and the API's catalog are two different lists, and two
+            rows can carry the same name across the seam. A rule keeps nobody
+            reading them as one. */}
+        {(hasScripts || hasScratches) && apps.length > 0 && <div className="mx-[-4px] mt-3 h-px bg-border" />}
         {apps.map((app, appIndex) => {
           const appName = app.configuration.name;
           const isExpanded = expandedApps.has(appName);
@@ -789,8 +795,11 @@ export function Sidebar({
             }}
           >
             <Pencil size={16} />
-            Rename
+            Rename…
           </DropdownMenuItem>
+          {/* This one takes a file off disk, which is why it is confirmed and
+              why it says so. The unsaved row's menu below reads differently on
+              purpose. */}
           <DropdownMenuItem
             variant="danger"
             onSelect={() => {
@@ -799,7 +808,7 @@ export function Sidebar({
             }}
           >
             <Trash2 size={16} />
-            Delete
+            Delete file
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -821,18 +830,19 @@ export function Sidebar({
               }}
             >
               <FileCode size={16} />
-              Save
+              Save…
             </DropdownMenuItem>
           )}
+          {/* Nothing is on disk to remove, so this is a discard rather than a
+              delete: neutral, and undoable instead of confirmed. */}
           <DropdownMenuItem
-            variant="danger"
             onSelect={() => {
               if (scratchMenu) onDeleteScratch?.(scratchMenu.scratch);
               setScratchMenu(null);
             }}
           >
-            <Trash2 size={16} />
-            Delete
+            <X size={16} />
+            Discard
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -872,6 +882,25 @@ export function Sidebar({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+/**
+ * An unsaved script's row. Two things are said here that the plain title can't:
+ * the qualifier the naming rule produced is dimmed, so a row never reads as the
+ * bare method name a few rows below it in the tree; and a scratch nobody has
+ * worked in yet is dimmed whole, because "the next call takes this one over" is
+ * otherwise a rule you can only learn by being surprised by it.
+ */
+function ScratchLabel({ scratch }: { scratch: Scratch }) {
+  const { name, qualifier } = titleParts(scratch.title);
+  const browsing = isUntouched(scratch);
+
+  return (
+    <span title={browsing ? "Browsing — the next call you pick takes this over" : undefined} className={cn(browsing && "text-muted-foreground")}>
+      {name}
+      {qualifier && <span className="ml-1 font-mono text-xs text-muted-foreground opacity-70">{qualifier}</span>}
+    </span>
   );
 }
 

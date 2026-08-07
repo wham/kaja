@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { deriveScratchTitle, readCalls } from "./scratchTitle";
+import { deriveScratchTitle, readCalls, titleParts } from "./scratchTitle";
 
 const generated = (body: string, names = "TheKajaTheatre") => `import { ${names} } from "theatre/service";\n\n${body}\n`;
 
@@ -75,7 +75,29 @@ describe("deriveScratchTitle", () => {
     expect(deriveScratchTitle(code)).toBe("GetShow · a");
   });
 
+  it('ignores a 64-bit zero, which is generated as the string "0"', () => {
+    const code = generated(`Add.Sum({ a: "0", b: "0" });`, "Add");
+    expect(deriveScratchTitle(code)).toBe("Sum");
+  });
+
+  it("still reads a filled 64-bit value", () => {
+    const code = generated(`Add.Sum({ a: "5", b: "3" });`, "Add");
+    expect(deriveScratchTitle(code)).toBe("Sum · 5, 3");
+  });
+
   it("has nothing to say about code that calls nothing", () => {
     expect(deriveScratchTitle(`const x = 1;`)).toBeUndefined();
+  });
+});
+
+describe("titleParts", () => {
+  it("splits the qualifier off, so a row can dim it", () => {
+    expect(titleParts("GetShow · vera-lune")).toEqual({ name: "GetShow", qualifier: "· vera-lune" });
+    expect(titleParts("Sum · 5, 3")).toEqual({ name: "Sum", qualifier: "· 5, 3" });
+  });
+
+  it("leaves a bare name alone", () => {
+    expect(titleParts("ListShows")).toEqual({ name: "ListShows" });
+    expect(titleParts("ListShows → GetShow")).toEqual({ name: "ListShows → GetShow" });
   });
 });
