@@ -20,9 +20,9 @@ export interface ScratchOrigin {
  */
 export interface Scratch {
   id: string;
+  // Always read from the code — there is no rename, because naming a script and
+  // saving it are the same act.
   title: string;
-  // A rename pins the title; otherwise it is re-read from the code on each run.
-  titlePinned: boolean;
   code: string;
   // What the scratch was born as. While the code still matches this and nothing
   // has been run, the next method click takes this scratch over instead of
@@ -45,7 +45,6 @@ export function createScratch(code: string, origin: ScratchOrigin | undefined, n
   return {
     id: newScratchId(),
     title: deriveScratchTitle(code) ?? "Scratch",
-    titlePinned: false,
     code,
     generatedCode: code,
     ran: false,
@@ -64,7 +63,7 @@ export function isUntouched(scratch: Scratch): boolean {
 export function takeOver(scratch: Scratch, code: string, origin: ScratchOrigin | undefined, now: number): Scratch {
   return {
     ...scratch,
-    title: scratch.titlePinned ? scratch.title : (deriveScratchTitle(code) ?? "Scratch"),
+    title: deriveScratchTitle(code) ?? "Scratch",
     code,
     generatedCode: code,
     origin,
@@ -75,7 +74,7 @@ export function takeOver(scratch: Scratch, code: string, origin: ScratchOrigin |
 // Adding a call is as deliberate as running one, so it settles the title the
 // same way. Typing does not — that would rename the row under the cursor.
 export function withCode(scratch: Scratch, code: string, now: number): Scratch {
-  return { ...scratch, code, title: scratch.titlePinned ? scratch.title : (deriveScratchTitle(code) ?? scratch.title), updatedAt: now };
+  return { ...scratch, code, title: deriveScratchTitle(code) ?? scratch.title, updatedAt: now };
 }
 
 // A run is the punctuation that settles a scratch, so it is when the title is
@@ -84,14 +83,10 @@ export function markRun(scratch: Scratch, code: string, now: number): Scratch {
   return {
     ...scratch,
     code,
-    title: scratch.titlePinned ? scratch.title : (deriveScratchTitle(code) ?? scratch.title),
+    title: deriveScratchTitle(code) ?? scratch.title,
     ran: true,
     updatedAt: now,
   };
-}
-
-export function renameScratch(scratch: Scratch, title: string, now: number): Scratch {
-  return { ...scratch, title: title.trim() || scratch.title, titlePinned: true, updatedAt: now };
 }
 
 // Unlimited only works if the browsing buffers clear themselves out. Anything

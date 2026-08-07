@@ -98,7 +98,6 @@ interface SidebarProps {
   // script already on screen.
   onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
   onScratchSelect?: (scratch: Scratch) => void;
-  onRenameScratch?: (scratch: Scratch) => void;
   onDeleteScratch?: (scratch: Scratch) => void;
   onSaveScratch?: (scratch: Scratch) => void;
   // Opens the finder on the full list.
@@ -135,7 +134,6 @@ export function Sidebar({
   canDeleteApps = true,
   onSelect,
   onScratchSelect,
-  onRenameScratch,
   onDeleteScratch,
   onSaveScratch,
   onShowAllScratches,
@@ -493,7 +491,6 @@ export function Sidebar({
               </span>
               <FileCode size={16} />
               <span className="ml-1">Scripts</span>
-              {hasScripts && <PreviewPill />}
             </div>
             {scriptsExpanded && (
               <TreeView aria-label="Scripts">
@@ -824,15 +821,6 @@ export function Sidebar({
           <span />
         </DropdownMenuTrigger>
         <DropdownMenuContent anchor={scratchMenuAnchorRef} align="start">
-          <DropdownMenuItem
-            onSelect={() => {
-              if (scratchMenu) onRenameScratch?.(scratchMenu.scratch);
-              setScratchMenu(null);
-            }}
-          >
-            <Pencil size={16} />
-            Rename
-          </DropdownMenuItem>
           {onSaveScratch && (
             <DropdownMenuItem
               onSelect={() => {

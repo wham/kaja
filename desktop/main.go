@@ -137,19 +137,6 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "configuration:changed")
 		})
 	}
-
-	// Toggle the File → "Save" menu item with the Scripts feature
-	// preview. The UI reports the current state on load and whenever it changes.
-	runtime.EventsOn(ctx, "scripts:previewEnabled", func(optionalData ...interface{}) {
-		enabled := false
-		if len(optionalData) > 0 {
-			if b, ok := optionalData[0].(bool); ok {
-				enabled = b
-			}
-		}
-		runtime.MenuSetApplicationMenu(ctx, a.buildAppMenu(enabled))
-		runtime.MenuUpdateApplicationMenu(ctx)
-	})
 }
 
 // OnShutdown hook stops the MCP server if it is running.
@@ -157,19 +144,15 @@ func (a *App) shutdown(ctx context.Context) {
 	a.stopMCPServer()
 }
 
-// buildAppMenu assembles the native application menu. The File menu holds only
-// the experimental "Save" action, so it is included only when the
-// Scripts feature preview is enabled.
-func (a *App) buildAppMenu(scriptsEnabled bool) *menu.Menu {
+// buildAppMenu assembles the native application menu.
+func (a *App) buildAppMenu() *menu.Menu {
 	appMenu := menu.NewMenu()
 	appMenu.Append(menu.AppMenu())
 
-	if scriptsEnabled {
-		fileMenu := appMenu.AddSubmenu("File")
-		fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
-			runtime.EventsEmit(a.ctx, "menu:saveScript")
-		})
-	}
+	fileMenu := appMenu.AddSubmenu("File")
+	fileMenu.AddText("Save", keys.CmdOrCtrl("s"), func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "menu:saveScript")
+	})
 
 	appMenu.Append(menu.EditMenu())
 	viewMenu := appMenu.AddSubmenu("View")
@@ -725,9 +708,7 @@ func main() {
 	// Create application with options
 	app := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
 
-	// The File menu starts hidden; the UI enables it once it reports the Scripts
-	// feature preview as on (see startup).
-	appMenu := app.buildAppMenu(false)
+	appMenu := app.buildAppMenu()
 
 	err = wails.Run(&options.App{
 		Title: "Kaja",

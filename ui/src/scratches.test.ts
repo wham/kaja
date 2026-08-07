@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { appendCall, createScratch, isUntouched, markRun, pruneScratches, renameScratch, Scratch, takeOver, withCode } from "./scratches";
+import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, takeOver, withCode } from "./scratches";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -33,11 +33,6 @@ describe("takeOver", () => {
     expect(taken.title).toBe("GetShow");
     expect(isUntouched(taken)).toBe(true);
   });
-
-  it("leaves a name the user chose alone", () => {
-    const named = renameScratch(createScratch(listShows, undefined, NOW), "my thing", NOW);
-    expect(takeOver(named, getShow, undefined, NOW + 1).title).toBe("my thing");
-  });
 });
 
 describe("markRun", () => {
@@ -48,11 +43,6 @@ describe("markRun", () => {
 
     expect(ran.title).toBe("GetShow · vera-lune");
     expect(ran.ran).toBe(true);
-  });
-
-  it("never overrides a pinned title", () => {
-    const named = renameScratch(createScratch(getShow, undefined, NOW), "seat check", NOW);
-    expect(markRun(named, listShows, NOW + 1).title).toBe("seat check");
   });
 });
 

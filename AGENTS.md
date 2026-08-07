@@ -53,8 +53,9 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   zero values don't count, since that is what a generated request starts with),
   `ListShows → GetShow`, `CreateShow +2`.
 - **The title re-derives at deliberate moments, never while typing**: on a run
-  (`markRun`) and on an append (`withCode`), because both are punctuation. A
-  rename (`renameScratch`) **pins** it and the code stops deciding.
+  (`markRun`) and on an append (`withCode`), because both are punctuation. There
+  is **no rename** — naming a script and saving it are the same act, so the code
+  decides until you save, and then the filename does.
 - **Unlimited only works because the browsing buffers clear themselves out.**
   `pruneScratches` drops scratches that were never run and never edited past
   their generated form after 14 days, and never touches one that is on screen.
@@ -87,9 +88,10 @@ method in the sidebar is a *template*, not a document — clicking it fills a
 **There is no tab strip, and no open files either.** The pane shows one thing —
 whatever you last selected — and the window's right side opens with one 40px
 **command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
-sidebar toggle · finder · hairline · recent chips · spacer · action · hairline ·
-search · layout. Nothing else may be added to it; new controls go in the sidebar
-header or the console header. The sidebar header is 40px too, so the two line up
+sidebar toggle · finder · spacer · action · hairline · search · layout. There are
+no recent chips — with one pane and a finder, they were the last echo of a tab
+strip. Nothing else may be added to it; new controls go in the sidebar header or
+the console header. The sidebar header is 40px too, so the two line up
 across the seam, and the macOS traffic lights stay in it (the row takes over the
 inset only when the sidebar is collapsed).
 
@@ -115,7 +117,8 @@ inset only when the sidebar is collapsed).
   popover is one list — `Recent`, then `All files` — and typing narrows both.
   That is why `⌘K` lands here too: the finder is the only surface that can search
   the calls, which the tree can't. `⌘P` opens it on the previous place so `⌘P⏎`
-  is "back"; `⌘K` and the trigger open on the first row. Only the response is
+  is "back" — the only way back, now that the chips are gone; `⌘K` and the
+  trigger open on the first row. Only the response is
   120ms opacity — no slide, no scale, because movement makes fast repeated `⌘P`
   feel unstable.
 - **The action slot** — Run and the `</>` JSON toggle share one position, since a
@@ -135,11 +138,13 @@ Experimental features are opt-in through the **feature previews** menu — a bea
 button in the footer next to the theme selector (`FeaturePreviews.tsx`) that opens a
 small popup with a toggle per experimental feature. Enabled features are marked with a
 "Preview" pill in the UI (`PreviewPill` in `Sidebar.tsx`). Toggle state persists via
-`usePersistedState` under `featurePreview:<key>` keys. The **Variables** tab has no
-toggle of its own: it is what scripts and app configuration read, so it shows when
-**Scripts** or **Preview Apps** is on and is hidden otherwise.
+`usePersistedState` under `featurePreview:<key>` keys.
 
-- **Scripts** (`featurePreview:scripts`, desktop only) — a global `<kajaHome>/scripts/` folder of standalone TypeScript scripts that bind to apps through their import paths and run from their own tabs.
+**Scripts and Variables are not previews** — they are the app. Scripts are what
+everything you run is, and Variables is what they and app configuration read, so
+both ship. The only thing gating scripts now is the platform: saving writes a
+file, so it needs a disk (`isWailsEnvironment()`).
+
 - **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
 - **MCP server** (`featurePreview:mcp`, desktop only) — a localhost Model Context Protocol server that lets an agent (e.g. Claude Code) read, write, and run the saved scripts and discover the services they can call. The footer shows a plug button with the one-line `claude mcp add` command to connect.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"markdown"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; MarkdownApp markdown; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Markdown app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp always; the experimental built-ins (openapi/openai/markdown) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load.

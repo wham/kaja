@@ -19,7 +19,7 @@ import { Gutter } from "./Gutter";
 import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
-import { appendCall, createScratch, isUntouched, markRun, pruneScratches, renameScratch, Scratch, ScratchOrigin, takeOver, withCode } from "./scratches";
+import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, ScratchOrigin, takeOver, withCode } from "./scratches";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
@@ -192,10 +192,6 @@ export function App() {
   const hasViewMemory = useRef(getPersistedValue<PersistedViewState>("views") !== undefined);
   const viewsRestoredRef = useRef(views.some((tab) => tab.type === "scratch"));
   const [scripts, setScripts] = useState<Script[]>();
-  // Experimental "Scripts" feature, toggled from the feature previews menu in the footer.
-  const [previewScripts, setPreviewScripts] = usePersistedState("featurePreview:scripts", false);
-  const previewScriptsRef = useRef(previewScripts);
-  previewScriptsRef.current = previewScripts;
   // "Preview Apps" toggle: reveals the experimental built-in app types in the New
   // dialog (openapi/openai/markdown). gRPC/Twirp are always available.
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
@@ -241,9 +237,6 @@ export function App() {
   const [renameScript, setRenameScript] = useState<{ script: Script; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string>();
   const [deleteScript, setDeleteScript] = useState<Script | null>(null);
-  // Renaming a scratch is the one naming step there is: it pins the title, so
-  // the code stops deciding it.
-  const [renameScratchTarget, setRenameScratchTarget] = useState<{ scratch: Scratch; title: string } | null>(null);
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
   // The run in flight, if any: which tab issued it, when it started, and the
@@ -420,19 +413,12 @@ export function App() {
   // in the Wails environment. gRPC/Twirp apps are always enabled; the Preview Apps
   // toggle only reveals the experimental built-in app types (openapi/openai/markdown).
   const featurePreviews: FeaturePreview[] = [
-    ...(isWailsEnvironment() ? [{ key: "scripts", label: "Scripts", enabled: previewScripts }] : []),
     ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
     { key: "previewApps", label: "Preview Apps", enabled: previewApps },
   ];
 
-  // Variables exist to be read by scripts and by app configuration, both of which
-  // are previews, so the tab rides along with whichever of them is on.
-  const variablesEnabled = previewScripts || previewApps;
-
   const onToggleFeaturePreview = useCallback((key: string) => {
-    if (key === "scripts") {
-      setPreviewScripts((enabled) => !enabled);
-    } else if (key === "mcp") {
+    if (key === "mcp") {
       setPreviewMcp((enabled) => !enabled);
     } else if (key === "previewApps") {
       setPreviewApps((enabled) => !enabled);
@@ -687,7 +673,7 @@ export function App() {
   // Load the global scripts directory (desktop only). Scripts are independent
   // of apps; they bind to an app at run time via their import paths.
   const refreshScripts = useCallback(() => {
-    if (!isWailsEnvironment() || !previewScripts) {
+    if (!isWailsEnvironment()) {
       setScripts(undefined);
       return;
     }
@@ -697,7 +683,7 @@ export function App() {
         console.error("Failed to list scripts", err);
         setScripts([]);
       });
-  }, [previewScripts]);
+  }, []);
 
   useEffect(() => {
     refreshScripts();
@@ -893,12 +879,6 @@ export function App() {
     [applyScratches, applyViews],
   );
 
-  const onConfirmRenameScratch = useCallback(() => {
-    if (!renameScratchTarget) return;
-    updateScratch(renameScratchTarget.scratch.id, (scratch) => renameScratch(scratch, renameScratchTarget.title, Date.now()));
-    setRenameScratchTarget(null);
-  }, [renameScratchTarget, updateScratch]);
-
   const onScriptSelect = useCallback(
     async (script: Script) => {
       if (!isWailsEnvironment()) return;
@@ -1021,7 +1001,7 @@ export function App() {
 
   // ⌘S names a script and writes it to disk, which is what makes it a file.
   const onRequestSaveAsScript = useCallback(() => {
-    if (!isWailsEnvironment() || !previewScriptsRef.current) return;
+    if (!isWailsEnvironment()) return;
     const tab = viewsRef.current[0];
     if (!tab || (tab.type !== "scratch" && tab.type !== "script")) return;
     const defaultName =
@@ -1060,12 +1040,6 @@ export function App() {
     const unsub = EventsOn("menu:saveScript", () => onRequestSaveAsScriptRef.current());
     return () => unsub();
   }, []);
-
-  // Show/hide the native File menu in step with the Scripts feature preview.
-  useEffect(() => {
-    if (!isWailsEnvironment()) return;
-    EventsEmit("scripts:previewEnabled", previewScripts);
-  }, [previewScripts]);
 
   // Start/stop the localhost MCP server in step with its feature preview, and
   // keep the connection details for the footer.
@@ -1339,17 +1313,6 @@ export function App() {
     },
     [applyViews, updateScratch],
   );
-
-  // Turning off the last preview that uses variables takes its view away,
-  // rather than leaving one behind with no way to reach it again.
-  useEffect(() => {
-    if (variablesEnabled) return;
-    const shown = viewsRef.current.find((candidate) => candidate.type === "variables");
-    if (!shown) return;
-    setVariablesState({ dirty: false, canSave: false, save: async () => {} });
-    applyViews((views) => dropView(views, shown.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variablesEnabled]);
 
   // The </> button in the command row edits the current file as JSON: same
   // position, same icon, same ⌘J, on every file that has a JSON representation,
@@ -1648,7 +1611,7 @@ export function App() {
 
     // The workspace surfaces come before the calls: there are two of them and
     // hundreds of calls, so at rest they'd never make the list otherwise.
-    if (variablesEnabled && !views.some((view) => view.type === "variables")) {
+    if (!views.some((view) => view.type === "variables")) {
       destinations.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, go: onVariablesClick });
     }
     if (!views.some((view) => view.type === "compiler")) {
@@ -1671,7 +1634,7 @@ export function App() {
     }
 
     return destinations;
-  }, [apps, scratches, scripts, views, variablesEnabled, onScratchSelect, onScriptSelect, onFinderMethodSelect, onVariablesClick, onShowCompileLog]);
+  }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onFinderMethodSelect, onVariablesClick, onShowCompileLog]);
 
   const running = currentView !== undefined && activeRun?.viewId === currentView.id;
   const action = currentIsEditor ? (
@@ -1735,16 +1698,15 @@ export function App() {
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
                 currentScratchOrigin={currentView?.type === "scratch" ? scratches.find((s) => s.id === currentView.scratchId)?.origin : undefined}
                 onScratchSelect={onScratchSelect}
-                onRenameScratch={(scratch) => setRenameScratchTarget({ scratch, title: scratch.title })}
                 onDeleteScratch={onDeleteScratch}
-                onSaveScratch={isWailsEnvironment() && previewScripts ? onSaveScratch : undefined}
+                onSaveScratch={isWailsEnvironment() ? onSaveScratch : undefined}
                 onShowAllScratches={() => setFinder("first")}
                 currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
                 scrollToMethod={scrollToMethod}
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
-                onVariablesClick={variablesEnabled ? onVariablesClick : undefined}
+                onVariablesClick={onVariablesClick}
                 autoExpandApp={autoExpandApp}
                 reserveTrafficLights={isDesktopMac}
                 onEditApp={onEditApp}
@@ -1768,8 +1730,6 @@ export function App() {
                   highlightPrevious={finder === "previous"}
                 />
               }
-              recent={views.slice(1, 3).map((view) => ({ id: view.id, name: viewIdentity(view, scratches).name }))}
-              onSelectRecent={onGoToView}
               action={action}
               onSearch={() => setFinder("first")}
               layout={editorLayout}
@@ -1956,31 +1916,52 @@ export function App() {
         </Dialog>
       )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
-      {renameScratchTarget && (
+      {renameScript && (
         <Dialog
-          title="Rename scratch"
-          onClose={() => setRenameScratchTarget(null)}
+          title="Rename script"
+          onClose={() => {
+            setRenameScript(null);
+            setRenameError(undefined);
+          }}
           footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScratchTarget(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScratch },
+            { content: "Cancel", onClick: () => setRenameScript(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
           ]}
         >
           <FormControl>
             <FormControl.Label>Name</FormControl.Label>
-            <Input
-              autoFocus
-              value={renameScratchTarget.title}
-              onChange={(e) => setRenameScratchTarget((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onConfirmRenameScratch();
-                }
-              }}
-            />
-            <FormControl.Caption>A scratch names itself from the code it runs. Naming it yourself settles it for good.</FormControl.Caption>
+            <div className="relative">
+              <Input
+                autoFocus
+                className="pr-9"
+                value={renameScript.name}
+                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmRenameScript();
+                  }
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
           </FormControl>
         </Dialog>
+      )}
+      {deleteScript && (
+        <ConfirmationDialog
+          title="Delete script?"
+          confirmButtonContent="Delete"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const script = deleteScript;
+            setDeleteScript(null);
+            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+          }}
+        >
+          Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
       )}
       {renameScript && (
         <Dialog
@@ -2029,31 +2010,99 @@ export function App() {
           Permanently delete <strong>{deleteScript.name}</strong>?
         </ConfirmationDialog>
       )}
-      {renameScratchTarget && (
+      {renameScript && (
         <Dialog
-          title="Rename scratch"
-          onClose={() => setRenameScratchTarget(null)}
+          title="Rename script"
+          onClose={() => {
+            setRenameScript(null);
+            setRenameError(undefined);
+          }}
           footerButtons={[
-            { content: "Cancel", onClick: () => setRenameScratchTarget(null) },
-            { content: "Rename", variant: "default", onClick: onConfirmRenameScratch },
+            { content: "Cancel", onClick: () => setRenameScript(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
           ]}
         >
           <FormControl>
             <FormControl.Label>Name</FormControl.Label>
-            <Input
-              autoFocus
-              value={renameScratchTarget.title}
-              onChange={(e) => setRenameScratchTarget((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onConfirmRenameScratch();
-                }
-              }}
-            />
-            <FormControl.Caption>A scratch names itself from the code it runs. Naming it yourself settles it for good.</FormControl.Caption>
+            <div className="relative">
+              <Input
+                autoFocus
+                className="pr-9"
+                value={renameScript.name}
+                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmRenameScript();
+                  }
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
           </FormControl>
         </Dialog>
+      )}
+      {deleteScript && (
+        <ConfirmationDialog
+          title="Delete script?"
+          confirmButtonContent="Delete"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const script = deleteScript;
+            setDeleteScript(null);
+            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+          }}
+        >
+          Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
+      )}
+      {renameScript && (
+        <Dialog
+          title="Rename script"
+          onClose={() => {
+            setRenameScript(null);
+            setRenameError(undefined);
+          }}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setRenameScript(null) },
+            { content: "Rename", variant: "default", onClick: onConfirmRenameScript },
+          ]}
+        >
+          <FormControl>
+            <FormControl.Label>Name</FormControl.Label>
+            <div className="relative">
+              <Input
+                autoFocus
+                className="pr-9"
+                value={renameScript.name}
+                onChange={(e) => setRenameScript((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onConfirmRenameScript();
+                  }
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">.ts</span>
+            </div>
+            {renameError && <FormControl.Validation variant="error">{renameError}</FormControl.Validation>}
+          </FormControl>
+        </Dialog>
+      )}
+      {deleteScript && (
+        <ConfirmationDialog
+          title="Delete script?"
+          confirmButtonContent="Delete"
+          confirmButtonType="danger"
+          onClose={(gesture) => {
+            const script = deleteScript;
+            setDeleteScript(null);
+            if (gesture === "confirm" && script) onConfirmDeleteScript(script);
+          }}
+        >
+          Permanently delete <strong>{deleteScript.name}</strong>?
+        </ConfirmationDialog>
       )}
       {renameScript && (
         <Dialog
