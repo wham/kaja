@@ -206,7 +206,7 @@ export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentit
       return {
         name: scratch?.title ?? "Scratch",
         path: "Scripts",
-        origin: scratch?.origin?.appName ?? "",
+        origin: scratch?.originAppName ?? "",
         icon: PenLine,
         provisional: scratch !== undefined && isUntouched(scratch),
       };

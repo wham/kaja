@@ -5,15 +5,16 @@ import { ConsoleItem, Run } from "./runs";
 import { Log } from "./server/api";
 import { getPersistedValue, setPersistedValue } from "./storage";
 
-// Storing code is free; storing responses is not. Headers are small and are kept
-// for the last fifty files you ran something in; the payloads under them are
-// dropped after a week, because expiry is only bearable when it is a stated
-// state rather than a silent hole.
-const MAX_STORED_RUNS = 50;
+// Storing code is free; storing responses is not. A file keeps its last few run
+// headers, the payloads under them are dropped after a week, and only the fifty
+// most recently run files are kept at all — because expiry is only bearable when
+// it is a stated state rather than a silent hole.
+const MAX_STORED_FILES = 50;
+const MAX_STORED_RUNS_PER_FILE = 3;
 const PAYLOAD_DAYS = 7;
-// A run whose payloads don't fit is stored without them rather than not at all:
-// the header is still worth having, and "no longer kept" is what the screen
-// already says.
+// The payload budget for one file, spent newest run first. A run whose payloads
+// don't fit is stored without them rather than not at all: the header is still
+// worth having, and "no longer kept" is what the screen already says.
 const MAX_PAYLOAD_BYTES = 512 * 1024;
 
 const STORAGE_KEY = "lastRuns";
@@ -45,16 +46,22 @@ interface StoredItem {
   logs?: Log[];
 }
 
-export interface StoredRun {
+interface StoredRun {
   run: Run;
   items: StoredItem[];
+}
+
+// One file's console as it is kept between sessions: its last few runs, oldest
+// first, exactly as the live list reads.
+export interface StoredFile {
+  runs: StoredRun[];
   storedAt: number;
 }
 
-export type RunArchive = { [sourceId: string]: StoredRun };
+export type RunArchive = { [fileId: string]: StoredFile };
 
-export interface LoadedRun {
-  run: Run;
+export interface LoadedRuns {
+  runs: Run[];
   items: ConsoleItem[];
 }
 
@@ -107,22 +114,34 @@ function fromStoredCall(stored: StoredCall): MethodCall {
   };
 }
 
-export function serializeRun(run: Run, items: ConsoleItem[], now: number): StoredRun {
-  const stored: StoredRun = {
-    run: { ...run, stale: true, payloadsExpired: false },
-    items: items.map((item) => ({
-      id: item.id,
-      timestamp: item.timestamp,
-      call: item.call ? toStoredCall(item.call) : undefined,
-      logs: item.logs,
-    })),
-    storedAt: now,
-  };
+/**
+ * A file's runs on their way into the store: the newest few, each marked as
+ * belonging to an earlier session, and the payload budget spent newest first so
+ * what is dropped is always the oldest thing.
+ */
+export function serializeFile(runs: Run[], items: ConsoleItem[], now: number): StoredFile {
+  const kept = runs.slice(Math.max(0, runs.length - MAX_STORED_RUNS_PER_FILE));
+  const stored: StoredRun[] = [];
+  let budget = MAX_PAYLOAD_BYTES;
 
-  if (payloadBytes(stored.items) > MAX_PAYLOAD_BYTES) {
-    return { ...stored, run: { ...stored.run, payloadsExpired: true }, items: [] };
+  // Newest first while spending, then flipped back to oldest first.
+  for (let index = kept.length - 1; index >= 0; index--) {
+    const run = kept[index];
+    const runItems = items.filter((item) => item.runId === run.id).map(toStoredItem);
+    const size = payloadBytes(runItems);
+    if (run.payloadsExpired || size > budget) {
+      stored.unshift({ run: { ...run, stale: true, payloadsExpired: true }, items: [] });
+      continue;
+    }
+    budget -= size;
+    stored.unshift({ run: { ...run, stale: true, payloadsExpired: false }, items: runItems });
   }
-  return stored;
+
+  return { runs: stored, storedAt: now };
+}
+
+function toStoredItem(item: ConsoleItem): StoredItem {
+  return { id: item.id, timestamp: item.timestamp, call: item.call ? toStoredCall(item.call) : undefined, logs: item.logs };
 }
 
 function payloadBytes(items: StoredItem[]): number {
@@ -133,37 +152,41 @@ function payloadBytes(items: StoredItem[]): number {
   }
 }
 
-export function deserializeRun(stored: StoredRun): LoadedRun {
-  return {
-    run: stored.run,
-    items: stored.items.map((item) => ({
-      id: item.id,
-      runId: stored.run.id,
-      timestamp: item.timestamp,
-      call: item.call ? fromStoredCall(item.call) : undefined,
-      logs: item.logs,
-    })),
-  };
+export function deserializeFile(stored: StoredFile): LoadedRuns {
+  const runs: Run[] = [];
+  const items: ConsoleItem[] = [];
+  for (const entry of stored.runs) {
+    runs.push(entry.run);
+    for (const item of entry.items) {
+      items.push({ id: item.id, runId: entry.run.id, timestamp: item.timestamp, call: item.call ? fromStoredCall(item.call) : undefined, logs: item.logs });
+    }
+  }
+  return { runs, items };
 }
 
 /**
- * Retention, applied on every read and write: a run older than a week keeps its
- * header and loses its payloads, and only the fifty most recently run files are
- * kept at all.
+ * Retention, applied on every read and write: a file's runs older than a week
+ * keep their headers and lose their payloads, and only the fifty most recently
+ * run files are kept at all. An entry written by an older build has a shape this
+ * can't read and is simply dropped.
  */
 export function pruneArchive(archive: RunArchive, now: number): RunArchive {
   const cutoff = now - PAYLOAD_DAYS * 24 * 60 * 60 * 1000;
   const entries = Object.entries(archive)
-    .filter(([, stored]) => stored?.run !== undefined)
-    .sort((a, b) => (b[1].run.startedAt ?? 0) - (a[1].run.startedAt ?? 0))
-    .slice(0, MAX_STORED_RUNS);
+    .filter(([, stored]) => Array.isArray(stored?.runs))
+    .sort((a, b) => lastRunAt(b[1]) - lastRunAt(a[1]))
+    .slice(0, MAX_STORED_FILES);
 
   const pruned: RunArchive = {};
-  for (const [sourceId, stored] of entries) {
-    const expired = stored.storedAt < cutoff;
-    pruned[sourceId] = expired ? { ...stored, run: { ...stored.run, payloadsExpired: true }, items: [] } : stored;
+  for (const [fileId, stored] of entries) {
+    pruned[fileId] =
+      stored.storedAt < cutoff ? { ...stored, runs: stored.runs.map((entry) => ({ run: { ...entry.run, payloadsExpired: true }, items: [] })) } : stored;
   }
   return pruned;
+}
+
+function lastRunAt(stored: StoredFile): number {
+  return stored.runs[stored.runs.length - 1]?.run.startedAt ?? 0;
 }
 
 function readArchive(): RunArchive {
@@ -174,18 +197,31 @@ function writeArchive(archive: RunArchive): void {
   setPersistedValue(STORAGE_KEY, archive);
 }
 
-// Only a run that finished is worth keeping: one still in flight would come back
-// as a permanently pending header.
-export function saveLastRun(sourceId: string, run: Run, items: ConsoleItem[], now = Date.now()): void {
-  writeArchive(pruneArchive({ ...readArchive(), [sourceId]: serializeRun(run, items, now) }, now));
+export function saveRuns(fileId: string, runs: Run[], items: ConsoleItem[], now = Date.now()): void {
+  if (runs.length === 0) {
+    dropStoredFile(fileId);
+    return;
+  }
+  writeArchive(pruneArchive({ ...readArchive(), [fileId]: serializeFile(runs, items, now) }, now));
 }
 
-export function loadLastRun(sourceId: string, now = Date.now()): LoadedRun | undefined {
-  const archive = pruneArchive(readArchive(), now);
-  const stored = archive[sourceId];
-  return stored ? deserializeRun(stored) : undefined;
+export function loadRuns(fileId: string, now = Date.now()): LoadedRuns | undefined {
+  const stored = pruneArchive(readArchive(), now)[fileId];
+  return stored ? deserializeFile(stored) : undefined;
 }
 
-export function clearArchive(): void {
-  writeArchive({});
+// A scratch saved to disk, or a script renamed: same console, new name.
+export function renameStoredFile(oldId: string, newId: string): void {
+  const archive = readArchive();
+  const stored = archive[oldId];
+  if (!stored) return;
+  const { [oldId]: _dropped, ...rest } = archive;
+  writeArchive({ ...rest, [newId]: { ...stored, runs: stored.runs.map((entry) => ({ ...entry, run: { ...entry.run, fileId: newId } })) } });
+}
+
+export function dropStoredFile(fileId: string): void {
+  const archive = readArchive();
+  if (!(fileId in archive)) return;
+  const { [fileId]: _dropped, ...rest } = archive;
+  writeArchive(rest);
 }

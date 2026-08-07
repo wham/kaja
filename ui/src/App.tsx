@@ -11,17 +11,36 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
 import { Console } from "./Console";
-import { ConsoleItem, newItemId, newRunId, Run } from "./runs";
-import { loadLastRun, clearArchive, saveLastRun, LoadedRun } from "./runStore";
+import { ConsoleTab, newRunId, Run, RunSelection } from "./runs";
+import {
+  adoptStoredRuns,
+  clearFile,
+  dropFile,
+  fileConsole,
+  hasCallsInFlight,
+  putFile,
+  recordCall,
+  recordLogs,
+  renameFile,
+  RunHistory,
+  runningFileIds,
+  setSelection,
+  setTab,
+  settleRun,
+  startRun,
+  takeFile,
+  FileConsole,
+} from "./runHistory";
+import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
 import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
 import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
-import { AskCancelledError, isCallInFlight, Kaja, MethodCall } from "./kaja";
+import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
-import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, ScratchOrigin, takeOver, withCode } from "./scratches";
+import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, takeOver, withCode } from "./scratches";
 import { deriveScratchTitle } from "./scratchTitle";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
@@ -78,10 +97,6 @@ import {
 import { main } from "./wailsjs/go/models";
 import { runTask, runTaskCaptured } from "./taskRunner";
 
-// Maximum number of console items kept in memory; older calls are dropped.
-const MAX_CONSOLE_ITEMS = 500;
-// Runs are the unit the console reports, so the history is capped in runs too.
-const MAX_RUNS = 100;
 // How long a discarded scratch is held before it is really gone. Nothing was on
 // disk, so this is undo rather than a confirmation.
 const UNDO_DISCARD_MS = 8000;
@@ -188,23 +203,19 @@ export function App() {
     window.innerWidth >= SIDE_BY_SIDE_MIN_WIDTH ? "horizontal" : "vertical",
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
-  // What the console reports: one run per press of Run, and the calls and log
-  // lines that ran under it.
-  const [consoleItems, setConsoleItems] = useState<ConsoleItem[]>([]);
-  const [runs, setRuns] = useState<Run[]>([]);
-  const runsRef = useRef(runs);
-  runsRef.current = runs;
+  // Every file's console: its runs, the calls under them, and where it was left
+  // pointing. The console belongs to the file, so this is keyed by file and not
+  // held on the view — views are a cache and get evicted.
+  const [history, setHistory] = useState<RunHistory>({});
+  const historyRef = useRef(history);
+  historyRef.current = history;
   // The run calls are being attributed to. Cleared once the run settles, so a
   // stray call afterwards starts one of its own rather than joining a run that
   // is over.
   const currentRunRef = useRef<Run | null>(null);
-  // The last run of the file on screen, read back from the store. It happened in
-  // an earlier session and is shown as such — never as something live.
-  const [staleRun, setStaleRun] = useState<LoadedRun | undefined>();
   // Whether the finder is open, and where it opened: ⌘P lands on the
   // previous file so ⌘P⏎ goes back, everything else on the first row.
   const [finder, setFinder] = useState<"first" | "previous">();
-  const [scrollToMethod, setScrollToMethod] = useState<{ method: Method; service: Service; app: AppModel }>();
   const viewsRef = useRef(views);
   viewsRef.current = views;
   const scratchesRef = useRef(scratches);
@@ -263,12 +274,12 @@ export function App() {
   // The run in flight, if any: which tab issued it, when it started, and the
   // controller its Stop button aborts. `settled` marks the script itself as
   // finished — the run is only over once its calls have landed too.
-  const [activeRun, setActiveRun] = useState<{ runId: string; viewId?: string; startedAt: number; controller?: AbortController; settled: boolean } | null>(
+  const [activeRun, setActiveRun] = useState<{ runId: string; fileId?: string; startedAt: number; controller?: AbortController; settled: boolean } | null>(
     null,
   );
   // A discarded scratch, held long enough to take it back. Nothing was on disk,
   // so discarding is undoable rather than confirmed.
-  const [discarded, setDiscarded] = useState<Scratch | null>(null);
+  const [discarded, setDiscarded] = useState<{ scratch: Scratch; runs?: FileConsole } | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending debounced disk writes for open script views, keyed by tab id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -364,30 +375,35 @@ export function App() {
     [disposeView, persistViews],
   );
 
-  // One press of Run opens a run; everything the script does lands under it.
-  // Nothing else creates one, except a call that arrives with no run open —
-  // which gets a run of its own rather than joining one that is over.
-  const beginRun = useCallback((title: string, sourceId?: string, viewId?: string, controller?: AbortController): Run => {
-    const run: Run = { id: newRunId(), title, sourceId, startedAt: Date.now() };
+  // One press of Run opens a run; everything the script does lands under it, in
+  // the console of the file it was pressed on. Nothing else creates one, except
+  // a call that arrives with no run open — which gets a run of its own rather
+  // than joining one that is over, under the file the last run came from.
+  const lastRunFileIdRef = useRef<string | undefined>(undefined);
+  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController): Run => {
+    const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now() };
     currentRunRef.current = run;
-    setRuns((list) => {
-      const next = [...list, run];
-      return next.length > MAX_RUNS ? next.slice(next.length - MAX_RUNS) : next;
-    });
-    setActiveRun({ runId: run.id, viewId, startedAt: run.startedAt, controller, settled: false });
+    if (fileId) lastRunFileIdRef.current = fileId;
+    setHistory((current) => startRun(current, run, run.startedAt));
+    setActiveRun({ runId: run.id, fileId, startedAt: run.startedAt, controller, settled: false });
     return run;
   }, []);
 
   const beginRunRef = useRef(beginRun);
   beginRunRef.current = beginRun;
 
-  const appendConsoleItem = useCallback((item: ConsoleItem) => {
-    setConsoleItems((items) => {
-      const next = [...items, item];
-      // Cap history so a long session can't grow the console unbounded.
-      return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
-    });
-  }, []);
+  // A call arriving with no run open gets one, under the file the last run came
+  // from — that is where a late call almost certainly belongs. A run with no
+  // file at all (an agent running code that was never saved) has no console to
+  // land in and is not kept; the agent still gets its results.
+  const openRun = useCallback(
+    (title: string): Run => {
+      const current = currentRunRef.current;
+      if (current) return current;
+      return beginRun(title, lastRunFileIdRef.current);
+    },
+    [beginRun],
+  );
 
   const onMethodCallUpdate = useCallback(
     (methodCall: MethodCall) => {
@@ -397,17 +413,10 @@ export function App() {
         if (i > -1) collector[i] = methodCall;
         else collector.push(methodCall);
       }
-      const run = currentRunRef.current ?? beginRun(methodCall.method.name);
-      setConsoleItems((items) => {
-        const index = items.findIndex((item) => item.call?.id === methodCall.id);
-        if (index > -1) {
-          return items.map((item, i) => (i === index ? { ...item, call: { ...methodCall } } : item));
-        }
-        const next = [...items, { id: newItemId(), runId: run.id, timestamp: methodCall.timestamp, call: { ...methodCall } }];
-        return next.length > MAX_CONSOLE_ITEMS ? next.slice(next.length - MAX_CONSOLE_ITEMS) : next;
-      });
+      const run = openRun(methodCall.method.name);
+      setHistory((current) => recordCall(current, run.fileId, run.id, methodCall, Date.now()));
     },
-    [beginRun],
+    [openRun],
   );
 
   // Show a failed script run in the console; a script that dies silently looks
@@ -416,10 +425,10 @@ export function App() {
     (error: unknown) => {
       console.error("Script error:", error);
       const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
-      const run = currentRunRef.current ?? beginRun("Script error");
-      appendConsoleItem({ id: newItemId(), runId: run.id, timestamp: Date.now(), logs: [{ level: LogLevel.LEVEL_ERROR, message }] });
+      const run = openRun("Script error");
+      setHistory((current) => recordLogs(current, run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now()));
     },
-    [appendConsoleItem, beginRun],
+    [openRun],
   );
 
   // Open the input dialog for a `kaja.ask(...)` call, resolving once the user
@@ -435,14 +444,11 @@ export function App() {
     kajaRef.current = new Kaja(onMethodCallUpdate, onAsk);
   }
 
-  // Clearing the history clears what is being held for next time too; leaving
-  // yesterday's run behind would make "cleared" a half-truth.
-  const onClearConsole = useCallback(() => {
-    setConsoleItems([]);
-    setRuns([]);
-    setStaleRun(undefined);
-    currentRunRef.current = null;
-    clearArchive();
+  // Clearing a file's history clears what is being held of it for next time too;
+  // leaving yesterday's run behind would make "cleared" a half-truth.
+  const onClearConsole = useCallback((fileId: string) => {
+    setHistory((current) => clearFile(current, fileId, Date.now()));
+    dropStoredFile(fileId);
   }, []);
 
   // Kept in sync during render so the first drag can pick up wherever the gutter
@@ -915,7 +921,7 @@ export function App() {
       // thing — the editor's own format-on-open can't help a buffer that is
       // written into a model it already has.
       const code = await formatTypeScript(generateMethodEditorCode(app, service, method));
-      const origin: ScratchOrigin = { appName: app.configuration.name, serviceName: service.name, methodName: method.name };
+      const originAppName = app.configuration.name;
       const now = Date.now();
       const current = viewsRef.current[0];
       const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
@@ -929,11 +935,11 @@ export function App() {
 
       if (currentScratch && isUntouched(currentScratch)) {
         current.type === "scratch" && current.model.setValue(code);
-        updateScratch(currentScratch.id, (scratch) => takeOver(scratch, code, origin, now));
+        updateScratch(currentScratch.id, (scratch) => takeOver(scratch, code, originAppName, now));
         return;
       }
 
-      const scratch = createScratch(code, origin, now);
+      const scratch = createScratch(code, originAppName, now);
       applyScratches((list) => [scratch, ...list]);
       applyViews((views) => showScratch(views, scratch));
     },
@@ -954,8 +960,13 @@ export function App() {
       const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === scratch.id);
       if (shown) applyViews((views) => dropView(views, shown.id));
       applyScratches((list) => list.filter((candidate) => candidate.id !== scratch.id));
+      // The console goes with the script, and is held alongside it so taking the
+      // discard back brings the runs back too.
+      const [remaining, taken] = takeFile(historyRef.current, scratch.id);
+      setHistory(remaining);
+      dropStoredFile(scratch.id);
       if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-      setDiscarded(scratch);
+      setDiscarded({ scratch, runs: taken });
       discardTimerRef.current = setTimeout(() => setDiscarded(null), UNDO_DISCARD_MS);
     },
     [applyScratches, applyViews],
@@ -963,8 +974,14 @@ export function App() {
 
   const onUndoDiscard = useCallback(() => {
     if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-    setDiscarded((scratch) => {
-      if (scratch) applyScratches((list) => [scratch, ...list]);
+    setDiscarded((held) => {
+      if (held) {
+        applyScratches((list) => [held.scratch, ...list]);
+        if (held.runs) {
+          setHistory((current) => putFile(current, held.scratch.id, held.runs!));
+          saveRuns(held.scratch.id, held.runs.runs, held.runs.items);
+        }
+      }
       return null;
     });
   }, [applyScratches]);
@@ -1211,6 +1228,10 @@ export function App() {
       if (saveAs.fromScratchId) {
         const id = saveAs.fromScratchId;
         applyScratches((list) => list.filter((candidate) => candidate.id !== id));
+        // Saving changes what the file is called, not what it is, so its runs
+        // come along to the path it now lives at.
+        setHistory((current) => renameFile(current, id, script.path));
+        renameStoredFile(id, script.path);
       }
       setSaveAs(null);
       setSaveAsError(undefined);
@@ -1232,6 +1253,9 @@ export function App() {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
       applyViews((views) => views.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
       setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
+      // The file is the console's key, so a rename moves it rather than losing it.
+      setHistory((current) => renameFile(current, oldPath, renamed.path));
+      renameStoredFile(oldPath, renamed.path);
     },
     [applyViews],
   );
@@ -1271,6 +1295,9 @@ export function App() {
     (path: string) => {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
       setPinnedScriptPath((current) => (current === path ? undefined : current));
+      // The file is gone, so its console goes with it.
+      setHistory((current) => dropFile(current, path));
+      dropStoredFile(path);
       applyViews((views) => {
         const shown = views.find((candidate) => candidate.type === "script" && candidate.script.path === path);
         if (!shown) return views;
@@ -1341,16 +1368,6 @@ export function App() {
     });
     return () => unsub();
   }, [applyScriptRename, removeScriptFromUI, persistViews]);
-
-  // Going to a call from the finder also reveals it in the sidebar, so the tree
-  // stays in step with what is on screen.
-  const onFinderMethodSelect = useCallback(
-    (method: Method, service: Service, app: AppModel) => {
-      onMethodSelect(method, service, app);
-      setScrollToMethod({ method, service, app });
-    },
-    [onMethodSelect],
-  );
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
@@ -1463,8 +1480,7 @@ export function App() {
     // Run names reuse the derived script names, so the console and the sidebar
     // speak the same language.
     const title = tab.type === "script" ? tab.script.name : (deriveScratchTitle(code) ?? viewIdentity(tab, scratchesRef.current).name);
-    const sourceId = tab.type === "script" ? tab.script.path : tab.scratchId;
-    beginRun(title, sourceId, tab.id, controller);
+    beginRun(title, tab.type === "script" ? tab.script.path : tab.scratchId, controller);
     runTask(code, kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
       setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
     );
@@ -1482,32 +1498,33 @@ export function App() {
   // time the file is opened.
   useEffect(() => {
     if (!activeRun?.settled) return;
-    const items = consoleItems.filter((item) => item.runId === activeRun.runId);
-    if (items.some((item) => item.call !== undefined && isCallInFlight(item.call))) return;
+    const file = fileConsole(historyRef.current, activeRun.fileId);
+    if (hasCallsInFlight(file, activeRun.runId)) return;
 
-    const finished = runsRef.current.find((run) => run.id === activeRun.runId);
-    if (finished) {
-      const settled: Run = { ...finished, durationMs: Date.now() - activeRun.startedAt };
-      setRuns((list) => list.map((run) => (run.id === settled.id ? settled : run)));
-      if (settled.sourceId) saveLastRun(settled.sourceId, settled, items);
+    if (activeRun.fileId) {
+      const now = Date.now();
+      const next = settleRun(historyRef.current, activeRun.fileId, activeRun.runId, now - activeRun.startedAt, now);
+      setHistory(next);
+      const settled = fileConsole(next, activeRun.fileId);
+      saveRuns(activeRun.fileId, settled.runs, settled.items, now);
     }
     if (currentRunRef.current?.id === activeRun.runId) currentRunRef.current = null;
     setActiveRun(null);
-  }, [consoleItems, activeRun]);
+  }, [history, activeRun]);
 
-  // Which file the console is reporting on, so its last run can be found again.
-  const currentSourceId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "scratch" ? currentView.scratchId : undefined;
+  // Which file the console is reporting on. Everything below the editor is that
+  // file's: its runs, where it was left pointing, and what it was showing.
+  const currentFileId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "scratch" ? currentView.scratchId : undefined;
+  const currentConsole = fileConsole(history, currentFileId);
 
-  // Reopening a script gives you its code and, if we still hold it, its last
-  // run. A run made in this session already says what happened, so the stored
-  // one only appears when there isn't one.
+  // Reopening a script gives you its code and, if we still hold them, the runs
+  // it last made. They are read once and sit underneath anything run since.
   useEffect(() => {
-    if (!currentSourceId || runs.some((run) => run.sourceId === currentSourceId)) {
-      setStaleRun(undefined);
-      return;
-    }
-    setStaleRun(loadLastRun(currentSourceId));
-  }, [currentSourceId, runs]);
+    if (!currentFileId || fileConsole(historyRef.current, currentFileId).loaded) return;
+    const fileId = currentFileId;
+    const stored = loadRuns(fileId);
+    setHistory((current) => adoptStoredRuns(current, fileId, stored, Date.now()));
+  }, [currentFileId]);
 
   // Stop aborts the calls the run has in flight; the script itself stops at the
   // call it was awaiting.
@@ -1736,7 +1753,7 @@ export function App() {
         key: `scratch:${scratch.id}`,
         name: scratch.title,
         path: "Scripts",
-        origin: scratch.origin?.appName ?? "",
+        origin: scratch.originAppName ?? "",
         icon: PenLine,
         provisional: isUntouched(scratch),
         go: () => onScratchSelect(scratch),
@@ -1761,25 +1778,28 @@ export function App() {
             path: `${app.configuration.name} / ${service.name}`,
             origin: app.configuration.name,
             icon: FileCode,
-            go: () => onFinderMethodSelect(method, service, app),
+            go: () => void onMethodSelect(method, service, app),
           });
         }
       }
     }
 
     return destinations;
-  }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onFinderMethodSelect, onVariablesClick, onShowCompileLog]);
+  }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onMethodSelect, onVariablesClick, onShowCompileLog]);
 
-  // The console reports runs. A run whose calls have all aged out of the item
-  // cap would be a header with nothing under it, so it goes with them; the one
-  // in flight is kept even before it has produced anything.
-  const consoleRuns = useMemo(() => {
-    const withItems = new Set(consoleItems.map((item) => item.runId));
-    const live = runs.filter((run) => withItems.has(run.id) || run.id === activeRun?.runId);
-    return staleRun ? [staleRun.run, ...live] : live;
-  }, [runs, consoleItems, activeRun?.runId, staleRun]);
+  // Which files have something in the air, so a run started on one script says
+  // so while you are looking at another.
+  const runningFiles = useMemo(() => runningFileIds(history), [history]);
 
-  const consoleEntries = useMemo(() => (staleRun ? [...staleRun.items, ...consoleItems] : consoleItems), [staleRun, consoleItems]);
+  const onConsoleSelect = useCallback(
+    (selection: RunSelection | null) => setHistory((current) => setSelection(current, currentFileId, selection, Date.now())),
+    [currentFileId],
+  );
+
+  const onConsoleTabChange = useCallback(
+    (tab: ConsoleTab) => setHistory((current) => setTab(current, currentFileId, tab, Date.now())),
+    [currentFileId],
+  );
 
   // What the empty state offers instead of an illustration: the last few things
   // you were in. On a first run there are none and the list is simply absent.
@@ -1799,7 +1819,10 @@ export function App() {
     return files;
   }, [scratches, scripts, onScratchSelect, onScriptSelect]);
 
-  const running = currentView !== undefined && activeRun?.viewId === currentView.id;
+  // Stop aborts what the button is showing, so it tracks the active run rather
+  // than the file's in-flight state — a run started elsewhere says so in the
+  // sidebar instead.
+  const running = currentFileId !== undefined && activeRun?.fileId === currentFileId;
   const action = currentIsEditor ? (
     <RunButton
       onRun={onRunCurrentTab}
@@ -1857,6 +1880,7 @@ export function App() {
                 onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
+                runningFileIds={runningFiles}
                 scratches={scratches}
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
                 onScratchSelect={onScratchSelect}
@@ -1864,7 +1888,6 @@ export function App() {
                 onSaveScratch={isWailsEnvironment() ? onSaveScratch : undefined}
                 onShowAllScratches={() => setFinder("first")}
                 currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
-                scrollToMethod={scrollToMethod}
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
@@ -1979,7 +2002,16 @@ export function App() {
                         flexDirection: "column",
                       }}
                     >
-                      <Console runs={consoleRuns} items={consoleEntries} onClear={onClearConsole} />
+                      <Console
+                        fileId={currentFileId}
+                        runs={currentConsole.runs}
+                        items={currentConsole.items}
+                        selection={currentConsole.selection}
+                        tab={currentConsole.tab}
+                        onSelect={onConsoleSelect}
+                        onTabChange={onConsoleTabChange}
+                        onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
+                      />
                     </div>
                   </>
                 )}
@@ -2142,7 +2174,7 @@ export function App() {
       {discarded && (
         <div className="fixed bottom-10 left-1/2 z-[1000] flex h-9 -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-popover px-3 shadow-lg">
           <span className="text-sm text-muted-foreground">
-            Discarded <span className="text-foreground">{discarded.title}</span>
+            Discarded <span className="text-foreground">{discarded.scratch.title}</span>
           </span>
           <button type="button" className="text-sm font-medium text-foreground hover:underline" onClick={onUndoDiscard}>
             Undo

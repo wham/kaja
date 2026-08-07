@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
 import { ConsoleItem, Run } from "./runs";
-import { deserializeRun, pruneArchive, RunArchive, serializeRun, StoredRun } from "./runStore";
+import { deserializeFile, pruneArchive, RunArchive, serializeFile, StoredFile } from "./runStore";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-const run: Run = { id: "r1", title: "ListShows", sourceId: "scratch-1", startedAt: NOW, durationMs: 212 };
+const run: Run = { id: "r1", title: "ListShows", fileId: "scratch-1", startedAt: NOW, durationMs: 212 };
 
-function call(output: unknown): ConsoleItem {
+function call(output: unknown, runId = run.id, id = "item-1"): ConsoleItem {
   const methodCall = {
-    id: "call-1",
+    id: `call-${id}`,
     appName: "theatre",
     service: { name: "Shows" },
     method: { name: "ListShows" },
@@ -19,26 +19,46 @@ function call(output: unknown): ConsoleItem {
     timestamp: NOW,
     durationMs: 212,
   } as MethodCall;
-  return { id: "item-1", runId: run.id, timestamp: NOW, call: methodCall };
+  return { id, runId, timestamp: NOW, call: methodCall };
 }
 
-describe("serializeRun", () => {
+describe("serializeFile", () => {
   it("marks what it stores as stale, so it can never come back looking live", () => {
-    const stored = serializeRun(run, [call({ shows: [] })], NOW);
-    expect(stored.run.stale).toBe(true);
-    expect(stored.run.payloadsExpired).toBe(false);
+    const stored = serializeFile([run], [call({ shows: [] })], NOW);
+    expect(stored.runs[0].run.stale).toBe(true);
+    expect(stored.runs[0].run.payloadsExpired).toBe(false);
   });
 
   it("keeps the header and drops the payloads when they are too big to hold", () => {
-    const stored = serializeRun(run, [call({ blob: "x".repeat(600 * 1024) })], NOW);
-    expect(stored.items).toEqual([]);
-    expect(stored.run.payloadsExpired).toBe(true);
-    expect(stored.run.title).toBe("ListShows");
+    const stored = serializeFile([run], [call({ blob: "x".repeat(600 * 1024) })], NOW);
+    expect(stored.runs[0].items).toEqual([]);
+    expect(stored.runs[0].run.payloadsExpired).toBe(true);
+    expect(stored.runs[0].run.title).toBe("ListShows");
+  });
+
+  it("keeps only the newest few runs of a file", () => {
+    const runs = Array.from({ length: 5 }, (_, index) => ({ ...run, id: `r${index}`, startedAt: NOW + index }));
+    const stored = serializeFile(runs, [], NOW);
+    expect(stored.runs.map((entry) => entry.run.id)).toEqual(["r2", "r3", "r4"]);
+  });
+
+  it("spends the payload budget on the newest run first, so what is dropped is the oldest", () => {
+    const big = { blob: "x".repeat(400 * 1024) };
+    const runs = [
+      { ...run, id: "old", startedAt: NOW },
+      { ...run, id: "new", startedAt: NOW + 1 },
+    ];
+    const items = [call(big, "old", "item-old"), call(big, "new", "item-new")];
+    const stored = serializeFile(runs, items, NOW);
+    expect(stored.runs[0].run.id).toBe("old");
+    expect(stored.runs[0].run.payloadsExpired).toBe(true);
+    expect(stored.runs[1].run.payloadsExpired).toBe(false);
+    expect(stored.runs[1].items).toHaveLength(1);
   });
 
   it("round-trips a call back into something the console can render", () => {
-    const loaded = deserializeRun(serializeRun(run, [call({ shows: [1, 2] })], NOW));
-    expect(loaded.run.id).toBe("r1");
+    const loaded = deserializeFile(serializeFile([run], [call({ shows: [1, 2] })], NOW));
+    expect(loaded.runs[0].id).toBe("r1");
     expect(loaded.items).toHaveLength(1);
     expect(loaded.items[0].runId).toBe("r1");
     expect(loaded.items[0].call?.service.name).toBe("Shows");
@@ -48,12 +68,11 @@ describe("serializeRun", () => {
   });
 });
 
-function archiveEntry(sourceId: string, startedAt: number, storedAt: number): [string, StoredRun] {
+function archiveEntry(fileId: string, startedAt: number, storedAt: number): [string, StoredFile] {
   return [
-    sourceId,
+    fileId,
     {
-      run: { ...run, id: sourceId, sourceId, startedAt, stale: true },
-      items: [call({})].map((item) => ({ id: item.id, timestamp: item.timestamp })),
+      runs: [{ run: { ...run, id: fileId, fileId, startedAt, stale: true }, items: [{ id: "item-1", timestamp: startedAt }] }],
       storedAt,
     },
   ];
@@ -63,15 +82,15 @@ describe("pruneArchive", () => {
   it("keeps a run's header past the payload cut-off, because expiry has to be a stated state", () => {
     const archive: RunArchive = Object.fromEntries([archiveEntry("a", NOW - 10 * DAY, NOW - 10 * DAY)]);
     const pruned = pruneArchive(archive, NOW);
-    expect(pruned.a.run.payloadsExpired).toBe(true);
-    expect(pruned.a.items).toEqual([]);
-    expect(pruned.a.run.title).toBe("ListShows");
+    expect(pruned.a.runs[0].run.payloadsExpired).toBe(true);
+    expect(pruned.a.runs[0].items).toEqual([]);
+    expect(pruned.a.runs[0].run.title).toBe("ListShows");
   });
 
   it("leaves a recent run alone", () => {
     const archive: RunArchive = Object.fromEntries([archiveEntry("a", NOW - DAY, NOW - DAY)]);
-    expect(pruneArchive(archive, NOW).a.run.payloadsExpired).toBeUndefined();
-    expect(pruneArchive(archive, NOW).a.items).toHaveLength(1);
+    expect(pruneArchive(archive, NOW).a.runs[0].run.payloadsExpired).toBeUndefined();
+    expect(pruneArchive(archive, NOW).a.runs[0].items).toHaveLength(1);
   });
 
   it("holds the fifty most recently run files and no more", () => {
@@ -80,5 +99,10 @@ describe("pruneArchive", () => {
     expect(Object.keys(pruned)).toHaveLength(50);
     expect(pruned.s0).toBeDefined();
     expect(pruned.s59).toBeUndefined();
+  });
+
+  it("drops an entry written in a shape it can no longer read", () => {
+    const archive = { old: { run: { ...run }, items: [], storedAt: NOW } } as unknown as RunArchive;
+    expect(pruneArchive(archive, NOW)).toEqual({});
   });
 });

@@ -118,6 +118,36 @@ method in the sidebar is a *template*, not a document — clicking it fills a
 one verdict, with the calls it made nested under it. One script can make three
 calls, and three unrelated rows say nothing about the thing you actually pressed.
 
+**And the console belongs to the file** (`runHistory.ts`). There is no shared
+console: a run lands in the console of the script it was pressed on and stays
+there, so switching files switches consoles and coming back finds the runs, the
+selection and the tab as they were left. With one pane showing one file, a
+console reporting some other file's run under the code on screen was the same
+"which one is current" problem the tab strip removal set out to answer.
+
+- **Keyed by file, not held on the view.** `RunHistory` is `{ [fileId]:
+  FileConsole }`, where a `fileId` is a scratch id or a script path and a
+  `FileConsole` is that file's runs, calls, selection and tab. Views are a
+  ten-slot cache, so a console living on one would be thrown away by ordinary
+  navigation. ("Source" was the old name for this and is taken: it means an
+  app's generated proto TypeScript.)
+- **The scope is what makes the history worth stepping through.** `⌃↑`/`⌃↓` walk
+  *this call's* runs, so one go at it is comparable against the last — which is
+  what the run history was for. Caps are per file (25 runs, 300 calls), so a
+  chatty script can no longer evict another's history; fifty files hold a console
+  at once and the least recently run is let go.
+- **A run that has nowhere to land is not kept.** An agent running code that was
+  never saved has no file, so no console; it still gets its results back. A call
+  arriving with no run open gets one under the file the last run came from, which
+  is where a late call almost certainly belongs.
+- **A run keeps going when you navigate away from it**, and its console is no
+  longer on screen to say so — so the sidebar row does, with a spinner in place
+  of its icon (`runningFileIds`). Run/Stop in the command row still tracks the
+  *active* run, because Stop has to abort what it is showing.
+- **Renaming or saving moves the console; deleting takes it with the file.**
+  Saving a scratch to disk changes what the file is called, not what it is, so
+  its runs follow it from the scratch id to the path (`renameFile`). Discarding a
+  scratch is undoable, so its console is held alongside it and comes back.
 - **Three rules make the grouping hold.** ① A run's status is the **worst status
   it contains** (`worstStatus`) — there is no "partially succeeded", and the
   header dot is the only thing anyone needs to read after a press. ② A

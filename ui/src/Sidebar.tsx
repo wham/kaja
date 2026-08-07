@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
+import { Spinner } from "./components/spinner";
 import { TreeView } from "./components/tree-view";
 import {
   Braces,
@@ -76,12 +77,6 @@ export function PreviewPill() {
   return <span className={pillClass}>Preview</span>;
 }
 
-interface ScrollToMethod {
-  method: Method;
-  service: Service;
-  app: App;
-}
-
 interface SidebarProps {
   apps: App[];
   scripts?: Script[];
@@ -92,7 +87,9 @@ interface SidebarProps {
   currentScriptPath?: string;
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   pinnedScriptPath?: string;
-  scrollToMethod?: ScrollToMethod;
+  // Files with a run still in the air. A run keeps going when you navigate away
+  // from it, and its console is no longer on screen to say so — the row is.
+  runningFileIds?: Set<string>;
   canDeleteApps?: boolean;
   // Clicking goes to the call; ⌥click (or the + on the row) adds it to the
   // script already on screen.
@@ -129,7 +126,7 @@ export function Sidebar({
   currentScratchId,
   currentScriptPath,
   pinnedScriptPath,
-  scrollToMethod,
+  runningFileIds,
   canDeleteApps = true,
   onSelect,
   onScratchSelect,
@@ -344,55 +341,6 @@ export function Sidebar({
     }
   }, [expandedApps, expandedServices]);
 
-  // Handle scrollToMethod: expand app/service and scroll to method
-  useEffect(() => {
-    if (!scrollToMethod) return;
-
-    const { method, service, app } = scrollToMethod;
-    const appName = app.configuration.name;
-    const serviceElementId = getServiceElementId(appName, service);
-    const methodElementId = methodId(service, method);
-
-    // Expand app if not already expanded
-    setExpandedApps((prev) => {
-      if (!prev.has(appName)) {
-        const next = new Set(prev);
-        next.add(appName);
-        return next;
-      }
-      return prev;
-    });
-
-    // Expand package if multiple packages and not already expanded
-    if (hasMultiplePackages(app.services)) {
-      const packageElementId = getPackageElementId(appName, service.packageName);
-      setExpandedServices((prev) => {
-        if (!prev.has(packageElementId)) {
-          const next = new Set(prev);
-          next.add(packageElementId);
-          return next;
-        }
-        return prev;
-      });
-    }
-
-    // Expand service if not already expanded
-    setExpandedServices((prev) => {
-      if (!prev.has(serviceElementId)) {
-        const next = new Set(prev);
-        next.add(serviceElementId);
-        return next;
-      }
-      return prev;
-    });
-
-    // Schedule scroll after React renders any expansions
-    // Use setTimeout to ensure state updates have been processed
-    setTimeout(() => {
-      scrollIntoView(methodElementId);
-    }, 0);
-  }, [scrollToMethod]);
-
   const toggleAppExpanded = (appName: string) => {
     setExpandedApps((prev) => {
       const next = new Set(prev);
@@ -513,7 +461,15 @@ export function Sidebar({
                   >
                     {/* Pin lives in the leading slot so it never shifts when the kebab appears on
                         hover, and it lines a pinned script up with the package/expand icons above. */}
-                    <TreeView.LeadingVisual>{pinnedScriptPath === script.path ? <Pin size={12} /> : <FileCode size={13} />}</TreeView.LeadingVisual>
+                    <TreeView.LeadingVisual>
+                      {runningFileIds?.has(script.path) ? (
+                        <Spinner className="size-3" />
+                      ) : pinnedScriptPath === script.path ? (
+                        <Pin size={12} />
+                      ) : (
+                        <FileCode size={13} />
+                      )}
+                    </TreeView.LeadingVisual>
                     {script.name}
                     <TreeView.TrailingVisual>
                       {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
@@ -552,7 +508,11 @@ export function Sidebar({
                   >
                     {/* Not saved: the pen is the whole difference. */}
                     <TreeView.LeadingVisual>
-                      <PenLine size={13} className={cn(isUntouched(scratch) && "opacity-60")} />
+                      {runningFileIds?.has(scratch.id) ? (
+                        <Spinner className="size-3" />
+                      ) : (
+                        <PenLine size={13} className={cn(isUntouched(scratch) && "opacity-60")} />
+                      )}
                     </TreeView.LeadingVisual>
                     <ScratchLabel scratch={scratch} />
                     <TreeView.TrailingVisual>

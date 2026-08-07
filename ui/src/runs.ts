@@ -11,9 +11,10 @@ export interface Run {
   // The script's derived name at the time it was run, so the console and the
   // sidebar speak the same language.
   title: string;
-  // The file it came from — a scratch id or a script path — which is how
-  // reopening a script finds its last run.
-  sourceId?: string;
+  // The file it came from — a scratch id or a script path. The console belongs
+  // to the file, so this is what decides which console a run lands in. ("Source"
+  // is taken: it means an app's generated proto TypeScript.)
+  fileId?: string;
   startedAt: number;
   // Wall time for the whole script. It differs from the sum of the calls when
   // they run concurrently, which is the number worth stating.
@@ -36,6 +37,10 @@ export interface ConsoleItem {
 }
 
 export type RunStatus = "pending" | "streaming" | "success" | "error";
+
+// Which part of the selected call is showing. It is remembered per file along
+// with the selection, so going back to a script finds its console as it was.
+export type ConsoleTab = "request" | "response" | "headers";
 
 export interface RunGroup {
   run: Run;
