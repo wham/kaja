@@ -109,7 +109,7 @@ describe("tabIdentity", () => {
     const identity = tabIdentity(scratchTab("scratch-1", "s1"), [scratch]);
 
     expect(identity.name).toBe("GetShow · vera-lune");
-    expect(identity.path).toBe("Scratches");
+    expect(identity.path).toBe("Scripts");
     expect(identity.origin).toBe("theatre");
   });
 });

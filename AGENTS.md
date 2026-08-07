@@ -62,11 +62,20 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   alone — they just stop compiling. Only a *rename* is followed, so the imports
   keep resolving. (This is why `linkTabsToApps` is gone: there is nothing to
   re-bind.)
-- **The sidebar reads top to bottom as: your rough work · your kept work · the
-  API's catalog** — `Scratches` (the six most recent; the rest are `⌘P` away,
-  which is what makes an unlimited history usable), then `Scripts`, then the
-  apps. `origin` on a scratch is only a hint for the tree highlight; the scratch
-  is free to grow past the method it came from.
+- **There is one list, not two.** The sidebar and the switcher both show saved
+  and unsaved together under a single `Scripts` heading, in one vocabulary — two
+  headings would teach a taxonomy the model doesn't have. **The icon is the whole
+  difference**: `FileCode` for a script on disk, `PenLine` for one that isn't.
+  Saved sit above, then the six most recent unsaved; the rest are `⌘P` away,
+  which is what makes an unlimited history usable. So saving is a change of
+  state, not a move between places — the row gains an icon and rises, it doesn't
+  vanish from one section and reappear in another. The word "scratch" survives in
+  the code, where it names the storage tier precisely, and nowhere in the UI.
+  `origin` on a scratch is only a hint for the tree highlight; the scratch is
+  free to grow past the method it came from.
+- **The web is the same app minus one verb.** Scratches are IndexedDB on both
+  platforms, so the list, the titles and the history are identical; only Save is
+  missing, because only the desktop has a disk to write to.
 - **Not built yet**: the console still keeps one global stream in memory, so
   reopening an old scratch gives you the code without last time's responses.
   Storing code is free; storing responses is not, so that needs its own

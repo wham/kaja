@@ -210,7 +210,8 @@ export function tabIdentity(tab: TabModel, scratches: Scratch[] = []): TabIdenti
       // The scratch store owns the name — it is read from the code, so the tab
       // can't have its own copy without the two drifting apart.
       const scratch = scratches.find((candidate) => candidate.id === tab.scratchId);
-      return { name: scratch?.title ?? "Scratch", path: "Scratches", origin: scratch?.origin?.appName ?? "", icon: PenLine };
+      // Same vocabulary as a saved script: only the icon says it isn't on disk.
+      return { name: scratch?.title ?? "Scratch", path: "Scripts", origin: scratch?.origin?.appName ?? "", icon: PenLine };
     }
     case "script":
       return { name: tab.script.name, path: "Scripts", origin: "", icon: FileCode };

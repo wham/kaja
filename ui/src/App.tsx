@@ -1673,20 +1673,8 @@ export function App() {
     const openScripts = new Set(tabs.filter((tab) => tab.type === "script").map((tab) => tab.script.path));
     const files: SwitcherFile[] = [];
 
-    // Scratches lead: unlimited history is only usable if it is searchable, and
-    // this list is where you go looking for last week's call.
-    for (const scratch of scratches) {
-      if (openScratches.has(scratch.id)) continue;
-      files.push({
-        key: `scratch:${scratch.id}`,
-        name: scratch.title,
-        path: "Scratches",
-        origin: scratch.origin?.appName ?? "",
-        icon: PenLine,
-        onOpen: () => onScratchSelect(scratch, true),
-      });
-    }
-
+    // Saved and unsaved sit in one run, in one vocabulary: they are all
+    // scripts, and the icon is the whole difference.
     for (const script of scripts ?? []) {
       if (openScripts.has(script.path)) continue;
       files.push({
@@ -1696,6 +1684,18 @@ export function App() {
         origin: "",
         icon: FileCode,
         onOpen: () => void onScriptSelect(script, true),
+      });
+    }
+
+    for (const scratch of scratches) {
+      if (openScratches.has(scratch.id)) continue;
+      files.push({
+        key: `scratch:${scratch.id}`,
+        name: scratch.title,
+        path: "Scripts",
+        origin: scratch.origin?.appName ?? "",
+        icon: PenLine,
+        onOpen: () => onScratchSelect(scratch, true),
       });
     }
 
