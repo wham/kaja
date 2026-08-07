@@ -28,6 +28,7 @@ import { StatusBar, ColorMode } from "./StatusBar";
 import { FeaturePreview } from "./FeaturePreviews";
 import { AppForm } from "./AppForm";
 import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
+import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
 import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
@@ -836,15 +837,20 @@ export function App() {
    * row), so it can't happen by drifting.
    */
   const onMethodSelect = useCallback(
-    (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
-      const code = generateMethodEditorCode(app, service, method);
+    async (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
+      // Generated code arrives as one statement per line, which for a request of
+      // twenty fields is one very long line. Wrap it before it goes anywhere, so
+      // the text in the store, in the editor and on disk is the same readable
+      // thing — the editor's own format-on-open can't help a buffer that is
+      // written into a model it already has.
+      const code = await formatTypeScript(generateMethodEditorCode(app, service, method));
       const origin: ScratchOrigin = { appName: app.configuration.name, serviceName: service.name, methodName: method.name };
       const now = Date.now();
       const current = viewsRef.current[0];
       const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
 
       if (mode === "append" && current?.type === "scratch" && currentScratch) {
-        const merged = appendCall(current.model.getValue(), code);
+        const merged = await formatTypeScript(appendCall(current.model.getValue(), code));
         current.model.setValue(merged);
         updateScratch(currentScratch.id, (scratch) => withCode(scratch, merged, now));
         return;

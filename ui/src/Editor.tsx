@@ -291,6 +291,10 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         minimap: {
           enabled: false,
         },
+        // The pane is deliberately short so the response gets the room. Vertical
+        // scrolling is the cost of that; horizontal scrolling would be worse, so
+        // a line too long to fit wraps instead.
+        wordWrap: "on",
         readOnly,
         fixedOverflowWidgets: true,
         renderLineHighlight: "none",

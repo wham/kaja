@@ -45,6 +45,12 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   `+` on the row** — so a scratch never grows a second call by drifting.
   `appendCall` merges the import lines instead of stacking a second copy, and
   edits the text rather than reprinting it so the author's formatting survives.
+  Generated code is run through prettier **before it reaches the model**: the
+  editor's format-on-open only fires when a model is created, and taking over a
+  scratch writes into a model that already exists, so a twenty-field request
+  would otherwise sit on one line. The editor wraps rather than scrolling
+  sideways — the pane is short on purpose, and horizontal scrolling is worse
+  than vertical.
 - **A scratch names itself from its own code** (`scratchTitle.ts`), which Kaja
   can do better than a chat app names conversations: the content is typed code
   against a known schema, so the title is a formatting job rather than a
