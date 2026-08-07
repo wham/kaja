@@ -77,8 +77,10 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   and unsaved together under a single `Scripts` heading, in one vocabulary — two
   headings would teach a taxonomy the model doesn't have. **A dot is the whole
   difference**: amber for a script that isn't on disk, hollow grey for one that
-  is. It replaced the file icon, which spent 13px of a 22px row saying what five
-  make clear; the finder, which has the room, keeps `FileCode` / `PenLine`.
+  is. It replaced the file icon because a 5px mark is quieter than a drawing in
+  a 22px row that already spends a glyph on the app above it — not to save
+  width, since `ScriptGlyph` holds the slot open at the run spinner's 12px
+  either way. The finder, which has the room, keeps `FileCode` / `PenLine`.
   Saved sit above, then the six most recent unsaved; the rest are `⌘P` away,
   which is what makes an unlimited history usable. So saving is a change of
   state, not a move between places — the row's dot goes hollow and it rises, it
@@ -121,7 +123,9 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   buttons widens that slot instead, and **keeps its leading dot** — trading the
   dot for 11px was tried and it makes the label jump exactly as you reach for it.
   A label truncating a little sooner is the cheaper cost, and it is what
-  truncation is for.
+  truncation is for. The **leading** slot is fixed the same way (`ScriptGlyph`,
+  12px): a run spinner, the pin, the dot and — on the web — nothing at all all
+  occupy it, and a run starting under the cursor must not move the name either.
 - **The pile has a size and two verbs.** The `Scripts` header states how many
   scripts there are, and how many of them are unsaved, in amber. Under the cursor
   that count becomes **save them all** and **discard the unsaved**, each confirmed

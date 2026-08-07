@@ -68,17 +68,32 @@ const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 
 /**
- * Whether a script is on disk, in five pixels. It replaces the file icon the row
- * used to carry: the icon spent 13px saying what a dot says, and the row needs
- * the width more than the drawing.
+ * A script row's leading slot. It is the width of the run spinner whatever it
+ * currently holds, because all four things that can appear here — a run in the
+ * air, the pin, the on-disk dot, and nothing at all on the web — would otherwise
+ * move the label out from under the cursor as they swap.
+ *
+ * The dot itself replaced the file icon: a 5px mark is quieter than a drawing in
+ * a 22px row, which already spends a glyph on the app above it.
+ *
+ * It goes inside a `TreeView.LeadingVisual` and never wraps one — `TreeView.Item`
+ * picks its slots out by child type, so a wrapper lands the glyph in the label.
  */
-function ScriptDot({ saved, dim }: { saved?: boolean; dim?: boolean }) {
+function ScriptGlyph({ running, pinned, saved, dim, dot = true }: { running?: boolean; pinned?: boolean; saved?: boolean; dim?: boolean; dot?: boolean }) {
   return (
-    <span
-      aria-hidden
-      title={saved ? "Saved" : "Not saved"}
-      className={cn("size-[5px] shrink-0 rounded-full", saved ? "bg-muted-foreground opacity-50" : "bg-amber-500", dim && "opacity-40")}
-    />
+    <span className="flex size-3 items-center justify-center">
+      {running ? (
+        <Spinner className="size-3" />
+      ) : pinned ? (
+        <Pin size={12} />
+      ) : dot ? (
+        <span
+          aria-hidden
+          title={saved ? "On disk" : "Not on disk"}
+          className={cn("size-[5px] rounded-full", saved ? "bg-muted-foreground opacity-50" : "bg-amber-500", dim && "opacity-40")}
+        />
+      ) : null}
+    </span>
   );
 }
 
@@ -552,17 +567,8 @@ export function Sidebar({
                       }}
                       current={currentScriptPath === script.path}
                     >
-                      {/* One button fits the reserved slot, so a saved row keeps
-                          its dot under the cursor. Pin takes the same place, and
-                          says the file answers the macOS service. */}
                       <TreeView.LeadingVisual>
-                        {runningFileIds?.has(script.path) ? (
-                          <Spinner className="size-3" />
-                        ) : pinnedScriptPath === script.path ? (
-                          <Pin size={12} />
-                        ) : (
-                          <ScriptDot saved />
-                        )}
+                        <ScriptGlyph running={runningFileIds?.has(script.path)} pinned={pinnedScriptPath === script.path} saved dot={canSave} />
                       </TreeView.LeadingVisual>
                       {script.name}
                       <TreeView.TrailingVisual>
@@ -607,14 +613,12 @@ export function Sidebar({
                       }}
                       current={currentScratchId === scratch.id}
                     >
-                      {/* The dot stays put under the cursor. Dropping it to seat
-                          the three buttons buys 11px the row doesn't need, and
-                          costs a label that moves as you reach for it. */}
-                      {canSave && (
-                        <TreeView.LeadingVisual>
-                          {runningFileIds?.has(scratch.id) ? <Spinner className="size-3" /> : <ScriptDot dim={isUntouched(scratch)} />}
-                        </TreeView.LeadingVisual>
-                      )}
+                      {/* The slot stays whatever is in it. Dropping the dot to
+                          seat the three buttons buys 11px the row doesn't need,
+                          and costs a label that moves as you reach for it. */}
+                      <TreeView.LeadingVisual>
+                        <ScriptGlyph running={runningFileIds?.has(scratch.id)} dim={isUntouched(scratch)} dot={canSave} />
+                      </TreeView.LeadingVisual>
                       <ScratchLabel scratch={scratch} />
                       <TreeView.TrailingVisual className={active ? "w-auto gap-0.5" : undefined}>
                         {active && (
