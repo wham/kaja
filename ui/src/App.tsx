@@ -209,8 +209,8 @@ export function App() {
   // stray call afterwards starts one of its own rather than joining a run that
   // is over.
   const currentRunRef = useRef<Run | null>(null);
-  // Whether the finder is open, and where it opened: ⌘P lands on the
-  // previous file so ⌘P⏎ goes back, everything else on the first row.
+  // Whether the finder is open, and where it opened: ⌘P lands on the previous
+  // file so ⌘P⏎ goes back, a click on the trigger on the first row.
   const [finder, setFinder] = useState<"first" | "previous">();
   const viewsRef = useRef(views);
   viewsRef.current = views;
@@ -776,11 +776,10 @@ export function App() {
         setSidebarCollapsed((collapsed) => !collapsed);
         return;
       }
-      // ⌘P opens the finder on the previous place, so ⌘P⏎ is "back". ⌘K is the
-      // same surface, opened on the first row.
-      if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
+      // ⌘P opens the finder on the previous place, so ⌘P⏎ is "back".
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
         e.preventDefault();
-        setFinder(e.key === "p" ? "previous" : "first");
+        setFinder("previous");
         return;
       }
       // A blank script — the other half of "pick a call and Kaja writes one".
@@ -1760,8 +1759,8 @@ export function App() {
     go: () => onGoToView(view.id),
   }));
 
-  // Everywhere else you can go. Typing narrows across both, which is why ⌘K
-  // lands here too — the finder is the only surface that can search the calls.
+  // Everywhere else you can go. Typing narrows across both, which is what makes
+  // the finder the only surface that can search the calls.
   const elsewhere = useMemo<Destination[]>(() => {
     const shownScratches = new Set(views.filter((view) => view.type === "scratch").map((view) => view.scratchId));
     const shownScripts = new Set(views.filter((view) => view.type === "script").map((view) => view.script.path));

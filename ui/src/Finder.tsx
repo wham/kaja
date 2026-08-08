@@ -40,8 +40,8 @@ interface FinderProps {
   errorCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // ⌘P opens on the previous place so ⌘P⏎ is "back"; ⌘K and a click on the
-  // trigger open on the first row.
+  // ⌘P opens on the previous place so ⌘P⏎ is "back"; a click on the trigger
+  // opens on the first row, since a click carries no "back" intent.
   highlightPrevious: boolean;
 }
 

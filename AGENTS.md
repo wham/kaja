@@ -289,22 +289,27 @@ inset only when the sidebar is collapsed).
   (over that the qualifier drops — measured with a clipped probe — then the name
   truncates from the left so the call name survives). It is a **label first**:
   with the sidebar collapsed it is the only thing that says where you are. Its
-  popover is one list — `Recent`, then `All files` — and typing narrows both.
-  That is why `⌘K` lands here too: the finder is the only surface that can search
-  the calls, which the tree can't. `⌘P` opens it on the previous place so `⌘P⏎`
-  is "back" — the only way back, now that the chips are gone; `⌘K` and the
-  trigger open on the first row. Only the response is
-  120ms opacity — no slide, no scale, because movement makes fast repeated `⌘P`
-  feel unstable.
+  popover is one list — `Recent`, then `All files` — and typing narrows both,
+  which is what makes it the only surface that can search the calls, as the tree
+  can't. **`⌘P` is the only key that opens it**, on the previous place so `⌘P⏎`
+  is "back" — the only way back, now that the chips are gone; a click on the
+  trigger opens on the first row instead, since a click carries no "back"
+  intent. Only the response is 120ms opacity — no slide, no scale, because
+  movement makes fast repeated `⌘P` feel unstable.
+- **`⌘K` is deliberately unassigned.** It used to open this same finder on the
+  first row, which made it `⌘P` minus the one thing `⌘P` is for. `⌘K` is the
+  command-palette convention (Linear, Slack, GitHub) and a palette *does* things;
+  this list only navigates, so the first thing anyone types into it is a verb,
+  which filters the file names to nothing. It is left free rather than reassigned:
+  it is a chord prefix in Monaco, and it is the key a real palette would want.
 - **The action slot** — Run and the `</>` JSON toggle share one position, since a
   file is never both a script and a form. Run is absent (not disabled) on
   non-script surfaces. Its disabled state and the trigger's `N errors` state come
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
   with itself.
-- **Shortcuts** — `⌘P` finder on the previous place · `⌘K` same surface · `⌘N`
-  blank script · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save.
-  `⌃Tab`, `⌘1–9` and `⌘W` are gone: there are no positions to number and nothing
-  to close.
+- **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
+  `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save. `⌃Tab`, `⌘1–9` and
+  `⌘W` are gone: there are no positions to number and nothing to close.
 - **Split panes are cut, not deferred.** The pane holds one thing by
   construction; splitting it reintroduces "which one is current", which is the
   exact question removing the strip answered — two panes, one trigger, one `⌘P`.
