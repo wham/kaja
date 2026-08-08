@@ -24,6 +24,7 @@ import {
   recordLogs,
   renameFile,
   RunHistory,
+  agentFileIds,
   runningFileIds,
   setSelection,
   setTab,
@@ -389,8 +390,8 @@ export function App() {
   // a call that arrives with no run open — which gets a run of its own rather
   // than joining one that is over, under the file the last run came from.
   const lastRunFileIdRef = useRef<string | undefined>(undefined);
-  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController): Run => {
-    const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now() };
+  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController, of?: Pick<Run, "origin">): Run => {
+    const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), ...of };
     currentRunRef.current = run;
     if (fileId) lastRunFileIdRef.current = fileId;
     setHistory((current) => startRun(current, run, run.startedAt));
@@ -1046,6 +1047,59 @@ export function App() {
   const onNewScratchRef = useRef(onNewScratch);
   onNewScratchRef.current = onNewScratch;
 
+  /**
+   * The buffer an agent explores in. A snippet it sends has no file of its own,
+   * so it is given the same one every time: eight tries at a call are eight runs
+   * of one scratch — which is what makes them comparable in the history — rather
+   * than a trail of eight rows in the sidebar. It is an ordinary scratch in every
+   * other way, titled from its own code and free to be saved or discarded; if it
+   * goes, the next snippet starts another. Which one it is outlives the window,
+   * or every restart would leave one more buffer behind that nothing reuses.
+   */
+  const agentScratchIdRef = useRef<string | undefined>(getPersistedValue<string>("agentScratchId"));
+  const agentScratch = useCallback(
+    (code: string): Scratch => {
+      const now = Date.now();
+      const held = scratchesRef.current.find((scratch) => scratch.id === agentScratchIdRef.current);
+      // A run is the punctuation that settles a scratch, and one is about to
+      // happen — so the title is re-read from the code now, as any run does.
+      const scratch = markRun(held ?? createScratch(code, undefined, now), code, now);
+      agentScratchIdRef.current = scratch.id;
+      setPersistedValue("agentScratchId", scratch.id);
+      applyScratches((list) => (held ? list.map((candidate) => (candidate.id === scratch.id ? scratch : candidate)) : [scratch, ...list]));
+      // If the buffer is on screen, it shows what is about to run in it.
+      const view = viewsRef.current.find((candidate) => candidate.type === "scratch" && candidate.scratchId === scratch.id);
+      if (view?.type === "scratch" && view.model.getValue() !== code) view.model.setValue(code);
+      return scratch;
+    },
+    [applyScratches],
+  );
+  const agentScratchRef = useRef(agentScratch);
+  agentScratchRef.current = agentScratch;
+
+  /**
+   * The agent saved its buffer as a file, so the buffer goes with it rather than
+   * lingering as a copy — the same rule a person's Save follows, and the runs
+   * follow the file the same way. Only an exact copy is the same document: a
+   * script the agent wrote differently from what it ran is a new one, and the
+   * buffer it explored in stays where it is.
+   */
+  const consumeAgentScratch = useCallback(
+    (script: Script, content: string) => {
+      const id = agentScratchIdRef.current;
+      const scratch = id ? scratchesRef.current.find((candidate) => candidate.id === id) : undefined;
+      if (!id || !scratch || scratch.code !== content) return;
+      agentScratchIdRef.current = undefined;
+      setPersistedValue("agentScratchId", undefined);
+      const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === id);
+      applyViews((views) => (shown ? dropView(showScript(views, script, content), shown.id) : views));
+      applyScratches((list) => list.filter((candidate) => candidate.id !== id));
+      setHistory((current) => renameFile(current, id, script.path));
+      renameStoredFile(id, script.path);
+    },
+    [applyScratches, applyViews],
+  );
+
   const onScriptSelect = useCallback(
     async (script: Script) => {
       if (!isWailsEnvironment()) return;
@@ -1270,18 +1324,33 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string }) => {
+      const report = (result: McpRunReport) => MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+
+      let source = payload.code;
+      if (payload.path) {
+        try {
+          const file = await ReadScriptFile(payload.path);
+          source = file?.content ?? "";
+        } catch (err) {
+          report({ console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] });
+          return;
+        }
+      }
+
+      // A saved script runs in its own console under its own name. A snippet has
+      // no file, so it is given one: exploration in Kaja is a scratch, and an
+      // agent exploring is not a different kind of event from a person doing it.
+      const scratch = payload.path ? undefined : agentScratchRef.current(source);
+      const fileId = payload.path || scratch?.id;
       const collected: MethodCall[] = [];
       mcpRunCollectorRef.current = collected;
       const drawn = new Map<string, Block>();
       mcpBlockCollectorRef.current = drawn;
-      let result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[]; blocks: unknown[] };
-      const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : "Agent script", payload.path || undefined);
+      let result: McpRunReport;
+      const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
+        origin: "agent",
+      });
       try {
-        let source = payload.code;
-        if (payload.path) {
-          const file = await ReadScriptFile(payload.path);
-          source = file?.content ?? "";
-        }
         const kaja = kajaRef.current!;
         kaja.input = undefined;
         const captured = await runTaskCaptured(source, kaja, appsRef.current);
@@ -1298,7 +1367,7 @@ export function App() {
         mcpBlockCollectorRef.current = null;
         setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active));
       }
-      MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+      report(result);
     });
     return () => unsub();
   }, []);
@@ -1450,6 +1519,7 @@ export function App() {
         case "create": {
           const script: Script = { path: payload.path, name: payload.name ?? "" };
           setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? [...prev, script].sort((a, b) => a.name.localeCompare(b.name)) : prev));
+          consumeAgentScratch(script, payload.content ?? "");
           break;
         }
         case "rename":
@@ -1463,7 +1533,7 @@ export function App() {
       }
     });
     return () => unsub();
-  }, [applyScriptRename, removeScriptFromUI, persistViews]);
+  }, [applyScriptRename, removeScriptFromUI, persistViews, consumeAgentScratch]);
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
@@ -1643,6 +1713,17 @@ export function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onRunCurrentTab]);
+
+  // With no apps there is nothing to have compiled, so the log stops existing
+  // rather than sitting there naming the no-apps blankslate. It is never
+  // restored into one, so deleting the last app is the only way in.
+  useEffect(() => {
+    if (!configurationLoaded || apps.length > 0) return;
+    applyViews((views) => {
+      const compiler = views.find((view) => view.type === "compiler");
+      return compiler ? dropView(views, compiler.id) : views;
+    });
+  }, [apps.length, configurationLoaded, applyViews]);
 
   // Opens the compile log, expanded on an app when one is named. Nothing else
   // opens it: compiling is reported in the status bar, and the log is where you
@@ -1893,6 +1974,7 @@ export function App() {
   // Which files have something in the air, so a run started on one script says
   // so while you are looking at another.
   const runningFiles = useMemo(() => runningFileIds(history), [history]);
+  const agentFiles = useMemo(() => agentFileIds(history), [history]);
   const waitingFiles = useMemo(() => waitingFileIds(history), [history]);
 
   const onConsoleSelect = useCallback(
@@ -2026,6 +2108,7 @@ export function App() {
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
                 runningFileIds={runningFiles}
+                agentFileIds={agentFiles}
                 waitingFileIds={waitingFiles}
                 scratches={scratches}
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
@@ -2069,10 +2152,13 @@ export function App() {
               layout={editorLayout}
               onToggleLayout={onToggleEditorLayout}
             />
+            {/* Which of the two nothing-open screens is right depends on
+                whether the workspace names any apps, so until the configuration
+                answers that, neither is shown. */}
             {views.length === 0 && configurationLoaded && apps.length === 0 && (
               <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={runtime.canUpdateConfiguration} />
             )}
-            {views.length === 0 && (apps.length > 0 || !configurationLoaded) && (
+            {views.length === 0 && configurationLoaded && apps.length > 0 && (
               <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewScratch={onNewScratch} recent={recentFiles} />
             )}
             {views.length > 0 && (
@@ -2385,6 +2471,17 @@ export function App() {
       )}
     </>
   );
+}
+
+// What the MCP server is told about a run. `result` is a value the script
+// returned, which is nothing a script is supposed to do — it is carried so the
+// report can correct it rather than swallow it.
+interface McpRunReport {
+  console: string[];
+  result?: unknown;
+  error?: string;
+  methodCalls: unknown[];
+  blocks?: unknown[];
 }
 
 // toBlockLog is the receipt for what a script drew: an agent's run has a canvas

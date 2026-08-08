@@ -92,7 +92,11 @@ func renderRun(label string, result RunResult) string {
 	if result.Error != "" {
 		b.WriteString("\nthe script stopped here\n")
 		b.WriteString(indent(result.Error, "  "))
-		b.WriteString("  Statements after this point did not run. Wrap a call in try/catch to let a script survive one failing call.\n")
+		// A rejected call does not throw - it is reported above and the script
+		// carries on with undefined in place of the response. So reaching here
+		// means the script itself failed, which is usually that undefined being
+		// read a line later.
+		b.WriteString("  Statements after this point did not run. This is the script failing, not a call being rejected: a rejected call is reported above and does not stop the script.\n")
 	}
 	return b.String()
 }

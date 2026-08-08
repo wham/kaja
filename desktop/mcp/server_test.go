@@ -501,7 +501,7 @@ func TestRunScriptReport(t *testing.T) {
 		"Sending different parameters will not help.",
 		// A script that stopped says so, rather than looking like it finished.
 		"the script stopped here",
-		"Wrap a call in try/catch",
+		"This is the script failing, not a call being rejected",
 		// The request payload stays on one line.
 		`request  {"pageSize":1}`,
 	)
