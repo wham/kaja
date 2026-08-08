@@ -364,6 +364,38 @@ no `kaja.html`, no styling arguments, no layout control.
   record is one click away: clicking a card selects that call's row in the list
   and switches to it. The payload is never unrolled into the flow — that is
   master/detail smuggled back in at 90°.
+- **A loop is one row** (`callGroups.ts`). Ten cards saying the same method name
+  ten times is the log's job, and the log does it better — so consecutive calls
+  to one method fold into a single row: the name once, `×10`, and the loop key
+  that tells them apart (`groupKeyLabel`, reading `loopKey` — one key they all
+  share is stated once, many are named until they stop fitting). **Consecutive is
+  the whole rule.** Anything the script drew between two calls breaks the group,
+  because the canvas is the run in the order it happened and gathering calls that
+  weren't next to each other would rewrite the story to fit the fold. Two is not
+  worth a fold (`MIN_FOLD`): it saves one line and costs a click. The duration is
+  the group's **wall time**, not the sum of its calls, so a fan-out reports what
+  it actually cost — the same number a run's own duration is.
+  - **The ticks are what keep it a canvas rather than a summary.** One per call,
+    drawn against the slowest in the group, so which iteration was slow is a
+    shape here rather than a trip to the list — and each is its own way into that
+    call's record, which is what a bare `×10` would cost. The **strip** has the
+    width budget, not the tick: past a certain density every tick is the minimum
+    width and the strip stops claiming to measure anything, and past `MAX_TICKS`
+    it draws what fits and says how many it left out. A tick too thin to hit is
+    worse than one that admits it has nothing to say. Below the width the strip
+    needs it goes entirely and the row's name is the only way in, which is the
+    same degradation the log's columns make.
+  - **A fold never hides a failure.** The failed call keeps its own tick, in
+    destructive, and the row states the count — it is not split out into its own
+    card, because `×4` / error / `×5` is three rows for one loop and reads worse
+    than the one row that says `1 error`.
+  - **The selection is reflected back.** The tick for the call the log is pointing
+    at is lit, so stepping through the list is visible on the canvas. Without it
+    the arrow between the views only runs one way.
+- **There is no timeline strip above the canvas.** It is the obvious version of
+  the above and it is the double-statement problem again — an index of the same
+  calls sitting over the content. The fold has to *be* how a call renders in the
+  flow, not a summary added over it.
 - **A block that asks is a block that pauses the run.** `kaja.ask` is drawn where
   it happened and the canvas stops there — the empty space under it *is* the
   pause. Answering appends the next block. A dialogue is not a fifth block type;

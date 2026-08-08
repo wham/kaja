@@ -203,9 +203,13 @@ export function defaultView(group: RunGroup | undefined): ConsoleView {
  * only mean something in a run with calls to compare, so a run of one gets none.
  */
 export function slowestCall(group: RunGroup): number | undefined {
-  const durations = callItems(group)
-    .map((item) => item.call?.durationMs)
-    .filter((duration): duration is number => duration !== undefined);
+  return slowestOf(callItems(group));
+}
+
+// The same measure over any run of calls, which is what the canvas draws a
+// folded group's ticks against.
+export function slowestOf(items: ConsoleItem[]): number | undefined {
+  const durations = items.map((item) => item.call?.durationMs).filter((duration): duration is number => duration !== undefined);
   return durations.length > 1 ? Math.max(...durations) : undefined;
 }
 

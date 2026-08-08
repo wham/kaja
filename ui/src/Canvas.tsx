@@ -1,14 +1,32 @@
 import { ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
+import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
 import { cn } from "./cn";
-import { MethodCall } from "./kaja";
-import { callErrorCode, formatDuration } from "./callFormat";
-import { ConsoleItem, RunGroup } from "./runs";
+import { Spinner } from "./components/spinner";
+import { isCallInFlight, MethodCall } from "./kaja";
+import { loopKey } from "./loopKey";
+import { barFraction, callErrorCode, dotClass, formatDuration } from "./callFormat";
+import { ConsoleItem, itemStatus, RunGroup, slowestOf, worstStatus } from "./runs";
 import { Log, LogLevel } from "./server/api";
+
+// The strip of ticks a folded group draws, and the shape of one tick. The whole
+// strip is budgeted rather than each tick, so ten calls read as a duration
+// profile and thirty read as a count — a tick too thin to hit is worse than one
+// that admits it has nothing left to say.
+const STRIP_WIDTH = 240;
+const TICK_GAP = 2;
+const TICK_MIN_WIDTH = 5;
+const TICK_MAX_WIDTH = 26;
+// Past this the ticks are drawn for the first calls only and the row says how
+// many it left out, on the same rule as the log's tail bar.
+const MAX_TICKS = 32;
 
 interface CanvasProps {
   group: RunGroup;
+  // Which call the log is pointing at, so stepping through it is visible here
+  // too. The canvas → list arrow is one click; this is the way back.
+  selectedItemId?: string;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   // Clicking a call card takes you to that call's row in the log, which is where
@@ -19,9 +37,12 @@ interface CanvasProps {
 /**
  * What the run drew, in emission order. Calls appear as one-line cards where the
  * story needs them — they can stay minimal because the complete record is one
- * click away in the list.
+ * click away in the list — and a run of consecutive calls to one method folds
+ * into a single row, which is the whole reason the canvas is not the log.
  */
-export function Canvas({ group, onAnswer, onCancelAsk, onSelectCall }: CanvasProps) {
+export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onSelectCall }: CanvasProps) {
+  const entries = useMemo(() => foldCalls(group.items), [group.items]);
+
   if (group.run.payloadsExpired) {
     return <Canvas.Notice>Canvas no longer kept — run to see it live</Canvas.Notice>;
   }
@@ -30,14 +51,14 @@ export function Canvas({ group, onAnswer, onCancelAsk, onSelectCall }: CanvasPro
   }
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 font-mono text-xs", group.run.stale && "opacity-70")}>
-      {group.items.map((item) => (
+    <div className={cn("@container flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 font-mono text-xs", group.run.stale && "opacity-70")}>
+      {entries.map((entry) => (
         // Blocks keep their full height and the canvas scrolls. Without this a
         // long table is squeezed to a couple of rows to make the run fit — the
         // rows are still there, which is what makes it look like a rendering
         // bug rather than a layout one.
-        <div key={item.id} className="shrink-0">
-          <Canvas.Item item={item} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={onSelectCall} />
+        <div key={entry.id} className="shrink-0">
+          <Canvas.Entry entry={entry} selectedItemId={selectedItemId} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={onSelectCall} />
         </div>
       ))}
     </div>
@@ -48,15 +69,21 @@ Canvas.Notice = function ({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-0 flex-1 items-center justify-center p-3 text-center text-xs text-muted-foreground">{children}</div>;
 };
 
-interface ItemProps {
-  item: ConsoleItem;
+interface EntryProps {
+  entry: CanvasEntry;
+  selectedItemId?: string;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onSelectCall: (itemId: string) => void;
 }
 
-Canvas.Item = function ({ item, onAnswer, onCancelAsk, onSelectCall }: ItemProps) {
-  if (item.call) return <Canvas.CallCard call={item.call} onSelect={() => onSelectCall(item.id)} />;
+Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onSelectCall }: EntryProps) {
+  if (entry.kind === "calls") {
+    return <Canvas.CallGroup name={entry.name} items={entry.items} selectedItemId={selectedItemId} onSelectCall={onSelectCall} />;
+  }
+
+  const item = entry.item;
+  if (item.call) return <Canvas.CallCard call={item.call} selected={item.id === selectedItemId} onSelect={() => onSelectCall(item.id)} />;
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
   return <Canvas.Block id={item.id} block={item.block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
@@ -186,7 +213,7 @@ Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
 
 // A call on the canvas is a one-line card: enough to place it in the story, and
 // a click away from the row that holds everything about it.
-Canvas.CallCard = function ({ call, onSelect }: { call: MethodCall; onSelect: () => void }) {
+Canvas.CallCard = function ({ call, selected, onSelect }: { call: MethodCall; selected: boolean; onSelect: () => void }) {
   const status = call.error ? "error" : call.output === undefined && call.streamOutputs === undefined ? "pending" : "success";
   const code = callErrorCode(call);
 
@@ -194,7 +221,10 @@ Canvas.CallCard = function ({ call, onSelect }: { call: MethodCall; onSelect: ()
     <button
       type="button"
       data-testid="canvas-call-card"
-      className="flex w-full items-center gap-2.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-left hover:bg-accent"
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-1.5 text-left hover:bg-accent",
+        selected ? "border-muted-foreground/40" : "border-border",
+      )}
       onClick={onSelect}
     >
       <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
@@ -209,6 +239,136 @@ Canvas.CallCard = function ({ call, onSelect }: { call: MethodCall; onSelect: ()
     </button>
   );
 };
+
+interface CallGroupProps {
+  name: string;
+  items: ConsoleItem[];
+  selectedItemId?: string;
+  onSelectCall: (itemId: string) => void;
+}
+
+/**
+ * A loop, as one row. Ten calls to one method are ten identical cards saying the
+ * same name ten times, which is the log's job and the log does it better — so
+ * the canvas says the name once, how many there were, and what told them apart.
+ *
+ * The ticks are what keep it a canvas rather than a summary: one per call, drawn
+ * against the slowest in the group, so which iteration was slow is a shape here
+ * rather than a trip to the list — and each one is its own way into that call's
+ * complete record.
+ */
+Canvas.CallGroup = function ({ name, items, selectedItemId, onSelectCall }: CallGroupProps) {
+  const status = worstStatus(items);
+  const inFlight = items.some((item) => item.call !== undefined && isCallInFlight(item.call));
+  const slowest = slowestOf(items);
+  const failures = groupFailures(items);
+  const keys = groupKeyLabel(items);
+  const duration = formatDuration(groupDuration(items));
+  const shown = items.slice(0, MAX_TICKS);
+  const hidden = items.length - shown.length;
+  // The strip has the budget, not the tick: past a certain density every tick is
+  // the minimum width and the strip stops claiming to measure anything.
+  const slot = Math.max(TICK_MIN_WIDTH + TICK_GAP, Math.min(TICK_MAX_WIDTH + TICK_GAP, Math.floor(STRIP_WIDTH / shown.length)));
+
+  return (
+    <div data-testid="canvas-call-group" className="flex w-full items-center gap-2.5 rounded-md border border-border bg-card pr-2.5">
+      {/* The name is the way in for the whole group; the ticks are the way in
+          for one call of it. Below the width the strip needs, the name is the
+          only one left — the same degradation the log's columns make. */}
+      <button
+        type="button"
+        data-testid="canvas-group-label"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-l-md py-1.5 pl-2.5 text-left hover:bg-accent"
+        onClick={() => onSelectCall(items[0].id)}
+      >
+        <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
+        {inFlight ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
+        <span className="shrink-0 truncate text-foreground">{name}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">×{items.length}</span>
+        {keys && <span className="min-w-0 truncate text-muted-foreground/80 @max-[420px]:hidden">{keys}</span>}
+      </button>
+      <div className="flex shrink-0 items-center @max-[520px]:hidden" style={{ gap: TICK_GAP }}>
+        {shown.map((item, index) => (
+          <Canvas.Tick
+            key={item.id}
+            item={item}
+            name={name}
+            index={index}
+            total={items.length}
+            slowest={slowest}
+            maxWidth={slot - TICK_GAP}
+            selected={item.id === selectedItemId}
+            onSelect={() => onSelectCall(item.id)}
+          />
+        ))}
+        {hidden > 0 && (
+          <button
+            type="button"
+            className="pl-1 tabular-nums text-muted-foreground hover:text-foreground"
+            title={`${hidden} more not drawn — open the ${shown.length + 1}${nth(shown.length + 1)} in the list`}
+            onClick={() => onSelectCall(items[shown.length].id)}
+          >
+            +{hidden}
+          </button>
+        )}
+      </div>
+      {failures > 0 && <span className="shrink-0 text-destructive">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
+      <span className="w-[9ch] shrink-0 truncate text-right tabular-nums text-muted-foreground">{duration}</span>
+    </div>
+  );
+};
+
+interface TickProps {
+  item: ConsoleItem;
+  name: string;
+  index: number;
+  total: number;
+  slowest?: number;
+  maxWidth: number;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+/**
+ * One call of a folded group: as long as it took, coloured only when it failed —
+ * the group's dot already says how the group went, so the strip is free to be a
+ * measurement. A call still in flight has no length yet and gets the minimum.
+ */
+Canvas.Tick = function ({ item, name, index, total, slowest, maxWidth, selected, onSelect }: TickProps) {
+  const status = itemStatus(item);
+  const duration = item.call?.durationMs;
+  const fraction = barFraction(duration, slowest);
+  const width = fraction === undefined ? TICK_MIN_WIDTH : Math.round(TICK_MIN_WIDTH + fraction * Math.max(0, maxWidth - TICK_MIN_WIDTH));
+  const key = loopKey(item.call?.input);
+  const detail = [key, formatDuration(duration)].filter((part) => part !== undefined).join(" · ");
+
+  return (
+    <button
+      type="button"
+      data-testid="canvas-call-tick"
+      className="group/tick shrink-0 py-1"
+      style={{ width }}
+      title={detail}
+      aria-label={`${name}, call ${index + 1} of ${total}${detail ? `, ${detail}` : ""}`}
+      aria-current={selected || undefined}
+      onClick={onSelect}
+    >
+      <span
+        className={cn(
+          "block h-[8px] rounded-[2px]",
+          status === "error" ? "bg-destructive/60" : status === "success" ? "bg-muted-foreground/35" : "bg-muted-foreground/15",
+          selected && "bg-foreground/70",
+          "group-hover/tick:bg-foreground/50",
+        )}
+      />
+    </button>
+  );
+};
+
+function nth(position: number): string {
+  if (position % 100 >= 11 && position % 100 <= 13) return "th";
+  return { 1: "st", 2: "nd", 3: "rd" }[position % 10] ?? "th";
+}
 
 // A script that threw is the run's own failure rather than any one call's, so it
 // lands on the canvas as the last thing that happened.
