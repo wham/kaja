@@ -113,9 +113,13 @@ function namesTheMachine(host: string): boolean {
 // serves. It is only a starting point - the field stays editable, and the import
 // line under it says what the name decides.
 export function deriveAppName(url: string, services: string[]): string {
-  const fromHost = nameFromHost(targetHost(url));
-  if (fromHost) return fromHost;
-  return nameFromServices(services);
+  return nameFromAddress(url) || nameFromServices(services);
+}
+
+// nameFromAddress is the half of deriveAppName the address can answer, which is
+// also how the caption under the field knows which of the two it is looking at.
+export function nameFromAddress(url: string): string {
+  return nameFromHost(targetHost(url));
 }
 
 function nameFromHost(host: string): string {

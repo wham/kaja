@@ -77,9 +77,9 @@ export const appTypes: AppTypeDefinition[] = [
       { key: "apiKeyName", label: "Metadata key", type: "text", optional: true },
     ],
     demo: {
-      label: "try the kaja.tools demo server",
-      name: "seating",
-      parameters: { url: "dns:seating.kaja.tools:443", reflection: "true" },
+      label: "try the grpcb.in demo server",
+      name: "grpcb.in",
+      parameters: { url: "grpcb.in:9000", reflection: "true" },
     },
   },
   {

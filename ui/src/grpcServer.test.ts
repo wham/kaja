@@ -12,6 +12,7 @@ import {
   authNote,
   deriveAppName,
   isDialableTarget,
+  nameFromAddress,
   streamingMethods,
   targetHost,
   tlsFromServer,
@@ -89,6 +90,18 @@ describe("deriveAppName", () => {
   test("has nothing to offer when neither says anything", () => {
     expect(deriveAppName("localhost:50051", [])).toBe("");
     expect(deriveAppName("", [])).toBe("");
+  });
+});
+
+describe("nameFromAddress", () => {
+  test("is the half of the name the address can answer", () => {
+    expect(nameFromAddress("dns:seating.kaja.tools:443")).toBe("seating");
+    expect(nameFromAddress("grpcb.in:9000")).toBe("grpcb.in");
+  });
+
+  test("says nothing about an address that names the machine, or none at all", () => {
+    expect(nameFromAddress("localhost:50051")).toBe("");
+    expect(nameFromAddress("")).toBe("");
   });
 });
 

@@ -133,7 +133,7 @@ func inspectProtoDir(parameters map[string]string, log func(string)) (*Server, *
 	if dir == "" {
 		return nil, &Problem{
 			Kind:    ProblemNoProtoFiles,
-			Message: "Point at a directory of .proto files.",
+			Message: "Point at a folder of .proto files.",
 			Detail:  "Or switch to reflection and let the server describe itself.",
 		}
 	}
@@ -145,7 +145,7 @@ func inspectProtoDir(parameters map[string]string, log func(string)) (*Server, *
 		if err != nil {
 			detail = err.Error()
 		}
-		return nil, &Problem{Kind: ProblemNoProtoFiles, Message: "No .proto files in that directory.", Detail: detail}
+		return nil, &Problem{Kind: ProblemNoProtoFiles, Message: "No .proto files in that folder.", Detail: detail}
 	}
 	log(fmt.Sprintf("Found %d proto file(s) in %s", len(files), resolved))
 

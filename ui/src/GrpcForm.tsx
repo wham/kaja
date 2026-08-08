@@ -46,6 +46,7 @@ import {
   count,
   deriveAppName,
   isDialableTarget,
+  nameFromAddress,
   streamingMethods,
   tlsFromServer,
   uniqueAppName,
@@ -331,7 +332,7 @@ export function GrpcForm({
             icon={Folder}
             label="Select the proto directory"
             variables={variables}
-            placeholder="path/to/proto"
+            placeholder="Folder of .proto files"
             readOnly={readOnly}
           />
         )}
@@ -372,7 +373,7 @@ export function GrpcForm({
               }}
               duplicate={duplicateName}
               readOnly={readOnly}
-              caption={nameTouched ? undefined : "From the address. Rename if you'd rather."}
+              caption={nameTouched ? undefined : `From the ${nameFromAddress(url) ? "address" : "service it serves"}. Rename if you'd rather.`}
             />
           )}
 
@@ -427,7 +428,9 @@ function SourceStatus({ state, mode, readOnly, demoLabel, onDemo, onCancel, onRe
     return (
       <div className="flex items-center gap-1.5">
         <p className="text-xs text-muted-foreground">
-          {mode === "reflection" ? "Kaja asks the server what it serves and fills in the rest." : "Kaja reads the .proto files and fills in the rest."}
+          {mode === "reflection"
+            ? "Kaja asks the server what it serves and fills in the rest."
+            : "Kaja reads every .proto file in the folder and fills in the rest."}
         </p>
         {demoLabel && onDemo && !readOnly && (
           <>
@@ -485,14 +488,16 @@ function ServerSummary({ server, onRefresh }: { server: GrpcServer; onRefresh: (
           <IconButton icon={RefreshCw} aria-label="Read the server again" variant="ghost" size="xs" onClick={onRefresh} />
         </div>
       </div>
-      {streaming > 0 && (
+      {/* Only where it is true. The desktop carries streaming calls fine, so there
+          the note would be describing another build of an app nobody said there
+          was two of. */}
+      {streaming > 0 && !isWailsEnvironment() && (
         <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
           <div className="pt-0.5 text-muted-foreground">
             <Info size={15} />
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
-            {count(streaming, "method")} stream. Streaming calls work in the desktop app; on the web they are listed but can't be called, because gRPC-Web can't
-            carry them.
+            {count(streaming, "method")} stream. gRPC-Web can't carry a stream, so they are listed but can't be called.
           </p>
         </div>
       )}
