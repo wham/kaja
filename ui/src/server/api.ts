@@ -80,6 +80,146 @@ export interface OpenAppResponse {
     protocol: string;
 }
 /**
+ * InspectGrpc reads the service surface a grpc app *would* be opened with -
+ * reflecting the server, or reading the proto directory - without creating the
+ * app, so the New gRPC app form can fill itself in from what answered. The app
+ * carries the same parameters the app would be opened with, credentials
+ * included: a server may well ask for them before it reflects.
+ *
+ * @generated from protobuf message InspectGrpcRequest
+ */
+export interface InspectGrpcRequest {
+    /**
+     * @generated from protobuf field: GrpcApp grpc = 1
+     */
+    grpc?: GrpcApp;
+}
+/**
+ * @generated from protobuf message InspectGrpcResponse
+ */
+export interface InspectGrpcResponse {
+    /**
+     * Set when the surface was read; the form fills itself in from it.
+     *
+     * @generated from protobuf field: GrpcServer server = 1
+     */
+    server?: GrpcServer;
+    /**
+     * Set when it wasn't; the form shows it in place of the summary.
+     *
+     * @generated from protobuf field: GrpcProblem problem = 2
+     */
+    problem?: GrpcProblem;
+}
+/**
+ * @generated from protobuf message GrpcServer
+ */
+export interface GrpcServer {
+    /**
+     * Where the surface came from: "reflection" or "proto_dir".
+     *
+     * @generated from protobuf field: string source = 1
+     */
+    source: string;
+    /**
+     * The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+     * the proto_dir source, which reaches no server.
+     *
+     * @generated from protobuf field: string target = 2
+     */
+    target: string;
+    /**
+     * Whether the connection that answered used TLS. When the app leaves the
+     * choice to the URL, this is what kaja settled on by trying, and the form
+     * writes it back so the app says outright what it does.
+     *
+     * @generated from protobuf field: bool tls = 3
+     */
+    tls: boolean;
+    /**
+     * @generated from protobuf field: repeated GrpcService services = 4
+     */
+    services: GrpcService[];
+    /**
+     * @generated from protobuf field: int32 method_count = 5
+     */
+    methodCount: number;
+    /**
+     * The reflection API the server answered: "v1" or "v1alpha".
+     *
+     * @generated from protobuf field: string reflection_version = 6
+     */
+    reflectionVersion: string;
+    /**
+     * Proto files read, for the proto_dir source.
+     *
+     * @generated from protobuf field: int32 file_count = 7
+     */
+    fileCount: number;
+    /**
+     * The directory the proto files were read from, resolved against the
+     * workspace, for the proto_dir source.
+     *
+     * @generated from protobuf field: string proto_dir = 8
+     */
+    protoDir: string;
+    /**
+     * Whether the server answered at all. Always true for the reflection source,
+     * which is nothing but the server answering; for the proto_dir source it is
+     * the separate question of whether the address is live, which the proto files
+     * can't say and which doesn't stop the app being configured.
+     *
+     * @generated from protobuf field: bool reachable = 9
+     */
+    reachable: boolean;
+}
+/**
+ * @generated from protobuf message GrpcService
+ */
+export interface GrpcService {
+    /**
+     * Fully qualified name, e.g. "seating.Seating".
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: int32 method_count = 2
+     */
+    methodCount: number;
+    /**
+     * Methods that stream in either direction. gRPC-Web can't carry them, so on
+     * the web they are listed but can't be called.
+     *
+     * @generated from protobuf field: int32 streaming_method_count = 3
+     */
+    streamingMethodCount: number;
+}
+/**
+ * GrpcProblem is a surface that couldn't be read, classified so the form can
+ * name the next move instead of printing a raw error.
+ *
+ * @generated from protobuf message GrpcProblem
+ */
+export interface GrpcProblem {
+    /**
+     * @generated from protobuf field: GrpcProblemKind kind = 1
+     */
+    kind: GrpcProblemKind;
+    /**
+     * One line, addressed to the user.
+     *
+     * @generated from protobuf field: string message = 2
+     */
+    message: string;
+    /**
+     * The underlying transport, reflection or compiler error, verbatim.
+     *
+     * @generated from protobuf field: string detail = 3
+     */
+    detail: string;
+}
+/**
  * InspectOpenApi reads an OpenAPI document without creating an app, so the New
  * OpenAPI app form can fill itself in from the document: its title and version,
  * the servers it declares, and the security schemes it accepts. The app carries
@@ -555,6 +695,11 @@ export interface ConfigurationApp {
  * proto_dir, or from server reflection when reflection is set. headers are
  * forwarded (as metadata) with each request.
  *
+ * The credential and the transport are the app's, not the request's: kaja
+ * resolves them where it holds them and applies them as it makes the call, so a
+ * "${secret}" token is never handed to the browser and Basic's base64 is never
+ * something to work out by hand.
+ *
  * @generated from protobuf message GrpcApp
  */
 export interface GrpcApp {
@@ -576,6 +721,66 @@ export interface GrpcApp {
     headers: {
         [key: string]: string;
     };
+    /**
+     * Whether to speak TLS: "on", "off", or empty to let the URL decide (an
+     * https/grpcs scheme, or port 443).
+     *
+     * @generated from protobuf field: string tls = 5
+     */
+    tls: string;
+    /**
+     * Accept whatever certificate the server presents. For a development server
+     * with a self-signed certificate, and nothing else.
+     *
+     * @generated from protobuf field: bool insecure_skip_verify = 6
+     */
+    insecureSkipVerify: boolean;
+    /**
+     * PEM bundle the server's certificate is verified against, instead of the
+     * system roots. Workspace-relative, like proto_dir.
+     *
+     * @generated from protobuf field: string ca_file = 7
+     */
+    caFile: string;
+    /**
+     * Client certificate and key kaja presents to the server (mutual TLS).
+     * Workspace-relative, like proto_dir.
+     *
+     * @generated from protobuf field: string client_cert_file = 8
+     */
+    clientCertFile: string;
+    /**
+     * @generated from protobuf field: string client_key_file = 9
+     */
+    clientKeyFile: string;
+    /**
+     * The credential sent with every call: "bearer", "basic", "apikey", or
+     * "none". Empty means none.
+     *
+     * @generated from protobuf field: string auth = 10
+     */
+    auth: string;
+    /**
+     * The bearer token, or the key for the "apikey" credential.
+     *
+     * @generated from protobuf field: string token = 11
+     */
+    token: string;
+    /**
+     * @generated from protobuf field: string username = 12
+     */
+    username: string;
+    /**
+     * @generated from protobuf field: string password = 13
+     */
+    password: string;
+    /**
+     * Metadata key the "apikey" credential is sent under. Empty means
+     * "x-api-key".
+     *
+     * @generated from protobuf field: string api_key_name = 14
+     */
+    apiKeyName: string;
 }
 /**
  * TwirpApp calls a Twirp service described by a workspace-relative proto_dir.
@@ -731,6 +936,74 @@ export enum OpenStatus {
      * @generated from protobuf enum value: OPEN_STATUS_ERROR = 2;
      */
     ERROR = 2
+}
+/**
+ * @generated from protobuf enum GrpcProblemKind
+ */
+export enum GrpcProblemKind {
+    /**
+     * @generated from protobuf enum value: GRPC_PROBLEM_UNKNOWN = 0;
+     */
+    GRPC_PROBLEM_UNKNOWN = 0,
+    /**
+     * The host couldn't be reached (DNS, TCP).
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_UNREACHABLE = 1;
+     */
+    GRPC_PROBLEM_UNREACHABLE = 1,
+    /**
+     * The TLS handshake failed, which usually means the transport is set the
+     * wrong way round or the certificate isn't trusted.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_TLS = 2;
+     */
+    GRPC_PROBLEM_TLS = 2,
+    /**
+     * The server answered but doesn't serve the reflection API.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_NO_REFLECTION = 3;
+     */
+    GRPC_PROBLEM_NO_REFLECTION = 3,
+    /**
+     * Reflection is there but wants credentials.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_UNAUTHENTICATED = 4;
+     */
+    GRPC_PROBLEM_UNAUTHENTICATED = 4,
+    /**
+     * Credentials were sent and rejected.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_PERMISSION_DENIED = 5;
+     */
+    GRPC_PROBLEM_PERMISSION_DENIED = 5,
+    /**
+     * Reflection answered with nothing but its own service.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_NO_SERVICES = 6;
+     */
+    GRPC_PROBLEM_NO_SERVICES = 6,
+    /**
+     * @generated from protobuf enum value: GRPC_PROBLEM_TIMEOUT = 7;
+     */
+    GRPC_PROBLEM_TIMEOUT = 7,
+    /**
+     * The proto directory holds no .proto files, or doesn't exist.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_NO_PROTO_FILES = 8;
+     */
+    GRPC_PROBLEM_NO_PROTO_FILES = 8,
+    /**
+     * The proto files are there but don't compile.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_PROTO_INVALID = 9;
+     */
+    GRPC_PROBLEM_PROTO_INVALID = 9,
+    /**
+     * The URL isn't a usable gRPC target.
+     *
+     * @generated from protobuf enum value: GRPC_PROBLEM_TARGET = 10;
+     */
+    GRPC_PROBLEM_TARGET = 10
 }
 /**
  * @generated from protobuf enum OpenApiProblemKind
@@ -1042,6 +1315,342 @@ class OpenAppResponse$Type extends MessageType<OpenAppResponse> {
  * @generated MessageType for protobuf message OpenAppResponse
  */
 export const OpenAppResponse = new OpenAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InspectGrpcRequest$Type extends MessageType<InspectGrpcRequest> {
+    constructor() {
+        super("InspectGrpcRequest", [
+            { no: 1, name: "grpc", kind: "message", T: () => GrpcApp }
+        ]);
+    }
+    create(value?: PartialMessage<InspectGrpcRequest>): InspectGrpcRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectGrpcRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectGrpcRequest): InspectGrpcRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* GrpcApp grpc */ 1:
+                    message.grpc = GrpcApp.internalBinaryRead(reader, reader.uint32(), options, message.grpc);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectGrpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* GrpcApp grpc = 1; */
+        if (message.grpc)
+            GrpcApp.internalBinaryWrite(message.grpc, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectGrpcRequest
+ */
+export const InspectGrpcRequest = new InspectGrpcRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InspectGrpcResponse$Type extends MessageType<InspectGrpcResponse> {
+    constructor() {
+        super("InspectGrpcResponse", [
+            { no: 1, name: "server", kind: "message", T: () => GrpcServer },
+            { no: 2, name: "problem", kind: "message", T: () => GrpcProblem }
+        ]);
+    }
+    create(value?: PartialMessage<InspectGrpcResponse>): InspectGrpcResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectGrpcResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectGrpcResponse): InspectGrpcResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* GrpcServer server */ 1:
+                    message.server = GrpcServer.internalBinaryRead(reader, reader.uint32(), options, message.server);
+                    break;
+                case /* GrpcProblem problem */ 2:
+                    message.problem = GrpcProblem.internalBinaryRead(reader, reader.uint32(), options, message.problem);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectGrpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* GrpcServer server = 1; */
+        if (message.server)
+            GrpcServer.internalBinaryWrite(message.server, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* GrpcProblem problem = 2; */
+        if (message.problem)
+            GrpcProblem.internalBinaryWrite(message.problem, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectGrpcResponse
+ */
+export const InspectGrpcResponse = new InspectGrpcResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GrpcServer$Type extends MessageType<GrpcServer> {
+    constructor() {
+        super("GrpcServer", [
+            { no: 1, name: "source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "target", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "tls", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "services", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => GrpcService },
+            { no: 5, name: "method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 6, name: "reflection_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "file_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 8, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "reachable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GrpcServer>): GrpcServer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.source = "";
+        message.target = "";
+        message.tls = false;
+        message.services = [];
+        message.methodCount = 0;
+        message.reflectionVersion = "";
+        message.fileCount = 0;
+        message.protoDir = "";
+        message.reachable = false;
+        if (value !== undefined)
+            reflectionMergePartial<GrpcServer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GrpcServer): GrpcServer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string source */ 1:
+                    message.source = reader.string();
+                    break;
+                case /* string target */ 2:
+                    message.target = reader.string();
+                    break;
+                case /* bool tls */ 3:
+                    message.tls = reader.bool();
+                    break;
+                case /* repeated GrpcService services */ 4:
+                    message.services.push(GrpcService.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* int32 method_count */ 5:
+                    message.methodCount = reader.int32();
+                    break;
+                case /* string reflection_version */ 6:
+                    message.reflectionVersion = reader.string();
+                    break;
+                case /* int32 file_count */ 7:
+                    message.fileCount = reader.int32();
+                    break;
+                case /* string proto_dir */ 8:
+                    message.protoDir = reader.string();
+                    break;
+                case /* bool reachable */ 9:
+                    message.reachable = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GrpcServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string source = 1; */
+        if (message.source !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.source);
+        /* string target = 2; */
+        if (message.target !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.target);
+        /* bool tls = 3; */
+        if (message.tls !== false)
+            writer.tag(3, WireType.Varint).bool(message.tls);
+        /* repeated GrpcService services = 4; */
+        for (let i = 0; i < message.services.length; i++)
+            GrpcService.internalBinaryWrite(message.services[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* int32 method_count = 5; */
+        if (message.methodCount !== 0)
+            writer.tag(5, WireType.Varint).int32(message.methodCount);
+        /* string reflection_version = 6; */
+        if (message.reflectionVersion !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.reflectionVersion);
+        /* int32 file_count = 7; */
+        if (message.fileCount !== 0)
+            writer.tag(7, WireType.Varint).int32(message.fileCount);
+        /* string proto_dir = 8; */
+        if (message.protoDir !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.protoDir);
+        /* bool reachable = 9; */
+        if (message.reachable !== false)
+            writer.tag(9, WireType.Varint).bool(message.reachable);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message GrpcServer
+ */
+export const GrpcServer = new GrpcServer$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GrpcService$Type extends MessageType<GrpcService> {
+    constructor() {
+        super("GrpcService", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "streaming_method_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GrpcService>): GrpcService {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.methodCount = 0;
+        message.streamingMethodCount = 0;
+        if (value !== undefined)
+            reflectionMergePartial<GrpcService>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GrpcService): GrpcService {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* int32 method_count */ 2:
+                    message.methodCount = reader.int32();
+                    break;
+                case /* int32 streaming_method_count */ 3:
+                    message.streamingMethodCount = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GrpcService, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* int32 method_count = 2; */
+        if (message.methodCount !== 0)
+            writer.tag(2, WireType.Varint).int32(message.methodCount);
+        /* int32 streaming_method_count = 3; */
+        if (message.streamingMethodCount !== 0)
+            writer.tag(3, WireType.Varint).int32(message.streamingMethodCount);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message GrpcService
+ */
+export const GrpcService = new GrpcService$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GrpcProblem$Type extends MessageType<GrpcProblem> {
+    constructor() {
+        super("GrpcProblem", [
+            { no: 1, name: "kind", kind: "enum", T: () => ["GrpcProblemKind", GrpcProblemKind] },
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "detail", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GrpcProblem>): GrpcProblem {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = 0;
+        message.message = "";
+        message.detail = "";
+        if (value !== undefined)
+            reflectionMergePartial<GrpcProblem>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GrpcProblem): GrpcProblem {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* GrpcProblemKind kind */ 1:
+                    message.kind = reader.int32();
+                    break;
+                case /* string message */ 2:
+                    message.message = reader.string();
+                    break;
+                case /* string detail */ 3:
+                    message.detail = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GrpcProblem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* GrpcProblemKind kind = 1; */
+        if (message.kind !== 0)
+            writer.tag(1, WireType.Varint).int32(message.kind);
+        /* string message = 2; */
+        if (message.message !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        /* string detail = 3; */
+        if (message.detail !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.detail);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message GrpcProblem
+ */
+export const GrpcProblem = new GrpcProblem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class InspectOpenApiRequest$Type extends MessageType<InspectOpenApiRequest> {
     constructor() {
@@ -2323,7 +2932,17 @@ class GrpcApp$Type extends MessageType<GrpcApp> {
             { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "proto_dir", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "reflection", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+            { no: 4, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 5, name: "tls", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "insecure_skip_verify", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 7, name: "ca_file", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "client_cert_file", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "client_key_file", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 10, name: "auth", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 11, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 12, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 13, name: "password", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 14, name: "api_key_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<GrpcApp>): GrpcApp {
@@ -2332,6 +2951,16 @@ class GrpcApp$Type extends MessageType<GrpcApp> {
         message.protoDir = "";
         message.reflection = false;
         message.headers = {};
+        message.tls = "";
+        message.insecureSkipVerify = false;
+        message.caFile = "";
+        message.clientCertFile = "";
+        message.clientKeyFile = "";
+        message.auth = "";
+        message.token = "";
+        message.username = "";
+        message.password = "";
+        message.apiKeyName = "";
         if (value !== undefined)
             reflectionMergePartial<GrpcApp>(this, message, value);
         return message;
@@ -2352,6 +2981,36 @@ class GrpcApp$Type extends MessageType<GrpcApp> {
                     break;
                 case /* map<string, string> headers */ 4:
                     this.binaryReadMap4(message.headers, reader, options);
+                    break;
+                case /* string tls */ 5:
+                    message.tls = reader.string();
+                    break;
+                case /* bool insecure_skip_verify */ 6:
+                    message.insecureSkipVerify = reader.bool();
+                    break;
+                case /* string ca_file */ 7:
+                    message.caFile = reader.string();
+                    break;
+                case /* string client_cert_file */ 8:
+                    message.clientCertFile = reader.string();
+                    break;
+                case /* string client_key_file */ 9:
+                    message.clientKeyFile = reader.string();
+                    break;
+                case /* string auth */ 10:
+                    message.auth = reader.string();
+                    break;
+                case /* string token */ 11:
+                    message.token = reader.string();
+                    break;
+                case /* string username */ 12:
+                    message.username = reader.string();
+                    break;
+                case /* string password */ 13:
+                    message.password = reader.string();
+                    break;
+                case /* string api_key_name */ 14:
+                    message.apiKeyName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2393,6 +3052,36 @@ class GrpcApp$Type extends MessageType<GrpcApp> {
         /* map<string, string> headers = 4; */
         for (let k of globalThis.Object.keys(message.headers))
             writer.tag(4, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
+        /* string tls = 5; */
+        if (message.tls !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.tls);
+        /* bool insecure_skip_verify = 6; */
+        if (message.insecureSkipVerify !== false)
+            writer.tag(6, WireType.Varint).bool(message.insecureSkipVerify);
+        /* string ca_file = 7; */
+        if (message.caFile !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.caFile);
+        /* string client_cert_file = 8; */
+        if (message.clientCertFile !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.clientCertFile);
+        /* string client_key_file = 9; */
+        if (message.clientKeyFile !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.clientKeyFile);
+        /* string auth = 10; */
+        if (message.auth !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.auth);
+        /* string token = 11; */
+        if (message.token !== "")
+            writer.tag(11, WireType.LengthDelimited).string(message.token);
+        /* string username = 12; */
+        if (message.username !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.username);
+        /* string password = 13; */
+        if (message.password !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.password);
+        /* string api_key_name = 14; */
+        if (message.apiKeyName !== "")
+            writer.tag(14, WireType.LengthDelimited).string(message.apiKeyName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2850,6 +3539,7 @@ export const Api = new ServiceType("Api", [
     { name: "Compile", options: {}, I: CompileRequest, O: CompileResponse },
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
+    { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },

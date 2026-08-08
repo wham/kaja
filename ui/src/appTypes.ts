@@ -17,6 +17,13 @@ export interface AppParameterDefinition {
   optional?: boolean;
 }
 
+// AppSurface is how much an app turned out to expose, which a custom form reads
+// off the server or the document it just read. It is what the footer counts in
+// the receipt for what the button will add.
+export interface AppSurface {
+  count: number;
+}
+
 export interface AppTypeDefinition {
   type: string;
   label: string;
@@ -34,6 +41,9 @@ export interface AppTypeDefinition {
   // The parameter list is still the contract with the config: it says which
   // fields the type has, and the custom form supplies its own labels.
   customForm?: boolean;
+  // What one item of the app's surface is called in the footer's receipt: an
+  // OpenAPI app adds operations, a gRPC app adds methods.
+  surfaceNoun?: string;
   // Optional one-click demo that prefills the form.
   demo?: { label: string; name: string; parameters: Record<string, string> };
 }
@@ -46,34 +56,30 @@ export const appTypes: AppTypeDefinition[] = [
     label: "gRPC",
     description: "Call a gRPC service from its proto files or via server reflection.",
     icon: Server,
+    // GrpcForm renders these: it reaches the server first and then offers what
+    // answered, instead of asking for it field by field.
+    customForm: true,
+    surfaceNoun: "method",
+    requireOneOf: [["protoDir", "reflection"]],
     parameters: [
-      {
-        key: "url",
-        label: "URL",
-        type: "url",
-        placeholder: "dns:example.com:443",
-        caption: "Address of the gRPC server.",
-      },
-      {
-        key: "protoDir",
-        label: "Proto directory",
-        type: "folder",
-        placeholder: "path/to/proto",
-        caption: "Directory of .proto files. Leave empty to discover services via reflection.",
-        optional: true,
-      },
-      {
-        key: "reflection",
-        label: "Use gRPC reflection",
-        type: "boolean",
-        caption: "Discover services automatically from the server instead of local proto files.",
-        optional: true,
-      },
+      { key: "url", label: "URL", type: "url", placeholder: "dns:example.com:443" },
+      { key: "protoDir", label: "Proto directory", type: "folder", placeholder: "path/to/proto", optional: true },
+      { key: "reflection", label: "Use gRPC reflection", type: "boolean", optional: true },
+      { key: "tls", label: "Transport", type: "text", optional: true },
+      { key: "insecureSkipVerify", label: "Accept any certificate", type: "boolean", optional: true },
+      { key: "caFile", label: "Certificate authority", type: "file", optional: true },
+      { key: "clientCertFile", label: "Client certificate", type: "file", optional: true },
+      { key: "clientKeyFile", label: "Client key", type: "file", optional: true },
+      { key: "auth", label: "Authentication", type: "text", optional: true },
+      { key: "token", label: "Token or API key", type: "text", optional: true },
+      { key: "username", label: "Username", type: "text", optional: true },
+      { key: "password", label: "Password", type: "text", optional: true },
+      { key: "apiKeyName", label: "Metadata key", type: "text", optional: true },
     ],
     demo: {
-      label: "Try the grpcb.in demo server",
-      name: "grpcb.in",
-      parameters: { url: "grpcb.in:9000", reflection: "true" },
+      label: "try the kaja.tools demo server",
+      name: "seating",
+      parameters: { url: "dns:seating.kaja.tools:443", reflection: "true" },
     },
   },
   {
@@ -107,6 +113,7 @@ export const appTypes: AppTypeDefinition[] = [
     // OpenApiForm renders these: it reads the document first and then offers what
     // the document declares, instead of asking for it field by field.
     customForm: true,
+    surfaceNoun: "operation",
     requireOneOf: [["specUrl", "specContent"]],
     parameters: [
       { key: "specUrl", label: "OpenAPI document URL", type: "url", optional: true },
@@ -207,6 +214,20 @@ export function appParameters(app: ConfigurationApp): Record<string, string> {
 // the typed block (every type but the local Markdown app has them).
 export function appHeaders(app: ConfigurationApp): Record<string, string> {
   return (appVariant(app)?.headers as Record<string, string>) ?? {};
+}
+
+// APP_HEADER names the app a call belongs to. Both transports send it alongside
+// the app's own headers and neither the server nor the desktop lets it reach the
+// wire: it is what the credential and the transport security kaja holds for the
+// app are looked up by, so a "${secret}" token is applied where it lives rather
+// than handed to the browser to send.
+export const APP_HEADER = "X-Kaja-App";
+
+// transportHeaders is what a call actually sends: the app's configured headers,
+// plus the reserved header naming it. `appHeaders` stays what the Headers view
+// shows, which is the configuration and nothing kaja added to route the call.
+export function transportHeaders(app: ConfigurationApp): Record<string, string> {
+  return { ...appHeaders(app), [APP_HEADER]: app.name };
 }
 
 // typeForwardsHeaders reports whether an app type sends request headers upstream;

@@ -167,6 +167,10 @@ func main() {
 			}
 		}
 
+		// The reserved header names the app the call belongs to, and goes no
+		// further: it is what the credential and the transport are looked up by.
+		appName := apps.TakeAppName(forwardHeaders)
+
 		// App targets (kaja-app://<id>) are invoked in-process by the app manager
 		// instead of being proxied to an external host. Apps are gRPC apps, so the
 		// request arrives as gRPC-Web like a regular gRPC app. InvokeApp expands
@@ -180,6 +184,11 @@ func main() {
 
 		forwardHeaders = apiService.Variables().ExpandAll(forwardHeaders)
 
+		// The app's own credential is applied here rather than sent from the
+		// browser, so a "${secret}" token never leaves this process.
+		connection := apiService.AppConnection(appName)
+		forwardHeaders = apps.MergeMetadata(forwardHeaders, connection.Metadata)
+
 		target, err := url.Parse(targetHeader)
 		if err != nil {
 			slog.Warn("Failed to parse X-Target header", "error", err)
@@ -191,7 +200,7 @@ func main() {
 		if strings.HasPrefix(contentType, "application/grpc-web") ||
 			strings.HasPrefix(contentType, "application/grpc-web-text") {
 
-			proxy, err := grpc.NewProxy(target)
+			proxy, err := grpc.NewProxy(target, connection.TLS)
 			if err != nil {
 				slog.Error("Failed to create gRPC proxy", "error", err)
 				w.WriteHeader(http.StatusInternalServerError)

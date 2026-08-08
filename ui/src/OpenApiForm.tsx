@@ -24,8 +24,9 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Spinner } from "./components/spinner";
 import { AppNameField } from "./AppNameField";
+import { ChoiceCard, ChoiceRow } from "./ChoiceRow";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { buildApp, getAppType } from "./appTypes";
+import { AppSurface, buildApp, getAppType } from "./appTypes";
 import { cn } from "./cn";
 import {
   NO_CREDENTIALS,
@@ -112,8 +113,8 @@ interface OpenApiFormProps {
   onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
   variables: { [key: string]: string };
   readOnly: boolean;
-  // The document the form last read, for the receipt in the footer.
-  onDocumentChange: (document: OpenApiDocument | undefined) => void;
+  // What the form last read, for the receipt in the footer.
+  onSurfaceChange: (surface: AppSurface | undefined) => void;
   // Whether the app can be created from what the form holds.
   onReadyChange: (ready: boolean) => void;
   // A choice the user made here, for the tab to stop being a preview. Typing is
@@ -132,7 +133,7 @@ export function OpenApiForm({
   onParametersChange,
   variables,
   readOnly,
-  onDocumentChange,
+  onSurfaceChange,
   onReadyChange,
 }: OpenApiFormProps) {
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => ((parameters.specContent ?? "").trim() ? "paste" : "url"));
@@ -221,7 +222,7 @@ export function OpenApiForm({
     return () => clearTimeout(timer);
   }, [source, sourceMode, read]);
 
-  useEffect(() => onDocumentChange(document), [document, onDocumentChange]);
+  useEffect(() => onSurfaceChange(document ? { count: document.operationCount } : undefined), [document, onSurfaceChange]);
 
   // Derive the name from the document's title until the user types one. A title
   // is written for a docs page, so what is offered is the part of it that names
@@ -753,7 +754,7 @@ function ServerSection({
           const selected = choice === index;
           const values = variableValues[index] ?? {};
           return (
-            <div key={`${server.url}-${index}`} className={cn("rounded-md border", selected ? "border-blue-500/50 bg-accent" : "border-border")}>
+            <ChoiceCard key={`${server.url}-${index}`} selected={selected}>
               <ChoiceRow selected={selected} disabled={readOnly} onSelect={() => onChoice(index)} icon={ServerIcon}>
                 <span className={cn("truncate font-mono text-sm", selected ? "text-foreground" : "text-muted-foreground")}>{server.url}</span>
                 {server.description && (
@@ -807,11 +808,11 @@ function ServerSection({
                   </div>
                 </div>
               )}
-            </div>
+            </ChoiceCard>
           );
         })}
 
-        <div className={cn("rounded-md border", choice === "custom" ? "border-blue-500/50 bg-accent" : "border-border")}>
+        <ChoiceCard selected={choice === "custom"}>
           <ChoiceRow selected={choice === "custom"} disabled={readOnly} onSelect={() => onChoice("custom")} icon={Pencil}>
             <span className={cn("text-sm", choice === "custom" ? "text-foreground" : "text-muted-foreground")}>
               Somewhere else — a local mock, a staging host
@@ -822,7 +823,7 @@ function ServerSection({
               <VariableSuggestInput value={customUrl} onValueChange={onCustomUrlChange} variables={variables} disabled={readOnly} />
             </div>
           )}
-        </div>
+        </ChoiceCard>
       </div>
     </div>
   );
@@ -870,10 +871,7 @@ function AuthenticationSection({ document, variables, readOnly, selected, onSele
           const supported = scheme.type !== "mutualTLS";
           const isSelected = supported && selected === scheme.key;
           return (
-            <div
-              key={scheme.key}
-              className={cn("rounded-md border", isSelected ? "border-blue-500/50 bg-accent" : "border-border", !supported && "opacity-60")}
-            >
+            <ChoiceCard key={scheme.key} selected={isSelected} className={cn(!supported && "opacity-60")}>
               <ChoiceRow selected={isSelected} disabled={readOnly || !supported} onSelect={() => onSelect(scheme.key)} icon={schemeIcon(scheme)}>
                 <span className={cn("shrink-0 text-sm", isSelected ? "text-foreground" : "text-muted-foreground")}>{schemeLabel(scheme)}</span>
                 <span className="truncate font-mono text-xs text-muted-foreground">{schemeIdentity(scheme)}</span>
@@ -892,15 +890,15 @@ function AuthenticationSection({ document, variables, readOnly, selected, onSele
               {isSelected && (
                 <SchemeCredentials scheme={scheme} variables={variables} readOnly={readOnly} parameters={parameters} onParameterChange={onParameterChange} />
               )}
-            </div>
+            </ChoiceCard>
           );
         })}
 
-        <div className={cn("rounded-md border", selected === NO_CREDENTIALS ? "border-blue-500/50 bg-accent" : "border-border")}>
+        <ChoiceCard selected={selected === NO_CREDENTIALS}>
           <ChoiceRow selected={selected === NO_CREDENTIALS} disabled={readOnly} onSelect={() => onSelect(NO_CREDENTIALS)}>
             <span className={cn("text-sm", selected === NO_CREDENTIALS ? "text-foreground" : "text-muted-foreground")}>Send no credentials</span>
           </ChoiceRow>
-        </div>
+        </ChoiceCard>
       </div>
     </div>
   );
@@ -970,39 +968,6 @@ function SchemeCredentials({ scheme, variables, readOnly, parameters, onParamete
       )}
       <p className={cn("text-xs text-muted-foreground", credentialNote(scheme).mono && "font-mono")}>{credentialNote(scheme).text}</p>
     </div>
-  );
-}
-
-interface ChoiceRowProps {
-  selected: boolean;
-  disabled: boolean;
-  onSelect: () => void;
-  icon?: LucideIcon;
-  children: React.ReactNode;
-}
-
-// ChoiceRow is one option in the server or authentication list: a radio, an
-// optional icon, and whatever the option has to say about itself.
-function ChoiceRow({ selected, disabled, onSelect, icon: Icon, children }: ChoiceRowProps) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      disabled={disabled}
-      onClick={onSelect}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left disabled:cursor-default"
-    >
-      {selected ? (
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-blue-500">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />
-        </span>
-      ) : (
-        <span className="h-4 w-4 shrink-0 rounded-full border border-input" />
-      )}
-      {Icon && <Icon size={15} className="shrink-0 text-muted-foreground" />}
-      {children}
-    </button>
   );
 }
 

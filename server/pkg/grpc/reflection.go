@@ -3,7 +3,6 @@ package grpc
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,8 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	reflectionpb "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alphapb "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/grpc/status"
@@ -23,32 +21,48 @@ import (
 
 // ReflectionClient queries gRPC servers for their service definitions using reflection.
 type ReflectionClient struct {
-	target string
-	useTLS bool
+	target  string
+	useTLS  bool
+	options TLSOptions
+	// metadata sent with the reflection stream. A server that guards reflection
+	// wants the same credential the app calls it with.
+	metadata map[string]string
 }
 
 // ReflectionResult contains the discovered service information.
 type ReflectionResult struct {
 	FileDescriptors []*descriptorpb.FileDescriptorProto
 	Services        []string
+	// Version is the reflection API the server answered: "v1" or "v1alpha".
+	Version string
 }
 
 // NewReflectionClient creates a new reflection client for the given target URL.
-func NewReflectionClient(target *url.URL) *ReflectionClient {
+// options carry what the URL can't say about the connection; metadata is sent
+// with the reflection stream.
+func NewReflectionClient(target *url.URL, options TLSOptions, metadata map[string]string) *ReflectionClient {
 	return &ReflectionClient{
-		target: ToGRPCTarget(target),
-		useTLS: ShouldUseTLS(target),
+		target:   ToGRPCTarget(target),
+		useTLS:   options.UseTLS(target),
+		options:  options,
+		metadata: metadata,
 	}
 }
 
 // NewReflectionClientFromString creates a new reflection client from a target string.
-func NewReflectionClientFromString(target string) (*ReflectionClient, error) {
+func NewReflectionClientFromString(target string, options TLSOptions, metadata map[string]string) (*ReflectionClient, error) {
 	parsed, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target URL: %w", err)
 	}
-	return NewReflectionClient(parsed), nil
+	return NewReflectionClient(parsed, options, metadata), nil
 }
+
+// Target is the gRPC target the client dials, e.g. "dns:seating.kaja.tools:443".
+func (c *ReflectionClient) Target() string { return c.target }
+
+// UseTLS reports whether the client dials over TLS.
+func (c *ReflectionClient) UseTLS() bool { return c.useTLS }
 
 // reflectionStream abstracts over v1 and v1alpha reflection streams.
 type reflectionStream interface {
@@ -128,11 +142,9 @@ func (s *v1alphaStream) recv() (*reflectionpb.ServerReflectionResponse, error) {
 // Discover queries the target server's reflection service and returns all file descriptors.
 // Tries the v1 reflection API first, falls back to v1alpha for older servers.
 func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, error) {
-	var creds credentials.TransportCredentials
-	if c.useTLS {
-		creds = credentials.NewTLS(&tls.Config{})
-	} else {
-		creds = insecure.NewCredentials()
+	creds, err := c.options.credentials(c.useTLS)
+	if err != nil {
+		return nil, err
 	}
 
 	conn, err := grpc.NewClient(c.target, grpc.WithTransportCredentials(creds))
@@ -141,17 +153,34 @@ func (c *ReflectionClient) Discover(ctx context.Context) (*ReflectionResult, err
 	}
 	defer conn.Close()
 
+	if len(c.metadata) > 0 {
+		ctx = metadata.NewOutgoingContext(ctx, metadata.New(c.metadata))
+	}
+
 	// Try v1 first
+	version := "v1"
 	stream, v1Err := c.openV1Stream(ctx, conn)
 	if v1Err != nil {
 		// Fall back to v1alpha
+		version = "v1alpha"
 		stream, err = c.openV1AlphaStream(ctx, conn)
 		if err != nil {
+			// A server that guards reflection, or refuses the credential it was
+			// given, says so on the v1 attempt; the v1alpha failure that follows is
+			// the same refusal and would only bury it.
+			if code := status.Code(v1Err); code == codes.Unauthenticated || code == codes.PermissionDenied {
+				return nil, v1Err
+			}
 			return nil, fmt.Errorf("reflection not available (tried v1 and v1alpha): v1: %w; v1alpha: %v", v1Err, err)
 		}
 	}
 
-	return c.discover(stream)
+	result, err := c.discover(stream)
+	if err != nil {
+		return nil, err
+	}
+	result.Version = version
+	return result, nil
 }
 
 func (c *ReflectionClient) openV1Stream(ctx context.Context, conn *grpc.ClientConn) (reflectionStream, error) {

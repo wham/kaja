@@ -455,6 +455,10 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		}
 	}
 
+	// The reserved header names the app the call belongs to, and goes no further:
+	// it is what the credential and the transport are looked up by.
+	appName := apps.TakeAppName(headers)
+
 	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
 	// InvokeApp expands the ${NAME} references the headers still carry and masks
 	// the resolved values back out of what it reports exchanging.
@@ -485,9 +489,13 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 
 	// Use the transport to determine which handler to use
 	headers = a.api.Variables().ExpandAll(headers)
+	// The app's own credential is applied here rather than sent from the webview,
+	// so a "${secret}" token stays where kaja keeps it.
+	connection := a.api.AppConnection(appName)
+	headers = apps.MergeMetadata(headers, connection.Metadata)
 	switch protocol {
 	case 1: // gRPC
-		resp, err := a.targetGRPC(target, method, req, headers)
+		resp, err := a.targetGRPC(target, method, req, headers, connection.TLS)
 		if err != nil {
 			return nil, err
 		}
@@ -500,10 +508,10 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 }
 
 // targetGRPC handles gRPC protocol calls using the shared gRPC client
-func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string) ([]byte, error) {
+func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, error) {
 	slog.Info("Invoking gRPC target", "target", target, "method", method, "headers", len(headers))
 
-	client, err := grpc.NewClientFromString(target)
+	client, err := grpc.NewClientFromString(target, options)
 	if err != nil {
 		slog.Error("Failed to create gRPC client", "target", target, "error", err)
 		return nil, err
@@ -623,9 +631,12 @@ func (a *App) TargetServerStream(target string, method string, req []byte, heade
 		}
 	}
 
+	appName := apps.TakeAppName(headers)
 	headers = a.api.Variables().ExpandAll(headers)
+	connection := a.api.AppConnection(appName)
+	headers = apps.MergeMetadata(headers, connection.Metadata)
 
-	client, err := grpc.NewClientFromString(target)
+	client, err := grpc.NewClientFromString(target, connection.TLS)
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC client: %w", err)
 	}

@@ -24,6 +24,52 @@ import (
 // the app manager for invocation instead of being proxied to an external host.
 const TargetScheme = "kaja-app"
 
+// AppHeader is the reserved header the client sends alongside the app's own,
+// naming the app a call belongs to. It never reaches the wire: both request
+// routers take it out and use it to look up the credential and the transport
+// kaja holds for that app. That is what keeps a "${secret}" token where it lives
+// - it is applied here, on the way out, rather than handed to the browser to
+// send - and what lets Basic's base64 be kaja's to do rather than yours.
+const AppHeader = "X-Kaja-App"
+
+// TakeAppName removes the reserved header from a header map and returns the app
+// it named. Header case is whatever the transport made of it, so it is matched
+// without regard to case.
+func TakeAppName(headers map[string]string) string {
+	for name, value := range headers {
+		if strings.EqualFold(name, AppHeader) {
+			delete(headers, name)
+			return value
+		}
+	}
+	return ""
+}
+
+// MergeMetadata adds an app's credential to the headers it sends, leaving a
+// header the app configures under the same name alone: writing one out by hand
+// is the more specific instruction of the two.
+func MergeMetadata(headers map[string]string, metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return headers
+	}
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	for name, value := range metadata {
+		configured := false
+		for existing := range headers {
+			if strings.EqualFold(existing, name) {
+				configured = true
+				break
+			}
+		}
+		if !configured {
+			headers[name] = value
+		}
+	}
+	return headers
+}
+
 // App is the contract every app type satisfies. An App is a factory: Open turns
 // creation parameters into an Opened result, describing the proto surface to
 // compile and how the app is invoked.

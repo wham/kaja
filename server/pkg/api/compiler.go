@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/wham/kaja/v2/internal/tempdir"
+	"github.com/wham/kaja/v2/internal/workspace"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
 	"github.com/wham/protoc-go/protoc"
@@ -47,7 +48,7 @@ func (c *Compiler) start(id string, protoDir string) error {
 	c.logger.debug("sourcesDir: " + sourcesDir)
 
 	c.logger.debug("Starting compilation")
-	err = c.compile(cwd, sourcesDir, protoDir)
+	err = c.compile(sourcesDir, protoDir)
 	if err != nil {
 		c.status = CompileStatus_STATUS_ERROR
 		c.logger.error("Compilation failed", err)
@@ -102,10 +103,8 @@ func (c *Compiler) getSources(sourcesDir string) []*Source {
 	return sources
 }
 
-func (c *Compiler) compile(cwd string, sourcesDir string, protoDir string) error {
-	if !filepath.IsAbs(protoDir) {
-		protoDir = filepath.Join(cwd, "../workspace/"+protoDir)
-	}
+func (c *Compiler) compile(sourcesDir string, protoDir string) error {
+	protoDir = workspace.Resolve(protoDir)
 	c.logger.debug("protoDir: " + protoDir)
 
 	protoFiles, err := findProtoFiles(protoDir)

@@ -36,7 +36,7 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 		if a.protocol != "grpc" {
 			return nil, fmt.Errorf("reflection is only supported for grpc apps")
 		}
-		if err := reflect(url, protoDir, log); err != nil {
+		if err := reflect(url, TLS(parameters), Metadata(parameters), protoDir, log); err != nil {
 			return nil, err
 		}
 		return &apps.Opened{ProtoDir: protoDir, Target: url, Protocol: a.protocol}, nil
@@ -52,9 +52,11 @@ func (a *App) Open(parameters map[string]string, protoDir string, log func(strin
 }
 
 // reflect discovers the upstream's services via gRPC reflection and writes the
-// reconstructed .proto files into protoDir.
-func reflect(url string, protoDir string, log func(string)) error {
-	client, err := grpc.NewReflectionClientFromString(url)
+// reconstructed .proto files into protoDir. The app's own credential is sent
+// with the reflection stream: a server that guards its methods usually guards
+// the list of them too.
+func reflect(url string, options grpc.TLSOptions, metadata map[string]string, protoDir string, log func(string)) error {
+	client, err := grpc.NewReflectionClientFromString(url, options, metadata)
 	if err != nil {
 		return fmt.Errorf("creating reflection client: %w", err)
 	}

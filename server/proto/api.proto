@@ -6,6 +6,7 @@ service Api {
   rpc Compile(CompileRequest) returns (CompileResponse);
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
+  rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
@@ -47,6 +48,91 @@ message OpenAppResponse {
   string target = 4;
   // Transport the client uses to reach the target: "grpc" or "twirp".
   string protocol = 5;
+}
+
+// InspectGrpc reads the service surface a grpc app *would* be opened with -
+// reflecting the server, or reading the proto directory - without creating the
+// app, so the New gRPC app form can fill itself in from what answered. The app
+// carries the same parameters the app would be opened with, credentials
+// included: a server may well ask for them before it reflects.
+message InspectGrpcRequest {
+  GrpcApp grpc = 1;
+}
+
+message InspectGrpcResponse {
+  // Set when the surface was read; the form fills itself in from it.
+  GrpcServer server = 1;
+  // Set when it wasn't; the form shows it in place of the summary.
+  GrpcProblem problem = 2;
+}
+
+message GrpcServer {
+  // Where the surface came from: "reflection" or "proto_dir".
+  string source = 1;
+  // The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+  // the proto_dir source, which reaches no server.
+  string target = 2;
+  // Whether the connection that answered used TLS. When the app leaves the
+  // choice to the URL, this is what kaja settled on by trying, and the form
+  // writes it back so the app says outright what it does.
+  bool tls = 3;
+  repeated GrpcService services = 4;
+  int32 method_count = 5;
+  // The reflection API the server answered: "v1" or "v1alpha".
+  string reflection_version = 6;
+  // Proto files read, for the proto_dir source.
+  int32 file_count = 7;
+  // The directory the proto files were read from, resolved against the
+  // workspace, for the proto_dir source.
+  string proto_dir = 8;
+  // Whether the server answered at all. Always true for the reflection source,
+  // which is nothing but the server answering; for the proto_dir source it is
+  // the separate question of whether the address is live, which the proto files
+  // can't say and which doesn't stop the app being configured.
+  bool reachable = 9;
+}
+
+message GrpcService {
+  // Fully qualified name, e.g. "seating.Seating".
+  string name = 1;
+  int32 method_count = 2;
+  // Methods that stream in either direction. gRPC-Web can't carry them, so on
+  // the web they are listed but can't be called.
+  int32 streaming_method_count = 3;
+}
+
+// GrpcProblem is a surface that couldn't be read, classified so the form can
+// name the next move instead of printing a raw error.
+message GrpcProblem {
+  GrpcProblemKind kind = 1;
+  // One line, addressed to the user.
+  string message = 2;
+  // The underlying transport, reflection or compiler error, verbatim.
+  string detail = 3;
+}
+
+enum GrpcProblemKind {
+  GRPC_PROBLEM_UNKNOWN = 0;
+  // The host couldn't be reached (DNS, TCP).
+  GRPC_PROBLEM_UNREACHABLE = 1;
+  // The TLS handshake failed, which usually means the transport is set the
+  // wrong way round or the certificate isn't trusted.
+  GRPC_PROBLEM_TLS = 2;
+  // The server answered but doesn't serve the reflection API.
+  GRPC_PROBLEM_NO_REFLECTION = 3;
+  // Reflection is there but wants credentials.
+  GRPC_PROBLEM_UNAUTHENTICATED = 4;
+  // Credentials were sent and rejected.
+  GRPC_PROBLEM_PERMISSION_DENIED = 5;
+  // Reflection answered with nothing but its own service.
+  GRPC_PROBLEM_NO_SERVICES = 6;
+  GRPC_PROBLEM_TIMEOUT = 7;
+  // The proto directory holds no .proto files, or doesn't exist.
+  GRPC_PROBLEM_NO_PROTO_FILES = 8;
+  // The proto files are there but don't compile.
+  GRPC_PROBLEM_PROTO_INVALID = 9;
+  // The URL isn't a usable gRPC target.
+  GRPC_PROBLEM_TARGET = 10;
 }
 
 // InspectOpenApi reads an OpenAPI document without creating an app, so the New
@@ -297,11 +383,39 @@ message ConfigurationApp {
 // GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
 // proto_dir, or from server reflection when reflection is set. headers are
 // forwarded (as metadata) with each request.
+//
+// The credential and the transport are the app's, not the request's: kaja
+// resolves them where it holds them and applies them as it makes the call, so a
+// "${secret}" token is never handed to the browser and Basic's base64 is never
+// something to work out by hand.
 message GrpcApp {
   string url = 1;
   string proto_dir = 2;
   bool reflection = 3;
   map<string, string> headers = 4;
+  // Whether to speak TLS: "on", "off", or empty to let the URL decide (an
+  // https/grpcs scheme, or port 443).
+  string tls = 5;
+  // Accept whatever certificate the server presents. For a development server
+  // with a self-signed certificate, and nothing else.
+  bool insecure_skip_verify = 6;
+  // PEM bundle the server's certificate is verified against, instead of the
+  // system roots. Workspace-relative, like proto_dir.
+  string ca_file = 7;
+  // Client certificate and key kaja presents to the server (mutual TLS).
+  // Workspace-relative, like proto_dir.
+  string client_cert_file = 8;
+  string client_key_file = 9;
+  // The credential sent with every call: "bearer", "basic", "apikey", or
+  // "none". Empty means none.
+  string auth = 10;
+  // The bearer token, or the key for the "apikey" credential.
+  string token = 11;
+  string username = 12;
+  string password = 13;
+  // Metadata key the "apikey" credential is sent under. Empty means
+  // "x-api-key".
+  string api_key_name = 14;
 }
 
 // TwirpApp calls a Twirp service described by a workspace-relative proto_dir.
