@@ -299,7 +299,7 @@ export function Console({
       </div>
 
       {selectedGroup && activeView === "canvas" ? (
-        <Canvas group={selectedGroup} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={selectFromCanvas} />
+        <Canvas group={selectedGroup} selectedItemId={selection?.itemId} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={selectFromCanvas} />
       ) : selectedGroup ? (
         <Console.ListView
           group={selectedGroup}
