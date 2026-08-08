@@ -6,6 +6,7 @@ import { Spinner } from "./components/spinner";
 import { TreeView } from "./components/tree-view";
 import {
   Braces,
+  Check,
   CircleX,
   FileCode,
   FoldVertical,
@@ -13,16 +14,16 @@ import {
   Pin,
   Plus,
   RotateCw,
+  Save,
   Settings,
   Trash2,
   TriangleAlert,
   UnfoldVertical,
   ChevronRight,
-  Package,
   Ellipsis,
-  PenLine,
   Plus as PlusIcon,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { appType, getAppType } from "./appTypes";
 import { SimpleTooltip } from "./components/tooltip";
@@ -57,6 +58,61 @@ function groupServicesByPackage(services: Service[]): [string, Service[]][] {
 const RECENT_SCRATCHES = 6;
 
 const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
+
+// A section header is a row of the same height as the rows under it — the tree
+// is an index, and an index reads as a list of names.
+const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-foreground";
+
+// Small enough to sit inside a 22px row, which is what lets the frequent verbs
+// live on the row instead of behind a menu.
+const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
+
+/**
+ * A script row's leading slot. It is the width of the run spinner whatever it
+ * currently holds, because all four things that can appear here — a run in the
+ * air, the pin, the on-disk dot, and nothing at all on the web — would otherwise
+ * move the label out from under the cursor as they swap.
+ *
+ * The dot itself replaced the file icon: a 5px mark is quieter than a drawing in
+ * a 22px row, which already spends a glyph on the app above it.
+ *
+ * It goes inside a `TreeView.LeadingVisual` and never wraps one — `TreeView.Item`
+ * picks its slots out by child type, so a wrapper lands the glyph in the label.
+ */
+function ScriptGlyph({ running, pinned, saved, dim, dot = true }: { running?: boolean; pinned?: boolean; saved?: boolean; dim?: boolean; dot?: boolean }) {
+  return (
+    <span className="flex size-3 items-center justify-center">
+      {running ? (
+        <Spinner className="size-3" />
+      ) : pinned ? (
+        <Pin size={12} />
+      ) : dot ? (
+        <span
+          aria-hidden
+          title={saved ? "On disk" : "Not on disk"}
+          className={cn("size-[5px] rounded-full", saved ? "bg-muted-foreground opacity-50" : "bg-amber-500", dim && "opacity-40")}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; onClick: (event: React.MouseEvent) => void }) {
+  return (
+    <IconButton
+      size="xs"
+      variant="ghost"
+      tooltip={false}
+      aria-label={label}
+      icon={icon}
+      className={ROW_ACTION}
+      onClick={(event: React.MouseEvent) => {
+        event.stopPropagation();
+        onClick(event);
+      }}
+    />
+  );
+}
 
 // An app's type is its icon, the same one its New entry and its settings tab
 // carry. The word is a hover away for whoever needs it.
@@ -97,6 +153,10 @@ interface SidebarProps {
   onScratchSelect?: (scratch: Scratch) => void;
   onDeleteScratch?: (scratch: Scratch) => void;
   onSaveScratch?: (scratch: Scratch) => void;
+  // The bulk verbs on the Scripts header. They only ever touch the unsaved ones,
+  // so clearing the pile is safe by construction.
+  onSaveAllScratches?: () => void;
+  onDiscardAllScratches?: () => void;
   // Opens the finder on the full list.
   onShowAllScratches?: () => void;
   onScriptSelect?: (script: Script) => void;
@@ -132,6 +192,8 @@ export function Sidebar({
   onScratchSelect,
   onDeleteScratch,
   onSaveScratch,
+  onSaveAllScratches,
+  onDiscardAllScratches,
   onShowAllScratches,
   onScriptSelect,
   onRenameScript,
@@ -148,7 +210,15 @@ export function Sidebar({
 }: SidebarProps) {
   const hasScripts = (scripts?.length ?? 0) > 0;
   const hasScratches = (scratches?.length ?? 0) > 0;
+  const unsavedCount = scratches?.length ?? 0;
+  const scriptCount = (scripts?.length ?? 0) + unsavedCount;
+  // On disk versus not is only a distinction where there is a disk. The web has
+  // no Save, so every row is in the same state and the dot, the amber count and
+  // the word "unsaved" would all be marking a difference that can't exist.
+  const canSave = onSaveScratch !== undefined;
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
+  // The Scripts header trades its count for the bulk verbs while it is hovered.
+  const [scriptsHeaderHovered, setScriptsHeaderHovered] = useState(false);
   // Right-click context menu for a script, anchored at the cursor.
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const scriptMenuAnchorRef = useRef<HTMLDivElement>(null);
@@ -421,125 +491,158 @@ export function Sidebar({
           <IconButton icon={UnfoldVertical} size="sm" variant="ghost" aria-label="Unfold All" onClick={unfoldAll} />
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "4px 0", minHeight: 0 }}>
         {/* One list, not two. A script that has been saved and one that hasn't
             are the same kind of thing — the only difference is whether it is on
-            disk, which is what the icon says. Saved ones sit on top because they
+            disk, which is what the dot says. Saved ones sit on top because they
             are a library; the rest are recent work, and the whole history is a
             ⌘P away. */}
         {(hasScripts || hasScratches) && (
           <nav aria-label="Scripts">
             <div
-              className="-ml-3 flex h-7 cursor-pointer select-none items-center gap-0.5 pl-1 text-xs font-bold text-muted-foreground"
+              className={cn(SECTION_ROW, "hover:bg-accent/50")}
               onClick={() => setScriptsExpanded((v) => !v)}
+              onMouseEnter={() => setScriptsHeaderHovered(true)}
+              onMouseLeave={() => setScriptsHeaderHovered(false)}
             >
-              <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", scriptsExpanded && "rotate-90")}>
-                <ChevronRight size={16} />
+              <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", scriptsExpanded && "rotate-90")} />
+              <span className="truncate">Scripts</span>
+              {/* The pile of drafts is a number you can act on, so the header
+                  says how big it is and, under the cursor, offers the two verbs
+                  that only ever touch it. Saved scripts are never in scope. */}
+              {canSave && unsavedCount > 0 && <span className="shrink-0 text-amber-600 dark:text-amber-400">{unsavedCount} unsaved</span>}
+              <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                {scriptsHeaderHovered && unsavedCount > 0 ? (
+                  <>
+                    {onSaveAllScratches && (
+                      <RowAction icon={Save} label={`Save ${unsavedCount} unsaved ${unsavedCount === 1 ? "script" : "scripts"}`} onClick={onSaveAllScratches} />
+                    )}
+                    {onDiscardAllScratches && (
+                      <RowAction
+                        icon={Trash2}
+                        label={
+                          canSave
+                            ? `Discard ${unsavedCount} unsaved ${unsavedCount === 1 ? "script" : "scripts"}`
+                            : `Discard all ${unsavedCount} ${unsavedCount === 1 ? "script" : "scripts"}`
+                        }
+                        onClick={onDiscardAllScratches}
+                      />
+                    )}
+                  </>
+                ) : (
+                  scriptCount > 0 && <span className="pr-1 font-mono text-muted-foreground">{scriptCount}</span>
+                )}
               </span>
-              <FileCode size={16} />
-              <span className="ml-1">Scripts</span>
             </div>
             {scriptsExpanded && (
-              <TreeView aria-label="Scripts">
-                {(scripts ?? []).map((script) => (
-                  <TreeView.Item
-                    id={`script-${script.path}`}
-                    key={script.path}
-                    ref={(el: HTMLElement | null) => {
-                      // TreeView.Item doesn't forward these handlers, so attach them to the DOM node.
-                      if (el) {
-                        el.oncontextmenu = (e) => {
-                          e.preventDefault();
-                          setScriptMenu({ script, top: e.clientY, left: e.clientX });
-                        };
-                        el.onmouseenter = () => setHoveredScript(script.path);
-                        el.onmouseleave = () => setHoveredScript((prev) => (prev === script.path ? null : prev));
-                      }
-                    }}
-                    onSelect={() => onScriptSelect?.(script)}
-                    current={currentScriptPath === script.path}
-                  >
-                    {/* Pin lives in the leading slot so it never shifts when the kebab appears on
-                        hover, and it lines a pinned script up with the package/expand icons above. */}
-                    <TreeView.LeadingVisual>
-                      {runningFileIds?.has(script.path) ? (
-                        <Spinner className="size-3" />
-                      ) : pinnedScriptPath === script.path ? (
-                        <Pin size={12} />
-                      ) : (
-                        <FileCode size={13} />
-                      )}
-                    </TreeView.LeadingVisual>
-                    {script.name}
-                    <TreeView.TrailingVisual>
-                      {(hoveredScript === script.path || scriptMenu?.script.path === script.path) && (
-                        <IconButton
-                          size="xs"
-                          variant="ghost"
-                          tooltip={false}
-                          aria-label={`Actions for ${script.name}`}
-                          icon={Ellipsis}
-                          style={{ minHeight: 0, minWidth: 0 }}
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
+              <TreeView leaf aria-label="Scripts">
+                {(scripts ?? []).map((script) => {
+                  const active = hoveredScript === script.path || scriptMenu?.script.path === script.path;
+                  return (
+                    <TreeView.Item
+                      id={`script-${script.path}`}
+                      key={script.path}
+                      ref={(el: HTMLElement | null) => {
+                        // TreeView.Item doesn't forward these handlers, so attach them to the DOM node.
+                        if (el) {
+                          el.oncontextmenu = (e) => {
+                            e.preventDefault();
                             setScriptMenu({ script, top: e.clientY, left: e.clientX });
-                          }}
-                        />
-                      )}
-                    </TreeView.TrailingVisual>
-                  </TreeView.Item>
-                ))}
-                {(scratches ?? []).slice(0, RECENT_SCRATCHES).map((scratch) => (
-                  <TreeView.Item
-                    id={`scratch-${scratch.id}`}
-                    key={scratch.id}
-                    ref={(el: HTMLElement | null) => {
-                      if (el) {
-                        el.oncontextmenu = (e) => {
-                          e.preventDefault();
-                          setScratchMenu({ scratch, top: e.clientY, left: e.clientX });
-                        };
-                        el.onmouseenter = () => setHoveredScratch(scratch.id);
-                        el.onmouseleave = () => setHoveredScratch((prev) => (prev === scratch.id ? null : prev));
-                      }
-                    }}
-                    onSelect={() => onScratchSelect?.(scratch)}
-                    current={currentScratchId === scratch.id}
-                  >
-                    {/* Not saved: the pen is the whole difference. */}
-                    <TreeView.LeadingVisual>
-                      {runningFileIds?.has(scratch.id) ? (
-                        <Spinner className="size-3" />
-                      ) : (
-                        <PenLine size={13} className={cn(isUntouched(scratch) && "opacity-60")} />
-                      )}
-                    </TreeView.LeadingVisual>
-                    <ScratchLabel scratch={scratch} />
-                    <TreeView.TrailingVisual>
-                      {(hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id) && (
-                        <IconButton
-                          size="xs"
-                          variant="ghost"
-                          tooltip={false}
-                          aria-label={`Actions for ${scratch.title}`}
-                          icon={Ellipsis}
-                          style={{ minHeight: 0, minWidth: 0 }}
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
+                          };
+                          el.onmouseenter = () => setHoveredScript(script.path);
+                          el.onmouseleave = () => setHoveredScript((prev) => (prev === script.path ? null : prev));
+                        }
+                      }}
+                      onSelect={() => onScriptSelect?.(script)}
+                      // Scripts are the one part of the tree where the keyboard
+                      // may remove something: a file still asks first.
+                      onKeyDown={(event: React.KeyboardEvent) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onScriptSelect?.(script);
+                        } else if ((event.key === "Backspace" || event.key === "Delete") && onDeleteScript) {
+                          event.preventDefault();
+                          onDeleteScript(script);
+                        }
+                      }}
+                      current={currentScriptPath === script.path}
+                    >
+                      <TreeView.LeadingVisual>
+                        <ScriptGlyph running={runningFileIds?.has(script.path)} pinned={pinnedScriptPath === script.path} saved dot={canSave} />
+                      </TreeView.LeadingVisual>
+                      {script.name}
+                      <TreeView.TrailingVisual>
+                        {active && (
+                          <RowAction
+                            icon={Ellipsis}
+                            label={`Actions for ${script.name}`}
+                            onClick={(e) => setScriptMenu({ script, top: e.clientY, left: e.clientX })}
+                          />
+                        )}
+                      </TreeView.TrailingVisual>
+                    </TreeView.Item>
+                  );
+                })}
+                {(scratches ?? []).slice(0, RECENT_SCRATCHES).map((scratch) => {
+                  const active = hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id;
+                  return (
+                    <TreeView.Item
+                      id={`scratch-${scratch.id}`}
+                      key={scratch.id}
+                      ref={(el: HTMLElement | null) => {
+                        if (el) {
+                          el.oncontextmenu = (e) => {
+                            e.preventDefault();
                             setScratchMenu({ scratch, top: e.clientY, left: e.clientX });
-                          }}
-                        />
-                      )}
-                    </TreeView.TrailingVisual>
-                  </TreeView.Item>
-                ))}
+                          };
+                          el.onmouseenter = () => setHoveredScratch(scratch.id);
+                          el.onmouseleave = () => setHoveredScratch((prev) => (prev === scratch.id ? null : prev));
+                        }
+                      }}
+                      onSelect={() => onScratchSelect?.(scratch)}
+                      // Discarding one costs nothing and is taken back for eight
+                      // seconds, so the key can do it without asking.
+                      onKeyDown={(event: React.KeyboardEvent) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onScratchSelect?.(scratch);
+                        } else if (event.key === "Backspace" || event.key === "Delete") {
+                          event.preventDefault();
+                          onDeleteScratch?.(scratch);
+                        }
+                      }}
+                      current={currentScratchId === scratch.id}
+                    >
+                      {/* The slot stays whatever is in it. Dropping the dot to
+                          seat the three buttons buys 11px the row doesn't need,
+                          and costs a label that moves as you reach for it. */}
+                      <TreeView.LeadingVisual>
+                        <ScriptGlyph running={runningFileIds?.has(scratch.id)} dim={isUntouched(scratch)} dot={canSave} />
+                      </TreeView.LeadingVisual>
+                      <ScratchLabel scratch={scratch} />
+                      <TreeView.TrailingVisual className={active ? "w-auto gap-0.5" : undefined}>
+                        {active && (
+                          <>
+                            {onSaveScratch && <RowAction icon={Check} label={`Save ${scratch.title}`} onClick={() => onSaveScratch(scratch)} />}
+                            <RowAction icon={X} label={`Discard ${scratch.title}`} onClick={() => onDeleteScratch?.(scratch)} />
+                            <RowAction
+                              icon={Ellipsis}
+                              label={`Actions for ${scratch.title}`}
+                              onClick={(e) => setScratchMenu({ scratch, top: e.clientY, left: e.clientX })}
+                            />
+                          </>
+                        )}
+                      </TreeView.TrailingVisual>
+                    </TreeView.Item>
+                  );
+                })}
                 {(scratches?.length ?? 0) > RECENT_SCRATCHES && (
                   <li role="treeitem">
                     <div
                       onClick={onShowAllScratches}
-                      className="flex h-7 cursor-pointer items-center rounded-md pl-2 text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      className="flex h-[22px] cursor-pointer items-center pl-2 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                     >
-                      Show all {(scripts?.length ?? 0) + (scratches?.length ?? 0)}…
+                      Show all {scriptCount}…
                     </div>
                   </li>
                 )}
@@ -550,12 +653,11 @@ export function Sidebar({
         {/* Your scripts and the API's catalog are two different lists, and two
             rows can carry the same name across the seam. A rule keeps nobody
             reading them as one. */}
-        {(hasScripts || hasScratches) && apps.length > 0 && <div className="mx-[-4px] mt-3 h-px bg-border" />}
-        {apps.map((app, appIndex) => {
+        {(hasScripts || hasScratches) && apps.length > 0 && <div className="my-1 h-px bg-border" />}
+        {apps.map((app) => {
           const appName = app.configuration.name;
           const isExpanded = expandedApps.has(appName);
-          const showAppHeader = true;
-          const showTopMargin = appIndex > 0 || hasScripts || hasScratches;
+          const active = hoveredApp === appName || appMenu?.appName === appName;
 
           return (
             <nav
@@ -565,48 +667,32 @@ export function Sidebar({
                 else elementRefs.current.delete(appName);
               }}
               aria-label="Services and methods"
-              style={{ marginTop: showTopMargin ? 12 : 0 }}
             >
-              {showAppHeader && (
-                <div
-                  className={cn(
-                    "-ml-3 flex h-7 cursor-pointer select-none items-center justify-between rounded-md px-1 text-xs font-bold text-muted-foreground",
-                    (hoveredApp === appName || appMenu?.appName === appName) && "bg-accent",
+              {/* The app keeps its icon: it is the one place in the tree where
+                  the glyph says something the indent can't — gRPC or OpenAPI or
+                  Markdown. Everything below repeats itself, so it goes. */}
+              <div
+                className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
+                onMouseEnter={() => setHoveredApp(appName)}
+                onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
+                onClick={() => toggleAppExpanded(appName)}
+                onContextMenu={(e: React.MouseEvent) => {
+                  e.preventDefault();
+                  setAppMenu({ appName, top: e.clientY, left: e.clientX });
+                }}
+              >
+                <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                <AppTypeIcon type={appType(app.configuration)} size={13} />
+                <span className="truncate">{appName}</span>
+                <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
+                <span className="ml-auto flex w-6 shrink-0 items-center justify-center">
+                  {active && (
+                    <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
                   )}
-                  onMouseEnter={() => setHoveredApp(appName)}
-                  onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
-                  onClick={() => toggleAppExpanded(appName)}
-                  onContextMenu={(e: React.MouseEvent) => {
-                    e.preventDefault();
-                    setAppMenu({ appName, top: e.clientY, left: e.clientX });
-                  }}
-                >
-                  <span className="flex items-center gap-0.5">
-                    <span className={cn("inline-flex text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")}>
-                      <ChevronRight size={16} />
-                    </span>
-                    <AppTypeIcon type={appType(app.configuration)} />
-                    <span className="ml-1">{appName}</span>
-                    <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
-                  </span>
-                  {(hoveredApp === appName || appMenu?.appName === appName) && (
-                    <IconButton
-                      size="xs"
-                      variant="ghost"
-                      tooltip={false}
-                      aria-label={`Actions for ${appName}`}
-                      icon={Ellipsis}
-                      style={{ minHeight: 0, minWidth: 0 }}
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setAppMenu({ appName, top: e.clientY, left: e.clientX });
-                      }}
-                    />
-                  )}
-                </div>
-              )}
-              {(isExpanded || !showAppHeader) && (
-                <TreeView aria-label="Services and methods">
+                </span>
+              </div>
+              {isExpanded && (
+                <TreeView guide aria-label="Services and methods">
                   {app.compilation.status === "running" || app.compilation.status === "pending" ? (
                     <LoadingTreeViewItem />
                   ) : (
@@ -640,7 +726,7 @@ export function Sidebar({
                             }}
                           >
                             {service.name}
-                            <TreeView.SubTree>
+                            <TreeView.SubTree leaf>
                               {service.methods.map((method) => {
                                 const mId = methodId(service, method);
                                 return (
@@ -663,16 +749,10 @@ export function Sidebar({
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. */}
                                       {hoveredMethod === mId && (
-                                        <IconButton
-                                          size="xs"
-                                          variant="ghost"
-                                          aria-label={`Add ${method.name} to the open scratch`}
+                                        <RowAction
                                           icon={PlusIcon}
-                                          style={{ minHeight: 0, minWidth: 0 }}
-                                          onClick={(e: React.MouseEvent) => {
-                                            e.stopPropagation();
-                                            onSelect(method, service, app, "append");
-                                          }}
+                                          label={`Add ${method.name} to the open scratch`}
+                                          onClick={() => onSelect(method, service, app, "append")}
                                         />
                                       )}
                                     </TreeView.TrailingVisual>
@@ -713,10 +793,10 @@ export function Sidebar({
                               if (expanded) scrollIntoView(packageId);
                             }}
                           >
-                            <TreeView.LeadingVisual>
-                              <Package size={16} />
-                            </TreeView.LeadingVisual>
-                            <span className="font-normal text-muted-foreground">{packageName}</span>
+                            {/* No icon: every package row carried the same one,
+                                which is 20px per row spent saying what the guide
+                                already says. */}
+                            <span className="text-muted-foreground">{packageName}</span>
                             <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
                           </TreeView.Item>
                         );
@@ -879,13 +959,13 @@ function AppCompileMarker({ app, onShowCompileLog }: { app: App; onShowCompileLo
       type="button"
       title={label}
       aria-label={`${app.configuration.name}: ${label}. Show compile log`}
-      className={cn("ml-1.5 inline-flex items-center", failed ? "text-destructive" : "text-amber-600 dark:text-amber-400")}
+      className={cn("ml-1 inline-flex shrink-0 items-center", failed ? "text-destructive" : "text-amber-600 dark:text-amber-400")}
       onClick={(e: React.MouseEvent) => {
         e.stopPropagation();
         onShowCompileLog(app.configuration.name);
       }}
     >
-      {failed ? <CircleX size={13} /> : <TriangleAlert size={13} />}
+      {failed ? <CircleX size={12} /> : <TriangleAlert size={12} />}
     </button>
   );
 }
@@ -894,7 +974,7 @@ function LoadingTreeViewItem() {
   return (
     <TreeView.Item id="loading-tree-view-item" expanded={true}>
       Loading...
-      <TreeView.SubTree state="loading" count={3} />
+      <TreeView.SubTree state="loading" count={3} leaf />
     </TreeView.Item>
   );
 }

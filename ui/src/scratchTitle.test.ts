@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { deriveScratchTitle, readCalls, titleParts } from "./scratchTitle";
+import { deriveScratchTitle, proposeFileName, proposeFileNames, readCalls, titleParts } from "./scratchTitle";
 
 const generated = (body: string, names = "TheKajaTheatre") => `import { ${names} } from "theatre/service";\n\n${body}\n`;
 
@@ -99,5 +99,34 @@ describe("titleParts", () => {
   it("leaves a bare name alone", () => {
     expect(titleParts("ListShows")).toEqual({ name: "ListShows" });
     expect(titleParts("ListShows → GetShow")).toEqual({ name: "ListShows → GetShow" });
+  });
+});
+
+describe("proposeFileName", () => {
+  it("takes the name and drops the qualifier, so the section keeps one convention", () => {
+    expect(proposeFileName("GetShow · vera-lune")).toBe("getShow");
+    expect(proposeFileName("Sum · 5, 3")).toBe("sum");
+    expect(proposeFileName("ListShows → GetShow")).toBe("listShows");
+  });
+
+  it("has something to call a scratch that names nothing", () => {
+    expect(proposeFileName("")).toBe("scratch");
+    expect(proposeFileName("· · ·")).toBe("scratch");
+  });
+
+  it("steps past what is already on disk, extension or not", () => {
+    expect(proposeFileName("GetShow", ["getShow.ts"])).toBe("getShow2");
+    expect(proposeFileName("GetShow", ["getShow.ts", "getShow2.ts"])).toBe("getShow3");
+    expect(proposeFileName("GetShow", ["GETSHOW.ts"])).toBe("getShow2");
+  });
+});
+
+describe("proposeFileNames", () => {
+  it("names a whole pile without collisions, so the confirm lists what gets written", () => {
+    expect(proposeFileNames(["GetShow · a", "GetShow · b", "ListShows"])).toEqual(["getShow", "getShow2", "listShows"]);
+  });
+
+  it("counts what is already on disk too", () => {
+    expect(proposeFileNames(["GetShow", "GetShow"], ["getShow.ts"])).toEqual(["getShow2", "getShow3"]);
   });
 });

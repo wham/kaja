@@ -138,6 +138,39 @@ export function titleParts(title: string): { name: string; qualifier?: string } 
   return at === -1 ? { name: title } : { name: title.slice(0, at), qualifier: title.slice(at + 1) };
 }
 
+/**
+ * The filename a script is proposed under. Naming a script and saving it are the
+ * same act, so the derived title decides it and the section converges on one
+ * convention. `taken` settles collisions, which saving the whole pile at once
+ * produces even where saving one at a time wouldn't.
+ */
+export function proposeFileName(title: string, taken: Iterable<string> = []): string {
+  const word =
+    title
+      .replace(/[^A-Za-z0-9]+/g, " ")
+      .trim()
+      .split(" ")[0] || "scratch";
+  const base = word.charAt(0).toLowerCase() + word.slice(1);
+  const used = new Set([...taken].map((name) => name.replace(/\.ts$/, "").toLowerCase()));
+  if (!used.has(base.toLowerCase())) return base;
+  for (let suffix = 2; ; suffix++) {
+    const candidate = `${base}${suffix}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+// Names a whole pile at once, each one disambiguated against what is on disk and
+// against the ones named before it — so the list the confirm shows is the list
+// that gets written.
+export function proposeFileNames(titles: string[], taken: Iterable<string> = []): string[] {
+  const used = [...taken];
+  return titles.map((title) => {
+    const name = proposeFileName(title, used);
+    used.push(name);
+    return name;
+  });
+}
+
 export function deriveScratchTitle(code: string): string | undefined {
   const calls = readCalls(code);
   if (calls.length === 0) return undefined;
