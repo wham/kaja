@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 // protocolVersion is the MCP revision this server implements. When a client
@@ -88,12 +89,19 @@ type Bridge interface {
 	// Catalog returns the most recent services/methods picture, possibly empty
 	// if nothing has compiled yet.
 	Catalog() Catalog
+	// Activity reports that a request started or finished, with the number still
+	// in flight, so the host can show that an agent is using the server. It is
+	// called for every request but ping, which is a keepalive rather than use.
+	Activity(inFlight int)
 }
 
 // Server is the localhost MCP HTTP handler.
 type Server struct {
 	bridge Bridge
 	token  string
+
+	mu       sync.Mutex
+	inFlight int
 }
 
 // NewServer builds a server. token guards every request via a bearer header;
@@ -151,6 +159,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// An agent's calls arrive in bursts, so what the footer shows is the whole
+	// burst: the request is marked from the moment it lands until it is answered,
+	// and the UI holds the mark a little longer so a fast one is still seen.
+	if req.Method != "ping" {
+		s.activity(1)
+		defer s.activity(-1)
+	}
+
 	// Notifications (no id) get acknowledged with no body.
 	if len(req.ID) == 0 {
 		w.WriteHeader(http.StatusAccepted)
@@ -165,6 +181,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Result = result
 	}
 	writeRPC(w, resp)
+}
+
+func (s *Server) activity(delta int) {
+	s.mu.Lock()
+	s.inFlight += delta
+	inFlight := s.inFlight
+	s.mu.Unlock()
+	s.bridge.Activity(inFlight)
 }
 
 func (s *Server) authorized(r *http.Request) bool {

@@ -27,6 +27,7 @@ interface StatusBarProps {
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
   mcpInfo?: main.MCPInfo;
+  mcpActive?: boolean;
   apps: App[];
   configurationLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
@@ -75,7 +76,11 @@ const mcpClients: McpClient[] = [
 
 // MCPStatus surfaces the localhost MCP endpoint and, per client, the snippet to
 // connect it to an agent. Shown only while the MCP feature preview is on.
-function MCPStatus({ info }: { info: main.MCPInfo }) {
+//
+// `active` is an agent talking to the server right now: the plug goes emerald
+// and a ring pings out of it, which is the one thing in the footer that says
+// something is happening somewhere you aren't looking.
+function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -99,9 +104,24 @@ function MCPStatus({ info }: { info: main.MCPInfo }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <IconButton size="xs" variant="ghost" tooltip={false} icon={Plug} aria-label="MCP server" className={statusBarIconClass} />
-      </PopoverTrigger>
+      <span className="relative inline-flex">
+        {active && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-full border border-emerald-500/70 animate-signal motion-reduce:animate-none motion-reduce:opacity-60"
+          />
+        )}
+        <PopoverTrigger asChild>
+          <IconButton
+            size="xs"
+            variant="ghost"
+            tooltip={false}
+            icon={Plug}
+            aria-label={active ? "MCP server · in use" : "MCP server"}
+            className={cn(statusBarIconClass, active && "text-emerald-600 dark:text-emerald-400")}
+          />
+        </PopoverTrigger>
+      </span>
       <PopoverContent align="end" side="top" className="p-3">
         <div className="flex max-w-[420px] flex-col gap-2">
           <span className="text-xs font-semibold text-foreground">MCP server</span>
@@ -147,6 +167,7 @@ export function StatusBar({
   featurePreviews,
   onToggleFeaturePreview,
   mcpInfo,
+  mcpActive = false,
   apps,
   configurationLoaded,
   onShowCompileLog,
@@ -207,7 +228,7 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex items-center gap-3">
-        {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} />}
+        {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} active={mcpActive} />}
         {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
         <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />

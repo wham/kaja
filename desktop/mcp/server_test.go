@@ -18,6 +18,7 @@ type fakeBridge struct {
 	lastRun  string
 	runErr   error
 	runValue RunResult
+	activity []int // in-flight counts, in the order they were reported
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -144,6 +145,9 @@ func (f *fakeBridge) RunScript(_ context.Context, path, code string) (RunResult,
 	return f.runValue, f.runErr
 }
 func (f *fakeBridge) Catalog() Catalog { return f.catalog }
+func (f *fakeBridge) Activity(inFlight int) {
+	f.activity = append(f.activity, inFlight)
+}
 
 type notFound struct{ path string }
 
@@ -207,6 +211,35 @@ func TestUnauthorized(t *testing.T) {
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong token status = %d, want 401", rec.Code)
+	}
+}
+
+// The footer's activity mark is driven from here: a request lands and the count
+// goes up, and it comes back down once the request has been answered.
+func TestActivity(t *testing.T) {
+	bridge := newFakeBridge()
+	srv := NewServer(bridge, token)
+
+	call(t, srv, "tools/list", nil)
+	if got := bridge.activity; len(got) != 2 || got[0] != 1 || got[1] != 0 {
+		t.Fatalf("activity = %v, want [1 0]", got)
+	}
+
+	// A notification carries no id and is answered with no body, but it is still
+	// an agent talking to the server.
+	bridge.activity = nil
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","method":"notifications/initialized"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	srv.ServeHTTP(httptest.NewRecorder(), req)
+	if got := bridge.activity; len(got) != 2 || got[0] != 1 || got[1] != 0 {
+		t.Fatalf("notification activity = %v, want [1 0]", got)
+	}
+
+	// A ping is a keepalive rather than use, so it lights nothing up.
+	bridge.activity = nil
+	call(t, srv, "ping", nil)
+	if len(bridge.activity) != 0 {
+		t.Fatalf("ping reported activity: %v", bridge.activity)
 	}
 }
 

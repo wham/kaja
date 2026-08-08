@@ -163,6 +163,13 @@ func (a *App) runScript(ctx context.Context, path, code string) (mcp.RunResult, 
 	}
 }
 
+// notifyMCPActivity tells the webview a request is being served, so the footer
+// can show that an agent is using the server. inFlight is zero once the last one
+// has been answered; the UI decides how long the mark lingers after that.
+func (a *App) notifyMCPActivity(inFlight int) {
+	runtime.EventsEmit(a.ctx, "mcp:activity", map[string]int{"inFlight": inFlight})
+}
+
 // notifyScriptsChanged tells the webview an MCP tool changed a script on disk,
 // so an open tab can live-reload its content and the sidebar list stays fresh.
 func (a *App) notifyScriptsChanged(payload map[string]string) {
@@ -320,4 +327,8 @@ func (b mcpBridge) RunScript(ctx context.Context, path, code string) (mcp.RunRes
 
 func (b mcpBridge) Catalog() mcp.Catalog {
 	return b.app.catalog()
+}
+
+func (b mcpBridge) Activity(inFlight int) {
+	b.app.notifyMCPActivity(inFlight)
 }
