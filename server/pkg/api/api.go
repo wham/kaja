@@ -13,6 +13,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/apps/openai"
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
+	"github.com/wham/kaja/v2/pkg/grpc"
 )
 
 type ApiService struct {
@@ -170,6 +171,99 @@ func (s *ApiService) OpenApp(ctx context.Context, req *OpenAppRequest) (*OpenApp
 		Target:   result.Target,
 		Protocol: result.Protocol,
 	}, nil
+}
+
+// AppConnection is how a grpc app reaches its upstream: the credential it sends
+// with every call, and the transport security it uses. Both are read from
+// kaja.json when the call is made rather than held from Open, so replacing a
+// token takes effect on the next call instead of the next compile.
+type AppConnection struct {
+	Metadata map[string]string
+	TLS      grpc.TLSOptions
+}
+
+// AppConnection resolves how the named app connects. The name arrives on the
+// reserved header the client sends with every call; an app that isn't there, or
+// isn't a grpc app, connects the way it always has.
+func (s *ApiService) AppConnection(name string) AppConnection {
+	if name == "" {
+		return AppConnection{}
+	}
+
+	configuration := loadConfigurationFile(s.configurationPath, NewLogger())
+	for _, app := range configuration.Apps {
+		if app.Name != name {
+			continue
+		}
+		appType, parameters := flattenApp(app)
+		if appType != "grpc" {
+			return AppConnection{}
+		}
+		expandAppParameters(parameters, NewResolver(configuration.Variables, s.variableStore), NewLogger())
+		return AppConnection{Metadata: rpc.Metadata(parameters), TLS: rpc.TLS(parameters)}
+	}
+	return AppConnection{}
+}
+
+// InspectGrpc reads the surface a grpc app would be opened with - reflecting the
+// server, or reading the proto directory - without creating the app, so the New
+// gRPC app form can fill itself in from what answered.
+func (s *ApiService) InspectGrpc(ctx context.Context, req *InspectGrpcRequest) (*InspectGrpcResponse, error) {
+	if req.Grpc == nil {
+		return nil, fmt.Errorf("grpc app is required")
+	}
+
+	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Grpc{Grpc: req.Grpc}})
+	expandAppParameters(parameters, s.Variables(), NewLogger())
+
+	server, problem := rpc.Inspect(parameters, func(message string) { slog.Info(message) })
+	if problem != nil {
+		return &InspectGrpcResponse{Problem: &GrpcProblem{
+			Kind:    grpcProblemKind(problem.Kind),
+			Message: problem.Message,
+			Detail:  problem.Detail,
+		}}, nil
+	}
+
+	return &InspectGrpcResponse{Server: describeServer(server)}, nil
+}
+
+var grpcProblemKinds = map[string]GrpcProblemKind{
+	"unreachable":      GrpcProblemKind_GRPC_PROBLEM_UNREACHABLE,
+	"tls":              GrpcProblemKind_GRPC_PROBLEM_TLS,
+	"noReflection":     GrpcProblemKind_GRPC_PROBLEM_NO_REFLECTION,
+	"unauthenticated":  GrpcProblemKind_GRPC_PROBLEM_UNAUTHENTICATED,
+	"permissionDenied": GrpcProblemKind_GRPC_PROBLEM_PERMISSION_DENIED,
+	"noServices":       GrpcProblemKind_GRPC_PROBLEM_NO_SERVICES,
+	"timeout":          GrpcProblemKind_GRPC_PROBLEM_TIMEOUT,
+	"noProtoFiles":     GrpcProblemKind_GRPC_PROBLEM_NO_PROTO_FILES,
+	"protoInvalid":     GrpcProblemKind_GRPC_PROBLEM_PROTO_INVALID,
+	"target":           GrpcProblemKind_GRPC_PROBLEM_TARGET,
+}
+
+func grpcProblemKind(kind string) GrpcProblemKind {
+	return grpcProblemKinds[kind]
+}
+
+func describeServer(server *rpc.Server) *GrpcServer {
+	described := &GrpcServer{
+		Source:            server.Source,
+		Target:            server.Target,
+		Tls:               server.TLS,
+		Reachable:         server.Reachable,
+		MethodCount:       int32(server.MethodCount),
+		ReflectionVersion: server.ReflectionVersion,
+		FileCount:         int32(server.FileCount),
+		ProtoDir:          server.ProtoDir,
+	}
+	for _, service := range server.Services {
+		described.Services = append(described.Services, &GrpcService{
+			Name:                 service.Name,
+			MethodCount:          int32(service.MethodCount),
+			StreamingMethodCount: int32(service.StreamingMethodCount),
+		})
+	}
+	return described
 }
 
 // InspectOpenApi reads an OpenAPI document without creating an app, so the New

@@ -18,9 +18,9 @@ type Proxy struct {
 	client *pkggrpc.Client
 }
 
-func NewProxy(target *url.URL) (*Proxy, error) {
+func NewProxy(target *url.URL, options pkggrpc.TLSOptions) (*Proxy, error) {
 	return &Proxy{
-		client: pkggrpc.NewClient(target),
+		client: pkggrpc.NewClient(target, options),
 	}, nil
 }
 

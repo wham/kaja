@@ -2,7 +2,7 @@ import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import type { IMessageType } from "@protobuf-ts/runtime";
 import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
-import { appHeaders } from "./appTypes";
+import { appHeaders, transportHeaders } from "./appTypes";
 import { MethodCall, MethodCallHeaders } from "./kaja";
 import {
   UPSTREAM_ERROR_TRAILER,
@@ -113,7 +113,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
             // forward. Their ${NAME} references travel unexpanded: the server
             // resolves them, because a variable's value may be one it holds and
             // the browser is not allowed to know.
-            const headers = appHeaders(appRef.configuration);
+            const headers = transportHeaders(appRef.configuration);
             for (const [key, value] of Object.entries(headers)) {
               options.meta["X-Header-" + key] = value;
             }

@@ -3,7 +3,6 @@ package grpc
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +12,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -28,11 +25,13 @@ var (
 )
 
 // sharedConnection returns the cached connection for the given target, dialing
-// (lazily — grpc.NewClient does not block) and caching one on first use.
-func sharedConnection(target string, useTLS bool) (*grpc.ClientConn, error) {
+// (lazily — grpc.NewClient does not block) and caching one on first use. Two
+// apps pointing at one host with different certificates are two connections, so
+// the options are part of the key.
+func sharedConnection(target string, useTLS bool, options TLSOptions) (*grpc.ClientConn, error) {
 	key := target
 	if useTLS {
-		key = "tls\x00" + target
+		key = "tls\x00" + options.key() + "\x00" + target
 	}
 
 	connectionsMu.Lock()
@@ -42,11 +41,9 @@ func sharedConnection(target string, useTLS bool) (*grpc.ClientConn, error) {
 		return conn, nil
 	}
 
-	var creds credentials.TransportCredentials
-	if useTLS {
-		creds = credentials.NewTLS(&tls.Config{})
-	} else {
-		creds = insecure.NewCredentials()
+	creds, err := options.credentials(useTLS)
+	if err != nil {
+		return nil, err
 	}
 
 	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.ForceCodec(&grpcCodec{})))
@@ -82,8 +79,9 @@ func (c *grpcCodec) Name() string {
 
 // Client is a gRPC client that can invoke methods on a target server.
 type Client struct {
-	target string
-	useTLS bool
+	target  string
+	useTLS  bool
+	options TLSOptions
 }
 
 // ShouldUseTLS determines if TLS should be used based on the target URL.
@@ -140,22 +138,25 @@ func ToGRPCTarget(target *url.URL) string {
 	return target.String()
 }
 
-// NewClient creates a new gRPC client for the given target URL.
-func NewClient(target *url.URL) *Client {
+// NewClient creates a new gRPC client for the given target URL. options carry
+// what the URL can't say about the connection; the zero value reads the
+// transport off the URL and verifies against the system roots.
+func NewClient(target *url.URL, options TLSOptions) *Client {
 	return &Client{
-		target: ToGRPCTarget(target),
-		useTLS: ShouldUseTLS(target),
+		target:  ToGRPCTarget(target),
+		useTLS:  options.UseTLS(target),
+		options: options,
 	}
 }
 
 // NewClientFromString creates a new gRPC client from a target string.
 // The target string can be in the form "dns:host:port" or a URL.
-func NewClientFromString(target string) (*Client, error) {
+func NewClientFromString(target string, options TLSOptions) (*Client, error) {
 	parsed, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target URL: %w", err)
 	}
-	return NewClient(parsed), nil
+	return NewClient(parsed, options), nil
 }
 
 // UseTLS returns whether TLS is enabled for this client.
@@ -173,7 +174,7 @@ func (c *Client) Invoke(ctx context.Context, method string, request []byte, head
 		method = "/" + method
 	}
 
-	conn, err := sharedConnection(c.target, c.useTLS)
+	conn, err := sharedConnection(c.target, c.useTLS, c.options)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +217,7 @@ func (c *Client) ServerStream(ctx context.Context, method string, request []byte
 			method = "/" + method
 		}
 
-		conn, err := sharedConnection(c.target, c.useTLS)
+		conn, err := sharedConnection(c.target, c.useTLS, c.options)
 		if err != nil {
 			errc <- err
 			return

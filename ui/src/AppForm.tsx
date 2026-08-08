@@ -7,11 +7,12 @@ import { Input } from "./components/input";
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { AppSurface, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
 import { AppNameField } from "./AppNameField";
+import { GrpcForm } from "./GrpcForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
-import { ConfigurationApp, OpenApiDocument } from "./server/api";
+import { ConfigurationApp } from "./server/api";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
@@ -82,10 +83,20 @@ function createEmptyApp(): ConfigurationApp {
 }
 
 // appToJson renders an app as the on-disk shape: { name, <type>: { ...params, headers } }.
+// A parameter the app doesn't set is left out rather than written as an empty
+// string, because that is what protojson does with it on the way to kaja.json -
+// and a type with a dozen optional parameters would otherwise open as a screen of
+// empty ones.
 function appToJson(app: ConfigurationApp): object {
   const kind = app.app.oneofKind;
-  const variant = kind ? (app.app as Record<string, unknown>)[kind] : undefined;
-  return { name: app.name, ...(kind ? { [kind]: variant ?? {} } : {}) };
+  const variant = (kind ? (app.app as Record<string, unknown>)[kind] : undefined) ?? {};
+  const set = Object.fromEntries(Object.entries(variant as Record<string, unknown>).filter(([, value]) => !isUnset(value)));
+  return { name: app.name, ...(kind ? { [kind]: set } : {}) };
+}
+
+function isUnset(value: unknown): boolean {
+  if (value === "" || value === false || value == null) return true;
+  return typeof value === "object" && Object.keys(value as object).length === 0;
 }
 
 // jsonToApp parses that shape back into a typed app, treating the one key that
@@ -120,8 +131,8 @@ function missingRequiredParameter(type: string, parameters: Record<string, strin
   return undefined;
 }
 
-function operations(count: number): string {
-  return `${count} operation${count === 1 ? "" : "s"}`;
+function surfaceCount(surface: AppSurface, noun: string): string {
+  return `${surface.count} ${noun}${surface.count === 1 ? "" : "s"}`;
 }
 
 interface AdvancedSectionProps {
@@ -209,10 +220,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   // parameter value itself holds the file's text content.
   const [uploadNames, setUploadNames] = useState<Record<string, string>>({});
   const [jsonError, setJsonError] = useState<string | null>(null);
-  // What the OpenAPI form last read, for the receipt in the footer, and whether
-  // it holds enough to create the app.
-  const [openApiDocument, setOpenApiDocument] = useState<OpenApiDocument | undefined>(undefined);
-  const [openApiReady, setOpenApiReady] = useState(false);
+  // What a custom form last read, for the receipt in the footer, and whether it
+  // holds enough to create the app.
+  const [surface, setSurface] = useState<AppSurface | undefined>(undefined);
+  const [customReady, setCustomReady] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoModelRef = useRef<monaco.editor.ITextModel | null>(null);
@@ -238,8 +249,8 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
     setParameters(appParameters(app));
     setHeaders(Object.entries(appHeaders(app)).map(([headerName, value]) => ({ name: headerName, value })));
     setUploadNames({});
-    setOpenApiDocument(undefined);
-    setOpenApiReady(false);
+    setSurface(undefined);
+    setCustomReady(false);
   }, []);
 
   const handleUpload = useCallback((key: string, file: File | undefined) => {
@@ -407,7 +418,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
   const customForm = Boolean(definition?.customForm);
 
   const isValid =
-    editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || openApiReady)) : !jsonError;
+    editMode === "form" ? Boolean(name && type && !missingRequiredParameter(type, parameters) && !duplicateName && (!customForm || customReady)) : !jsonError;
 
   const demo = definition?.demo;
 
@@ -432,22 +443,38 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
           <div className="max-w-[640px] p-6">
             <div className="flex flex-col gap-6">
               {customForm ? (
-                // Keyed by the app being edited: switching apps in the picker
-                // starts the form over rather than reading the next document
-                // behind the previous one's servers and credentials.
-                <OpenApiForm
-                  key={initialData?.name || "__new__"}
-                  name={name}
-                  onNameChange={setName}
-                  duplicateName={duplicateName}
-                  takenNames={takenNames}
-                  parameters={parameters}
-                  onParametersChange={setParameters}
-                  variables={variables}
-                  readOnly={readOnly}
-                  onDocumentChange={setOpenApiDocument}
-                  onReadyChange={setOpenApiReady}
-                />
+                // Keyed by the app being edited: switching apps in the sidebar
+                // starts the form over rather than reading the next server
+                // behind the previous one's transport and credentials.
+                type === "grpc" ? (
+                  <GrpcForm
+                    key={initialData?.name || "__new__"}
+                    name={name}
+                    onNameChange={setName}
+                    duplicateName={duplicateName}
+                    takenNames={takenNames}
+                    parameters={parameters}
+                    onParametersChange={setParameters}
+                    variables={variables}
+                    readOnly={readOnly}
+                    onSurfaceChange={setSurface}
+                    onReadyChange={setCustomReady}
+                  />
+                ) : (
+                  <OpenApiForm
+                    key={initialData?.name || "__new__"}
+                    name={name}
+                    onNameChange={setName}
+                    duplicateName={duplicateName}
+                    takenNames={takenNames}
+                    parameters={parameters}
+                    onParametersChange={setParameters}
+                    variables={variables}
+                    readOnly={readOnly}
+                    onSurfaceChange={setSurface}
+                    onReadyChange={setCustomReady}
+                  />
+                )
               ) : (
                 <>
                   <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
@@ -525,7 +552,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 </>
               )}
 
-              {typeForwardsHeaders(type) && (!customForm || openApiDocument) && (
+              {typeForwardsHeaders(type) && (!customForm || surface) && (
                 <AdvancedSection
                   open={advancedOpen}
                   onOpenChange={setAdvancedOpen}
@@ -545,10 +572,10 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
       <div className="flex items-center justify-between gap-4 border-t border-border p-4">
         {/* The receipt: what clicking the button will add, counted from the document. */}
         <p className="text-xs text-muted-foreground">
-          {openApiDocument && name.trim() && editMode === "form"
+          {surface && name.trim() && editMode === "form"
             ? mode === "edit"
-              ? `${name.trim()} exposes ${operations(openApiDocument.operationCount)}.`
-              : `Adds ${operations(openApiDocument.operationCount)} under ${name.trim()} in the sidebar.`
+              ? `${name.trim()} exposes ${surfaceCount(surface, definition?.surfaceNoun ?? "method")}.`
+              : `Adds ${surfaceCount(surface, definition?.surfaceNoun ?? "method")} under ${name.trim()} in the sidebar.`
             : ""}
         </p>
         <div className="flex shrink-0 gap-2">

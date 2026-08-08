@@ -70,6 +70,89 @@ func (OpenStatus) EnumDescriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{0}
 }
 
+type GrpcProblemKind int32
+
+const (
+	GrpcProblemKind_GRPC_PROBLEM_UNKNOWN GrpcProblemKind = 0
+	// The host couldn't be reached (DNS, TCP).
+	GrpcProblemKind_GRPC_PROBLEM_UNREACHABLE GrpcProblemKind = 1
+	// The TLS handshake failed, which usually means the transport is set the
+	// wrong way round or the certificate isn't trusted.
+	GrpcProblemKind_GRPC_PROBLEM_TLS GrpcProblemKind = 2
+	// The server answered but doesn't serve the reflection API.
+	GrpcProblemKind_GRPC_PROBLEM_NO_REFLECTION GrpcProblemKind = 3
+	// Reflection is there but wants credentials.
+	GrpcProblemKind_GRPC_PROBLEM_UNAUTHENTICATED GrpcProblemKind = 4
+	// Credentials were sent and rejected.
+	GrpcProblemKind_GRPC_PROBLEM_PERMISSION_DENIED GrpcProblemKind = 5
+	// Reflection answered with nothing but its own service.
+	GrpcProblemKind_GRPC_PROBLEM_NO_SERVICES GrpcProblemKind = 6
+	GrpcProblemKind_GRPC_PROBLEM_TIMEOUT     GrpcProblemKind = 7
+	// The proto directory holds no .proto files, or doesn't exist.
+	GrpcProblemKind_GRPC_PROBLEM_NO_PROTO_FILES GrpcProblemKind = 8
+	// The proto files are there but don't compile.
+	GrpcProblemKind_GRPC_PROBLEM_PROTO_INVALID GrpcProblemKind = 9
+	// The URL isn't a usable gRPC target.
+	GrpcProblemKind_GRPC_PROBLEM_TARGET GrpcProblemKind = 10
+)
+
+// Enum value maps for GrpcProblemKind.
+var (
+	GrpcProblemKind_name = map[int32]string{
+		0:  "GRPC_PROBLEM_UNKNOWN",
+		1:  "GRPC_PROBLEM_UNREACHABLE",
+		2:  "GRPC_PROBLEM_TLS",
+		3:  "GRPC_PROBLEM_NO_REFLECTION",
+		4:  "GRPC_PROBLEM_UNAUTHENTICATED",
+		5:  "GRPC_PROBLEM_PERMISSION_DENIED",
+		6:  "GRPC_PROBLEM_NO_SERVICES",
+		7:  "GRPC_PROBLEM_TIMEOUT",
+		8:  "GRPC_PROBLEM_NO_PROTO_FILES",
+		9:  "GRPC_PROBLEM_PROTO_INVALID",
+		10: "GRPC_PROBLEM_TARGET",
+	}
+	GrpcProblemKind_value = map[string]int32{
+		"GRPC_PROBLEM_UNKNOWN":           0,
+		"GRPC_PROBLEM_UNREACHABLE":       1,
+		"GRPC_PROBLEM_TLS":               2,
+		"GRPC_PROBLEM_NO_REFLECTION":     3,
+		"GRPC_PROBLEM_UNAUTHENTICATED":   4,
+		"GRPC_PROBLEM_PERMISSION_DENIED": 5,
+		"GRPC_PROBLEM_NO_SERVICES":       6,
+		"GRPC_PROBLEM_TIMEOUT":           7,
+		"GRPC_PROBLEM_NO_PROTO_FILES":    8,
+		"GRPC_PROBLEM_PROTO_INVALID":     9,
+		"GRPC_PROBLEM_TARGET":            10,
+	}
+)
+
+func (x GrpcProblemKind) Enum() *GrpcProblemKind {
+	p := new(GrpcProblemKind)
+	*p = x
+	return p
+}
+
+func (x GrpcProblemKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GrpcProblemKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_api_proto_enumTypes[1].Descriptor()
+}
+
+func (GrpcProblemKind) Type() protoreflect.EnumType {
+	return &file_proto_api_proto_enumTypes[1]
+}
+
+func (x GrpcProblemKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GrpcProblemKind.Descriptor instead.
+func (GrpcProblemKind) EnumDescriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{1}
+}
+
 type OpenApiProblemKind int32
 
 const (
@@ -125,11 +208,11 @@ func (x OpenApiProblemKind) String() string {
 }
 
 func (OpenApiProblemKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[1].Descriptor()
+	return file_proto_api_proto_enumTypes[2].Descriptor()
 }
 
 func (OpenApiProblemKind) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[1]
+	return &file_proto_api_proto_enumTypes[2]
 }
 
 func (x OpenApiProblemKind) Number() protoreflect.EnumNumber {
@@ -138,7 +221,7 @@ func (x OpenApiProblemKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OpenApiProblemKind.Descriptor instead.
 func (OpenApiProblemKind) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{1}
+	return file_proto_api_proto_rawDescGZIP(), []int{2}
 }
 
 type CompileStatus int32
@@ -177,11 +260,11 @@ func (x CompileStatus) String() string {
 }
 
 func (CompileStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[2].Descriptor()
+	return file_proto_api_proto_enumTypes[3].Descriptor()
 }
 
 func (CompileStatus) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[2]
+	return &file_proto_api_proto_enumTypes[3]
 }
 
 func (x CompileStatus) Number() protoreflect.EnumNumber {
@@ -190,7 +273,7 @@ func (x CompileStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CompileStatus.Descriptor instead.
 func (CompileStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{2}
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
 }
 
 type LogLevel int32
@@ -229,11 +312,11 @@ func (x LogLevel) String() string {
 }
 
 func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[3].Descriptor()
+	return file_proto_api_proto_enumTypes[4].Descriptor()
 }
 
 func (LogLevel) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[3]
+	return &file_proto_api_proto_enumTypes[4]
 }
 
 func (x LogLevel) Number() protoreflect.EnumNumber {
@@ -242,7 +325,7 @@ func (x LogLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogLevel.Descriptor instead.
 func (LogLevel) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
 }
 
 type VariableSource int32
@@ -285,11 +368,11 @@ func (x VariableSource) String() string {
 }
 
 func (VariableSource) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_api_proto_enumTypes[4].Descriptor()
+	return file_proto_api_proto_enumTypes[5].Descriptor()
 }
 
 func (VariableSource) Type() protoreflect.EnumType {
-	return &file_proto_api_proto_enumTypes[4]
+	return &file_proto_api_proto_enumTypes[5]
 }
 
 func (x VariableSource) Number() protoreflect.EnumNumber {
@@ -298,7 +381,7 @@ func (x VariableSource) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use VariableSource.Descriptor instead.
 func (VariableSource) EnumDescriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
 }
 
 type CompileRequest struct {
@@ -494,6 +577,358 @@ func (x *OpenAppResponse) GetProtocol() string {
 	return ""
 }
 
+// InspectGrpc reads the service surface a grpc app *would* be opened with -
+// reflecting the server, or reading the proto directory - without creating the
+// app, so the New gRPC app form can fill itself in from what answered. The app
+// carries the same parameters the app would be opened with, credentials
+// included: a server may well ask for them before it reflects.
+type InspectGrpcRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Grpc          *GrpcApp               `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectGrpcRequest) Reset() {
+	*x = InspectGrpcRequest{}
+	mi := &file_proto_api_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectGrpcRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectGrpcRequest) ProtoMessage() {}
+
+func (x *InspectGrpcRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectGrpcRequest.ProtoReflect.Descriptor instead.
+func (*InspectGrpcRequest) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InspectGrpcRequest) GetGrpc() *GrpcApp {
+	if x != nil {
+		return x.Grpc
+	}
+	return nil
+}
+
+type InspectGrpcResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Set when the surface was read; the form fills itself in from it.
+	Server *GrpcServer `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	// Set when it wasn't; the form shows it in place of the summary.
+	Problem       *GrpcProblem `protobuf:"bytes,2,opt,name=problem,proto3" json:"problem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectGrpcResponse) Reset() {
+	*x = InspectGrpcResponse{}
+	mi := &file_proto_api_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectGrpcResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectGrpcResponse) ProtoMessage() {}
+
+func (x *InspectGrpcResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectGrpcResponse.ProtoReflect.Descriptor instead.
+func (*InspectGrpcResponse) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *InspectGrpcResponse) GetServer() *GrpcServer {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
+func (x *InspectGrpcResponse) GetProblem() *GrpcProblem {
+	if x != nil {
+		return x.Problem
+	}
+	return nil
+}
+
+type GrpcServer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where the surface came from: "reflection" or "proto_dir".
+	Source string `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	// The gRPC target that answered, e.g. "dns:seating.kaja.tools:443". Empty for
+	// the proto_dir source, which reaches no server.
+	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	// Whether the connection that answered used TLS. When the app leaves the
+	// choice to the URL, this is what kaja settled on by trying, and the form
+	// writes it back so the app says outright what it does.
+	Tls         bool           `protobuf:"varint,3,opt,name=tls,proto3" json:"tls,omitempty"`
+	Services    []*GrpcService `protobuf:"bytes,4,rep,name=services,proto3" json:"services,omitempty"`
+	MethodCount int32          `protobuf:"varint,5,opt,name=method_count,json=methodCount,proto3" json:"method_count,omitempty"`
+	// The reflection API the server answered: "v1" or "v1alpha".
+	ReflectionVersion string `protobuf:"bytes,6,opt,name=reflection_version,json=reflectionVersion,proto3" json:"reflection_version,omitempty"`
+	// Proto files read, for the proto_dir source.
+	FileCount int32 `protobuf:"varint,7,opt,name=file_count,json=fileCount,proto3" json:"file_count,omitempty"`
+	// The directory the proto files were read from, resolved against the
+	// workspace, for the proto_dir source.
+	ProtoDir string `protobuf:"bytes,8,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
+	// Whether the server answered at all. Always true for the reflection source,
+	// which is nothing but the server answering; for the proto_dir source it is
+	// the separate question of whether the address is live, which the proto files
+	// can't say and which doesn't stop the app being configured.
+	Reachable     bool `protobuf:"varint,9,opt,name=reachable,proto3" json:"reachable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrpcServer) Reset() {
+	*x = GrpcServer{}
+	mi := &file_proto_api_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrpcServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrpcServer) ProtoMessage() {}
+
+func (x *GrpcServer) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrpcServer.ProtoReflect.Descriptor instead.
+func (*GrpcServer) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GrpcServer) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *GrpcServer) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *GrpcServer) GetTls() bool {
+	if x != nil {
+		return x.Tls
+	}
+	return false
+}
+
+func (x *GrpcServer) GetServices() []*GrpcService {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+func (x *GrpcServer) GetMethodCount() int32 {
+	if x != nil {
+		return x.MethodCount
+	}
+	return 0
+}
+
+func (x *GrpcServer) GetReflectionVersion() string {
+	if x != nil {
+		return x.ReflectionVersion
+	}
+	return ""
+}
+
+func (x *GrpcServer) GetFileCount() int32 {
+	if x != nil {
+		return x.FileCount
+	}
+	return 0
+}
+
+func (x *GrpcServer) GetProtoDir() string {
+	if x != nil {
+		return x.ProtoDir
+	}
+	return ""
+}
+
+func (x *GrpcServer) GetReachable() bool {
+	if x != nil {
+		return x.Reachable
+	}
+	return false
+}
+
+type GrpcService struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Fully qualified name, e.g. "seating.Seating".
+	Name        string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	MethodCount int32  `protobuf:"varint,2,opt,name=method_count,json=methodCount,proto3" json:"method_count,omitempty"`
+	// Methods that stream in either direction. gRPC-Web can't carry them, so on
+	// the web they are listed but can't be called.
+	StreamingMethodCount int32 `protobuf:"varint,3,opt,name=streaming_method_count,json=streamingMethodCount,proto3" json:"streaming_method_count,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GrpcService) Reset() {
+	*x = GrpcService{}
+	mi := &file_proto_api_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrpcService) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrpcService) ProtoMessage() {}
+
+func (x *GrpcService) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrpcService.ProtoReflect.Descriptor instead.
+func (*GrpcService) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GrpcService) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GrpcService) GetMethodCount() int32 {
+	if x != nil {
+		return x.MethodCount
+	}
+	return 0
+}
+
+func (x *GrpcService) GetStreamingMethodCount() int32 {
+	if x != nil {
+		return x.StreamingMethodCount
+	}
+	return 0
+}
+
+// GrpcProblem is a surface that couldn't be read, classified so the form can
+// name the next move instead of printing a raw error.
+type GrpcProblem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  GrpcProblemKind        `protobuf:"varint,1,opt,name=kind,proto3,enum=GrpcProblemKind" json:"kind,omitempty"`
+	// One line, addressed to the user.
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// The underlying transport, reflection or compiler error, verbatim.
+	Detail        string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrpcProblem) Reset() {
+	*x = GrpcProblem{}
+	mi := &file_proto_api_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrpcProblem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrpcProblem) ProtoMessage() {}
+
+func (x *GrpcProblem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_api_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrpcProblem.ProtoReflect.Descriptor instead.
+func (*GrpcProblem) Descriptor() ([]byte, []int) {
+	return file_proto_api_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GrpcProblem) GetKind() GrpcProblemKind {
+	if x != nil {
+		return x.Kind
+	}
+	return GrpcProblemKind_GRPC_PROBLEM_UNKNOWN
+}
+
+func (x *GrpcProblem) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *GrpcProblem) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 // InspectOpenApi reads an OpenAPI document without creating an app, so the New
 // OpenAPI app form can fill itself in from the document: its title and version,
 // the servers it declares, and the security schemes it accepts. The app carries
@@ -508,7 +943,7 @@ type InspectOpenApiRequest struct {
 
 func (x *InspectOpenApiRequest) Reset() {
 	*x = InspectOpenApiRequest{}
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -520,7 +955,7 @@ func (x *InspectOpenApiRequest) String() string {
 func (*InspectOpenApiRequest) ProtoMessage() {}
 
 func (x *InspectOpenApiRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[3]
+	mi := &file_proto_api_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -533,7 +968,7 @@ func (x *InspectOpenApiRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectOpenApiRequest.ProtoReflect.Descriptor instead.
 func (*InspectOpenApiRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{3}
+	return file_proto_api_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *InspectOpenApiRequest) GetOpenapi() *OpenApiApp {
@@ -555,7 +990,7 @@ type InspectOpenApiResponse struct {
 
 func (x *InspectOpenApiResponse) Reset() {
 	*x = InspectOpenApiResponse{}
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -567,7 +1002,7 @@ func (x *InspectOpenApiResponse) String() string {
 func (*InspectOpenApiResponse) ProtoMessage() {}
 
 func (x *InspectOpenApiResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[4]
+	mi := &file_proto_api_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -580,7 +1015,7 @@ func (x *InspectOpenApiResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectOpenApiResponse.ProtoReflect.Descriptor instead.
 func (*InspectOpenApiResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{4}
+	return file_proto_api_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *InspectOpenApiResponse) GetDocument() *OpenApiDocument {
@@ -621,7 +1056,7 @@ type OpenApiDocument struct {
 
 func (x *OpenApiDocument) Reset() {
 	*x = OpenApiDocument{}
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -633,7 +1068,7 @@ func (x *OpenApiDocument) String() string {
 func (*OpenApiDocument) ProtoMessage() {}
 
 func (x *OpenApiDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[5]
+	mi := &file_proto_api_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -646,7 +1081,7 @@ func (x *OpenApiDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiDocument.ProtoReflect.Descriptor instead.
 func (*OpenApiDocument) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{5}
+	return file_proto_api_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OpenApiDocument) GetTitle() string {
@@ -723,7 +1158,7 @@ type OpenApiServer struct {
 
 func (x *OpenApiServer) Reset() {
 	*x = OpenApiServer{}
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +1170,7 @@ func (x *OpenApiServer) String() string {
 func (*OpenApiServer) ProtoMessage() {}
 
 func (x *OpenApiServer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[6]
+	mi := &file_proto_api_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +1183,7 @@ func (x *OpenApiServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiServer.ProtoReflect.Descriptor instead.
 func (*OpenApiServer) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{6}
+	return file_proto_api_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OpenApiServer) GetUrl() string {
@@ -787,7 +1222,7 @@ type OpenApiServerVariable struct {
 
 func (x *OpenApiServerVariable) Reset() {
 	*x = OpenApiServerVariable{}
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -799,7 +1234,7 @@ func (x *OpenApiServerVariable) String() string {
 func (*OpenApiServerVariable) ProtoMessage() {}
 
 func (x *OpenApiServerVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[7]
+	mi := &file_proto_api_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -812,7 +1247,7 @@ func (x *OpenApiServerVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiServerVariable.ProtoReflect.Descriptor instead.
 func (*OpenApiServerVariable) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{7}
+	return file_proto_api_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OpenApiServerVariable) GetName() string {
@@ -870,7 +1305,7 @@ type OpenApiSecurityScheme struct {
 
 func (x *OpenApiSecurityScheme) Reset() {
 	*x = OpenApiSecurityScheme{}
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -882,7 +1317,7 @@ func (x *OpenApiSecurityScheme) String() string {
 func (*OpenApiSecurityScheme) ProtoMessage() {}
 
 func (x *OpenApiSecurityScheme) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[8]
+	mi := &file_proto_api_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -895,7 +1330,7 @@ func (x *OpenApiSecurityScheme) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiSecurityScheme.ProtoReflect.Descriptor instead.
 func (*OpenApiSecurityScheme) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{8}
+	return file_proto_api_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *OpenApiSecurityScheme) GetKey() string {
@@ -983,7 +1418,7 @@ type OpenApiProblem struct {
 
 func (x *OpenApiProblem) Reset() {
 	*x = OpenApiProblem{}
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -995,7 +1430,7 @@ func (x *OpenApiProblem) String() string {
 func (*OpenApiProblem) ProtoMessage() {}
 
 func (x *OpenApiProblem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[9]
+	mi := &file_proto_api_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1008,7 +1443,7 @@ func (x *OpenApiProblem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiProblem.ProtoReflect.Descriptor instead.
 func (*OpenApiProblem) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{9}
+	return file_proto_api_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *OpenApiProblem) GetKind() OpenApiProblemKind {
@@ -1044,7 +1479,7 @@ type CompileResponse struct {
 
 func (x *CompileResponse) Reset() {
 	*x = CompileResponse{}
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1056,7 +1491,7 @@ func (x *CompileResponse) String() string {
 func (*CompileResponse) ProtoMessage() {}
 
 func (x *CompileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[10]
+	mi := &file_proto_api_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1069,7 +1504,7 @@ func (x *CompileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompileResponse.ProtoReflect.Descriptor instead.
 func (*CompileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{10}
+	return file_proto_api_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CompileResponse) GetStatus() CompileStatus {
@@ -1110,7 +1545,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1122,7 +1557,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[11]
+	mi := &file_proto_api_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1135,7 +1570,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{11}
+	return file_proto_api_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Log) GetLevel() LogLevel {
@@ -1162,7 +1597,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1609,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[12]
+	mi := &file_proto_api_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1622,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{12}
+	return file_proto_api_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Source) GetPath() string {
@@ -1212,7 +1647,7 @@ type GetConfigurationRequest struct {
 
 func (x *GetConfigurationRequest) Reset() {
 	*x = GetConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1224,7 +1659,7 @@ func (x *GetConfigurationRequest) String() string {
 func (*GetConfigurationRequest) ProtoMessage() {}
 
 func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[13]
+	mi := &file_proto_api_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1237,7 +1672,7 @@ func (x *GetConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{13}
+	return file_proto_api_proto_rawDescGZIP(), []int{18}
 }
 
 type GetConfigurationResponse struct {
@@ -1255,7 +1690,7 @@ type GetConfigurationResponse struct {
 
 func (x *GetConfigurationResponse) Reset() {
 	*x = GetConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1267,7 +1702,7 @@ func (x *GetConfigurationResponse) String() string {
 func (*GetConfigurationResponse) ProtoMessage() {}
 
 func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[14]
+	mi := &file_proto_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1280,7 +1715,7 @@ func (x *GetConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{14}
+	return file_proto_api_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetConfigurationResponse) GetConfiguration() *Configuration {
@@ -1336,7 +1771,7 @@ type Runtime struct {
 
 func (x *Runtime) Reset() {
 	*x = Runtime{}
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1348,7 +1783,7 @@ func (x *Runtime) String() string {
 func (*Runtime) ProtoMessage() {}
 
 func (x *Runtime) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[15]
+	mi := &file_proto_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1361,7 +1796,7 @@ func (x *Runtime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Runtime.ProtoReflect.Descriptor instead.
 func (*Runtime) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{15}
+	return file_proto_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Runtime) GetCanUpdateConfiguration() bool {
@@ -1409,7 +1844,7 @@ type VariableStatus struct {
 
 func (x *VariableStatus) Reset() {
 	*x = VariableStatus{}
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1421,7 +1856,7 @@ func (x *VariableStatus) String() string {
 func (*VariableStatus) ProtoMessage() {}
 
 func (x *VariableStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[16]
+	mi := &file_proto_api_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1434,7 +1869,7 @@ func (x *VariableStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VariableStatus.ProtoReflect.Descriptor instead.
 func (*VariableStatus) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{16}
+	return file_proto_api_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *VariableStatus) GetName() string {
@@ -1470,7 +1905,7 @@ type SetStoredValueRequest struct {
 
 func (x *SetStoredValueRequest) Reset() {
 	*x = SetStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1482,7 +1917,7 @@ func (x *SetStoredValueRequest) String() string {
 func (*SetStoredValueRequest) ProtoMessage() {}
 
 func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[17]
+	mi := &file_proto_api_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1495,7 +1930,7 @@ func (x *SetStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*SetStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{17}
+	return file_proto_api_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SetStoredValueRequest) GetName() string {
@@ -1521,7 +1956,7 @@ type ClearStoredValueRequest struct {
 
 func (x *ClearStoredValueRequest) Reset() {
 	*x = ClearStoredValueRequest{}
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1533,7 +1968,7 @@ func (x *ClearStoredValueRequest) String() string {
 func (*ClearStoredValueRequest) ProtoMessage() {}
 
 func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[18]
+	mi := &file_proto_api_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1546,7 +1981,7 @@ func (x *ClearStoredValueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearStoredValueRequest.ProtoReflect.Descriptor instead.
 func (*ClearStoredValueRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{18}
+	return file_proto_api_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ClearStoredValueRequest) GetName() string {
@@ -1565,7 +2000,7 @@ type StoredValueResponse struct {
 
 func (x *StoredValueResponse) Reset() {
 	*x = StoredValueResponse{}
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1577,7 +2012,7 @@ func (x *StoredValueResponse) String() string {
 func (*StoredValueResponse) ProtoMessage() {}
 
 func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[19]
+	mi := &file_proto_api_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1590,7 +2025,7 @@ func (x *StoredValueResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoredValueResponse.ProtoReflect.Descriptor instead.
 func (*StoredValueResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{19}
+	return file_proto_api_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
@@ -1624,7 +2059,7 @@ type Configuration struct {
 
 func (x *Configuration) Reset() {
 	*x = Configuration{}
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1636,7 +2071,7 @@ func (x *Configuration) String() string {
 func (*Configuration) ProtoMessage() {}
 
 func (x *Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[20]
+	mi := &file_proto_api_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1649,7 +2084,7 @@ func (x *Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Configuration.ProtoReflect.Descriptor instead.
 func (*Configuration) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{20}
+	return file_proto_api_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Configuration) GetPathPrefix() string {
@@ -1694,7 +2129,7 @@ type ConfigurationApp struct {
 
 func (x *ConfigurationApp) Reset() {
 	*x = ConfigurationApp{}
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1706,7 +2141,7 @@ func (x *ConfigurationApp) String() string {
 func (*ConfigurationApp) ProtoMessage() {}
 
 func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[21]
+	mi := &file_proto_api_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1719,7 +2154,7 @@ func (x *ConfigurationApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationApp.ProtoReflect.Descriptor instead.
 func (*ConfigurationApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{21}
+	return file_proto_api_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ConfigurationApp) GetName() string {
@@ -1818,19 +2253,47 @@ func (*ConfigurationApp_Markdown) isConfigurationApp_App() {}
 // GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
 // proto_dir, or from server reflection when reflection is set. headers are
 // forwarded (as metadata) with each request.
+//
+// The credential and the transport are the app's, not the request's: kaja
+// resolves them where it holds them and applies them as it makes the call, so a
+// "${secret}" token is never handed to the browser and Basic's base64 is never
+// something to work out by hand.
 type GrpcApp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	ProtoDir      string                 `protobuf:"bytes,2,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
-	Reflection    bool                   `protobuf:"varint,3,opt,name=reflection,proto3" json:"reflection,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,4,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Url        string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	ProtoDir   string                 `protobuf:"bytes,2,opt,name=proto_dir,json=protoDir,proto3" json:"proto_dir,omitempty"`
+	Reflection bool                   `protobuf:"varint,3,opt,name=reflection,proto3" json:"reflection,omitempty"`
+	Headers    map[string]string      `protobuf:"bytes,4,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Whether to speak TLS: "on", "off", or empty to let the URL decide (an
+	// https/grpcs scheme, or port 443).
+	Tls string `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
+	// Accept whatever certificate the server presents. For a development server
+	// with a self-signed certificate, and nothing else.
+	InsecureSkipVerify bool `protobuf:"varint,6,opt,name=insecure_skip_verify,json=insecureSkipVerify,proto3" json:"insecure_skip_verify,omitempty"`
+	// PEM bundle the server's certificate is verified against, instead of the
+	// system roots. Workspace-relative, like proto_dir.
+	CaFile string `protobuf:"bytes,7,opt,name=ca_file,json=caFile,proto3" json:"ca_file,omitempty"`
+	// Client certificate and key kaja presents to the server (mutual TLS).
+	// Workspace-relative, like proto_dir.
+	ClientCertFile string `protobuf:"bytes,8,opt,name=client_cert_file,json=clientCertFile,proto3" json:"client_cert_file,omitempty"`
+	ClientKeyFile  string `protobuf:"bytes,9,opt,name=client_key_file,json=clientKeyFile,proto3" json:"client_key_file,omitempty"`
+	// The credential sent with every call: "bearer", "basic", "apikey", or
+	// "none". Empty means none.
+	Auth string `protobuf:"bytes,10,opt,name=auth,proto3" json:"auth,omitempty"`
+	// The bearer token, or the key for the "apikey" credential.
+	Token    string `protobuf:"bytes,11,opt,name=token,proto3" json:"token,omitempty"`
+	Username string `protobuf:"bytes,12,opt,name=username,proto3" json:"username,omitempty"`
+	Password string `protobuf:"bytes,13,opt,name=password,proto3" json:"password,omitempty"`
+	// Metadata key the "apikey" credential is sent under. Empty means
+	// "x-api-key".
+	ApiKeyName    string `protobuf:"bytes,14,opt,name=api_key_name,json=apiKeyName,proto3" json:"api_key_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GrpcApp) Reset() {
 	*x = GrpcApp{}
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1842,7 +2305,7 @@ func (x *GrpcApp) String() string {
 func (*GrpcApp) ProtoMessage() {}
 
 func (x *GrpcApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[22]
+	mi := &file_proto_api_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1855,7 +2318,7 @@ func (x *GrpcApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrpcApp.ProtoReflect.Descriptor instead.
 func (*GrpcApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{22}
+	return file_proto_api_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GrpcApp) GetUrl() string {
@@ -1886,6 +2349,76 @@ func (x *GrpcApp) GetHeaders() map[string]string {
 	return nil
 }
 
+func (x *GrpcApp) GetTls() string {
+	if x != nil {
+		return x.Tls
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetInsecureSkipVerify() bool {
+	if x != nil {
+		return x.InsecureSkipVerify
+	}
+	return false
+}
+
+func (x *GrpcApp) GetCaFile() string {
+	if x != nil {
+		return x.CaFile
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetClientCertFile() string {
+	if x != nil {
+		return x.ClientCertFile
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetClientKeyFile() string {
+	if x != nil {
+		return x.ClientKeyFile
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetAuth() string {
+	if x != nil {
+		return x.Auth
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *GrpcApp) GetApiKeyName() string {
+	if x != nil {
+		return x.ApiKeyName
+	}
+	return ""
+}
+
 // TwirpApp calls a Twirp service described by a workspace-relative proto_dir.
 type TwirpApp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1898,7 +2431,7 @@ type TwirpApp struct {
 
 func (x *TwirpApp) Reset() {
 	*x = TwirpApp{}
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1910,7 +2443,7 @@ func (x *TwirpApp) String() string {
 func (*TwirpApp) ProtoMessage() {}
 
 func (x *TwirpApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[23]
+	mi := &file_proto_api_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1923,7 +2456,7 @@ func (x *TwirpApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TwirpApp.ProtoReflect.Descriptor instead.
 func (*TwirpApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{23}
+	return file_proto_api_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *TwirpApp) GetUrl() string {
@@ -1975,7 +2508,7 @@ type OpenApiApp struct {
 
 func (x *OpenApiApp) Reset() {
 	*x = OpenApiApp{}
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1987,7 +2520,7 @@ func (x *OpenApiApp) String() string {
 func (*OpenApiApp) ProtoMessage() {}
 
 func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[24]
+	mi := &file_proto_api_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2000,7 +2533,7 @@ func (x *OpenApiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenApiApp.ProtoReflect.Descriptor instead.
 func (*OpenApiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{24}
+	return file_proto_api_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *OpenApiApp) GetSpecUrl() string {
@@ -2085,7 +2618,7 @@ type OpenAiApp struct {
 
 func (x *OpenAiApp) Reset() {
 	*x = OpenAiApp{}
-	mi := &file_proto_api_proto_msgTypes[25]
+	mi := &file_proto_api_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2097,7 +2630,7 @@ func (x *OpenAiApp) String() string {
 func (*OpenAiApp) ProtoMessage() {}
 
 func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[25]
+	mi := &file_proto_api_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2110,7 +2643,7 @@ func (x *OpenAiApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenAiApp.ProtoReflect.Descriptor instead.
 func (*OpenAiApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{25}
+	return file_proto_api_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *OpenAiApp) GetEndpoint() string {
@@ -2145,7 +2678,7 @@ type MarkdownApp struct {
 
 func (x *MarkdownApp) Reset() {
 	*x = MarkdownApp{}
-	mi := &file_proto_api_proto_msgTypes[26]
+	mi := &file_proto_api_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2157,7 +2690,7 @@ func (x *MarkdownApp) String() string {
 func (*MarkdownApp) ProtoMessage() {}
 
 func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[26]
+	mi := &file_proto_api_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2170,7 +2703,7 @@ func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkdownApp.ProtoReflect.Descriptor instead.
 func (*MarkdownApp) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{26}
+	return file_proto_api_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *MarkdownApp) GetFolder() string {
@@ -2189,7 +2722,7 @@ type UpdateConfigurationRequest struct {
 
 func (x *UpdateConfigurationRequest) Reset() {
 	*x = UpdateConfigurationRequest{}
-	mi := &file_proto_api_proto_msgTypes[27]
+	mi := &file_proto_api_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2201,7 +2734,7 @@ func (x *UpdateConfigurationRequest) String() string {
 func (*UpdateConfigurationRequest) ProtoMessage() {}
 
 func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[27]
+	mi := &file_proto_api_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2214,7 +2747,7 @@ func (x *UpdateConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{27}
+	return file_proto_api_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *UpdateConfigurationRequest) GetConfiguration() *Configuration {
@@ -2235,7 +2768,7 @@ type UpdateConfigurationResponse struct {
 
 func (x *UpdateConfigurationResponse) Reset() {
 	*x = UpdateConfigurationResponse{}
-	mi := &file_proto_api_proto_msgTypes[28]
+	mi := &file_proto_api_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2247,7 +2780,7 @@ func (x *UpdateConfigurationResponse) String() string {
 func (*UpdateConfigurationResponse) ProtoMessage() {}
 
 func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_api_proto_msgTypes[28]
+	mi := &file_proto_api_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2260,7 +2793,7 @@ func (x *UpdateConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*UpdateConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_api_proto_rawDescGZIP(), []int{28}
+	return file_proto_api_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *UpdateConfigurationResponse) GetConfiguration() *Configuration {
@@ -2294,7 +2827,32 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x04logs\x18\x02 \x03(\v2\x04.LogR\x04logs\x12\x1b\n" +
 	"\tproto_dir\x18\x03 \x01(\tR\bprotoDir\x12\x16\n" +
 	"\x06target\x18\x04 \x01(\tR\x06target\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\">\n" +
+	"\bprotocol\x18\x05 \x01(\tR\bprotocol\"2\n" +
+	"\x12InspectGrpcRequest\x12\x1c\n" +
+	"\x04grpc\x18\x01 \x01(\v2\b.GrpcAppR\x04grpc\"b\n" +
+	"\x13InspectGrpcResponse\x12#\n" +
+	"\x06server\x18\x01 \x01(\v2\v.GrpcServerR\x06server\x12&\n" +
+	"\aproblem\x18\x02 \x01(\v2\f.GrpcProblemR\aproblem\"\xa4\x02\n" +
+	"\n" +
+	"GrpcServer\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\x12\x10\n" +
+	"\x03tls\x18\x03 \x01(\bR\x03tls\x12(\n" +
+	"\bservices\x18\x04 \x03(\v2\f.GrpcServiceR\bservices\x12!\n" +
+	"\fmethod_count\x18\x05 \x01(\x05R\vmethodCount\x12-\n" +
+	"\x12reflection_version\x18\x06 \x01(\tR\x11reflectionVersion\x12\x1d\n" +
+	"\n" +
+	"file_count\x18\a \x01(\x05R\tfileCount\x12\x1b\n" +
+	"\tproto_dir\x18\b \x01(\tR\bprotoDir\x12\x1c\n" +
+	"\treachable\x18\t \x01(\bR\treachable\"z\n" +
+	"\vGrpcService\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fmethod_count\x18\x02 \x01(\x05R\vmethodCount\x124\n" +
+	"\x16streaming_method_count\x18\x03 \x01(\x05R\x14streamingMethodCount\"e\n" +
+	"\vGrpcProblem\x12$\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x10.GrpcProblemKindR\x04kind\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x16\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\">\n" +
 	"\x15InspectOpenApiRequest\x12%\n" +
 	"\aopenapi\x18\x01 \x01(\v2\v.OpenApiAppR\aopenapi\"q\n" +
 	"\x16InspectOpenApiResponse\x12,\n" +
@@ -2385,14 +2943,26 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x06openai\x18\x05 \x01(\v2\n" +
 	".OpenAiAppH\x00R\x06openai\x12*\n" +
 	"\bmarkdown\x18\x06 \x01(\v2\f.MarkdownAppH\x00R\bmarkdownB\x05\n" +
-	"\x03app\"\xc5\x01\n" +
+	"\x03app\"\xf8\x03\n" +
 	"\aGrpcApp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
 	"\tproto_dir\x18\x02 \x01(\tR\bprotoDir\x12\x1e\n" +
 	"\n" +
 	"reflection\x18\x03 \x01(\bR\n" +
 	"reflection\x12/\n" +
-	"\aheaders\x18\x04 \x03(\v2\x15.GrpcApp.HeadersEntryR\aheaders\x1a:\n" +
+	"\aheaders\x18\x04 \x03(\v2\x15.GrpcApp.HeadersEntryR\aheaders\x12\x10\n" +
+	"\x03tls\x18\x05 \x01(\tR\x03tls\x120\n" +
+	"\x14insecure_skip_verify\x18\x06 \x01(\bR\x12insecureSkipVerify\x12\x17\n" +
+	"\aca_file\x18\a \x01(\tR\x06caFile\x12(\n" +
+	"\x10client_cert_file\x18\b \x01(\tR\x0eclientCertFile\x12&\n" +
+	"\x0fclient_key_file\x18\t \x01(\tR\rclientKeyFile\x12\x12\n" +
+	"\x04auth\x18\n" +
+	" \x01(\tR\x04auth\x12\x14\n" +
+	"\x05token\x18\v \x01(\tR\x05token\x12\x1a\n" +
+	"\busername\x18\f \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\r \x01(\tR\bpassword\x12 \n" +
+	"\fapi_key_name\x18\x0e \x01(\tR\n" +
+	"apiKeyName\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa7\x01\n" +
@@ -2437,7 +3007,20 @@ const file_proto_api_proto_rawDesc = "" +
 	"OpenStatus\x12\x17\n" +
 	"\x13OPEN_STATUS_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eOPEN_STATUS_OK\x10\x01\x12\x15\n" +
-	"\x11OPEN_STATUS_ERROR\x10\x02*\x97\x02\n" +
+	"\x11OPEN_STATUS_ERROR\x10\x02*\xd7\x02\n" +
+	"\x0fGrpcProblemKind\x12\x18\n" +
+	"\x14GRPC_PROBLEM_UNKNOWN\x10\x00\x12\x1c\n" +
+	"\x18GRPC_PROBLEM_UNREACHABLE\x10\x01\x12\x14\n" +
+	"\x10GRPC_PROBLEM_TLS\x10\x02\x12\x1e\n" +
+	"\x1aGRPC_PROBLEM_NO_REFLECTION\x10\x03\x12 \n" +
+	"\x1cGRPC_PROBLEM_UNAUTHENTICATED\x10\x04\x12\"\n" +
+	"\x1eGRPC_PROBLEM_PERMISSION_DENIED\x10\x05\x12\x1c\n" +
+	"\x18GRPC_PROBLEM_NO_SERVICES\x10\x06\x12\x18\n" +
+	"\x14GRPC_PROBLEM_TIMEOUT\x10\a\x12\x1f\n" +
+	"\x1bGRPC_PROBLEM_NO_PROTO_FILES\x10\b\x12\x1e\n" +
+	"\x1aGRPC_PROBLEM_PROTO_INVALID\x10\t\x12\x17\n" +
+	"\x13GRPC_PROBLEM_TARGET\x10\n" +
+	"*\x97\x02\n" +
 	"\x12OpenApiProblemKind\x12\x1c\n" +
 	"\x18OPEN_API_PROBLEM_UNKNOWN\x10\x00\x12 \n" +
 	"\x1cOPEN_API_PROBLEM_UNREACHABLE\x10\x01\x12!\n" +
@@ -2463,11 +3046,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x15VARIABLE_SOURCE_UNSET\x10\x00\x12\x18\n" +
 	"\x14VARIABLE_SOURCE_FILE\x10\x01\x12\x1c\n" +
 	"\x18VARIABLE_SOURCE_KEYCHAIN\x10\x02\x12\x1f\n" +
-	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xc3\x03\n" +
+	"\x1bVARIABLE_SOURCE_ENVIRONMENT\x10\x032\xfd\x03\n" +
 	"\x03Api\x12,\n" +
 	"\aCompile\x12\x0f.CompileRequest\x1a\x10.CompileResponse\x12,\n" +
 	"\aOpenApp\x12\x0f.OpenAppRequest\x1a\x10.OpenAppResponse\x12A\n" +
-	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x12G\n" +
+	"\x0eInspectOpenApi\x12\x16.InspectOpenApiRequest\x1a\x17.InspectOpenApiResponse\x128\n" +
+	"\vInspectGrpc\x12\x13.InspectGrpcRequest\x1a\x14.InspectGrpcResponse\x12G\n" +
 	"\x10GetConfiguration\x12\x18.GetConfigurationRequest\x1a\x19.GetConfigurationResponse\x12P\n" +
 	"\x13UpdateConfiguration\x12\x1b.UpdateConfigurationRequest\x1a\x1c.UpdateConfigurationResponse\x12>\n" +
 	"\x0eSetStoredValue\x12\x16.SetStoredValueRequest\x1a\x14.StoredValueResponse\x12B\n" +
@@ -2485,103 +3069,116 @@ func file_proto_api_proto_rawDescGZIP() []byte {
 	return file_proto_api_proto_rawDescData
 }
 
-var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_proto_api_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_proto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_proto_api_proto_goTypes = []any{
 	(OpenStatus)(0),                     // 0: OpenStatus
-	(OpenApiProblemKind)(0),             // 1: OpenApiProblemKind
-	(CompileStatus)(0),                  // 2: CompileStatus
-	(LogLevel)(0),                       // 3: LogLevel
-	(VariableSource)(0),                 // 4: VariableSource
-	(*CompileRequest)(nil),              // 5: CompileRequest
-	(*OpenAppRequest)(nil),              // 6: OpenAppRequest
-	(*OpenAppResponse)(nil),             // 7: OpenAppResponse
-	(*InspectOpenApiRequest)(nil),       // 8: InspectOpenApiRequest
-	(*InspectOpenApiResponse)(nil),      // 9: InspectOpenApiResponse
-	(*OpenApiDocument)(nil),             // 10: OpenApiDocument
-	(*OpenApiServer)(nil),               // 11: OpenApiServer
-	(*OpenApiServerVariable)(nil),       // 12: OpenApiServerVariable
-	(*OpenApiSecurityScheme)(nil),       // 13: OpenApiSecurityScheme
-	(*OpenApiProblem)(nil),              // 14: OpenApiProblem
-	(*CompileResponse)(nil),             // 15: CompileResponse
-	(*Log)(nil),                         // 16: Log
-	(*Source)(nil),                      // 17: Source
-	(*GetConfigurationRequest)(nil),     // 18: GetConfigurationRequest
-	(*GetConfigurationResponse)(nil),    // 19: GetConfigurationResponse
-	(*Runtime)(nil),                     // 20: Runtime
-	(*VariableStatus)(nil),              // 21: VariableStatus
-	(*SetStoredValueRequest)(nil),       // 22: SetStoredValueRequest
-	(*ClearStoredValueRequest)(nil),     // 23: ClearStoredValueRequest
-	(*StoredValueResponse)(nil),         // 24: StoredValueResponse
-	(*Configuration)(nil),               // 25: Configuration
-	(*ConfigurationApp)(nil),            // 26: ConfigurationApp
-	(*GrpcApp)(nil),                     // 27: GrpcApp
-	(*TwirpApp)(nil),                    // 28: TwirpApp
-	(*OpenApiApp)(nil),                  // 29: OpenApiApp
-	(*OpenAiApp)(nil),                   // 30: OpenAiApp
-	(*MarkdownApp)(nil),                 // 31: MarkdownApp
-	(*UpdateConfigurationRequest)(nil),  // 32: UpdateConfigurationRequest
-	(*UpdateConfigurationResponse)(nil), // 33: UpdateConfigurationResponse
-	nil,                                 // 34: Configuration.VariablesEntry
-	nil,                                 // 35: GrpcApp.HeadersEntry
-	nil,                                 // 36: TwirpApp.HeadersEntry
-	nil,                                 // 37: OpenApiApp.HeadersEntry
-	nil,                                 // 38: OpenAiApp.HeadersEntry
+	(GrpcProblemKind)(0),                // 1: GrpcProblemKind
+	(OpenApiProblemKind)(0),             // 2: OpenApiProblemKind
+	(CompileStatus)(0),                  // 3: CompileStatus
+	(LogLevel)(0),                       // 4: LogLevel
+	(VariableSource)(0),                 // 5: VariableSource
+	(*CompileRequest)(nil),              // 6: CompileRequest
+	(*OpenAppRequest)(nil),              // 7: OpenAppRequest
+	(*OpenAppResponse)(nil),             // 8: OpenAppResponse
+	(*InspectGrpcRequest)(nil),          // 9: InspectGrpcRequest
+	(*InspectGrpcResponse)(nil),         // 10: InspectGrpcResponse
+	(*GrpcServer)(nil),                  // 11: GrpcServer
+	(*GrpcService)(nil),                 // 12: GrpcService
+	(*GrpcProblem)(nil),                 // 13: GrpcProblem
+	(*InspectOpenApiRequest)(nil),       // 14: InspectOpenApiRequest
+	(*InspectOpenApiResponse)(nil),      // 15: InspectOpenApiResponse
+	(*OpenApiDocument)(nil),             // 16: OpenApiDocument
+	(*OpenApiServer)(nil),               // 17: OpenApiServer
+	(*OpenApiServerVariable)(nil),       // 18: OpenApiServerVariable
+	(*OpenApiSecurityScheme)(nil),       // 19: OpenApiSecurityScheme
+	(*OpenApiProblem)(nil),              // 20: OpenApiProblem
+	(*CompileResponse)(nil),             // 21: CompileResponse
+	(*Log)(nil),                         // 22: Log
+	(*Source)(nil),                      // 23: Source
+	(*GetConfigurationRequest)(nil),     // 24: GetConfigurationRequest
+	(*GetConfigurationResponse)(nil),    // 25: GetConfigurationResponse
+	(*Runtime)(nil),                     // 26: Runtime
+	(*VariableStatus)(nil),              // 27: VariableStatus
+	(*SetStoredValueRequest)(nil),       // 28: SetStoredValueRequest
+	(*ClearStoredValueRequest)(nil),     // 29: ClearStoredValueRequest
+	(*StoredValueResponse)(nil),         // 30: StoredValueResponse
+	(*Configuration)(nil),               // 31: Configuration
+	(*ConfigurationApp)(nil),            // 32: ConfigurationApp
+	(*GrpcApp)(nil),                     // 33: GrpcApp
+	(*TwirpApp)(nil),                    // 34: TwirpApp
+	(*OpenApiApp)(nil),                  // 35: OpenApiApp
+	(*OpenAiApp)(nil),                   // 36: OpenAiApp
+	(*MarkdownApp)(nil),                 // 37: MarkdownApp
+	(*UpdateConfigurationRequest)(nil),  // 38: UpdateConfigurationRequest
+	(*UpdateConfigurationResponse)(nil), // 39: UpdateConfigurationResponse
+	nil,                                 // 40: Configuration.VariablesEntry
+	nil,                                 // 41: GrpcApp.HeadersEntry
+	nil,                                 // 42: TwirpApp.HeadersEntry
+	nil,                                 // 43: OpenApiApp.HeadersEntry
+	nil,                                 // 44: OpenAiApp.HeadersEntry
 }
 var file_proto_api_proto_depIdxs = []int32{
-	26, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
+	32, // 0: OpenAppRequest.app:type_name -> ConfigurationApp
 	0,  // 1: OpenAppResponse.status:type_name -> OpenStatus
-	16, // 2: OpenAppResponse.logs:type_name -> Log
-	29, // 3: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
-	10, // 4: InspectOpenApiResponse.document:type_name -> OpenApiDocument
-	14, // 5: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
-	11, // 6: OpenApiDocument.servers:type_name -> OpenApiServer
-	13, // 7: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
-	12, // 8: OpenApiServer.variables:type_name -> OpenApiServerVariable
-	1,  // 9: OpenApiProblem.kind:type_name -> OpenApiProblemKind
-	2,  // 10: CompileResponse.status:type_name -> CompileStatus
-	16, // 11: CompileResponse.logs:type_name -> Log
-	17, // 12: CompileResponse.sources:type_name -> Source
-	3,  // 13: Log.level:type_name -> LogLevel
-	25, // 14: GetConfigurationResponse.configuration:type_name -> Configuration
-	16, // 15: GetConfigurationResponse.logs:type_name -> Log
-	21, // 16: GetConfigurationResponse.variable_status:type_name -> VariableStatus
-	20, // 17: GetConfigurationResponse.runtime:type_name -> Runtime
-	4,  // 18: VariableStatus.source:type_name -> VariableSource
-	21, // 19: StoredValueResponse.variable_status:type_name -> VariableStatus
-	26, // 20: Configuration.apps:type_name -> ConfigurationApp
-	34, // 21: Configuration.variables:type_name -> Configuration.VariablesEntry
-	27, // 22: ConfigurationApp.grpc:type_name -> GrpcApp
-	28, // 23: ConfigurationApp.twirp:type_name -> TwirpApp
-	29, // 24: ConfigurationApp.openapi:type_name -> OpenApiApp
-	30, // 25: ConfigurationApp.openai:type_name -> OpenAiApp
-	31, // 26: ConfigurationApp.markdown:type_name -> MarkdownApp
-	35, // 27: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
-	36, // 28: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
-	37, // 29: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
-	38, // 30: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
-	25, // 31: UpdateConfigurationRequest.configuration:type_name -> Configuration
-	25, // 32: UpdateConfigurationResponse.configuration:type_name -> Configuration
-	21, // 33: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
-	5,  // 34: Api.Compile:input_type -> CompileRequest
-	6,  // 35: Api.OpenApp:input_type -> OpenAppRequest
-	8,  // 36: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
-	18, // 37: Api.GetConfiguration:input_type -> GetConfigurationRequest
-	32, // 38: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
-	22, // 39: Api.SetStoredValue:input_type -> SetStoredValueRequest
-	23, // 40: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
-	15, // 41: Api.Compile:output_type -> CompileResponse
-	7,  // 42: Api.OpenApp:output_type -> OpenAppResponse
-	9,  // 43: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
-	19, // 44: Api.GetConfiguration:output_type -> GetConfigurationResponse
-	33, // 45: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
-	24, // 46: Api.SetStoredValue:output_type -> StoredValueResponse
-	24, // 47: Api.ClearStoredValue:output_type -> StoredValueResponse
-	41, // [41:48] is the sub-list for method output_type
-	34, // [34:41] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	22, // 2: OpenAppResponse.logs:type_name -> Log
+	33, // 3: InspectGrpcRequest.grpc:type_name -> GrpcApp
+	11, // 4: InspectGrpcResponse.server:type_name -> GrpcServer
+	13, // 5: InspectGrpcResponse.problem:type_name -> GrpcProblem
+	12, // 6: GrpcServer.services:type_name -> GrpcService
+	1,  // 7: GrpcProblem.kind:type_name -> GrpcProblemKind
+	35, // 8: InspectOpenApiRequest.openapi:type_name -> OpenApiApp
+	16, // 9: InspectOpenApiResponse.document:type_name -> OpenApiDocument
+	20, // 10: InspectOpenApiResponse.problem:type_name -> OpenApiProblem
+	17, // 11: OpenApiDocument.servers:type_name -> OpenApiServer
+	19, // 12: OpenApiDocument.security_schemes:type_name -> OpenApiSecurityScheme
+	18, // 13: OpenApiServer.variables:type_name -> OpenApiServerVariable
+	2,  // 14: OpenApiProblem.kind:type_name -> OpenApiProblemKind
+	3,  // 15: CompileResponse.status:type_name -> CompileStatus
+	22, // 16: CompileResponse.logs:type_name -> Log
+	23, // 17: CompileResponse.sources:type_name -> Source
+	4,  // 18: Log.level:type_name -> LogLevel
+	31, // 19: GetConfigurationResponse.configuration:type_name -> Configuration
+	22, // 20: GetConfigurationResponse.logs:type_name -> Log
+	27, // 21: GetConfigurationResponse.variable_status:type_name -> VariableStatus
+	26, // 22: GetConfigurationResponse.runtime:type_name -> Runtime
+	5,  // 23: VariableStatus.source:type_name -> VariableSource
+	27, // 24: StoredValueResponse.variable_status:type_name -> VariableStatus
+	32, // 25: Configuration.apps:type_name -> ConfigurationApp
+	40, // 26: Configuration.variables:type_name -> Configuration.VariablesEntry
+	33, // 27: ConfigurationApp.grpc:type_name -> GrpcApp
+	34, // 28: ConfigurationApp.twirp:type_name -> TwirpApp
+	35, // 29: ConfigurationApp.openapi:type_name -> OpenApiApp
+	36, // 30: ConfigurationApp.openai:type_name -> OpenAiApp
+	37, // 31: ConfigurationApp.markdown:type_name -> MarkdownApp
+	41, // 32: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
+	42, // 33: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
+	43, // 34: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
+	44, // 35: OpenAiApp.headers:type_name -> OpenAiApp.HeadersEntry
+	31, // 36: UpdateConfigurationRequest.configuration:type_name -> Configuration
+	31, // 37: UpdateConfigurationResponse.configuration:type_name -> Configuration
+	27, // 38: UpdateConfigurationResponse.variable_status:type_name -> VariableStatus
+	6,  // 39: Api.Compile:input_type -> CompileRequest
+	7,  // 40: Api.OpenApp:input_type -> OpenAppRequest
+	14, // 41: Api.InspectOpenApi:input_type -> InspectOpenApiRequest
+	9,  // 42: Api.InspectGrpc:input_type -> InspectGrpcRequest
+	24, // 43: Api.GetConfiguration:input_type -> GetConfigurationRequest
+	38, // 44: Api.UpdateConfiguration:input_type -> UpdateConfigurationRequest
+	28, // 45: Api.SetStoredValue:input_type -> SetStoredValueRequest
+	29, // 46: Api.ClearStoredValue:input_type -> ClearStoredValueRequest
+	21, // 47: Api.Compile:output_type -> CompileResponse
+	8,  // 48: Api.OpenApp:output_type -> OpenAppResponse
+	15, // 49: Api.InspectOpenApi:output_type -> InspectOpenApiResponse
+	10, // 50: Api.InspectGrpc:output_type -> InspectGrpcResponse
+	25, // 51: Api.GetConfiguration:output_type -> GetConfigurationResponse
+	39, // 52: Api.UpdateConfiguration:output_type -> UpdateConfigurationResponse
+	30, // 53: Api.SetStoredValue:output_type -> StoredValueResponse
+	30, // 54: Api.ClearStoredValue:output_type -> StoredValueResponse
+	47, // [47:55] is the sub-list for method output_type
+	39, // [39:47] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_proto_api_proto_init() }
@@ -2589,7 +3186,7 @@ func file_proto_api_proto_init() {
 	if File_proto_api_proto != nil {
 		return
 	}
-	file_proto_api_proto_msgTypes[21].OneofWrappers = []any{
+	file_proto_api_proto_msgTypes[26].OneofWrappers = []any{
 		(*ConfigurationApp_Grpc)(nil),
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
@@ -2601,8 +3198,8 @@ func file_proto_api_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_api_proto_rawDesc), len(file_proto_api_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   34,
+			NumEnums:      6,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
