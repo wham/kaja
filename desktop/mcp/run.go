@@ -70,9 +70,23 @@ func renderRun(label string, result RunResult) string {
 		}
 	}
 
+	if len(result.Blocks) > 0 {
+		b.WriteString("\ncanvas\n")
+		for i, block := range result.Blocks {
+			b.WriteString(renderBlock(i+1, block))
+		}
+	}
+
+	// A script has no return value: the app refuses to run one with a top-level
+	// return (it is a TypeScript error), so a value that arrives here means the
+	// script works over MCP and is a dead file the moment a person opens it.
+	// Saying so is the whole reason the value is carried this far.
 	if len(result.Result) > 0 && string(result.Result) != "null" {
-		b.WriteString("\nreturned\n")
+		b.WriteString("\nthis script returned a value, which does nothing\n")
 		b.WriteString(indent(truncate(string(result.Result)), "  "))
+		b.WriteString("  A script is a body of statements, not a function - Kaja will not run one with a top-level `return`.\n")
+		b.WriteString("  Say what you produced instead: kaja.table(columns).row(...) for a table, kaja.text/kaja.code for prose\n")
+		b.WriteString("  and snippets, console.log for the transcript. describe_type \"kaja\" has the rest.\n")
 	}
 
 	if result.Error != "" {
@@ -114,6 +128,21 @@ func renderCall(index int, call MethodCallLog) string {
 	if len(call.Output) > 0 {
 		fmt.Fprintf(&b, "     response %s\n", truncate(string(call.Output)))
 	}
+	return b.String()
+}
+
+func renderBlock(index int, block BlockLog) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "  %d. %s", index, block.Kind)
+	if block.Kind == "table" {
+		fmt.Fprintf(&b, "  %d column(s) × %d row(s)", len(block.Columns), block.Rows)
+		if len(block.Columns) > 0 {
+			fmt.Fprintf(&b, "  [%s]", strings.Join(block.Columns, ", "))
+		}
+	} else if block.Label != "" {
+		fmt.Fprintf(&b, "  %s", block.Label)
+	}
+	b.WriteString("\n")
 	return b.String()
 }
 

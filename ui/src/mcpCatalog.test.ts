@@ -176,4 +176,19 @@ describe("buildMcpCatalog", () => {
   it("leaves out an app that has not compiled", async () => {
     expect(buildMcpCatalog([await loadTheatre("pending")]).apps).toHaveLength(0);
   });
+
+  // The kaja module is the other half of what a script is written against, and
+  // the half that used to be described from memory in the guide rather than
+  // carried. It rides along even when nothing compiled — how a script says what
+  // it produced doesn't depend on an app.
+  it("carries the kaja runtime declaration, with this workspace's variables", () => {
+    const built = buildMcpCatalog([], ["API_BASE_URL"]);
+
+    expect(built.apps).toHaveLength(0);
+    expect(built.runtime).toContain("export declare const kaja: {");
+    expect(built.runtime).toContain("table(columns: string[], rows?: unknown[][]): Table;");
+    expect(built.runtime).toContain('"API_BASE_URL": string;');
+    // The rule the type system can't state, said where the declaration is read.
+    expect(built.runtime).toContain("a top-level `return` is an error");
+  });
 });

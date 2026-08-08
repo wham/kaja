@@ -11,7 +11,8 @@ write and run those scripts.
    method. Filter with `app`, `service` or `search` on a large API.
 2. `describe_method "Shows.ListShows"` — the declarations of every type that
    method's signature names, whether the call reads or writes, and a call to
-   start from. `describe_type "Show"` looks one type up on its own.
+   start from. `describe_type "Show"` looks one type up on its own, and
+   `describe_type "kaja"` is the runtime a script writes its output with.
 3. `run_script` with `code` to try it, then `create_script` to keep it.
 
 **Everything you are shown is TypeScript**, because that is all a script is: the
@@ -54,24 +55,69 @@ Rules that matter:
 - A rejected call **throws**, which stops the script there. The calls it already
   made are still reported. Wrap a call in `try`/`catch` to keep going.
 
+## A script has no return value
+
+A script is a **body of statements**, not a function. Top-level `await` works;
+top-level `return` is a TypeScript error, and Kaja will not run a script that has
+one — so a script that hands its answer back by returning it is a file the person
+who asked for it cannot press Run on.
+
+**Say what you produced instead.** There are two channels, and a script normally
+uses both:
+
+- `console.log(...)` — the transcript, returned to you by `run_script`.
+- `kaja.text(...)`, `kaja.code(...)`, `kaja.table(...)` — the run's **canvas**,
+  which is what the person watching sees. Anything you would have formatted for
+  a human belongs here.
+
+Never build a table out of Markdown, ASCII or `console.table`. `kaja.table` is
+the table.
+
+```ts
+import { kaja } from "kaja";
+import { Shows } from "theatre/proto/theatre";
+
+const table = kaja.table(["id", "title", "seats"]);
+let pageToken = "";
+do {
+  const page = await Shows.ListShows({ pageSize: 50, pageToken });
+  for (const show of page.items) {
+    table.row(show.id, show.title, show.seatsAvailable);
+  }
+  pageToken = page.nextPageToken;
+} while (pageToken);
+```
+
+Rows land one at a time, so the canvas fills as the loop runs rather than after
+it. `run_script` reports what you drew — each block's kind, and a table's columns
+and row count — so you can check the output landed.
+
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
-  immediately. `kaja.ask()` opens a real dialog — only use it when a person is at
-  the app; over MCP it blocks on a human.
+  immediately. `kaja.ask()` is how a script asks, and it parks the run on a
+  human — only reach for it when a person is at the app.
 - **Top-level `await` works**: the body runs inside an `async` function.
-- `console.log(...)` is the output channel; it is returned to you by
-  `run_script`, along with every RPC the script made.
+- There is no DOM and no file system. What a script reaches, it reaches through
+  the apps in `list_services`.
 - `crypto.randomUUID()` is available, as is `kaja.uuid.v4()`.
 - The `kaja` object is imported with `import { kaja } from "kaja";`.
 
 ## The `kaja` object
 
+**`describe_type "kaja"` returns its full declaration** — the TypeScript the
+editor itself is checked against, with this workspace's own variable names in it.
+What each member is for:
+
+- `kaja.text(text)`, `kaja.code(code, language?)` — draw a line or a snippet on
+  the canvas.
+- `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
+  appends to it.
+- `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.
 - `kaja.uuid.v4(): string` — a random version 4 UUID.
-- `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
   typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire
   shape is a `kind` oneof you must never write by hand and never re-implement as

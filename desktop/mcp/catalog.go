@@ -21,6 +21,27 @@ import (
 // where the TypeScript compiler already is.
 type Catalog struct {
 	Apps []CatalogApp `json:"apps"`
+	// The `kaja` module's declaration — the other half of what a script is
+	// written against, and the half no app declares: the canvas verbs, the
+	// variables this workspace defines, ask, and the JSON builders. It is the
+	// same text the editor backs the import with, so what an agent reads and
+	// what a person sees on hover cannot drift apart.
+	Runtime string `json:"runtime,omitempty"`
+}
+
+// runtimeTypeName is what an agent asks describe_type for to get the runtime
+// declaration. It is not an app's type, so it is answered before the apps are
+// searched; nothing stops an app declaring a type of the same name, and this
+// still wins, because "kaja" means the runtime everywhere else too.
+const runtimeTypeName = "kaja"
+
+// isRuntimeName recognises the ways the runtime gets asked for: by its own name,
+// or by one of its members, since "kaja.table" is what an agent has in hand when
+// it wants to know how to draw one. Either way the answer is the whole module.
+func isRuntimeName(name string) bool {
+	name = strings.TrimSpace(name)
+	head, _, _ := strings.Cut(name, ".")
+	return strings.EqualFold(head, runtimeTypeName)
 }
 
 type CatalogApp struct {

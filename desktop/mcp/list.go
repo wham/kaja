@@ -20,6 +20,9 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 	fmt.Fprintf(&b, "%d app(s), %d service(s), %d method(s).\n", apps, services, methods)
 	b.WriteString("read/write says whether calling the method changes data; a trailing \"?\" means it was inferred from the method name rather than stated by the API.\n")
 	b.WriteString("Call describe_method \"<Service>.<Method>\" for the TypeScript declarations it takes and returns, and a call to start from.\n")
+	if c.Runtime != "" {
+		b.WriteString("A script writes its output with the kaja runtime, which is not one of these: describe_type \"kaja\" for its declaration (canvas output, variables, ask, JSON builders).\n")
+	}
 
 	shown := 0
 	for _, app := range c.Apps {

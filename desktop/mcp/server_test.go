@@ -97,6 +97,12 @@ func newFakeBridge() *fakeBridge {
 					},
 				},
 			},
+			// The kaja module, as the UI hands it over: the same declaration the
+			// editor backs the import with, this workspace's variables and all.
+			Runtime: "// The Kaja runtime, imported as: import { kaja } from \"kaja\";\n" +
+				"export declare const kaja: {\n" +
+				"  variables: {\n    \"API_BASE_URL\": string;\n  };\n" +
+				"  table(columns: string[], rows?: unknown[][]): Table;\n};",
 		},
 	}
 }
@@ -392,6 +398,34 @@ func TestDescribeType(t *testing.T) {
 	contains(t, tool(t, srv, "describe_type", nil), "provide name")
 }
 
+// The kaja object is half of what a script is written against and no app
+// declares it, so it is answered by name rather than searched for - including
+// when the agent has a member in hand rather than the module.
+func TestDescribeTypeAnswersTheRuntime(t *testing.T) {
+	srv := NewServer(newFakeBridge(), token)
+
+	for _, name := range []string{"kaja", "Kaja", "kaja.table"} {
+		contains(t, tool(t, srv, "describe_type", map[string]string{"name": name}),
+			"export declare const kaja: {", "table(columns: string[]", `"API_BASE_URL": string;`)
+	}
+
+	// The index says it is there, since nothing else in the listing would.
+	contains(t, tool(t, srv, "list_services", nil), `describe_type "kaja"`)
+}
+
+// A workspace whose catalog predates the runtime (or arrived without one) still
+// gets the ordinary miss rather than an empty answer.
+func TestDescribeTypeWithoutARuntime(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.catalog.Runtime = ""
+	srv := NewServer(bridge, token)
+
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "kaja"}), "no type")
+	if strings.Contains(tool(t, srv, "list_services", nil), "describe_type \"kaja\"") {
+		t.Errorf("the index pointed at a runtime declaration it does not have")
+	}
+}
+
 func TestDescribeTypeDisambiguates(t *testing.T) {
 	bridge := newFakeBridge()
 	bridge.catalog.Apps[1].Declarations["Show"] = Declaration{Name: "Show", Text: "export interface Show {\n}"}
@@ -477,6 +511,40 @@ func TestRunScriptReport(t *testing.T) {
 	if isErr, _ := resp.Result.(map[string]interface{})["isError"].(bool); !isErr {
 		t.Fatalf("expected isError for empty run_script")
 	}
+}
+
+// What a script drew is the receipt that its output landed - an agent's run has
+// a canvas but nobody looking at it.
+func TestRunScriptReportsWhatItDrew(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.runValue = RunResult{
+		Blocks: []BlockLog{
+			{Kind: "text", Label: "Reconciling 12 accounts"},
+			{Kind: "table", Label: "42 rows", Columns: []string{"id", "name", "status"}, Rows: 42},
+		},
+	}
+	srv := NewServer(bridge, token)
+
+	contains(t, tool(t, srv, "run_script", map[string]string{"code": "kaja.text('x')"}),
+		"canvas",
+		"1. text  Reconciling 12 accounts",
+		"2. table  3 column(s) × 42 row(s)  [id, name, status]",
+	)
+}
+
+// A returned value is carried this far only so the report can correct it: the
+// app refuses to run a script with a top-level return, so a script that answers
+// by returning works here and is a dead file the moment a person opens it.
+func TestRunScriptCorrectsAReturnedValue(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.runValue = RunResult{Result: json.RawMessage(`"| id | name |\n| -- | ---- |"`)}
+	srv := NewServer(bridge, token)
+
+	contains(t, tool(t, srv, "run_script", map[string]string{"code": "return table"}),
+		"returned a value, which does nothing",
+		"will not run one with a top-level `return`",
+		"kaja.table(columns).row(...)",
+	)
 }
 
 func TestEmptyCatalog(t *testing.T) {
