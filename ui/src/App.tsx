@@ -237,8 +237,6 @@ export function App() {
   // Experimental "MCP server" feature (desktop only): exposes script edit/run and
   // the service catalog to an agent over a localhost MCP endpoint.
   const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
-  const previewMcpRef = useRef(previewMcp);
-  previewMcpRef.current = previewMcp;
   const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
   // While an MCP run_script call is in flight, the method calls it makes are
   // collected here so they can be returned to the agent.
@@ -872,15 +870,6 @@ export function App() {
   };
 
   const handlePostCompilationLogic = (updatedApps: AppModel[]) => {
-    // Keep the MCP server's view of callable services in sync with whatever has
-    // compiled so far. Apps are ordinary apps here (they carry an `app`
-    // field), so they show up just like gRPC/Twirp apps. This runs on every
-    // compilation update rather than waiting for all apps, so a slow or
-    // failing app can't block the rest of the catalog.
-    if (isWailsEnvironment() && previewMcpRef.current) {
-      MCPSetCatalog(JSON.stringify(buildMcpCatalog(updatedApps))).catch(() => {});
-    }
-
     // Register the Monaco source models that back script imports like
     // "app/service" for every app that has compiled, regardless of whether the
     // others are done. Gating this on all apps compiling meant a single slow or
@@ -1254,16 +1243,18 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     MCPSetEnabled(previewMcp)
-      .then((info) => {
-        setMcpInfo(info);
-        // Seed the server with the already-compiled apps/apps; otherwise the
-        // catalog stays empty until the next compilation event.
-        if (previewMcp) {
-          MCPSetCatalog(JSON.stringify(buildMcpCatalog(appsRef.current))).catch(() => {});
-        }
-      })
+      .then((info) => setMcpInfo(info))
       .catch((err) => showFileError(`MCP server: ${err}`));
   }, [previewMcp, showFileError]);
+
+  // The catalog follows the apps, not the compiler. Pushing it from the
+  // compilation path meant a change that compiles nothing — deleting an app,
+  // and above all deleting the last one — left the server answering from the
+  // apps that were there before.
+  useEffect(() => {
+    if (!isWailsEnvironment() || !previewMcp) return;
+    MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps))).catch(() => {});
+  }, [apps, previewMcp]);
 
   // Run a script on behalf of the MCP server's run_script tool and report the
   // console output, return value, and the RPCs it made back to the Go side.
