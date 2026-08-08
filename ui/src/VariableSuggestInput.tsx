@@ -4,11 +4,13 @@ import { cn } from "./cn";
 import { environmentReferences, variableKind } from "./variableExpansion";
 
 // variableSummary describes a variable in one line: its value when kaja.json
-// carries it, and where the value comes from when it doesn't.
+// carries it, and where the value comes from when it doesn't. There is no source
+// picker beside this list as there is on a Variables row, so the line has to name
+// the source itself.
 function variableSummary(value: string): string {
   switch (variableKind(value)) {
     case "stored":
-      return "Stored on this machine";
+      return "From the keychain";
     case "environment":
       return "From " + environmentReferences(value).join(", ");
     default:
