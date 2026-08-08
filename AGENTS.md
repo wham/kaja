@@ -41,7 +41,15 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
   a worked-in one is left alone and the call starts a **new** scratch. So
   browsing the tree leaves one scratch behind, not a trail, and work is never
-  silently overwritten. Appending is the deliberate gesture — **⌥click, or the
+  silently overwritten. **A new one is never a copy of one that is already
+  there**: before either of those, `findUntouched` looks for an untouched
+  scratch holding exactly this call, from this app, and **reopens** it — two
+  browsing buffers of the same call are one buffer written twice, identical
+  down to the title and the dim. It is decided before the takeover, which is
+  what would otherwise make the duplicate. Reopening settles nothing (`reopen`
+  only bumps `updatedAt`, so the buffer sits at the top of the list and out of
+  the pruner's reach) — a run or an edit is still what turns a buffer into work.
+  Appending is the deliberate gesture — **⌥click, or the
   `+` on the row** — so a scratch never grows a second call by drifting.
   `appendCall` merges the import lines instead of stacking a second copy, and
   edits the text rather than reprinting it so the author's formatting survives.
