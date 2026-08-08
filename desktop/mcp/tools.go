@@ -100,11 +100,15 @@ func toolDefinitions() []map[string]interface{} {
 			"name": "run_script",
 			"description": "Run a script and return its console output, its return value, and every RPC it made with a typed verdict on each. " +
 				"Provide either path (a saved script) or code (an inline snippet). " +
-				"A rejected call throws, which stops the script at that point - the calls it already made are still reported. " +
+				"Run inline to look, save to act: an inline snippet may read, and a call to a method marked write is refused before it is sent, " +
+				"reported as a REFUSED call. To write, create_script it and run it by path - a file the user can read before it runs is what makes " +
+				"an effect accountable. Inline code is not hidden either way: it runs in a scratch buffer in the user's sidebar, and every run lands " +
+				"in that buffer's console. A rejected call does not throw - it is reported and the script keeps going, with undefined in place of the " +
+				"response. " +
 				runtimeNote,
 			"inputSchema": obj(map[string]interface{}{
-				"path": str("Absolute path of a saved script to run."),
-				"code": str("Inline TypeScript to run instead of a saved script."),
+				"path": str("Absolute path of a saved script to run. Runs with no restriction."),
+				"code": str("Inline TypeScript to run instead of a saved script. May read; a write is refused."),
 			}),
 		},
 	}

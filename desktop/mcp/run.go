@@ -20,6 +20,7 @@ var failureAdvice = map[string]string{
 	"RATE_LIMITED":    "Too many calls. Wait and retry the same request.",
 	"SERVER":          "The service reached an error of its own. Retrying the same request may or may not help; changing its shape will not.",
 	"TRANSPORT":       "The call never completed a valid exchange - a connection or codec failure, not a rejected request. Sending different parameters will not help.",
+	"REFUSED":         "Kaja did not send this call: code that was never saved may read, but not write. Save the script with create_script and run it by path, so the user can read what will happen before it does.",
 	"UNKNOWN":         "The failure carried nothing to classify it by.",
 }
 
@@ -78,7 +79,11 @@ func renderRun(label string, result RunResult) string {
 	if result.Error != "" {
 		b.WriteString("\nthe script stopped here\n")
 		b.WriteString(indent(result.Error, "  "))
-		b.WriteString("  Statements after this point did not run. Wrap a call in try/catch to let a script survive one failing call.\n")
+		// A rejected call does not throw - it is reported above and the script
+		// carries on with undefined in place of the response. So reaching here
+		// means the script itself failed, which is usually that undefined being
+		// read a line later.
+		b.WriteString("  Statements after this point did not run. This is the script failing, not a call being rejected: a rejected call is reported above and does not stop the script.\n")
 	}
 	return b.String()
 }

@@ -22,6 +22,13 @@ export interface Run {
   // is taken: it means an app's generated proto TypeScript.)
   fileId?: string;
   startedAt: number;
+  // Who pressed Run. Absent means a person did. This is the one thing a run's
+  // own header can say that the file's cannot: a console holds runs of both.
+  origin?: "agent";
+  // Whether this run may only read. An effect needs a name, so a run of code
+  // that was never saved — an agent's inline snippet — is refused its writes at
+  // the call boundary. A person pressing Run is never read-only: they are here.
+  readOnly?: boolean;
   // Wall time for the whole script. It differs from the sum of the calls when
   // they run concurrently, which is the number worth stating.
   durationMs?: number;

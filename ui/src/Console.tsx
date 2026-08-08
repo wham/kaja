@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { blockText } from "./blocks";
 import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
@@ -573,6 +573,7 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
           )}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
+          {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (
             <span className={cn("truncate font-mono text-xs", summary.waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
               {summary.detail}
@@ -624,7 +625,7 @@ interface RunRowProps extends RunSummaryLine {
 
 // Memoized so the tick that counts up an in-flight run only re-renders that
 // run's row; every settled row holds a value that no longer changes.
-Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, stale, isSelected, onSelect }: RunRowProps) {
+Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
@@ -633,6 +634,7 @@ Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, wa
     >
       {pending && !waiting ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
+      {agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
       <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
       </span>
@@ -845,6 +847,9 @@ interface RunSummaryLine {
   dotClass: string;
   pending: boolean;
   waiting: boolean;
+  // Whether an agent pressed Run rather than a person. A console holds runs of
+  // both, so it is the run that says it, not the file.
+  agent: boolean;
 }
 
 // The columns every row in the history shares — the pill shows them for the
@@ -866,6 +871,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
     pending: group.inFlight,
     waiting,
+    agent: group.run.origin === "agent",
   };
 }
 

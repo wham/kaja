@@ -25,6 +25,16 @@ export interface BlockUpdate {
 }
 
 /**
+ * Consulted before a call is sent. Returns the failure that stands in for the
+ * call, or undefined to let it through — which is how a run that may only read
+ * refuses a write. It is asked per call rather than per run because the run is
+ * what decides, and a client knows nothing about runs.
+ */
+export interface CallGuard {
+  (methodCall: MethodCall): Error | undefined;
+}
+
+/**
  * A table that is still being filled in. A loop is the reason tables exist here,
  * so rows land one at a time and the canvas repaints as they do — waiting for
  * the loop to finish would make the interesting part the part you can't watch.
@@ -113,8 +123,8 @@ export class Kaja {
   #onAsk: AskRequest;
   #onBlockUpdate: BlockUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onBlockUpdate: BlockUpdate) {
-    this._internal = new KajaInternal(onMethodCallUpdate);
+  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onBlockUpdate: BlockUpdate, onCallGuard?: CallGuard) {
+    this._internal = new KajaInternal(onMethodCallUpdate, onCallGuard);
     this.#onAsk = onAsk;
     this.#onBlockUpdate = onBlockUpdate;
   }
@@ -243,9 +253,16 @@ class KajaInternal {
   // aborted from the editor's Stop button. Undefined when nothing is running.
   abortSignal?: AbortSignal;
   #onMethodCallUpdate: MethodCallUpdate;
+  #onCallGuard?: CallGuard;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onCallGuard?: CallGuard) {
     this.#onMethodCallUpdate = onMethodCallUpdate;
+    this.#onCallGuard = onCallGuard;
+  }
+
+  // The failure to record instead of making the call, if it may not be made.
+  guardCall(methodCall: MethodCall): Error | undefined {
+    return this.#onCallGuard?.(methodCall);
   }
 
   methodCallUpdate(methodCall: MethodCall) {

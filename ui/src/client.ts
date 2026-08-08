@@ -150,6 +150,19 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
       const startedAt = performance.now();
       const elapsed = () => Math.round(performance.now() - startedAt);
 
+      // A run that may only read refuses a write here, before anything is sent.
+      // The refusal is recorded as the call's failure like any other, so the
+      // console gets a row for it — which is the whole point — and, like any
+      // other failure, it doesn't stop the script: a snippet holding three
+      // writes reports all three rather than one per run.
+      const refusal = client.kaja?._internal.guardCall(methodCall);
+      if (refusal) {
+        methodCall.durationMs = elapsed();
+        methodCall.error = serializeError(refusal);
+        client.kaja?._internal.methodCallUpdate(methodCall);
+        return methodCall.output;
+      }
+
       try {
         // The run's abort signal is read here rather than captured with the
         // client, so every call a script makes joins the run that issued it.

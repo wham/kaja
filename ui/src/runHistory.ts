@@ -255,6 +255,17 @@ export function runningFileIds(history: RunHistory): Set<string> {
   return running;
 }
 
+// Of the files that are running, the ones an agent is driving. A spinner says
+// something is happening here; this is what says who started it, which is worth
+// knowing about a file you never pressed Run on.
+export function agentFileIds(history: RunHistory): Set<string> {
+  const agent = new Set<string>();
+  for (const [fileId, file] of Object.entries(history)) {
+    if (file.runs.some((run) => !run.stale && run.durationMs === undefined && run.origin === "agent")) agent.add(fileId);
+  }
+  return agent;
+}
+
 // Whether anything the run started is still in the air, which is what the settle
 // check waits on.
 export function hasCallsInFlight(file: FileConsole, runId: string): boolean {
