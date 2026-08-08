@@ -28,6 +28,85 @@ export function isUsableBaseUrl(value: string): boolean {
   return isAbsoluteHttpUrl(value) && !value.includes("{");
 }
 
+// Words a title carries because it names a document rather than the API inside
+// it. The app name is the folder every generated import starts with, so it keeps
+// only what identifies the API.
+const TITLE_NOISE = new Set([
+  "the",
+  "api",
+  "apis",
+  "rest",
+  "restful",
+  "http",
+  "https",
+  "web",
+  "service",
+  "services",
+  "server",
+  "cloud",
+  "platform",
+  "public",
+  "openapi",
+  "swagger",
+  "spec",
+  "specs",
+  "specification",
+  "docs",
+  "documentation",
+  "reference",
+  "version",
+]);
+
+// deriveAppName turns a document title into a name that reads as one word in an
+// import path: "OpenMeter Cloud API" becomes "OpenMeter", "Swagger Petstore -
+// OpenAPI 3.0" becomes "Petstore". It is only a starting point - the field stays
+// editable, and the import line under it says what the name decides.
+export function deriveAppName(title: string): string {
+  // A subtitle describes the document too, so the title stops at the first one.
+  const head = title.split(/\s+[–—|]\s+|\s+-\s+|:\s+|\s+\(/)[0] ?? "";
+  const words = titleWords(head);
+  const kept = words.filter((word) => !TITLE_NOISE.has(word.toLowerCase()) && !isVersionWord(word));
+  return joinWords(kept.length > 0 ? kept : words) || joinWords(titleWords(title));
+}
+
+// uniqueAppName keeps a derived name a starting point rather than a collision: a
+// second document that names itself the same becomes "Petstore2".
+export function uniqueAppName(name: string, taken: string[]): string {
+  if (!name || !taken.includes(name)) return name;
+  for (let suffix = 2; suffix < 1000; suffix++) {
+    const candidate = `${name}${suffix}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
+  return name;
+}
+
+// Everything that isn't a letter, a digit or an interior dot is a separator, so
+// a title that holds a slash or a quote can't produce a name that breaks the
+// import path it becomes.
+function titleWords(value: string): string[] {
+  return value
+    .split(/[^\p{L}\p{N}.]+/u)
+    .map((word) => word.replace(/^\.+|\.+$/g, ""))
+    .filter(Boolean);
+}
+
+function isVersionWord(word: string): boolean {
+  return /^v?\d+(\.\d+)*$/i.test(word);
+}
+
+// A single word is kept as it is written, so a title that is already a handle
+// ("openmeter", "grpcb.in") survives untouched; several are joined in
+// PascalCase, since a space in the name is a space in every import path.
+function joinWords(words: string[]): string {
+  if (words.length <= 1) return words[0] ?? "";
+  return words.map(capitalizeWord).join("");
+}
+
+function capitalizeWord(word: string): string {
+  const first = word.charAt(0);
+  return first === first.toLowerCase() ? first.toUpperCase() + word.slice(1) : word;
+}
+
 export function defaultVariableValues(server: OpenApiServer): Record<string, string> {
   const values: Record<string, string> = {};
   for (const variable of server.variables) {

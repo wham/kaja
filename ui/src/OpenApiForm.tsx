@@ -23,6 +23,7 @@ import { Input } from "./components/input";
 import { SegmentedControl } from "./components/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Spinner } from "./components/spinner";
+import { AppNameField } from "./AppNameField";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { buildApp, getAppType } from "./appTypes";
 import { cn } from "./cn";
@@ -32,6 +33,7 @@ import {
   credentialPlaceholder,
   defaultSecurityScheme,
   defaultVariableValues,
+  deriveAppName,
   holdsVariableReference,
   isAbsoluteHttpUrl,
   isBasicScheme,
@@ -40,6 +42,7 @@ import {
   resolveServerUrl,
   schemeIdentity,
   schemeLabel,
+  uniqueAppName,
 } from "./openApiDocument";
 import { InspectOpenApiResponse, OpenApiApp, OpenApiDocument, OpenApiProblem, OpenApiProblemKind, OpenApiSecurityScheme } from "./server/api";
 import { getApiClient } from "./server/connection";
@@ -102,6 +105,9 @@ interface OpenApiFormProps {
   name: string;
   onNameChange: (name: string) => void;
   duplicateName: boolean;
+  // Names already in use, so a derived one doesn't land on a collision the user
+  // has to resolve by hand.
+  takenNames: string[];
   parameters: Record<string, string>;
   onParametersChange: (update: (previous: Record<string, string>) => Record<string, string>) => void;
   variables: { [key: string]: string };
@@ -121,6 +127,7 @@ export function OpenApiForm({
   name,
   onNameChange,
   duplicateName,
+  takenNames,
   parameters,
   onParametersChange,
   variables,
@@ -139,7 +146,9 @@ export function OpenApiForm({
   parametersRef.current = parameters;
   // Only the latest read may write to state; anything older is discarded.
   const readIdRef = useRef(0);
-  const nameTouchedRef = useRef(Boolean(name));
+  // Whether the name is the user's rather than the one derived from the title.
+  // State, not a ref, because the caption under the field reads it.
+  const [nameTouched, setNameTouched] = useState(Boolean(name));
   // Whether the source changed because the user typed into it, which is the only
   // change that waits for a pause before reading.
   const typedRef = useRef(false);
@@ -214,12 +223,14 @@ export function OpenApiForm({
 
   useEffect(() => onDocumentChange(document), [document, onDocumentChange]);
 
-  // Take the name from the document's title until the user types one.
+  // Derive the name from the document's title until the user types one. A title
+  // is written for a docs page, so what is offered is the part of it that names
+  // the API - the name is the folder every import starts with, not a heading.
   useEffect(() => {
-    if (document && !nameTouchedRef.current && document.title) {
-      onNameChange(document.title);
-    }
-  }, [document, onNameChange]);
+    if (!document || nameTouched) return;
+    const derived = uniqueAppName(deriveAppName(document.title), takenNames);
+    if (derived) onNameChange(derived);
+  }, [document, nameTouched, takenNames, onNameChange]);
 
   // Restore the server and credentials the app was configured with, matching them
   // against what the document declares now. A choice that has vanished falls back
@@ -407,25 +418,18 @@ export function OpenApiForm({
         <>
           <div className="h-px bg-border" />
 
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="openapi-name">
-              Name
-            </label>
-            <Input
-              id="openapi-name"
-              value={name}
-              disabled={readOnly}
-              onChange={(event) => {
-                nameTouchedRef.current = true;
-                onNameChange(event.target.value);
-              }}
-            />
-            {duplicateName ? (
-              <p className="text-xs text-destructive">An app with this name already exists</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">From the document's title. Rename if you'd rather.</p>
-            )}
-          </div>
+          <AppNameField
+            id="openapi-name"
+            name={name}
+            onNameChange={(value) => {
+              setNameTouched(true);
+              onNameChange(value);
+            }}
+            duplicate={duplicateName}
+            readOnly={readOnly}
+            sourcePath="service"
+            caption={nameTouched ? undefined : "From the document's title. Rename if you'd rather."}
+          />
 
           <ServerSection
             document={document}

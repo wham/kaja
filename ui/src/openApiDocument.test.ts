@@ -5,11 +5,13 @@ import {
   credentialNote,
   defaultSecurityScheme,
   defaultVariableValues,
+  deriveAppName,
   isUsableBaseUrl,
   matchServerUrl,
   resolveServerUrl,
   schemeIdentity,
   schemeLabel,
+  uniqueAppName,
 } from "./openApiDocument";
 
 function server(url: string, variables: Partial<OpenApiServer["variables"][number]>[] = []): OpenApiServer {
@@ -166,5 +168,58 @@ describe("credentialNote", () => {
   // so the note says so rather than implying digest auth works.
   test("is honest about an HTTP scheme kaja doesn't implement", () => {
     expect(credentialNote(scheme({ type: "http", scheme: "Digest" })).text).toContain("challenge handshake");
+  });
+});
+
+describe("deriveAppName", () => {
+  test.each([
+    ["OpenMeter Cloud API", "OpenMeter"],
+    ["Swagger Petstore - OpenAPI 3.0", "Petstore"],
+    ["GitHub v3 REST API", "GitHub"],
+    ["Stripe API", "Stripe"],
+    ["The Movie Database API", "MovieDatabase"],
+    ["Payments API (Beta)", "Payments"],
+    ["Billing: OpenAPI specification", "Billing"],
+    ["theatre", "theatre"],
+    ["grpcb.in", "grpcb.in"],
+  ])("derives %s as %s", (title, expected) => {
+    expect(deriveAppName(title)).toBe(expected);
+  });
+
+  // Two words that both name the API are joined rather than kept apart: a space
+  // in the name is a space in every import path.
+  test("joins what is left in PascalCase", () => {
+    expect(deriveAppName("Twilio Messaging API")).toBe("TwilioMessaging");
+  });
+
+  // A title in another script is words like any other.
+  test("keeps non-Latin words", () => {
+    expect(deriveAppName("Пример API")).toBe("Пример");
+  });
+
+  // Dropping every word would leave nothing to call the app, so the title stands.
+  test("falls back to the title when every word describes the document", () => {
+    expect(deriveAppName("REST API")).toBe("RESTAPI");
+    expect(deriveAppName("")).toBe("");
+  });
+
+  // A character that would break the import path can't survive into the name.
+  test("drops what an import path can't carry", () => {
+    expect(deriveAppName('Acme "Orders"/v2 API')).toBe("AcmeOrders");
+  });
+});
+
+describe("uniqueAppName", () => {
+  test("leaves a free name alone", () => {
+    expect(uniqueAppName("Petstore", ["theatre"])).toBe("Petstore");
+  });
+
+  test("numbers a taken one without introducing a space", () => {
+    expect(uniqueAppName("Petstore", ["Petstore"])).toBe("Petstore2");
+    expect(uniqueAppName("Petstore", ["Petstore", "Petstore2"])).toBe("Petstore3");
+  });
+
+  test("has nothing to do when there is no name yet", () => {
+    expect(uniqueAppName("", ["Petstore"])).toBe("");
   });
 });

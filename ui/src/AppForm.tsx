@@ -6,8 +6,9 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { cn } from "./cn";
 import * as monaco from "monaco-editor";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
+import { AppNameField } from "./AppNameField";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp, OpenApiDocument } from "./server/api";
@@ -400,6 +401,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
 
   const originalName = mode === "edit" ? initialData?.name : undefined;
   const duplicateName = name.trim() !== "" && allApps.some((p) => p.name === name.trim() && p.name !== originalName);
+  const takenNames = useMemo(() => allApps.map((app) => app.name).filter((appName) => appName !== originalName), [allApps, originalName]);
 
   const definition = getAppType(type);
   const customForm = Boolean(definition?.customForm);
@@ -438,6 +440,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                   name={name}
                   onNameChange={setName}
                   duplicateName={duplicateName}
+                  takenNames={takenNames}
                   parameters={parameters}
                   onParametersChange={setParameters}
                   variables={variables}
@@ -447,11 +450,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 />
               ) : (
                 <>
-                  <FormControl>
-                    <FormControl.Label>Name</FormControl.Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="App name" disabled={readOnly} />
-                    {duplicateName && <FormControl.Validation variant="error">An app with this name already exists</FormControl.Validation>}
-                  </FormControl>
+                  <AppNameField id="app-name" name={name} onNameChange={setName} duplicate={duplicateName} readOnly={readOnly} />
 
                   {(definition?.parameters ?? []).map((parameter) => (
                     <FormControl key={parameter.key}>
