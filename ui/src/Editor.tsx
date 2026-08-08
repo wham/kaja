@@ -162,11 +162,51 @@ export declare const kaja: {
 
 registerKajaModule([]);
 
+const KAJA_IMPORT_COMMAND = "kaja.addImport";
+const KAJA_IMPORT_LINE = 'import { kaja } from "kaja";\n';
+
+function hasKajaImport(text: string): boolean {
+  return /from\s+["']kaja["']/.test(text);
+}
+
+// The import is inserted from a command rather than as the completion's
+// `additionalTextEdits`: Monaco places the cursor from the main edit alone, so
+// an edit that adds a line above it leaves the cursor a line behind the word it
+// just completed. Here the edit and the selection it moves are applied together.
+monaco.editor.registerCommand(KAJA_IMPORT_COMMAND, (_accessor, modelUri: string) => {
+  const model = monaco.editor.getModel(monaco.Uri.parse(modelUri));
+  if (!model || hasKajaImport(model.getValue())) {
+    return;
+  }
+
+  const edit = { range: new monaco.Range(1, 1, 1, 1), text: KAJA_IMPORT_LINE };
+  const editor = monaco.editor.getEditors().find((candidate) => candidate.getModel() === model);
+  if (!editor) {
+    model.pushEditOperations(null, [edit], () => null);
+    return;
+  }
+
+  const selections = editor.getSelections() ?? [];
+  editor.executeEdits(
+    KAJA_IMPORT_COMMAND,
+    [edit],
+    selections.map(
+      (selection) =>
+        new monaco.Selection(
+          selection.selectionStartLineNumber + 1,
+          selection.selectionStartColumn,
+          selection.positionLineNumber + 1,
+          selection.positionColumn,
+        ),
+    ),
+  );
+});
+
 // Monaco's TypeScript worker doesn't auto-import from other models, so offer
 // `kaja` as a completion that also inserts the import when it's missing.
 monaco.languages.registerCompletionItemProvider("typescript", {
   provideCompletionItems(model, position) {
-    if (model.uri.path === "/kaja.ts" || /from\s+["']kaja["']/.test(model.getValue())) {
+    if (model.uri.path === "/kaja.ts" || hasKajaImport(model.getValue())) {
       return { suggestions: [] };
     }
     const word = model.getWordUntilPosition(position);
@@ -179,7 +219,7 @@ monaco.languages.registerCompletionItemProvider("typescript", {
           documentation: "The Kaja runtime object (kaja.input, kaja.variables, kaja.ask, kaja.value).",
           insertText: "kaja",
           range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-          additionalTextEdits: [{ range: new monaco.Range(1, 1, 1, 1), text: 'import { kaja } from "kaja";\n' }],
+          command: { id: KAJA_IMPORT_COMMAND, title: 'Add import from "kaja"', arguments: [model.uri.toString()] },
         },
       ],
     };
