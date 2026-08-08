@@ -150,9 +150,11 @@ method in the sidebar is a *template*, not a document — clicking it fills a
 
 ## The tree is an index, so it reads as a list of names
 
-Rows are **22px** at `text-xs`, chevrons 12px — a dense desktop client's sizing,
-not a web page's. The three levers are row height, indent, and how many icons
-repeat per row, and the last one is what buys the horizontal room:
+Rows are **22px** at **13px**, chevrons 12px — a dense desktop client's sizing,
+not a web page's. The row is tight but the names in it are still names, so the
+type sits one step above the `text-xs` of the chrome around it. The three levers
+are row height, indent, and how many icons repeat per row, and the last one is
+what buys the horizontal room:
 
 - **Depth is a hairline, not an icon column.** `TreeView.SubTree` nests inside a
   guide (14px indent, a 1px rule at its left edge). A package and a service

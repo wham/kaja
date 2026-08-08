@@ -61,7 +61,7 @@ const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold 
 
 // A section header is a row of the same height as the rows under it — the tree
 // is an index, and an index reads as a list of names.
-const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-foreground";
+const SECTION_ROW = "flex h-[22px] cursor-pointer select-none items-center gap-1.5 px-2 text-[13px] font-medium text-foreground";
 
 // Small enough to sit inside a 22px row, which is what lets the frequent verbs
 // live on the row instead of behind a menu.
@@ -640,7 +640,7 @@ export function Sidebar({
                   <li role="treeitem">
                     <div
                       onClick={onShowAllScratches}
-                      className="flex h-[22px] cursor-pointer items-center pl-2 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      className="flex h-[22px] cursor-pointer items-center pl-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                     >
                       Show all {scriptCount}…
                     </div>
@@ -939,7 +939,7 @@ function ScratchLabel({ scratch }: { scratch: Scratch }) {
   return (
     <span title={browsing ? "Browsing — the next call you pick takes this over" : undefined} className={cn(browsing && "text-muted-foreground")}>
       {name}
-      {qualifier && <span className="ml-1 font-mono text-xs text-muted-foreground opacity-70">{qualifier}</span>}
+      {qualifier && <span className="ml-1 font-mono text-muted-foreground opacity-70">{qualifier}</span>}
     </span>
   );
 }
