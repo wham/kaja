@@ -41,7 +41,7 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
-import { Block } from "./blocks";
+import { Block, blockLabel } from "./blocks";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
@@ -242,6 +242,9 @@ export function App() {
   // While an MCP run_script call is in flight, the method calls it makes are
   // collected here so they can be returned to the agent.
   const mcpRunCollectorRef = useRef<MethodCall[] | null>(null);
+  // And what it drew, keyed by block id — a table arrives once per row, so the
+  // last state of each block is what the agent is told about.
+  const mcpBlockCollectorRef = useRef<Map<string, Block> | null>(null);
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -445,6 +448,9 @@ export function App() {
   // by row — so they are recorded against their own id rather than appended.
   const onBlockUpdate = useCallback(
     (blockId: string, block: Block) => {
+      // A run made for the MCP server draws on a canvas nobody is watching, so
+      // what it drew is collected here and reported back as the receipt.
+      mcpBlockCollectorRef.current?.set(blockId, block);
       const run = openRun("Script output");
       setHistory((current) => recordBlock(current, run.fileId, run.id, blockId, block, Date.now()));
     },
@@ -1304,19 +1310,21 @@ export function App() {
   // The catalog follows the apps, not the compiler. Pushing it from the
   // compilation path meant a change that compiles nothing — deleting an app,
   // and above all deleting the last one — left the server answering from the
-  // apps that were there before.
+  // apps that were there before. The variables ride along for the same reason
+  // the editor's declaration takes them: they are part of what a script is
+  // written against.
   useEffect(() => {
     if (!isWailsEnvironment() || !previewMcp) return;
-    MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps))).catch(() => {});
-  }, [apps, previewMcp]);
+    const variableNames = Object.keys(configuration?.variables ?? {});
+    MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames))).catch(() => {});
+  }, [apps, previewMcp, configuration?.variables]);
 
   // Run a script on behalf of the MCP server's run_script tool and report the
-  // console output, return value, and the RPCs it made back to the Go side.
+  // console output, what it drew, and the RPCs it made back to the Go side.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string }) => {
-      const report = (result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[] }) =>
-        MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+      const report = (result: McpRunReport) => MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
 
       let source = payload.code;
       if (payload.path) {
@@ -1336,7 +1344,9 @@ export function App() {
       const fileId = payload.path || scratch?.id;
       const collected: MethodCall[] = [];
       mcpRunCollectorRef.current = collected;
-      let result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[] };
+      const drawn = new Map<string, Block>();
+      mcpBlockCollectorRef.current = drawn;
+      let result: McpRunReport;
       const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
         origin: "agent",
       });
@@ -1344,11 +1354,17 @@ export function App() {
         const kaja = kajaRef.current!;
         kaja.input = undefined;
         const captured = await runTaskCaptured(source, kaja, appsRef.current);
-        result = { ...captured, methodCalls: collected.map(toMethodCallLog) };
+        result = { ...captured, methodCalls: collected.map(toMethodCallLog), blocks: [...drawn.values()].map(toBlockLog) };
       } catch (err) {
-        result = { console: [], error: err instanceof Error ? err.message : String(err), methodCalls: collected.map(toMethodCallLog) };
+        result = {
+          console: [],
+          error: err instanceof Error ? err.message : String(err),
+          methodCalls: collected.map(toMethodCallLog),
+          blocks: [...drawn.values()].map(toBlockLog),
+        };
       } finally {
         mcpRunCollectorRef.current = null;
+        mcpBlockCollectorRef.current = null;
         setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active));
       }
       report(result);
@@ -2455,6 +2471,29 @@ export function App() {
       )}
     </>
   );
+}
+
+// What the MCP server is told about a run. `result` is a value the script
+// returned, which is nothing a script is supposed to do — it is carried so the
+// report can correct it rather than swallow it.
+interface McpRunReport {
+  console: string[];
+  result?: unknown;
+  error?: string;
+  methodCalls: unknown[];
+  blocks?: unknown[];
+}
+
+// toBlockLog is the receipt for what a script drew: an agent's run has a canvas
+// but nobody looking at it, so it is told the shape of what it made rather than
+// the contents, which it produced and already has.
+function toBlockLog(block: Block) {
+  return {
+    kind: block.kind,
+    label: blockLabel(block),
+    columns: block.kind === "table" ? block.columns : undefined,
+    rows: block.kind === "table" ? block.rows.length : undefined,
+  };
 }
 
 // toMethodCallLog flattens a MethodCall into the shape the MCP server returns to

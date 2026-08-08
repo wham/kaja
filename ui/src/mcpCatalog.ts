@@ -2,6 +2,7 @@ import { generateMethodEditorCode } from "./appLoader";
 import { App, Method, Service } from "./apps";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
+import { kajaModuleDeclaration } from "./kajaModule";
 
 // What the MCP server answers from. A script is TypeScript against generated
 // TypeScript, so this is TypeScript: the methods a script can call, their
@@ -10,6 +11,11 @@ import { Declaration } from "./declarations";
 // describes protobuf, because nothing a script author writes is protobuf.
 export interface McpCatalog {
   apps: McpApp[];
+  // The `kaja` module's declaration, which is half of what a script is written
+  // against and is not an app's. It travels with the catalog rather than being
+  // restated in the guide, so the agent reads the same text the editor shows —
+  // including this workspace's own variable names.
+  runtime: string;
 }
 
 export interface McpApp {
@@ -48,8 +54,8 @@ export interface McpMethod {
 
 // buildMcpCatalog gathers what the MCP server serves. Only apps that compiled and
 // expose services are listed, so a pending or failed one leaves the rest intact.
-export function buildMcpCatalog(apps: App[]): McpCatalog {
-  const catalog: McpCatalog = { apps: [] };
+export function buildMcpCatalog(apps: App[], variableNames: string[] = []): McpCatalog {
+  const catalog: McpCatalog = { apps: [], runtime: kajaModuleDeclaration(variableNames) };
 
   for (const app of apps) {
     if (app.compilation.status !== "success" || app.services.length === 0) continue;

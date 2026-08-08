@@ -10,8 +10,12 @@ import (
 // The runtime contract every tool description leans on. It is repeated in the
 // guide, but a tool description is the one channel a client cannot drop, so the
 // facts a script would otherwise be discovered by probing live here too.
-const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, `console.log` is the output channel, " +
-	"and imports resolve as `<app>/<path>` (named imports only - `import * as ns` does not resolve). " +
+const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, and imports resolve as `<app>/<path>` " +
+	"(named imports only - `import * as ns` does not resolve). " +
+	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
+	"It says what it produced instead - `console.log(...)` writes the transcript, and `kaja.text(...)`, `kaja.code(...)` and " +
+	"`kaja.table(columns).row(...)` draw on the run's canvas, which is how a script renders a table (never build one out of Markdown). " +
+	"Get the runtime's full declaration with describe_type \"kaja\"; it comes from `import { kaja } from \"kaja\";`. " +
 	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. Use `kaja.ask()` only when a person is at the app."
 
 // toolDefinitions is the static tools/list payload. Schemas are hand-written
@@ -51,9 +55,11 @@ func toolDefinitions() []map[string]interface{} {
 		{
 			"name": "describe_type",
 			"description": "The TypeScript declaration of one type, with everything it references. " +
-				"Use it when describe_method had to cut a large type short, or to look a type up on its own.",
+				"Use it when describe_method had to cut a large type short, or to look a type up on its own. " +
+				"Ask for \"kaja\" to get the runtime object a script writes its output with - the canvas verbs " +
+				"(text, code, table), the user's variables, ask, and the JSON builders.",
 			"inputSchema": obj(map[string]interface{}{
-				"name": str("The type's name, e.g. \"Show\"."),
+				"name": str("The type's name, e.g. \"Show\" - or \"kaja\" for the runtime object."),
 				"app":  str("Which app declares it, when two apps declare the same name."),
 			}, "name"),
 		},
@@ -98,7 +104,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name": "run_script",
-			"description": "Run a script and return its console output, its return value, and every RPC it made with a typed verdict on each. " +
+			"description": "Run a script and return its console output, what it drew on the run's canvas, and every RPC it made with a typed verdict on each. " +
 				"Provide either path (a saved script) or code (an inline snippet). " +
 				"Inline code is not hidden: it runs in a scratch buffer in the user's own sidebar, titled from your code, and every run lands in " +
 				"that buffer's console beside the user's own runs. You get the same buffer each time. A rejected call does not throw - it is " +
@@ -206,12 +212,17 @@ func (s *Server) describeMethod(name string) map[string]interface{} {
 }
 
 // describeType answers for one type by name. Types live per app, so a name two
-// apps both declare is reported rather than guessed at.
+// apps both declare is reported rather than guessed at. "kaja" is the exception:
+// it belongs to no app, and it is what a script writes its output with.
 func (s *Server) describeType(name, appName string) map[string]interface{} {
 	if strings.TrimSpace(name) == "" {
 		return errorToolResult(fmt.Errorf("provide name, e.g. \"Show\""))
 	}
 	catalog := s.bridge.Catalog()
+
+	if isRuntimeName(name) && catalog.Runtime != "" {
+		return textToolResult(catalog.Runtime)
+	}
 
 	var found []CatalogApp
 	for _, app := range catalog.Apps {

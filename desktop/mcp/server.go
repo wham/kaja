@@ -52,12 +52,25 @@ type CallFailure struct {
 	Code    string `json:"code,omitempty"`
 }
 
-// RunResult is the outcome of running a script in the webview.
+// BlockLog is something the script drew on the run's canvas. The agent has the
+// contents already - it produced them - so this is the shape of what it made,
+// which is the receipt that the drawing landed.
+type BlockLog struct {
+	Kind    string   `json:"kind"`
+	Label   string   `json:"label,omitempty"`
+	Columns []string `json:"columns,omitempty"`
+	Rows    int      `json:"rows,omitempty"`
+}
+
+// RunResult is the outcome of running a script in the webview. Result is what a
+// script returned, which is nothing a script is supposed to do - it is carried
+// so the report can say so rather than swallow it (see renderRun).
 type RunResult struct {
 	Console     []string        `json:"console,omitempty"`
 	Result      json.RawMessage `json:"result,omitempty"`
 	Error       string          `json:"error,omitempty"`
 	MethodCalls []MethodCallLog `json:"methodCalls,omitempty"`
+	Blocks      []BlockLog      `json:"blocks,omitempty"`
 }
 
 // Bridge is everything the server needs from the host app. The desktop App
