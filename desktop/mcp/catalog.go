@@ -48,14 +48,8 @@ type CatalogMethod struct {
 	Doc       string `json:"doc,omitempty"`
 	// The HTTP request the method stands for, e.g. "GET /shows", when the app
 	// said so. It is the only thing that states whether calling it reads or writes.
-	HTTP string `json:"http,omitempty"`
-	// Whether calling the method reads or writes, and whether the API stated it or
-	// the name was all there was to go on. Settled in the UI (`methodEffect.ts`),
-	// which is also what refuses a write from a script that was never saved — one
-	// definition, so the word here can't disagree with the rule there.
-	Effect        string `json:"effect,omitempty"`
-	EffectCertain bool   `json:"effectCertain,omitempty"`
-	Streaming     string `json:"streaming,omitempty"`
+	HTTP      string `json:"http,omitempty"`
+	Streaming string `json:"streaming,omitempty"`
 	// The call Kaja writes for this method — the same code clicking it in the tree
 	// puts in a scratch.
 	Example string `json:"example"`
@@ -83,15 +77,20 @@ func (r resolvedMethod) qualified() string {
 }
 
 // readOnly reports whether calling the method only reads, and whether that is
-// known or inferred. The answer is the UI's — an HTTP verb settles it there, and
-// without one the method name is the only signal there is. A catalog that says
-// nothing is treated as an inferred read, which is the honest reading of "this
-// side was never told".
+// known or inferred. An HTTP verb settles it; without one the method name is the
+// only signal there is, and the caller is told so rather than being handed a
+// guess dressed as a fact.
 func (r resolvedMethod) readOnly() (read bool, certain bool) {
-	return r.method.Effect != effectWrite, r.method.EffectCertain
+	if verb, _, ok := strings.Cut(r.method.HTTP, " "); ok {
+		switch strings.ToUpper(verb) {
+		case "GET", "HEAD", "OPTIONS", "TRACE":
+			return true, true
+		default:
+			return false, true
+		}
+	}
+	return readingName(r.method.Name), false
 }
-
-const effectWrite = "write"
 
 // effect is the one-word label a listing shows. A trailing "?" marks a method
 // whose effect was read off its name because nothing else said.
@@ -130,6 +129,28 @@ func (a CatalogApp) declarationsFor(names ...string) []Declaration {
 		queue = append(queue, declaration.References...)
 	}
 	return out
+}
+
+// readingNamePrefixes are the verbs an API uses for a method that only reads. A
+// prefix counts only when it ends the name or is followed by an upper-case
+// letter, so "Get" matches "GetShow" and "Get", not "Generate".
+var readingNamePrefixes = []string{
+	"Get", "List", "Read", "Fetch", "Search", "Query", "Find", "Lookup",
+	"Describe", "Count", "Check", "Watch", "Export", "Download", "Resolve",
+	"Has", "Is", "Show", "View", "Peek", "Stream",
+}
+
+func readingName(name string) bool {
+	for _, prefix := range readingNamePrefixes {
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		rest := name[len(prefix):]
+		if rest == "" || (rest[0] >= 'A' && rest[0] <= 'Z') {
+			return true
+		}
+	}
+	return false
 }
 
 // methods walks every method in the catalog in listing order.

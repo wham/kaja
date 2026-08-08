@@ -20,7 +20,6 @@ var failureAdvice = map[string]string{
 	"RATE_LIMITED":    "Too many calls. Wait and retry the same request.",
 	"SERVER":          "The service reached an error of its own. Retrying the same request may or may not help; changing its shape will not.",
 	"TRANSPORT":       "The call never completed a valid exchange - a connection or codec failure, not a rejected request. Sending different parameters will not help.",
-	"REFUSED":         "Kaja did not send this call: code that was never saved may read, but not write. Save the script with create_script and run it by path, so the user can read what will happen before it does.",
 	"UNKNOWN":         "The failure carried nothing to classify it by.",
 }
 

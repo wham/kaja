@@ -51,7 +51,6 @@ import { methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
-import { refuseWrite } from "./methodEffect";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
@@ -388,7 +387,7 @@ export function App() {
   // a call that arrives with no run open — which gets a run of its own rather
   // than joining one that is over, under the file the last run came from.
   const lastRunFileIdRef = useRef<string | undefined>(undefined);
-  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController, of?: Pick<Run, "origin" | "readOnly">): Run => {
+  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController, of?: Pick<Run, "origin">): Run => {
     const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), ...of };
     currentRunRef.current = run;
     if (fileId) lastRunFileIdRef.current = fileId;
@@ -429,17 +428,6 @@ export function App() {
     },
     [openRun],
   );
-
-  /**
-   * An effect needs a name. A run of code that was never saved — an agent's
-   * inline snippet — may read anything and write nothing: there is no file for
-   * the user to read before it happens, and saving it as a script is exactly
-   * what supplies one. A person pressing Run is never refused; they are here.
-   */
-  const onCallGuard = useCallback((call: MethodCall) => {
-    if (!currentRunRef.current?.readOnly) return undefined;
-    return refuseWrite(call.appName, call.service, call.method);
-  }, []);
 
   // Show a failed script run in the console; a script that dies silently looks
   // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
@@ -493,7 +481,7 @@ export function App() {
 
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onBlockUpdate, onCallGuard);
+    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onBlockUpdate);
   }
 
   // Clearing a file's history clears what is being held of it for next time too;
@@ -1351,7 +1339,6 @@ export function App() {
       let result: { console: string[]; result?: unknown; error?: string; methodCalls: unknown[] };
       const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
         origin: "agent",
-        readOnly: !payload.path,
       });
       try {
         const kaja = kajaRef.current!;

@@ -37,25 +37,21 @@ func newFakeBridge() *fakeBridge {
 						ImportPath: "theatre/proto/theatre",
 						Methods: []CatalogMethod{
 							{
-								Name:          "ListShows",
-								Signature:     "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>",
-								Input:         "ListShowsRequest",
-								Output:        "ListShowsResponse",
-								HTTP:          "GET /shows",
-								Effect:        "read",
-								EffectCertain: true,
-								Doc:           "Lists the shows on sale.",
-								Example:       "import { Shows } from \"theatre/proto/theatre\";\n\nShows.ListShows({\n  pageSize: 0,\n});",
+								Name:      "ListShows",
+								Signature: "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>",
+								Input:     "ListShowsRequest",
+								Output:    "ListShowsResponse",
+								HTTP:      "GET /shows",
+								Doc:       "Lists the shows on sale.",
+								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.ListShows({\n  pageSize: 0,\n});",
 							},
 							{
-								Name:          "CreateShow",
-								Signature:     "CreateShow(input: Show): Promise<Show>",
-								Input:         "Show",
-								Output:        "Show",
-								HTTP:          "POST /shows",
-								Effect:        "write",
-								EffectCertain: true,
-								Example:       "import { Shows } from \"theatre/proto/theatre\";\n\nShows.CreateShow({\n  id: \"\",\n});",
+								Name:      "CreateShow",
+								Signature: "CreateShow(input: Show): Promise<Show>",
+								Input:     "Show",
+								Output:    "Show",
+								HTTP:      "POST /shows",
+								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.CreateShow({\n  id: \"\",\n});",
 							},
 						},
 					}},
@@ -82,15 +78,12 @@ func newFakeBridge() *fakeBridge {
 						Name:       "Seating",
 						ImportPath: "seating/proto/seating",
 						Methods: []CatalogMethod{
-							// No HTTP verb behind a gRPC method, so the effect is read off
-							// the name and says so.
-							{Name: "GetSeatMap", Signature: "GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>", Input: "GetSeatMapRequest", Output: "SeatMap", Effect: "read"},
+							{Name: "GetSeatMap", Signature: "GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>", Input: "GetSeatMapRequest", Output: "SeatMap"},
 							{
 								Name:      "Annotate",
 								Signature: "Annotate(input: AnnotateRequest): Promise<AnnotateResponse>",
 								Input:     "AnnotateRequest",
 								Output:    "AnnotateResponse",
-								Effect:    "write",
 								Example:   "import { kaja } from \"kaja\";\nimport { Seating } from \"seating/proto/seating\";\n\nSeating.Annotate({\n  note: kaja.value(null),\n});",
 							},
 						},
@@ -456,7 +449,6 @@ func TestRunScriptReport(t *testing.T) {
 		MethodCalls: []MethodCallLog{
 			{Service: "Shows", Method: "ListShows", DurationMs: 120, Input: json.RawMessage(`{"pageSize": 1}`), Output: json.RawMessage(`{"items":[]}`)},
 			{Service: "Shows", Method: "GetShow", Failure: &CallFailure{Kind: "TRANSPORT", Message: "decoding response JSON: proto: syntax error"}},
-			{Service: "Shows", Method: "CreateShow", Failure: &CallFailure{Kind: "REFUSED", Message: "theatre/Shows.CreateShow writes, and a script that was never saved may not."}},
 		},
 		Error: "decoding response JSON: proto: syntax error",
 	}
@@ -467,15 +459,12 @@ func TestRunScriptReport(t *testing.T) {
 		t.Fatalf("run did not reach bridge, lastRun = %q", bridge.lastRun)
 	}
 	contains(t, text,
-		"3 call(s), 2 failed",
+		"2 call(s), 1 failed",
 		"hi",
 		"1. Shows.ListShows  ok  120 ms",
 		// The failure kind is what tells a caller not to retry with other values.
 		"2. Shows.GetShow  TRANSPORT",
 		"Sending different parameters will not help.",
-		// A write Kaja never sent, and the one thing to do about it.
-		"3. Shows.CreateShow  REFUSED",
-		"Save the script with create_script and run it by path",
 		// A script that stopped says so, rather than looking like it finished.
 		"the script stopped here",
 		"This is the script failing, not a call being rejected",
@@ -527,6 +516,18 @@ func TestUnknownMethod(t *testing.T) {
 	resp := call(t, srv, "bogus/method", nil)
 	if resp.Error == nil || resp.Error.Code != codeMethodNotFound {
 		t.Fatalf("expected method-not-found, got %+v", resp.Error)
+	}
+}
+
+func TestReadOnlyFromName(t *testing.T) {
+	cases := map[string]bool{
+		"GetShow": true, "ListShows": true, "SearchShows": true, "Get": true,
+		"Generate": false, "IngestEvents": false, "Islands": false, "Delete": false,
+	}
+	for name, want := range cases {
+		if got := readingName(name); got != want {
+			t.Errorf("readingName(%q) = %v, want %v", name, got, want)
+		}
 	}
 }
 
