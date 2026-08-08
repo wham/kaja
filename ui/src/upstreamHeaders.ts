@@ -72,3 +72,42 @@ export function parseUpstreamError(value: unknown): UpstreamFailure | undefined 
   }
   return undefined;
 }
+
+// asUpstreamFailure recognizes one of these where a call's error is read back —
+// from a live call or from a stored run, which keeps the error whole. A status
+// and the request that produced it are what an HTTP failure has and a gRPC or
+// Twirp failure doesn't.
+function asUpstreamFailure(error: unknown): UpstreamFailure | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const candidate = error as Partial<UpstreamFailure>;
+  if (typeof candidate.status !== "number" || candidate.status <= 0) return undefined;
+  if (typeof candidate.request !== "string" || candidate.request === "") return undefined;
+  return candidate as UpstreamFailure;
+}
+
+// unwrapFailure is what a failed call is shown as, on the same rule as
+// unwrapEnvelope: an HTTP failure is the response body the API sent, and the
+// fields around it are the envelope carrying it here. The status is already read
+// off the console's status line and the request line sits with the headers it
+// belongs to, so repeating either over the body would be the envelope describing
+// itself. A failure that is not an HTTP one shows as itself.
+//
+// The error object is untouched — a script still catches `status`, which is what
+// classifyFailure reads — so this is a matter of what gets displayed.
+export function unwrapFailure(error: unknown): unknown {
+  const failure = asUpstreamFailure(error);
+  if (!failure) return error;
+  const body = failure.body;
+  // A body is not always worth showing: an empty 401, a 502 with nothing in it.
+  // Then the message extracted upstream is the only thing there is to say.
+  if (body === undefined || body === null) return failure.message;
+  if (typeof body === "string" && body.trim() === "") return failure.message;
+  return body;
+}
+
+// upstreamRequestLine is the HTTP request an app made, for the Headers view to
+// state above the headers that went with it — which is where a request line
+// belongs, and the only place it is left once the response is just the body.
+export function upstreamRequestLine(error: unknown): string | undefined {
+  return asUpstreamFailure(error)?.request;
+}
