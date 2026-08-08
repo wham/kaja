@@ -99,6 +99,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       serviceNames: source.serviceNames,
       interfaces: source.interfaces,
       enums: source.enums,
+      docs: source.docs,
     });
   });
 
@@ -283,10 +284,21 @@ function createServiceInterfaceDefinition(
     funcs.push(func);
   });
 
+  // multiLine, so a service with thirty methods is thirty lines rather than one.
+  // The printer puts a synthesized object literal on a single line otherwise, and
+  // this text is what line-based readers - Monaco's hover, an agent grepping the
+  // stub - see of the service.
   const serviceInterfaceDefinition = ts.factory.createVariableStatement(
     [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)],
     ts.factory.createVariableDeclarationList(
-      [ts.factory.createVariableDeclaration(ts.factory.createIdentifier(serviceName), undefined, undefined, ts.factory.createObjectLiteralExpression(funcs))],
+      [
+        ts.factory.createVariableDeclaration(
+          ts.factory.createIdentifier(serviceName),
+          undefined,
+          undefined,
+          ts.factory.createObjectLiteralExpression(funcs, /*multiLine*/ true),
+        ),
+      ],
       ts.NodeFlags.Const,
     ),
   );

@@ -4,7 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
+
+// The runtime contract every tool description leans on. It is repeated in the
+// guide, but a tool description is the one channel a client cannot drop, so the
+// facts a script would otherwise be discovered by probing live here too.
+const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, `console.log` is the output channel, " +
+	"and imports resolve as `<app>/<path>` (named imports only - `import * as ns` does not resolve). " +
+	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. Use `kaja.ask()` only when a person is at the app."
 
 // toolDefinitions is the static tools/list payload. Schemas are hand-written
 // JSON Schema; keep them in sync with handleToolCall below.
@@ -21,9 +29,24 @@ func toolDefinitions() []map[string]interface{} {
 	}
 	return []map[string]interface{}{
 		{
-			"name":        "list_services",
-			"description": "List every app, service, method, and request/response type a script can currently call. Start here.",
-			"inputSchema": obj(map[string]interface{}{}),
+			"name": "list_services",
+			"description": "Index of everything a script can call: every app, service and method, each method's request and response type, " +
+				"and whether calling it reads or writes. Start here, then use describe_method for the one you want. " +
+				"Filter with app, service or search to keep the answer small on a large API.",
+			"inputSchema": obj(map[string]interface{}{
+				"app":     str("Only this app."),
+				"service": str("Only this service."),
+				"search":  str("Only methods whose app, service, method name, HTTP request or description contains this text."),
+			}),
+		},
+		{
+			"name": "describe_method",
+			"description": "Everything needed to call one method: its request type with all nested types inlined, its response type, " +
+				"which fields the API requires, whether the call reads or writes, and an example call that runs as written. " +
+				"Ask for this instead of reading the generated sources.",
+			"inputSchema": obj(map[string]interface{}{
+				"method": str("\"<Service>.<Method>\", e.g. \"Shows.ListShows\". Prefix with \"<app>/\" when two apps share a service name."),
+			}, "method"),
 		},
 		{
 			"name":        "list_scripts",
@@ -65,8 +88,11 @@ func toolDefinitions() []map[string]interface{} {
 			"inputSchema": obj(map[string]interface{}{"path": str("Absolute path of the script to delete.")}, "path"),
 		},
 		{
-			"name":        "run_script",
-			"description": "Run a script and return its console output, return value, and the RPCs it made. Provide either path (a saved script) or code (an inline snippet).",
+			"name": "run_script",
+			"description": "Run a script and return its console output, its return value, and every RPC it made with a typed verdict on each. " +
+				"Provide either path (a saved script) or code (an inline snippet). " +
+				"A rejected call throws, which stops the script at that point - the calls it already made are still reported. " +
+				runtimeNote,
 			"inputSchema": obj(map[string]interface{}{
 				"path": str("Absolute path of a saved script to run."),
 				"code": str("Inline TypeScript to run instead of a saved script."),
@@ -101,7 +127,9 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage) (in
 
 	switch p.Name {
 	case "list_services":
-		return jsonToolResult(s.bridge.Catalog())
+		return textToolResult(s.bridge.Catalog().listServices(args["app"], args["service"], args["search"])), nil
+	case "describe_method":
+		return s.describeMethod(args["method"]), nil
 	case "list_scripts":
 		scripts, err := s.bridge.ListScripts()
 		if err != nil {
@@ -137,18 +165,50 @@ func (s *Server) handleToolCall(ctx context.Context, params json.RawMessage) (in
 		}
 		return textToolResult("Deleted " + args["path"]), nil
 	case "run_script":
-		path, code := args["path"], args["code"]
-		if path == "" && code == "" {
-			return errorToolResult(fmt.Errorf("provide either path or code")), nil
-		}
-		result, err := s.bridge.RunScript(ctx, path, code)
-		if err != nil {
-			return errorToolResult(err), nil
-		}
-		return jsonToolResult(result)
+		return s.runScript(ctx, args["path"], args["code"]), nil
 	default:
 		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown tool %q", p.Name)}
 	}
+}
+
+// describeMethod answers for one method, and when it can't, says what to ask for
+// instead: an ambiguous name lists its candidates, an unknown one lists the
+// nearest matches. A miss that only says no costs a whole extra round trip.
+func (s *Server) describeMethod(name string) map[string]interface{} {
+	if strings.TrimSpace(name) == "" {
+		return errorToolResult(fmt.Errorf("provide method, e.g. \"Shows.ListShows\""))
+	}
+	catalog := s.bridge.Catalog()
+	resolved, ambiguous, ok := catalog.findMethod(name)
+	if ok {
+		return textToolResult(catalog.describeMethod(resolved))
+	}
+	if len(ambiguous) > 0 {
+		return errorToolResult(fmt.Errorf("%q is exposed by more than one app; ask for one of: %s", name, strings.Join(ambiguous, ", ")))
+	}
+	if suggestions := catalog.suggest(name); len(suggestions) > 0 {
+		return errorToolResult(fmt.Errorf("no method %q. Closest: %s", name, strings.Join(suggestions, ", ")))
+	}
+	return errorToolResult(fmt.Errorf("no method %q. Call list_services to see what is callable", name))
+}
+
+func (s *Server) runScript(ctx context.Context, path, code string) map[string]interface{} {
+	if path == "" && code == "" {
+		return errorToolResult(fmt.Errorf("provide either path or code"))
+	}
+	result, err := s.bridge.RunScript(ctx, path, code)
+	if err != nil {
+		return errorToolResult(err)
+	}
+	label := path
+	if label == "" {
+		label = "inline script"
+	}
+	for i := range result.MethodCalls {
+		result.MethodCalls[i].Input = compactJSON(result.MethodCalls[i].Input)
+		result.MethodCalls[i].Output = compactJSON(result.MethodCalls[i].Output)
+	}
+	return textToolResult(renderRun(label, result))
 }
 
 // textToolResult wraps plain text in the MCP tool-result shape.

@@ -9,6 +9,16 @@ export interface Source {
   serviceNames: string[];
   interfaces: { [key: string]: ts.InterfaceDeclaration };
   enums: { [key: string]: { object: any } };
+  // What the API says about each generated interface and its members, read off
+  // the JSDoc while the source is parsed. The nodes in `interfaces` carry
+  // positions into text this Source doesn't keep, so a later reader can't
+  // recover the comments on its own.
+  docs: { [interfaceName: string]: InterfaceDocs };
+}
+
+export interface InterfaceDocs {
+  self?: string;
+  members: { [name: string]: string };
 }
 
 export type Sources = Source[];
@@ -42,6 +52,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: 
       serviceNames: [],
       interfaces: {},
       enums: {},
+      docs: {},
     };
 
     source.file.statements.forEach((statement) => {
@@ -50,6 +61,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: 
         source.serviceNames.push(serviceName);
       } else if (ts.isInterfaceDeclaration(statement)) {
         source.interfaces[statement.name.text] = statement;
+        source.docs[statement.name.text] = interfaceDocs(statement, source.file);
       } else if (ts.isEnumDeclaration(statement)) {
         const enumName = statement.name.text;
         const object = stubModule[enumName];
@@ -105,6 +117,44 @@ export function findEnum(sources: Sources, object: any): [string, Source] | unde
 export function findInStub(stub: Stub, source: Source, name: string): any {
   const module = stub[source.stubModuleId];
   return module?.[name];
+}
+
+// interfaceDocs reads the JSDoc protoc-gen-kaja emits from proto comments off an
+// interface and its members.
+function interfaceDocs(declaration: ts.InterfaceDeclaration, sourceFile: ts.SourceFile): InterfaceDocs {
+  const docs: InterfaceDocs = { self: docComment(declaration, sourceFile), members: {} };
+  declaration.members.forEach((member) => {
+    const name = member.name && ts.isIdentifier(member.name) ? member.name.text : undefined;
+    if (!name) return;
+    const doc = docComment(member, sourceFile);
+    if (doc) docs.members[name] = doc;
+  });
+  return docs;
+}
+
+// docComment folds a node's leading comments into one line: the `@generated`
+// bookkeeping protoc-gen-kaja adds is dropped, and only the first sentence of
+// what is left is kept, since this is read in listings where every field is a
+// line.
+function docComment(node: ts.Node, sourceFile: ts.SourceFile): string | undefined {
+  const fullText = sourceFile.getFullText();
+  const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart());
+  if (!ranges) return undefined;
+
+  const lines: string[] = [];
+  ranges.forEach((range) => {
+    const body = range.kind === ts.SyntaxKind.MultiLineCommentTrivia ? fullText.slice(range.pos + 2, range.end - 2) : fullText.slice(range.pos + 2, range.end);
+    body.split("\n").forEach((line) => {
+      const text = line.replace(/^\s*\*+\/?/, "").trim();
+      if (text && !text.startsWith("@")) lines.push(text);
+    });
+  });
+
+  const text = lines.join(" ").trim();
+  if (!text) return undefined;
+  const stop = text.indexOf(". ");
+  const sentence = stop > 0 ? text.slice(0, stop + 1) : text;
+  return sentence.length > 160 ? sentence.slice(0, 160).trimEnd() + "…" : sentence;
 }
 
 function getServiceName(statement: ts.Statement, sourceFile: ts.SourceFile): string | undefined {

@@ -12,8 +12,10 @@ const (
 	stubScheme  = "kaja://stub/"
 )
 
-// handleResourcesList advertises the guide, the live services catalog, and one
-// resource per generated TypeScript stub.
+// handleResourcesList advertises the guide, the live services index, and one
+// resource per generated TypeScript stub. The stubs are here rather than in a
+// tool result on purpose: they are large, and describe_method answers without
+// them.
 func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 	resources := []map[string]interface{}{
 		{
@@ -25,8 +27,8 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 		{
 			"uri":         servicesURI,
 			"name":        "Available services",
-			"description": "Apps, services, methods, and types a script can call.",
-			"mimeType":    "application/json",
+			"description": "Index of the apps, services and methods a script can call.",
+			"mimeType":    "text/plain",
 		},
 	}
 	for _, src := range s.bridge.Catalog().Sources {
@@ -54,11 +56,10 @@ func (s *Server) handleResourceRead(params json.RawMessage) (interface{}, *rpcEr
 	case p.URI == guideURI:
 		return resourceContents(p.URI, "text/markdown", guide), nil
 	case p.URI == servicesURI:
-		b, err := json.MarshalIndent(s.bridge.Catalog(), "", "  ")
-		if err != nil {
-			return nil, &rpcError{Code: codeInternal, Message: err.Error()}
-		}
-		return resourceContents(p.URI, "application/json", string(b)), nil
+		// The same index list_services returns. The catalog's own JSON carries every
+		// generated source, which is exactly what a reader of this resource must not
+		// be handed by accident.
+		return resourceContents(p.URI, "text/plain", s.bridge.Catalog().listServices("", "", "")), nil
 	case strings.HasPrefix(p.URI, stubScheme):
 		path := strings.TrimPrefix(p.URI, stubScheme)
 		for _, src := range s.bridge.Catalog().Sources {

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-// Kaja's contract for carrying an HTTP payload inside a protobuf message.
+// Kaja's contract for describing an HTTP call carried inside a protobuf method.
 //
 // An HTTP body is any JSON value, while a protobuf message is always an object
 // with named fields. Where the two don't line up - a body that is an array, a
@@ -9,6 +9,12 @@ syntax = "proto3";
 // declares it. Marking it says so, so a reader (the console, a script, a person)
 // can tell an envelope from a property the API really has, instead of guessing
 // from a name the API is free to use itself.
+//
+// The rest of what protobuf has no shape for is the same problem one step out:
+// which HTTP request a method stands for, where a field travels in it, and
+// whether the API insists on it. proto3 makes every field optional and every
+// method look alike, so without these a caller can only guess whether a method
+// reads or writes, and fills in fields it never needed to send.
 package kaja;
 
 import "google/protobuf/descriptor.proto";
@@ -31,4 +37,16 @@ extend google.protobuf.FieldOptions {
   // message's only field is marked, the payload is the message: the envelope is
   // an artifact of the encoding and is unwrapped before the payload is shown.
   HttpPayload http_payload = 79001;
+  // Where the API carries this field: "path", "query" or "header". Unset for a
+  // property of the request body, which is where a field sits by default.
+  string http_in = 79002;
+  // The API declares this field required. proto3 has no required, so without
+  // this every field looks equally optional and a caller sends all of them.
+  bool http_required = 79003;
+}
+
+extend google.protobuf.MethodOptions {
+  // The HTTP request this method transcodes to, e.g. "GET /pets/{petId}". The
+  // verb is the only thing that says whether calling the method reads or writes.
+  string http_request = 79001;
 }

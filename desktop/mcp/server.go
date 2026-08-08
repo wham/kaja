@@ -33,11 +33,23 @@ type ScriptInfo struct {
 // MethodCallLog is a single RPC made while a script ran, mirrored from the UI so
 // the agent can see what the script actually did.
 type MethodCallLog struct {
-	Service string          `json:"service"`
-	Method  string          `json:"method"`
-	Input   json.RawMessage `json:"input,omitempty"`
-	Output  json.RawMessage `json:"output,omitempty"`
-	Error   string          `json:"error,omitempty"`
+	App        string          `json:"app,omitempty"`
+	Service    string          `json:"service"`
+	Method     string          `json:"method"`
+	DurationMs float64         `json:"durationMs,omitempty"`
+	Input      json.RawMessage `json:"input,omitempty"`
+	Output     json.RawMessage `json:"output,omitempty"`
+	Failure    *CallFailure    `json:"failure,omitempty"`
+}
+
+// CallFailure is why a call failed, in the one distinction a caller can act on:
+// whether to change the request, the credentials, or nothing at all. Classified
+// in the UI (callFailure.ts), where the thrown error still has its shape.
+type CallFailure struct {
+	Kind    string `json:"kind"`
+	Message string `json:"message"`
+	Status  int    `json:"status,omitempty"`
+	Code    string `json:"code,omitempty"`
 }
 
 // RunResult is the outcome of running a script in the webview.
@@ -46,44 +58,6 @@ type RunResult struct {
 	Result      json.RawMessage `json:"result,omitempty"`
 	Error       string          `json:"error,omitempty"`
 	MethodCalls []MethodCallLog `json:"methodCalls,omitempty"`
-}
-
-// CatalogMethod describes one callable RPC.
-type CatalogMethod struct {
-	Name            string `json:"name"`
-	InputType       string `json:"inputType,omitempty"`
-	OutputType      string `json:"outputType,omitempty"`
-	ServerStreaming bool   `json:"serverStreaming,omitempty"`
-	ClientStreaming bool   `json:"clientStreaming,omitempty"`
-}
-
-// CatalogService is a service exposed by an app, with the import path a
-// script uses to reach it.
-type CatalogService struct {
-	Name        string          `json:"name"`
-	PackageName string          `json:"packageName,omitempty"`
-	ImportPath  string          `json:"importPath"`
-	Methods     []CatalogMethod `json:"methods"`
-}
-
-// CatalogApp groups the services of one configured app.
-type CatalogApp struct {
-	Name     string           `json:"name"`
-	Services []CatalogService `json:"services"`
-}
-
-// CatalogSource is a generated TypeScript stub, exposed as a resource so the
-// agent can read precise field-level types.
-type CatalogSource struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-// Catalog is the live picture of what scripts can call, pushed from the UI
-// after each successful compilation.
-type Catalog struct {
-	Apps []CatalogApp `json:"apps"`
-	Sources  []CatalogSource  `json:"sources,omitempty"`
 }
 
 // Bridge is everything the server needs from the host app. The desktop App

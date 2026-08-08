@@ -47,9 +47,6 @@ type generated struct {
 	proto            string
 	serviceTypeNames []string
 	bindings         map[string]*methodBinding
-	// usesHTTPPayload reports whether any field is marked with the
-	// (kaja.http_payload) option, so kaja/http.proto has to be compiled with it.
-	usesHTTPPayload bool
 }
 
 // The (kaja.http_payload) values a generated envelope field carries. See
@@ -69,6 +66,15 @@ type fieldDef struct {
 	// payload marks the field as an HTTP payload envelope, carrying the
 	// (kaja.http_payload) value to emit. Empty for a field the API declares.
 	payload string
+	// in is where the API carries the field ("path", "query", "header"), emitted
+	// as (kaja.http_in). Empty for a body property.
+	in string
+	// required is emitted as (kaja.http_required) when the API insists on the
+	// field.
+	required bool
+	// doc is the API's description of the field, emitted as a leading comment so
+	// it survives into the generated TypeScript as JSDoc.
+	doc string
 }
 
 type messageDef struct {
@@ -81,6 +87,9 @@ type rpcDef struct {
 	input   string
 	output  string
 	summary string
+	// httpRequest is the "<VERB> <path>" the method transcodes to, emitted as
+	// (kaja.http_request).
+	httpRequest string
 }
 
 // serviceDef is a single generated proto service. Operations are grouped into
@@ -108,8 +117,7 @@ type generator struct {
 
 	bindingByMethod map[string]*methodBinding
 
-	usesValue   bool // a field maps to google.protobuf.Value, so struct.proto is imported
-	usesPayload bool // a field is marked (kaja.http_payload), so http.proto is imported
+	usesValue bool // a field maps to google.protobuf.Value, so struct.proto is imported
 }
 
 // anyValueType is the proto type for a schema that admits arbitrary JSON (a
@@ -176,14 +184,11 @@ func generateProto(s *spec) (*generated, error) {
 		proto:            g.render(),
 		serviceTypeNames: serviceTypeNames,
 		bindings:         bindings,
-		usesHTTPPayload:  g.usesPayload,
 	}, nil
 }
 
-// envelope marks a field as an HTTP payload envelope and records that
-// kaja/http.proto has to be imported.
+// envelope marks a field as an HTTP payload envelope.
 func (g *generator) envelope(f fieldDef, payload string) fieldDef {
-	g.usesPayload = true
 	f.payload = payload
 	return f
 }
@@ -257,7 +262,13 @@ func (g *generator) addOperation(path string, item *pathItem, vo verbOp) {
 	binding.responseWrap = wrap
 
 	svc := g.serviceFor(op)
-	svc.rpcs = append(svc.rpcs, &rpcDef{name: methodName, input: input, output: output, summary: op.Summary})
+	svc.rpcs = append(svc.rpcs, &rpcDef{
+		name:        methodName,
+		input:       input,
+		output:      output,
+		summary:     op.Summary,
+		httpRequest: strings.ToUpper(vo.verb) + " " + path,
+	})
 	g.bindingByMethod[methodName] = binding
 }
 
@@ -367,7 +378,41 @@ func (g *generator) paramField(param *parameter, number int) fieldDef {
 		}
 	}
 	typ, repeated := g.protoType("Param", pascal(param.Name), s)
-	return fieldDef{typ: typ, name: ensureName(lowerSnake(param.Name), fmt.Sprintf("field%d", number)), number: number, jsonName: param.Name, repeated: repeated}
+	doc := param.Description
+	if doc == "" && s != nil {
+		doc = s.Description
+	}
+	return fieldDef{
+		typ:      typ,
+		name:     ensureName(lowerSnake(param.Name), fmt.Sprintf("field%d", number)),
+		number:   number,
+		jsonName: param.Name,
+		repeated: repeated,
+		in:       param.In,
+		// A path parameter is part of the URL, so it is required whatever the
+		// document says.
+		required: param.Required || param.In == "path",
+		doc:      docComment(doc),
+	}
+}
+
+// docComment folds an API description into a single proto comment line. Only the
+// first sentence is kept: the comment travels into the generated TypeScript as
+// JSDoc and from there into every listing, and a paragraph in each of those
+// costs more than it explains.
+func docComment(text string) string {
+	text = strings.TrimSpace(strings.Join(strings.Fields(text), " "))
+	if text == "" {
+		return ""
+	}
+	if i := strings.Index(text, ". "); i > 0 {
+		text = text[:i+1]
+	}
+	const max = 160
+	if len([]rune(text)) > max {
+		text = strings.TrimSpace(string([]rune(text)[:max])) + "\u2026"
+	}
+	return text
 }
 
 // refMessage ensures a message exists for a "#/components/schemas/X" reference
@@ -495,6 +540,8 @@ func (g *generator) jsonCategory(s *schema, depth int) string {
 func (g *generator) fieldsFromSchema(parent string, s *schema) []fieldDef {
 	props := map[string][]*schema{}
 	g.collectProperties(s, props, map[string]bool{})
+	required := map[string]bool{}
+	g.collectRequired(s, required, map[string]bool{})
 
 	names := make([]string, 0, len(props))
 	for n := range props {
@@ -523,6 +570,8 @@ func (g *generator) fieldsFromSchema(parent string, s *schema) []fieldDef {
 			number:   num,
 			jsonName: propName,
 			repeated: repeated,
+			required: required[propName],
+			doc:      docComment(g.description(ps)),
 		})
 		num++
 	}
@@ -557,6 +606,49 @@ func (g *generator) collectProperties(s *schema, out map[string][]*schema, visit
 			g.collectProperties(v, out, visiting)
 		}
 	}
+}
+
+// collectRequired gathers the property names a schema insists on: its own
+// `required` list and those of every allOf entry. A union's variants are skipped
+// on purpose - a property required in one variant and absent from another is not
+// required of the merged message, and there is nowhere to say "required if".
+func (g *generator) collectRequired(s *schema, out map[string]bool, visiting map[string]bool) {
+	if s == nil {
+		return
+	}
+	if s.Ref != "" {
+		name := refName(s.Ref)
+		if visiting[name] {
+			return
+		}
+		visiting[name] = true
+		defer delete(visiting, name)
+		g.collectRequired(g.lookupRef(s.Ref), out, visiting)
+		return
+	}
+	for _, name := range s.Required {
+		out[name] = true
+	}
+	for _, e := range s.AllOf {
+		g.collectRequired(e, out, visiting)
+	}
+}
+
+// description reads a schema's description, following a $ref to the component
+// that carries it.
+func (g *generator) description(s *schema) string {
+	if s == nil {
+		return ""
+	}
+	if s.Description != "" {
+		return s.Description
+	}
+	if s.Ref != "" {
+		if target := g.lookupRef(s.Ref); target != nil && target != s {
+			return target.Description
+		}
+	}
+	return ""
 }
 
 // addProperty records a schema for a property, dropping duplicates so that a
@@ -734,19 +826,20 @@ func (g *generator) render() string {
 	var b strings.Builder
 	b.WriteString("syntax = \"proto3\";\n\n")
 	fmt.Fprintf(&b, "package %s;\n\n", g.pkg)
-	if g.usesPayload {
-		b.WriteString("import \"kaja/http.proto\";\n")
-	}
+	// Every method carries (kaja.http_request), so the option file is always part
+	// of the generated surface.
+	b.WriteString("import \"kaja/http.proto\";\n")
 	if g.usesValue {
 		b.WriteString("import \"google/protobuf/struct.proto\";\n")
 	}
-	if g.usesPayload || g.usesValue {
-		b.WriteString("\n")
-	}
+	b.WriteString("\n")
 
 	for _, m := range g.messages {
 		fmt.Fprintf(&b, "message %s {\n", m.name)
 		for _, f := range m.fields {
+			if f.doc != "" {
+				fmt.Fprintf(&b, "  // %s\n", f.doc)
+			}
 			prefix := ""
 			if f.repeated {
 				prefix = "repeated "
@@ -754,6 +847,12 @@ func (g *generator) render() string {
 			options := fmt.Sprintf("json_name = %q", f.jsonName)
 			if f.payload != "" {
 				options += fmt.Sprintf(", (kaja.http_payload) = %s", f.payload)
+			}
+			if f.in != "" {
+				options += fmt.Sprintf(", (kaja.http_in) = %q", f.in)
+			}
+			if f.required {
+				options += ", (kaja.http_required) = true"
 			}
 			fmt.Fprintf(&b, "  %s%s %s = %d [%s];\n", prefix, f.typ, f.name, f.number, options)
 		}
@@ -769,7 +868,9 @@ func (g *generator) render() string {
 			if r.summary != "" {
 				fmt.Fprintf(&b, "  // %s\n", strings.ReplaceAll(r.summary, "\n", " "))
 			}
-			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s);\n", r.name, r.input, r.output)
+			fmt.Fprintf(&b, "  rpc %s(%s) returns (%s) {\n", r.name, r.input, r.output)
+			fmt.Fprintf(&b, "    option (kaja.http_request) = %q;\n", r.httpRequest)
+			b.WriteString("  }\n")
 		}
 		b.WriteString("}\n")
 	}

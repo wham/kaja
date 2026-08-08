@@ -19,23 +19,22 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// httpProto declares the (kaja.http_payload) option the generated proto marks
-// its envelope fields with. It is written next to the generated service so the
-// marks survive into the compiled descriptors and reach the client.
+// httpProto declares the kaja options the generated proto marks its methods and
+// fields with - the HTTP request a method stands for, where a field travels, and
+// which envelope fields exist only to hold a payload protobuf has no shape for.
+// It is written next to the generated service so the marks survive into the
+// compiled descriptors and reach the client.
 //
 //go:embed http.proto
 var httpProto []byte
 
-// write lays the generated proto surface out in protoDir: the service itself,
-// plus kaja/http.proto when the service marks any envelope field with it. Both
-// the app's own compile and the client-facing one read the directory, so the
-// marks survive into the descriptors the client is generated from.
+// write lays the generated proto surface out in protoDir: the service itself
+// plus kaja/http.proto, which every generated method depends on. Both the app's
+// own compile and the client-facing one read the directory, so the marks survive
+// into the descriptors the client is generated from.
 func (gen *generated) write(protoDir string) error {
 	if err := os.WriteFile(filepath.Join(protoDir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
 		return fmt.Errorf("writing proto: %w", err)
-	}
-	if !gen.usesHTTPPayload {
-		return nil
 	}
 	dir := filepath.Join(protoDir, "kaja")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
