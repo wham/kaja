@@ -42,6 +42,7 @@ import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
 import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
 import { deriveScratchTitle, proposeFileName, proposeFileNames } from "./scratchTitle";
+import { methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
@@ -414,6 +415,9 @@ export function App() {
         if (i > -1) collector[i] = methodCall;
         else collector.push(methodCall);
       }
+      // A call a script actually made counts as much as one picked out of the
+      // tree, and more of them are made this way once you are working.
+      recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
       const run = openRun(methodCall.method.name);
       setHistory((current) => recordCall(current, run.fileId, run.id, methodCall, Date.now()));
     },
@@ -924,6 +928,9 @@ export function App() {
       // written into a model it already has.
       const code = await formatTypeScript(generateMethodEditorCode(app, service, method));
       const originAppName = app.configuration.name;
+      // What the sidebar tree opens with next time. Both the tree and the finder
+      // arrive here, so this is the one place a call is chosen.
+      recordUse(methodUse(originAppName, service, method));
       const now = Date.now();
       const current = viewsRef.current[0];
       const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
@@ -1845,10 +1852,7 @@ export function App() {
     [currentFileId],
   );
 
-  const onConsoleTabChange = useCallback(
-    (tab: ConsoleTab) => setHistory((current) => setTab(current, currentFileId, tab, Date.now())),
-    [currentFileId],
-  );
+  const onConsoleTabChange = useCallback((tab: ConsoleTab) => setHistory((current) => setTab(current, currentFileId, tab, Date.now())), [currentFileId]);
 
   // What the empty state offers instead of an illustration: the last few things
   // you were in. On a first run there are none and the list is simply absent.

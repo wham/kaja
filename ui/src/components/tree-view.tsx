@@ -42,7 +42,9 @@ interface ItemProps {
   id?: string;
   current?: boolean;
   expanded?: boolean;
-  onExpandedChange?: (expanded: boolean) => void;
+  // The event is passed so a caller can read a modifier, e.g. ⌥click to take the
+  // whole subtree.
+  onExpandedChange?: (expanded: boolean, event: React.MouseEvent) => void;
   // The event is passed so a caller can read a modifier, e.g. ⌥click.
   onSelect?: (event: React.MouseEvent) => void;
   // Double click, the editor gesture for "I mean it": a single click opens a
@@ -80,7 +82,7 @@ const Item = React.forwardRef<HTMLDivElement, ItemProps>(({ id, current, expande
         id={id}
         tabIndex={onKeyDown ? 0 : undefined}
         onKeyDown={onKeyDown}
-        onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded) : onSelect?.(event))}
+        onClick={(event) => (hasSubtree ? onExpandedChange?.(!expanded, event) : onSelect?.(event))}
         onDoubleClick={hasSubtree ? undefined : onActivate}
         className={cn(
           "group flex h-[22px] cursor-pointer items-center gap-1.5 pl-2 pr-1 text-[13px] outline-none",
