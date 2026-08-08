@@ -1798,7 +1798,11 @@ export function App() {
     if (!views.some((view) => view.type === "variables")) {
       destinations.push({ key: "variables", name: "Variables", path: "Workspace", origin: "", icon: Braces, go: onVariablesClick });
     }
-    if (!views.some((view) => view.type === "compiler")) {
+    // With no apps there is nothing to have compiled, so the log is absent
+    // rather than empty — going to it would land on the same blankslate you
+    // were already looking at. The status bar's compile item is gone for the
+    // same reason.
+    if (apps.length > 0 && !views.some((view) => view.type === "compiler")) {
       destinations.push({ key: "compiler", name: "Compile log", path: "Output", origin: "", icon: ScrollText, go: () => onShowCompileLog() });
     }
 
