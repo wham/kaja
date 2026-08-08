@@ -77,10 +77,29 @@ const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
  * It goes inside a `TreeView.LeadingVisual` and never wraps one — `TreeView.Item`
  * picks its slots out by child type, so a wrapper lands the glyph in the label.
  */
-function ScriptGlyph({ running, pinned, saved, dim, dot = true }: { running?: boolean; pinned?: boolean; saved?: boolean; dim?: boolean; dot?: boolean }) {
+function ScriptGlyph({
+  running,
+  waiting,
+  pinned,
+  saved,
+  dim,
+  dot = true,
+}: {
+  running?: boolean;
+  waiting?: boolean;
+  pinned?: boolean;
+  saved?: boolean;
+  dim?: boolean;
+  dot?: boolean;
+}) {
   return (
     <span className="flex size-3 items-center justify-center">
-      {running ? (
+      {/* A run parked on a question is still running, but a spinner would say it
+          is working on something. The ring is the same amber the canvas and the
+          run pill use for "this needs you". */}
+      {waiting ? (
+        <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
+      ) : running ? (
         <Spinner className="size-3" />
       ) : pinned ? (
         <Pin size={12} />
@@ -144,6 +163,8 @@ interface SidebarProps {
   // Files with a run still in the air. A run keeps going when you navigate away
   // from it, and its console is no longer on screen to say so — the row is.
   runningFileIds?: Set<string>;
+  // Files whose run has stopped on a `kaja.ask(...)` and needs an answer.
+  waitingFileIds?: Set<string>;
   // A read-only configuration doesn't disable the verbs that change apps, it
   // doesn't offer them: New and Delete both go, so there is no way to reach a
   // form whose only button can't be pressed. Settings stays — reading an app's
@@ -190,6 +211,7 @@ export function Sidebar({
   currentScriptPath,
   pinnedScriptPath,
   runningFileIds,
+  waitingFileIds,
   canUpdateConfiguration = true,
   onSelect,
   onScratchSelect,
@@ -442,7 +464,13 @@ export function Sidebar({
                       current={currentScriptPath === script.path}
                     >
                       <TreeView.LeadingVisual>
-                        <ScriptGlyph running={runningFileIds?.has(script.path)} pinned={pinnedScriptPath === script.path} saved dot={canSave} />
+                        <ScriptGlyph
+                          running={runningFileIds?.has(script.path)}
+                          waiting={waitingFileIds?.has(script.path)}
+                          pinned={pinnedScriptPath === script.path}
+                          saved
+                          dot={canSave}
+                        />
                       </TreeView.LeadingVisual>
                       {script.name}
                       <TreeView.TrailingVisual>
@@ -491,7 +519,12 @@ export function Sidebar({
                           seat the three buttons buys 11px the row doesn't need,
                           and costs a label that moves as you reach for it. */}
                       <TreeView.LeadingVisual>
-                        <ScriptGlyph running={runningFileIds?.has(scratch.id)} dim={isUntouched(scratch)} dot={canSave} />
+                        <ScriptGlyph
+                          running={runningFileIds?.has(scratch.id)}
+                          waiting={waitingFileIds?.has(scratch.id)}
+                          dim={isUntouched(scratch)}
+                          dot={canSave}
+                        />
                       </TreeView.LeadingVisual>
                       <ScratchLabel scratch={scratch} />
                       <TreeView.TrailingVisual className={active ? "w-auto gap-0.5" : undefined}>

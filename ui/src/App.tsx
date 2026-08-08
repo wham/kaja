@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
 import { Console } from "./Console";
-import { ConsoleTab, newRunId, Run, RunSelection } from "./runs";
+import { ConsoleTab, ConsoleView, newRunId, Run, RunSelection } from "./runs";
 import {
   adoptStoredRuns,
   clearFile,
@@ -19,6 +19,7 @@ import {
   fileConsole,
   hasCallsInFlight,
   putFile,
+  recordBlock,
   recordCall,
   recordLogs,
   renameFile,
@@ -26,9 +27,11 @@ import {
   runningFileIds,
   setSelection,
   setTab,
+  setView,
   settleRun,
   startRun,
   takeFile,
+  waitingFileIds,
   FileConsole,
 } from "./runHistory";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
@@ -37,6 +40,7 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
+import { Block } from "./blocks";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
@@ -438,17 +442,47 @@ export function App() {
     [openRun],
   );
 
-  // Open the input dialog for a `kaja.ask(...)` call, resolving once the user
-  // submits. Rejecting on cancel is handled by the dialog itself.
-  const onAsk = useCallback((message: string) => {
+  // Something the script drew. Blocks arrive more than once — a table paints row
+  // by row — so they are recorded against their own id rather than appended.
+  const onBlockUpdate = useCallback(
+    (blockId: string, block: Block) => {
+      const run = openRun("Script output");
+      setHistory((current) => recordBlock(current, run.fileId, run.id, blockId, block, Date.now()));
+    },
+    [openRun],
+  );
+
+  /**
+   * A `kaja.ask(...)` is answered on the canvas of the run that asked it, so the
+   * promise waits here keyed by the block the question was drawn as. A run with
+   * no console has no canvas to draw on — an agent running code that was never
+   * saved — and falls back to the dialog, which needs no surface of its own.
+   */
+  const pendingAsksRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
+
+  const onAsk = useCallback((message: string, blockId: string) => {
     return new Promise<string>((resolve, reject) => {
-      setAskPrompt({ message, value: "", resolve, reject });
+      if (!currentRunRef.current?.fileId) {
+        setAskPrompt({ message, value: "", resolve, reject });
+        return;
+      }
+      pendingAsksRef.current.set(blockId, { resolve, reject });
     });
   }, []);
 
+  const settleAsk = useCallback((blockId: string, settle: (pending: { resolve: (answer: string) => void; reject: (error: unknown) => void }) => void) => {
+    const pending = pendingAsksRef.current.get(blockId);
+    if (!pending) return;
+    pendingAsksRef.current.delete(blockId);
+    settle(pending);
+  }, []);
+
+  const onAnswerAsk = useCallback((blockId: string, answer: string) => settleAsk(blockId, (pending) => pending.resolve(answer)), [settleAsk]);
+  const onCancelAsk = useCallback((blockId: string) => settleAsk(blockId, (pending) => pending.reject(new AskCancelledError())), [settleAsk]);
+
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk);
+    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onBlockUpdate);
   }
 
   // Clearing a file's history clears what is being held of it for next time too;
@@ -1581,13 +1615,15 @@ export function App() {
   }, [currentFileId]);
 
   // Stop aborts the calls the run has in flight; the script itself stops at the
-  // call it was awaiting.
+  // call it was awaiting. A run parked on a question is awaiting an answer
+  // rather than a call, so Stop has to end that too or the script never returns.
   const onStopActiveRun = useCallback(() => {
+    for (const blockId of [...pendingAsksRef.current.keys()]) onCancelAsk(blockId);
     setActiveRun((run) => {
       run?.controller?.abort();
       return null;
     });
-  }, []);
+  }, [onCancelAsk]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1849,6 +1885,7 @@ export function App() {
   // Which files have something in the air, so a run started on one script says
   // so while you are looking at another.
   const runningFiles = useMemo(() => runningFileIds(history), [history]);
+  const waitingFiles = useMemo(() => waitingFileIds(history), [history]);
 
   const onConsoleSelect = useCallback(
     (selection: RunSelection | null) => setHistory((current) => setSelection(current, currentFileId, selection, Date.now())),
@@ -1856,6 +1893,8 @@ export function App() {
   );
 
   const onConsoleTabChange = useCallback((tab: ConsoleTab) => setHistory((current) => setTab(current, currentFileId, tab, Date.now())), [currentFileId]);
+
+  const onConsoleViewChange = useCallback((view: ConsoleView) => setHistory((current) => setView(current, currentFileId, view, Date.now())), [currentFileId]);
 
   // What the empty state offers instead of an illustration: the last few things
   // you were in. On a first run there are none and the list is simply absent.
@@ -1979,6 +2018,7 @@ export function App() {
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
                 runningFileIds={runningFiles}
+                waitingFileIds={waitingFiles}
                 scratches={scratches}
                 currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
                 onScratchSelect={onScratchSelect}
@@ -2117,8 +2157,12 @@ export function App() {
                         items={currentConsole.items}
                         selection={currentConsole.selection}
                         tab={currentConsole.tab}
+                        view={currentConsole.view}
                         onSelect={onConsoleSelect}
                         onTabChange={onConsoleTabChange}
+                        onViewChange={onConsoleViewChange}
+                        onAnswer={onAnswerAsk}
+                        onCancelAsk={onCancelAsk}
                         onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
                       />
                     </div>

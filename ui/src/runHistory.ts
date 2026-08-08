@@ -1,5 +1,6 @@
+import { Block, isAwaitingAnswer } from "./blocks";
 import { isCallInFlight, MethodCall } from "./kaja";
-import { ConsoleItem, ConsoleTab, newItemId, Run, RunSelection } from "./runs";
+import { ConsoleItem, ConsoleTab, ConsoleView, newItemId, Run, RunSelection } from "./runs";
 import { Log } from "./server/api";
 
 /**
@@ -20,6 +21,10 @@ export interface FileConsole {
   // which is what a file that has never been looked at wants.
   selection: RunSelection | null;
   tab: ConsoleTab;
+  // Which of the two views this file is being read in. Undefined until it is
+  // chosen, which is what lets a run that drew something open on its canvas
+  // while an explicit choice still outranks it and sticks.
+  view?: ConsoleView;
   // Whether the store has been consulted for this file yet, so it is read once
   // rather than on every visit.
   loaded: boolean;
@@ -95,7 +100,13 @@ function withFile(history: RunHistory, fileId: string, now: number, change: (fil
  */
 export function startRun(history: RunHistory, run: Run, now: number): RunHistory {
   if (!run.fileId) return history;
-  return withFile(history, run.fileId, now, (file) => ({ ...file, runs: [...file.runs, run] }));
+  return withFile(history, run.fileId, now, (file) => ({ ...file, runs: [...file.runs, { ...run, number: nextRunNumber(file.runs) }] }));
+}
+
+// Runs are numbered per file, counting from one and never reused, so `Run 3`
+// still says Run 3 after the oldest runs have been trimmed out from under it.
+function nextRunNumber(runs: Run[]): number {
+  return runs.reduce((highest, run) => Math.max(highest, run.number ?? 0), 0) + 1;
 }
 
 // Calls arrive more than once as they stream and settle, so a call already in
@@ -108,6 +119,23 @@ export function recordCall(history: RunHistory, fileId: string | undefined, runI
       return { ...file, items: file.items.map((item, i) => (i === index ? { ...item, call: { ...call } } : item)) };
     }
     return { ...file, items: [...file.items, { id: newItemId(), runId, timestamp: call.timestamp, call: { ...call } }] };
+  });
+}
+
+/**
+ * Something the run drew. A block arrives more than once — a table paints row by
+ * row, an ask is emitted as a question and again as an answer — so a block
+ * already in the run is replaced in place rather than appended, which is what
+ * keeps it where it was emitted instead of jumping to the end when it changes.
+ */
+export function recordBlock(history: RunHistory, fileId: string | undefined, runId: string, blockId: string, block: Block, now: number): RunHistory {
+  if (!fileId) return history;
+  return withFile(history, fileId, now, (file) => {
+    const index = file.items.findIndex((item) => item.id === blockId);
+    if (index > -1) {
+      return { ...file, items: file.items.map((item, i) => (i === index ? { ...item, block } : item)) };
+    }
+    return { ...file, items: [...file.items, { id: blockId, runId, timestamp: now, block }] };
   });
 }
 
@@ -153,6 +181,28 @@ export function setSelection(history: RunHistory, fileId: string | undefined, se
 export function setTab(history: RunHistory, fileId: string | undefined, tab: ConsoleTab, now: number): RunHistory {
   if (!fileId) return history;
   return withFile(history, fileId, now, (file) => (file.tab === tab ? file : { ...file, tab }));
+}
+
+// Choosing a view is a decision about how this script is being read, so it
+// sticks until it is changed — a later run does not put it back.
+export function setView(history: RunHistory, fileId: string | undefined, view: ConsoleView, now: number): RunHistory {
+  if (!fileId) return history;
+  return withFile(history, fileId, now, (file) => (file.view === view ? file : { ...file, view }));
+}
+
+// Whether the file is stopped on a question. A run keeps going when you navigate
+// away from it, so the sidebar reads this to say so on a script whose canvas is
+// no longer on screen to.
+export function isWaitingForAnswer(file: FileConsole): boolean {
+  return file.items.some((item) => item.block !== undefined && isAwaitingAnswer(item.block));
+}
+
+export function waitingFileIds(history: RunHistory): Set<string> {
+  const waiting = new Set<string>();
+  for (const [fileId, file] of Object.entries(history)) {
+    if (isWaitingForAnswer(file)) waiting.add(fileId);
+  }
+  return waiting;
 }
 
 // Saving a scratch to disk changes what the file is called, not what it is, so

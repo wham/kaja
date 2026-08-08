@@ -1,5 +1,6 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
+import { AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
 import { rememberValues } from "./typeMemory";
 
 // Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
@@ -11,8 +12,25 @@ export class AskCancelledError extends Error {
   }
 }
 
+// The question is asked by the block; this is what waits for it to be answered.
+// The id is what the answer comes back against, so an ask on a canvas nobody is
+// looking at is still the one that resolves.
 export interface AskRequest {
-  (message: string): Promise<string>;
+  (message: string, blockId: string): Promise<string>;
+}
+
+// A block arriving, or the same block again with more in it.
+export interface BlockUpdate {
+  (blockId: string, block: Block): void;
+}
+
+/**
+ * A table that is still being filled in. A loop is the reason tables exist here,
+ * so rows land one at a time and the canvas repaints as they do — waiting for
+ * the loop to finish would make the interesting part the part you can't watch.
+ */
+export interface Table {
+  row(...cells: unknown[]): void;
 }
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -93,16 +111,72 @@ export class Kaja {
     },
   };
   #onAsk: AskRequest;
+  #onBlockUpdate: BlockUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onBlockUpdate: BlockUpdate) {
     this._internal = new KajaInternal(onMethodCallUpdate);
     this.#onAsk = onAsk;
+    this.#onBlockUpdate = onBlockUpdate;
   }
 
-  // Pause the script and pop up a dialog asking the user for input. Resolves
-  // with the submitted text; rejects (aborting the script) if the user cancels.
-  ask(message: string): Promise<string> {
-    return this.#onAsk(message);
+  /**
+   * Pause the script and ask the user for input. The question is drawn on the
+   * run's canvas where it happened, and the canvas stops there until it is
+   * answered — the empty space under it is the pause. Resolves with the
+   * submitted text; rejects (aborting the script) if the user cancels.
+   */
+  async ask(message: string): Promise<string> {
+    const blockId = newBlockId();
+    const question: AskBlock = { kind: "ask", question: message };
+    this.#onBlockUpdate(blockId, question);
+    try {
+      const answer = await this.#onAsk(message, blockId);
+      this.#onBlockUpdate(blockId, { ...question, answer });
+      return answer;
+    } catch (error) {
+      this.#onBlockUpdate(blockId, { ...question, cancelled: true });
+      throw error;
+    }
+  }
+
+  /**
+   * Write a line onto the run's canvas.
+   *
+   *   kaja.text(`Reconciling ${accounts.length} accounts`);
+   */
+  text(text: string): void {
+    const block: TextBlock = { kind: "text", text };
+    this.#onBlockUpdate(newBlockId(), block);
+  }
+
+  /**
+   * Put a snippet of code on the canvas — a query a script built, a payload it
+   * is about to send.
+   */
+  code(code: string, language?: string): void {
+    const block: CodeBlock = { kind: "code", code, language };
+    this.#onBlockUpdate(newBlockId(), block);
+  }
+
+  /**
+   * Start a table on the canvas and hand back a handle to fill it. Rows appear
+   * as they are added, so a loop paints rather than reporting at the end.
+   *
+   *   const table = kaja.table(["id", "name", "status"]);
+   *   for (const account of accounts) table.row(account.id, account.name, "matched");
+   */
+  table(columns: string[], rows: unknown[][] = []): Table {
+    const blockId = newBlockId();
+    const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: rows.map((row) => row.map(formatCell)) };
+    this.#onBlockUpdate(blockId, block);
+    return {
+      row: (...cells: unknown[]) => {
+        // A new array each time: the canvas compares what it was handed against
+        // what it holds, and a row pushed into the same array is invisible to it.
+        block.rows = [...block.rows, cells.map(formatCell)];
+        this.#onBlockUpdate(blockId, { ...block });
+      },
+    };
   }
 
   // Builders for google.protobuf.Value, Struct and ListValue, so a field of one

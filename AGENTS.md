@@ -69,7 +69,10 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   filled into it, which is usually what tells two goes at the same call apart;
   anything bigger or nested stays quiet rather than picking a field out of a
   crowd), `ListShows → GetShow`, `CreateShow +2`. Zero values never count —
-  that is what a generated request starts with.
+  that is what a generated request starts with. The **canvas verbs never count
+  either**: `kaja` is imported like a service and called like one, but
+  `kaja.table(...)` is the script drawing rather than a call it made, so a script
+  that only draws would otherwise be titled `text +3`.
 - **The title re-derives at deliberate moments, never while typing**: on a run
   (`markRun`) and on an append (`withCode`), because both are punctuation. There
   is **no rename** — naming a script and saving it are the same act, so the code
@@ -235,77 +238,143 @@ service*), and it never ran again: whatever you got on day one you kept forever.
   differ, and ignoring them lands an existing workspace on the cold start, which
   is a better tree than their stale contents would rebuild.
 
-## The console reports runs
+## A run has two views
 
-**A run is the unit** (`runs.ts`): one press of Run, one header, one duration,
-one verdict, with the calls it made nested under it. One script can make three
-calls, and three unrelated rows say nothing about the thing you actually pressed.
+**A run is the unit** (`runs.ts`): one press of Run, one duration, one verdict,
+with everything it produced under it. One script can make three calls, and three
+unrelated rows say nothing about the thing you actually pressed.
 
-**And the console belongs to the file** (`runHistory.ts`). There is no shared
+**And a run has two views of that, because they want opposite things.** The
+**list** is the flat audit log — one row per call, in wall order, always
+complete; that is what makes it scannable at two hundred rows and lets every row
+carry the same extra channels. The **canvas** is the rendered output — varied,
+and free to fold what is repetitive. Every attempt to serve both in one surface
+bent one of them out of shape, so one segmented control in the header switches
+them and **everything else about the header stops moving**. That is the change
+that pays for the restructure.
+
+**A row is a call and only a call.** No disclosure triangles, no block rows, no
+run row. Splitting the views is what deletes the double-statement problem — an
+index of "table · 42 rows" rows sitting above the same tables rendered below —
+and it is why Request/Response/Headers moved **down onto the payload pane**: the
+header no longer rearranges itself as the selection moves, and the pane never
+reflows as you step through the log.
+
+**The console belongs to the file** (`runHistory.ts`). There is no shared
 console: a run lands in the console of the script it was pressed on and stays
 there, so switching files switches consoles and coming back finds the runs, the
-selection and the tab as they were left. With one pane showing one file, a
-console reporting some other file's run under the code on screen was the same
-"which one is current" problem the tab strip removal set out to answer.
+selection, the tab and the view as they were left.
 
 - **Keyed by file, not held on the view.** `RunHistory` is `{ [fileId]:
   FileConsole }`, where a `fileId` is a scratch id or a script path and a
-  `FileConsole` is that file's runs, calls, selection and tab. Views are a
+  `FileConsole` is that file's runs, items, selection, tab and view. Views are a
   ten-slot cache, so a console living on one would be thrown away by ordinary
   navigation. ("Source" was the old name for this and is taken: it means an
   app's generated proto TypeScript.)
+- **An item is anything that happened in a run** — a call, a block the script
+  drew, or the log messages it printed. Blocks are items rather than a parallel
+  world, so they inherit run grouping, ordering, the per-file console and the
+  store without any of it being written twice.
 - **The scope is what makes the history worth stepping through.** `⌃↑`/`⌃↓` walk
-  *this call's* runs, so one go at it is comparable against the last — which is
-  what the run history was for. Caps are per file (25 runs, 300 calls), so a
-  chatty script can no longer evict another's history; fifty files hold a console
-  at once and the least recently run is let go.
+  *this file's* runs, so one go at it is comparable against the last. Caps are
+  per file (25 runs, 300 items), so a chatty script can no longer evict another's
+  history; fifty files hold a console at once and the least recently run is let go.
+- **Runs are numbered, not named.** A console holds one script's runs, so naming
+  each after that script says the same thing on every row — the pill reads `Run
+  3 · 14:03 · 1.2 s` and the picker hangs off it, which keeps run identity in the
+  one place it already lives. The number is the run's own (`Run.number`, assigned
+  in `startRun`), because a position would renumber as the oldest runs are
+  trimmed out from under it. `Run.title` still carries the derived script name,
+  which is what the window title and the store read.
+- **Two extra channels on every row, and no third.** The **loop key**
+  (`loopKey.ts`) is the identifying value read off the request — the only thing
+  making two hundred identical method names tellable apart — and it shares its
+  field list with `scratchTitle` so "what identifies a call" is defined once. The
+  **duration bar** is drawn against the slowest call in the run, so finding the
+  slow one is a shape you see rather than four digits you read; a run with
+  nothing to compare gets no bars.
+- **The log is never collapsed or summarised away.** It stays complete at any
+  length, and the tail bar says what is out of sight (`13 more`) rather than
+  standing in for it. Loop folding belongs on the canvas only.
 - **A run that has nowhere to land is not kept.** An agent running code that was
   never saved has no file, so no console; it still gets its results back. A call
   arriving with no run open gets one under the file the last run came from, which
   is where a late call almost certainly belongs.
 - **A run keeps going when you navigate away from it**, and its console is no
   longer on screen to say so — so the sidebar row does, with a spinner in place
-  of its icon (`runningFileIds`). Run/Stop in the command row still tracks the
-  *active* run, because Stop has to abort what it is showing.
+  of its icon (`runningFileIds`), or the waiting ring below. Run/Stop in the
+  command row still tracks the *active* run, because Stop has to abort what it is
+  showing — including a run parked on a question, which is awaiting an answer
+  rather than a call.
 - **Renaming or saving moves the console; deleting takes it with the file.**
   Saving a scratch to disk changes what the file is called, not what it is, so
   its runs follow it from the scratch id to the path (`renameFile`). Discarding a
   scratch is undoable, so its console is held alongside it and comes back.
-- **Three rules make the grouping hold.** ① A run's status is the **worst status
-  it contains** (`worstStatus`) — there is no "partially succeeded", and the
-  header dot is the only thing anyone needs to read after a press. ② A
-  **single-item run renders as one row**, header and call merged, so the 90% case
-  stays as flat as it was. ③ Calls inside a run are ordered by start, never
-  re-sorted, and keep their own durations; the header's duration is **wall time
-  for the whole script**, which is the number that differs from the sum when
-  calls run concurrently.
-- **The history lists runs, not calls.** Same select, one level up: each row is a
-  run with its call count, today's above a dimmed date header for older ones.
-  `⌃↑`/`⌃↓` step through runs. Selecting a call fills the response below;
-  selecting the run header shows the run's own summary instead.
+- **A run's status is the worst status it contains** (`worstStatus`) — there is
+  no "partially succeeded", and the pill's dot is the only thing anyone needs to
+  read after a press. Items are ordered by start, never re-sorted, and keep their
+  own durations; the run's duration is **wall time for the whole script**, which
+  is the number that differs from the sum when calls run concurrently.
 - **A new run always takes the console** (`followSelection`), because pressing Run
   is a request to see what it did — from an older run stepped back to as much as
   from the last one. Everything short of a new run stays where it is put: a call
   landing in a later run leaves a stepped-back one alone, and only inside the run
   being watched does the cursor follow the newest call, which is what selects one
   in flight the moment it is issued rather than when its response lands.
-- **Run names reuse the derived script names**, so the console and the sidebar
-  speak the same language. The window title follows the same name, from the
-  scratch list rather than the view — running or appending re-derives a title
-  without the view itself changing.
-- **Live and last-time are different states, and the header is the only place
-  that can say which.** Reopening a script gives you its code and, if we still
-  hold it, its last run (`runStore.ts`): the header carries a `Last run` pill and
-  a date instead of a clock, and the body sits at 70% opacity. Pressing Run
-  replaces it in place — a run made in this session always wins over a stored
-  one. Retention can be short because **expiry is a stated state, not a silent
-  hole**: headers are kept for the fifty most recently run files, payloads for
-  seven days (or dropped at once if they don't fit), and a run whose payloads have
-  gone keeps its header over a single line — `Response no longer kept — run to
-  see it live`. Clearing the history clears the store too.
+- **Live and last-time are different states.** Reopening a script gives you its
+  code and, if we still hold it, its last run (`runStore.ts`), at 70% opacity.
+  Pressing Run replaces it in place — a run made in this session always wins over
+  a stored one. Retention can be short because **expiry is a stated state, not a
+  silent hole**: headers are kept for the fifty most recently run files, payloads
+  for seven days (or dropped at once if they don't fit), and a run whose payloads
+  have gone says `Response no longer kept — run to see it live`. Clearing the
+  history clears the store too.
 - **With no run there is nothing to select.** The console drops its header
   entirely until something has been run, rather than showing Response as
   selected and the other two as disabled over an empty panel.
+
+## The canvas is what a run drew
+
+**A script says what it made, never how it looks.** The block set is closed and
+tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask` — and
+that is the guard, not a starting point: the moment a script can paint pixels the
+console is a rendering engine and every block becomes a support surface. There is
+no `kaja.html`, no styling arguments, no layout control.
+
+- **Ordered, never placed.** Blocks stack in the order they were emitted, like
+  calls do. "Canvas" is the name; the thing is a document. Free 2D positioning is
+  the single feature that would turn this into a quarter of work.
+- **A table is a handle, because a loop is why tables exist here.** `kaja.table`
+  returns something with `.row(...)`, and rows land one at a time so the canvas
+  repaints as the loop runs — waiting for it to finish would make the interesting
+  part the part you can't watch. Blocks are recorded against their own id
+  (`recordBlock`), so a block that fills in stays where it was emitted rather
+  than jumping to the end.
+- **Calls appear as one-line cards.** They can stay minimal because the complete
+  record is one click away: clicking a card selects that call's row in the list
+  and switches to it. The payload is never unrolled into the flow — that is
+  master/detail smuggled back in at 90°.
+- **A block that asks is a block that pauses the run.** `kaja.ask` is drawn where
+  it happened and the canvas stops there — the empty space under it *is* the
+  pause. Answering appends the next block. A dialogue is not a fifth block type;
+  it is what a sequence of asks reads as.
+- **Splitting the views reintroduces exactly one problem: a run can be waiting on
+  the tab you are not looking at.** So a parked run says so three times before
+  you can leave it — an amber dot on the Canvas tab, an amber bar at the tail of
+  the log with `Go to canvas`, and the run pill going amber — and a fourth time
+  once you have, as an amber ring on the sidebar row (`waitingFileIds`), because
+  a spinner there would say the script was working rather than waiting. The log
+  stays readable throughout: the pause blocks the script, not your reading.
+- **An ask with no canvas falls back to the dialog.** A run with no file has no
+  console to draw on (an agent running code that was never saved), and the modal
+  needs no surface of its own. A question that was never answered is stored as
+  cancelled, because the promise it was blocking died with the session.
+- **Which view a run opens in** (`defaultView`): a run that drew something opens
+  on its canvas — it was executed for its output, and the log is where you go
+  when the output is wrong — while a run that only made calls opens on its log,
+  since its canvas would be a true but redundant view of the same calls. An
+  explicit choice outranks that and sticks per file: debugging is a mode, not a
+  click.
 
 ## The empty state
 
