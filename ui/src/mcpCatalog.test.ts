@@ -1,0 +1,179 @@
+import { describe, expect, it } from "bun:test";
+import { loadApp } from "./appLoader";
+import { buildMcpCatalog } from "./mcpCatalog";
+import type { Source as ApiSource } from "./server/api";
+
+// createClients reads window.location for the base URL; provide it as the browser would.
+(globalThis as any).window = { location: { href: "http://localhost/" } };
+
+// A generated surface in the shape protoc-gen-kaja emits for an OpenAPI app: the
+// interfaces a script writes against, an enum, and the JSDoc the API's own
+// descriptions arrive as — alongside the protobuf bookkeeping that has to be
+// dropped before an agent reads any of it.
+const serviceTs = `
+import { ServiceType } from "@protobuf-ts/runtime-rpc";
+import { Value } from "./google/protobuf/struct";
+/**
+ * A show in the catalog.
+ *
+ * @generated from protobuf message theatre.Show
+ */
+export interface Show {
+    /**
+     * Unique slug of the show.
+     *
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: theatre.Venue venue = 2
+     */
+    venue?: Venue;
+    /**
+     * @generated from protobuf field: google.protobuf.Value extras = 3
+     */
+    extras?: Value;
+}
+export interface Venue {
+    name: string;
+}
+export interface ListShowsRequest {
+    /**
+     * How many shows to return. Defaults to 25 when omitted.
+     *
+     * @generated from protobuf field: int32 page_size = 1
+     */
+    pageSize: number;
+    sort: Sort;
+}
+export interface ListShowsResponse {
+    items: Show[];
+}
+export enum Sort { UNSPECIFIED = 0, NEWEST = 1 }
+export const Shows = new ServiceType("Shows", []);
+`;
+
+const clientTs = `
+import type { RpcOptions, UnaryCall } from "@protobuf-ts/runtime-rpc";
+import type { ListShowsRequest, ListShowsResponse } from "./theatre";
+export interface IShowsClient {
+    /**
+     * Lists the shows on sale.
+     *
+     * @generated from protobuf rpc: ListShows
+     */
+    listShows(input: ListShowsRequest, options?: RpcOptions): UnaryCall<ListShowsRequest, ListShowsResponse>;
+}
+`;
+
+// Stand-ins for the runtime MessageType objects, carrying the marks the app writes
+// where TypeScript has no way to say them.
+const stubCode = `
+const Venue = { typeName: "theatre.Venue", fields: [ { no: 1, name: "name", localName: "name", jsonName: "name", kind: "scalar", T: 9 } ] };
+const Value = { typeName: "google.protobuf.Value", fields: [] };
+const Show = { typeName: "theatre.Show", fields: [
+  { no: 1, name: "id", localName: "id", jsonName: "id", kind: "scalar", T: 9, options: { "kaja.http_required": true } },
+  { no: 2, name: "venue", localName: "venue", jsonName: "venue", kind: "message", T: () => Venue },
+  { no: 3, name: "extras", localName: "extras", jsonName: "extras", kind: "message", T: () => Value }
+] };
+const Sort = { 0: "UNSPECIFIED", 1: "NEWEST", UNSPECIFIED: 0, NEWEST: 1 };
+const ListShowsRequest = { typeName: "theatre.ListShowsRequest", fields: [
+  { no: 1, name: "page_size", localName: "pageSize", jsonName: "pageSize", kind: "scalar", T: 5, options: { "kaja.http_in": "query" } },
+  { no: 2, name: "sort", localName: "sort", jsonName: "sort", kind: "enum", T: () => ["theatre.Sort", Sort, "SORT_"] }
+] };
+const ListShowsResponse = { typeName: "theatre.ListShowsResponse", fields: [
+  { no: 1, name: "items", localName: "items", jsonName: "items", kind: "message", repeat: 2, T: () => Show, options: { "kaja.http_payload": "HTTP_PAYLOAD_ITEMS" } }
+] };
+export const proto$theatre = {
+  Show, Venue, ListShowsRequest, ListShowsResponse, Sort,
+  Shows: { typeName: "theatre.Shows", methods: [
+    { name: "ListShows", options: { "kaja.http_request": "GET /shows" }, I: ListShowsRequest, O: ListShowsResponse }
+  ] },
+};
+export const proto$theatre$client = { ShowsClient: class { listShows() {} } };
+`;
+
+async function loadTheatre(status: "success" | "pending" = "success") {
+  const apiSources: ApiSource[] = [
+    { path: "proto/theatre.ts", content: serviceTs },
+    { path: "proto/theatre.client.ts", content: clientTs },
+  ] as ApiSource[];
+  const app = await loadApp(apiSources, stubCode, { name: "theatre", app: { oneofKind: "openapi" } } as any, "kaja-app://x", 1 as any);
+  app.compilation.status = status;
+  return app;
+}
+
+async function catalog() {
+  return buildMcpCatalog([await loadTheatre()]);
+}
+
+describe("buildMcpCatalog", () => {
+  it("indexes methods by the TypeScript a script writes", async () => {
+    const built = await catalog();
+
+    expect(built.apps).toHaveLength(1);
+    expect(built.apps[0].name).toBe("theatre");
+    expect(built.apps[0].type).toBe("openapi");
+
+    const service = built.apps[0].services[0];
+    expect(service.name).toBe("Shows");
+    expect(service.importPath).toBe("theatre/proto/theatre");
+
+    const method = service.methods[0];
+    expect(method.name).toBe("ListShows");
+    expect(method.signature).toBe("ListShows(input: ListShowsRequest): Promise<ListShowsResponse>");
+    expect(method.input).toBe("ListShowsRequest");
+    expect(method.output).toBe("ListShowsResponse");
+    expect(method.doc).toBe("Lists the shows on sale.");
+    // The HTTP request is what says the method reads rather than writes.
+    expect(method.http).toBe("GET /shows");
+  });
+
+  it("declares each type as a script reads it, without the protobuf bookkeeping", async () => {
+    const built = await catalog();
+    const declarations = built.apps[0].declarations;
+
+    expect(Object.keys(declarations).sort()).toEqual(["ListShowsRequest", "ListShowsResponse", "Show", "Sort", "Venue"]);
+
+    const show = declarations["Show"];
+    expect(show.text).toBe(
+      [
+        "/** A show in the catalog. */",
+        "export interface Show {",
+        "    /** Unique slug of the show. [required] */",
+        "    id: string;",
+        "    venue?: Venue;",
+        "    extras?: Value;",
+        "}",
+      ].join("\n"),
+    );
+    // The field numbers and wire types never reach a reader.
+    expect(show.text).not.toContain("protobuf");
+    // What the type reaches, so an answer can close over it.
+    expect(show.references.sort()).toEqual(["Value", "Venue"]);
+  });
+
+  it("keeps the marks TypeScript has no way to state", async () => {
+    const built = await catalog();
+    const declarations = built.apps[0].declarations;
+
+    expect(declarations["ListShowsRequest"].text).toContain("/** How many shows to return. Defaults to 25 when omitted. [query parameter] */");
+    expect(declarations["ListShowsResponse"].text).toContain("[carries the HTTP payload]");
+    // An enum field is unwritable without its values.
+    expect(declarations["Sort"].text).toBe(["export enum Sort {", "    UNSPECIFIED = 0,", "    NEWEST = 1,", "}"].join("\n"));
+  });
+
+  it("carries the call Kaja itself writes for the method", async () => {
+    const built = await catalog();
+    const example = built.apps[0].services[0].methods[0].example;
+
+    expect(example).toContain('import { Shows, Sort } from "theatre/proto/theatre"');
+    expect(example).toContain("Shows.ListShows(");
+    expect(example).toContain("pageSize: 0");
+    expect(example).toContain("sort: Sort.NEWEST");
+  });
+
+  it("leaves out an app that has not compiled", async () => {
+    expect(buildMcpCatalog([await loadTheatre("pending")]).apps).toHaveLength(0);
+  });
+});

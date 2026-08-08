@@ -44,6 +44,8 @@ import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneSc
 import { deriveScratchTitle, proposeFileName, proposeFileNames } from "./scratchTitle";
 import { methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
+import { buildMcpCatalog } from "./mcpCatalog";
+import { classifyFailure } from "./callFailure";
 import { RunButton, useSyntaxErrors } from "./RunButton";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
@@ -2325,38 +2327,17 @@ export function App() {
 }
 
 // toMethodCallLog flattens a MethodCall into the shape the MCP server returns to
-// the agent (service/method plus best-effort JSON of the request and response).
+// the agent: which method ran, what it was sent and what came back, and - when it
+// failed - which kind of failure it was, so a caller can tell "fix your request"
+// from "nothing you send will help".
 function toMethodCallLog(call: MethodCall) {
   return {
+    app: call.appName,
     service: call.service.name,
     method: call.method.name,
+    durationMs: call.durationMs,
     input: call.input,
     output: call.output,
-    error: call.error ? String(call.error?.message ?? call.error) : undefined,
-  };
-}
-
-// buildMcpCatalog turns the compiled apps into the catalog the MCP server
-// exposes via list_services and the stub resources. Apps are included here just
-// like gRPC/Twirp apps — for the MCP consumer there is no difference, both
-// expose callable services. Only successfully compiled apps with services
-// are listed, so a pending or failed app (or app) leaves the rest intact.
-function buildMcpCatalog(apps: AppModel[]) {
-  const compiled = apps.filter((app) => app.compilation.status === "success" && app.services.length > 0);
-  return {
-    apps: compiled.map((app) => ({
-      name: app.configuration.name,
-      services: app.services.map((service: Service) => ({
-        name: service.name,
-        packageName: service.packageName,
-        importPath: service.sourcePath,
-        methods: service.methods.map((method) => ({
-          name: method.name,
-          serverStreaming: method.serverStreaming,
-          clientStreaming: method.clientStreaming,
-        })),
-      })),
-    })),
-    sources: compiled.flatMap((app) => app.sources.map((source) => ({ path: source.importPath, content: source.file.text }))),
+    failure: call.error === undefined ? undefined : classifyFailure(call.error),
   };
 }

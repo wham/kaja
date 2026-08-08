@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { Declaration, declareEnum, declareInterface } from "./declarations";
 import { Source as ApiSource } from "./server/api";
 
 export interface Source {
@@ -9,6 +10,11 @@ export interface Source {
   serviceNames: string[];
   interfaces: { [key: string]: ts.InterfaceDeclaration };
   enums: { [key: string]: { object: any } };
+  // The generated types this source declares, as a script reads them. Built
+  // while the source is parsed: the nodes above carry positions into text a
+  // later reader doesn't have, and the marks come from the stub module that is
+  // only in hand here.
+  declarations: { [name: string]: Declaration };
 }
 
 export type Sources = Source[];
@@ -42,6 +48,7 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: 
       serviceNames: [],
       interfaces: {},
       enums: {},
+      declarations: {},
     };
 
     source.file.statements.forEach((statement) => {
@@ -50,8 +57,10 @@ export async function loadSources(apiSources: ApiSource[], stub: Stub, appName: 
         source.serviceNames.push(serviceName);
       } else if (ts.isInterfaceDeclaration(statement)) {
         source.interfaces[statement.name.text] = statement;
+        source.declarations[statement.name.text] = declareInterface(statement, source.file, stubModule[statement.name.text]);
       } else if (ts.isEnumDeclaration(statement)) {
         const enumName = statement.name.text;
+        source.declarations[enumName] = declareEnum(statement, source.file);
         const object = stubModule[enumName];
         if (object) {
           source.enums[enumName] = { object };

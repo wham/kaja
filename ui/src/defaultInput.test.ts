@@ -1,6 +1,7 @@
 import { MessageType } from "@protobuf-ts/runtime";
 import { expect, test } from "bun:test";
-import { defaultMessage } from "./defaultInput";
+import { defaultMessage, Imports } from "./defaultInput";
+import { Kaja } from "./kaja";
 import { printStatements } from "./appLoader";
 import ts from "typescript";
 import { Sources } from "./sources";
@@ -61,11 +62,12 @@ const anyValue = (): MessageType<any> =>
     { no: 4, name: "bool_value", kind: "scalar", oneof: "kind", T: 8 /*ScalarType.BOOL*/ },
   ]);
 
-// google.protobuf.Value (used for free-form / polymorphic OpenAPI fields) has no
-// fillable default: its "kind" oneof can neither be flattened into fields (not a
-// valid shape) nor left unset (the JSON encoder rejects it on send). A singular
-// one is omitted, the way a recursive field is.
-test("defaultInput omits a google.protobuf.Value field", () => {
+// google.protobuf.Value (used for free-form / polymorphic OpenAPI fields) can't
+// be written out by hand: its "kind" oneof can neither be flattened into fields
+// (not a valid shape) nor left unset (the JSON encoder rejects it on send). The
+// kaja builder is what a caller writes instead, and the generated request is the
+// only place it can be learned — the field appears nowhere else a caller reads.
+test("defaultInput builds a google.protobuf.Value field with kaja.value", () => {
   const request: MessageType<any> = new MessageType("openapi.demo.Request", [
     { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
     { no: 2, name: "data", kind: "message", T: anyValue },
@@ -73,20 +75,22 @@ test("defaultInput omits a google.protobuf.Value field", () => {
   ]);
 
   const sources: Sources = [];
-  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
+  const imports: Imports = {};
+  const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, imports))]);
 
   expect(expr).toContain("id:");
-  expect(expr).not.toContain("data:");
-  // Repeated: an empty array, not an element that can't be sent.
-  expect(expr).toContain("values: []");
-  // No flat oneof members, and no empty group, leaked out.
+  expect(expr).toContain("data: kaja.value(null)");
+  expect(expr).toContain("values: [kaja.value(null)]");
+  // The encoding stays out of it: no hand-written oneof members.
   expect(expr).not.toContain("stringValue");
   expect(expr).not.toContain("oneofKind");
+  // The call needs an import, so the generated code runs as it stands.
+  expect([...(imports["kaja"] ?? [])]).toEqual(["kaja"]);
 });
 
-// A free-form OpenAPI object becomes map<string, google.protobuf.Value>. The map
-// itself is fine to send, so it stays — empty, for the caller to fill in.
-test("defaultInput renders a map of google.protobuf.Value as an empty map", () => {
+// A free-form OpenAPI object becomes map<string, google.protobuf.Value>. The
+// entry shows the builder the values are written with.
+test("defaultInput builds a map of google.protobuf.Value with kaja.value", () => {
   const request: MessageType<any> = new MessageType("openapi.demo.Request", [
     { no: 1, name: "schema_fields", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: anyValue } },
   ]);
@@ -94,7 +98,7 @@ test("defaultInput renders a map of google.protobuf.Value as an empty map", () =
   const sources: Sources = [];
   const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
 
-  expect(expr).toContain("schemaFields: {}");
+  expect(expr).toContain("schemaFields: { key: kaja.value(null) }");
 });
 
 // A oneof of any kind is a single { oneofKind, <member> } property: its members
@@ -131,7 +135,14 @@ test("defaultInput generates a request that serializes", () => {
 
   const sources: Sources = [];
   const expr = printStatements([ts.factory.createExpressionStatement(defaultMessage(request, sources, {}))]);
-  const generated = new Function(`return ${expr.replace(/;\s*$/, "")}`)();
+  // The generated code calls the kaja builders, which a script gets from the
+  // runtime object; supply the real one so what is serialized is what a run sends.
+  const generated = new Function("kaja", `return ${expr.replace(/;\s*$/, "")}`)(
+    new Kaja(
+      () => {},
+      async () => "",
+    ),
+  );
 
   expect(() => request.toBinary(generated)).not.toThrow();
 });

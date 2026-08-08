@@ -18,6 +18,8 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wham/kaja/v2/pkg/apps"
+	kajagen "github.com/wham/kaja/v2/protoc-gen-kaja/kaja"
+	"github.com/wham/protoc-go/protoc"
 )
 
 // encodeRequest builds the protobuf request bytes for a method from a JSON object.
@@ -147,17 +149,17 @@ func TestGenerateProto(t *testing.T) {
 		"message Pet {",
 		"int32 id = 1 [json_name = \"id\"];",
 		"string name = 2 [json_name = \"name\"];",
-		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse);",
+		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse) {",
 		// The body is the operation's whole input, so it is the request itself.
-		"rpc CreatePet(Pet) returns (Pet);",
-		"rpc GetPetById(GetPetByIdRequest) returns (Pet);",
+		"rpc CreatePet(Pet) returns (Pet) {",
+		"rpc GetPetById(GetPetByIdRequest) returns (Pet) {",
 		// An array response has no message to be, so it is wrapped - and the
 		// wrapper says it is one.
 		"repeated Pet items = 1 [json_name = \"items\", (kaja.http_payload) = HTTP_PAYLOAD_ITEMS];",
 		"import \"kaja/http.proto\";",
 		// path + query params become fields
-		"int32 pet_id = 1 [json_name = \"petId\"];",
-		"int32 limit = 1 [json_name = \"limit\"];",
+		"int32 pet_id = 1 [json_name = \"petId\", (kaja.http_in) = \"path\", (kaja.http_required) = true];",
+		"int32 limit = 1 [json_name = \"limit\", (kaja.http_in) = \"query\"];",
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
@@ -256,10 +258,10 @@ paths:
 		"service Store {",
 		"service Pets {",
 		"service Orders {",
-		"rpc Health(HealthRequest) returns (HealthResponse);",
-		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse);",
-		"rpc DeletePet(DeletePetRequest) returns (DeletePetResponse);",
-		"rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);",
+		"rpc Health(HealthRequest) returns (HealthResponse) {",
+		"rpc ListPets(ListPetsRequest) returns (ListPetsResponse) {",
+		"rpc DeletePet(DeletePetRequest) returns (DeletePetResponse) {",
+		"rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {",
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
@@ -360,9 +362,9 @@ func TestParameterRefsAndMaps(t *testing.T) {
 	}
 
 	for _, frag := range []string{
-		`int32 page = 1 [json_name = "page"];`,
-		`string order = 2 [json_name = "order"];`,
-		`bool include_deleted = 3 [json_name = "includeDeleted"];`,
+		`int32 page = 1 [json_name = "page", (kaja.http_in) = "query"];`,
+		`string order = 2 [json_name = "order", (kaja.http_in) = "query"];`,
+		`bool include_deleted = 3 [json_name = "includeDeleted", (kaja.http_in) = "query"];`,
 		`string aggregation = 1 [json_name = "aggregation"];`,
 		`map<string, string> group_by = 2 [json_name = "groupBy"];`,
 		`map<string, string> metadata = 3 [json_name = "metadata"];`,
@@ -794,7 +796,7 @@ func TestUnionSchemas(t *testing.T) {
 	for _, frag := range []string{
 		// anyOf [Event, Event[]] models the single Event, which is the whole
 		// request and so needs no envelope around it.
-		`rpc IngestEvents(Event) returns (IngestEventsResponse);`,
+		`rpc IngestEvents(Event) returns (IngestEventsResponse) {`,
 		// integer formats
 		`uint64 total = `,
 		`uint32 count = `,
@@ -805,7 +807,7 @@ func TestUnionSchemas(t *testing.T) {
 		`repeated string tiers = 3 [json_name = "tiers"];`,
 		`string type = 4 [json_name = "type"];`,
 		// text/plain response becomes a string value.
-		`rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);`,
+		`rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse) {`,
 	} {
 		if !strings.Contains(gen.proto, frag) {
 			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
@@ -1324,7 +1326,7 @@ components:
 
 	// The generated proto must compile into descriptors.
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "service.proto"), []byte(gen.proto), 0o644); err != nil {
+	if err := gen.write(dir); err != nil {
 		t.Fatalf("write proto: %v", err)
 	}
 	if _, err := compileMethods(dir, gen); err != nil {
@@ -1348,6 +1350,166 @@ func TestOpenAPITypeUnmarshal(t *testing.T) {
 		}
 		if string(ty) != want {
 			t.Errorf("unmarshal %s = %q, want %q", in, string(ty), want)
+		}
+	}
+}
+
+// TestGenerateProtoHTTPMarks checks the marks that tell a caller what a method
+// does and what it has to send: the HTTP request behind each method, where a
+// parameter travels, which fields the API insists on, and the descriptions it
+// gives them.
+func TestGenerateProtoHTTPMarks(t *testing.T) {
+	const markedSpec = `
+openapi: 3.0.0
+info:
+  title: Meters
+  version: 1.0.0
+paths:
+  /meters:
+    get:
+      operationId: listMeters
+      parameters:
+        - name: pageSize
+          in: query
+          description: |
+            How many meters to return. Defaults to 25 when omitted.
+          schema: { type: integer }
+      responses:
+        "200": { description: ok }
+    post:
+      operationId: createMeter
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Meter"
+      responses:
+        "201": { description: created }
+components:
+  schemas:
+    Meter:
+      type: object
+      required: [slug]
+      properties:
+        slug:
+          type: string
+          description: Unique identifier of the meter.
+        note:
+          type: string
+`
+	s, err := parseSpec([]byte(markedSpec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+
+	for _, frag := range []string{
+		`option (kaja.http_request) = "GET /meters";`,
+		`option (kaja.http_request) = "POST /meters";`,
+		`// Unique identifier of the meter.`,
+		`string slug = 2 [json_name = "slug", (kaja.http_required) = true];`,
+		`string note = 1 [json_name = "note"];`,
+		// A description is folded to its first sentence, so a listing built from
+		// it stays one line per field.
+		`// How many meters to return.`,
+		`int32 page_size = 1 [json_name = "pageSize", (kaja.http_in) = "query"];`,
+	} {
+		if !strings.Contains(gen.proto, frag) {
+			t.Errorf("generated proto missing %q\n---\n%s", frag, gen.proto)
+		}
+	}
+
+	// The generated proto must still compile with the option file beside it.
+	dir := t.TempDir()
+	if err := gen.write(dir); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := compileMethods(dir, gen); err != nil {
+		t.Fatalf("compileMethods: %v", err)
+	}
+}
+
+// TestGenerateTypeScriptCarriesHTTPMarks closes the loop the marks exist for:
+// a spec becomes a proto, the proto compiles, and protoc-gen-kaja carries the
+// options into the generated TypeScript, which is where the client and the MCP
+// catalog read them from. Everything upstream of that is only a proto file.
+func TestGenerateTypeScriptCarriesHTTPMarks(t *testing.T) {
+	const spec = `
+openapi: 3.0.0
+info:
+  title: Meters
+  version: 1.0.0
+paths:
+  /meters/{slug}:
+    get:
+      operationId: getMeter
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meter"
+components:
+  schemas:
+    Meter:
+      type: object
+      required: [slug]
+      properties:
+        slug:
+          type: string
+          description: Unique identifier of the meter.
+`
+	s, err := parseSpec([]byte(spec))
+	if err != nil {
+		t.Fatalf("parseSpec: %v", err)
+	}
+	gen, err := generateProto(s)
+	if err != nil {
+		t.Fatalf("generateProto: %v", err)
+	}
+	dir := t.TempDir()
+	if err := gen.write(dir); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	result, err := protoc.New(protoc.WithProtoPaths(dir)).Compile("service.proto", "kaja/http.proto")
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	files, err := result.RunLibraryPlugin(kajagen.NewPlugin(), "")
+	if err != nil {
+		t.Fatalf("protoc-gen-kaja: %v", err)
+	}
+
+	var ts string
+	for _, f := range files {
+		if strings.HasSuffix(f.Name, "service.ts") {
+			ts = f.Content
+		}
+	}
+	if ts == "" {
+		t.Fatalf("no service.ts generated from %v", files)
+	}
+
+	for _, frag := range []string{
+		`"kaja.http_request": "GET /meters/{slug}"`,
+		`"kaja.http_in": "path"`,
+		`"kaja.http_required": true`,
+		// The API's description reaches the generated interface as JSDoc, which is
+		// what the MCP catalog reads a field's doc from.
+		"Unique identifier of the meter.",
+	} {
+		if !strings.Contains(ts, frag) {
+			t.Errorf("generated TypeScript missing %q\n---\n%s", frag, ts)
 		}
 	}
 }
