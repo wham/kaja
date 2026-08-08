@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, takeOver, withCode } from "./scratches";
+import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -24,6 +24,43 @@ describe("isUntouched", () => {
     expect(isUntouched(scratch)).toBe(true);
     expect(isUntouched({ ...scratch, code: listShows + "// mine" })).toBe(false);
     expect(isUntouched({ ...scratch, ran: true })).toBe(false);
+  });
+});
+
+describe("findUntouched", () => {
+  const buffer = (code: string, originAppName?: string, extra: Partial<Scratch> = {}) => ({
+    ...createScratch(code, originAppName, NOW),
+    ...extra,
+  });
+
+  it("finds the browsing buffer that already holds the call", () => {
+    const held = buffer(listShows, "theatre");
+    expect(findUntouched([buffer(getShow, "theatre"), held], listShows, "theatre")?.id).toBe(held.id);
+  });
+
+  it("takes the most recent of several", () => {
+    const [newest, oldest] = [buffer(listShows, "theatre"), buffer(listShows, "theatre")];
+    expect(findUntouched([newest, oldest], listShows, "theatre")?.id).toBe(newest.id);
+  });
+
+  it("never reaches a scratch that was worked in", () => {
+    expect(findUntouched([buffer(listShows, "theatre", { ran: true })], listShows, "theatre")).toBeUndefined();
+    expect(findUntouched([buffer(listShows, "theatre", { code: listShows + "// mine" })], listShows, "theatre")).toBeUndefined();
+  });
+
+  it("keeps two apps apart even when their code reads the same", () => {
+    expect(findUntouched([buffer(getSeatMap, "seating")], getSeatMap, "theatre")).toBeUndefined();
+  });
+});
+
+describe("reopen", () => {
+  it("says the buffer is the one being browsed and settles nothing else", () => {
+    const scratch = createScratch(listShows, undefined, NOW);
+    const held = reopen(scratch, NOW + 1);
+
+    expect(held.updatedAt).toBe(NOW + 1);
+    expect(isUntouched(held)).toBe(true);
+    expect(held.title).toBe(scratch.title);
   });
 });
 

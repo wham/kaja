@@ -40,7 +40,7 @@ import { Gutter } from "./Gutter";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
-import { appendCall, createScratch, isUntouched, markRun, pruneScratches, Scratch, takeOver, withCode } from "./scratches";
+import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
 import { deriveScratchTitle, proposeFileName, proposeFileNames } from "./scratchTitle";
 import { generateMethodEditorCode } from "./appLoader";
 import { RunButton, useSyntaxErrors } from "./RunButton";
@@ -909,9 +909,11 @@ export function App() {
   /**
    * Clicking a method never asks what to do with it. The current scratch
    * decides: an untouched one is a browsing buffer and gets taken over, a
-   * worked-in one is left alone and the call starts a new scratch. Appending to
-   * what you already have is the deliberate gesture (⌥click, or the + on the
-   * row), so it can't happen by drifting.
+   * worked-in one is left alone and the call starts a new scratch — unless an
+   * untouched scratch already holds exactly this call, which is reopened rather
+   * than made a second time. Appending to what you already have is the
+   * deliberate gesture (⌥click, or the + on the row), so it can't happen by
+   * drifting.
    */
   const onMethodSelect = useCallback(
     async (method: Method, service: Service, app: AppModel, mode: "go" | "append" = "go") => {
@@ -930,6 +932,16 @@ export function App() {
         const merged = await formatTypeScript(appendCall(current.model.getValue(), code));
         current.model.setValue(merged);
         updateScratch(currentScratch.id, (scratch) => withCode(scratch, merged, now));
+        return;
+      }
+
+      // An untouched scratch holding exactly this call is the buffer this click
+      // would produce, so it is reopened instead. This is decided before the
+      // takeover, which would otherwise be the thing that made the duplicate.
+      const held = findUntouched(scratchesRef.current, code, originAppName);
+      if (held) {
+        updateScratch(held.id, (scratch) => reopen(scratch, now));
+        applyViews((views) => showScratch(views, held));
         return;
       }
 

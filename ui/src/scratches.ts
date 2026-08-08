@@ -56,6 +56,20 @@ export function isUntouched(scratch: Scratch): boolean {
   return !scratch.ran && scratch.code === scratch.generatedCode;
 }
 
+// Two untouched scratches of the same call are one browsing buffer written
+// twice: same code, same title, same dimmed row. So a call reopens the buffer
+// that already holds it rather than adding another beside it.
+export function findUntouched(scratches: Scratch[], code: string, originAppName: string | undefined): Scratch | undefined {
+  return scratches.find((scratch) => isUntouched(scratch) && scratch.code === code && scratch.originAppName === originAppName);
+}
+
+// Reopening is not work, so it settles nothing — it only says this buffer is
+// the one being browsed, which is what keeps it at the top of the list and out
+// of the way of the pruner.
+export function reopen(scratch: Scratch, now: number): Scratch {
+  return { ...scratch, updatedAt: now };
+}
+
 export function takeOver(scratch: Scratch, code: string, originAppName: string | undefined, now: number): Scratch {
   return {
     ...scratch,
