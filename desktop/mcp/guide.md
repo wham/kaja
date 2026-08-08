@@ -12,18 +12,49 @@ write and run those scripts.
 2. `describe_method "Shows.ListShows"` — the declarations of every type that
    method's signature names, whether the call reads or writes, and a call to
    start from. `describe_type "Show"` looks one type up on its own.
-3. `run_script` with `code` to try it, then `create_script` to keep it.
+3. `run_script` with `code` to **look**, `create_script` and `run_script` with a
+   `path` to **act**. See below — this is one rule, not a preference.
 
 **Everything you are shown is TypeScript**, because that is all a script is: the
 declarations come out of the generated code your script is checked against, so
 there is nothing else to go and read.
 
+## Run inline to look, save to act
+
+Running a snippet to see what a real response looks like is the right thing to
+do, and it is cheap: **`run_script` with `code` is exploration and costs you
+nothing.** It is not invisible, though, and it is not unrestricted.
+
+- **Where it goes.** An inline snippet is run in Kaja's own scratch buffer — it
+  appears in the user's sidebar, titled from your code, and every run lands in
+  that buffer's console beside the runs the user made themselves. You get the
+  same buffer each time, so ten tries at one call read as ten runs of one script
+  rather than ten files. Nothing you run is hidden from the person you are
+  working with.
+- **What it may do.** An inline snippet **may read, and may not write.** A call
+  to a method marked `write` is refused before it is sent, and comes back as a
+  `REFUSED` call in the run report. Nothing was sent; retrying the same snippet
+  will be refused the same way.
+- **How to write, then.** `create_script` it and `run_script` it by `path`. A
+  saved script runs with no restriction, because it is a file the user can read
+  before it runs — that, and not the running, is what makes an effect
+  accountable. If you saved exactly what you last ran inline, the scratch buffer
+  becomes that file rather than leaving a copy behind.
+
+So: reach for `code` freely while you are working out *what* to call, and save
+before you change anything.
+
 ## Read or write
 
 Every method in `list_services` is marked `read` or `write`. A `?` means it was
 inferred from the method name because the API doesn't state it; without a `?` the
-HTTP verb behind the method settled it. **Treat `write` as a real side effect** —
-confirm with the user before running one you were not asked for.
+HTTP verb behind the method settled it. gRPC and Twirp methods have no verb, so
+they are always inferred — which means a `write?` may well be a read that is
+named unusually. That is the safe way round, and saving the script is the way
+through it.
+
+**Treat `write` as a real side effect** — confirm with the user before running
+one you were not asked for, saved script or not.
 
 ## Writing a script
 
@@ -51,8 +82,10 @@ Rules that matter:
   parameter]`, `[path parameter]`, `[header parameter]` say where a field travels
   in the HTTP request behind the method, and `[carries the HTTP payload]` marks a
   field that exists only to hold a body the shape couldn't otherwise express.
-- A rejected call **throws**, which stops the script there. The calls it already
-  made are still reported. Wrap a call in `try`/`catch` to keep going.
+- A rejected call **does not throw**. It is reported as a failed call and the
+  script keeps going, with `undefined` where the response would have been — so a
+  script with three calls in it reports all three. What stops a script is reading
+  a property off that `undefined`; check a response before you use it.
 
 ## The script runtime
 
@@ -101,3 +134,5 @@ await Seating.Annotate({
 - `SERVER` — the service errored. Changing the request shape will not help.
 - `TRANSPORT` — the exchange never completed (connection or codec). **Do not
   retry with different parameters**; nothing you send will change it.
+- `REFUSED` — Kaja did not send it: the method writes and the script was never
+  saved. Nothing reached the service. `create_script`, then run it by `path`.

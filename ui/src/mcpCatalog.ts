@@ -2,6 +2,7 @@ import { generateMethodEditorCode } from "./appLoader";
 import { App, Method, Service } from "./apps";
 import { appType } from "./appTypes";
 import { Declaration } from "./declarations";
+import { methodEffect } from "./methodEffect";
 
 // What the MCP server answers from. A script is TypeScript against generated
 // TypeScript, so this is TypeScript: the methods a script can call, their
@@ -39,6 +40,11 @@ export interface McpMethod {
   // The HTTP request the method stands for, when the app said so. It is the only
   // thing that states whether calling the method reads or writes.
   http?: string;
+  // Whether calling it reads or writes, and whether the API said so or the name
+  // was all there was to go on. Settled here (`methodEffect`) rather than in Go,
+  // so the word a listing shows and the rule that refuses a write are one thing.
+  effect: "read" | "write";
+  effectCertain: boolean;
   streaming?: "server" | "client" | "bidirectional";
   // The generated call, which is the same code clicking the method in the tree
   // writes into a scratch. Not a second example generator: one method, one
@@ -81,11 +87,14 @@ export function buildMcpCatalog(apps: App[]): McpCatalog {
 function describeMethod(app: App, service: Service, method: Method): McpMethod {
   const input = method.input ?? "unknown";
   const output = method.output ?? "unknown";
+  const effect = methodEffect(method);
   const described: McpMethod = {
     name: method.name,
     signature: `${method.name}(input: ${input}): Promise<${output}>`,
     input,
     output,
+    effect: effect.read ? "read" : "write",
+    effectCertain: effect.certain,
     example: generateMethodEditorCode(app, service, method),
   };
   if (method.doc) described.doc = method.doc;

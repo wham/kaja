@@ -1,3 +1,5 @@
+import { isRefusal } from "./methodEffect";
+
 // What went wrong with a call, in the one distinction a caller can act on:
 // whether to change the request, the credentials, or nothing at all.
 //
@@ -7,7 +9,7 @@
 // itself broke. Read raw, "invalid argument" and "decoding response JSON" look
 // alike, and the only way to tell them apart is to try again with a different
 // request, which is wasted on a failure the request had nothing to do with.
-export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER" | "TRANSPORT" | "UNKNOWN";
+export type FailureKind = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER" | "TRANSPORT" | "REFUSED" | "UNKNOWN";
 
 export interface CallFailure {
   kind: FailureKind;
@@ -40,6 +42,12 @@ export function classifyFailure(error: unknown): CallFailure {
   const status = numberField(error, "status");
   const code = stringField(error, "code");
 
+  // Kaja refused to make the call, so nothing was sent and there is no status
+  // and no code to read. That looks exactly like a broken exchange from the
+  // outside and means the opposite: there is something to do about it.
+  if (isRefusal(error)) {
+    return { kind: "REFUSED", message };
+  }
   if (status !== undefined && status > 0) {
     return { kind: statusKind(status), message, status, code };
   }

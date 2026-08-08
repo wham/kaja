@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { Service } from "./apps";
 import { classifyFailure } from "./callFailure";
+import { refuseWrite } from "./methodEffect";
+
+const service: Service = { name: "Shows", packageName: "theatre", sourcePath: "theatre/service", clientStubModuleId: "stub", methods: [] };
 
 describe("classifyFailure", () => {
   it("reads an upstream HTTP failure by its status", () => {
@@ -37,6 +41,16 @@ describe("classifyFailure", () => {
     expect(failure.kind).toBe("TRANSPORT");
     expect(failure.message).toContain("proto: syntax error");
     expect(failure.status).toBeUndefined();
+  });
+
+  // A refusal has no status and no code either, and means the opposite of a
+  // broken exchange: nothing was sent, and there is something to do about it.
+  it("tells a refusal apart from a broken exchange", () => {
+    const refusal = refuseWrite("theatre", service, { name: "CreateShow", http: "POST /shows" });
+    expect(classifyFailure(refusal).kind).toBe("REFUSED");
+    // It still classifies once serialized into the run store, where the class is
+    // gone and only the fields survive.
+    expect(classifyFailure({ message: refusal!.message, refused: true }).kind).toBe("REFUSED");
   });
 
   it("survives an error that is not one", () => {
