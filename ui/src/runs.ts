@@ -1,3 +1,4 @@
+import { Block, blockLabel, isAwaitingAnswer } from "./blocks";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { Log, LogLevel } from "./server/api";
 
@@ -8,9 +9,14 @@ import { Log, LogLevel } from "./server/api";
  */
 export interface Run {
   id: string;
-  // The script's derived name at the time it was run, so the console and the
-  // sidebar speak the same language.
+  // The script's derived name at the time it was run. The console belongs to one
+  // file, so every run in it carries much the same name and the header numbers
+  // them instead; this is what the window title and the store still read.
   title: string;
+  // Which run of this file it is, counting from one and never reused. The
+  // header says `Run 3`, so it has to survive the oldest runs being trimmed —
+  // a position in the list would renumber underneath you.
+  number?: number;
   // The file it came from — a scratch id or a script path. The console belongs
   // to the file, so this is what decides which console a run lands in. ("Source"
   // is taken: it means an app's generated proto TypeScript.)
@@ -27,13 +33,19 @@ export interface Run {
   payloadsExpired?: boolean;
 }
 
-// One line in the console: a call the run made, or the log messages it printed.
+/**
+ * One thing that happened in a run: a call it made, something it drew, or the
+ * log messages it printed. Blocks are items rather than a parallel world, so
+ * they inherit run grouping, ordering, the per-file console and the store
+ * without any of it being written twice.
+ */
 export interface ConsoleItem {
   id: string;
   runId: string;
   timestamp: number;
   call?: MethodCall;
   logs?: Log[];
+  block?: Block;
 }
 
 export type RunStatus = "pending" | "streaming" | "success" | "error";
@@ -41,6 +53,15 @@ export type RunStatus = "pending" | "streaming" | "success" | "error";
 // Which part of the selected call is showing. It is remembered per file along
 // with the selection, so going back to a script finds its console as it was.
 export type ConsoleTab = "request" | "response" | "headers";
+
+/**
+ * The two views of one run. The list is the flat audit log — one row per call,
+ * in wall order, always complete. The canvas is the rendered output. They want
+ * opposite things: the log wants to be uniform and boring, which is what makes
+ * it scannable at two hundred rows; the canvas wants to be varied. Serving both
+ * in one surface bends one of them out of shape.
+ */
+export type ConsoleView = "list" | "canvas";
 
 export interface RunGroup {
   run: Run;
@@ -77,12 +98,21 @@ export function logsStatus(logs: Log[]): RunStatus {
   return logs.some((log) => log.level === LogLevel.LEVEL_ERROR) ? "error" : "success";
 }
 
+// A drawn block has already happened, so it is settled — except an ask, which is
+// the run stopped mid-flight waiting to be answered.
+export function blockStatus(block: Block): RunStatus {
+  return isAwaitingAnswer(block) ? "pending" : "success";
+}
+
 export function itemStatus(item: ConsoleItem): RunStatus {
-  return item.call ? callStatus(item.call) : item.logs ? logsStatus(item.logs) : "success";
+  if (item.call) return callStatus(item.call);
+  if (item.block) return blockStatus(item.block);
+  return item.logs ? logsStatus(item.logs) : "success";
 }
 
 export function itemName(item: ConsoleItem): string {
   if (item.call) return `${item.call.service.name}.${item.call.method.name}`;
+  if (item.block) return blockLabel(item.block);
   const logs = item.logs ?? [];
   return logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`;
 }
@@ -121,26 +151,63 @@ export function groupRuns(runs: Run[], items: ConsoleItem[]): RunGroup[] {
         run,
         items: runItems,
         status: worstStatus(runItems),
-        inFlight: !run.stale && runItems.some((item) => item.call !== undefined && isCallInFlight(item.call)),
+        // A run parked on a question has nothing in the air, but it is not over
+        // either — the script is stopped inside it waiting to be answered.
+        inFlight:
+          !run.stale &&
+          runItems.some((item) => (item.call !== undefined && isCallInFlight(item.call)) || (item.block !== undefined && isAwaitingAnswer(item.block))),
         failures: runItems.filter((item) => itemStatus(item) === "error").length,
       };
     });
 }
 
-// How many calls the header reports. Log lines are the script talking, not calls
-// it made, so they don't count towards it.
+// The log is calls and only calls: a row is a call, full stop. Everything else a
+// run produced is on the canvas, which is what stops the two views saying the
+// same thing twice.
+export function callItems(group: RunGroup): ConsoleItem[] {
+  return group.items.filter((item) => item.call !== undefined);
+}
+
 export function callCount(group: RunGroup): number {
-  return group.items.filter((item) => item.call !== undefined).length;
+  return callItems(group).length;
 }
 
-// A single-item run renders as one row, header and call merged, so the common
-// case gains no chrome over what the console shows today.
-export function isSingleItemRun(group: RunGroup): boolean {
-  return group.items.length <= 1;
+// The question the run is stopped on, if it is stopped on one. This is what puts
+// a dot on the Canvas tab and an amber bar at the tail of the log.
+export function awaitingItem(group: RunGroup): ConsoleItem | undefined {
+  return group.items.find((item) => item.block !== undefined && isAwaitingAnswer(item.block));
 }
 
-// Which run is being looked at, and which of its calls. No call means the run
-// header itself is selected, which shows the run's own summary.
+// Whether the run drew anything of its own. A run that only made calls has a
+// canvas of call cards, which is a true but redundant view of its log — so it
+// is not what the console opens on.
+export function hasDrawing(group: RunGroup): boolean {
+  return group.items.some((item) => item.block !== undefined || item.logs !== undefined);
+}
+
+/**
+ * Which view a run opens in when nothing has been chosen. A script executed for
+ * its output opens on that output; one that only calls opens on its log, where
+ * everything it did actually is. An explicit choice outranks this and sticks per
+ * file — debugging is a mode, not a click.
+ */
+export function defaultView(group: RunGroup | undefined): ConsoleView {
+  return group && hasDrawing(group) ? "canvas" : "list";
+}
+
+/**
+ * The longest call in the run, which every duration bar is drawn against. Bars
+ * only mean something in a run with calls to compare, so a run of one gets none.
+ */
+export function slowestCall(group: RunGroup): number | undefined {
+  const durations = callItems(group)
+    .map((item) => item.call?.durationMs)
+    .filter((duration): duration is number => duration !== undefined);
+  return durations.length > 1 ? Math.max(...durations) : undefined;
+}
+
+// Which run is being looked at, and which of its calls. No call means nothing in
+// the log is selected yet, so the payload pane has nothing to show.
 export interface RunSelection {
   runId: string;
   itemId?: string;
@@ -160,5 +227,6 @@ export function followSelection(current: RunSelection | null, groups: RunGroup[]
   const newest = groups[groups.length - 1];
   if (!newest) return null;
   if (!isNewRun && current && current.runId !== newest.run.id && groups.some((group) => group.run.id === current.runId)) return current;
-  return { runId: newest.run.id, itemId: newest.items[newest.items.length - 1]?.id };
+  const calls = callItems(newest);
+  return { runId: newest.run.id, itemId: calls[calls.length - 1]?.id };
 }

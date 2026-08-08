@@ -106,3 +106,25 @@ describe("pruneArchive", () => {
     expect(pruneArchive(archive, NOW)).toEqual({});
   });
 });
+
+describe("blocks in the store", () => {
+  it("brings back what a run drew", () => {
+    const items: ConsoleItem[] = [
+      { id: "b1", runId: "r1", timestamp: NOW, block: { kind: "table", columns: ["id"], rows: [["ac_1"]] } },
+      { id: "b2", runId: "r1", timestamp: NOW, block: { kind: "ask", question: "Which ledger?", answer: "june" } },
+    ];
+    const loaded = deserializeFile(serializeFile([run], items, NOW));
+    expect(loaded.items.map((item) => item.block)).toEqual([
+      { kind: "table", columns: ["id"], rows: [["ac_1"]] },
+      { kind: "ask", question: "Which ledger?", answer: "june" },
+    ]);
+  });
+
+  // The promise the question was blocking died with the session, so reading it
+  // back as still waiting would offer an input nothing is listening to.
+  it("stores a question nobody answered as one that was abandoned", () => {
+    const items: ConsoleItem[] = [{ id: "b1", runId: "r1", timestamp: NOW, block: { kind: "ask", question: "Which ledger?" } }];
+    const loaded = deserializeFile(serializeFile([run], items, NOW));
+    expect(loaded.items[0].block).toEqual({ kind: "ask", question: "Which ledger?", cancelled: true });
+  });
+});

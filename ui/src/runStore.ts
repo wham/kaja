@@ -1,4 +1,5 @@
 import { Method, Service } from "./apps";
+import { Block, isAwaitingAnswer } from "./blocks";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { MethodCall } from "./kaja";
 import { ConsoleItem, Run } from "./runs";
@@ -39,11 +40,14 @@ interface StoredCall {
   durationMs?: number;
 }
 
+// A block is already plain JSON, so it survives the store as itself — there is
+// nothing to flatten and nothing that can't come back.
 interface StoredItem {
   id: string;
   timestamp: number;
   call?: StoredCall;
   logs?: Log[];
+  block?: Block;
 }
 
 interface StoredRun {
@@ -141,7 +145,16 @@ export function serializeFile(runs: Run[], items: ConsoleItem[], now: number): S
 }
 
 function toStoredItem(item: ConsoleItem): StoredItem {
-  return { id: item.id, timestamp: item.timestamp, call: item.call ? toStoredCall(item.call) : undefined, logs: item.logs };
+  return { id: item.id, timestamp: item.timestamp, call: item.call ? toStoredCall(item.call) : undefined, logs: item.logs, block: storedBlock(item.block) };
+}
+
+// A question that was never answered is stored as one that was abandoned: the
+// promise it was blocking died with the session, so reading it back as still
+// waiting would show a run parked on an input nothing is listening to.
+function storedBlock(block: Block | undefined): Block | undefined {
+  if (block === undefined) return undefined;
+  if (block.kind === "ask" && isAwaitingAnswer(block)) return { ...block, cancelled: true };
+  return block;
 }
 
 function payloadBytes(items: StoredItem[]): number {
@@ -158,7 +171,14 @@ export function deserializeFile(stored: StoredFile): LoadedRuns {
   for (const entry of stored.runs) {
     runs.push(entry.run);
     for (const item of entry.items) {
-      items.push({ id: item.id, runId: entry.run.id, timestamp: item.timestamp, call: item.call ? fromStoredCall(item.call) : undefined, logs: item.logs });
+      items.push({
+        id: item.id,
+        runId: entry.run.id,
+        timestamp: item.timestamp,
+        call: item.call ? fromStoredCall(item.call) : undefined,
+        logs: item.logs,
+        block: item.block,
+      });
     }
   }
   return { runs, items };

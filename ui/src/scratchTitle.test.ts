@@ -130,3 +130,22 @@ describe("proposeFileNames", () => {
     expect(proposeFileNames(["GetShow", "GetShow"], ["getShow.ts"])).toEqual(["getShow2", "getShow3"]);
   });
 });
+
+describe("scripts that draw", () => {
+  // kaja is imported like a service and called like one, but `kaja.table(...)`
+  // is the script drawing rather than a call it made.
+  it("is not named after the canvas verbs", () => {
+    const code = `import { kaja } from "kaja";\nkaja.text("hello");\nkaja.table(["id"]);\nkaja.code("SELECT 1", "sql");`;
+    expect(deriveScratchTitle(code)).toBeUndefined();
+  });
+
+  it("still names the call a drawing script makes", () => {
+    const code = `import { kaja } from "kaja";\nimport { Shows } from "theatre/shows";\nkaja.text("listing");\nawait Shows.ListShows({});`;
+    expect(deriveScratchTitle(code)).toBe("ListShows");
+  });
+
+  it("follows the runtime through an alias", () => {
+    const code = `import { kaja as k } from "kaja";\nk.text("hello");`;
+    expect(deriveScratchTitle(code)).toBeUndefined();
+  });
+});

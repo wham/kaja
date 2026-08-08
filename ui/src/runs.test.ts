@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
-import { callCount, ConsoleItem, followSelection, groupRuns, isSingleItemRun, Run, worstStatus } from "./runs";
+import { Block } from "./blocks";
+import { awaitingItem, callCount, callItems, ConsoleItem, defaultView, followSelection, groupRuns, hasDrawing, Run, slowestCall, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -25,6 +26,10 @@ function call(id: string, runId: string, changes: Partial<MethodCall> = {}): Con
 
 function logs(id: string, runId: string, level: LogLevel): ConsoleItem {
   return { id, runId, timestamp: NOW, logs: [{ level, message: "hello" }] };
+}
+
+function block(id: string, runId: string, block: Block): ConsoleItem {
+  return { id, runId, timestamp: NOW, block };
 }
 
 describe("worstStatus", () => {
@@ -85,12 +90,6 @@ describe("callCount", () => {
   it("counts calls, not the log lines the script printed", () => {
     const [group] = groupRuns([run("r1")], [call("a", "r1"), logs("b", "r1", LogLevel.LEVEL_INFO)]);
     expect(callCount(group)).toBe(1);
-    expect(isSingleItemRun(group)).toBe(false);
-  });
-
-  it("treats a run of one as a single row, so the common case gains no chrome", () => {
-    const [group] = groupRuns([run("r1")], [call("a", "r1")]);
-    expect(isSingleItemRun(group)).toBe(true);
   });
 });
 
@@ -123,5 +122,78 @@ describe("followSelection", () => {
 
   it("has nothing to select once the history is cleared", () => {
     expect(followSelection({ runId: "r1", itemId: "a" }, [], true)).toBeNull();
+  });
+});
+
+describe("the two views", () => {
+  const table: Block = { kind: "table", columns: ["id"], rows: [["ac_1"]] };
+
+  // A row is a call and only a call — that is what stops the log and the canvas
+  // saying the same thing twice.
+  it("keeps everything but calls out of the log", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1"), block("b", "r1", table), logs("c", "r1", LogLevel.LEVEL_INFO)]);
+    expect(callItems(group).map((item) => item.id)).toEqual(["a"]);
+    expect(callCount(group)).toBe(1);
+  });
+
+  it("opens a run that drew something on its canvas", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1"), block("b", "r1", table)]);
+    expect(hasDrawing(group)).toBe(true);
+    expect(defaultView(group)).toBe("canvas");
+  });
+
+  // A run that only called has a canvas of call cards, which is a true but
+  // redundant view of its log — not what the console should open on.
+  it("opens a run that only made calls on its log", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1"), call("b", "r1")]);
+    expect(defaultView(group)).toBe("list");
+  });
+
+  it("opens on the log when there is no run at all", () => {
+    expect(defaultView(undefined)).toBe("list");
+  });
+});
+
+describe("a run parked on a question", () => {
+  const asked: Block = { kind: "ask", question: "Which ledger?" };
+  const answered: Block = { kind: "ask", question: "Which ledger?", answer: "june" };
+
+  it("is still in flight, though nothing is in the air", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1"), block("b", "r1", asked)]);
+    expect(group.inFlight).toBe(true);
+    expect(group.status).toBe("pending");
+    expect(awaitingItem(group)?.id).toBe("b");
+  });
+
+  it("is over once the question has been answered", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1"), block("b", "r1", answered)]);
+    expect(group.inFlight).toBe(false);
+    expect(group.status).toBe("success");
+    expect(awaitingItem(group)).toBeUndefined();
+  });
+
+  // A run read back from the store happened in an earlier session: whatever it
+  // was waiting for is long gone.
+  it("is never live again once it has been read back from the store", () => {
+    const [group] = groupRuns([run("r1", { stale: true })], [block("b", "r1", asked)]);
+    expect(group.inFlight).toBe(false);
+  });
+});
+
+describe("slowestCall", () => {
+  it("is what every duration bar is drawn against", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1", { durationMs: 120 }), call("b", "r1", { durationMs: 690 })]);
+    expect(slowestCall(group)).toBe(690);
+  });
+
+  // A bar only means something against another bar, so a run of one gets none.
+  it("has nothing to compare in a run of one call", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1", { durationMs: 120 })]);
+    expect(slowestCall(group)).toBeUndefined();
+  });
+
+  it("ignores a call that has not finished yet", () => {
+    const [group] = groupRuns([run("r1")], [call("a", "r1", { durationMs: 120 }), call("b", "r1", { output: undefined })]);
+    expect(slowestCall(group)).toBeUndefined();
   });
 });

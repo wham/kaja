@@ -6,6 +6,7 @@ function makeKaja(): Kaja {
   return new Kaja(
     () => {},
     async () => "",
+    () => {},
   );
 }
 

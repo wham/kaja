@@ -91,12 +91,35 @@ export declare const kaja: {
    */
   variables: ${kajaVariablesType(variableNames)};
   /**
-   * Pause the script and pop up a dialog asking the user for input. Resolves
-   * with the submitted text; if the user cancels, the script stops.
+   * Pause the script and ask the user for input. The question is drawn on the
+   * run's canvas and the run stops there until it is answered. Resolves with
+   * the submitted text; if the user cancels, the script stops.
    *
    *   const name = await kaja.ask("What's your name?");
    */
   ask(message: string): Promise<string>;
+  /**
+   * Write a line onto the run's canvas.
+   *
+   *   kaja.text(\`Reconciling \${accounts.length} accounts\`);
+   */
+  text(text: string): void;
+  /**
+   * Put a snippet of code on the run's canvas.
+   *
+   *   kaja.code(query, "sql");
+   */
+  code(code: string, language?: string): void;
+  /**
+   * Start a table on the run's canvas and hand back a handle to fill it. Rows
+   * appear as they are added, so a loop paints rather than reporting at the end.
+   *
+   *   const table = kaja.table(["id", "name", "status"]);
+   *   for (const account of accounts) {
+   *     table.row(account.id, account.name, await check(account));
+   *   }
+   */
+  table(columns: string[], rows?: unknown[][]): { row(...cells: unknown[]): void };
   /** UUID helpers. */
   uuid: {
     /**

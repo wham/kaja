@@ -1,8 +1,6 @@
+import { SUBJECT_FIELDS } from "./loopKey";
 import ts from "typescript";
 
-// Fields whose value identifies the thing a call is about, so it is worth
-// putting in the title. Ordered: an explicit id beats a name.
-const SUBJECT_FIELDS = [/^id$/i, /_id$/i, /Id$/, /^slug$/i, /^key$/i, /^code$/i, /^name$/i, /^email$/i, /^title$/i];
 // A request small enough to read at a glance is described by its values, which
 // is usually where two explorations of the same call differ. A bigger one stays
 // quiet rather than picking an arbitrary field out of a crowd.
@@ -22,11 +20,19 @@ export interface ScratchCall {
 export function readCalls(code: string): ScratchCall[] {
   const file = ts.createSourceFile("scratch.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
   const imported = importedNames(file);
+  const runtime = runtimeNames(file);
   const calls: ScratchCall[] = [];
 
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
       const service = node.expression.expression.text;
+      // The kaja runtime is imported like a service and called like one, but
+      // `kaja.table(...)` is the script drawing rather than a call it made — a
+      // script that only draws would otherwise be titled `text +3`.
+      if (runtime.has(service)) {
+        ts.forEachChild(node, visit);
+        return;
+      }
       // With no imports to check against (a hand-written script), fall back to
       // the shape a service call has: a capitalized receiver.
       if (imported.size > 0 ? imported.has(service) : /^[A-Z]/.test(service)) {
@@ -41,9 +47,20 @@ export function readCalls(code: string): ScratchCall[] {
 }
 
 function importedNames(file: ts.SourceFile): Set<string> {
+  return boundNames(file, () => true);
+}
+
+// Whatever the kaja runtime was bound to in this file, alias included — Monaco's
+// auto-import can write the relative form of the module.
+function runtimeNames(file: ts.SourceFile): Set<string> {
+  return boundNames(file, (path) => path === "kaja" || path === "./kaja");
+}
+
+function boundNames(file: ts.SourceFile, wanted: (modulePath: string) => boolean): Set<string> {
   const names = new Set<string>();
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier) || !wanted(statement.moduleSpecifier.text)) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings && ts.isNamedImports(bindings)) {
       for (const element of bindings.elements) names.add(element.name.text);

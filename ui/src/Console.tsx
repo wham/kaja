@@ -1,16 +1,36 @@
-import { Check, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { blockText } from "./blocks";
+import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
+import { Canvas } from "./Canvas";
 import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
+import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { callCount, ConsoleItem, ConsoleTab, followSelection, groupRuns, itemName, itemStatus, Run, RunGroup, RunSelection, RunStatus } from "./runs";
+import { loopKey } from "./loopKey";
+import {
+  awaitingItem,
+  callItems,
+  ConsoleItem,
+  ConsoleTab,
+  ConsoleView,
+  defaultView,
+  followSelection,
+  groupRuns,
+  itemStatus,
+  Run,
+  RunGroup,
+  RunSelection,
+  RunStatus,
+  slowestCall,
+} from "./runs";
 import { runShortcutLabel } from "./RunButton";
-import { Log, LogLevel } from "./server/api";
+import { LogLevel } from "./server/api";
 import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
 
 export type { ConsoleItem } from "./runs";
@@ -19,19 +39,24 @@ export type { ConsoleItem } from "./runs";
 // never turns the console header into a full-height surface.
 const RUN_ROW_HEIGHT = 32;
 const MAX_VISIBLE_RUN_ROWS = 8;
-// Beyond this the qualified call name is truncated from the left, so the method
-// — the part that identifies the call — survives.
-const MAX_TRIGGER_NAME_LENGTH = 28;
-// Both time columns are reserved: the longest value they can ever hold sets the
-// geometry once, so nothing moves as calls settle and age.
-const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
-const TIME_COLUMN_CLASS = "w-[8ch] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground";
+// The log's rows are a fixed height, which is what lets the tail bar say how
+// many of them are still below without measuring any of them.
+const CALL_ROW_HEIGHT = 24;
+// How much of the console the log may take before the payload pane stops
+// shrinking. The pane is the thing being read; the log is how you choose it.
+const MAX_LOG_HEIGHT = "45%";
+// The widest a duration bar is drawn, in pixels.
+const BAR_WIDTH = 88;
 
-const consoleTabClass = "cursor-pointer select-none whitespace-nowrap text-sm text-muted-foreground hover:text-foreground";
+const consoleTabClass = "cursor-pointer select-none whitespace-nowrap text-xs text-muted-foreground hover:text-foreground";
 const consoleTabActiveClass = "font-medium text-foreground";
 // Utilities carry no resting chrome: they are worth no more weight than the tabs
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
+// Both time columns are reserved: the longest value they can ever hold sets the
+// geometry once, so nothing moves as calls settle and age.
+const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
+const TIME_COLUMN_CLASS = "w-[8ch] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground";
 
 interface ConsoleProps {
   // Which file's console this is. It is the whole scope: the runs are that
@@ -40,15 +65,40 @@ interface ConsoleProps {
   runs: Run[];
   items: ConsoleItem[];
   // Where the console is pointing and what it is showing of the selected call.
-  // Both are kept per file by the caller, so coming back finds it as it was.
+  // All three are kept per file by the caller, so coming back finds it as it was.
   selection: RunSelection | null;
   tab: ConsoleTab;
+  // Undefined until a view has been chosen, which is what lets a run that drew
+  // something open on its canvas without overriding a choice already made.
+  view?: ConsoleView;
   onSelect: (selection: RunSelection | null) => void;
   onTabChange: (tab: ConsoleTab) => void;
+  onViewChange: (view: ConsoleView) => void;
+  onAnswer: (blockId: string, answer: string) => void;
+  onCancelAsk: (blockId: string) => void;
   onClear?: () => void;
 }
 
-export function Console({ fileId, runs, items, selection, tab: activeTab, onSelect, onTabChange, onClear }: ConsoleProps) {
+/**
+ * A console belongs to a script and holds its runs; a run has two views of the
+ * same data. The list is the flat audit log — one row per call, in wall order,
+ * always complete. The canvas is the rendered output. One segmented control
+ * switches them, and everything else about the header stops moving.
+ */
+export function Console({
+  fileId,
+  runs,
+  items,
+  selection,
+  tab: activeTab,
+  view,
+  onSelect,
+  onTabChange,
+  onViewChange,
+  onAnswer,
+  onCancelAsk,
+  onClear,
+}: ConsoleProps) {
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
 
@@ -86,14 +136,16 @@ export function Console({ fileId, runs, items, selection, tab: activeTab, onSele
   }, [fileId, newest?.run.id, newest?.items.length, groups.length]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
-  const selectedItem = selectedGroup?.items.find((item) => item.id === selection?.itemId);
+  const rows = selectedGroup ? callItems(selectedGroup) : [];
+  const selectedItem = rows.find((item) => item.id === selection?.itemId);
   const selectedCall = selectedItem?.call;
-  const selectedLogs = selectedItem?.logs;
+  const activeView = view ?? defaultView(selectedGroup);
+  const waiting = selectedGroup ? awaitingItem(selectedGroup) : undefined;
 
   const selectRun = useCallback(
     (group: RunGroup) => {
-      const last = group.items[group.items.length - 1];
-      onSelect({ runId: group.run.id, itemId: last?.id });
+      const calls = callItems(group);
+      onSelect({ runId: group.run.id, itemId: calls[calls.length - 1]?.id });
     },
     [onSelect],
   );
@@ -115,12 +167,32 @@ export function Console({ fileId, runs, items, selection, tab: activeTab, onSele
   }, [groups, selection?.runId, selectRun]);
 
   const handleCopy = useCallback(() => {
-    jsonViewerRef.current?.copyToClipboard();
+    if (activeView === "canvas") {
+      const text = (selectedGroup?.items ?? [])
+        .map((item) => (item.block ? blockText(item.block) : item.call ? `${item.call.service.name}.${item.call.method.name}` : ""))
+        .filter((line) => line.length > 0)
+        .join("\n\n");
+      navigator.clipboard?.writeText(text);
+    } else {
+      jsonViewerRef.current?.copyToClipboard();
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
-  }, []);
+  }, [activeView, selectedGroup]);
 
-  // With no run there is no selection to show and no tabs to choose between:
+  // Clicking a call on the canvas is a request for its complete record, which
+  // only the log has — so it takes you there rather than unrolling a payload
+  // into the flow.
+  const selectFromCanvas = useCallback(
+    (itemId: string) => {
+      if (!selectedGroup) return;
+      onViewChange("list");
+      onSelect({ runId: selectedGroup.run.id, itemId });
+    },
+    [selectedGroup, onSelect, onViewChange],
+  );
+
+  // With no run there is no selection to show and no views to choose between:
   // a selected Response over an empty panel implies a state the console doesn't
   // have. The empty line is the only thing that should speak.
   if (groups.length === 0) {
@@ -131,25 +203,42 @@ export function Console({ fileId, runs, items, selection, tab: activeTab, onSele
     );
   }
 
-  const showUtilities = selectedCall !== undefined && (activeTab === "request" || activeTab === "response");
+  const showUtilities = activeView === "canvas" || selectedCall !== undefined;
   const position = selectedGroup ? groups.indexOf(selectedGroup) + 1 : groups.length;
-  // The header row is what ties a script's calls to the press that made them, so
-  // it appears whenever there is more than one — and on a stale run, where it is
-  // the only place that can say "this is not live".
-  const showRunHeader = selectedGroup !== undefined && (selectedGroup.items.length > 1 || selectedGroup.run.stale === true);
-  const showRunChildren = (selectedGroup?.items.length ?? 0) > 1;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      {/* One row spanning the full console width: which run, how to step through
-          them, what to look at, and what to do with it. Narrowing it never wraps
-          a second line. Everything holds its size and leaves in order of what it
-          is worth — the run's time, then its call count, then the stepper (whose
-          history the trigger and ⌃↑/⌃↓ still reach), then the payload utilities
-          — and the run's name truncates through all of it. */}
+      {/* One row spanning the full console width, and it holds its shape: which
+          run, which view, how to step through them, and what to do with what is
+          shown. Nothing here rearranges as the selection moves — that is the
+          change the split pays for. Everything leaves in order of what it is
+          worth as the panel narrows, and the run pill truncates through all of
+          it. */}
       <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
-        <div className="flex shrink-0 items-center gap-1 @max-[540px]:hidden">
+        <div className="h-4 w-px shrink-0 bg-border" />
+        <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
+          <SegmentedControl.Button
+            selected={activeView === "list"}
+            className="h-[20px] px-2.5 py-0 text-xs"
+            onClick={() => onViewChange("list")}
+            data-testid="console-view-list"
+          >
+            List
+          </SegmentedControl.Button>
+          <SegmentedControl.Button
+            selected={activeView === "canvas"}
+            className="h-[20px] gap-1.5 px-2.5 py-0 text-xs"
+            onClick={() => onViewChange("canvas")}
+            data-testid="console-view-canvas"
+          >
+            Canvas
+            {/* One of three chances to notice a parked run before you leave the
+                script — the others are the tail of the log and the run pill. */}
+            {waiting && activeView !== "canvas" && <span data-testid="canvas-badge" className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+          </SegmentedControl.Button>
+        </SegmentedControl>
+        <div className="flex shrink-0 items-center gap-1 @max-[560px]:hidden">
           <IconButton
             icon={ChevronUp}
             aria-label="Previous run"
@@ -174,77 +263,279 @@ export function Console({ fileId, runs, items, selection, tab: activeTab, onSele
             {position} of {groups.length}
           </span>
         </div>
-        {selectedCall && (
-          <>
-            <div className="h-4 w-px shrink-0 bg-border" />
-            <Console.DetailTabs methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} />
-          </>
-        )}
         {showUtilities && (
           <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
+            {activeView === "list" && (
+              <>
+                <IconButton
+                  icon={FoldVertical}
+                  aria-label="Fold all"
+                  variant="ghost"
+                  size="sm"
+                  className={utilityButtonClass}
+                  onClick={() => jsonViewerRef.current?.foldAll()}
+                />
+                <IconButton
+                  icon={UnfoldVertical}
+                  aria-label="Unfold all"
+                  variant="ghost"
+                  size="sm"
+                  className={utilityButtonClass}
+                  onClick={() => jsonViewerRef.current?.unfoldAll()}
+                />
+                <div className="h-4 w-px bg-border" />
+              </>
+            )}
             <IconButton
-              icon={FoldVertical}
-              aria-label="Fold all"
+              icon={copied ? Check : Copy}
+              aria-label={activeView === "canvas" ? "Copy canvas" : "Copy JSON"}
               variant="ghost"
               size="sm"
               className={utilityButtonClass}
-              onClick={() => jsonViewerRef.current?.foldAll()}
+              onClick={handleCopy}
             />
-            <IconButton
-              icon={UnfoldVertical}
-              aria-label="Unfold all"
-              variant="ghost"
-              size="sm"
-              className={utilityButtonClass}
-              onClick={() => jsonViewerRef.current?.unfoldAll()}
-            />
-            <div className="h-4 w-px bg-border" />
-            <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={handleCopy} />
           </div>
         )}
       </div>
 
-      {/* The response owns the full width of the console below the header, on
-          the same sunken surface as the editor — the split between them is a
-          hairline, not a value step. */}
-      <div className="flex min-h-0 flex-1 flex-col bg-background">
-        {selectedGroup && showRunHeader && (
-          <Console.RunHeaderRow
-            group={selectedGroup}
-            selected={selection?.itemId === undefined}
-            expanded={showRunChildren}
-            onSelect={() => onSelect({ runId: selectedGroup.run.id })}
-            now={now}
-          />
-        )}
-        {selectedGroup &&
-          showRunChildren &&
-          selectedGroup.items.map((item) => (
-            <Console.CallChildRow
+      {selectedGroup && activeView === "canvas" ? (
+        <Canvas group={selectedGroup} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={selectFromCanvas} />
+      ) : selectedGroup ? (
+        <Console.ListView
+          group={selectedGroup}
+          rows={rows}
+          selection={selection}
+          activeTab={activeTab}
+          selectedCall={selectedCall}
+          waiting={waiting !== undefined}
+          jsonViewerRef={jsonViewerRef}
+          now={now}
+          onSelect={onSelect}
+          onTabChange={onTabChange}
+          onGoToCanvas={() => onViewChange("canvas")}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+interface ListViewProps {
+  group: RunGroup;
+  rows: ConsoleItem[];
+  selection: RunSelection | null;
+  activeTab: ConsoleTab;
+  selectedCall?: MethodCall;
+  waiting: boolean;
+  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
+  now: number;
+  onSelect: (selection: RunSelection | null) => void;
+  onTabChange: (tab: ConsoleTab) => void;
+  onGoToCanvas: () => void;
+}
+
+/**
+ * The flat audit log. A row is a call and only a call — no disclosure triangles,
+ * no block rows, no run row — which is what keeps it scannable at two hundred
+ * rows and lets every row carry the same two extra channels.
+ */
+Console.ListView = function ({
+  group,
+  rows,
+  selection,
+  activeTab,
+  selectedCall,
+  waiting,
+  jsonViewerRef,
+  now,
+  onSelect,
+  onTabChange,
+  onGoToCanvas,
+}: ListViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowsBelow = useRowsBelow(scrollRef, rows.length);
+  const slowest = useMemo(() => slowestCall(group), [group]);
+  const failures = rows.filter((item) => itemStatus(item) === "error").length;
+  const scriptFailed = group.items.some((item) => item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={scrollRef} className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
+        {rows.length === 0 ? (
+          <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
+            {/* A run parked on a question is in flight but is not on its way to
+                a call — the tail bar below already says what it is doing. */}
+            {group.inFlight && !waiting ? "Waiting for the first call…" : "No calls."}
+          </div>
+        ) : (
+          rows.map((item) => (
+            <Console.CallRow
               key={item.id}
               item={item}
               selected={item.id === selection?.itemId}
-              onSelect={() => onSelect({ runId: selectedGroup.run.id, itemId: item.id })}
+              slowest={slowest}
+              stale={group.run.stale === true}
+              onSelect={() => onSelect({ runId: group.run.id, itemId: item.id })}
               now={now}
             />
-          ))}
-        <div className={cn("flex min-h-0 flex-1 flex-col", selectedGroup?.run.stale && "opacity-70")}>
-          {selectedGroup?.run.payloadsExpired ? (
-            <div className="flex items-center gap-2 px-4 py-3">
-              <span className="text-xs text-muted-foreground">Response no longer kept — run to see it live</span>
-              <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
-            </div>
-          ) : selectedCall ? (
-            <Console.DetailContent methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
-          ) : selectedLogs ? (
-            <Console.LogContent logs={selectedLogs} />
-          ) : selectedGroup ? (
-            <Console.RunSummary group={selectedGroup} />
-          ) : null}
-        </div>
+          ))
+        )}
+      </div>
+
+      <Console.TailBar waiting={waiting} scriptFailed={scriptFailed} rowsBelow={rowsBelow} failures={failures} onGoToCanvas={onGoToCanvas} />
+
+      {/* The payload sits in a pane of its own that never reflows as you move
+          through the log — which is why Request/Response/Headers live down here
+          rather than in the header. */}
+      <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
+        {group.run.payloadsExpired ? (
+          <div className="flex items-center gap-2 px-4 py-3">
+            <span className="text-xs text-muted-foreground">Response no longer kept — run to see it live</span>
+            <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
+          </div>
+        ) : selectedCall ? (
+          <Console.DetailContent methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
+        ) : (
+          <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
+            {rows.length === 0 ? "Nothing to show." : "Select a call."}
+          </div>
+        )}
       </div>
     </div>
   );
+};
+
+interface TailBarProps {
+  waiting: boolean;
+  scriptFailed: boolean;
+  rowsBelow: number;
+  failures: number;
+  onGoToCanvas: () => void;
+}
+
+/**
+ * What the log can't say inside a row. A run parked on a question, or one whose
+ * script threw, is a fact about the whole run, and the log stays readable while
+ * it waits — the pause blocks the script, not your reading.
+ */
+Console.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, onGoToCanvas }: TailBarProps) {
+  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0) return null;
+
+  const state = waiting ? "waiting" : scriptFailed ? "failed" : "counts";
+
+  return (
+    <div
+      data-testid="console-tail"
+      className={cn(
+        "flex h-[26px] shrink-0 items-center gap-2 border-t px-3 font-mono text-xs",
+        state === "waiting" && "border-l-2 border-l-amber-500 border-t-border bg-amber-500/10",
+        state === "failed" && "border-l-2 border-l-destructive border-t-border bg-destructive/10",
+        state === "counts" && "border-t-border",
+      )}
+    >
+      {state === "waiting" && (
+        <>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+          <span className="text-amber-600 dark:text-amber-400">Waiting for an answer</span>
+        </>
+      )}
+      {state === "failed" && <span className="text-destructive">Script failed</span>}
+      {state === "counts" && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
+      <div className="ml-auto flex shrink-0 items-center gap-3">
+        {failures > 0 && <span className="text-amber-600 dark:text-amber-400">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
+        {(state === "waiting" || state === "failed") && (
+          <button
+            type="button"
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-xs",
+              state === "waiting" ? "border-amber-500 text-amber-600 dark:text-amber-400" : "border-destructive text-destructive",
+            )}
+            onClick={onGoToCanvas}
+          >
+            Go to canvas
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface CallRowProps {
+  item: ConsoleItem;
+  selected: boolean;
+  slowest?: number;
+  stale: boolean;
+  onSelect: () => void;
+  now: number;
+}
+
+/**
+ * One call, and the same shape for every one of them: when it happened, what it
+ * was, which pass through the loop it belonged to, and how long it took — as a
+ * number and as a length.
+ */
+Console.CallRow = memo(function CallRow({ item, selected, slowest, stale, onSelect, now }: CallRowProps) {
+  const call = item.call!;
+  const status = itemStatus(item);
+  const pending = status === "pending" || status === "streaming";
+  const errorCode = callErrorCode(call);
+  const key = loopKey(call.input);
+  const fraction = barFraction(call.durationMs, slowest);
+
+  return (
+    <div
+      data-testid="console-call-row"
+      className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
+      style={{ height: CALL_ROW_HEIGHT }}
+      onClick={onSelect}
+    >
+      {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
+      <span className="w-[8ch] shrink-0 font-mono text-xs tabular-nums text-muted-foreground @max-[360px]:hidden">{formatClockTime(item.timestamp)}</span>
+      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", selected ? "text-foreground" : "text-muted-foreground")}>
+        {call.service.name}.{call.method.name}
+      </span>
+      {key && <span className="shrink-0 truncate font-mono text-xs text-muted-foreground/80 @max-[440px]:hidden">{key}</span>}
+      {errorCode && <span className="shrink-0 font-mono text-xs text-destructive">{errorCode}</span>}
+      {fraction !== undefined && (
+        <span className="shrink-0 @max-[500px]:hidden" style={{ width: BAR_WIDTH }} aria-hidden>
+          <span
+            className={cn("block h-[6px] rounded-sm", status === "error" ? "bg-destructive/40" : "bg-muted-foreground/30")}
+            style={{ width: `${fraction * 100}%` }}
+          />
+        </span>
+      )}
+      <span className={DETAIL_COLUMN_CLASS}>{pending ? formatElapsed(now - item.timestamp) : formatDuration(call.durationMs)}</span>
+    </div>
+  );
+});
+
+/**
+ * How many rows are still below the fold. The log is never collapsed or
+ * summarised away — it stays complete at any length — so this says what is out
+ * of sight rather than standing in for it.
+ */
+function useRowsBelow(ref: React.RefObject<HTMLDivElement | null>, total: number): number {
+  const [rowsBelow, setRowsBelow] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const measure = () => {
+      const shown = Math.round((element.scrollTop + element.clientHeight) / CALL_ROW_HEIGHT);
+      setRowsBelow(Math.max(0, total - shown));
+    };
+
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [ref, total]);
+
+  return rowsBelow;
 }
 
 interface RunSelectProps {
@@ -255,13 +546,14 @@ interface RunSelectProps {
   now: number;
 }
 
-// The whole history behind one 26px trigger: the trigger answers "which run am I
-// looking at", the list answers "which other ones are there". It lists runs
-// rather than calls, so everything under a date header is by definition not
-// live.
+/**
+ * Run identity stays in the one place it already lives, and the header keeps its
+ * shape. The pill inherits the status of the run it names, so a waiting or
+ * failed run is legible without opening the menu.
+ */
 Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }: RunSelectProps) {
   const [open, setOpen] = useState(false);
-  const summary = selectedGroup ? runSummary(selectedGroup, now) : undefined;
+  const summary = selectedGroup ? runSummary(selectedGroup, groups, now) : undefined;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -269,21 +561,27 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
         <button
           type="button"
           data-testid="console-call-select"
-          className="flex h-[26px] min-w-0 items-center gap-2 rounded-md border border-border bg-card px-2.5 hover:bg-accent"
+          className={cn(
+            "flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            summary?.waiting ? "border-amber-500/60" : "border-border",
+          )}
           title={summary?.name}
         >
-          {summary?.pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
-          <span className="max-w-[190px] truncate font-mono text-xs text-foreground">{truncateStart(summary?.name ?? "", MAX_TRIGGER_NAME_LENGTH)}</span>
+          {summary?.pending && !summary.waiting ? (
+            <Spinner className="size-3" />
+          ) : (
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
+          )}
+          <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
           {summary?.detail && (
-            <span className={cn(DETAIL_COLUMN_CLASS, "@max-[620px]:hidden")} title={summary.detail}>
+            <span className={cn("truncate font-mono text-xs", summary.waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
               {summary.detail}
             </span>
           )}
-          {summary?.time && <span className={cn(TIME_COLUMN_CLASS, "@max-[700px]:hidden")}>{summary.time}</span>}
           <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="bottom" className="w-[420px] p-0">
+      <DropdownMenuContent align="start" side="bottom" className="w-[300px] p-0">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-xs tracking-[0.06em] text-muted-foreground">RUNS</span>
           <span className="font-mono text-xs text-muted-foreground">{groups.length}</span>
@@ -325,118 +623,80 @@ interface RunRowProps extends RunSummaryLine {
 }
 
 // Memoized so the tick that counts up an in-flight run only re-renders that
-// run's row; every settled row holds a value that no longer changes. Both
-// columns are rendered even when empty, so the list stays aligned.
-Console.RunRow = memo(function RunRow({ name, detail, time, dotClass, pending, stale, isSelected, onSelect }: RunRowProps) {
+// run's row; every settled row holds a value that no longer changes.
+Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
       data-testid="console-row"
       className={cn("h-8 gap-3 rounded-none px-3", isSelected && "bg-accent", stale && "opacity-75")}
       onSelect={onSelect}
     >
-      {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} />}
+      {pending && !waiting ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{name}</span>
-      <span className={DETAIL_COLUMN_CLASS} title={detail}>
+      <span className={cn("shrink-0 truncate font-mono text-xs", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} title={detail}>
         {detail}
       </span>
-      <span className={TIME_COLUMN_CLASS}>{time}</span>
     </DropdownMenuItem>
   );
 });
 
-interface RunHeaderRowProps {
-  group: RunGroup;
-  selected: boolean;
-  expanded: boolean;
-  onSelect: () => void;
-  now: number;
+interface DetailContentProps {
+  methodCall: MethodCall;
+  activeTab: ConsoleTab;
+  onTabChange: (tab: ConsoleTab) => void;
+  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-// One press of Run, stated once: status, script name, what happened, wall
-// duration, clock. Its status is the worst status inside it, so a green run
-// means every call passed.
-Console.RunHeaderRow = function ({ group, selected, expanded, onSelect, now }: RunHeaderRowProps) {
-  const { run, status, inFlight, failures } = group;
-  const calls = callCount(group);
+Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: DetailContentProps) {
+  const isStreaming = methodCall.streamOutputs !== undefined;
+  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
+  const hasError = methodCall.error !== undefined;
+
+  // Switch to response tab when response arrives
+  useEffect(() => {
+    if (hasResponse && activeTab === "request") {
+      onTabChange("response");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasResponse]);
+
+  let content;
+  let rawText: string | undefined;
+  if (activeTab === "request") {
+    content = methodCall.input;
+  } else if (hasError) {
+    // Same rule as the response below: an HTTP failure arrives wrapped in what
+    // carried it here, and the body the API sent is the failure.
+    content = unwrapFailure(methodCall.error);
+  } else if (isStreaming) {
+    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
+  } else {
+    // An app that carries HTTP inside gRPC has to put a body protobuf has no
+    // shape for — an array, a scalar — in a field of its own. That field is the
+    // encoding, not the response, so the response is what it holds.
+    content = unwrapEnvelope(methodCall.outputType, methodCall.output);
+  }
 
   return (
-    <div
-      data-testid="console-run-header"
-      className={cn("flex h-8 shrink-0 cursor-pointer items-center gap-2 border-b border-border px-3", selected ? "bg-accent" : "bg-card")}
-      onClick={onSelect}
-    >
-      <span className="flex w-[13px] shrink-0 items-center justify-center text-muted-foreground">
-        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-      </span>
-      {inFlight ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status), run.stale && "opacity-50")} />}
-      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", run.stale ? "text-muted-foreground" : "font-medium text-foreground")}>{run.title}</span>
-      {run.stale && <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Last run</span>}
-      {/* What failed is the news; how many calls there were is what the trigger
-          already carries. */}
-      {failures > 0 ? (
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{failures} failed</span>
-      ) : (
-        calls > 1 && <span className="shrink-0 font-mono text-xs text-muted-foreground">{calls} calls</span>
-      )}
-      <span className={DETAIL_COLUMN_CLASS}>{inFlight ? formatElapsed(now - run.startedAt) : formatDuration(run.durationMs)}</span>
-      <span className={cn(TIME_COLUMN_CLASS, "opacity-75")}>{run.stale ? formatStaleTime(run.startedAt) : formatClockTime(run.startedAt)}</span>
-    </div>
-  );
-};
-
-interface CallChildRowProps {
-  item: ConsoleItem;
-  selected: boolean;
-  onSelect: () => void;
-  now: number;
-}
-
-// Calls inside a run are ordered by start, never re-sorted, and keep their own
-// durations; the run header's duration is the wall time for the whole script.
-Console.CallChildRow = function ({ item, selected, onSelect, now }: CallChildRowProps) {
-  const status = itemStatus(item);
-  const pending = item.call !== undefined && (status === "pending" || status === "streaming");
-  const errorCode = item.call ? callErrorCode(item.call) : undefined;
-
-  return (
-    <div
-      data-testid="console-call-row"
-      className={cn("flex h-[30px] shrink-0 cursor-pointer items-center gap-2 border-b border-border pl-[34px] pr-3", selected && "bg-accent")}
-      onClick={onSelect}
-    >
-      {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
-      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", selected ? "text-foreground" : "text-muted-foreground")}>{itemName(item)}</span>
-      {errorCode && <span className="shrink-0 font-mono text-xs text-destructive">{errorCode}</span>}
-      <span className={DETAIL_COLUMN_CLASS}>{pending ? formatElapsed(now - item.timestamp) : formatDuration(item.call?.durationMs)}</span>
-    </div>
-  );
-};
-
-// What the run header selects: the press as a whole, rather than any one call it
-// made.
-Console.RunSummary = function ({ group }: { group: RunGroup }) {
-  const calls = callCount(group);
-  const label = { pending: "Running", streaming: "Streaming", success: "OK", error: "Failed" }[group.status];
-
-  return (
-    <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
-      <div className="flex items-center gap-3 pb-2">
-        <span className={cn("font-medium", statusClass(group.status))}>{label}</span>
-        <span className="text-muted-foreground">
-          {calls} {calls === 1 ? "call" : "calls"}
-        </span>
-        {group.run.durationMs !== undefined && <span className="tabular-nums text-muted-foreground">{formatDuration(group.run.durationMs)} wall</span>}
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* The pane names itself: which part of the call on the left, and what
+          came back of it on the right. Without the readout a successful call and
+          an empty one look the same. */}
+      <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
+        <Console.DetailTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
+        {activeTab !== "headers" && <Console.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
       </div>
-      {group.items.length === 0 ? (
-        <div className="text-muted-foreground">This run made no calls.</div>
+      {activeTab === "headers" ? (
+        <Console.HeadersContent methodCall={methodCall} />
+      ) : activeTab === "response" && !hasResponse ? (
+        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
       ) : (
-        group.items.map((item) => (
-          <div key={item.id} className="flex items-center gap-2 py-0.5">
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(itemStatus(item)))} />
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">{itemName(item)}</span>
-            <span className="tabular-nums text-muted-foreground">{formatDuration(item.call?.durationMs)}</span>
-          </div>
-        ))
+        <>
+          {activeTab === "response" && hasError && methodCall.url && (
+            <div className="border-y border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
+          )}
+          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
+        </>
       )}
     </div>
   );
@@ -458,87 +718,11 @@ Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTab
     </span>
   );
 
-  // A failed call colours its dot and its status line, and nothing else — the
-  // header stays neutral.
   return (
     <div className="flex shrink-0 items-center gap-4">
       {tab("request", "Request")}
       {tab("response", `Response${isStreaming && streamCount > 0 ? ` (${streamCount})` : ""}`)}
       {tab("headers", "Headers")}
-    </div>
-  );
-};
-
-interface LogContentProps {
-  logs: Log[];
-}
-
-Console.LogContent = function ({ logs }: LogContentProps) {
-  return (
-    <div className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-xs">
-      {logs.map((log, index) => (
-        <div key={index} className={cn("whitespace-pre-wrap break-words", classForLogLevel(log.level))}>
-          <span className="mr-2 text-[10px] uppercase opacity-70">{labelForLogLevel(log.level)}</span>
-          {log.message.trim()}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-interface DetailContentProps {
-  methodCall: MethodCall;
-  activeTab: ConsoleTab;
-  onTabChange: (tab: ConsoleTab) => void;
-  jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
-}
-
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: DetailContentProps) {
-  const isStreaming = methodCall.streamOutputs !== undefined;
-  const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
-  const hasError = methodCall.error !== undefined;
-
-  // Switch to response tab when response arrives
-  useEffect(() => {
-    if (hasResponse && activeTab === "request") {
-      onTabChange("response");
-    }
-  }, [hasResponse]);
-
-  if (activeTab === "headers") {
-    return <Console.HeadersContent methodCall={methodCall} />;
-  }
-
-  let content;
-  let rawText: string | undefined;
-  if (activeTab === "request") {
-    content = methodCall.input;
-  } else if (hasError) {
-    // Same rule as the response below: an HTTP failure arrives wrapped in what
-    // carried it here, and the body the API sent is the failure.
-    content = unwrapFailure(methodCall.error);
-  } else if (isStreaming) {
-    rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
-  } else {
-    // An app that carries HTTP inside gRPC has to put a body protobuf has no
-    // shape for — an array, a scalar — in a field of its own. That field is the
-    // encoding, not the response, so the response is what it holds.
-    content = unwrapEnvelope(methodCall.outputType, methodCall.output);
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {activeTab === "response" && !hasResponse ? (
-        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">Waiting for a response…</div>
-      ) : (
-        <>
-          {activeTab === "response" && <Console.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
-          {activeTab === "response" && hasError && methodCall.url && (
-            <div className="border-b border-border bg-destructive/10 px-4 py-1.5 font-mono text-xs text-destructive">POST {methodCall.url}</div>
-          )}
-          <JsonViewer ref={jsonViewerRef} value={content} rawText={rawText} />
-        </>
-      )}
     </div>
   );
 };
@@ -549,9 +733,8 @@ interface ResponseSummaryProps {
   rawText?: string;
 }
 
-// A one-line readout above the payload: what came back, how long it took and how
-// big it is. Without it a successful call and an empty one look the same. Status
-// colour appears here and in the call's dot, and nowhere else.
+// What came back, how long it took and how big it is. Status colour appears
+// here and in the call's dot, and nowhere else.
 Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSummaryProps) {
   const status = callStatus(methodCall);
   const label = { pending: "Pending", streaming: "Streaming", success: "OK", error: callErrorCode(methodCall) ?? "Error" }[status];
@@ -560,14 +743,14 @@ Console.ResponseSummary = function ({ methodCall, content, rawText }: ResponseSu
   const streamCount = methodCall.streamOutputs?.length;
 
   return (
-    <div className="flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap px-4 pb-2 pt-3 font-mono text-xs">
+    <div className="ml-auto flex shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap font-mono text-xs">
       <span data-testid="console-status" className={cn("shrink-0 font-medium", statusClass(status))}>
         {label}
       </span>
-      {duration && <span className="shrink-0 tabular-nums text-muted-foreground">{duration}</span>}
-      {size && <span className="shrink-0 tabular-nums text-muted-foreground">{size}</span>}
+      {duration && <span className="shrink-0 tabular-nums text-muted-foreground @max-[430px]:hidden">{duration}</span>}
+      {size && <span className="shrink-0 tabular-nums text-muted-foreground @max-[500px]:hidden">{size}</span>}
       {streamCount !== undefined && (
-        <span className="shrink-0 text-muted-foreground">
+        <span className="shrink-0 text-muted-foreground @max-[560px]:hidden">
           {streamCount} {streamCount === 1 ? "message" : "messages"}
         </span>
       )}
@@ -656,28 +839,43 @@ Console.HeadersTable = function ({ headers }: HeadersTableProps) {
 
 interface RunSummaryLine {
   name: string;
-  // The call count, or how many of them failed.
+  // When it ran and how it went, in one string: `14:03 · 1.2 s`, `13:51 ·
+  // waiting`, `13:44 · failed`.
   detail?: string;
-  // Wall-clock time the run was made.
-  time?: string;
   dotClass: string;
   pending: boolean;
+  waiting: boolean;
 }
 
-// The columns every row in the history shares — the trigger shows them for the
+// The columns every row in the history shares — the pill shows them for the
 // selected run, the list for all of them.
-function runSummary(group: RunGroup, now: number): RunSummaryLine {
-  const calls = callCount(group);
+function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummaryLine {
+  const waiting = awaitingItem(group) !== undefined;
+  const time = group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt);
+  const outcome = waiting
+    ? "waiting"
+    : group.inFlight
+      ? formatElapsed(now - group.run.startedAt)
+      : group.status === "error"
+        ? "failed"
+        : formatDuration(group.run.durationMs);
+
   return {
-    name: group.run.title,
-    // While the run is in flight its own elapsed time is the interesting number;
-    // once it lands, how many calls it made — and for a run of one, where there
-    // is no count worth stating, how long it took.
-    detail: group.inFlight ? formatElapsed(now - group.run.startedAt) : calls > 1 ? `${calls} calls` : formatDuration(group.run.durationMs),
-    time: group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt),
-    dotClass: cn(dotClass(group.status), group.run.stale && "opacity-50"),
+    name: runName(group, groups),
+    detail: outcome ? `${time} · ${outcome}` : time,
+    dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
     pending: group.inFlight,
+    waiting,
   };
+}
+
+/**
+ * A console holds one script's runs, so naming each one after that script says
+ * the same thing every row. They are numbered instead, and the number is the
+ * run's own — a position would renumber as the oldest runs are trimmed.
+ */
+function runName(group: RunGroup, groups: RunGroup[]): string {
+  return `Run ${group.run.number ?? groups.indexOf(group) + 1}`;
 }
 
 interface DayGroupedRow {
@@ -692,7 +890,7 @@ interface DayGroupedRow {
 // back into; today needs none. Everything under a date header is by definition
 // not live.
 function dayGroupedRows(groups: RunGroup[], now: number): DayGroupedRow[] {
-  const rows = [...groups].reverse().map((group) => ({ group, summary: runSummary(group, now) }));
+  const rows = [...groups].reverse().map((group) => ({ group, summary: runSummary(group, groups, now) }));
   let previousTimestamp = now;
   return rows.map((row) => {
     const timestamp = row.group.run.startedAt;
@@ -700,12 +898,6 @@ function dayGroupedRows(groups: RunGroup[], now: number): DayGroupedRow[] {
     previousTimestamp = timestamp;
     return { ...row, dayLabel };
   });
-}
-
-// Keep the tail — for a qualified call name that is the method, the part that
-// says which call this is.
-function truncateStart(text: string, maxLength: number): string {
-  return text.length > maxLength ? `…${text.slice(text.length - maxLength + 1)}` : text;
 }
 
 function callStatus(methodCall: MethodCall): RunStatus {
@@ -719,85 +911,4 @@ function callStatus(methodCall: MethodCall): RunStatus {
 // happened on some other day is not the thing you need to read.
 function formatStaleTime(timestamp: number): string {
   return isSameDay(timestamp, Date.now()) ? formatClockTime(timestamp) : formatDayLabel(timestamp);
-}
-
-function statusClass(status: RunStatus): string {
-  return {
-    pending: "text-muted-foreground",
-    streaming: "text-primary",
-    success: "text-emerald-600 dark:text-emerald-400",
-    error: "text-destructive",
-  }[status];
-}
-
-function dotClass(status: RunStatus): string {
-  return {
-    pending: "bg-muted-foreground",
-    streaming: "bg-primary",
-    success: "bg-emerald-500",
-    error: "bg-red-500",
-  }[status];
-}
-
-// gRPC and Twirp errors carry a status code (e.g. "INVALID_ARGUMENT"); anything
-// else just shows as a plain error.
-// How a failed call is labelled: an upstream HTTP failure by its status, and
-// anything else by its gRPC/Twirp status code. A call against an HTTP app failed
-// with a 404, not with NOT_FOUND — the gRPC code is the tunnel, not the failure.
-function callErrorCode(methodCall: MethodCall): string | undefined {
-  const status = methodCall.error?.status;
-  if (typeof status === "number" && status > 0) return String(status);
-  const code = methodCall.error?.code;
-  return typeof code === "string" && code.length > 0 && code.length <= 24 ? code : undefined;
-}
-
-function formatDuration(durationMs?: number): string | undefined {
-  if (durationMs === undefined) return undefined;
-  return durationMs < 1000 ? `${durationMs} ms` : `${(durationMs / 1000).toFixed(durationMs < 10000 ? 2 : 1)} s`;
-}
-
-function payloadBytes(content: unknown, rawText?: string): number | undefined {
-  let text = rawText;
-  if (text === undefined) {
-    if (content === undefined) return undefined;
-    try {
-      text = JSON.stringify(content);
-    } catch {
-      return undefined;
-    }
-  }
-  return text === undefined ? undefined : new TextEncoder().encode(text).length;
-}
-
-function formatBytes(bytes?: number): string | undefined {
-  if (bytes === undefined) return undefined;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function labelForLogLevel(level: LogLevel): string {
-  switch (level) {
-    case LogLevel.LEVEL_DEBUG:
-      return "DEBUG";
-    case LogLevel.LEVEL_INFO:
-      return "LOG";
-    case LogLevel.LEVEL_WARN:
-      return "WARN";
-    case LogLevel.LEVEL_ERROR:
-      return "ERROR";
-  }
-}
-
-function classForLogLevel(level: LogLevel): string {
-  switch (level) {
-    case LogLevel.LEVEL_DEBUG:
-      return "text-muted-foreground";
-    case LogLevel.LEVEL_INFO:
-      return "text-foreground";
-    case LogLevel.LEVEL_WARN:
-      return "text-amber-600 dark:text-amber-400";
-    case LogLevel.LEVEL_ERROR:
-      return "text-destructive";
-  }
 }

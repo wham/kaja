@@ -7,6 +7,7 @@ import {
   fileConsole,
   hasCallsInFlight,
   putFile,
+  recordBlock,
   recordCall,
   recordLogs,
   renameFile,
@@ -14,9 +15,11 @@ import {
   runningFileIds,
   setSelection,
   setTab,
+  setView,
   settleRun,
   startRun,
   takeFile,
+  waitingFileIds,
 } from "./runHistory";
 import { Run } from "./runs";
 import { LogLevel } from "./server/api";
@@ -197,5 +200,73 @@ describe("hasCallsInFlight", () => {
     expect(hasCallsInFlight(fileConsole(history, "a"), "r1")).toBe(true);
     history = recordCall(history, "a", "r1", call("c1", { shows: [] }), NOW);
     expect(hasCallsInFlight(fileConsole(history, "a"), "r1")).toBe(false);
+  });
+});
+
+describe("recordBlock", () => {
+  const asked = { kind: "ask", question: "Which ledger?" } as const;
+
+  it("keeps a block where it was emitted as it fills in", () => {
+    let history: RunHistory = startRun({}, run("r1", "f1"), NOW);
+    history = recordBlock(history, "f1", "r1", "b1", { kind: "table", columns: ["id"], rows: [] }, NOW);
+    history = recordCall(history, "f1", "r1", call("c1", {}), NOW);
+    history = recordBlock(history, "f1", "r1", "b1", { kind: "table", columns: ["id"], rows: [["ac_1"]] }, NOW);
+
+    const items = fileConsole(history, "f1").items;
+    expect(items.map((item) => (item.block ? "block" : "call"))).toEqual(["block", "call"]);
+    expect(items[0].block).toEqual({ kind: "table", columns: ["id"], rows: [["ac_1"]] });
+  });
+
+  it("has nowhere to put a block from a run with no console", () => {
+    expect(recordBlock({}, undefined, "r1", "b1", asked, NOW)).toEqual({});
+  });
+
+  it("says which files are stopped waiting for an answer", () => {
+    let history: RunHistory = startRun({}, run("r1", "f1"), NOW);
+    history = recordBlock(history, "f1", "r1", "b1", asked, NOW);
+    expect(waitingFileIds(history)).toEqual(new Set(["f1"]));
+
+    history = recordBlock(history, "f1", "r1", "b1", { ...asked, answer: "june" }, NOW);
+    expect(waitingFileIds(history)).toEqual(new Set());
+  });
+});
+
+describe("run numbering", () => {
+  it("counts a file's runs from one", () => {
+    let history: RunHistory = startRun({}, run("r1", "f1"), NOW);
+    history = startRun(history, run("r2", "f1"), NOW);
+    expect(fileConsole(history, "f1").runs.map((entry) => entry.number)).toEqual([1, 2]);
+  });
+
+  // `Run 3` has to still say Run 3 after the run it was counted against has been
+  // trimmed out from under it.
+  it("never reuses a number the trimmed runs already spent", () => {
+    let history: RunHistory = {};
+    for (let index = 0; index < 30; index++) history = startRun(history, run(`r${index}`, "f1"), NOW);
+    const runs = fileConsole(history, "f1").runs;
+    expect(runs.length).toBe(25);
+    expect(runs[runs.length - 1].number).toBe(30);
+    expect(runs[0].number).toBe(6);
+  });
+
+  it("numbers each file's runs on its own", () => {
+    let history: RunHistory = startRun({}, run("r1", "f1"), NOW);
+    history = startRun(history, run("r2", "f2"), NOW);
+    expect(fileConsole(history, "f2").runs[0].number).toBe(1);
+  });
+});
+
+describe("setView", () => {
+  it("is unset until a view has been chosen", () => {
+    const history = startRun({}, run("r1", "f1"), NOW);
+    expect(fileConsole(history, "f1").view).toBeUndefined();
+  });
+
+  // Debugging is a mode, not a click: the choice outlives the run that prompted it.
+  it("sticks to the file across later runs", () => {
+    let history: RunHistory = startRun({}, run("r1", "f1"), NOW);
+    history = setView(history, "f1", "list", NOW);
+    history = startRun(history, run("r2", "f1"), NOW);
+    expect(fileConsole(history, "f1").view).toBe("list");
   });
 });
