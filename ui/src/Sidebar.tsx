@@ -9,7 +9,6 @@ import {
   Check,
   CircleX,
   FileCode,
-  FoldVertical,
   Pencil,
   Pin,
   Plus,
@@ -18,7 +17,6 @@ import {
   Settings,
   Trash2,
   TriangleAlert,
-  UnfoldVertical,
   ChevronRight,
   Ellipsis,
   Plus as PlusIcon,
@@ -32,28 +30,28 @@ import { isUntouched, Scratch } from "./scratches";
 import { titleParts } from "./scratchTitle";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
+import {
+  appNodeId,
+  Fold,
+  FoldMap,
+  groupServicesByPackage,
+  hasMultiplePackages,
+  isOpen,
+  loadFolds,
+  loadLedger,
+  MethodUse,
+  packageNodeId,
+  pruneFolds,
+  saveFolds,
+  seedFolds,
+  serviceNodeId,
+  subtreeNodes,
+  TreeApp,
+} from "./treeExpansion";
 
 // Width the macOS traffic lights occupy at the window's left edge. The desktop
 // window hides its title bar, so whatever sits in that corner has to clear them.
 export const TRAFFIC_LIGHTS_INSET = 78;
-
-function hasMultiplePackages(services: Service[]): boolean {
-  if (services.length === 0) return false;
-  const first = services[0].packageName;
-  return services.some((s) => s.packageName !== first);
-}
-
-function groupServicesByPackage(services: Service[]): [string, Service[]][] {
-  const groups = new Map<string, Service[]>();
-  for (const service of services) {
-    const pkg = service.packageName;
-    if (!groups.has(pkg)) {
-      groups.set(pkg, []);
-    }
-    groups.get(pkg)!.push(service);
-  }
-  return [...groups.entries()];
-}
 
 const RECENT_SCRATCHES = 6;
 
@@ -239,158 +237,59 @@ export function Sidebar({
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
   }, [scriptsExpanded]);
-  const hadPersistedState = useRef(getPersistedValue<string[]>("expandedApps") !== undefined);
-
-  const [expandedApps, setExpandedApps] = useState<Set<string>>(() => {
-    const stored = getPersistedValue<string[]>("expandedApps");
-    if (Array.isArray(stored)) {
-      return new Set(stored.filter((v): v is string => typeof v === "string"));
-    }
-    return new Set<string>();
-  });
-
-  const [expandedServices, setExpandedServices] = useState<Set<string>>(() => {
-    const stored = getPersistedValue<string[]>("expandedServices");
-    if (Array.isArray(stored)) {
-      return new Set(stored.filter((v): v is string => typeof v === "string"));
-    }
-    return new Set<string>();
-  });
+  const [folds, setFolds] = useState<FoldMap>(loadFolds);
 
   const elementRefs = useRef<Map<string, HTMLElement>>(new Map());
   const pendingScrollRef = useRef<string | null>(null);
 
-  // Helper to get service element id
-  const getServiceElementId = (appName: string, service: Service) => {
-    const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
-    return `${appName}-${serviceKey}`;
-  };
-
-  // Helper to get package element id (used when multiple packages are shown as subtrees)
-  const getPackageElementId = (appName: string, packageName: string) => {
-    return `${appName}-pkg:${packageName}`;
-  };
-
-  // Persist expanded state
-  useEffect(() => {
-    setPersistedValue("expandedApps", [...expandedApps]);
-  }, [expandedApps]);
+  const treeApps: TreeApp[] = apps.map((app) => ({ name: app.configuration.name, services: app.services }));
 
   useEffect(() => {
-    setPersistedValue("expandedServices", [...expandedServices]);
-  }, [expandedServices]);
+    saveFolds(folds);
+  }, [folds]);
 
-  // On first visit, expand first two apps. On subsequent loads, prune stale keys.
+  // Apps already seeded, and apps added since the ledger was written. An app is
+  // seeded once, when it first has something to seed from; after that the folds
+  // are the truth and only a click changes them, so the tree can't rearrange
+  // itself under the cursor.
+  const seededApps = useRef<Set<string>>(new Set());
+  const newApps = useRef<Set<string>>(new Set());
+  // The ledger as it stood when the window opened. A seed reasons about what you
+  // had called before this session, never about what has happened since: apps
+  // compile at their own pace, so a call made — or auto-opened by Kaja itself —
+  // while a slow app was still compiling would otherwise cancel that app's cold
+  // start and leave it shut for having been late.
+  const ledgerAtLoad = useRef<MethodUse[]>(undefined);
+  if (ledgerAtLoad.current === undefined) ledgerAtLoad.current = loadLedger();
+
   useEffect(() => {
-    if (apps.length === 0) return;
+    if (treeApps.length === 0) return;
 
-    if (!hadPersistedState.current) {
-      setExpandedApps((prev) => {
-        if (prev.size === 0) {
-          return new Set(apps.slice(0, 2).map((p) => p.configuration.name));
-        }
-        return prev;
-      });
-      setExpandedServices((prev) => {
-        if (prev.size === 0) {
-          const initialServices = new Set<string>();
-          apps.slice(0, 2).forEach((app) => {
-            if (app.services.length > 0) {
-              // If multiple packages, also expand the first package
-              if (hasMultiplePackages(app.services)) {
-                initialServices.add(getPackageElementId(app.configuration.name, app.services[0].packageName));
-              }
-              initialServices.add(getServiceElementId(app.configuration.name, app.services[0]));
-            }
-          });
-          return initialServices;
-        }
-        return prev;
-      });
-      // Only mark initialized once services exist, so defaults retry after compilation finishes
-      if (apps.some((p) => p.services.length > 0)) {
-        hadPersistedState.current = true;
-      }
-      return;
-    }
-
-    // Prune stale entries that no longer match current apps/services
-    const validApps = new Set(apps.map((p) => p.configuration.name));
-    const validServices = new Set<string>();
-    const compilingPrefixes: string[] = [];
-    for (const app of apps) {
-      if (app.compilation.status === "running" || app.compilation.status === "pending") {
-        compilingPrefixes.push(app.configuration.name + "-");
-      }
-      // Add package IDs as valid when multiple packages exist
-      if (hasMultiplePackages(app.services)) {
-        const seenPackages = new Set<string>();
-        for (const service of app.services) {
-          if (!seenPackages.has(service.packageName)) {
-            seenPackages.add(service.packageName);
-            validServices.add(getPackageElementId(app.configuration.name, service.packageName));
-          }
-        }
-      }
-      for (const service of app.services) {
-        validServices.add(getServiceElementId(app.configuration.name, service));
+    const targets = new Set(treeApps.filter((app) => app.services.length > 0 && !seededApps.current.has(app.name)).map((app) => app.name));
+    if (targets.size > 0) {
+      setFolds((prev) => seedFolds(treeApps, targets, prev, ledgerAtLoad.current!, newApps.current));
+      for (const name of targets) {
+        seededApps.current.add(name);
+        newApps.current.delete(name);
       }
     }
 
-    setExpandedApps((prev) => {
-      const pruned = new Set([...prev].filter((p) => validApps.has(p)));
-      if (pruned.size !== prev.size) return pruned;
-      return prev;
-    });
-
-    setExpandedServices((prev) => {
-      const pruned = new Set([...prev].filter((s) => validServices.has(s) || compilingPrefixes.some((prefix) => s.startsWith(prefix))));
-      if (pruned.size !== prev.size) return pruned;
-      return prev;
-    });
+    const compiling = new Set(
+      apps.filter((app) => app.compilation.status === "running" || app.compilation.status === "pending").map((app) => app.configuration.name),
+    );
+    setFolds((prev) => pruneFolds(prev, treeApps, compiling));
   }, [apps]);
 
-  // Auto-expand a just-added app. The app is expanded immediately;
-  // its first service (and first package, when several exist) is expanded once
-  // compilation finishes and services become available.
-  const pendingFirstServiceExpand = useRef<Set<string>>(new Set());
-
+  // A just-added app opens at once, and takes its depth from its size once it has
+  // compiled: it is new, so there is no history that could speak for it.
   useEffect(() => {
     if (!autoExpandApp) return;
     const { name } = autoExpandApp;
-    setExpandedApps((prev) => {
-      if (prev.has(name)) return prev;
-      const next = new Set(prev);
-      next.add(name);
-      return next;
-    });
-    pendingFirstServiceExpand.current.add(name);
-    pendingScrollRef.current = name;
+    newApps.current.add(name);
+    seededApps.current.delete(name);
+    setFolds((prev) => ({ ...prev, [appNodeId(name)]: "open" }));
+    pendingScrollRef.current = appNodeId(name);
   }, [autoExpandApp]);
-
-  useEffect(() => {
-    if (pendingFirstServiceExpand.current.size === 0) return;
-    const idsToExpand: string[] = [];
-    const ready: string[] = [];
-    for (const name of pendingFirstServiceExpand.current) {
-      const app = apps.find((p) => p.configuration.name === name);
-      if (app && app.services.length > 0) {
-        if (hasMultiplePackages(app.services)) {
-          idsToExpand.push(getPackageElementId(name, app.services[0].packageName));
-        }
-        idsToExpand.push(getServiceElementId(name, app.services[0]));
-        ready.push(name);
-      }
-    }
-    if (idsToExpand.length > 0) {
-      setExpandedServices((prev) => {
-        const next = new Set(prev);
-        idsToExpand.forEach((id) => next.add(id));
-        return next;
-      });
-      ready.forEach((n) => pendingFirstServiceExpand.current.delete(n));
-    }
-  }, [apps]);
 
   // Scroll expanded element into view after DOM updates
   const scrollIntoView = (elementId: string) => {
@@ -409,45 +308,22 @@ export function Sidebar({
       pendingScrollRef.current = null;
       scrollIntoView(elementId);
     }
-  }, [expandedApps, expandedServices]);
+  }, [folds]);
 
-  const toggleAppExpanded = (appName: string) => {
-    setExpandedApps((prev) => {
-      const next = new Set(prev);
-      if (next.has(appName)) {
-        next.delete(appName);
-      } else {
-        next.add(appName);
-        pendingScrollRef.current = appName;
+  /**
+   * Fold a node, and — on ⌥click — everything under it. That gesture is why
+   * there are no fold-all and unfold-all buttons in the header: it is the same
+   * verb, scoped to the row the cursor is already on, and it costs no chrome.
+   */
+  const setFold = (app: TreeApp, nodeId: string, fold: Fold, wholeSubtree: boolean) => {
+    setFolds((prev) => {
+      const next = { ...prev, [nodeId]: fold };
+      if (wholeSubtree) {
+        for (const child of subtreeNodes(app, nodeId)) next[child] = fold;
       }
       return next;
     });
-  };
-
-  const foldAll = () => {
-    setExpandedApps(new Set());
-    setExpandedServices(new Set());
-  };
-
-  const unfoldAll = () => {
-    const allApps = new Set(apps.map((p) => p.configuration.name));
-    const allServices = new Set<string>();
-    for (const app of apps) {
-      if (hasMultiplePackages(app.services)) {
-        const seenPackages = new Set<string>();
-        for (const service of app.services) {
-          if (!seenPackages.has(service.packageName)) {
-            seenPackages.add(service.packageName);
-            allServices.add(getPackageElementId(app.configuration.name, service.packageName));
-          }
-        }
-      }
-      for (const service of app.services) {
-        allServices.add(getServiceElementId(app.configuration.name, service));
-      }
-    }
-    setExpandedApps(allApps);
-    setExpandedServices(allServices);
+    if (fold === "open") pendingScrollRef.current = nodeId;
   };
 
   return (
@@ -479,17 +355,10 @@ export function Sidebar({
           <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
           {onVariablesClick && <IconButton icon={Braces} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
-        <div style={{ flex: 1 }} />
-        <div
-          style={
-            reserveTrafficLights
-              ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties)
-              : { display: "flex", alignItems: "center" }
-          }
-        >
-          <IconButton icon={FoldVertical} size="sm" variant="ghost" aria-label="Fold All" onClick={foldAll} />
-          <IconButton icon={UnfoldVertical} size="sm" variant="ghost" aria-label="Unfold All" onClick={unfoldAll} />
-        </div>
+        {/* Nothing on the right. Fold All and Unfold All lived here and were both
+            about managing a view of the tree, which stopped being something you
+            do: the tree opens on what you call, and ⌥click on a row takes its
+            whole subtree. The left side makes things; that is the whole header. */}
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "4px 0", minHeight: 0 }}>
         {/* One list, not two. A script that has been saved and one that hasn't
@@ -654,17 +523,19 @@ export function Sidebar({
             rows can carry the same name across the seam. A rule keeps nobody
             reading them as one. */}
         {(hasScripts || hasScratches) && apps.length > 0 && <div className="my-1 h-px bg-border" />}
-        {apps.map((app) => {
+        {apps.map((app, appIndex) => {
           const appName = app.configuration.name;
-          const isExpanded = expandedApps.has(appName);
+          const treeApp = treeApps[appIndex];
+          const appId = appNodeId(appName);
+          const isExpanded = isOpen(folds, appId);
           const active = hoveredApp === appName || appMenu?.appName === appName;
 
           return (
             <nav
               key={appName}
               ref={(el) => {
-                if (el) elementRefs.current.set(appName, el);
-                else elementRefs.current.delete(appName);
+                if (el) elementRefs.current.set(appId, el);
+                else elementRefs.current.delete(appId);
               }}
               aria-label="Services and methods"
             >
@@ -675,7 +546,7 @@ export function Sidebar({
                 className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
                 onMouseEnter={() => setHoveredApp(appName)}
                 onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
-                onClick={() => toggleAppExpanded(appName)}
+                onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
                 onContextMenu={(e: React.MouseEvent) => {
                   e.preventDefault();
                   setAppMenu({ appName, top: e.clientY, left: e.clientX });
@@ -700,30 +571,17 @@ export function Sidebar({
                       const multiplePackages = hasMultiplePackages(app.services);
 
                       const renderServiceItem = (service: Service) => {
-                        const serviceKey = service.packageName ? `${service.packageName}.${service.name}` : service.name;
-                        const svcId = `${appName}-${serviceKey}`;
-                        const isServiceExpanded = expandedServices.has(svcId);
+                        const svcId = serviceNodeId(appName, service);
                         return (
                           <TreeView.Item
                             id={svcId}
-                            key={serviceKey}
+                            key={svcId}
                             ref={(el: HTMLElement | null) => {
                               if (el) elementRefs.current.set(svcId, el);
                               else elementRefs.current.delete(svcId);
                             }}
-                            expanded={isServiceExpanded}
-                            onExpandedChange={(expanded) => {
-                              setExpandedServices((prev) => {
-                                const next = new Set(prev);
-                                if (expanded) {
-                                  next.add(svcId);
-                                } else {
-                                  next.delete(svcId);
-                                }
-                                return next;
-                              });
-                              if (expanded) scrollIntoView(svcId);
-                            }}
+                            expanded={isOpen(folds, svcId)}
+                            onExpandedChange={(expanded, event) => setFold(treeApp, svcId, expanded ? "open" : "shut", event.altKey)}
                           >
                             {service.name}
                             <TreeView.SubTree leaf>
@@ -769,8 +627,7 @@ export function Sidebar({
                       }
 
                       const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
-                        const packageId = getPackageElementId(appName, packageName);
-                        const isPackageExpanded = expandedServices.has(packageId);
+                        const packageId = packageNodeId(appName, packageName);
                         return (
                           <TreeView.Item
                             id={packageId}
@@ -779,19 +636,8 @@ export function Sidebar({
                               if (el) elementRefs.current.set(packageId, el);
                               else elementRefs.current.delete(packageId);
                             }}
-                            expanded={isPackageExpanded}
-                            onExpandedChange={(expanded) => {
-                              setExpandedServices((prev) => {
-                                const next = new Set(prev);
-                                if (expanded) {
-                                  next.add(packageId);
-                                } else {
-                                  next.delete(packageId);
-                                }
-                                return next;
-                              });
-                              if (expanded) scrollIntoView(packageId);
-                            }}
+                            expanded={isOpen(folds, packageId)}
+                            onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
                           >
                             {/* No icon: every package row carried the same one,
                                 which is 20px per row spent saying what the guide

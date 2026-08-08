@@ -179,6 +179,61 @@ what buys the horizontal room:
 - The sidebar **header stays 40px** regardless, because it lines up with the
   command row across the seam.
 
+## What the tree opens with
+
+**Expansion is a record of where you have been, not a guess about where you will
+go** (`treeExpansion.ts`). Three inputs decide it, in that order: the calls you
+have made, the nodes you have folded yourself, and — only before either of those
+can say anything — how much of an app fits on screen. Guessing once, on the day
+you know least, was the old rule (*the first two apps in `kaja.json`, their first
+service*), and it never ran again: whatever you got on day one you kept forever.
+
+- **The ledger is what you called, most recent first.** A `MethodUse` is
+  app/package/service/method and nothing else — the list is ordered, so there is
+  no timestamp and no count for anything to read. It is written from
+  `onMethodSelect`, which is the one door the tree *and* the finder both go
+  through, and from every call a script makes (`onMethodCallUpdate`), because a
+  call you ran counts at least as much as one you clicked. On load the tree opens
+  the path to the **three** most recent calls that still resolve; the budget is
+  spent across the whole tree, not per app, and a call whose proto has since
+  dropped it doesn't spend any of it.
+- **A fold is a decision, an expansion is a suggestion.** A node is `open`,
+  `shut`, or absent, and nothing derived ever writes over the first two — this is
+  what makes it safe for the ledger to be as aggressive as it is. Absent is the
+  only state a seed may fill, and opening a node by hand clears its own `shut`,
+  so the mess is never bigger than the nodes you touched and each is one click
+  from fixed. There is no global reset to offer.
+- **Size decides only on a cold start** (`autoOpenNodes`, 12 rows). It opens an
+  app as deep as it goes while staying under the budget, **a level whole or not
+  at all** — picking the first service out of a list is the arbitrariness this
+  replaced — and never less than one level, so an app always says what is in it.
+  A small API comes up open to its methods, one click from a script; a large one
+  shows its shape. Once there is a history, **silence about an app means shut**:
+  the fallback is the cold-start rule and nothing else, so seven apps you don't
+  use can't sit open forever. An app added since the ledger was written has
+  nothing to be silent with, so it falls back to its size the same way.
+- **An app is seeded once**, when it first has services, and after that the folds
+  are the truth — the tree can never rearrange itself under the cursor. Apps
+  compile at their own pace, so `seedFolds` seeds *some* apps against *all* of
+  them: the recent-call budget and the is-this-a-cold-start question are both
+  asked of the whole tree.
+- **Folds are pruned against what exists; the ledger is not.** An app that is
+  still compiling — or has no services for any other reason — has nothing to
+  match against, so its subtree is spared rather than cleared and re-seeded on
+  every reload. The ledger is never pruned against apps at all, because a failing
+  compile would erase the history that outlives it; it is capped instead, and a
+  stale entry simply never resolves.
+- **There are no fold-all and unfold-all buttons.** Both were about managing a
+  view of the tree, which stopped being something you do, and Fold All was the
+  one gesture that could write `shut` over everything at once and mute the whole
+  model from a button in the header. **⌥click a row** takes its subtree instead —
+  the same verb, scoped to where the cursor already is, at no cost in chrome. The
+  sidebar header's right side is now empty: the left side makes things, and that
+  is the whole header.
+- The old `expandedApps`/`expandedServices` keys are **not migrated**. Their ids
+  differ, and ignoring them lands an existing workspace on the cold start, which
+  is a better tree than their stale contents would rebuild.
+
 ## The console reports runs
 
 **A run is the unit** (`runs.ts`): one press of Run, one header, one duration,
