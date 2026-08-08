@@ -29,6 +29,18 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
   },
 });
 
+// ⌘⏎ runs the script, and the shortcut lives on the window (see App.tsx). Monaco
+// binds the same chord to Insert Line Below and, having matched it, stops the
+// event at the editor — so inside the editor the key wrote a line instead of
+// running. Unbind it here, scoped to the same context the editor action claims,
+// so the chord goes unmatched and reaches the window while ⌘⏎ elsewhere in
+// Monaco (Replace All in the find widget) is left alone.
+monaco.editor.addKeybindingRule({
+  keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+  command: null,
+  when: "editorTextFocus",
+});
+
 monaco.typescript.typescriptDefaults.setCompilerOptions({
   target: monaco.typescript.ScriptTarget.ESNext,
   module: monaco.typescript.ModuleKind.ESNext,
