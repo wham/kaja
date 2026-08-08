@@ -144,7 +144,12 @@ interface SidebarProps {
   // Files with a run still in the air. A run keeps going when you navigate away
   // from it, and its console is no longer on screen to say so — the row is.
   runningFileIds?: Set<string>;
-  canDeleteApps?: boolean;
+  // A read-only configuration doesn't disable the verbs that change apps, it
+  // doesn't offer them: New and Delete both go, so there is no way to reach a
+  // form whose only button can't be pressed. Settings stays — reading an app's
+  // configuration is worth the trip, and its banner says why it can't be
+  // edited; filling in a new app that can never be saved is not.
+  canUpdateConfiguration?: boolean;
   // Clicking goes to the call; ⌥click (or the + on the row) adds it to the
   // script already on screen.
   onSelect: (method: Method, service: Service, app: App, mode?: "go" | "append") => void;
@@ -185,7 +190,7 @@ export function Sidebar({
   currentScriptPath,
   pinnedScriptPath,
   runningFileIds,
-  canDeleteApps = true,
+  canUpdateConfiguration = true,
   onSelect,
   onScratchSelect,
   onDeleteScratch,
@@ -352,7 +357,7 @@ export function Sidebar({
               : { display: "flex", alignItems: "center" }
           }
         >
-          <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />
+          {canUpdateConfiguration && <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />}
           {onVariablesClick && <IconButton icon={Braces} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
         </div>
         {/* Nothing on the right. Fold All and Unfold All lived here and were both
@@ -753,7 +758,7 @@ export function Sidebar({
             <RotateCw size={16} />
             Recompile
           </DropdownMenuItem>
-          {canDeleteApps && (
+          {canUpdateConfiguration && (
             <DropdownMenuItem
               variant="danger"
               onSelect={() => {
