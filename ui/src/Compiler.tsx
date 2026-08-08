@@ -11,6 +11,7 @@ interface CompilerProps {
   apps: App[];
   configurationLoaded: boolean;
   onNewAppClick?: () => void;
+  canUpdateConfiguration?: boolean;
   // The app the log was opened for; its logs are expanded and scrolled to.
   expandApp?: { name: string };
 }
@@ -18,7 +19,7 @@ interface CompilerProps {
 const CHEVRON_SIZE = 16;
 const CHECK_ICON_SIZE = 12;
 
-export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }: CompilerProps) {
+export function Compiler({ apps, configurationLoaded, onNewAppClick, canUpdateConfiguration, expandApp }: CompilerProps) {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -81,7 +82,7 @@ export function Compiler({ apps, configurationLoaded, onNewAppClick, expandApp }
       );
     }
 
-    return <FirstAppBlankslate onNewAppClick={onNewAppClick} />;
+    return <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={canUpdateConfiguration} />;
   }
 
   return (

@@ -1625,6 +1625,7 @@ export function App() {
   };
 
   const onNewAppClick = () => {
+    if (!runtime.canUpdateConfiguration) return;
     setNewAppOpen(true);
   };
 
@@ -1970,7 +1971,7 @@ export function App() {
               <Sidebar
                 apps={apps}
                 scripts={scripts}
-                canDeleteApps={runtime.canUpdateConfiguration}
+                canUpdateConfiguration={runtime.canUpdateConfiguration}
                 onSelect={onMethodSelect}
                 onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
                 onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
@@ -2020,7 +2021,9 @@ export function App() {
               layout={editorLayout}
               onToggleLayout={onToggleEditorLayout}
             />
-            {views.length === 0 && configurationLoaded && apps.length === 0 && <FirstAppBlankslate onNewAppClick={onNewAppClick} />}
+            {views.length === 0 && configurationLoaded && apps.length === 0 && (
+              <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={runtime.canUpdateConfiguration} />
+            )}
             {views.length === 0 && (apps.length > 0 || !configurationLoaded) && (
               <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewScratch={onNewScratch} recent={recentFiles} />
             )}
@@ -2043,7 +2046,13 @@ export function App() {
                   {bodies.map((tab) => (
                     <div key={tab.id} style={{ display: tab.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
                       {tab.type === "compiler" && (
-                        <Compiler apps={apps} configurationLoaded={configurationLoaded} onNewAppClick={onNewAppClick} expandApp={compileLogExpandApp} />
+                        <Compiler
+                          apps={apps}
+                          configurationLoaded={configurationLoaded}
+                          onNewAppClick={onNewAppClick}
+                          canUpdateConfiguration={runtime.canUpdateConfiguration}
+                          expandApp={compileLogExpandApp}
+                        />
                       )}
                       {(tab.type === "scratch" || tab.type === "script") && (
                         <div className="relative flex min-h-0 flex-1 flex-col">
