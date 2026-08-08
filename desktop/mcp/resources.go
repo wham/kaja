@@ -3,19 +3,17 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 const (
 	guideURI    = "kaja://guide"
 	servicesURI = "kaja://services"
-	stubScheme  = "kaja://stub/"
 )
 
-// handleResourcesList advertises the guide, the live services index, and one
-// resource per generated TypeScript stub. The stubs are here rather than in a
-// tool result on purpose: they are large, and describe_method answers without
-// them.
+// handleResourcesList advertises the guide and the live services index. The
+// generated modules are deliberately not here: describe_method and describe_type
+// hand back the declarations from them, and one module's full text is hundreds of
+// kilobytes of runtime machinery around the few lines anyone wanted.
 func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 	resources := []map[string]interface{}{
 		{
@@ -31,14 +29,6 @@ func (s *Server) handleResourcesList() (interface{}, *rpcError) {
 			"mimeType":    "text/plain",
 		},
 	}
-	for _, src := range s.bridge.Catalog().Sources {
-		resources = append(resources, map[string]interface{}{
-			"uri":         stubScheme + src.Path,
-			"name":        src.Path,
-			"description": "Generated TypeScript types for " + src.Path,
-			"mimeType":    "text/x-typescript",
-		})
-	}
 	return map[string]interface{}{"resources": resources}, nil
 }
 
@@ -52,22 +42,12 @@ func (s *Server) handleResourceRead(params json.RawMessage) (interface{}, *rpcEr
 		return nil, &rpcError{Code: codeInvalidParams, Message: "invalid params"}
 	}
 
-	switch {
-	case p.URI == guideURI:
+	switch p.URI {
+	case guideURI:
 		return resourceContents(p.URI, "text/markdown", guide), nil
-	case p.URI == servicesURI:
-		// The same index list_services returns. The catalog's own JSON carries every
-		// generated source, which is exactly what a reader of this resource must not
-		// be handed by accident.
+	case servicesURI:
+		// The same index list_services returns.
 		return resourceContents(p.URI, "text/plain", s.bridge.Catalog().listServices("", "", "")), nil
-	case strings.HasPrefix(p.URI, stubScheme):
-		path := strings.TrimPrefix(p.URI, stubScheme)
-		for _, src := range s.bridge.Catalog().Sources {
-			if src.Path == path {
-				return resourceContents(p.URI, "text/x-typescript", src.Content), nil
-			}
-		}
-		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown stub %q", path)}
 	default:
 		return nil, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf("unknown resource %q", p.URI)}
 	}

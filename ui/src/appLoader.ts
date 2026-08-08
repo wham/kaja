@@ -4,6 +4,7 @@ import { createClient } from "./client";
 import { addImport, defaultMessage } from "./defaultInput";
 import { Clients, createAppRef, Method, App, AppRef, Service, serviceId, Transport } from "./apps";
 import { Source as ApiSource, ConfigurationApp } from "./server/api";
+import { docText } from "./declarations";
 import { findInStub, loadSources, parseStub, Source, Sources, Stub } from "./sources";
 
 // Generate editor code for a method on-demand (when opening a task tab)
@@ -43,14 +44,6 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       if (!serviceInfo) {
         return;
       }
-      const methods: Method[] = [];
-      serviceInfo.methods.forEach((methodInfo) => {
-        methods.push({
-          name: methodInfo.name,
-          serverStreaming: methodInfo.serverStreaming,
-          clientStreaming: methodInfo.clientStreaming,
-        });
-      });
       // Extract package name from typeName (e.g., "quirks.v1.Quirks" -> "quirks.v1")
       const typeName = serviceInfo.typeName || serviceName;
       const lastDotIndex = typeName.lastIndexOf(".");
@@ -60,6 +53,22 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       const clientSourcePath = source.importPath + ".client";
       const clientSource = sources.find((s) => s.importPath === clientSourcePath);
 
+      // The generated client interface is where a method's TypeScript signature
+      // is written down; it is read once and used for both the service stub the
+      // editor checks against and the method model everything else reads.
+      const interfaceDeclaration = clientSource?.interfaces["I" + serviceName + "Client"];
+      const signatures = interfaceDeclaration && clientSource ? readSignatures(interfaceDeclaration, clientSource.file, serviceInfo) : {};
+
+      const methods: Method[] = serviceInfo.methods.map((methodInfo) => ({
+        name: methodInfo.name,
+        serverStreaming: methodInfo.serverStreaming,
+        clientStreaming: methodInfo.clientStreaming,
+        input: signatures[methodInfo.name]?.input,
+        output: signatures[methodInfo.name]?.output,
+        doc: signatures[methodInfo.name]?.doc,
+        http: httpRequest(methodInfo),
+      }));
+
       services.push({
         name: serviceName,
         packageName,
@@ -68,12 +77,8 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
         methods,
       });
 
-      // Look for the client interface to generate type definitions
-      const interfaceName = "I" + serviceName + "Client";
-      const interfaceDeclaration = clientSource?.interfaces[interfaceName];
       if (interfaceDeclaration && clientSource) {
-        const serviceInterfaceDefinition = createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, serviceInfo);
-        serviceInterfaceDefinitions.push(serviceInterfaceDefinition);
+        serviceInterfaceDefinitions.push(createServiceInterfaceDefinition(serviceName, interfaceDeclaration, clientSource.file, signatures));
       }
     });
 
@@ -99,7 +104,7 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
       serviceNames: source.serviceNames,
       interfaces: source.interfaces,
       enums: source.enums,
-      docs: source.docs,
+      declarations: source.declarations,
     });
   });
 
@@ -231,32 +236,64 @@ export function printStatements(statements: ts.Statement[]): string {
   return printer.printFile(sourceFile);
 }
 
+// MethodSignature is a method as a script writes it: the request and response
+// type names, and the API's own description. It is read off the generated client
+// interface, which is the one place the TypeScript names are written down.
+export interface MethodSignature {
+  input: string;
+  output: string;
+  doc?: string;
+}
+
+// readSignatures maps each proto method name to its TypeScript signature. The
+// client interface names its members in lowerCamelCase, so they are matched back
+// to the proto names the rest of Kaja uses.
+function readSignatures(
+  interfaceDeclaration: ts.InterfaceDeclaration,
+  sourceFile: ts.SourceFile,
+  serviceInfo: ServiceInfo,
+): { [name: string]: MethodSignature } {
+  const signatures: { [name: string]: MethodSignature } = {};
+
+  interfaceDeclaration.members.forEach((member) => {
+    if (!ts.isMethodSignature(member) || !member.name) {
+      return;
+    }
+    const tsMethodName = member.name.getText(sourceFile);
+    const protoMethodName = serviceInfo.methods.find((method) => method.name.toLowerCase() == tsMethodName.toLowerCase())?.name || tsMethodName;
+    const inputParameter = getInputParameter(member, sourceFile);
+    if (!inputParameter || !inputParameter.type) {
+      return;
+    }
+    const output = getOutputType(member, sourceFile);
+    signatures[protoMethodName] = {
+      input: inputParameter.type.getText(sourceFile),
+      output: output ? output.getText(sourceFile) : "unknown",
+      doc: docText(member, sourceFile) || undefined,
+    };
+  });
+
+  return signatures;
+}
+
+// createServiceInterfaceDefinition synthesizes the `export const <Service> = {…}`
+// the editor checks a script against, from the signatures already read.
 function createServiceInterfaceDefinition(
   serviceName: string,
   interfaceDeclaration: ts.InterfaceDeclaration,
   sourceFile: ts.SourceFile,
-  serviceInfo: ServiceInfo,
+  signatures: { [name: string]: MethodSignature },
 ): ts.VariableStatement {
-  const funcs: ts.PropertyAssignment[] = [];
+  const memberByProtoName = new Map<string, ts.MethodSignature>();
   interfaceDeclaration.members.forEach((member) => {
-    if (!ts.isMethodSignature(member)) {
-      return;
-    }
-
-    if (!member.name) {
-      return;
-    }
-
+    if (!ts.isMethodSignature(member) || !member.name) return;
     const tsMethodName = member.name.getText(sourceFile);
-    const protoMethodName = serviceInfo.methods.find((method) => method.name.toLowerCase() == tsMethodName.toLowerCase())?.name || tsMethodName;
-    const inputParameter = getInputParameter(member, sourceFile);
+    const protoMethodName = Object.keys(signatures).find((name) => name.toLowerCase() === tsMethodName.toLowerCase());
+    if (protoMethodName) memberByProtoName.set(protoMethodName, member);
+  });
 
-    if (!inputParameter || !inputParameter.type) {
-      return;
-    }
-
-    const inputParameterType = inputParameter.type.getText(sourceFile);
-
+  const funcs: ts.PropertyAssignment[] = [];
+  for (const [protoMethodName, signature] of Object.entries(signatures)) {
     const func = ts.factory.createPropertyAssignment(
       protoMethodName,
       ts.factory.createArrowFunction(
@@ -268,11 +305,11 @@ function createServiceInterfaceDefinition(
             undefined,
             "input",
             undefined,
-            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(inputParameterType), undefined),
+            ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
           ),
         ],
         ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Promise"), [
-          getOutputType(member, sourceFile) || ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+          ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.output), undefined),
         ]),
         ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ts.factory.createBlock([]),
@@ -280,15 +317,18 @@ function createServiceInterfaceDefinition(
     );
     // Carry the proto doc comment (emitted as JSDoc on the generated I<Service>Client
     // member) onto the synthesized method so Monaco shows it on hover/autocomplete.
-    copyLeadingComments(sourceFile, member, func);
+    const member = memberByProtoName.get(protoMethodName);
+    if (member) {
+      copyLeadingComments(sourceFile, member, func);
+    }
     funcs.push(func);
-  });
+  }
 
   // multiLine, so a service with thirty methods is thirty lines rather than one.
   // The printer puts a synthesized object literal on a single line otherwise, and
   // this text is what line-based readers - Monaco's hover, an agent grepping the
   // stub - see of the service.
-  const serviceInterfaceDefinition = ts.factory.createVariableStatement(
+  return ts.factory.createVariableStatement(
     [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)],
     ts.factory.createVariableDeclarationList(
       [
@@ -302,8 +342,13 @@ function createServiceInterfaceDefinition(
       ts.NodeFlags.Const,
     ),
   );
+}
 
-  return serviceInterfaceDefinition;
+// httpRequest reads the HTTP request a method transcodes to, when the app wrote
+// one onto the method. See server/pkg/apps/openapi/http.proto.
+function httpRequest(methodInfo: MethodInfo): string | undefined {
+  const value = (methodInfo.options as { [key: string]: unknown } | undefined)?.["kaja.http_request"];
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function isAnotherSourceImport(importDeclaration: ts.ImportDeclaration, sourceFile: ts.SourceFile): boolean {

@@ -7,16 +7,16 @@ write and run those scripts.
 
 ## The loop
 
-1. `list_services` — the index of what is callable. Filter with `app`, `service`
-   or `search` on a large API.
-2. `describe_method "Shows.ListShows"` — the request type with everything it
-   reaches inlined, the response type, which fields are required, whether the
-   call reads or writes, and an example that runs as written.
+1. `list_services` — the index of what is callable, one TypeScript signature per
+   method. Filter with `app`, `service` or `search` on a large API.
+2. `describe_method "Shows.ListShows"` — the declarations of every type that
+   method's signature names, whether the call reads or writes, and a call to
+   start from. `describe_type "Show"` looks one type up on its own.
 3. `run_script` with `code` to try it, then `create_script` to keep it.
 
-Those two tools answer everything. The generated `.ts` stubs are offered as
-resources for the rare case where you want the literal declarations; you should
-not need them, and they are large.
+**Everything you are shown is TypeScript**, because that is all a script is: the
+declarations come out of the generated code your script is checked against, so
+there is nothing else to go and read.
 
 ## Read or write
 
@@ -44,10 +44,13 @@ Rules that matter:
 - The import path is the `importPath` in `list_services` — the app name, then the
   module. **Named imports only**: `import * as ns from "..."` does not resolve.
 - Every method call returns a `Promise`; always `await` it.
-- **Send only the fields you mean.** This is proto3: nothing is required unless
-  `describe_method` says the API declared it, and an omitted field is its zero
-  value, not an error. Filling every parameter with `""` and `0` sends those
-  values.
+- **Send only the fields you mean.** A field is optional unless its declaration
+  is marked `[required]`, and an omitted field takes its zero value rather than
+  failing. Filling every parameter with `""` and `0` sends those values.
+- A declaration may carry other marks the type system can't state: `[query
+  parameter]`, `[path parameter]`, `[header parameter]` say where a field travels
+  in the HTTP request behind the method, and `[carries the HTTP payload]` marks a
+  field that exists only to hold a body the shape couldn't otherwise express.
 - A rejected call **throws**, which stops the script there. The calls it already
   made are still reported. Wrap a call in `try`/`catch` to keep going.
 
@@ -69,12 +72,11 @@ Rules that matter:
   macOS "Run Kaja Script" text service. `undefined` when run any other way.
 - `kaja.uuid.v4(): string` — a random version 4 UUID.
 - `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
-- `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build
-  `google.protobuf.Value`, `Struct` and `ListValue` from plain JSON. A field of
-  one of those types accepts **any** JSON, and its wire shape is a `kind` oneof
-  that you must never write by hand — and never re-implement as your own
-  `str`/`num`/`bool` helpers. `describe_method` names the builder on every field
-  that needs one.
+- `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
+  typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire
+  shape is a `kind` oneof you must never write by hand and never re-implement as
+  your own `str`/`num`/`bool` helpers. The generated call `describe_method` gives
+  you already uses the right builder; keep it and change the argument.
 
 ```ts
 import { kaja } from "kaja";

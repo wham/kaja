@@ -2,18 +2,52 @@ import { EnumInfo, FieldInfo, IMessageType, ScalarType } from "@protobuf-ts/runt
 import ts from "typescript";
 import { findEnum, Source, Sources } from "./sources";
 
-// google.protobuf.Value holds arbitrary JSON through a "kind" oneof, and an
-// OpenAPI spec's free-form properties are generated as one. It has no fillable
-// default: leaving the oneof unset is rejected on send ("none of the oneof
-// fields is set" from the JSON encoder), and picking a member would invent a
-// value. So, like a recursive type, it is left out of the generated request
-// rather than placed there only to fail.
-const unfillable = "google.protobuf.Value";
+// google.protobuf.Value and friends hold arbitrary JSON through a "kind" oneof,
+// and an OpenAPI spec's free-form properties are generated as them. Written by
+// hand they have no fillable default - leaving the oneof unset is rejected on
+// send, and picking a member means writing out the encoding - so they used to be
+// left out of a generated request entirely. The kaja builders are the default
+// they were missing: `kaja.value(null)` sends, and being in the generated code is
+// the only place the builder can be learned, since the field is otherwise absent
+// from everything a caller reads.
+const wellKnownBuilders: { [typeName: string]: string } = {
+  "google.protobuf.Value": "value",
+  "google.protobuf.Struct": "struct",
+  "google.protobuf.ListValue": "listValue",
+};
 
-// omitMessage reports whether a message type has no default worth generating:
-// either it is unfillable, or it is already on the recursion path.
+const wellKnownArguments: { [typeName: string]: () => ts.Expression } = {
+  "google.protobuf.Value": () => ts.factory.createNull(),
+  "google.protobuf.Struct": () => ts.factory.createObjectLiteralExpression([]),
+  "google.protobuf.ListValue": () => ts.factory.createArrayLiteralExpression([]),
+};
+
+// kajaBuilderCall writes `kaja.value(null)` for a well-known JSON type, and
+// records the import the call needs.
+function kajaBuilderCall(typeName: string, imports: Imports): ts.Expression | undefined {
+  const builder = wellKnownBuilders[typeName];
+  if (!builder) {
+    return undefined;
+  }
+  if (!imports[KAJA_MODULE]) {
+    imports[KAJA_MODULE] = new Set();
+  }
+  imports[KAJA_MODULE].add("kaja");
+  return ts.factory.createCallExpression(
+    ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier("kaja"), ts.factory.createIdentifier(builder)),
+    undefined,
+    [wellKnownArguments[typeName]()],
+  );
+}
+
+// The module the kaja runtime object is imported from, which the task runner
+// resolves without looking at any app.
+export const KAJA_MODULE = "kaja";
+
+// omitMessage reports whether a message type has no default worth generating,
+// which now only happens on the recursion path.
 function omitMessage(typeName: string, visiting: Set<string>): boolean {
-  return typeName === unfillable || visiting.has(typeName);
+  return visiting.has(typeName);
 }
 
 export function defaultMessage<T extends object>(
@@ -61,9 +95,8 @@ export function defaultMessage<T extends object>(
       return;
     }
 
-    // A field with no default worth generating — an unfillable type, or a
-    // message type already on the current path, which can't be filled in without
-    // recursing forever — is left out: a repeated field defaults to an empty
+    // A message type already on the current path can't be filled in without
+    // recursing forever, so it is left out: a repeated field defaults to an empty
     // array and a singular (optional) field is omitted entirely, so the generated
     // code stays type-correct instead of holding a placeholder that can't be sent.
     if (field.kind === "message" && omitMessage(field.T().typeName, nested)) {
@@ -135,6 +168,10 @@ function defaultMessageField(field: FieldInfo, sources: Sources, imports: Import
   }
 
   if (field.kind === "message") {
+    const builder = kajaBuilderCall(field.T().typeName, imports);
+    if (builder) {
+      return builder;
+    }
     // For nested message types, recurse with the nested type name
     return defaultMessage(field.T(), sources, imports, visiting);
   }
@@ -211,7 +248,7 @@ function defaultMapValue(value: mapValueType, sources: Sources, imports: Imports
     case "enum":
       return defaultEnum(value.T(), sources, imports);
     case "message":
-      return defaultMessage(value.T(), sources, imports, visiting);
+      return kajaBuilderCall(value.T().typeName, imports) ?? defaultMessage(value.T(), sources, imports, visiting);
   }
 }
 

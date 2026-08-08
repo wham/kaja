@@ -5,84 +5,62 @@ import (
 	"strings"
 )
 
-// The catalog is the live picture of what a script can call, pushed from the UI
-// after each compilation. It carries facts only - what exists, what shape it has,
-// and what the API said about it. Everything an answer needs beyond that (whether
-// a method reads or writes, how much of a type to show, what an example call
-// looks like) is decided here, so the UI never has to guess what the agent will
-// be shown.
+// The catalog is what a script can call, pushed from the UI after each
+// compilation — and it is TypeScript, because that is what a script is.
+//
+// Every Kaja app compiles to generated TypeScript: a gRPC or Twirp service from
+// its protos, an OpenAPI document by way of one. What an author writes against
+// is the result — `Shows.ListShows({ pageSize: 25 })` against an interface named
+// ListShowsRequest — and nothing they write is protobuf. So the answers here are
+// declarations lifted out of that generated code, not a description of the wire
+// format behind it. A declaration can't disagree with the code a script is
+// checked against; a second model of it can, and did.
+//
+// This side decides what to show and how to frame it. What the TypeScript *is* —
+// the declarations, the signatures, the generated call — is settled in the UI,
+// where the TypeScript compiler already is.
 type Catalog struct {
 	Apps []CatalogApp `json:"apps"`
-	// Every message type reachable from a method, keyed by proto type name.
-	Types map[string]CatalogType `json:"types,omitempty"`
-	Enums map[string]CatalogEnum `json:"enums,omitempty"`
-	// The generated TypeScript stubs, offered as resources. They are never part of
-	// a tool result: one app's stubs are hundreds of kilobytes, and describe_method
-	// answers from the types above without them.
-	Sources []CatalogSource `json:"sources,omitempty"`
 }
 
 type CatalogApp struct {
 	Name     string           `json:"name"`
 	Type     string           `json:"type,omitempty"`
 	Services []CatalogService `json:"services"`
+	// Every type the app's services name, by its TypeScript name.
+	Declarations map[string]Declaration `json:"declarations,omitempty"`
 }
 
 type CatalogService struct {
-	Name        string          `json:"name"`
-	PackageName string          `json:"packageName,omitempty"`
-	ImportPath  string          `json:"importPath"`
-	Methods     []CatalogMethod `json:"methods"`
+	Name string `json:"name"`
+	// What a script imports the service from.
+	ImportPath string          `json:"importPath"`
+	Methods    []CatalogMethod `json:"methods"`
 }
 
 type CatalogMethod struct {
-	Name   string `json:"name"`
-	Input  string `json:"input"`
-	Output string `json:"output"`
-	// The HTTP request the method transcodes to, e.g. "GET /shows". Only apps that
-	// speak HTTP set it; for the rest the effect is read off the name.
-	HTTP            string `json:"http,omitempty"`
-	ServerStreaming bool   `json:"serverStreaming,omitempty"`
-	ClientStreaming bool   `json:"clientStreaming,omitempty"`
-	Doc             string `json:"doc,omitempty"`
-}
-
-type CatalogType struct {
 	Name string `json:"name"`
-	// The TypeScript name a script writes for the message.
-	TS string `json:"ts"`
-	// The module the TypeScript name is exported from, when a script needs to
-	// import it.
-	ImportPath string         `json:"importPath,omitempty"`
-	Doc        string         `json:"doc,omitempty"`
-	Fields     []CatalogField `json:"fields,omitempty"`
+	// The TypeScript a script writes, e.g.
+	// "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>".
+	Signature string `json:"signature"`
+	Input     string `json:"input"`
+	Output    string `json:"output"`
+	Doc       string `json:"doc,omitempty"`
+	// The HTTP request the method stands for, e.g. "GET /shows", when the app
+	// said so. It is the only thing that states whether calling it reads or writes.
+	HTTP      string `json:"http,omitempty"`
+	Streaming string `json:"streaming,omitempty"`
+	// The call Kaja writes for this method — the same code clicking it in the tree
+	// puts in a scratch.
+	Example string `json:"example"`
 }
 
-type CatalogField struct {
+// Declaration is one generated type as a script reads it.
+type Declaration struct {
 	Name string `json:"name"`
-	Kind string `json:"kind"`
-	Type string `json:"type"`
-	// Repeated is a list; Required means the API insists on the field. Required
-	// being false means "not stated": proto3 has no required, so only an app that
-	// knows its API's contract can say.
-	Repeated bool   `json:"repeated,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	In       string `json:"in,omitempty"`
-	Oneof    string `json:"oneof,omitempty"`
-	Envelope bool   `json:"envelope,omitempty"`
-	Doc      string `json:"doc,omitempty"`
-}
-
-type CatalogEnum struct {
-	Name       string   `json:"name"`
-	TS         string   `json:"ts"`
-	ImportPath string   `json:"importPath,omitempty"`
-	Values     []string `json:"values,omitempty"`
-}
-
-type CatalogSource struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Text string `json:"text"`
+	// The other declarations its members mention.
+	References []string `json:"references,omitempty"`
 }
 
 // resolvedMethod is a method together with everything needed to talk about it:
@@ -128,10 +106,34 @@ func (r resolvedMethod) effect() string {
 	return label
 }
 
-// readingNamePrefixes are the verbs an API uses for a method that only reads.
-// Order matters only for readability; the check is longest-independent since a
-// prefix must be followed by an upper-case letter or end the name ("Get" matches
-// "GetShow" and "Get", not "Generate").
+// declarationsFor closes over everything a set of type names reaches, in the
+// order they are first met, so a request type arrives with the types it mentions
+// underneath it. A name that isn't a declaration (a built-in, a type argument) is
+// simply not there and is skipped.
+func (a CatalogApp) declarationsFor(names ...string) []Declaration {
+	var out []Declaration
+	seen := map[string]bool{}
+	queue := append([]string{}, names...)
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		declaration, ok := a.Declarations[name]
+		if !ok {
+			continue
+		}
+		out = append(out, declaration)
+		queue = append(queue, declaration.References...)
+	}
+	return out
+}
+
+// readingNamePrefixes are the verbs an API uses for a method that only reads. A
+// prefix counts only when it ends the name or is followed by an upper-case
+// letter, so "Get" matches "GetShow" and "Get", not "Generate".
 var readingNamePrefixes = []string{
 	"Get", "List", "Read", "Fetch", "Search", "Query", "Find", "Lookup",
 	"Describe", "Count", "Check", "Watch", "Export", "Download", "Resolve",
@@ -218,6 +220,27 @@ func (c Catalog) suggest(name string) []string {
 	for _, candidate := range c.methods() {
 		if strings.Contains(strings.ToLower(candidate.qualified()), needle) {
 			out = append(out, candidate.qualified())
+		}
+	}
+	sort.Strings(out)
+	if len(out) > 8 {
+		out = out[:8]
+	}
+	return out
+}
+
+// suggestTypes returns the declared type names closest to what was asked for.
+func (c Catalog) suggestTypes(name string) []string {
+	needle := strings.ToLower(name)
+	seen := map[string]bool{}
+	var out []string
+	for _, app := range c.Apps {
+		for declared := range app.Declarations {
+			if seen[declared] || !strings.Contains(strings.ToLower(declared), needle) {
+				continue
+			}
+			seen[declared] = true
+			out = append(out, declared)
 		}
 	}
 	sort.Strings(out)

@@ -19,7 +19,7 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d app(s), %d service(s), %d method(s).\n", apps, services, methods)
 	b.WriteString("read/write says whether calling the method changes data; a trailing \"?\" means it was inferred from the method name rather than stated by the API.\n")
-	b.WriteString("Call describe_method \"<Service>.<Method>\" for the request shape and a ready-to-run example.\n")
+	b.WriteString("Call describe_method \"<Service>.<Method>\" for the TypeScript declarations it takes and returns, and a call to start from.\n")
 
 	shown := 0
 	for _, app := range c.Apps {
@@ -37,7 +37,7 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 				if !matches(resolved, search) {
 					continue
 				}
-				serviceBody.WriteString("    " + methodLine(c, resolved) + "\n")
+				serviceBody.WriteString("    " + methodLine(resolved) + "\n")
 				shown++
 			}
 			if serviceBody.Len() == 0 {
@@ -59,14 +59,14 @@ func (c Catalog) listServices(appFilter, serviceFilter, search string) string {
 	return b.String()
 }
 
-func methodLine(c Catalog, resolved resolvedMethod) string {
+func methodLine(resolved resolvedMethod) string {
 	method := resolved.method
-	line := fmt.Sprintf("%-6s %s(%s) -> %s", resolved.effect(), method.Name, c.shortType(method.Input), c.shortType(method.Output))
+	line := fmt.Sprintf("%-6s %s", resolved.effect(), method.Signature)
 	var marks []string
 	if method.HTTP != "" {
 		marks = append(marks, method.HTTP)
 	}
-	if method.ServerStreaming || method.ClientStreaming {
+	if method.Streaming != "" {
 		marks = append(marks, "streaming")
 	}
 	if len(marks) > 0 {

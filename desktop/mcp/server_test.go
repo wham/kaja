@@ -21,8 +21,9 @@ type fakeBridge struct {
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
-// their HTTP request, a gRPC app whose don't, a required field, a nested message,
-// an enum, a recursive message, and a google.protobuf.Value.
+// the HTTP request behind them, a gRPC app whose don't, and the declarations a
+// script writes against - a required field, a nested type, an enum, a recursive
+// type, and a field holding arbitrary JSON.
 func newFakeBridge() *fakeBridge {
 	return &fakeBridge{
 		scripts: map[string]string{"/s/hello.ts": "console.log('hi')"},
@@ -35,57 +36,67 @@ func newFakeBridge() *fakeBridge {
 						Name:       "Shows",
 						ImportPath: "theatre/proto/theatre",
 						Methods: []CatalogMethod{
-							{Name: "ListShows", Input: "theatre.ListShowsRequest", Output: "theatre.ListShowsResponse", HTTP: "GET /shows", Doc: "Lists the shows on sale."},
-							{Name: "CreateShow", Input: "theatre.Show", Output: "theatre.Show", HTTP: "POST /shows"},
+							{
+								Name:      "ListShows",
+								Signature: "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>",
+								Input:     "ListShowsRequest",
+								Output:    "ListShowsResponse",
+								HTTP:      "GET /shows",
+								Doc:       "Lists the shows on sale.",
+								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.ListShows({\n  pageSize: 0,\n});",
+							},
+							{
+								Name:      "CreateShow",
+								Signature: "CreateShow(input: Show): Promise<Show>",
+								Input:     "Show",
+								Output:    "Show",
+								HTTP:      "POST /shows",
+								Example:   "import { Shows } from \"theatre/proto/theatre\";\n\nShows.CreateShow({\n  id: \"\",\n});",
+							},
 						},
 					}},
+					Declarations: map[string]Declaration{
+						"ListShowsRequest": {Name: "ListShowsRequest", Text: "export interface ListShowsRequest {\n    /** How many shows to return. [query parameter] */\n    pageSize: number;\n}"},
+						"ListShowsResponse": {
+							Name:       "ListShowsResponse",
+							Text:       "export interface ListShowsResponse {\n    /** [carries the HTTP payload] */\n    items: Show[];\n}",
+							References: []string{"Show"},
+						},
+						"Show": {
+							Name:       "Show",
+							Text:       "/** A show in the catalog. */\nexport interface Show {\n    /** Unique slug of the show. [required] */\n    id: string;\n    venue?: Venue;\n}",
+							References: []string{"Venue"},
+						},
+						// Venue reaches itself; the closure has to terminate on it.
+						"Venue": {Name: "Venue", Text: "export interface Venue {\n    name: string;\n    parent?: Venue;\n}", References: []string{"Venue"}},
+					},
 				},
 				{
 					Name: "seating",
 					Type: "grpc",
 					Services: []CatalogService{{
-						Name:        "Seating",
-						PackageName: "seating.v1",
-						ImportPath:  "seating/proto/seating",
+						Name:       "Seating",
+						ImportPath: "seating/proto/seating",
 						Methods: []CatalogMethod{
-							{Name: "GetSeatMap", Input: "seating.v1.GetSeatMapRequest", Output: "seating.v1.SeatMap"},
-							{Name: "Annotate", Input: "seating.v1.AnnotateRequest", Output: "seating.v1.AnnotateResponse"},
+							{Name: "GetSeatMap", Signature: "GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>", Input: "GetSeatMapRequest", Output: "SeatMap"},
+							{
+								Name:      "Annotate",
+								Signature: "Annotate(input: AnnotateRequest): Promise<AnnotateResponse>",
+								Input:     "AnnotateRequest",
+								Output:    "AnnotateResponse",
+								Example:   "import { kaja } from \"kaja\";\nimport { Seating } from \"seating/proto/seating\";\n\nSeating.Annotate({\n  note: kaja.value(null),\n});",
+							},
 						},
 					}},
+					Declarations: map[string]Declaration{
+						"GetSeatMapRequest": {Name: "GetSeatMapRequest", Text: "export interface GetSeatMapRequest {\n    performanceId: string;\n}"},
+						"SeatMap":           {Name: "SeatMap", Text: "export interface SeatMap {\n}"},
+						"AnnotateRequest":   {Name: "AnnotateRequest", Text: "export interface AnnotateRequest {\n    note?: Value;\n}", References: []string{"Value"}},
+						"AnnotateResponse":  {Name: "AnnotateResponse", Text: "export interface AnnotateResponse {\n}"},
+						"Value":             {Name: "Value", Text: "export interface Value {\n}"},
+					},
 				},
 			},
-			Types: map[string]CatalogType{
-				"theatre.ListShowsRequest": {Name: "theatre.ListShowsRequest", TS: "ListShowsRequest", ImportPath: "theatre/proto/theatre", Fields: []CatalogField{
-					{Name: "pageSize", Kind: "scalar", Type: "int32", In: "query", Doc: "How many shows to return."},
-					{Name: "sort", Kind: "enum", Type: "theatre.Sort"},
-				}},
-				"theatre.ListShowsResponse": {Name: "theatre.ListShowsResponse", TS: "ListShowsResponse", Fields: []CatalogField{
-					{Name: "items", Kind: "message", Type: "theatre.Show", Repeated: true, Envelope: true},
-				}},
-				"theatre.Show": {Name: "theatre.Show", TS: "Show", ImportPath: "theatre/proto/theatre", Doc: "A show in the catalog.", Fields: []CatalogField{
-					{Name: "id", Kind: "scalar", Type: "string", Required: true, Doc: "Unique slug of the show."},
-					{Name: "title", Kind: "scalar", Type: "string"},
-					{Name: "venue", Kind: "message", Type: "theatre.Venue"},
-				}},
-				"theatre.Venue": {Name: "theatre.Venue", TS: "Venue", Fields: []CatalogField{
-					{Name: "name", Kind: "scalar", Type: "string"},
-					{Name: "parent", Kind: "message", Type: "theatre.Venue"},
-				}},
-				"seating.v1.GetSeatMapRequest": {Name: "seating.v1.GetSeatMapRequest", TS: "GetSeatMapRequest", Fields: []CatalogField{
-					{Name: "performanceId", Kind: "scalar", Type: "string"},
-				}},
-				"seating.v1.SeatMap":          {Name: "seating.v1.SeatMap", TS: "SeatMap"},
-				"seating.v1.AnnotateResponse": {Name: "seating.v1.AnnotateResponse", TS: "AnnotateResponse"},
-				"seating.v1.AnnotateRequest": {Name: "seating.v1.AnnotateRequest", TS: "AnnotateRequest", Fields: []CatalogField{
-					{Name: "note", Kind: "message", Type: "google.protobuf.Value"},
-					{Name: "labels", Kind: "map", Type: "map<string, string>"},
-				}},
-				"google.protobuf.Value": {Name: "google.protobuf.Value", TS: "Value"},
-			},
-			Enums: map[string]CatalogEnum{
-				"theatre.Sort": {Name: "theatre.Sort", TS: "Sort", ImportPath: "theatre/proto/theatre", Values: []string{"UNSPECIFIED", "NEWEST"}},
-			},
-			Sources: []CatalogSource{{Path: "theatre/proto/theatre", Content: "export interface Show {}"}},
 		},
 	}
 }
@@ -226,9 +237,10 @@ func TestToolsList(t *testing.T) {
 	resp := call(t, srv, "tools/list", nil)
 	tools := resp.Result.(map[string]interface{})["tools"].([]interface{})
 	want := map[string]bool{
-		"list_services": false, "describe_method": false, "list_scripts": false,
-		"read_script": false, "write_script": false, "create_script": false,
-		"rename_script": false, "delete_script": false, "run_script": false,
+		"list_services": false, "describe_method": false, "describe_type": false,
+		"list_scripts": false, "read_script": false, "write_script": false,
+		"create_script": false, "rename_script": false, "delete_script": false,
+		"run_script": false,
 	}
 	descriptions := map[string]string{}
 	for _, entry := range tools {
@@ -266,19 +278,19 @@ func TestListServicesIsAnIndex(t *testing.T) {
 	contains(t, text,
 		"2 app(s), 2 service(s), 4 method(s).",
 		`import { Shows } from "theatre/proto/theatre";`,
-		// Each method carries what it takes, what it returns, and its effect.
-		"read   ListShows(ListShowsRequest) -> ListShowsResponse  [GET /shows]",
-		"write  CreateShow(Show) -> Show  [POST /shows]",
+		// Each method is listed as the TypeScript a script writes, plus its effect.
+		"read   ListShows(input: ListShowsRequest): Promise<ListShowsResponse>  [GET /shows]",
+		"write  CreateShow(input: Show): Promise<Show>  [POST /shows]",
 		"Lists the shows on sale.",
 		// Without an HTTP verb the effect is read off the name, and says so.
-		"read?  GetSeatMap(GetSeatMapRequest) -> SeatMap",
-		"write? Annotate(AnnotateRequest) -> AnnotateResponse",
+		"read?  GetSeatMap(input: GetSeatMapRequest): Promise<SeatMap>",
+		"write? Annotate(input: AnnotateRequest): Promise<AnnotateResponse>",
 	)
 
-	// The index never carries the generated sources: that is what overflowed a
-	// caller's context before, and describe_method answers without them.
-	if strings.Contains(text, "export interface Show {}") {
-		t.Errorf("list_services leaked source text:\n%s", text)
+	// The index never carries declarations: that is what overflowed a caller's
+	// context before, and describe_method answers without dumping the module.
+	if strings.Contains(text, "export interface") {
+		t.Errorf("list_services leaked declarations:\n%s", text)
 	}
 }
 
@@ -307,56 +319,86 @@ func TestDescribeMethod(t *testing.T) {
 	contains(t, text,
 		"theatre · Shows.CreateShow",
 		"writes - calling it changes data (POST /shows)",
-		"Request  Show (theatre.Show)",
-		// A nested type is inlined, so no follow-up read is needed.
-		"venue                  Venue",
-		"name                   string",
-		// A recursive type is named rather than expanded forever.
-		"(recursive - see Venue above)",
-		// Required-ness is stated, so a caller stops filling every field.
-		"id                     string  [required]",
-		"Required: id. Everything else may be left out.",
-		// The example runs as written and fills only what has to be sent.
+		// The import line and the signature are the two things a call needs.
 		`import { Shows } from "theatre/proto/theatre";`,
-		"const response = await Shows.CreateShow({",
-		`id: "",`,
-		"// optional: title, venue",
-		"console.log(response);",
+		"Shows.CreateShow(input: Show): Promise<Show>",
+		// The declaration itself, as the script is checked against it.
+		"export interface Show {",
+		"/** Unique slug of the show. [required] */",
+		"    id: string;",
+		// A type the request reaches is declared too, so nothing needs a second call.
+		"export interface Venue {",
+		// And a call to start from.
+		"Shows.CreateShow({",
 	)
+
+	// Nothing about the wire format reaches a reader: a script is TypeScript.
+	if strings.Contains(strings.ToLower(text), "protobuf") {
+		t.Errorf("describe_method mentions protobuf:\n%s", text)
+	}
 }
 
-func TestDescribeMethodWithoutRequiredFields(t *testing.T) {
+func TestDescribeMethodReadOnly(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token)
 	text := tool(t, srv, "describe_method", map[string]string{"method": "ListShows"})
 
 	contains(t, text,
 		"read-only (GET /shows)",
-		"pageSize               int32  [query]  How many shows to return.",
-		"sort                   Sort  [Sort.UNSPECIFIED | Sort.NEWEST]",
-		// proto3 has no required; saying so is what stops the defensive fill.
-		"Every field is optional on the wire",
-		// The enum's import comes along, so the example compiles.
-		`import { Shows, Sort } from "theatre/proto/theatre";`,
-		"sort: Sort.NEWEST,",
-		// The response envelope is marked as one.
-		"items                  Show[]  [http payload]",
+		"Lists the shows on sale.",
+		"/** How many shows to return. [query parameter] */",
+		// The response envelope says it is one.
+		"[carries the HTTP payload]",
+		"pageSize: 0,",
 	)
 }
 
-// The failure that started this: a google.protobuf.Value field is left out of a
-// generated request because there is no default that would send, so the only way
-// to learn about kaja.value is to be told at the point of use.
+// The failure that started this: a field holding arbitrary JSON is unwritable by
+// hand, so the builder has to be named where the field is met.
 func TestDescribeMethodNamesTheKajaBuilders(t *testing.T) {
 	srv := NewServer(newFakeBridge(), token)
 	text := tool(t, srv, "describe_method", map[string]string{"method": "Seating.Annotate"})
 
 	contains(t, text,
-		"note                   Value",
-		`kaja.value("text")`,
+		"note?: Value;",
+		"kaja.value(json)",
 		"note: kaja.value(null),",
 		`import { kaja } from "kaja";`,
-		"never hand-write the `kind` oneof",
+		"Never write the `kind` oneof by hand.",
 	)
+	// ListValue and Struct aren't in this request, so they aren't offered.
+	if strings.Contains(text, "kaja.listValue(json)") {
+		t.Errorf("named a builder the request has no field for:\n%s", text)
+	}
+}
+
+// A type that reaches itself must not send the closure round forever.
+func TestDescribeMethodClosesOverRecursiveTypes(t *testing.T) {
+	srv := NewServer(newFakeBridge(), token)
+	text := tool(t, srv, "describe_method", map[string]string{"method": "CreateShow"})
+	if got := strings.Count(text, "export interface Venue {"); got != 1 {
+		t.Errorf("Venue declared %d times, want once:\n%s", got, text)
+	}
+}
+
+func TestDescribeType(t *testing.T) {
+	srv := NewServer(newFakeBridge(), token)
+
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show"}),
+		"theatre · Show", "export interface Show {", "export interface Venue {")
+
+	// A miss names the nearest thing rather than only saying no.
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Shw"}), "no type")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Venu"}), "Closest: Venue")
+	contains(t, tool(t, srv, "describe_type", nil), "provide name")
+}
+
+func TestDescribeTypeDisambiguates(t *testing.T) {
+	bridge := newFakeBridge()
+	bridge.catalog.Apps[1].Declarations["Show"] = Declaration{Name: "Show", Text: "export interface Show {\n}"}
+	srv := NewServer(bridge, token)
+
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show"}), "more than one app", "theatre", "seating")
+	contains(t, tool(t, srv, "describe_type", map[string]string{"name": "Show", "app": "seating"}), "seating · Show")
 }
 
 func TestDescribeMethodMisses(t *testing.T) {
@@ -374,7 +416,7 @@ func TestDescribeMethodDisambiguates(t *testing.T) {
 	bridge.catalog.Apps = append(bridge.catalog.Apps, CatalogApp{
 		Name: "rehearsal", Type: "grpc",
 		Services: []CatalogService{{Name: "Shows", ImportPath: "rehearsal/proto/shows", Methods: []CatalogMethod{
-			{Name: "ListShows", Input: "theatre.ListShowsRequest", Output: "theatre.ListShowsResponse"},
+			{Name: "ListShows", Signature: "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>", Input: "ListShowsRequest", Output: "ListShowsResponse"},
 		}}},
 	})
 	srv := NewServer(bridge, token)
@@ -455,8 +497,13 @@ func TestResources(t *testing.T) {
 	if !uris[guideURI] || !uris[servicesURI] {
 		t.Fatalf("missing core resources: %v", uris)
 	}
-	if !uris[stubScheme+"theatre/proto/theatre"] {
-		t.Fatalf("missing stub resource: %v", uris)
+	// The generated modules are not offered: describe_method and describe_type
+	// hand back the declarations, and a module's full text is what overflowed a
+	// caller's context.
+	for uri := range uris {
+		if strings.HasPrefix(uri, "kaja://stub") {
+			t.Errorf("stub resource still advertised: %s", uri)
+		}
 	}
 
 	resp = call(t, srv, "resources/read", map[string]string{"uri": guideURI})
@@ -489,16 +536,20 @@ func TestReadOnlyFromName(t *testing.T) {
 // character boundaries.
 func TestAnswersAreBounded(t *testing.T) {
 	bridge := newFakeBridge()
-	wide := CatalogType{Name: "big.Wide", TS: "Wide"}
+	var wide strings.Builder
+	wide.WriteString("export interface Wide {\n")
 	for i := 0; i < 400; i++ {
-		wide.Fields = append(wide.Fields, CatalogField{Name: fmt.Sprintf("field%d", i), Kind: "scalar", Type: "string"})
+		fmt.Fprintf(&wide, "    field%d: string;\n", i)
 	}
-	bridge.catalog.Types["big.Wide"] = wide
-	bridge.catalog.Apps[0].Services[0].Methods[0].Output = "big.Wide"
+	wide.WriteString("}")
+	theatre := bridge.catalog.Apps[0]
+	theatre.Declarations["Wide"] = Declaration{Name: "Wide", Text: wide.String()}
+	theatre.Declarations["ListShowsResponse"] = Declaration{Name: "ListShowsResponse", Text: "export interface ListShowsResponse {\n    wide: Wide;\n}", References: []string{"Wide"}}
 	srv := NewServer(bridge, token)
 
 	text := tool(t, srv, "describe_method", map[string]string{"method": "ListShows"})
-	contains(t, text, "the rest is cut off here")
+	// The cut says what to ask for next rather than just stopping.
+	contains(t, text, "cut off here", `describe_type "Wide"`)
 	if lines := strings.Count(text, "\n"); lines > 320 {
 		t.Errorf("describe_method returned %d lines; the budget should have stopped it", lines)
 	}

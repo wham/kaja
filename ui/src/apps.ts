@@ -99,6 +99,15 @@ export interface Method {
   name: string;
   serverStreaming?: boolean;
   clientStreaming?: boolean;
+  // The TypeScript a script writes against: the request and response type names,
+  // read off the generated client interface, and the API's own description.
+  input?: string;
+  output?: string;
+  doc?: string;
+  // The HTTP request the method stands for, e.g. "GET /shows", when the app said
+  // so. It is the only thing that states whether calling the method reads or
+  // writes.
+  http?: string;
 }
 
 export interface Clients {
