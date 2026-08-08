@@ -39,6 +39,7 @@ import {
   isOpen,
   loadFolds,
   loadLedger,
+  MethodUse,
   packageNodeId,
   pruneFolds,
   saveFolds,
@@ -253,13 +254,20 @@ export function Sidebar({
   // itself under the cursor.
   const seededApps = useRef<Set<string>>(new Set());
   const newApps = useRef<Set<string>>(new Set());
+  // The ledger as it stood when the window opened. A seed reasons about what you
+  // had called before this session, never about what has happened since: apps
+  // compile at their own pace, so a call made — or auto-opened by Kaja itself —
+  // while a slow app was still compiling would otherwise cancel that app's cold
+  // start and leave it shut for having been late.
+  const ledgerAtLoad = useRef<MethodUse[]>(undefined);
+  if (ledgerAtLoad.current === undefined) ledgerAtLoad.current = loadLedger();
 
   useEffect(() => {
     if (treeApps.length === 0) return;
 
     const targets = new Set(treeApps.filter((app) => app.services.length > 0 && !seededApps.current.has(app.name)).map((app) => app.name));
     if (targets.size > 0) {
-      setFolds((prev) => seedFolds(treeApps, targets, prev, loadLedger(), newApps.current));
+      setFolds((prev) => seedFolds(treeApps, targets, prev, ledgerAtLoad.current!, newApps.current));
       for (const name of targets) {
         seededApps.current.add(name);
         newApps.current.delete(name);
