@@ -109,6 +109,11 @@ import { runTask, runTaskCaptured } from "./taskRunner";
 // disk, so this is undo rather than a confirmation.
 const UNDO_DISCARD_MS = 8000;
 
+// How long the footer keeps saying the MCP server is in use after the last
+// request was answered. A burst of calls is over in milliseconds, so without it
+// the indicator would be gone before it was seen.
+const MCP_ACTIVITY_LINGER_MS = 2500;
+
 // Scratch ids the last session had open, so start-up pruning can't drop one
 // that is about to reopen.
 function openScratchIds(): string[] {
@@ -239,6 +244,9 @@ export function App() {
   // the service catalog to an agent over a localhost MCP endpoint.
   const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
   const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
+  // Whether an agent is using the server right now, which the footer's plug
+  // shows. It outlives the request that set it (see MCP_ACTIVITY_LINGER_MS).
+  const [mcpActive, setMcpActive] = useState(false);
   // While an MCP run_script call is in flight, the method calls it makes are
   // collected here so they can be returned to the agent.
   const mcpRunCollectorRef = useRef<MethodCall[] | null>(null);
@@ -1302,6 +1310,7 @@ export function App() {
   // keep the connection details for the footer.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
+    if (!previewMcp) setMcpActive(false);
     MCPSetEnabled(previewMcp)
       .then((info) => setMcpInfo(info))
       .catch((err) => showFileError(`MCP server: ${err}`));
@@ -1318,6 +1327,25 @@ export function App() {
     const variableNames = Object.keys(configuration?.variables ?? {});
     MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames))).catch(() => {});
   }, [apps, previewMcp, configuration?.variables]);
+
+  // An agent's calls come in bursts of a few milliseconds each, so the footer's
+  // plug stays lit for as long as anything is in flight and a beat longer after
+  // the last one — a mark that came and went inside one frame would say nothing.
+  useEffect(() => {
+    if (!isWailsEnvironment()) return;
+    let timer: number | undefined;
+    const unsub = EventsOn("mcp:activity", (payload: { inFlight: number }) => {
+      window.clearTimeout(timer);
+      setMcpActive(true);
+      if (payload.inFlight <= 0) {
+        timer = window.setTimeout(() => setMcpActive(false), MCP_ACTIVITY_LINGER_MS);
+      }
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsub();
+    };
+  }, []);
 
   // Run a script on behalf of the MCP server's run_script tool and report the
   // console output, what it drew, and the RPCs it made back to the Go side.
@@ -2274,6 +2302,7 @@ export function App() {
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
           mcpInfo={previewMcp ? mcpInfo : undefined}
+          mcpActive={mcpActive}
           apps={apps}
           configurationLoaded={configurationLoaded}
           onShowCompileLog={onShowCompileLog}
