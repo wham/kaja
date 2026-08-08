@@ -1627,6 +1627,17 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onRunCurrentTab]);
 
+  // With no apps there is nothing to have compiled, so the log stops existing
+  // rather than sitting there naming the no-apps blankslate. It is never
+  // restored into one, so deleting the last app is the only way in.
+  useEffect(() => {
+    if (!configurationLoaded || apps.length > 0) return;
+    applyViews((views) => {
+      const compiler = views.find((view) => view.type === "compiler");
+      return compiler ? dropView(views, compiler.id) : views;
+    });
+  }, [apps.length, configurationLoaded, applyViews]);
+
   // Opens the compile log, expanded on an app when one is named. Nothing else
   // opens it: compiling is reported in the status bar, and the log is where you
   // go when it has something to say.
@@ -2052,10 +2063,13 @@ export function App() {
               layout={editorLayout}
               onToggleLayout={onToggleEditorLayout}
             />
+            {/* Which of the two nothing-open screens is right depends on
+                whether the workspace names any apps, so until the configuration
+                answers that, neither is shown. */}
             {views.length === 0 && configurationLoaded && apps.length === 0 && (
               <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={runtime.canUpdateConfiguration} />
             )}
-            {views.length === 0 && (apps.length > 0 || !configurationLoaded) && (
+            {views.length === 0 && configurationLoaded && apps.length > 0 && (
               <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewScratch={onNewScratch} recent={recentFiles} />
             )}
             {views.length > 0 && (

@@ -411,6 +411,18 @@ inset only when the sidebar is collapsed).
   holding edits that exist nowhere else (`holdsWork` — Variables, an app form) is
   never the one evicted. `views[0]` is on screen; `views[1]` is what `⌘P⏎`
   returns to.
+- **Kaja never starts on the compile log**, because the log is a report on this
+  session's apps rather than a document: starting on it means starting on an
+  account of a compilation that hasn't run, and with no apps on one that never
+  can — a switcher naming a file whose body is the no-apps blankslate. So
+  `serializeViews` leaves it out and `restoreViews` skips a stored one, and when
+  the last app goes the view is dropped rather than left standing (`App.tsx`).
+  Nothing open is the better answer either way: with apps it is the screen that
+  says picking a call writes you a script, and without them the one that says
+  where apps come from. Which of those two is right depends on the
+  configuration, so **neither is shown until it has loaded** — the compile
+  log's own `Loading configuration…` was the only thing that used to cover that
+  moment.
 - **Preview went with it.** Italic tabs, double-click-to-keep and
   "the first keystroke promotes it" only ever existed to stop tabs accumulating.
   With one pane showing one thing nothing accumulates, so `preview`, `keepTab`,
