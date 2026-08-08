@@ -68,6 +68,21 @@ export interface Table {
   row(...cells: unknown[]): void;
 }
 
+/**
+ * Rows a table draws. An array is an iterable; so is an async generator, and one
+ * of those only runs when something pulls it — which is what makes paging fetch
+ * a page and nothing else.
+ */
+export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
+
+/**
+ * …or a function returning one, which is what a search that reaches the server
+ * needs: a new search is a new result set, so the source is started again with
+ * the text in hand. Declare the parameter and the search box goes to your
+ * source; leave it out and the box filters the rows already loaded.
+ */
+export type RowSource = Rows | ((search: string) => Rows);
+
 /** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
@@ -112,8 +127,23 @@ export declare const kaja: {
    *   for (const account of accounts) {
    *     table.row(account.id, account.name, await check(account));
    *   }
+   *
+   * The rows can be given instead — an array, or a source that yields them as
+   * the table is paged through. A source is only pulled when paging asks for
+   * rows it hasn't got, so the second page costs a call and the tenth costs one
+   * only if you go there. The table searches and pages either way.
+   *
+   *   kaja.table(["id", "title"], shows.map((show) => [show.id, show.title]));
+   *
+   *   kaja.table(["id", "title"], async function* (search) {
+   *     for (let pageToken = ""; ; ) {
+   *       const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
+   *       yield* page.shows.map((show) => [show.id, show.title]);
+   *       if (!(pageToken = page.nextPageToken)) return;
+   *     }
+   *   });
    */
-  table(columns: string[], rows?: unknown[][]): Table;
+  table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
   /** UUID helpers. */
   uuid: {
     /**

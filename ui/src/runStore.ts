@@ -154,6 +154,12 @@ function toStoredItem(item: ConsoleItem): StoredItem {
 function storedBlock(block: Block | undefined): Block | undefined {
   if (block === undefined) return undefined;
   if (block.kind === "ask" && isAwaitingAnswer(block)) return { ...block, cancelled: true };
+  // A live table's source is a closure, which nothing can store. It reads back
+  // as the rows it had, saying so — the same bargain the payloads make, and for
+  // the same reason: expiry is bearable when it is stated.
+  if (block.kind === "table" && block.live === true && block.exhausted !== true) {
+    return { ...block, live: false, loading: false, error: undefined, expired: true };
+  }
   return block;
 }
 

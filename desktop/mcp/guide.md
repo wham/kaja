@@ -109,6 +109,28 @@ Rows land one at a time, so the canvas fills as the loop runs rather than after
 it. `run_script` reports what you drew — each block's kind, and a table's columns
 and row count — so you can check the output landed.
 
+**A table can page and search itself.** Hand it the rows instead of pushing
+them, and it gets a search box and a pager for free — an array is drawn as it is,
+and a function is pulled a page at a time, only when the person reading it pages
+past what has been loaded:
+
+```ts
+kaja.table(["id", "title", "seats"], async function* (search) {
+  for (let pageToken = ""; ; ) {
+    const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
+    yield* page.items.map((show) => [show.id, show.title, show.seatsAvailable]);
+    if (!(pageToken = page.nextPageToken)) return;
+  }
+});
+```
+
+Declare the `search` parameter and the search box is handed to your source, which
+is started again for each new search; leave it out and the box filters the rows
+already loaded. **Nobody is paging your run**, so `run_script` draws the first
+page and reports `more: true` — if you need the whole set, write the loop and
+read it yourself. Prefer this over `.row(...)` whenever the API pages: the person
+who opens the script gets the rest without running anything.
+
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
@@ -129,7 +151,8 @@ What each member is for:
 - `kaja.text(text)`, `kaja.code(code, language?)` — draw a line or a snippet on
   the canvas.
 - `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
-  appends to it.
+  appends to it. `rows` can be an array, or a source (an async generator) the
+  table pulls a page at a time as it is paged through.
 - `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the

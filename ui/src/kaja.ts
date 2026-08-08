@@ -1,6 +1,7 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
 import { AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
+import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
 // Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
@@ -31,6 +32,70 @@ export interface BlockUpdate {
  */
 export interface Table {
   row(...cells: unknown[]): void;
+}
+
+/**
+ * Rows a table draws. An array is an iterable; so is an async generator, and one
+ * of those only runs when something pulls it — which is what makes paging fetch
+ * a page and nothing else.
+ */
+export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
+
+/**
+ * …or a source Kaja can start, which is what a server-side search needs: a new
+ * search is a new result set, so the source is restarted with the text in hand.
+ * A source that doesn't declare the parameter never sees it, and the search box
+ * filters the rows already loaded instead.
+ */
+export type RowSource = Rows | ((search: string) => Rows);
+
+export interface TableOptions {
+  pageSize?: number;
+}
+
+// What a live table is filled from. The block is the JSON the console stores;
+// this is the closure beside it, which is why it lives on the Kaja instance —
+// that outlives any one run, and a table stays live after the script is over.
+interface LiveTable {
+  block: TableBlock;
+  open: (search: string) => Rows;
+  iterator?: Iterator<unknown[]> | AsyncIterator<unknown[]>;
+  // Whether the source can be started again. A function can be; an iterable that
+  // is already running cannot, so it has neither a server search nor a retry
+  // that gets anywhere.
+  restartable: boolean;
+  // A generator that threw is finished — JavaScript says so, not us — so a retry
+  // is only a retry if the source can be opened again, from the top.
+  restart?: boolean;
+  search: string;
+  // Bumped when the source is restarted, so a pull that is mid-flight when the
+  // search changes drops what it was doing instead of appending to the new set.
+  generation: number;
+  pulling?: Promise<void>;
+}
+
+// Live sources are closures, so they are held rather than collected. A console
+// that has drawn hundreds of tables lets the oldest go; those tables read as
+// expired, which is a state the canvas already states.
+const MAX_LIVE_TABLES = 24;
+
+function isAsyncIterable(value: any): value is AsyncIterable<unknown[]> {
+  return value != null && typeof value[Symbol.asyncIterator] === "function";
+}
+
+function isIterable(value: any): value is Iterable<unknown[]> {
+  return value != null && typeof value[Symbol.iterator] === "function";
+}
+
+function openIterator(rows: Rows): Iterator<unknown[]> | AsyncIterator<unknown[]> {
+  if (isAsyncIterable(rows)) return rows[Symbol.asyncIterator]();
+  return (rows as Iterable<unknown[]>)[Symbol.iterator]();
+}
+
+// A row is cells. Anything else a source yields is one cell rather than an
+// error, on the same rule formatCell follows: readable beats correct-or-nothing.
+function toCells(row: unknown): string[] {
+  return Array.isArray(row) ? row.map(formatCell) : [formatCell(row)];
 }
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -164,11 +229,47 @@ export class Kaja {
    *
    *   const table = kaja.table(["id", "name", "status"]);
    *   for (const account of accounts) table.row(account.id, account.name, "matched");
+   *
+   * The rows can also be given: an array is drawn as it is, and a source is
+   * pulled a page at a time as the table is paged through.
+   *
+   *   kaja.table(["id", "title"], async function* (search) {
+   *     for (let pageToken = ""; ; ) {
+   *       const page = await Shows.ListShows({ pageSize: 25, pageToken, query: search });
+   *       yield* page.shows.map((show) => [show.id, show.title]);
+   *       if (!(pageToken = page.nextPageToken)) return;
+   *     }
+   *   });
    */
-  table(columns: string[], rows: unknown[][] = []): Table {
+  table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
     const blockId = newBlockId();
-    const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: rows.map((row) => row.map(formatCell)) };
-    this.#onBlockUpdate(blockId, block);
+    const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
+
+    if (Array.isArray(rows)) {
+      block.rows = rows.map(toCells);
+    } else if (rows !== undefined) {
+      if (typeof rows !== "function" && !isAsyncIterable(rows) && !isIterable(rows)) {
+        throw new Error("kaja.table: rows must be an array, an iterable of rows, or a function returning one");
+      }
+      // A function can be started again, which is what a search that reaches the
+      // server needs; an iterable that is already running cannot, so its search
+      // stays local. Declaring the parameter is what asks for the text — a
+      // source that ignores it would otherwise be restarted on every keystroke
+      // to fetch the same page back.
+      const restartable = typeof rows === "function";
+      const open = restartable ? rows : () => rows;
+      block.live = true;
+      block.serverSearch = restartable && rows.length > 0;
+      block.loadedSearch = "";
+      this.#openTable(blockId, { block, open, restartable, search: "", generation: 0 });
+    }
+
+    this.#onBlockUpdate(blockId, { ...block });
+    // A live table draws its first page itself rather than waiting to be looked
+    // at: the run is what fetched it, so its calls belong in the run's log — and
+    // a run nobody is watching (an agent's) still reports a page of rows.
+    if (block.live) void this.pullTable(blockId, "", pageSizeOf(block));
+
     return {
       row: (...cells: unknown[]) => {
         // A new array each time: the canvas compares what it was handed against
@@ -177,6 +278,109 @@ export class Kaja {
         this.#onBlockUpdate(blockId, { ...block });
       },
     };
+  }
+
+  #tables = new Map<string, LiveTable>();
+
+  #openTable(blockId: string, table: LiveTable): void {
+    if (this.#tables.size >= MAX_LIVE_TABLES) {
+      const oldest = this.#tables.keys().next();
+      if (!oldest.done) this.#tables.delete(oldest.value);
+    }
+    this.#tables.set(blockId, table);
+  }
+
+  /** Whether this block's source is still held, which is what Next depends on. */
+  hasLiveTable(blockId: string): boolean {
+    return this.#tables.has(blockId);
+  }
+
+  /**
+   * Fill a live table up to `want` rows, restarting its source first if it takes
+   * the search text and the text has changed. Rows are emitted as they arrive,
+   * so a page paints while it fills. Resolves false when the source is gone —
+   * the caller marks the table expired, since it holds the block by then.
+   */
+  async pullTable(blockId: string, search: string, want: number): Promise<boolean> {
+    const table = this.#tables.get(blockId);
+    if (!table) return false;
+
+    const searched = table.block.serverSearch === true && table.search !== search;
+    if (searched || table.restart) {
+      // A new search is a new result set, and a retry is the same source from
+      // the top: either way the rows that are here answer a question nobody is
+      // asking any more.
+      table.search = search;
+      table.restart = false;
+      table.iterator = undefined;
+      table.generation++;
+      table.block.rows = [];
+      table.block.exhausted = false;
+      table.block.loadedSearch = search;
+    } else if (table.pulling) {
+      // Single flight: a pull already under way is filling the same table, and a
+      // second one would interleave its rows with the first's.
+      await table.pulling;
+      return true;
+    }
+
+    const pulling = this.#fill(blockId, table, want, table.generation);
+    table.pulling = pulling;
+    try {
+      await pulling;
+    } finally {
+      // A restart supersedes this pull and puts its own promise here; clearing
+      // it unconditionally would report the new one as finished.
+      if (table.pulling === pulling) table.pulling = undefined;
+    }
+    return true;
+  }
+
+  async #fill(blockId: string, table: LiveTable, want: number, generation: number): Promise<void> {
+    const block = table.block;
+    block.loading = true;
+    block.error = undefined;
+    this.#onBlockUpdate(blockId, { ...block });
+
+    try {
+      if (!table.iterator) table.iterator = openIterator(table.open(table.search));
+      while (block.rows.length < want) {
+        const next = await table.iterator.next();
+        // A restart happened while this was awaiting; its rows answer a search
+        // nobody is looking at any more.
+        if (table.generation !== generation) return;
+        if (next.done) {
+          block.exhausted = true;
+          break;
+        }
+        block.rows = [...block.rows, toCells(next.value)];
+        this.#onBlockUpdate(blockId, { ...block });
+      }
+    } catch (error) {
+      if (table.generation !== generation) return;
+      // The call that failed is already a row in the run's log; this is what the
+      // table says about why it stopped, and what Retry clears.
+      block.error = error instanceof Error ? error.message : String(error);
+      table.restart = table.restartable;
+    } finally {
+      if (table.generation === generation) {
+        block.loading = false;
+        this.#onBlockUpdate(blockId, { ...block });
+      }
+    }
+  }
+
+  /**
+   * Resolves once no table is still filling. A script that draws a live table
+   * and ends is not over until its first page has landed — those calls are the
+   * run's, and the run's duration is what they cost.
+   */
+  async settleTables(): Promise<void> {
+    for (let pass = 0; pass < 8; pass++) {
+      const pulling = [...this.#tables.values()].map((table) => table.pulling).filter((promise): promise is Promise<void> => promise !== undefined);
+      if (pulling.length === 0) return;
+      await Promise.all(pulling);
+    }
   }
 
   // Builders for google.protobuf.Value, Struct and ListValue, so a field of one

@@ -360,6 +360,50 @@ no `kaja.html`, no styling arguments, no layout control.
   part the part you can't watch. Blocks are recorded against their own id
   (`recordBlock`), so a block that fills in stays where it was emitted rather
   than jumping to the end.
+- **A table's rows are an iterable, and that is the whole of static-versus-live.**
+  An array is one; so is an async generator, and one of those only runs when
+  something pulls it — which is what makes paging fetch a page and nothing else.
+  `kaja.table(columns, rows?, { pageSize })` takes either, plus a **function**
+  returning one, and the handle's `.row(...)` is unchanged.
+  - **The pager is over rows, not requests** (`tableView.ts`). Next means "the
+    next page of rows, fetching if I have run out", so a source that yields in
+    batches of 25 fetches twice per page of 50 and one that yields 500 doesn't
+    fetch for ten pages. The script never states a page size and never holds a
+    cursor: the cursor is an ordinary local variable in its own loop, which is
+    what a callback-with-context would have taken away, along with per-row
+    laziness (a row that costs a call only costs it if you page to it).
+  - **No lookahead.** Pulling one row past the page to light Next up would fetch
+    a whole page to answer a question nobody asked, so an open source offers Next
+    until it runs out and a click that yields nothing closes it out. This is also
+    why the page clamp lets **one** page past the loaded rows through — paging
+    into rows that aren't here yet is how they are asked for.
+  - **Declaring the search parameter is what asks for the search text.** A source
+    that takes one is restarted for each new search (a new search is a new result
+    set); one that doesn't is never restarted, and the box filters the rows
+    already loaded and says so. A local filter **never** fetches — searching
+    would otherwise mean pulling an API dry to find three rows. Arity is the
+    switch because it is readable one line from the box, and because the
+    alternative is an option that says what the signature already said.
+  - **Controls appear when there is something to control** — one bar above the
+    rows, holding the search box, the count and the pager. A static table that
+    fits on a page reads exactly as it did before any of this existed, and a
+    pager under a fifty-row table is a control you have to go looking for.
+  - **A live table expires like a payload does.** The source is a closure, so it
+    cannot be stored: read back, the table is the rows it had, saying
+    `run to load the rest` rather than offering a Next that leads nowhere
+    (`storedBlock`). The closures are held on the `Kaja` instance, which outlives
+    any run, and the oldest are let go past `MAX_LIVE_TABLES` — into the same
+    stated state.
+  - **A page fetched later belongs to the run that drew the table**, not to a run
+    of its own: the click happened on that run's canvas, so `openRun` attributes
+    it (`pullRunRef`) and the call is a row in that run's log. The run's duration
+    doesn't move — it is wall time for the script — but the run **does** wait for
+    a live table's first page (`settleTables`), because that page is work the
+    script started. A script running at the same time outranks the attribution;
+    it is definitely the one making the call being reported.
+  - **An agent sees one page.** Nobody is there to press Next, so `run_script`
+    reports `more: true` and the loop that reads the rest is the agent's own to
+    write.
 - **Calls appear as one-line cards.** They can stay minimal because the complete
   record is one click away: clicking a card selects that call's row in the list
   and switches to it. The payload is never unrolled into the flow — that is

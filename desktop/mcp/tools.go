@@ -15,6 +15,9 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
 	"It says what it produced instead - `console.log(...)` writes the transcript, and `kaja.text(...)`, `kaja.code(...)` and " +
 	"`kaja.table(columns).row(...)` draw on the run's canvas, which is how a script renders a table (never build one out of Markdown). " +
+	"A table can also be handed its rows - `kaja.table(columns, rows)` for an array, or an async generator that yields rows, " +
+	"which the table pulls a page at a time as the reader pages through it (declare a `search` parameter and it is restarted for each search). " +
+	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with an ordinary loop if you need it. " +
 	"Get the runtime's full declaration with describe_type \"kaja\"; it comes from `import { kaja } from \"kaja\";`. " +
 	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. Use `kaja.ask()` only when a person is at the app."
 
