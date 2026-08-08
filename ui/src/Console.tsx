@@ -11,6 +11,7 @@ import { MethodCall } from "./kaja";
 import { callCount, ConsoleItem, ConsoleTab, followSelection, groupRuns, itemName, itemStatus, Run, RunGroup, RunSelection, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { Log, LogLevel } from "./server/api";
+import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
 
 export type { ConsoleItem } from "./runs";
 
@@ -441,7 +442,6 @@ Console.RunSummary = function ({ group }: { group: RunGroup }) {
   );
 };
 
-
 interface DetailTabsProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
@@ -514,7 +514,9 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
   if (activeTab === "request") {
     content = methodCall.input;
   } else if (hasError) {
-    content = methodCall.error;
+    // Same rule as the response below: an HTTP failure arrives wrapped in what
+    // carried it here, and the body the API sent is the failure.
+    content = unwrapFailure(methodCall.error);
   } else if (isStreaming) {
     rawText = methodCall.streamOutputs!.map((msg) => JSON.stringify(unwrapEnvelope(methodCall.outputType, msg), null, 2)).join("\n\n");
   } else {
@@ -582,10 +584,13 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
   const responseHeaders = methodCall.responseHeaders || {};
   const upstreamRequestHeaders = methodCall.upstreamRequestHeaders || {};
   const upstreamResponseHeaders = methodCall.upstreamResponseHeaders || {};
+  // The request line of the upstream call, which a failure reports and the
+  // response no longer carries. A successful call doesn't report one.
+  const upstreamRequest = upstreamRequestLine(methodCall.error);
   // An in-process app (e.g. OpenAPI) reports the headers it exchanged with its
   // upstream API. When present, the transport headers (browser ↔ Kaja) become a
   // second, less interesting hop shown below the upstream ones.
-  const hasUpstream = Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
+  const hasUpstream = upstreamRequest !== undefined || Object.keys(upstreamRequestHeaders).length > 0 || Object.keys(upstreamResponseHeaders).length > 0;
 
   const section = (title: string, headers: { [key: string]: string }) => (
     <div className="mb-6">
@@ -598,10 +603,11 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     </div>
   );
 
-  const groupHeading = (text: string, caption: string) => (
+  const groupHeading = (text: string, caption: string, requestLine?: string) => (
     <div className="mb-3">
       <div className="font-semibold uppercase tracking-wider text-foreground">{text}</div>
       <div className="text-muted-foreground">{caption}</div>
+      {requestLine && <div className="mt-1 break-all text-foreground">{requestLine}</div>}
     </div>
   );
 
@@ -609,7 +615,7 @@ Console.HeadersContent = function ({ methodCall }: HeadersContentProps) {
     <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs">
       {hasUpstream ? (
         <>
-          {groupHeading("Upstream", "Headers Kaja exchanged with the API")}
+          {groupHeading("Upstream", "Headers Kaja exchanged with the API", upstreamRequest)}
           {section("Request headers", upstreamRequestHeaders)}
           {section("Response headers", upstreamResponseHeaders)}
           <div className="mb-6 h-px bg-border" />
