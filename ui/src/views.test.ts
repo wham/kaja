@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { dropView, serializeViews, setAppFormEditMode, showAppForm, showCompiler, showVariables, View, viewIdentity, visit } from "./views";
+import { dropView, restoreViews, serializeViews, setAppFormEditMode, showAppForm, showCompiler, showVariables, View, viewIdentity, visit } from "./views";
 import { buildApp } from "./appTypes";
 
 // Views carry Monaco models in the app; here they are stubs, so they are built
@@ -76,10 +76,20 @@ describe("viewIdentity", () => {
 
 describe("serializeViews", () => {
   it("stores which scratch a view shows, never its code", () => {
-    const views: View[] = [view("compiler-1", 1), scratchView("scratch-1", "s1")];
+    const views: View[] = [scratchView("scratch-1", "s1")];
     const result = serializeViews(views, () => undefined);
 
-    expect(result.views).toEqual([{ type: "compiler" }, { type: "scratch", scratchId: "s1", viewState: undefined }]);
+    expect(result.views).toEqual([{ type: "scratch", scratchId: "s1", viewState: undefined }]);
+  });
+
+  // The log reports on this session's apps, so it is not somewhere kaja can
+  // start: it is left out on the way down, and skipped on the way back up when
+  // an older build wrote one.
+  it("leaves the compile log out, and doesn't restore a stored one", () => {
+    const views: View[] = [view("compiler-1", 1), scratchView("scratch-1", "s1")];
+    expect(serializeViews(views, () => undefined).views).toEqual([{ type: "scratch", scratchId: "s1", viewState: undefined }]);
+
+    expect(restoreViews({ views: [{ type: "compiler" } as any] }, [])).toEqual([]);
   });
 
   it("uses live editor view state over stored view state", () => {

@@ -250,10 +250,6 @@ interface PersistedScratchView {
   viewState?: object;
 }
 
-interface PersistedCompilerView {
-  type: "compiler";
-}
-
 interface PersistedScriptView {
   type: "script";
   scriptPath: string;
@@ -262,10 +258,16 @@ interface PersistedScriptView {
   viewState?: object;
 }
 
-type PersistedView = PersistedScratchView | PersistedCompilerView | PersistedScriptView;
+type PersistedView = PersistedScratchView | PersistedScriptView;
 
 // The visit order is the order of the list, so nothing else has to be stored:
 // what was on screen is what restores first.
+//
+// The compile log is not among them. It is a report on this session's apps, not
+// a document, so starting on it means starting on an account of a compilation
+// that hasn't run — and with no apps, on one that never can, which is a
+// switcher naming a file whose body is the no-apps blankslate. Nothing is open
+// instead, which is the screen that says picking a call writes you a script.
 export interface PersistedViewState {
   views: PersistedView[];
 }
@@ -274,9 +276,7 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
   const serialized: PersistedView[] = [];
 
   for (const view of views) {
-    if (view.type === "compiler") {
-      serialized.push({ type: "compiler" });
-    } else if (view.type === "scratch") {
+    if (view.type === "scratch") {
       serialized.push({ type: "scratch", scratchId: view.scratchId, viewState: (getViewState(view.id) ?? view.viewState) as object | undefined });
     } else if (view.type === "script") {
       serialized.push({
@@ -296,11 +296,6 @@ export function restoreViews(state: PersistedViewState | undefined, scratches: S
   const views: View[] = [];
 
   for (const persisted of state?.views ?? []) {
-    if (persisted.type === "compiler") {
-      views.push({ ...nextView("compiler"), type: "compiler" });
-      continue;
-    }
-
     if (persisted.type === "script") {
       const view = nextView("script");
       views.push({
@@ -312,6 +307,9 @@ export function restoreViews(state: PersistedViewState | undefined, scratches: S
       });
       continue;
     }
+
+    // State written by a build that persisted the compile log still names it.
+    if (persisted.type !== "scratch") continue;
 
     // A scratch pruned while its view was cached simply doesn't come back.
     const scratch = scratches.find((candidate) => candidate.id === persisted.scratchId);
