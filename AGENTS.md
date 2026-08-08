@@ -60,6 +60,10 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   would otherwise sit on one line. The editor wraps rather than scrolling
   sideways — the pane is short on purpose, and horizontal scrolling is worse
   than vertical.
+- **An agent explores in one too.** A snippet run over MCP is run in a scratch —
+  the same one each time (see the MCP section). Exploration is a scratch whoever
+  is doing it, which is what puts an agent's runs in the sidebar and in the run
+  history instead of somewhere the user can't see.
 - **A scratch names itself from its own code** (`scratchTitle.ts`), which Kaja
   can do better than a chat app names conversations: the content is typed code
   against a known schema, so the title is a formatting job rather than a
@@ -296,10 +300,16 @@ selection, the tab and the view as they were left.
 - **The log is never collapsed or summarised away.** It stays complete at any
   length, and the tail bar says what is out of sight (`13 more`) rather than
   standing in for it. Loop folding belongs on the canvas only.
-- **A run that has nowhere to land is not kept.** An agent running code that was
-  never saved has no file, so no console; it still gets its results back. A call
-  arriving with no run open gets one under the file the last run came from, which
-  is where a late call almost certainly belongs.
+- **A run that has nowhere to land is not kept** — but almost nothing has nowhere
+  to land, because an agent's inline snippet is given a scratch to run in (see
+  the MCP section). What is left is a call arriving with no run open, which gets
+  one under the file the last run came from, which is where a late call almost
+  certainly belongs.
+- **A run says who pressed it, once there is more than one who.** `Run.origin` is
+  `"agent"` or absent, because a file's console holds runs of both and the file
+  can't say which is which. It is a `Bot` glyph beside the run's number in the
+  pill and in the picker, and the sidebar's spinner names it (`agentFileIds`) —
+  a run you didn't start is the one you most want named.
 - **A run keeps going when you navigate away from it**, and its console is no
   longer on screen to say so — so the sidebar row does, with a spinner in place
   of its icon (`runningFileIds`), or the waiting ring below. Run/Stop in the
@@ -366,9 +376,12 @@ no `kaja.html`, no styling arguments, no layout control.
   a spinner there would say the script was working rather than waiting. The log
   stays readable throughout: the pause blocks the script, not your reading.
 - **An ask with no canvas falls back to the dialog.** A run with no file has no
-  console to draw on (an agent running code that was never saved), and the modal
-  needs no surface of its own. A question that was never answered is stored as
-  cancelled, because the promise it was blocking died with the session.
+  console to draw on, and the modal needs no surface of its own. An agent's
+  snippet is not that case any more — it has a scratch, so its question is drawn
+  on that scratch's canvas and the sidebar row wears the waiting ring, which is
+  the right place for a question nobody is looking at. A question that was never
+  answered is stored as cancelled, because the promise it was blocking died with
+  the session.
 - **Which view a run opens in** (`defaultView`): a run that drew something opens
   on its canvas — it was executed for its output, and the log is where you go
   when the output is wrong — while a run that only made calls opens on its log,
@@ -525,9 +538,11 @@ file, so it needs a disk (`isWailsEnvironment()`).
 - **A generated stub reads as source.** `createServiceInterfaceDefinition` prints its service object `multiLine`; the TypeScript printer puts a synthesized object literal on one line otherwise, so a thirty-method service arrived as one enormous line and any line-based reader — Monaco's hover, an agent grepping a stub — had to pull the whole module to find one signature. It and the `Method` model are both filled from one read of the client interface (`readSignatures`), which is the only place a method's TypeScript names are written down.
 - **`kaja.value` is in the generated request, not just in the guide.** A field typed `Value`, `Struct` or `ListValue` holds any JSON and its wire shape is a `kind` oneof nobody writes by hand, so `defaultInput.ts` used to leave such fields out of a generated request entirely — which meant the one place the builder could be learned didn't mention it, and an agent wrote its own `str`/`bool` helpers for the encoding. The builders postdate that decision: `kaja.value(null)` sends, so it is what the generated request now holds, in the editor and in `describe_method` alike, and `describe_method` names the builder beneath the declarations that mention the type.
 - **The guide is not the only channel.** `initialize` returns `instructions` (the embedded `guide.md`) and `kaja://guide` is a resource, but a client may drop or summarise either. So the script runtime contract an agent would otherwise discover by probing — top-level `await` works, `console.log` is the output channel, imports are `<app>/<path>` and **named imports only**, `prompt`/`alert`/`confirm` do nothing — is repeated in `run_script`'s **tool description**, which no client can drop.
-- **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a thrown call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so, and reports the calls a script made before it stopped rather than only the throw.
+- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's scratch** (`agentScratch` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row in the sidebar, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one scratch, which is what makes them comparable, rather than eight rows. It is an ordinary scratch in every other way — savable, discardable, pruned by the same rules — and if it is discarded the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentScratch`, matched on content), on the same rule a person's Save follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path.
+- **Nothing yet stops an agent writing.** Visibility is the whole of it for now: a snippet's calls are shown, not gated, and the `read`/`write` mark in `list_services` plus the guide's "confirm before running a write" are advice an agent may ignore. A gate belongs at the one place every call goes through (`client.ts`), keyed on something the run carries — that is where to put it when it is wanted.
+- **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` in place of the response — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.
 - **Resources are the guide and the index, and nothing else.** The generated modules used to be offered one resource per stub; `describe_method` and `describe_type` return the declarations out of them, and a module's full text is hundreds of kilobytes of runtime machinery around the few lines anyone wanted.
-- **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts/stops the server on the `mcp:previewEnabled` toggle, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the services catalog (`buildMcpCatalog`) via `MCPSetCatalog`, covering every app uniformly, and shows the connection command via `MCPServerInfo`. **The catalog follows the apps, not the compiler**: it is pushed from an effect on the app list, so a change that compiles nothing — deleting an app, and above all deleting the last one — is reflected too. Hanging it off the compilation path left the server answering `list_services` from apps that were no longer there. Script mutations made through MCP tools emit a `mcp:scriptsChanged` Wails event; the UI live-reloads the content of an open script tab on `write_script` and keeps the sidebar list and open tabs in step with create/rename/delete, so agent edits show up without switching tabs.
+- **Desktop wiring** — `desktop/mcp_bridge.go` adapts the App's file methods to `mcp.Bridge`, generates the token, starts/stops the server on the `mcp:previewEnabled` toggle, and implements the run round-trip: `run_script` emits a `mcp:runScript` Wails event and waits on a channel; the UI runs the script and calls back the bound `MCPScriptResult`. The UI pushes the services catalog (`buildMcpCatalog`) via `MCPSetCatalog`, covering every app uniformly, and shows the connection command via `MCPServerInfo`. **The catalog follows the apps, not the compiler**: it is pushed from an effect on the app list, so a change that compiles nothing — deleting an app, and above all deleting the last one — is reflected too. Hanging it off the compilation path left the server answering `list_services` from apps that were no longer there. Script mutations made through MCP tools emit a `mcp:scriptsChanged` Wails event; the UI live-reloads the content of an open script tab on `write_script` and keeps the sidebar list and open tabs in step with create/rename/delete, so agent edits show up without switching tabs. The `create` event carries the file's `content` too, which is what lets the UI recognise the agent's own buffer being saved.
 
 ## Directory Structure
 

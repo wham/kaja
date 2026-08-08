@@ -79,6 +79,7 @@ const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
  */
 function ScriptGlyph({
   running,
+  agent,
   waiting,
   pinned,
   saved,
@@ -86,6 +87,7 @@ function ScriptGlyph({
   dot = true,
 }: {
   running?: boolean;
+  agent?: boolean;
   waiting?: boolean;
   pinned?: boolean;
   saved?: boolean;
@@ -100,7 +102,11 @@ function ScriptGlyph({
       {waiting ? (
         <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
       ) : running ? (
-        <Spinner className="size-3" />
+        // A run you didn't start is the one you most want named, and the slot is
+        // 12px — so the spinner says who by, rather than growing a second mark.
+        <span className="flex" title={agent ? "An agent is running this" : "Running"}>
+          <Spinner className="size-3" />
+        </span>
       ) : pinned ? (
         <Pin size={12} />
       ) : dot ? (
@@ -163,6 +169,8 @@ interface SidebarProps {
   // Files with a run still in the air. A run keeps going when you navigate away
   // from it, and its console is no longer on screen to say so — the row is.
   runningFileIds?: Set<string>;
+  // Of those, the ones an agent started rather than you.
+  agentFileIds?: Set<string>;
   // Files whose run has stopped on a `kaja.ask(...)` and needs an answer.
   waitingFileIds?: Set<string>;
   // A read-only configuration doesn't disable the verbs that change apps, it
@@ -211,6 +219,7 @@ export function Sidebar({
   currentScriptPath,
   pinnedScriptPath,
   runningFileIds,
+  agentFileIds,
   waitingFileIds,
   canUpdateConfiguration = true,
   onSelect,
@@ -466,6 +475,7 @@ export function Sidebar({
                       <TreeView.LeadingVisual>
                         <ScriptGlyph
                           running={runningFileIds?.has(script.path)}
+                          agent={agentFileIds?.has(script.path)}
                           waiting={waitingFileIds?.has(script.path)}
                           pinned={pinnedScriptPath === script.path}
                           saved
@@ -521,6 +531,7 @@ export function Sidebar({
                       <TreeView.LeadingVisual>
                         <ScriptGlyph
                           running={runningFileIds?.has(scratch.id)}
+                          agent={agentFileIds?.has(scratch.id)}
                           waiting={waitingFileIds?.has(scratch.id)}
                           dim={isUntouched(scratch)}
                           dot={canSave}

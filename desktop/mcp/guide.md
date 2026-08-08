@@ -18,12 +18,27 @@ write and run those scripts.
 declarations come out of the generated code your script is checked against, so
 there is nothing else to go and read.
 
+## Where an inline run goes
+
+Running a snippet to see what a real response looks like is the right thing to
+do, and it is cheap. It is not invisible, though: **an inline `run_script` is run
+in a scratch buffer in the user's own sidebar**, titled from your code, and every
+run lands in that buffer's console beside the runs the user made themselves. You
+get the same buffer each time, so ten tries at one call read as ten runs of one
+script rather than ten files — and if you `create_script` exactly what you last
+ran, that buffer becomes the file rather than leaving a copy behind.
+
+Write your snippets as if someone is reading them, because someone can.
+
 ## Read or write
 
 Every method in `list_services` is marked `read` or `write`. A `?` means it was
 inferred from the method name because the API doesn't state it; without a `?` the
-HTTP verb behind the method settled it. **Treat `write` as a real side effect** —
-confirm with the user before running one you were not asked for.
+HTTP verb behind the method settled it. gRPC and Twirp methods have no verb, so
+they are always inferred.
+
+**Treat `write` as a real side effect** — confirm with the user before running
+one you were not asked for.
 
 ## Writing a script
 
@@ -51,8 +66,10 @@ Rules that matter:
   parameter]`, `[path parameter]`, `[header parameter]` say where a field travels
   in the HTTP request behind the method, and `[carries the HTTP payload]` marks a
   field that exists only to hold a body the shape couldn't otherwise express.
-- A rejected call **throws**, which stops the script there. The calls it already
-  made are still reported. Wrap a call in `try`/`catch` to keep going.
+- A rejected call **does not throw**. It is reported as a failed call and the
+  script keeps going, with `undefined` where the response would have been — so a
+  script with three calls in it reports all three. What stops a script is reading
+  a property off that `undefined`; check a response before you use it.
 
 ## The script runtime
 

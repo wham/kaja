@@ -271,7 +271,9 @@ func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name})
+	// The content travels with it so the UI can tell whether this file is the
+	// agent's own buffer being saved, in which case the buffer goes with it.
+	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name, "content": f.Content})
 	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Content: f.Content}, nil
 }
 
