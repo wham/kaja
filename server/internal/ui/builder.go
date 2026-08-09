@@ -1,14 +1,16 @@
 package ui
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"hash"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	esbuild "github.com/evanw/esbuild/pkg/api"
 )
@@ -51,63 +53,81 @@ var tailwindPlugin = esbuild.Plugin{
 	},
 }
 
-// sourceStamp is what the UI sources looked like at a point in time: how many
-// files there are and the newest modification time among them. A file added,
-// removed or written moves one of the two.
+// sourceStamp is a digest of every source file's path and contents. It is what
+// they hold rather than when they were written, because an edit can arrive with
+// an old modification time - a checkout, a `cp -p`, an unpacked archive - and
+// one that isn't seen is one served stale. The sources are 1.5 MB, which reads
+// in single-digit milliseconds, so there is nothing to buy by asking a cheaper
+// question.
 type sourceStamp struct {
-	files  int
-	newest time.Time
-	read   bool
+	digest string
 }
 
 func (s sourceStamp) matches(other sourceStamp) bool {
-	return s.read && other.read && s.files == other.files && s.newest.Equal(other.newest)
-}
-
-func (s *sourceStamp) take(info os.FileInfo) {
-	s.files++
-	if info.ModTime().After(s.newest) {
-		s.newest = info.ModTime()
-	}
+	return s.digest != "" && s.digest == other.digest
 }
 
 // stampUiSources covers everything the bundle is built from that a developer
 // edits: the sources themselves, and the dependencies they are bundled with.
 func stampUiSources() sourceStamp {
-	stamp := stampUiDependencies()
-	if !stamp.read {
-		return stamp
+	digest := sha256.New()
+
+	if !hashDependencies(digest) {
+		return sourceStamp{}
 	}
 
-	if err := filepath.Walk("../ui/src", func(_ string, info os.FileInfo, err error) error {
+	// Walk visits in lexical order, so the same tree always hashes the same.
+	if err := filepath.Walk("../ui/src", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
-			stamp.take(info)
+		if info.IsDir() {
+			return nil
 		}
-		return nil
+		return hashFile(digest, path)
 	}); err != nil {
 		return sourceStamp{}
 	}
 
-	return stamp
+	return sourceStamp{digest: string(digest.Sum(nil))}
 }
 
 // stampUiDependencies is the two files that decide what is in node_modules,
 // which is all a Monaco worker is built from.
 func stampUiDependencies() sourceStamp {
-	stamp := sourceStamp{read: true}
+	digest := sha256.New()
 
-	for _, path := range []string{"../ui/package.json", "../ui/bun.lock"} {
-		info, err := os.Stat(path)
-		if err != nil {
-			return sourceStamp{}
-		}
-		stamp.take(info)
+	if !hashDependencies(digest) {
+		return sourceStamp{}
 	}
 
-	return stamp
+	return sourceStamp{digest: string(digest.Sum(nil))}
+}
+
+func hashDependencies(digest hash.Hash) bool {
+	for _, path := range []string{"../ui/package.json", "../ui/bun.lock"} {
+		if err := hashFile(digest, path); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// The path goes in with the contents, so that renaming a file is a change and
+// two files swapping contents is one too.
+func hashFile(digest hash.Hash, path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := io.WriteString(digest, path+"\x00"); err != nil {
+		return err
+	}
+	_, err = io.Copy(digest, file)
+
+	return err
 }
 
 type UiBundle struct {
