@@ -47,6 +47,10 @@ export PATH=$GOBIN:$PATH
 
 cd ./desktop
 
+# Build for the macOS the store build and the bundle both name, so a dev build
+# compiles the same way the shipped one does.
+export_macos_deployment_target
+
 # Dev mode. wails.json handles the entire frontend pipeline:
 #   - frontend:install runs `bun install` in ../ui
 #   - frontend:build performs the initial bundle into frontend/dist
