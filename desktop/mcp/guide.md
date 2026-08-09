@@ -44,6 +44,7 @@ one you were not asked for.
 ## Writing a script
 
 ```ts
+import { kaja } from "kaja";
 import { Seating } from "seating/proto/seating";
 import { BoxOffice } from "boxoffice/proto/boxoffice";
 
@@ -52,7 +53,7 @@ const { reservation } = await BoxOffice.Reserve({
   performanceId: "matinee-1",
   seatIds: ["F7", "F8"],
 });
-console.log(reservation);
+kaja.text(`Reserved ${reservation.seatIds.join(", ")} — ${reservation.id}`);
 ```
 
 Rules that matter:
@@ -79,16 +80,18 @@ top-level `return` is a TypeScript error, and Kaja will not run a script that ha
 one — so a script that hands its answer back by returning it is a file the person
 who asked for it cannot press Run on.
 
-**Say what you produced instead.** There are two channels, and a script normally
-uses both:
+**Draw what you produced instead.** `kaja.text(...)`, `kaja.code(...)` and
+`kaja.table(...)` are the run's **canvas**, and the canvas is the output — a
+script is a file someone opens and presses Run on, so everything it has to say
+belongs where they will see it. Never build a table out of Markdown, ASCII or
+`console.table`; `kaja.table` is the table.
 
-- `console.log(...)` — the transcript, returned to you by `run_script`.
-- `kaja.text(...)`, `kaja.code(...)`, `kaja.table(...)` — the run's **canvas**,
-  which is what the person watching sees. Anything you would have formatted for
-  a human belongs here.
-
-Never build a table out of Markdown, ASCII or `console.table`. `kaja.table` is
-the table.
+`console.log(...)` is not that channel. It is the transcript, which `run_script`
+hands back to you and nobody else reads, so it is **for you while you are
+working** — a count, a filtered id, a shape worth checking before you write the
+real thing. Leave it out of a script you keep. You do not need it to see what a
+call did, either: `run_script` already reports every call's request and
+response.
 
 ```ts
 import { kaja } from "kaja";

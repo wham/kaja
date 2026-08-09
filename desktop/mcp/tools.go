@@ -13,8 +13,10 @@ import (
 const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await works, and imports resolve as `<app>/<path>` " +
 	"(named imports only - `import * as ns` does not resolve). " +
 	"A script is a body of statements, not a function: it has NO return value, and a top-level `return` is an error the app refuses to run. " +
-	"It says what it produced instead - `console.log(...)` writes the transcript, and `kaja.text(...)`, `kaja.code(...)` and " +
-	"`kaja.table(columns).row(...)` draw on the run's canvas, which is how a script renders a table (never build one out of Markdown). " +
+	"It draws what it produced instead: `kaja.text(...)`, `kaja.code(...)` and `kaja.table(columns).row(...)` draw on the run's canvas, " +
+	"which is the output the person who opens the script sees, and is how a script renders a table (never build one out of Markdown). " +
+	"`console.log(...)` writes the transcript back to you and nobody else - use it to probe while you work, and leave it out of a script " +
+	"you keep; every call's request and response is reported to you without it. " +
 	"A table can also be handed its rows - `kaja.table(columns, rows)` for an array, or an async generator that yields rows, " +
 	"which the table pulls a page at a time as the reader pages through it (declare a `search` parameter and it is restarted for each search). " +
 	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with an ordinary loop if you need it. " +
