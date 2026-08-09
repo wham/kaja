@@ -13,7 +13,7 @@ import { consoles } from "./consoles";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, itemStatus, RunGroup, RunSelection, RunStatus } from "./runs";
+import { callStatus, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, itemStatus, RunGroup, RunSelection, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { TableView } from "./tableView";
 import { LogLevel } from "./server/api";
@@ -47,7 +47,7 @@ const consoleTabActiveClass = "font-medium text-foreground";
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 // Both time columns are reserved: the longest value they can ever hold sets the
 // geometry once, so nothing moves as calls settle and age.
-const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
+const DURATION_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
 
 interface ConsoleProps {
   // Which file's console this is. It is the whole scope: the runs are that
@@ -491,7 +491,7 @@ Console.ListView = function ({
         ) : selectedItem?.payloadsDropped ? (
           <Console.NoPayload>Payload let go to keep this run bounded — run to see it live</Console.NoPayload>
         ) : selectedItem?.call ? (
-          <Console.DetailContent methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
+          <Console.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
             {total === 0 ? "Nothing to show." : "Select a call."}
@@ -646,7 +646,7 @@ Console.CallRow = memo(function CallRow({
           />
         </span>
       )}
-      <span className={DETAIL_COLUMN_CLASS}>{pending ? formatElapsed(now - timestamp) : formatDuration(durationMs)}</span>
+      <span className={DURATION_COLUMN_CLASS}>{pending ? formatElapsed(now - timestamp) : formatDuration(durationMs)}</span>
     </div>
   );
 });
@@ -755,14 +755,14 @@ Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, wa
   );
 });
 
-interface DetailContentProps {
+interface PayloadPaneProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
 }
 
-Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: DetailContentProps) {
+Console.PayloadPane = function ({ methodCall, activeTab, onTabChange, jsonViewerRef }: PayloadPaneProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const hasResponse = methodCall.output !== undefined || methodCall.error !== undefined || (isStreaming && methodCall.streamOutputs!.length > 0);
   const hasError = methodCall.error !== undefined;
@@ -798,7 +798,7 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
           came back of it on the right. Without the readout a successful call and
           an empty one look the same. */}
       <div className="flex h-[28px] shrink-0 items-center gap-4 overflow-hidden px-3">
-        <Console.DetailTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
+        <Console.PayloadTabs methodCall={methodCall} activeTab={activeTab} onTabChange={onTabChange} />
         {activeTab !== "headers" && <Console.ResponseSummary methodCall={methodCall} content={content} rawText={rawText} />}
       </div>
       {activeTab === "headers" ? (
@@ -817,13 +817,13 @@ Console.DetailContent = function ({ methodCall, activeTab, onTabChange, jsonView
   );
 };
 
-interface DetailTabsProps {
+interface PayloadTabsProps {
   methodCall: MethodCall;
   activeTab: ConsoleTab;
   onTabChange: (tab: ConsoleTab) => void;
 }
 
-Console.DetailTabs = function ({ methodCall, activeTab, onTabChange }: DetailTabsProps) {
+Console.PayloadTabs = function ({ methodCall, activeTab, onTabChange }: PayloadTabsProps) {
   const isStreaming = methodCall.streamOutputs !== undefined;
   const streamCount = isStreaming ? methodCall.streamOutputs!.length : 0;
 
@@ -1017,13 +1017,6 @@ function dayGroupedRows(groups: RunGroup[], now: number): DayGroupedRow[] {
     previousTimestamp = timestamp;
     return { ...row, dayLabel };
   });
-}
-
-function callStatus(methodCall: MethodCall): RunStatus {
-  if (methodCall.error) return "error";
-  const isStreaming = methodCall.streamOutputs !== undefined;
-  if (isStreaming && !methodCall.streamComplete) return "streaming";
-  return methodCall.output ? "success" : "pending";
 }
 
 // A run that isn't live is dated rather than clocked, because the time of day it

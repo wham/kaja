@@ -693,7 +693,7 @@ class KajaInternal {
    * can honestly say: a script that loops over one call is the case this exists
    * for, and one that also writes somewhere else asks again for that. And the
    * lifetime is the run because anything longer is a policy — cleared by
-   * `runTask`, so the guard is back the next time Run is pressed.
+   * `runScript`, so the guard is back the next time Run is pressed.
    */
   readonly approvedMethods = new Set<string>();
   /**

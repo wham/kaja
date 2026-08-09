@@ -84,7 +84,7 @@ import {
   WriteScriptFile,
 } from "./wailsjs/go/main/App";
 import { main } from "./wailsjs/go/models";
-import { runTask, runTaskCaptured } from "./taskRunner";
+import { runScript, runScriptCaptured } from "./scriptRunner";
 
 // How long a discarded scratch is held before it is really gone. Nothing was on
 // disk, so this is undo rather than a confirmation.
@@ -1227,7 +1227,7 @@ export function App() {
         const kaja = kajaRef.current!;
         kaja.input = text;
         const run = beginRun(file.name, file.path);
-        runTask(file.content, kaja, apps, onScriptError)
+        runScript(file.content, kaja, apps, onScriptError)
           .then(() => kaja.settleTables())
           .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
       } catch (err) {
@@ -1457,7 +1457,7 @@ export function App() {
       try {
         const kaja = kajaRef.current!;
         kaja.input = undefined;
-        const captured = await runTaskCaptured(source, kaja, appsRef.current);
+        const captured = await runScriptCaptured(source, kaja, appsRef.current);
         // An agent's table has nobody to page it, so its receipt is the first
         // page — which is exactly what it says it is.
         await kaja.settleTables();
@@ -1757,7 +1757,7 @@ export function App() {
     // A live table draws its first page itself, and those calls are the run's:
     // the script is not over until they have landed, or the run would report a
     // duration that stops before the work it started.
-    runTask(code, kajaRef.current!, apps, onScriptError, controller.signal)
+    runScript(code, kajaRef.current!, apps, onScriptError, controller.signal)
       .then(() => kajaRef.current!.settleTables())
       .finally(() => setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)));
     // A run is the punctuation that settles a scratch: it is when the title is
