@@ -175,7 +175,9 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   const controls = hasControls(block);
   // A search bound for the source is debounced; one that filters what is loaded
   // is not, because it costs nothing and lagging under the keystrokes is worse.
-  const search = useDebounced(view.search, searchesLocally(block) ? 0 : 300);
+  // The text is settled before it is debounced, so the space after a word is not
+  // a second search — and ⏎ says "now", which is what the wait is for.
+  const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
 
   useEffect(() => {
@@ -197,6 +199,9 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
             value={view.search}
             // A new search is a new set, so it is read from the first page.
             onChange={(event) => onView(id, { page: 0, search: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") searchNow();
+            }}
           />
           {block.loading && <Spinner className="size-3 shrink-0" />}
           <span data-testid="canvas-table-summary" className="shrink-0 truncate tabular-nums @max-[420px]:hidden">
@@ -265,9 +270,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   );
 };
 
-// A value that settles. Only a search bound for a source needs it — restarting
-// on every keystroke would fetch the same first page five times over.
-function useDebounced<T>(value: T, delay: number): T {
+// A value that settles, and the way to settle it now. Only a search bound for a
+// source needs the wait — restarting on every keystroke would fetch the same
+// first page five times over — and anyone who is done typing shouldn't serve it.
+function useDebounced<T>(value: T, delay: number): [T, () => void] {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     if (delay === 0) {
@@ -277,7 +283,7 @@ function useDebounced<T>(value: T, delay: number): T {
     const timer = setTimeout(() => setSettled(value), delay);
     return () => clearTimeout(timer);
   }, [value, delay]);
-  return delay === 0 ? value : settled;
+  return [delay === 0 ? value : settled, () => setSettled(value)];
 }
 
 interface AskProps {

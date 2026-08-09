@@ -109,12 +109,19 @@ export function isOpen(block: TableBlock): boolean {
  */
 export function pullNeeded(block: TableBlock, view: TableView): { needed: boolean; want: number } {
   const want = (Math.max(0, view.page) + 1) * pageSizeOf(block);
-  if (!isOpen(block) || block.loading === true || block.error !== undefined) return { needed: false, want };
-  if (!searchesLocally(block)) {
-    if ((block.loadedSearch ?? "") !== view.search) return { needed: true, want };
-  } else if (view.search.trim() !== "") {
-    return { needed: false, want };
-  }
+  // A source that was never there or is gone is the one thing nothing gets past.
+  if (block.live !== true || block.expired === true) return { needed: false, want };
+
+  // A search the source takes **restarts** it, so it outranks every state the
+  // current result set is in: rows that ran out, a pull still filling them, and
+  // the error the last one stopped on all belong to a question nobody is asking
+  // any more. Reading them as reasons not to pull is what left the box dead
+  // after one search that happened to exhaust its source.
+  if (!searchesLocally(block) && (block.loadedSearch ?? "") !== view.search) return { needed: true, want };
+
+  if (block.loading === true || block.error !== undefined || block.exhausted === true) return { needed: false, want };
+  // Searching what is loaded must not pull an API dry to find three rows.
+  if (searchesLocally(block) && view.search.trim() !== "") return { needed: false, want };
   return { needed: block.rows.length < want, want };
 }
 
