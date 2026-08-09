@@ -1,3 +1,5 @@
+import { AskAnswerType } from "./ask";
+
 /**
  * What a run drew. A script says what it made, never how it looks, so the set is
  * closed and small — the canvas renders these four and nothing else. The moment
@@ -56,6 +58,15 @@ export interface TableBlock {
 export interface AskBlock {
   kind: "ask";
   question: string;
+  // What is being asked for. The block carries it rather than the script,
+  // because the canvas is what has to draw the control and check the answer, and
+  // a run read back has to draw the same question it asked.
+  answerType: AskAnswerType;
+  // The labels a select offered, in the order it offered them. The answer is one
+  // of these, which is what makes a stored select readable without its script.
+  choices?: string[];
+  // Always text, whatever was asked for — a block is stored as itself, and the
+  // typed value is the script's copy rather than the run's record.
   answer?: string;
   cancelled?: boolean;
 }
