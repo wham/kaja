@@ -239,7 +239,7 @@ export function App() {
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
   // "Preview Apps" toggle: reveals the experimental built-in app types in the New
-  // dialog (openapi/openai/markdown). gRPC/Twirp are always available.
+  // dialog (openapi/openai/folder). gRPC/Twirp are always available.
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
@@ -628,7 +628,7 @@ export function App() {
   }, []);
 
   // gRPC/Twirp/OpenAPI apps are always enabled; the Preview Apps toggle only
-  // reveals the experimental built-in app types (openai/markdown).
+  // reveals the experimental built-in app types (openai/folder).
   const featurePreviews: FeaturePreview[] = [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }];
 
   const onToggleFeaturePreview = useCallback((key: string) => {

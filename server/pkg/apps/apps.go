@@ -115,7 +115,7 @@ type Instance interface {
 // response body. RequestHeaders/ResponseHeaders, when set, are the headers the
 // app actually exchanged with its upstream service, which the transports
 // surface to the client's Headers view. In-process apps with no upstream hop
-// (e.g. the local Markdown app) leave them empty.
+// (e.g. the local Folder app) leave them empty.
 type InvokeResult struct {
 	Body            []byte
 	RequestHeaders  map[string]string

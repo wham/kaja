@@ -31,7 +31,7 @@ export interface CompileRequest {
 /**
  * OpenApp opens an app from its configuration. "grpc"/
  * "twirp" apps describe a gRPC/Twirp service (proto files come from a static
- * directory or gRPC reflection), while built-in apps like "openapi" or "markdown"
+ * directory or gRPC reflection), while built-in apps like "openapi" or "folder"
  * generate their own proto surface. In all cases the app produces proto files to
  * feed into Compile, an invocation target, and the transport protocol the client
  * uses to reach it. The server flattens the app's typed parameters to a string map
@@ -620,7 +620,7 @@ export interface Configuration {
     pathPrefix: string;
     /**
      * Apps are the single unit of configuration. A gRPC or Twirp service is just an
-     * app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
+     * app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
      * are apps too. kaja renders and invokes every app the same way.
      *
      * @generated from protobuf field: repeated ConfigurationApp apps = 5
@@ -681,11 +681,11 @@ export interface ConfigurationApp {
          */
         openai: OpenAiApp;
     } | {
-        oneofKind: "markdown";
+        oneofKind: "folder";
         /**
-         * @generated from protobuf field: MarkdownApp markdown = 6
+         * @generated from protobuf field: FolderApp folder = 7
          */
-        markdown: MarkdownApp;
+        folder: FolderApp;
     } | {
         oneofKind: undefined;
     };
@@ -885,16 +885,16 @@ export interface OpenAiApp {
     };
 }
 /**
- * MarkdownApp creates and writes Markdown files in a folder on disk. It is local,
- * so it forwards no headers.
+ * FolderApp lists, creates, reads and appends to files in a folder on disk. It
+ * is local, so it forwards no headers.
  *
- * @generated from protobuf message MarkdownApp
+ * @generated from protobuf message FolderApp
  */
-export interface MarkdownApp {
+export interface FolderApp {
     /**
-     * @generated from protobuf field: string folder = 1
+     * @generated from protobuf field: string path = 1
      */
-    folder: string;
+    path: string;
 }
 /**
  * @generated from protobuf message UpdateConfigurationRequest
@@ -2836,7 +2836,7 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
             { no: 3, name: "twirp", kind: "message", oneof: "app", T: () => TwirpApp },
             { no: 4, name: "openapi", kind: "message", oneof: "app", T: () => OpenApiApp },
             { no: 5, name: "openai", kind: "message", oneof: "app", T: () => OpenAiApp },
-            { no: 6, name: "markdown", kind: "message", oneof: "app", T: () => MarkdownApp }
+            { no: 7, name: "folder", kind: "message", oneof: "app", T: () => FolderApp }
         ]);
     }
     create(value?: PartialMessage<ConfigurationApp>): ConfigurationApp {
@@ -2879,10 +2879,10 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
                         openai: OpenAiApp.internalBinaryRead(reader, reader.uint32(), options, (message.app as any).openai)
                     };
                     break;
-                case /* MarkdownApp markdown */ 6:
+                case /* FolderApp folder */ 7:
                     message.app = {
-                        oneofKind: "markdown",
-                        markdown: MarkdownApp.internalBinaryRead(reader, reader.uint32(), options, (message.app as any).markdown)
+                        oneofKind: "folder",
+                        folder: FolderApp.internalBinaryRead(reader, reader.uint32(), options, (message.app as any).folder)
                     };
                     break;
                 default:
@@ -2912,9 +2912,9 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
         /* OpenAiApp openai = 5; */
         if (message.app.oneofKind === "openai")
             OpenAiApp.internalBinaryWrite(message.app.openai, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
-        /* MarkdownApp markdown = 6; */
-        if (message.app.oneofKind === "markdown")
-            MarkdownApp.internalBinaryWrite(message.app.markdown, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* FolderApp folder = 7; */
+        if (message.app.oneofKind === "folder")
+            FolderApp.internalBinaryWrite(message.app.folder, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3386,26 +3386,26 @@ class OpenAiApp$Type extends MessageType<OpenAiApp> {
  */
 export const OpenAiApp = new OpenAiApp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class MarkdownApp$Type extends MessageType<MarkdownApp> {
+class FolderApp$Type extends MessageType<FolderApp> {
     constructor() {
-        super("MarkdownApp", [
-            { no: 1, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        super("FolderApp", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<MarkdownApp>): MarkdownApp {
+    create(value?: PartialMessage<FolderApp>): FolderApp {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.folder = "";
+        message.path = "";
         if (value !== undefined)
-            reflectionMergePartial<MarkdownApp>(this, message, value);
+            reflectionMergePartial<FolderApp>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MarkdownApp): MarkdownApp {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: FolderApp): FolderApp {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string folder */ 1:
-                    message.folder = reader.string();
+                case /* string path */ 1:
+                    message.path = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3418,10 +3418,10 @@ class MarkdownApp$Type extends MessageType<MarkdownApp> {
         }
         return message;
     }
-    internalBinaryWrite(message: MarkdownApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string folder = 1; */
-        if (message.folder !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.folder);
+    internalBinaryWrite(message: FolderApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3429,9 +3429,9 @@ class MarkdownApp$Type extends MessageType<MarkdownApp> {
     }
 }
 /**
- * @generated MessageType for protobuf message MarkdownApp
+ * @generated MessageType for protobuf message FolderApp
  */
-export const MarkdownApp = new MarkdownApp$Type();
+export const FolderApp = new FolderApp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
     constructor() {

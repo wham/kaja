@@ -156,6 +156,41 @@ func TestLoadGetConfigurationResponse_MigratesLegacyProjects(t *testing.T) {
 	}
 }
 
+func TestLoadGetConfigurationResponse_MigratesMarkdownApp(t *testing.T) {
+	configContent := `{
+		"apps": [
+			{"name": "Notes", "markdown": {"folder": "/tmp/notes"}},
+			{"name": "grpc-quirks", "grpc": {"url": "dns:kaja.tools:443"}}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
+	if len(configuration.Apps) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(configuration.Apps))
+	}
+
+	folderType, folderParams := flattenApp(configuration.Apps[0])
+	if configuration.Apps[0].Name != "Notes" || folderType != "folder" {
+		t.Errorf("expected folder app 'Notes', got %q/%q", configuration.Apps[0].Name, folderType)
+	}
+	if folderParams["path"] != "/tmp/notes" {
+		t.Errorf("unexpected folder parameters: %v", folderParams)
+	}
+
+	if grpcType, _ := flattenApp(configuration.Apps[1]); grpcType != "grpc" {
+		t.Errorf("expected the other app untouched, got %q", grpcType)
+	}
+}
+
 func TestUpdateConfiguration_DeniedWhenNotAllowed(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {

@@ -357,14 +357,11 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 }
 
 // OpenFileDialog opens a native file picker for a single file. On macOS it saves
-// a security-scoped bookmark for the chosen file so a sandboxed app (e.g. the
-// Markdown app) can read and append to it across restarts.
+// a security-scoped bookmark for the chosen file so a sandboxed app (e.g. a gRPC
+// app reading its certificates) can read it across restarts.
 func (a *App) OpenFileDialog() (string, error) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select Markdown File",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Markdown", Pattern: "*.md;*.markdown"},
-		},
+		Title: "Select File",
 	})
 	if err != nil || path == "" {
 		return path, err

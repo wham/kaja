@@ -1,4 +1,4 @@
-import { Globe, FileText, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
+import { Globe, FolderOpen, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a
@@ -161,17 +161,17 @@ export const appTypes: AppTypeDefinition[] = [
   },
   {
     preview: true,
-    type: "markdown",
-    label: "Markdown",
-    description: "Create and write Markdown files in a folder on disk.",
-    icon: FileText,
+    type: "folder",
+    label: "Folder",
+    description: "List, create, read and append to files in a folder on disk.",
+    icon: FolderOpen,
     parameters: [
       {
-        key: "folder",
-        label: "Markdown folder",
+        key: "path",
+        label: "Folder",
         type: "folder",
         placeholder: "/path/to/notes",
-        caption: "Methods create and write Markdown files in this folder. On the desktop, pick the folder to grant access.",
+        caption: "Methods list, create, read and append to files in this folder. On the desktop, pick the folder to grant access.",
       },
     ],
   },
@@ -210,7 +210,7 @@ export function appParameters(app: ConfigurationApp): Record<string, string> {
 }
 
 // appHeaders reads the headers an app forwards to its upstream. They live inside
-// the typed block (every type but the local Markdown app has them).
+// the typed block (every type but the local Folder app has them).
 export function appHeaders(app: ConfigurationApp): Record<string, string> {
   return (appVariant(app)?.headers as Record<string, string>) ?? {};
 }
@@ -230,9 +230,9 @@ export function transportHeaders(app: ConfigurationApp): Record<string, string> 
 }
 
 // typeForwardsHeaders reports whether an app type sends request headers upstream;
-// only the local Markdown app does not.
+// only the local Folder app does not.
 export function typeForwardsHeaders(type: string): boolean {
-  return type !== "markdown";
+  return type !== "folder";
 }
 
 // buildApp constructs a ConfigurationApp from the generic form state: it sets the
