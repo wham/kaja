@@ -1,20 +1,29 @@
 #!/bin/bash
 set -e
 
-# The sha256 of everything given: an argument that names a file is read, any
-# other argument is taken literally. It is what a step compares against its
-# stamp to decide whether it has anything to do.
+# The sha256 of everything given: an argument that names a file contributes its
+# path and contents, any other argument is taken literally. It is what a step
+# compares against its stamp to decide whether it has anything to do.
 #
 # Usage: fingerprint <file|string>...
 fingerprint() {
     local ITEM
-    for ITEM in "$@"; do
-        if [ -f "$ITEM" ]; then
-            sha256 < "$ITEM"
-        else
-            printf '%s\n' "$ITEM"
-        fi
-    done | sha256
+    local FILES=()
+
+    {
+        for ITEM in "$@"; do
+            if [ -f "$ITEM" ]; then
+                FILES+=("$ITEM")
+            else
+                printf '%s\n' "$ITEM"
+            fi
+        done
+
+        # Every file at once rather than one process each: at the ~75 Go files
+        # the bindings are generated from, the spawning was most of what asking
+        # the question cost.
+        [ ${#FILES[@]} -eq 0 ] || sha256_files "${FILES[@]}"
+    } | sha256
 }
 
 # macOS ships shasum, most Linux images ship sha256sum, and the two are spelled
@@ -24,6 +33,15 @@ sha256() {
         shasum -a 256 | cut -d' ' -f1
     else
         sha256sum | cut -d' ' -f1
+    fi
+}
+
+# Usage: sha256_files <file>...   (one line of "digest  path" per file)
+sha256_files() {
+    if command -v shasum &> /dev/null; then
+        shasum -a 256 "$@"
+    else
+        sha256sum "$@"
     fi
 }
 
@@ -41,13 +59,14 @@ stamp_write() {
     printf '%s\n' "$2" > "$1"
 }
 
-# The version of a module the server is built against. A tool generated code is
-# produced with should track the library that code is compiled against, so the
-# versions come from server/go.mod rather than from whatever is latest today.
+# The version of a module one of this repository's modules is built against. A
+# tool that generates code, or generates against an API, should track the
+# library it is generating for - so the versions come from a go.mod rather than
+# from whatever is latest today.
 #
-# Usage: module_version <module path>
+# Usage: module_version <module path> [module directory, defaults to server]
 module_version() {
-    (cd "$PWD/server" && go list -m -f '{{.Version}}' "$1")
+    (cd "$PWD/${2:-server}" && go list -m -f '{{.Version}}' "$1")
 }
 
 # Install a Go tool into a build directory, unless the version asked for is the

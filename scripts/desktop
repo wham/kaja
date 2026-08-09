@@ -3,22 +3,6 @@ set -e
 
 source "$(dirname "$0")/common"
 
-# Check if Wails is installed
-if ! command -v wails &> /dev/null
-then
-    if [ -t 0 ]; then
-        echo "Wails is not installed."
-        read -p "Would you like to install Wails using Homebrew? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Wails installation skipped. Exiting script."
-            exit 1
-        fi
-    fi
-    echo "Installing Wails using Homebrew..."
-    brew install wails
-fi
-
 # Check if Bun is installed (wails dev invokes it via frontend:install)
 if ! command -v bun &> /dev/null
 then
@@ -40,6 +24,34 @@ cd "$(dirname "$0")/.."
 export GOBIN=$PWD/server/build
 export PATH=$GOBIN:$PATH
 
+# The Wails CLI writes files that are committed - desktop/go.mod and the
+# bindings under ui/src/wailsjs - and writes them the way its own version
+# does. So it is installed at the version desktop/go.mod names, on the same
+# rule the code generators in scripts/server follow: whatever is on the
+# machine already is not what decides what lands in the repository.
+WAILS_VERSION=$(module_version github.com/wailsapp/wails/v2 desktop)
+install_go_tool github.com/wailsapp/wails/v2/cmd/wails "$WAILS_VERSION"
+
+# The bindings are generated from the Go this app binds, so they are generated
+# when that Go changes and not on every start - `wails dev` regenerates them
+# twice per run, which is the longest thing in a start that changed nothing.
+# They are committed, so the generated files themselves are the other half of
+# the check: the stamp can only say what was last generated, not that it is
+# still there.
+BINDINGS_STAMP=server/build/.wails-bindings.stamp
+BINDINGS=$(fingerprint "$WAILS_VERSION" \
+    $(find desktop server -name "*.go" -not -path "*/build/*" | sort))
+
+if ! stamp_matches "$BINDINGS_STAMP" "$BINDINGS" || [ ! -f ui/src/wailsjs/go/models.ts ]; then
+    echo "Generating Wails bindings..."
+    (cd desktop && wails generate module)
+    # `wails generate module` writes the runtime files executable and `wails
+    # dev` writes them back, so the tree is committed as dev leaves it and the
+    # generator is corrected here rather than a mode being a diff in between.
+    chmod 644 ui/src/wailsjs/runtime/*
+    stamp_write "$BINDINGS_STAMP" "$BINDINGS"
+fi
+
 # Frontend prep (bun install + bundle UI + copy static assets) is now driven
 # by Wails via the frontend:install / frontend:build / frontend:dev:watcher
 # hooks declared in desktop/wails.json. `wails dev` invokes them automatically
@@ -57,5 +69,11 @@ export_macos_deployment_target
 #   - frontend:dev:watcher keeps that dir live via esbuild's watch mode
 #   - assetdir + reloaddirs make Wails reload on UI changes and rebuild on
 #     shared Go edits
+#
+# The three flags are all the same instruction: the repository is the script's
+# to write, not the CLI's. -skipbindings because the bindings were generated
+# above if they needed to be; -nosyncgomod and -m because desktop/go.mod names
+# the version the CLI was installed at, so a CLI rewriting it can only be
+# wrong - and a `go mod tidy` on every start says nothing a build wouldn't.
 GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-wails dev -ldflags "-X main.GitRef=$GIT_REF"
+wails dev -skipbindings -nosyncgomod -m -ldflags "-X main.GitRef=$GIT_REF"
