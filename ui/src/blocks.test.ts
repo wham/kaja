@@ -3,14 +3,14 @@ import { Block, blockLabel, blockText, formatCell, isAwaitingUser } from "./bloc
 
 describe("isAwaitingUser", () => {
   it("is true only for a question nobody has answered", () => {
-    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?" })).toBe(true);
-    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answer: "june" })).toBe(false);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str" })).toBe(true);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" })).toBe(false);
   });
 
   // A cancelled ask stopped the script rather than parking it, so the run is
   // over — showing it as waiting would offer an input nothing is listening to.
   it("is false for a question that was cancelled", () => {
-    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", cancelled: true })).toBe(false);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answerType: "str", cancelled: true })).toBe(false);
   });
 
   it("is true for a call nobody has approved, and false once they have", () => {
@@ -36,7 +36,7 @@ describe("blockLabel", () => {
   });
 
   it("names an ask by the question it asked", () => {
-    expect(blockLabel({ kind: "ask", question: "Which ledger?" })).toBe("Which ledger?");
+    expect(blockLabel({ kind: "ask", question: "Which ledger?", answerType: "str" })).toBe("Which ledger?");
   });
 
   // The verb is a question only while it still is one.
@@ -57,7 +57,7 @@ describe("blockText", () => {
   });
 
   it("copies a question with what it was answered", () => {
-    expect(blockText({ kind: "ask", question: "Which ledger?", answer: "june" })).toBe("Which ledger?\njune");
+    expect(blockText({ kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" })).toBe("Which ledger?\njune");
   });
 
   it("copies a held call with the request it was holding", () => {

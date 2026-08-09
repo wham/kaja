@@ -34,8 +34,8 @@ export interface AppTypeDefinition {
   // spec supplied as a URL or as an uploaded file). Each group is checked
   // independently.
   requireOneOf?: string[][];
-  // Experimental built-ins are gated behind the Apps feature preview. gRPC/Twirp
-  // are always available.
+  // Experimental built-ins are gated behind the Apps feature preview. gRPC,
+  // Twirp and OpenAPI are always available.
   preview?: boolean;
   // Types whose form is written by hand rather than rendered from `parameters`.
   // The parameter list is still the contract with the config: it says which
@@ -105,7 +105,6 @@ export const appTypes: AppTypeDefinition[] = [
     ],
   },
   {
-    preview: true,
     type: "openapi",
     label: "OpenAPI",
     description: "Call a REST API from its OpenAPI 3.x document.",

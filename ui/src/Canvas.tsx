@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Search, ShieldQuestionMark } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
 import { ApproveBlock, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
 import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
 import { cn } from "./cn";
@@ -189,7 +190,9 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   const controls = hasControls(block);
   // A search bound for the source is debounced; one that filters what is loaded
   // is not, because it costs nothing and lagging under the keystrokes is worse.
-  const search = useDebounced(view.search, searchesLocally(block) ? 0 : 300);
+  // The text is settled before it is debounced, so the space after a word is not
+  // a second search — and ⏎ says "now", which is what the wait is for.
+  const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
 
   useEffect(() => {
@@ -211,6 +214,9 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
             value={view.search}
             // A new search is a new set, so it is read from the first page.
             onChange={(event) => onView(id, { page: 0, search: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") searchNow();
+            }}
           />
           {block.loading && <Spinner className="size-3 shrink-0" />}
           <span data-testid="canvas-table-summary" className="shrink-0 truncate tabular-nums @max-[420px]:hidden">
@@ -279,9 +285,10 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   );
 };
 
-// A value that settles. Only a search bound for a source needs it — restarting
-// on every keystroke would fetch the same first page five times over.
-function useDebounced<T>(value: T, delay: number): T {
+// A value that settles, and the way to settle it now. Only a search bound for a
+// source needs the wait — restarting on every keystroke would fetch the same
+// first page five times over — and anyone who is done typing shouldn't serve it.
+function useDebounced<T>(value: T, delay: number): [T, () => void] {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     if (delay === 0) {
@@ -291,7 +298,7 @@ function useDebounced<T>(value: T, delay: number): T {
     const timer = setTimeout(() => setSettled(value), delay);
     return () => clearTimeout(timer);
   }, [value, delay]);
-  return delay === 0 ? value : settled;
+  return [delay === 0 ? value : settled, () => setSettled(value)];
 }
 
 interface AskProps {
@@ -305,44 +312,26 @@ interface AskProps {
  * The question the run is stopped on. Amber is Kaja's "needs you" colour, and it
  * is the whole signal here: the block, the Canvas tab's dot and the run pill all
  * carry it, so a parked run is findable from wherever you happen to be.
+ *
+ * What is drawn under the question is what the script asked for. A select is a
+ * list rather than a field, because an answer that can only be one of five
+ * things should not be typeable as a sixth; anything else is a field that
+ * refuses to submit until the answer is the kind of thing that was asked for.
  */
 Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
   const waiting = block.answer === undefined && !block.cancelled;
-
-  useEffect(() => {
-    if (waiting) inputRef.current?.focus();
-  }, [waiting]);
 
   return (
     <div className={cn("flex flex-col gap-2 rounded-r-md border-l-2 py-2.5 pl-3 pr-3", waiting ? "border-amber-500 bg-amber-500/10" : "border-border bg-card")}>
       <div className={cn("whitespace-pre-wrap break-words", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>{block.question}</div>
-      {waiting ? (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500 bg-background px-2.5 py-1.5">
-          <input
-            ref={inputRef}
-            data-testid="canvas-ask-input"
-            className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            placeholder="Answer…"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                onAnswer(id, value);
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                onCancelAsk(id);
-              }
-            }}
-          />
-          <span className="shrink-0 text-muted-foreground">⏎</span>
-        </div>
-      ) : (
+      {!waiting ? (
         <div className={cn("break-words", block.cancelled ? "italic text-muted-foreground" : "text-foreground")}>
           {block.cancelled ? "Cancelled" : block.answer}
         </div>
+      ) : block.answerType === "select" ? (
+        <Canvas.AskChoices choices={block.choices ?? []} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
+      ) : (
+        <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
       )}
     </div>
   );
@@ -391,6 +380,124 @@ Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
           {block.decision === "approved" ? "Approved" : "Not approved — the script stopped here"}
         </div>
       )}
+    </div>
+  );
+};
+
+interface AskFieldProps {
+  answerType: AskAnswerType;
+  onAnswer: (answer: string) => void;
+  onCancel: () => void;
+}
+
+// A typed answer is checked here rather than in the script, which is the whole
+// point of asking for one: the problem is stated under the field, while the
+// person who typed it is still looking at it.
+Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
+  const [value, setValue] = useState("");
+  const [problem, setProblem] = useState<string>();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = () => {
+    const said = answerProblem(answerType, value);
+    if (said) {
+      setProblem(said);
+      return;
+    }
+    onAnswer(normalizeAnswer(answerType, value));
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className={cn("flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5", problem ? "border-destructive" : "border-amber-500")}>
+        <input
+          ref={inputRef}
+          data-testid="canvas-ask-input"
+          className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+          placeholder={answerPlaceholder(answerType)}
+          inputMode={answerType === "int" ? "numeric" : undefined}
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setProblem(undefined);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
+        />
+        <span className="shrink-0 text-muted-foreground">⏎</span>
+      </div>
+      {problem && <div className="text-destructive">{problem}</div>}
+    </div>
+  );
+};
+
+interface AskChoicesProps {
+  choices: string[];
+  onAnswer: (answer: string) => void;
+  onCancel: () => void;
+}
+
+// The options, as a list you walk with the arrow keys. It is a listbox rather
+// than a Select popup because the canvas has the room and a question the run is
+// parked on should not need a click to read.
+Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) {
+  const [active, setActive] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.focus();
+  }, []);
+
+  return (
+    <div
+      ref={listRef}
+      role="listbox"
+      tabIndex={0}
+      data-testid="canvas-ask-choices"
+      className="flex flex-col gap-1 outline-none"
+      onKeyDown={(event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const step = event.key === "ArrowDown" ? 1 : choices.length - 1;
+          setActive((index) => (index + step) % choices.length);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          if (choices[active] !== undefined) onAnswer(choices[active]);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          onCancel();
+        }
+      }}
+    >
+      {choices.map((choice, index) => (
+        <button
+          key={index}
+          type="button"
+          role="option"
+          aria-selected={index === active}
+          data-testid="canvas-ask-choice"
+          className={cn(
+            "flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left",
+            index === active ? "border-amber-500" : "border-border hover:border-amber-500/50",
+          )}
+          onMouseEnter={() => setActive(index)}
+          onClick={() => onAnswer(choice)}
+        >
+          <span className="min-w-0 flex-1 break-words text-foreground">{choice}</span>
+          {index === active && <span className="shrink-0 text-muted-foreground">⏎</span>}
+        </button>
+      ))}
     </div>
   );
 };

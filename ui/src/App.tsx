@@ -5,6 +5,7 @@ import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Braces, Code, FileCode, PenLine, Save as SaveIcon, ScrollText, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,7 +43,8 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
-import { Block, blockLabel } from "./blocks";
+import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
+import { ApproveBlock, AskBlock, Block, blockLabel } from "./blocks";
 import { ApprovalRejectedError, AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
@@ -98,7 +100,6 @@ import {
   MCPScriptResult,
   MCPServerInfo,
   MCPSetCatalog,
-  MCPSetEnabled,
   ReadScriptFile,
   RenameScript,
   ResolvedVariables,
@@ -242,9 +243,9 @@ export function App() {
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
-  // Experimental "MCP server" feature (desktop only): exposes script edit/run and
-  // the service catalog to an agent over a localhost MCP endpoint.
-  const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
+  // The MCP server (desktop only) exposes script edit/run and the service catalog
+  // to an agent over a localhost endpoint. It runs for as long as the process
+  // does, so all the UI has of it is what to show in the footer.
   const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
   // Whether an agent is using the server right now, which the footer's plug
   // shows. It outlives the request that set it (see MCP_ACTIVITY_LINGER_MS).
@@ -263,18 +264,20 @@ export function App() {
   // away with it — the same buffer, now on disk.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string; fromScratchId?: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
-  // Active `kaja.ask(...)` prompt; null when no script is waiting for input.
+  // Active `kaja.ask*` prompt; null when no script is waiting for input. The
+  // question travels as its block, because what is being asked for decides what
+  // the dialog draws — the same reading the canvas makes of the same block.
   const [askPrompt, setAskPrompt] = useState<{
-    message: string;
+    question: AskBlock;
     value: string;
+    problem?: string;
     resolve: (value: string) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
   // Active `kaja.approve(...)` call, for a run with no canvas to draw it on;
   // null when nothing is waiting to be approved.
   const [approvePrompt, setApprovePrompt] = useState<{
-    method: string;
-    request: string;
+    call: ApproveBlock;
     resolve: () => void;
     reject: (reason: unknown) => void;
   } | null>(null);
@@ -482,29 +485,31 @@ export function App() {
   );
 
   /**
-   * A `kaja.ask(...)` is answered, and a `kaja.approve(...)` decided, on the
-   * canvas of the run it came from — so both promises wait here keyed by the
-   * block they were drawn as. One map, because both are the same thing to the
-   * run: it is parked until someone says something. A run with no console has no
-   * canvas to draw on — an agent running code that was never saved — and falls
-   * back to a dialog, which needs no surface of its own.
+   * A `kaja.ask*` is answered, and a `kaja.approve(...)` decided, on the canvas
+   * of the run it came from — so both promises wait here keyed by the block they
+   * were drawn as. One map, because both are the same thing to the run: it is
+   * parked until someone says something. A run with no console has no canvas to
+   * draw on — an agent running code that was never saved — and falls back to a
+   * dialog, which needs no surface of its own.
    */
   const pendingPromptsRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
 
-  const onAsk = useCallback((message: string, blockId: string) => {
+  const onAsk = useCallback((question: AskBlock, blockId: string) => {
     return new Promise<string>((resolve, reject) => {
       if (!currentRunRef.current?.fileId) {
-        setAskPrompt({ message, value: "", resolve, reject });
+        // A select opens on its first option, since the dialog has one field and
+        // it has to hold something.
+        setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", resolve, reject });
         return;
       }
       pendingPromptsRef.current.set(blockId, { resolve, reject });
     });
   }, []);
 
-  const onApprove = useCallback((method: string, request: string, blockId: string) => {
+  const onApprove = useCallback((call: ApproveBlock, blockId: string) => {
     return new Promise<void>((resolve, reject) => {
       if (!currentRunRef.current?.fileId) {
-        setApprovePrompt({ method, request, resolve, reject });
+        setApprovePrompt({ call, resolve, reject });
         return;
       }
       pendingPromptsRef.current.set(blockId, { resolve: () => resolve(), reject });
@@ -528,6 +533,19 @@ export function App() {
       settlePrompt(blockId, (pending) => (decision === "approved" ? pending.resolve("") : pending.reject(new ApprovalRejectedError()))),
     [settlePrompt],
   );
+
+  // The dialog checks the answer the way the canvas does, so the same question
+  // is as hard to answer wrongly here as it is there.
+  const submitAskPrompt = useCallback(() => {
+    if (!askPrompt) return;
+    const problem = answerProblem(askPrompt.question.answerType, askPrompt.value);
+    if (problem) {
+      setAskPrompt({ ...askPrompt, problem });
+      return;
+    }
+    askPrompt.resolve(normalizeAnswer(askPrompt.question.answerType, askPrompt.value));
+    setAskPrompt(null);
+  }, [askPrompt]);
 
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
@@ -606,18 +624,12 @@ export function App() {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
-  // Scripts and the MCP server are desktop-only, so those toggles are only offered
-  // in the Wails environment. gRPC/Twirp apps are always enabled; the Preview Apps
-  // toggle only reveals the experimental built-in app types (openapi/openai/markdown).
-  const featurePreviews: FeaturePreview[] = [
-    ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
-    { key: "previewApps", label: "Preview Apps", enabled: previewApps },
-  ];
+  // gRPC/Twirp/OpenAPI apps are always enabled; the Preview Apps toggle only
+  // reveals the experimental built-in app types (openai/markdown).
+  const featurePreviews: FeaturePreview[] = [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }];
 
   const onToggleFeaturePreview = useCallback((key: string) => {
-    if (key === "mcp") {
-      setPreviewMcp((enabled) => !enabled);
-    } else if (key === "previewApps") {
+    if (key === "previewApps") {
       setPreviewApps((enabled) => !enabled);
     }
   }, []);
@@ -1381,15 +1393,14 @@ export function App() {
     return () => unsub();
   }, []);
 
-  // Start/stop the localhost MCP server in step with its feature preview, and
-  // keep the connection details for the footer.
+  // The MCP server is started by the desktop process itself, so all there is to
+  // do here is read the connection details the footer shows.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    if (!previewMcp) setMcpActive(false);
-    MCPSetEnabled(previewMcp)
+    MCPServerInfo()
       .then((info) => setMcpInfo(info))
       .catch((err) => showFileError(`MCP server: ${err}`));
-  }, [previewMcp, showFileError]);
+  }, [showFileError]);
 
   // The catalog follows the apps, not the compiler. Pushing it from the
   // compilation path meant a change that compiles nothing — deleting an app,
@@ -1398,10 +1409,10 @@ export function App() {
   // the editor's declaration takes them: they are part of what a script is
   // written against.
   useEffect(() => {
-    if (!isWailsEnvironment() || !previewMcp) return;
+    if (!isWailsEnvironment()) return;
     const variableNames = Object.keys(configuration?.variables ?? {});
     MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames))).catch(() => {});
-  }, [apps, previewMcp, configuration?.variables]);
+  }, [apps, configuration?.variables]);
 
   // An agent's calls come in bursts of a few milliseconds each, so the footer's
   // plug stays lit for as long as anything is in flight and a beat longer after
@@ -2387,7 +2398,7 @@ export function App() {
           buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
-          mcpInfo={previewMcp ? mcpInfo : undefined}
+          mcpInfo={mcpInfo}
           mcpActive={mcpActive}
           apps={apps}
           configurationLoaded={configurationLoaded}
@@ -2454,27 +2465,41 @@ export function App() {
             {
               content: "Submit",
               variant: "default",
-              onClick: () => {
-                askPrompt.resolve(askPrompt.value);
-                setAskPrompt(null);
-              },
+              onClick: () => submitAskPrompt(),
             },
           ]}
         >
           <FormControl>
-            <FormControl.Label>{askPrompt.message}</FormControl.Label>
-            <Input
-              autoFocus
-              value={askPrompt.value}
-              onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  askPrompt.resolve(askPrompt.value);
-                  setAskPrompt(null);
-                }
-              }}
-            />
+            <FormControl.Label>{askPrompt.question.question}</FormControl.Label>
+            {askPrompt.question.answerType === "select" ? (
+              <Select value={askPrompt.value} onValueChange={(value) => setAskPrompt((prev) => (prev ? { ...prev, value: value ?? "" } : prev))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(askPrompt.question.choices ?? []).map((choice, index) => (
+                    <SelectItem key={index} value={choice}>
+                      {choice}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                autoFocus
+                inputMode={askPrompt.question.answerType === "int" ? "numeric" : undefined}
+                placeholder={answerPlaceholder(askPrompt.question.answerType)}
+                value={askPrompt.value}
+                onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value, problem: undefined } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitAskPrompt();
+                  }
+                }}
+              />
+            )}
+            {askPrompt.problem && <FormControl.Validation variant="error">{askPrompt.problem}</FormControl.Validation>}
           </FormControl>
         </Dialog>
       )}
@@ -2490,9 +2515,9 @@ export function App() {
           }}
         >
           <div className="flex flex-col gap-2 font-mono text-xs">
-            <div className="text-foreground">{approvePrompt.method}</div>
+            <div className="text-foreground">{approvePrompt.call.method}</div>
             <pre className="max-h-64 overflow-auto rounded-md border border-border bg-background px-2.5 py-2 leading-relaxed text-foreground">
-              {approvePrompt.request}
+              {approvePrompt.call.request}
             </pre>
           </div>
         </ConfirmationDialog>

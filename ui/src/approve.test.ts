@@ -3,12 +3,12 @@ import { ApproveBlock, Block } from "./blocks";
 import { ApprovalRejectedError, Call, Kaja } from "./kaja";
 
 // A Kaja whose canvas is a map, and whose approvals are decided by the test.
-function held(decide: (method: string, request: string) => Promise<void>) {
+function held(decide: (call: ApproveBlock) => Promise<void>) {
   const blocks = new Map<string, Block>();
   const kaja = new Kaja(
     () => {},
     () => Promise.reject(new Error("not asked")),
-    (method, request) => decide(method, request),
+    (call) => decide(call),
     (blockId, block) => void blocks.set(blockId, block),
   );
   const only = (): ApproveBlock => {
@@ -79,10 +79,10 @@ describe("kaja.approve", () => {
 
   it("draws the call before it asks, so the canvas parks on it", async () => {
     let drawn: ApproveBlock | undefined;
-    const { kaja, only } = held(async (method, request) => {
+    const { kaja, only } = held(async (call) => {
       drawn = only();
-      expect(method).toBe("Shows.CreateShow");
-      expect(request).toContain("Vera Lune");
+      expect(call.method).toBe("Shows.CreateShow");
+      expect(call.request).toContain("Vera Lune");
     });
 
     await kaja.approve(stub().call);

@@ -100,6 +100,39 @@ describe("pullNeeded", () => {
     expect(pullNeeded({ ...block, loadedSearch: "vera" }, { page: 0, search: "vera" }).needed).toBe(false);
   });
 
+  // A search restarts the source, so the state its last answer left behind is
+  // not a reason to sit still: a narrow search that ran the source out used to
+  // leave the box dead for every search after it.
+  it("asks for a new search however the last one ended", () => {
+    const answered = table(3, { live: true, serverSearch: true, loadedSearch: "vera" });
+
+    expect(pullNeeded({ ...answered, exhausted: true }, { page: 0, search: "lune" }).needed).toBe(true);
+    expect(pullNeeded({ ...answered, loading: true }, { page: 0, search: "lune" }).needed).toBe(true);
+    expect(pullNeeded({ ...answered, error: "unreachable" }, { page: 0, search: "lune" }).needed).toBe(true);
+    // Clearing the box is a new search like any other.
+    expect(pullNeeded({ ...answered, exhausted: true }, { page: 0, search: "" }).needed).toBe(true);
+  });
+
+  it("stops asking once the source has answered a search and run out", () => {
+    const block = table(3, { live: true, serverSearch: true, loadedSearch: "vera", exhausted: true });
+
+    expect(pullNeeded(block, { page: 0, search: "vera" }).needed).toBe(false);
+    expect(pullNeeded(block, { page: 1, search: "vera" }).needed).toBe(false);
+  });
+
+  // The pager is over rows, so a search the source answered still pages forward.
+  it("still asks for a page past what a server search has loaded", () => {
+    const block = table(10, { live: true, serverSearch: true, loadedSearch: "vera" });
+
+    expect(pullNeeded(block, { page: 1, search: "vera" })).toEqual({ needed: true, want: 20 });
+  });
+
+  it("never asks on behalf of a source that is gone", () => {
+    const block = table(3, { live: true, expired: true, serverSearch: true, loadedSearch: "vera" });
+
+    expect(pullNeeded(block, { page: 0, search: "lune" }).needed).toBe(false);
+  });
+
   // Searching what is loaded must not pull an API dry to find three rows.
   it("never asks on behalf of a local filter", () => {
     expect(pullNeeded(table(10, { live: true }), { page: 1, search: "show" }).needed).toBe(false);

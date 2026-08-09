@@ -19,11 +19,12 @@ import (
 	"github.com/wham/kaja/desktop/mcp"
 )
 
-// MCP wiring. The experimental MCP server lets an agent read, write, and run the
-// user's saved scripts and discover the services those scripts can call. It runs
-// inside this desktop process, bound to localhost and guarded by a per-session
-// token. Editing is plain file I/O; running a script has to round-trip into the
-// webview, which is the only place the script runtime and service clients live.
+// MCP wiring. The MCP server lets an agent read, write, and run the user's saved
+// scripts and discover the services those scripts can call. It runs inside this
+// desktop process for as long as the process does, bound to localhost and guarded
+// by a persisted token. Editing is plain file I/O; running a script has to
+// round-trip into the webview, which is the only place the script runtime and
+// service clients live.
 
 // mcpPort is the fixed loopback port the MCP server binds to. It is fixed rather
 // than OS-assigned so the connection command shown to the user stays valid across
@@ -39,17 +40,6 @@ type MCPInfo struct {
 	URL     string `json:"url"`
 	Token   string `json:"token"`
 	Error   string `json:"error"`
-}
-
-// MCPSetEnabled starts or stops the MCP server. The UI calls this when the
-// feature preview is toggled and on load to reflect the persisted state.
-func (a *App) MCPSetEnabled(enabled bool) MCPInfo {
-	if enabled {
-		a.startMCPServer()
-	} else {
-		a.stopMCPServer()
-	}
-	return a.MCPServerInfo()
 }
 
 // MCPServerInfo returns the current connection details for the UI footer.
@@ -104,8 +94,8 @@ func (a *App) startMCPServer() {
 	if err != nil {
 		// The fixed port is taken. Don't fall back to a random port — that would
 		// silently break the static connection command the user has configured.
-		// Surface it so they can free the port and toggle the preview again.
-		a.mcpError = fmt.Sprintf("Port %d is in use. Free it, then toggle the MCP preview off and on.", mcpPort)
+		// Surface it so they can free the port and start Kaja again.
+		a.mcpError = fmt.Sprintf("Port %d is in use. Free it, then restart Kaja.", mcpPort)
 		slog.Error("Failed to start MCP server", "addr", addr, "error", err)
 		return
 	}

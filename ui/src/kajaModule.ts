@@ -94,6 +94,12 @@ export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
  */
 export type RowSource = Rows | ((search: string) => Rows);
 
+/** An option kaja.askSelect offers when the label isn't the value. */
+export interface Choice<V> {
+  label: string;
+  value: V;
+}
+
 /** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
@@ -109,13 +115,35 @@ export declare const kaja: {
    */
   variables: ${kajaVariablesType(variableNames)};
   /**
-   * Pause the script and ask the user for input. The question is drawn on the
-   * run's canvas and the run stops there until it is answered. Resolves with
-   * the submitted text; if the user cancels, the script stops.
+   * Ask the user for text, and park the run on the answer. The question is
+   * drawn on the run's canvas and the run stops there until it is answered; if
+   * the user cancels, the script stops.
    *
-   *   const name = await kaja.ask("What's your name?");
+   *   const name = await kaja.askStr("Which customer?");
    */
-  ask(message: string): Promise<string>;
+  askStr(question: string): Promise<string>;
+  /**
+   * Ask the user for a whole number. The field will not submit anything else,
+   * so this always resolves with a number — never ask for text and parse it
+   * yourself.
+   *
+   *   const limit = await kaja.askInt("How many rows?");
+   */
+  askInt(question: string): Promise<number>;
+  /**
+   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
+   * give { label, value } pairs and the value comes back, so picking from a list
+   * of records hands you the record.
+   *
+   *   const region = await kaja.askSelect("Which region?", ["eu", "us"]);
+   *
+   *   const show = await kaja.askSelect(
+   *     "Which show?",
+   *     shows.map((show) => ({ label: show.title, value: show })),
+   *   );
+   */
+  askSelect(question: string, options: readonly string[]): Promise<string>;
+  askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
   /**
    * Hold a call until it is approved. The call and the request it is about to
    * send are drawn on the run's canvas and the run stops there; approving sends
@@ -167,15 +195,12 @@ export declare const kaja: {
    *   });
    */
   table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
-  /** UUID helpers. */
-  uuid: {
-    /**
-     * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
-     *
-     *   const id = kaja.uuid.v4();
-     */
-    v4(): string;
-  };
+  /**
+   * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
+   *
+   *   const id = kaja.uuidV4();
+   */
+  uuidV4(): string;
   /**
    * Build a google.protobuf.Value from a plain JSON value, instead of writing
    * its oneof out by hand. Objects and arrays are converted all the way down.

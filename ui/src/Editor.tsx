@@ -119,7 +119,7 @@ monaco.languages.registerCompletionItemProvider("typescript", {
           label: { label: "kaja", description: 'import from "kaja"' },
           kind: monaco.languages.CompletionItemKind.Variable,
           detail: 'Add import from "kaja"',
-          documentation: "The Kaja runtime object (kaja.table, kaja.text, kaja.ask, kaja.variables, kaja.value).",
+          documentation: "The Kaja runtime object (kaja.table, kaja.text, kaja.askStr, kaja.variables, kaja.value).",
           insertText: "kaja",
           range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
           command: { id: KAJA_IMPORT_COMMAND, title: 'Add import from "kaja"', arguments: [model.uri.toString()] },

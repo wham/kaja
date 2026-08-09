@@ -97,6 +97,13 @@ describe("kaja.table", () => {
     expect(searches).toEqual(["", "vera"]);
     expect(only().rows).toEqual([["vera-1"], ["vera-2"]]);
     expect(only().loadedSearch).toBe("vera");
+
+    // A search that runs the source out is still only one search: the next one
+    // opens it again rather than reading the last answer as the end of it.
+    expect(only().exhausted).toBe(true);
+    await kaja.pullTable(id(), "lune", 50);
+    expect(searches).toEqual(["", "vera", "lune"]);
+    expect(only().rows).toEqual([["lune-1"], ["lune-2"]]);
   });
 
   // A source that ignores the text is never restarted for it: it would fetch the

@@ -1,10 +1,11 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
+import { parseInteger } from "./ask";
 import { ApproveBlock, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
 import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
-// Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
+// Thrown when the user cancels a `kaja.ask*` prompt. The task runner
 // swallows it so a cancelled prompt quietly stops the script.
 export class AskCancelledError extends Error {
   constructor() {
@@ -81,18 +82,25 @@ export class Call<T> implements PromiseLike<T> {
 }
 
 // The question is asked by the block; this is what waits for it to be answered.
-// The id is what the answer comes back against, so an ask on a canvas nobody is
-// looking at is still the one that resolves.
+// The whole block goes, not just its text, because what is being asked for
+// decides what is drawn. The id is what the answer comes back against, so an ask
+// on a canvas nobody is looking at is still the one that resolves.
 export interface AskRequest {
-  (message: string, blockId: string): Promise<string>;
+  (question: AskBlock, blockId: string): Promise<string>;
+}
+
+/** An option askSelect offers when the label isn't the value. */
+export interface Choice<V> {
+  label: string;
+  value: V;
 }
 
 // The same, for a call held back until it is approved: it resolves when the call
-// may go out, and rejects when the script is to stop instead. The call and its
-// request travel with it for the same reason the question does — a run with no
-// canvas asks in a dialog, which has nothing but what it is handed.
+// may go out, and rejects when the script is to stop instead. The block travels
+// with it for the same reason a question's does — a run with no canvas asks in a
+// dialog, which has nothing but what it is handed.
 export interface ApproveRequest {
-  (method: string, request: string, blockId: string): Promise<void>;
+  (call: ApproveBlock, blockId: string): Promise<void>;
 }
 
 // A block arriving, or the same block again with more in it.
@@ -246,21 +254,6 @@ export class Kaja {
   // holds - scripts are the desktop only, where there is no remote browser
   // being handed a value it shouldn't have.
   variables: { [key: string]: string } = {};
-  // UUID helpers for scripts, e.g. `kaja.uuid.v4()`.
-  readonly uuid = {
-    v4(): string {
-      if (typeof crypto.randomUUID === "function") {
-        return crypto.randomUUID();
-      }
-      // crypto.randomUUID is only available in secure contexts; fall back to
-      // building a v4 UUID from random bytes.
-      const bytes = crypto.getRandomValues(new Uint8Array(16));
-      bytes[6] = (bytes[6] & 0x0f) | 0x40;
-      bytes[8] = (bytes[8] & 0x3f) | 0x80;
-      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-    },
-  };
   #onAsk: AskRequest;
   #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
@@ -273,19 +266,50 @@ export class Kaja {
   }
 
   /**
-   * Pause the script and ask the user for input. The question is drawn on the
-   * run's canvas where it happened, and the canvas stops there until it is
-   * answered — the empty space under it is the pause. Resolves with the
-   * submitted text; rejects (aborting the script) if the user cancels.
+   * Ask the user for text. The question is drawn on the run's canvas where it
+   * happened, and the canvas stops there until it is answered — the empty space
+   * under it is the pause. A cancel aborts the script.
    */
-  async ask(message: string): Promise<string> {
+  askStr(question: string): Promise<string> {
+    return this.#ask({ kind: "ask", question, answerType: "str" }, (answer) => answer);
+  }
+
+  /**
+   * Ask the user for a whole number. The field will not submit anything else,
+   * so this always resolves with a number — the answer has been checked against
+   * parseInteger on the way in, and this is a re-read rather than a second parse
+   * with its own opinion.
+   */
+  askInt(question: string): Promise<number> {
+    return this.#ask({ kind: "ask", question, answerType: "int" }, (answer) => parseInteger(answer) ?? Number.NaN);
+  }
+
+  /**
+   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
+   * { label, value } pairs resolve as the value.
+   */
+  askSelect(question: string, options: readonly string[]): Promise<string>;
+  askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
+  askSelect(question: string, options: readonly (string | Choice<any>)[]): Promise<any> {
+    if (options.length === 0) throw new Error("kaja.askSelect: options must not be empty");
+    const choices = options.map((option) => (typeof option === "string" ? option : formatCell(option.label)));
+    return this.#ask({ kind: "ask", question, answerType: "select", choices }, (answer) => {
+      // The answer comes back as the label, because that is what was on the
+      // canvas and what a stored run reads back without its script. Two options
+      // under one label are one option to whoever picked it, so the first is the
+      // honest reading rather than an error nobody can act on.
+      const picked = options[choices.indexOf(answer)] ?? options[0];
+      return typeof picked === "string" ? picked : picked.value;
+    });
+  }
+
+  async #ask<T>(question: AskBlock, take: (answer: string) => T): Promise<T> {
     const blockId = newBlockId();
-    const question: AskBlock = { kind: "ask", question: message };
     this.#onBlockUpdate(blockId, question);
     try {
-      const answer = await this.#onAsk(message, blockId);
+      const answer = await this.#onAsk(question, blockId);
       this.#onBlockUpdate(blockId, { ...question, answer });
-      return answer;
+      return take(answer);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...question, cancelled: true });
       throw error;
@@ -314,7 +338,7 @@ export class Kaja {
     const block: ApproveBlock = { kind: "approve", method: call.label, request: formatRequest(call.input) };
     this.#onBlockUpdate(blockId, block);
     try {
-      await this.#onApprove(block.method, block.request, blockId);
+      await this.#onApprove(block, blockId);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...block, decision: "rejected" });
       throw error;
@@ -514,6 +538,20 @@ export class Kaja {
 
   listValue(input: JsonValue[]): ListValue {
     return toListValue(input);
+  }
+
+  /** A random version 4 UUID. */
+  uuidV4(): string {
+    if (typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    // crypto.randomUUID is only available in secure contexts; fall back to
+    // building a v4 UUID from random bytes.
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 }
 

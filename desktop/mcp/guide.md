@@ -134,16 +134,16 @@ who opens the script gets the rest without running anything.
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
-  immediately. `kaja.ask()` is how a script asks, and `kaja.approve()` how it
-  holds a call back until someone says yes; both park the run on a human — only
-  reach for them when a person is at the app.
+  immediately. `kaja.askStr/askInt/askSelect` are how a script asks, and
+  `kaja.approve()` how it holds a call back until someone says yes; all park the
+  run on a human — only reach for one when a person is at the app.
 - **A method hands back a `Call`, not a promise.** It is sent when you await it,
   so `await Shows.ListShows({})` is exactly what it always was. The gap is what
   lets `kaja.approve` hold a call back before it goes out.
 - **Top-level `await` works**: the body runs inside an `async` function.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services`.
-- `crypto.randomUUID()` is available, as is `kaja.uuid.v4()`.
+- `crypto.randomUUID()` is available, as is `kaja.uuidV4()`.
 - The `kaja` object is imported with `import { kaja } from "kaja";`.
 
 ## The `kaja` object
@@ -157,14 +157,17 @@ What each member is for:
 - `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
   appends to it. `rows` can be an array, or a source (an async generator) the
   table pulls a page at a time as it is paged through.
-- `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
+- `kaja.askStr(question)`, `kaja.askInt(question)`,
+  `kaja.askSelect(question, options)` — ask the user for text, a whole number,
+  or one of a list; each blocks on a human and hands back the kind of thing it
+  asked for, so never ask for text and parse it yourself.
 - `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
   `await kaja.approve(Shows.CreateShow({ … }))`. The call goes inside the
   parentheses, and not approving stops the script. Blocks on a human.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.
-- `kaja.uuid.v4(): string` — a random version 4 UUID.
+- `kaja.uuidV4(): string` — a random version 4 UUID.
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
   typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire
   shape is a `kind` oneof you must never write by hand and never re-implement as
