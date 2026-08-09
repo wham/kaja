@@ -204,7 +204,7 @@ describe("hasCallsInFlight", () => {
 });
 
 describe("recordBlock", () => {
-  const asked = { kind: "ask", question: "Which ledger?" } as const;
+  const asked = { kind: "ask", question: "Which ledger?", answerType: "str" } as const;
 
   it("keeps a block where it was emitted as it fills in", () => {
     let history: RunHistory = startRun({}, run("r1", "f1"), NOW);

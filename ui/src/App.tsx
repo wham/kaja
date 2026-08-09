@@ -5,6 +5,7 @@ import { Dialog } from "./components/dialog";
 import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Braces, Code, FileCode, PenLine, Save as SaveIcon, ScrollText, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,7 +43,8 @@ import { Compiler } from "./Compiler";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
-import { Block, blockLabel } from "./blocks";
+import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
+import { AskBlock, Block, blockLabel } from "./blocks";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
@@ -263,10 +265,13 @@ export function App() {
   // away with it — the same buffer, now on disk.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string; fromScratchId?: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
-  // Active `kaja.ask(...)` prompt; null when no script is waiting for input.
+  // Active `kaja.ask.*` prompt; null when no script is waiting for input. The
+  // question travels as its block, because what is being asked for decides what
+  // the dialog draws — the same reading the canvas makes of the same block.
   const [askPrompt, setAskPrompt] = useState<{
-    message: string;
+    question: AskBlock;
     value: string;
+    problem?: string;
     resolve: (value: string) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
@@ -474,17 +479,19 @@ export function App() {
   );
 
   /**
-   * A `kaja.ask(...)` is answered on the canvas of the run that asked it, so the
+   * A `kaja.ask.*` is answered on the canvas of the run that asked it, so the
    * promise waits here keyed by the block the question was drawn as. A run with
    * no console has no canvas to draw on — an agent running code that was never
    * saved — and falls back to the dialog, which needs no surface of its own.
    */
   const pendingAsksRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
 
-  const onAsk = useCallback((message: string, blockId: string) => {
+  const onAsk = useCallback((question: AskBlock, blockId: string) => {
     return new Promise<string>((resolve, reject) => {
       if (!currentRunRef.current?.fileId) {
-        setAskPrompt({ message, value: "", resolve, reject });
+        // A select opens on its first option, since the dialog has one field and
+        // it has to hold something.
+        setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", resolve, reject });
         return;
       }
       pendingAsksRef.current.set(blockId, { resolve, reject });
@@ -500,6 +507,19 @@ export function App() {
 
   const onAnswerAsk = useCallback((blockId: string, answer: string) => settleAsk(blockId, (pending) => pending.resolve(answer)), [settleAsk]);
   const onCancelAsk = useCallback((blockId: string) => settleAsk(blockId, (pending) => pending.reject(new AskCancelledError())), [settleAsk]);
+
+  // The dialog checks the answer the way the canvas does, so the same question
+  // is as hard to answer wrongly here as it is there.
+  const submitAskPrompt = useCallback(() => {
+    if (!askPrompt) return;
+    const problem = answerProblem(askPrompt.question.answerType, askPrompt.value);
+    if (problem) {
+      setAskPrompt({ ...askPrompt, problem });
+      return;
+    }
+    askPrompt.resolve(normalizeAnswer(askPrompt.question.answerType, askPrompt.value));
+    setAskPrompt(null);
+  }, [askPrompt]);
 
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
@@ -2424,27 +2444,41 @@ export function App() {
             {
               content: "Submit",
               variant: "default",
-              onClick: () => {
-                askPrompt.resolve(askPrompt.value);
-                setAskPrompt(null);
-              },
+              onClick: () => submitAskPrompt(),
             },
           ]}
         >
           <FormControl>
-            <FormControl.Label>{askPrompt.message}</FormControl.Label>
-            <Input
-              autoFocus
-              value={askPrompt.value}
-              onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  askPrompt.resolve(askPrompt.value);
-                  setAskPrompt(null);
-                }
-              }}
-            />
+            <FormControl.Label>{askPrompt.question.question}</FormControl.Label>
+            {askPrompt.question.answerType === "select" ? (
+              <Select value={askPrompt.value} onValueChange={(value) => setAskPrompt((prev) => (prev ? { ...prev, value: value ?? "" } : prev))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(askPrompt.question.choices ?? []).map((choice, index) => (
+                    <SelectItem key={index} value={choice}>
+                      {choice}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                autoFocus
+                inputMode={askPrompt.question.answerType === "int" ? "numeric" : undefined}
+                placeholder={answerPlaceholder(askPrompt.question.answerType)}
+                value={askPrompt.value}
+                onChange={(e) => setAskPrompt((prev) => (prev ? { ...prev, value: e.target.value, problem: undefined } : prev))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitAskPrompt();
+                  }
+                }}
+              />
+            )}
+            {askPrompt.problem && <FormControl.Validation variant="error">{askPrompt.problem}</FormControl.Validation>}
           </FormControl>
         </Dialog>
       )}

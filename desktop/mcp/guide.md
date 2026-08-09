@@ -134,8 +134,8 @@ who opens the script gets the rest without running anything.
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
-  immediately. `kaja.ask()` is how a script asks, and it parks the run on a
-  human — only reach for it when a person is at the app.
+  immediately. `kaja.ask.str/int/select` are how a script asks, and they park the
+  run on a human — only reach for one when a person is at the app.
 - **Top-level `await` works**: the body runs inside an `async` function.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services`.
@@ -153,7 +153,10 @@ What each member is for:
 - `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
   appends to it. `rows` can be an array, or a source (an async generator) the
   table pulls a page at a time as it is paged through.
-- `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
+- `kaja.ask.str(question)`, `kaja.ask.int(question)`,
+  `kaja.ask.select(question, options)` — ask the user for text, a whole number,
+  or one of a list; each blocks on a human and hands back the kind of thing it
+  asked for, so never ask for text and parse it yourself.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.

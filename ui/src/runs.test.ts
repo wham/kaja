@@ -155,8 +155,8 @@ describe("the two views", () => {
 });
 
 describe("a run parked on a question", () => {
-  const asked: Block = { kind: "ask", question: "Which ledger?" };
-  const answered: Block = { kind: "ask", question: "Which ledger?", answer: "june" };
+  const asked: Block = { kind: "ask", question: "Which ledger?", answerType: "str" };
+  const answered: Block = { kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" };
 
   it("is still in flight, though nothing is in the air", () => {
     const [group] = groupRuns([run("r1")], [call("a", "r1"), block("b", "r1", asked)]);

@@ -346,7 +346,7 @@ selection, the tab and the view as they were left.
 ## The canvas is what a run drew
 
 **A script says what it made, never how it looks.** The block set is closed and
-tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask` — and
+tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask.*` — and
 that is the guard, not a starting point: the moment a script can paint pixels the
 console is a rendering engine and every block becomes a support surface. There is
 no `kaja.html`, no styling arguments, no layout control.
@@ -440,10 +440,27 @@ no `kaja.html`, no styling arguments, no layout control.
   the above and it is the double-statement problem again — an index of the same
   calls sitting over the content. The fold has to *be* how a call renders in the
   flow, not a summary added over it.
-- **A block that asks is a block that pauses the run.** `kaja.ask` is drawn where
-  it happened and the canvas stops there — the empty space under it *is* the
-  pause. Answering appends the next block. A dialogue is not a fifth block type;
-  it is what a sequence of asks reads as.
+- **A block that asks is a block that pauses the run.** `kaja.ask.*` is drawn
+  where it happened and the canvas stops there — the empty space under it *is*
+  the pause. Answering appends the next block. A dialogue is not a fifth block
+  type; it is what a sequence of asks reads as.
+- **An ask asks for a kind of thing, and hands that kind back.** There is one
+  verb per kind — `kaja.ask.str`, `kaja.ask.int`, `kaja.ask.select(question,
+  options)` — and no general `ask` under them, because a script that asks for
+  text and parses it has moved the parse a line too late to say anything useful
+  about a typo. `str` rather than `string` or `text`: `kaja.text` already means
+  *draw a line*, and `str`/`int` are the same length as each other, which is
+  what makes the pair readable. The kind is on the **block** (`answerType`, plus
+  a select's `choices`), not on the script, because the canvas is what draws the
+  control and checks the answer, and a run read back has to redraw the question
+  it asked. `ask.ts` holds that check, so the canvas, the fallback dialog and
+  the value handed to the script are three readings of one rule. An int field
+  will not submit anything that isn't a whole number — that is the whole point,
+  and `3.5` is refused rather than truncated. A select is a list rather than a
+  field, so there is nothing to validate; its answer travels as the **label**,
+  which is what the canvas showed and what a stored run reads back without its
+  script, and `kaja.ask.select` maps it to the value beside it. Empty text
+  answers a `str`: the script asked for a string and `""` is one.
 - **Splitting the views reintroduces exactly one problem: a run can be waiting on
   the tab you are not looking at.** So a parked run says so three times before
   you can leave it — an amber dot on the Canvas tab, an amber bar at the tail of

@@ -1,10 +1,11 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
+import { parseInteger } from "./ask";
 import { AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
 import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
-// Thrown when the user cancels a `kaja.ask(...)` prompt. The task runner
+// Thrown when the user cancels a `kaja.ask.*` prompt. The task runner
 // swallows it so a cancelled prompt quietly stops the script.
 export class AskCancelledError extends Error {
   constructor() {
@@ -14,10 +15,29 @@ export class AskCancelledError extends Error {
 }
 
 // The question is asked by the block; this is what waits for it to be answered.
-// The id is what the answer comes back against, so an ask on a canvas nobody is
-// looking at is still the one that resolves.
+// The whole block goes, not just its text, because what is being asked for
+// decides what is drawn. The id is what the answer comes back against, so an ask
+// on a canvas nobody is looking at is still the one that resolves.
 export interface AskRequest {
-  (message: string, blockId: string): Promise<string>;
+  (question: AskBlock, blockId: string): Promise<string>;
+}
+
+/** An option a select offers when the label isn't the value. */
+export interface Choice<V> {
+  label: string;
+  value: V;
+}
+
+/**
+ * Ask the user something and park the run on the answer. One verb per kind of
+ * thing, because the alternative is every script parsing what it just asked for
+ * — and parsing it a line too late to say anything useful about a typo.
+ */
+export interface Ask {
+  str(question: string): Promise<string>;
+  int(question: string): Promise<number>;
+  select(question: string, options: readonly string[]): Promise<string>;
+  select<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
 }
 
 // A block arriving, or the same block again with more in it.
@@ -185,19 +205,41 @@ export class Kaja {
   }
 
   /**
-   * Pause the script and ask the user for input. The question is drawn on the
-   * run's canvas where it happened, and the canvas stops there until it is
-   * answered — the empty space under it is the pause. Resolves with the
-   * submitted text; rejects (aborting the script) if the user cancels.
+   * Pause the script and ask the user for something. The question is drawn on
+   * the run's canvas where it happened, and the canvas stops there until it is
+   * answered — the empty space under it is the pause. Each verb hands back the
+   * kind of thing it asked for, so a bad answer is rejected in front of the
+   * person who typed it; a cancel aborts the script.
    */
-  async ask(message: string): Promise<string> {
+  readonly ask: Ask = {
+    str: (question: string): Promise<string> => this.#ask({ kind: "ask", question, answerType: "str" }, (answer) => answer),
+
+    // The answer has already been checked against parseInteger on the way in —
+    // the canvas will not submit anything else — so this is a re-read, not a
+    // second parse with its own opinion.
+    int: (question: string): Promise<number> => this.#ask({ kind: "ask", question, answerType: "int" }, (answer) => parseInteger(answer) ?? Number.NaN),
+
+    select: (question: string, options: readonly (string | Choice<any>)[]): Promise<any> => {
+      if (options.length === 0) throw new Error("kaja.ask.select: options must not be empty");
+      const choices = options.map((option) => (typeof option === "string" ? option : formatCell(option.label)));
+      return this.#ask({ kind: "ask", question, answerType: "select", choices }, (answer) => {
+        // The answer comes back as the label, because that is what was on the
+        // canvas and what a stored run reads back without its script. Two
+        // options under one label are one option to whoever picked it, so the
+        // first is the honest reading rather than an error nobody can act on.
+        const picked = options[choices.indexOf(answer)] ?? options[0];
+        return typeof picked === "string" ? picked : picked.value;
+      });
+    },
+  };
+
+  async #ask<T>(question: AskBlock, take: (answer: string) => T): Promise<T> {
     const blockId = newBlockId();
-    const question: AskBlock = { kind: "ask", question: message };
     this.#onBlockUpdate(blockId, question);
     try {
-      const answer = await this.#onAsk(message, blockId);
+      const answer = await this.#onAsk(question, blockId);
       this.#onBlockUpdate(blockId, { ...question, answer });
-      return answer;
+      return take(answer);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...question, cancelled: true });
       throw error;

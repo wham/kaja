@@ -171,7 +171,7 @@ interface SidebarProps {
   runningFileIds?: Set<string>;
   // Of those, the ones an agent started rather than you.
   agentFileIds?: Set<string>;
-  // Files whose run has stopped on a `kaja.ask(...)` and needs an answer.
+  // Files whose run has stopped on a `kaja.ask.*` and needs an answer.
   waitingFileIds?: Set<string>;
   // A read-only configuration doesn't disable the verbs that change apps, it
   // doesn't offer them: New and Delete both go, so there is no way to reach a
