@@ -44,8 +44,8 @@ import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
-import { ApproveBlock, AskBlock, Block, blockLabel } from "./blocks";
-import { ApprovalRejectedError, AskCancelledError, Kaja, MethodCall } from "./kaja";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel } from "./blocks";
+import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
@@ -278,7 +278,7 @@ export function App() {
   // null when nothing is waiting to be approved.
   const [approvePrompt, setApprovePrompt] = useState<{
     call: ApproveBlock;
-    resolve: () => void;
+    resolve: (decision: ApproveDecision) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
   // Whether the New app dialog is open.
@@ -507,12 +507,14 @@ export function App() {
   }, []);
 
   const onApprove = useCallback((call: ApproveBlock, blockId: string) => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<ApproveDecision>((resolve, reject) => {
       if (!currentRunRef.current?.fileId) {
         setApprovePrompt({ call, resolve, reject });
         return;
       }
-      pendingPromptsRef.current.set(blockId, { resolve: () => resolve(), reject });
+      // The gesture rides back on the same map an answer does — there is one
+      // thing to say, and which of the two approvals it was is the whole of it.
+      pendingPromptsRef.current.set(blockId, { resolve: (gesture) => resolve(gesture === "all" ? "all" : "approved"), reject });
     });
   }, []);
 
@@ -526,11 +528,12 @@ export function App() {
   const onAnswerAsk = useCallback((blockId: string, answer: string) => settlePrompt(blockId, (pending) => pending.resolve(answer)), [settlePrompt]);
   const onCancelAsk = useCallback((blockId: string) => settlePrompt(blockId, (pending) => pending.reject(new AskCancelledError())), [settlePrompt]);
 
-  // Approve sends the call; Stop rejects it, which stops the script where it
-  // stands. The block records which of the two happened either way.
+  // Approve sends the call, Approve all sends it and every later one to the same
+  // method, and Stop rejects it, which stops the script where it stands. The
+  // block records which of the three happened either way.
   const onDecideApproval = useCallback(
-    (blockId: string, decision: "approved" | "rejected") =>
-      settlePrompt(blockId, (pending) => (decision === "approved" ? pending.resolve("") : pending.reject(new ApprovalRejectedError()))),
+    (blockId: string, gesture: ApproveGesture) =>
+      settlePrompt(blockId, (pending) => (gesture === "rejected" ? pending.reject(new ApprovalRejectedError()) : pending.resolve(gesture))),
     [settlePrompt],
   );
 
@@ -2504,15 +2507,40 @@ export function App() {
         </Dialog>
       )}
       {approvePrompt && (
-        <ConfirmationDialog
+        // The same three decisions the canvas offers, for a run that has no
+        // canvas to draw them on. Dismissing the dialog is not approving, which
+        // is the safe reading of a gesture that said nothing.
+        <Dialog
           title="Approve call"
-          confirmButtonContent="Approve"
-          cancelButtonContent="Stop"
-          onClose={(gesture) => {
-            if (gesture === "confirm") approvePrompt.resolve();
-            else approvePrompt.reject(new ApprovalRejectedError());
+          onClose={() => {
+            approvePrompt.reject(new ApprovalRejectedError());
             setApprovePrompt(null);
           }}
+          footerButtons={[
+            {
+              content: "Stop",
+              onClick: () => {
+                approvePrompt.reject(new ApprovalRejectedError());
+                setApprovePrompt(null);
+              },
+            },
+            {
+              content: `Approve all ${approvePrompt.call.method}`,
+              variant: "secondary",
+              onClick: () => {
+                approvePrompt.resolve("all");
+                setApprovePrompt(null);
+              },
+            },
+            {
+              content: "Approve",
+              variant: "default",
+              onClick: () => {
+                approvePrompt.resolve("approved");
+                setApprovePrompt(null);
+              },
+            },
+          ]}
         >
           <div className="flex flex-col gap-2 font-mono text-xs">
             <div className="text-foreground">{approvePrompt.call.method}</div>
@@ -2520,7 +2548,7 @@ export function App() {
               {approvePrompt.call.request}
             </pre>
           </div>
-        </ConfirmationDialog>
+        </Dialog>
       )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
       {renameScript && (

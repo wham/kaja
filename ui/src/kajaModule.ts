@@ -154,6 +154,12 @@ export declare const kaja: {
    * Write the call inside the parentheses. That is what makes it a call that
    * hasn't happened yet: a call kept in a variable and awaited elsewhere has
    * already gone out, and approving one is then too late to mean anything.
+   *
+   * Beside Approve the canvas offers **Approve all**, which settles this call
+   * and every later one to the same method in this run — so a loop can be read
+   * a couple of times and then let go. Nothing about that is the script's to
+   * decide: write kaja.approve around every call worth a decision, and which of
+   * them are read one by one is settled in front of them.
    */
   approve<T>(call: Call<T>): Promise<T>;
   /**

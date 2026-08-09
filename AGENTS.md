@@ -452,10 +452,30 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   and an undecided one is stored as not approved on the same rule a hanging ask
   is stored as cancelled. It carries the request rather than a summary of it,
   because what makes a call worth approving is what is in it, and a click away is
-  too far for the one block you are meant to read before deciding. Neither button
+  too far for the one block you are meant to read before deciding. No button
   takes focus: an ask focuses its input for free, but here Enter would send the
-  request, which is the thing this block exists to prevent. There is no "approve
-  all" and no policy — one call, one decision.
+  request, which is the thing this block exists to prevent.
+- **The third button is "Approve all", and what it covers is in its name.** A
+  loop is read a couple of times and then let go, so **Approve all
+  `Shows.CreateShow`** settles this call and every later one to that method; the
+  ones that ride on it draw no block, since a canvas of decisions nobody made is
+  what pressing it was meant to be rid of — they are already cards on the canvas
+  and rows in the log. It is secondary, because reading the next one is still the
+  expected thing to do.
+  - **The scope is the method because that is what the button can honestly say.**
+    A script that also writes somewhere else asks again for that method, which is
+    a click, not a wall. All-methods was the alternative and it cannot be named:
+    it would cover calls you have not seen.
+  - **The lifetime is the run, because anything longer is a policy.**
+    `runTask` clears `_internal.approvedMethods` at the top of every run — both
+    doors, the editor's and the MCP server's — so the guard is back the next time
+    Run is pressed, and nothing about it is ever written to disk. The key is the
+    call's own `Service.Method` label, the same identity the block names.
+  - **The script never learns of it.** `kaja.approve` is unchanged and takes no
+    options: which calls are worth reading one by one is decided in front of
+    them, not written into the loop. The one place it is recorded is `standing`
+    on the block that granted it, which is what a run read back has to say
+    instead of falling silent about a decision made once and used ten times.
 - **Which is only possible because a method hands back a `Call`, not a promise**
   (`Call` in `kaja.ts`, returned by every method `client.ts` builds). **A call
   starts when it is awaited — or at the end of the tick, if nothing has claimed

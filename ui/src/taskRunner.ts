@@ -109,6 +109,8 @@ export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: 
     }
   };
   kaja._internal.abortSignal = signal;
+  // A standing approval covers the run it was given in and nothing further.
+  kaja._internal.approvedMethods.clear();
 
   let result: any;
   try {
@@ -166,6 +168,8 @@ export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Pr
     error: (...parts: unknown[]) => record("error", parts),
     debug: (...parts: unknown[]) => record("debug", parts),
   };
+
+  kaja._internal.approvedMethods.clear();
 
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);

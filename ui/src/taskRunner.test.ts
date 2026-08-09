@@ -7,7 +7,7 @@ function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
   return new Kaja(
     () => {},
     async (question) => answer(question),
-    async () => {},
+    async () => "approved" as const,
     () => {},
   );
 }
