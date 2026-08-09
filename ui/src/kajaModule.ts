@@ -23,14 +23,15 @@ function kajaVariablesType(variableNames: string[]): string {
 
 // The header states what the type system can't: that a script is a body of
 // statements rather than a function, so it has no return value, and that what it
-// produces it produces by saying so.
+// produces it produces by drawing it.
 const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
 //
 // A script is a body of statements, not a function: top-level \`await\` works and
 // a top-level \`return\` is an error, so a script never returns anything. What it
-// produces it draws or prints — kaja.text/code/table draw on the run's canvas,
-// console.log writes the transcript beside it, and the calls it makes are
-// recorded whether or not it mentions them.`;
+// produces it draws — kaja.text/code/table draw on the run's canvas, which is
+// what the person who ran it reads, and the calls it makes are recorded whether
+// or not it mentions them. console.log writes a transcript beside that, which is
+// somewhere to probe rather than somewhere to put a script's output.`;
 
 export function kajaModuleDeclaration(variableNames: string[]): string {
   return `${header}
