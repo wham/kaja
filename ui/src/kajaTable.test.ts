@@ -9,6 +9,7 @@ function draw() {
   const kaja = new Kaja(
     () => {},
     () => Promise.reject(new Error("not asked")),
+    () => Promise.reject(new Error("not approved")),
     (blockId, block) => void blocks.set(blockId, block),
   );
   const only = (): TableBlock => {

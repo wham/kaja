@@ -346,10 +346,10 @@ selection, the tab and the view as they were left.
 ## The canvas is what a run drew
 
 **A script says what it made, never how it looks.** The block set is closed and
-tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask` — and
-that is the guard, not a starting point: the moment a script can paint pixels the
-console is a rendering engine and every block becomes a support surface. There is
-no `kaja.html`, no styling arguments, no layout control.
+tiny (`blocks.ts`) — `kaja.text`, `kaja.code`, `kaja.table`, `kaja.ask`,
+`kaja.approve` — and that is the guard, not a starting point: the moment a script
+can paint pixels the console is a rendering engine and every block becomes a
+support surface. There is no `kaja.html`, no styling arguments, no layout control.
 
 - **Ordered, never placed.** Blocks stack in the order they were emitted, like
   calls do. "Canvas" is the name; the thing is a document. Free 2D positioning is
@@ -442,8 +442,36 @@ no `kaja.html`, no styling arguments, no layout control.
   flow, not a summary added over it.
 - **A block that asks is a block that pauses the run.** `kaja.ask` is drawn where
   it happened and the canvas stops there — the empty space under it *is* the
-  pause. Answering appends the next block. A dialogue is not a fifth block type;
+  pause. Answering appends the next block. A dialogue is not a sixth block type;
   it is what a sequence of asks reads as.
+- **A block that approves is one of those, about a call that hasn't happened.**
+  `kaja.approve(Shows.CreateShow({ … }))` draws the call and the request it is
+  about to send, and parks the run in front of it: **Approve** sends it and hands
+  back the response, **Stop** ends the script there. It reads exactly like the
+  ask it is modelled on — same amber, same pause, `isAwaitingUser` covers both,
+  and an undecided one is stored as not approved on the same rule a hanging ask
+  is stored as cancelled. It carries the request rather than a summary of it,
+  because what makes a call worth approving is what is in it, and a click away is
+  too far for the one block you are meant to read before deciding. Neither button
+  takes focus: an ask focuses its input for free, but here Enter would send the
+  request, which is the thing this block exists to prevent. There is no "approve
+  all" and no policy — one call, one decision.
+- **Which is only possible because a method hands back a `Call`, not a promise**
+  (`Call` in `kaja.ts`, returned by every method `client.ts` builds). **A call
+  starts when it is awaited — or at the end of the tick, if nothing has claimed
+  it.** So every script that was ever written still reads as what it does:
+  `await Shows.ListShows({})` sends immediately, a bare `Shows.Ping({})` still
+  goes out, and `Promise.all([a(), b()])` still runs both at once (starting is
+  idempotent, so it doesn't matter which of the two gets there). The generated
+  service stubs say `Call<Response>` and import the type from `kaja`, so the
+  editor and `describe_method` state the same thing the runtime does. Claiming is
+  a real operation rather than a matter of being first — `approve` calls
+  `call.claim()` before its own first `await`, because otherwise the tick would
+  end while the question was still on screen and send the call itself. A call
+  that has already gone out is refused rather than approved: nothing could take
+  it back, so pretending to ask would be the one dishonest thing this could do.
+  Everything a call does happens when it starts, the row it puts in the run's
+  log included — so a call that was never approved was never anywhere.
 - **Splitting the views reintroduces exactly one problem: a run can be waiting on
   the tab you are not looking at.** So a parked run says so three times before
   you can leave it — an amber dot on the Canvas tab, an amber bar at the tail of

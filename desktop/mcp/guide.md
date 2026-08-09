@@ -134,8 +134,12 @@ who opens the script gets the rest without running anything.
 ## The script runtime
 
 - **No interactive input.** `prompt`, `alert` and `confirm` do nothing and return
-  immediately. `kaja.ask()` is how a script asks, and it parks the run on a
-  human — only reach for it when a person is at the app.
+  immediately. `kaja.ask()` is how a script asks, and `kaja.approve()` how it
+  holds a call back until someone says yes; both park the run on a human — only
+  reach for them when a person is at the app.
+- **A method hands back a `Call`, not a promise.** It is sent when you await it,
+  so `await Shows.ListShows({})` is exactly what it always was. The gap is what
+  lets `kaja.approve` hold a call back before it goes out.
 - **Top-level `await` works**: the body runs inside an `async` function.
 - There is no DOM and no file system. What a script reaches, it reaches through
   the apps in `list_services`.
@@ -154,6 +158,9 @@ What each member is for:
   appends to it. `rows` can be an array, or a source (an async generator) the
   table pulls a page at a time as it is paged through.
 - `kaja.ask(message): Promise<string>` — ask the user; blocks on a human.
+- `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
+  `await kaja.approve(Shows.CreateShow({ … }))`. The call goes inside the
+  parentheses, and not approving stops the script. Blocks on a human.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.

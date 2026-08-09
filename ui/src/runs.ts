@@ -1,4 +1,4 @@
-import { Block, blockLabel, isAwaitingAnswer } from "./blocks";
+import { Block, blockLabel, isAwaitingUser } from "./blocks";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { Log, LogLevel } from "./server/api";
 
@@ -104,7 +104,7 @@ export function logsStatus(logs: Log[]): RunStatus {
 // A drawn block has already happened, so it is settled — except an ask, which is
 // the run stopped mid-flight waiting to be answered.
 export function blockStatus(block: Block): RunStatus {
-  return isAwaitingAnswer(block) ? "pending" : "success";
+  return isAwaitingUser(block) ? "pending" : "success";
 }
 
 export function itemStatus(item: ConsoleItem): RunStatus {
@@ -158,7 +158,7 @@ export function groupRuns(runs: Run[], items: ConsoleItem[]): RunGroup[] {
         // either — the script is stopped inside it waiting to be answered.
         inFlight:
           !run.stale &&
-          runItems.some((item) => (item.call !== undefined && isCallInFlight(item.call)) || (item.block !== undefined && isAwaitingAnswer(item.block))),
+          runItems.some((item) => (item.call !== undefined && isCallInFlight(item.call)) || (item.block !== undefined && isAwaitingUser(item.block))),
         failures: runItems.filter((item) => itemStatus(item) === "error").length,
       };
     });
@@ -178,7 +178,7 @@ export function callCount(group: RunGroup): number {
 // The question the run is stopped on, if it is stopped on one. This is what puts
 // a dot on the Canvas tab and an amber bar at the tail of the log.
 export function awaitingItem(group: RunGroup): ConsoleItem | undefined {
-  return group.items.find((item) => item.block !== undefined && isAwaitingAnswer(item.block));
+  return group.items.find((item) => item.block !== undefined && isAwaitingUser(item.block));
 }
 
 // Whether the run drew anything of its own. A run that only made calls has a

@@ -1,6 +1,6 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
-import { AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
 import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
@@ -13,11 +13,86 @@ export class AskCancelledError extends Error {
   }
 }
 
+// Thrown when the user doesn't approve a `kaja.approve(...)` call. The task
+// runner swallows it too: not approving stops the script rather than failing it.
+export class ApprovalRejectedError extends Error {
+  constructor() {
+    super("The call was not approved");
+    this.name = "ApprovalRejectedError";
+  }
+}
+
+/**
+ * A call that hasn't been made yet.
+ *
+ * **A call starts when it is awaited — or at the end of the tick, if nothing has
+ * claimed it.** So `await Shows.ListShows({})` and a bare `Shows.Ping({})` both
+ * do what they read as, and `Promise.all([A(), B()])` still runs both at once;
+ * starting is idempotent, so it doesn't matter which of the two gets there.
+ *
+ * That gap of one tick is the whole of what `kaja.approve(...)` needs: the call
+ * is written inside its parentheses, so approve is handed it in the same
+ * synchronous turn and claims it before the tick can end.
+ */
+export class Call<T> implements PromiseLike<T> {
+  // What the call is, for a canvas that has to name it before it happens.
+  readonly label: string;
+  readonly input: unknown;
+  #send: () => Promise<T>;
+  #sent?: Promise<T>;
+  #claimed = false;
+
+  constructor(label: string, input: unknown, send: () => Promise<T>) {
+    this.label = label;
+    this.input = input;
+    this.#send = send;
+    queueMicrotask(() => {
+      if (!this.#claimed) this.start();
+    });
+  }
+
+  /** Whether the request has gone out. Approving one that has is too late. */
+  get started(): boolean {
+    return this.#sent !== undefined;
+  }
+
+  /**
+   * Take the call out of the tick's hands: from here it goes out only when
+   * something starts it, however long that takes. `kaja.approve` claims a call
+   * before its own first await — the same synchronous turn the call was written
+   * in — which is the whole of how it can hold one back.
+   */
+  claim(): void {
+    this.#claimed = true;
+  }
+
+  /** Send the request, or hand back the one already in flight. */
+  start(): Promise<T> {
+    if (!this.#sent) this.#sent = this.#send();
+    return this.#sent;
+  }
+
+  then<TResult1 = T, TResult2 = never>(
+    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,
+  ): PromiseLike<TResult1 | TResult2> {
+    return this.start().then(onfulfilled, onrejected);
+  }
+}
+
 // The question is asked by the block; this is what waits for it to be answered.
 // The id is what the answer comes back against, so an ask on a canvas nobody is
 // looking at is still the one that resolves.
 export interface AskRequest {
   (message: string, blockId: string): Promise<string>;
+}
+
+// The same, for a call held back until it is approved: it resolves when the call
+// may go out, and rejects when the script is to stop instead. The call and its
+// request travel with it for the same reason the question does — a run with no
+// canvas asks in a dialog, which has nothing but what it is handed.
+export interface ApproveRequest {
+  (method: string, request: string, blockId: string): Promise<void>;
 }
 
 // A block arriving, or the same block again with more in it.
@@ -98,6 +173,17 @@ function toCells(row: unknown): string[] {
   return Array.isArray(row) ? row.map(formatCell) : [formatCell(row)];
 }
 
+// The request a call is holding, as the approve block shows it. A block is
+// stored as JSON, so it is text by the time it is one — and text is what the
+// canvas draws either way.
+function formatRequest(input: unknown): string {
+  try {
+    return JSON.stringify(input, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2) ?? String(input);
+  } catch {
+    return String(input);
+  }
+}
+
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 // google.protobuf.Value and friends, declared structurally so they match the
@@ -176,11 +262,13 @@ export class Kaja {
     },
   };
   #onAsk: AskRequest;
+  #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onBlockUpdate: BlockUpdate) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onApprove: ApproveRequest, onBlockUpdate: BlockUpdate) {
     this._internal = new KajaInternal(onMethodCallUpdate);
     this.#onAsk = onAsk;
+    this.#onApprove = onApprove;
     this.#onBlockUpdate = onBlockUpdate;
   }
 
@@ -202,6 +290,37 @@ export class Kaja {
       this.#onBlockUpdate(blockId, { ...question, cancelled: true });
       throw error;
     }
+  }
+
+  /**
+   * Hold a call until it is approved. The call and the request it is about to
+   * send are drawn on the run's canvas and the run stops there; approving sends
+   * it and hands back the response, and not approving stops the script.
+   *
+   *   const show = await kaja.approve(Shows.CreateShow({ title: "Vera Lune" }));
+   *
+   * The call goes inside the parentheses — that is what makes it a call that
+   * hasn't happened yet rather than one to be sorry about.
+   */
+  async approve<T>(call: Call<T>): Promise<T> {
+    if (call.started) {
+      throw new Error(`kaja.approve: ${call.label} has already been sent. Write the call inside it — kaja.approve(${call.label}({ … })).`);
+    }
+    // Before anything is awaited, or the tick this was written in would end
+    // while the question was still on screen and send the call itself.
+    call.claim();
+
+    const blockId = newBlockId();
+    const block: ApproveBlock = { kind: "approve", method: call.label, request: formatRequest(call.input) };
+    this.#onBlockUpdate(blockId, block);
+    try {
+      await this.#onApprove(block.method, block.request, blockId);
+    } catch (error) {
+      this.#onBlockUpdate(blockId, { ...block, decision: "rejected" });
+      throw error;
+    }
+    this.#onBlockUpdate(blockId, { ...block, decision: "approved" });
+    return call.start();
   }
 
   /**

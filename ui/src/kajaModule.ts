@@ -35,6 +35,17 @@ const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
 export function kajaModuleDeclaration(variableNames: string[]): string {
   return `${header}
 
+/**
+ * A call that hasn't been made yet, which is what every service method hands
+ * back: \`Shows.ListShows({})\` is the call, and awaiting it is what sends it.
+ *
+ * A call starts when it is awaited — or at the end of the tick, if nothing has
+ * claimed it — so a bare \`Shows.Ping({})\` still goes out, and
+ * \`Promise.all([a(), b()])\` still runs both at once. The gap of one tick is
+ * what kaja.approve holds a call in.
+ */
+export interface Call<T> extends PromiseLike<T> {}
+
 /** A plain JSON value, as accepted by kaja.value and friends. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -105,6 +116,18 @@ export declare const kaja: {
    *   const name = await kaja.ask("What's your name?");
    */
   ask(message: string): Promise<string>;
+  /**
+   * Hold a call until it is approved. The call and the request it is about to
+   * send are drawn on the run's canvas and the run stops there; approving sends
+   * it and hands back the response, and not approving stops the script.
+   *
+   *   const show = await kaja.approve(Shows.CreateShow({ title: "Vera Lune" }));
+   *
+   * Write the call inside the parentheses. That is what makes it a call that
+   * hasn't happened yet: a call kept in a variable and awaited elsewhere has
+   * already gone out, and approving one is then too late to mean anything.
+   */
+  approve<T>(call: Call<T>): Promise<T>;
   /**
    * Write a line onto the run's canvas.
    *

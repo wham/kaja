@@ -98,7 +98,11 @@ export async function loadApp(apiSources: ApiSource[], stubCode: string, configu
         source.file.fileName,
         // If service source, replace the service class (last statement) with the service interface definitions
         // TODO: This is bad. Won't work if there are multiple services in the source file.
-        printStatements([...kajaStatements, ...serviceInterfaceDefinitions]),
+        // A method hands back a Call rather than a Promise, so the source that
+        // declares one says where the type comes from — the same module a script
+        // imports `kaja` from, which is where the rule about when a call starts
+        // is written down.
+        printStatements([...(serviceInterfaceDefinitions.length > 0 ? [callTypeImport()] : []), ...kajaStatements, ...serviceInterfaceDefinitions]),
         ts.ScriptTarget.Latest,
       ),
       serviceNames: source.serviceNames,
@@ -276,6 +280,20 @@ function readSignatures(
   return signatures;
 }
 
+// `import type { Call } from "kaja";` — what a generated service's methods
+// return. Type-only, so nothing about it survives into what a script runs.
+function callTypeImport(): ts.ImportDeclaration {
+  return ts.factory.createImportDeclaration(
+    undefined,
+    ts.factory.createImportClause(
+      true,
+      undefined,
+      ts.factory.createNamedImports([ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier("Call"))]),
+    ),
+    ts.factory.createStringLiteral("kaja"),
+  );
+}
+
 // createServiceInterfaceDefinition synthesizes the `export const <Service> = {…}`
 // the editor checks a script against, from the signatures already read.
 function createServiceInterfaceDefinition(
@@ -297,7 +315,10 @@ function createServiceInterfaceDefinition(
     const func = ts.factory.createPropertyAssignment(
       protoMethodName,
       ts.factory.createArrowFunction(
-        [ts.factory.createModifier(ts.SyntaxKind.AsyncKeyword)],
+        // Not async: a method hands back a Call, which is not a promise the
+        // language would let an async function return. The call inside it is
+        // still awaited the same way — that is what a Call is for.
+        undefined,
         undefined,
         [
           ts.factory.createParameterDeclaration(
@@ -308,7 +329,7 @@ function createServiceInterfaceDefinition(
             ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.input), undefined),
           ),
         ],
-        ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Promise"), [
+        ts.factory.createTypeReferenceNode(ts.factory.createIdentifier("Call"), [
           ts.factory.createTypeReferenceNode(ts.factory.createIdentifier(signature.output), undefined),
         ]),
         ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),

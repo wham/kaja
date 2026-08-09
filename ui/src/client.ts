@@ -3,7 +3,7 @@ import type { IMessageType } from "@protobuf-ts/runtime";
 import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders, transportHeaders } from "./appTypes";
-import { MethodCall, MethodCallHeaders } from "./kaja";
+import { Call, MethodCall, MethodCallHeaders } from "./kaja";
 import {
   UPSTREAM_ERROR_TRAILER,
   UPSTREAM_REQUEST_HEADERS_TRAILER,
@@ -128,7 +128,7 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     const isServerStreaming = method.serverStreaming && !method.clientStreaming;
     const inputType: IMessageType<any> | undefined = (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I;
 
-    client.methods[method.name] = async (input: any) => {
+    const send = async (input: any) => {
       // Capture request headers from appRef at request time. They are shown as
       // configured, with their ${NAME} references intact - the Headers view
       // reads better that way, and the values behind them stay outside the
@@ -203,6 +203,13 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
       return methodCall.output;
     };
+
+    // A call is handed back rather than made: it goes out when the script awaits
+    // it, or at the end of the tick if nothing has claimed it. `kaja.approve` is
+    // what claims one, and holding it back is the only reason the gap exists —
+    // everything above happens when the call starts, including the row it puts
+    // in the log, so a call that was never approved was never anywhere.
+    client.methods[method.name] = (input: any) => new Call(`${service.name}.${method.name}`, input, () => send(input));
   }
 
   return client;

@@ -1,4 +1,4 @@
-import { Block, isAwaitingAnswer } from "./blocks";
+import { Block, isAwaitingUser } from "./blocks";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { ConsoleItem, ConsoleTab, ConsoleView, newItemId, Run, RunSelection } from "./runs";
 import { Log } from "./server/api";
@@ -208,7 +208,7 @@ export function setView(history: RunHistory, fileId: string | undefined, view: C
 // away from it, so the sidebar reads this to say so on a script whose canvas is
 // no longer on screen to.
 export function isWaitingForAnswer(file: FileConsole): boolean {
-  return file.items.some((item) => item.block !== undefined && isAwaitingAnswer(item.block));
+  return file.items.some((item) => item.block !== undefined && isAwaitingUser(item.block));
 }
 
 export function waitingFileIds(history: RunHistory): Set<string> {

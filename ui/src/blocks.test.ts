@@ -1,20 +1,27 @@
 import { describe, expect, it } from "bun:test";
-import { Block, blockLabel, blockText, formatCell, isAwaitingAnswer } from "./blocks";
+import { Block, blockLabel, blockText, formatCell, isAwaitingUser } from "./blocks";
 
-describe("isAwaitingAnswer", () => {
+describe("isAwaitingUser", () => {
   it("is true only for a question nobody has answered", () => {
-    expect(isAwaitingAnswer({ kind: "ask", question: "Which ledger?" })).toBe(true);
-    expect(isAwaitingAnswer({ kind: "ask", question: "Which ledger?", answer: "june" })).toBe(false);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?" })).toBe(true);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", answer: "june" })).toBe(false);
   });
 
   // A cancelled ask stopped the script rather than parking it, so the run is
   // over — showing it as waiting would offer an input nothing is listening to.
   it("is false for a question that was cancelled", () => {
-    expect(isAwaitingAnswer({ kind: "ask", question: "Which ledger?", cancelled: true })).toBe(false);
+    expect(isAwaitingUser({ kind: "ask", question: "Which ledger?", cancelled: true })).toBe(false);
+  });
+
+  it("is true for a call nobody has approved, and false once they have", () => {
+    const held: Block = { kind: "approve", method: "Shows.CreateShow", request: "{}" };
+    expect(isAwaitingUser(held)).toBe(true);
+    expect(isAwaitingUser({ ...held, decision: "approved" })).toBe(false);
+    expect(isAwaitingUser({ ...held, decision: "rejected" })).toBe(false);
   });
 
   it("is false for anything a run merely drew", () => {
-    expect(isAwaitingAnswer({ kind: "text", text: "Reconciling" })).toBe(false);
+    expect(isAwaitingUser({ kind: "text", text: "Reconciling" })).toBe(false);
   });
 });
 
@@ -31,6 +38,14 @@ describe("blockLabel", () => {
   it("names an ask by the question it asked", () => {
     expect(blockLabel({ kind: "ask", question: "Which ledger?" })).toBe("Which ledger?");
   });
+
+  // The verb is a question only while it still is one.
+  it("names a held call by what became of it", () => {
+    const held: Block = { kind: "approve", method: "Shows.CreateShow", request: "{}" };
+    expect(blockLabel(held)).toBe("Approve Shows.CreateShow");
+    expect(blockLabel({ ...held, decision: "approved" })).toBe("Shows.CreateShow approved");
+    expect(blockLabel({ ...held, decision: "rejected" })).toBe("Shows.CreateShow not approved");
+  });
 });
 
 describe("blockText", () => {
@@ -43,6 +58,11 @@ describe("blockText", () => {
 
   it("copies a question with what it was answered", () => {
     expect(blockText({ kind: "ask", question: "Which ledger?", answer: "june" })).toBe("Which ledger?\njune");
+  });
+
+  it("copies a held call with the request it was holding", () => {
+    const held: Block = { kind: "approve", method: "Shows.CreateShow", request: '{ "title": "Vera Lune" }', decision: "approved" };
+    expect(blockText(held)).toBe('Shows.CreateShow approved\n{ "title": "Vera Lune" }');
   });
 });
 

@@ -77,6 +77,7 @@ interface ConsoleProps {
   onViewChange: (view: ConsoleView) => void;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
@@ -101,6 +102,7 @@ export function Console({
   onViewChange,
   onAnswer,
   onCancelAsk,
+  onDecide,
   tableViews,
   onTableView,
   onTablePull,
@@ -311,6 +313,7 @@ export function Console({
           selectedItemId={selection?.itemId}
           onAnswer={onAnswer}
           onCancelAsk={onCancelAsk}
+          onDecide={onDecide}
           onSelectCall={selectFromCanvas}
           tableViews={tableViews}
           onTableView={onTableView}

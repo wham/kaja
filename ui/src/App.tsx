@@ -43,7 +43,7 @@ import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
 import { Block, blockLabel } from "./blocks";
-import { AskCancelledError, Kaja, MethodCall } from "./kaja";
+import { ApprovalRejectedError, AskCancelledError, Kaja, MethodCall } from "./kaja";
 import { TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
@@ -270,6 +270,14 @@ export function App() {
     resolve: (value: string) => void;
     reject: (reason: unknown) => void;
   } | null>(null);
+  // Active `kaja.approve(...)` call, for a run with no canvas to draw it on;
+  // null when nothing is waiting to be approved.
+  const [approvePrompt, setApprovePrompt] = useState<{
+    method: string;
+    request: string;
+    resolve: () => void;
+    reject: (reason: unknown) => void;
+  } | null>(null);
   // Whether the New app dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
   // Whether the active tab's JSON parses. It gates switching back to the form or
@@ -474,12 +482,14 @@ export function App() {
   );
 
   /**
-   * A `kaja.ask(...)` is answered on the canvas of the run that asked it, so the
-   * promise waits here keyed by the block the question was drawn as. A run with
-   * no console has no canvas to draw on — an agent running code that was never
-   * saved — and falls back to the dialog, which needs no surface of its own.
+   * A `kaja.ask(...)` is answered, and a `kaja.approve(...)` decided, on the
+   * canvas of the run it came from — so both promises wait here keyed by the
+   * block they were drawn as. One map, because both are the same thing to the
+   * run: it is parked until someone says something. A run with no console has no
+   * canvas to draw on — an agent running code that was never saved — and falls
+   * back to a dialog, which needs no surface of its own.
    */
-  const pendingAsksRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
+  const pendingPromptsRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
 
   const onAsk = useCallback((message: string, blockId: string) => {
     return new Promise<string>((resolve, reject) => {
@@ -487,23 +497,41 @@ export function App() {
         setAskPrompt({ message, value: "", resolve, reject });
         return;
       }
-      pendingAsksRef.current.set(blockId, { resolve, reject });
+      pendingPromptsRef.current.set(blockId, { resolve, reject });
     });
   }, []);
 
-  const settleAsk = useCallback((blockId: string, settle: (pending: { resolve: (answer: string) => void; reject: (error: unknown) => void }) => void) => {
-    const pending = pendingAsksRef.current.get(blockId);
+  const onApprove = useCallback((method: string, request: string, blockId: string) => {
+    return new Promise<void>((resolve, reject) => {
+      if (!currentRunRef.current?.fileId) {
+        setApprovePrompt({ method, request, resolve, reject });
+        return;
+      }
+      pendingPromptsRef.current.set(blockId, { resolve: () => resolve(), reject });
+    });
+  }, []);
+
+  const settlePrompt = useCallback((blockId: string, settle: (pending: { resolve: (answer: string) => void; reject: (error: unknown) => void }) => void) => {
+    const pending = pendingPromptsRef.current.get(blockId);
     if (!pending) return;
-    pendingAsksRef.current.delete(blockId);
+    pendingPromptsRef.current.delete(blockId);
     settle(pending);
   }, []);
 
-  const onAnswerAsk = useCallback((blockId: string, answer: string) => settleAsk(blockId, (pending) => pending.resolve(answer)), [settleAsk]);
-  const onCancelAsk = useCallback((blockId: string) => settleAsk(blockId, (pending) => pending.reject(new AskCancelledError())), [settleAsk]);
+  const onAnswerAsk = useCallback((blockId: string, answer: string) => settlePrompt(blockId, (pending) => pending.resolve(answer)), [settlePrompt]);
+  const onCancelAsk = useCallback((blockId: string) => settlePrompt(blockId, (pending) => pending.reject(new AskCancelledError())), [settlePrompt]);
+
+  // Approve sends the call; Stop rejects it, which stops the script where it
+  // stands. The block records which of the two happened either way.
+  const onDecideApproval = useCallback(
+    (blockId: string, decision: "approved" | "rejected") =>
+      settlePrompt(blockId, (pending) => (decision === "approved" ? pending.resolve("") : pending.reject(new ApprovalRejectedError()))),
+    [settlePrompt],
+  );
 
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onBlockUpdate);
+    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onApprove, onBlockUpdate);
   }
 
   /**
@@ -1774,10 +1802,11 @@ export function App() {
   }, [currentFileId]);
 
   // Stop aborts the calls the run has in flight; the script itself stops at the
-  // call it was awaiting. A run parked on a question is awaiting an answer
-  // rather than a call, so Stop has to end that too or the script never returns.
+  // call it was awaiting. A run parked on a question — or on a call waiting to
+  // be approved — is awaiting the user rather than a call, so Stop has to end
+  // that too or the script never returns.
   const onStopActiveRun = useCallback(() => {
-    for (const blockId of [...pendingAsksRef.current.keys()]) onCancelAsk(blockId);
+    for (const blockId of [...pendingPromptsRef.current.keys()]) onCancelAsk(blockId);
     setActiveRun((run) => {
       run?.controller?.abort();
       return null;
@@ -2338,6 +2367,7 @@ export function App() {
                         onViewChange={onConsoleViewChange}
                         onAnswer={onAnswerAsk}
                         onCancelAsk={onCancelAsk}
+                        onDecide={onDecideApproval}
                         tableViews={tableViews}
                         onTableView={onTableView}
                         onTablePull={onTablePull}
@@ -2447,6 +2477,25 @@ export function App() {
             />
           </FormControl>
         </Dialog>
+      )}
+      {approvePrompt && (
+        <ConfirmationDialog
+          title="Approve call"
+          confirmButtonContent="Approve"
+          cancelButtonContent="Stop"
+          onClose={(gesture) => {
+            if (gesture === "confirm") approvePrompt.resolve();
+            else approvePrompt.reject(new ApprovalRejectedError());
+            setApprovePrompt(null);
+          }}
+        >
+          <div className="flex flex-col gap-2 font-mono text-xs">
+            <div className="text-foreground">{approvePrompt.method}</div>
+            <pre className="max-h-64 overflow-auto rounded-md border border-border bg-background px-2.5 py-2 leading-relaxed text-foreground">
+              {approvePrompt.request}
+            </pre>
+          </div>
+        </ConfirmationDialog>
       )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
       {renameScript && (

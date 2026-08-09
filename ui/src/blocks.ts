@@ -60,7 +60,22 @@ export interface AskBlock {
   cancelled?: boolean;
 }
 
-export type Block = TextBlock | CodeBlock | TableBlock | AskBlock;
+/**
+ * A call the script is holding back until it is approved. The other block that
+ * stops the run — and the only one that decides something rather than showing
+ * it: not approving stops the script where it stands, so the call it names is
+ * one that never happened.
+ */
+export interface ApproveBlock {
+  kind: "approve";
+  // The call, as "Service.Method".
+  method: string;
+  // The request it is about to send, already text.
+  request: string;
+  decision?: "approved" | "rejected";
+}
+
+export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock;
 
 let sequence = 0;
 
@@ -69,10 +84,13 @@ export function newBlockId(): string {
   return `block-${Date.now().toString(36)}-${sequence}`;
 }
 
-// The run is stopped here until this is answered. A cancelled ask stopped the
-// script instead, so it is settled rather than waiting.
-export function isAwaitingAnswer(block: Block): boolean {
-  return block.kind === "ask" && block.answer === undefined && block.cancelled !== true;
+// The run is stopped here until the user says something. A cancelled ask and a
+// rejected call both stopped the script instead, so they are settled rather than
+// waiting.
+export function isAwaitingUser(block: Block): boolean {
+  if (block.kind === "ask") return block.answer === undefined && block.cancelled !== true;
+  if (block.kind === "approve") return block.decision === undefined;
+  return false;
 }
 
 // How a block is named where only one line fits. A table is described by its
@@ -91,6 +109,16 @@ export function blockLabel(block: Block): string {
     }
     case "ask":
       return block.question;
+    case "approve":
+      // The verb is in the present tense only while it is still a question.
+      switch (block.decision) {
+        case "approved":
+          return `${block.method} approved`;
+        case "rejected":
+          return `${block.method} not approved`;
+        default:
+          return `Approve ${block.method}`;
+      }
   }
 }
 
@@ -106,6 +134,8 @@ export function blockText(block: Block): string {
       return [block.columns, ...block.rows].map((cells) => cells.join("\t")).join("\n");
     case "ask":
       return block.cancelled ? `${block.question}\n(cancelled)` : `${block.question}\n${block.answer ?? ""}`;
+    case "approve":
+      return `${blockLabel(block)}\n${block.request}`;
   }
 }
 

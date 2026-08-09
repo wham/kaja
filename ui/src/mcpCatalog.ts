@@ -37,7 +37,8 @@ export interface McpService {
 export interface McpMethod {
   name: string;
   // The TypeScript a script writes, e.g.
-  // "ListShows(input: ListShowsRequest): Promise<ListShowsResponse>".
+  // "ListShows(input: ListShowsRequest): Call<ListShowsResponse>" — a Call is
+  // awaited like a promise, and is what kaja.approve holds back.
   signature: string;
   input: string;
   output: string;
@@ -89,7 +90,7 @@ function describeMethod(app: App, service: Service, method: Method): McpMethod {
   const output = method.output ?? "unknown";
   const described: McpMethod = {
     name: method.name,
-    signature: `${method.name}(input: ${input}): Promise<${output}>`,
+    signature: `${method.name}(input: ${input}): Call<${output}>`,
     input,
     output,
     example: generateMethodEditorCode(app, service, method),
