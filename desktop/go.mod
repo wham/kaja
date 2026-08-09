@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/wailsapp/wails/v2 v2.13.0
 	github.com/wham/kaja/v2 v2.0.0-20240101000000-000000000000
+	github.com/zalando/go-keyring v0.2.8
 )
 
 replace (
@@ -42,7 +43,6 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wham/kaja/v2/protoc-gen-kaja v0.0.0 // indirect
 	github.com/wham/protoc-go v0.0.0-20260615005337-eaf780362c1c // indirect
-	github.com/zalando/go-keyring v0.2.8 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/net v0.57.0 // indirect

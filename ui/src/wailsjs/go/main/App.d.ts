@@ -26,7 +26,7 @@ export function ReadScriptFile(arg1:string):Promise<main.ScriptFile>;
 
 export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 
-export function ResolvedVariables():Promise<{[key: string]: string}>;
+export function ResolvedVariables():Promise<Record<string, string>>;
 
 export function ShowFileInFinder(arg1:string):Promise<void>;
 

@@ -140,7 +140,7 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - Run the desktop app: `scripts/desktop`
 - Test UI: `(cd ui && bun test)`
 - TSC UI: `(cd ui && bun run tsc)`
-- Test server: `(cd server && go test ./... -v)`
+- Test server: `(cd server && go test ./... -tags development -v)` — the tag `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
 - Update demo protos: `scripts/demo-protos` (The demo services are deployed via [kaja/tools/website](github.com/kaja-tools/website))
 
 ### Releases
