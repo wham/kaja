@@ -304,8 +304,11 @@ func (c *Client) attempt(method string, params map[string]any, extra map[string]
 		return nil, exchange, rpcErr
 	}
 	if response.StatusCode >= 400 {
-		return nil, exchange, apps.NewUpstreamError(http.MethodPost, c.endpoint, response.StatusCode, payload).
-			WithHeaders(requestHeaders, exchange.ResponseHeaders)
+		// The headers ride on the Exchange, not on the error. A failed call has
+		// two destinations and only one of them has a Headers view to put them
+		// in: `Invoke` attaches them (`withExchange`), and opening the app - whose
+		// failures are text in the compile log - leaves them where they are.
+		return nil, exchange, apps.NewUpstreamError(http.MethodPost, c.endpoint, response.StatusCode, payload)
 	}
 	if decodeErr != nil {
 		return nil, exchange, decodeErr
