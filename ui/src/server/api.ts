@@ -431,6 +431,149 @@ export interface OpenApiProblem {
     detail: string;
 }
 /**
+ * InspectMcp reads what an MCP server exposes without creating an app, so the
+ * New MCP app form can fill itself in from what answered: the server's own name
+ * and version, the protocol revision it speaks, and the tools, resources and
+ * prompts it lists. The app carries the same parameters the app would be opened
+ * with, credential included - an MCP server usually guards the list of its tools
+ * as closely as the tools themselves.
+ *
+ * @generated from protobuf message InspectMcpRequest
+ */
+export interface InspectMcpRequest {
+    /**
+     * @generated from protobuf field: McpApp mcp = 1
+     */
+    mcp?: McpApp;
+}
+/**
+ * @generated from protobuf message InspectMcpResponse
+ */
+export interface InspectMcpResponse {
+    /**
+     * Set when the server was read; the form fills itself in from it.
+     *
+     * @generated from protobuf field: McpServer server = 1
+     */
+    server?: McpServer;
+    /**
+     * Set when it wasn't; the form shows it in place of the summary.
+     *
+     * @generated from protobuf field: McpProblem problem = 2
+     */
+    problem?: McpProblem;
+}
+/**
+ * @generated from protobuf message McpServer
+ */
+export interface McpServer {
+    /**
+     * What the server calls itself. Self-reported, and only ever displayed.
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string version = 2
+     */
+    version: string;
+    /**
+     * The protocol revision the exchange settled on, e.g. "2026-07-28".
+     *
+     * @generated from protobuf field: string protocol_version = 3
+     */
+    protocolVersion: string;
+    /**
+     * Whether the server opened with the `initialize` handshake rather than the
+     * per-request metadata the protocol uses from 2026-07-28 on.
+     *
+     * @generated from protobuf field: bool handshake = 4
+     */
+    handshake: boolean;
+    /**
+     * Every revision the server says it speaks. Only a modern server reports this.
+     *
+     * @generated from protobuf field: repeated string supported_versions = 5
+     */
+    supportedVersions: string[];
+    /**
+     * @generated from protobuf field: int32 tool_count = 6
+     */
+    toolCount: number;
+    /**
+     * @generated from protobuf field: int32 resource_count = 7
+     */
+    resourceCount: number;
+    /**
+     * @generated from protobuf field: int32 resource_template_count = 8
+     */
+    resourceTemplateCount: number;
+    /**
+     * @generated from protobuf field: int32 prompt_count = 9
+     */
+    promptCount: number;
+    /**
+     * The tools it listed, so the form can show what the app would add.
+     *
+     * @generated from protobuf field: repeated McpTool tools = 10
+     */
+    tools: McpTool[];
+    /**
+     * The server's own guidance on how to use it, where it offers any.
+     *
+     * @generated from protobuf field: string instructions = 11
+     */
+    instructions: string;
+}
+/**
+ * @generated from protobuf message McpTool
+ */
+export interface McpTool {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string title = 2
+     */
+    title: string;
+    /**
+     * @generated from protobuf field: string description = 3
+     */
+    description: string;
+    /**
+     * The server's own hint that the tool only reads. It is the server's word and
+     * nothing more.
+     *
+     * @generated from protobuf field: bool read_only = 4
+     */
+    readOnly: boolean;
+}
+/**
+ * McpProblem is a server that couldn't be read, classified so the form can name
+ * the next move instead of printing a raw error.
+ *
+ * @generated from protobuf message McpProblem
+ */
+export interface McpProblem {
+    /**
+     * @generated from protobuf field: McpProblemKind kind = 1
+     */
+    kind: McpProblemKind;
+    /**
+     * One line, addressed to the user.
+     *
+     * @generated from protobuf field: string message = 2
+     */
+    message: string;
+    /**
+     * The underlying transport or protocol error, verbatim.
+     *
+     * @generated from protobuf field: string detail = 3
+     */
+    detail: string;
+}
+/**
  * @generated from protobuf message CompileResponse
  */
 export interface CompileResponse {
@@ -687,6 +830,12 @@ export interface ConfigurationApp {
          */
         folder: FolderApp;
     } | {
+        oneofKind: "mcp";
+        /**
+         * @generated from protobuf field: McpApp mcp = 8
+         */
+        mcp: McpApp;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -897,6 +1046,51 @@ export interface FolderApp {
     path: string;
 }
 /**
+ * McpApp explores another Model Context Protocol server over the Streamable HTTP
+ * transport. Its proto surface is generated from what that server exposes: one
+ * method per tool, one per prompt, and the list/read methods for its resources.
+ *
+ * The credential is the app's, not the request's: kaja resolves it where it
+ * holds it and applies it on the way out, so a "${secret}" token is never handed
+ * to the browser.
+ *
+ * @generated from protobuf message McpApp
+ */
+export interface McpApp {
+    /**
+     * The server's MCP endpoint, e.g. "https://example.com/mcp".
+     *
+     * @generated from protobuf field: string url = 1
+     */
+    url: string;
+    /**
+     * @generated from protobuf field: map<string, string> headers = 2
+     */
+    headers: {
+        [key: string]: string;
+    };
+    /**
+     * The credential sent with every request: "bearer", "apikey", or "none". Empty
+     * means bearer, which is what an MCP server behind a login nearly always
+     * wants.
+     *
+     * @generated from protobuf field: string auth = 3
+     */
+    auth: string;
+    /**
+     * The bearer token, or the key for the "apikey" credential.
+     *
+     * @generated from protobuf field: string token = 4
+     */
+    token: string;
+    /**
+     * Header the "apikey" credential is sent under. Empty means "X-API-Key".
+     *
+     * @generated from protobuf field: string api_key_name = 5
+     */
+    apiKeyName: string;
+}
+/**
  * @generated from protobuf message UpdateConfigurationRequest
  */
 export interface UpdateConfigurationRequest {
@@ -1055,6 +1249,61 @@ export enum OpenApiProblemKind {
      * @generated from protobuf enum value: OPEN_API_PROBLEM_MALFORMED = 7;
      */
     OPEN_API_PROBLEM_MALFORMED = 7
+}
+/**
+ * @generated from protobuf enum McpProblemKind
+ */
+export enum McpProblemKind {
+    /**
+     * @generated from protobuf enum value: MCP_PROBLEM_UNKNOWN = 0;
+     */
+    MCP_PROBLEM_UNKNOWN = 0,
+    /**
+     * The URL isn't a usable HTTP endpoint.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_TARGET = 1;
+     */
+    MCP_PROBLEM_TARGET = 1,
+    /**
+     * The host couldn't be reached (DNS, TCP, TLS).
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_UNREACHABLE = 2;
+     */
+    MCP_PROBLEM_UNREACHABLE = 2,
+    /**
+     * @generated from protobuf enum value: MCP_PROBLEM_TIMEOUT = 3;
+     */
+    MCP_PROBLEM_TIMEOUT = 3,
+    /**
+     * The server wants a credential.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_UNAUTHORIZED = 4;
+     */
+    MCP_PROBLEM_UNAUTHORIZED = 4,
+    /**
+     * A credential was sent and rejected.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_FORBIDDEN = 5;
+     */
+    MCP_PROBLEM_FORBIDDEN = 5,
+    /**
+     * Any other non-200 response.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_HTTP_ERROR = 6;
+     */
+    MCP_PROBLEM_HTTP_ERROR = 6,
+    /**
+     * Something answered, but it doesn't speak MCP.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_NOT_MCP = 7;
+     */
+    MCP_PROBLEM_NOT_MCP = 7,
+    /**
+     * It speaks MCP and exposes nothing.
+     *
+     * @generated from protobuf enum value: MCP_PROBLEM_EMPTY = 8;
+     */
+    MCP_PROBLEM_EMPTY = 8
 }
 /**
  * @generated from protobuf enum CompileStatus
@@ -2178,6 +2427,366 @@ class OpenApiProblem$Type extends MessageType<OpenApiProblem> {
  */
 export const OpenApiProblem = new OpenApiProblem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class InspectMcpRequest$Type extends MessageType<InspectMcpRequest> {
+    constructor() {
+        super("InspectMcpRequest", [
+            { no: 1, name: "mcp", kind: "message", T: () => McpApp }
+        ]);
+    }
+    create(value?: PartialMessage<InspectMcpRequest>): InspectMcpRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectMcpRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectMcpRequest): InspectMcpRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* McpApp mcp */ 1:
+                    message.mcp = McpApp.internalBinaryRead(reader, reader.uint32(), options, message.mcp);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectMcpRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* McpApp mcp = 1; */
+        if (message.mcp)
+            McpApp.internalBinaryWrite(message.mcp, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectMcpRequest
+ */
+export const InspectMcpRequest = new InspectMcpRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InspectMcpResponse$Type extends MessageType<InspectMcpResponse> {
+    constructor() {
+        super("InspectMcpResponse", [
+            { no: 1, name: "server", kind: "message", T: () => McpServer },
+            { no: 2, name: "problem", kind: "message", T: () => McpProblem }
+        ]);
+    }
+    create(value?: PartialMessage<InspectMcpResponse>): InspectMcpResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InspectMcpResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InspectMcpResponse): InspectMcpResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* McpServer server */ 1:
+                    message.server = McpServer.internalBinaryRead(reader, reader.uint32(), options, message.server);
+                    break;
+                case /* McpProblem problem */ 2:
+                    message.problem = McpProblem.internalBinaryRead(reader, reader.uint32(), options, message.problem);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InspectMcpResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* McpServer server = 1; */
+        if (message.server)
+            McpServer.internalBinaryWrite(message.server, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* McpProblem problem = 2; */
+        if (message.problem)
+            McpProblem.internalBinaryWrite(message.problem, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message InspectMcpResponse
+ */
+export const InspectMcpResponse = new InspectMcpResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpServer$Type extends MessageType<McpServer> {
+    constructor() {
+        super("McpServer", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "protocol_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "handshake", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "supported_versions", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "tool_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 7, name: "resource_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 8, name: "resource_template_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 9, name: "prompt_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 10, name: "tools", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => McpTool },
+            { no: 11, name: "instructions", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<McpServer>): McpServer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.version = "";
+        message.protocolVersion = "";
+        message.handshake = false;
+        message.supportedVersions = [];
+        message.toolCount = 0;
+        message.resourceCount = 0;
+        message.resourceTemplateCount = 0;
+        message.promptCount = 0;
+        message.tools = [];
+        message.instructions = "";
+        if (value !== undefined)
+            reflectionMergePartial<McpServer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: McpServer): McpServer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string version */ 2:
+                    message.version = reader.string();
+                    break;
+                case /* string protocol_version */ 3:
+                    message.protocolVersion = reader.string();
+                    break;
+                case /* bool handshake */ 4:
+                    message.handshake = reader.bool();
+                    break;
+                case /* repeated string supported_versions */ 5:
+                    message.supportedVersions.push(reader.string());
+                    break;
+                case /* int32 tool_count */ 6:
+                    message.toolCount = reader.int32();
+                    break;
+                case /* int32 resource_count */ 7:
+                    message.resourceCount = reader.int32();
+                    break;
+                case /* int32 resource_template_count */ 8:
+                    message.resourceTemplateCount = reader.int32();
+                    break;
+                case /* int32 prompt_count */ 9:
+                    message.promptCount = reader.int32();
+                    break;
+                case /* repeated McpTool tools */ 10:
+                    message.tools.push(McpTool.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string instructions */ 11:
+                    message.instructions = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: McpServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string version = 2; */
+        if (message.version !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.version);
+        /* string protocol_version = 3; */
+        if (message.protocolVersion !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.protocolVersion);
+        /* bool handshake = 4; */
+        if (message.handshake !== false)
+            writer.tag(4, WireType.Varint).bool(message.handshake);
+        /* repeated string supported_versions = 5; */
+        for (let i = 0; i < message.supportedVersions.length; i++)
+            writer.tag(5, WireType.LengthDelimited).string(message.supportedVersions[i]);
+        /* int32 tool_count = 6; */
+        if (message.toolCount !== 0)
+            writer.tag(6, WireType.Varint).int32(message.toolCount);
+        /* int32 resource_count = 7; */
+        if (message.resourceCount !== 0)
+            writer.tag(7, WireType.Varint).int32(message.resourceCount);
+        /* int32 resource_template_count = 8; */
+        if (message.resourceTemplateCount !== 0)
+            writer.tag(8, WireType.Varint).int32(message.resourceTemplateCount);
+        /* int32 prompt_count = 9; */
+        if (message.promptCount !== 0)
+            writer.tag(9, WireType.Varint).int32(message.promptCount);
+        /* repeated McpTool tools = 10; */
+        for (let i = 0; i < message.tools.length; i++)
+            McpTool.internalBinaryWrite(message.tools[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* string instructions = 11; */
+        if (message.instructions !== "")
+            writer.tag(11, WireType.LengthDelimited).string(message.instructions);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpServer
+ */
+export const McpServer = new McpServer$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpTool$Type extends MessageType<McpTool> {
+    constructor() {
+        super("McpTool", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "read_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<McpTool>): McpTool {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.title = "";
+        message.description = "";
+        message.readOnly = false;
+        if (value !== undefined)
+            reflectionMergePartial<McpTool>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: McpTool): McpTool {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string title */ 2:
+                    message.title = reader.string();
+                    break;
+                case /* string description */ 3:
+                    message.description = reader.string();
+                    break;
+                case /* bool read_only */ 4:
+                    message.readOnly = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: McpTool, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string title = 2; */
+        if (message.title !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.title);
+        /* string description = 3; */
+        if (message.description !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.description);
+        /* bool read_only = 4; */
+        if (message.readOnly !== false)
+            writer.tag(4, WireType.Varint).bool(message.readOnly);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpTool
+ */
+export const McpTool = new McpTool$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class McpProblem$Type extends MessageType<McpProblem> {
+    constructor() {
+        super("McpProblem", [
+            { no: 1, name: "kind", kind: "enum", T: () => ["McpProblemKind", McpProblemKind] },
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "detail", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<McpProblem>): McpProblem {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = 0;
+        message.message = "";
+        message.detail = "";
+        if (value !== undefined)
+            reflectionMergePartial<McpProblem>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: McpProblem): McpProblem {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* McpProblemKind kind */ 1:
+                    message.kind = reader.int32();
+                    break;
+                case /* string message */ 2:
+                    message.message = reader.string();
+                    break;
+                case /* string detail */ 3:
+                    message.detail = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: McpProblem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* McpProblemKind kind = 1; */
+        if (message.kind !== 0)
+            writer.tag(1, WireType.Varint).int32(message.kind);
+        /* string message = 2; */
+        if (message.message !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        /* string detail = 3; */
+        if (message.detail !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.detail);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpProblem
+ */
+export const McpProblem = new McpProblem$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class CompileResponse$Type extends MessageType<CompileResponse> {
     constructor() {
         super("CompileResponse", [
@@ -2836,7 +3445,8 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
             { no: 3, name: "twirp", kind: "message", oneof: "app", T: () => TwirpApp },
             { no: 4, name: "openapi", kind: "message", oneof: "app", T: () => OpenApiApp },
             { no: 5, name: "openai", kind: "message", oneof: "app", T: () => OpenAiApp },
-            { no: 7, name: "folder", kind: "message", oneof: "app", T: () => FolderApp }
+            { no: 7, name: "folder", kind: "message", oneof: "app", T: () => FolderApp },
+            { no: 8, name: "mcp", kind: "message", oneof: "app", T: () => McpApp }
         ]);
     }
     create(value?: PartialMessage<ConfigurationApp>): ConfigurationApp {
@@ -2885,6 +3495,12 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
                         folder: FolderApp.internalBinaryRead(reader, reader.uint32(), options, (message.app as any).folder)
                     };
                     break;
+                case /* McpApp mcp */ 8:
+                    message.app = {
+                        oneofKind: "mcp",
+                        mcp: McpApp.internalBinaryRead(reader, reader.uint32(), options, (message.app as any).mcp)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -2915,6 +3531,9 @@ class ConfigurationApp$Type extends MessageType<ConfigurationApp> {
         /* FolderApp folder = 7; */
         if (message.app.oneofKind === "folder")
             FolderApp.internalBinaryWrite(message.app.folder, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* McpApp mcp = 8; */
+        if (message.app.oneofKind === "mcp")
+            McpApp.internalBinaryWrite(message.app.mcp, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3433,6 +4052,101 @@ class FolderApp$Type extends MessageType<FolderApp> {
  */
 export const FolderApp = new FolderApp$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class McpApp$Type extends MessageType<McpApp> {
+    constructor() {
+        super("McpApp", [
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "headers", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
+            { no: 3, name: "auth", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "api_key_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<McpApp>): McpApp {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.url = "";
+        message.headers = {};
+        message.auth = "";
+        message.token = "";
+        message.apiKeyName = "";
+        if (value !== undefined)
+            reflectionMergePartial<McpApp>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: McpApp): McpApp {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string url */ 1:
+                    message.url = reader.string();
+                    break;
+                case /* map<string, string> headers */ 2:
+                    this.binaryReadMap2(message.headers, reader, options);
+                    break;
+                case /* string auth */ 3:
+                    message.auth = reader.string();
+                    break;
+                case /* string token */ 4:
+                    message.token = reader.string();
+                    break;
+                case /* string api_key_name */ 5:
+                    message.apiKeyName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap2(map: McpApp["headers"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof McpApp["headers"] | undefined, val: McpApp["headers"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for McpApp.headers");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
+    internalBinaryWrite(message: McpApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string url = 1; */
+        if (message.url !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.url);
+        /* map<string, string> headers = 2; */
+        for (let k of globalThis.Object.keys(message.headers))
+            writer.tag(2, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.headers[k]).join();
+        /* string auth = 3; */
+        if (message.auth !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.auth);
+        /* string token = 4; */
+        if (message.token !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.token);
+        /* string api_key_name = 5; */
+        if (message.apiKeyName !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.apiKeyName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message McpApp
+ */
+export const McpApp = new McpApp$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class UpdateConfigurationRequest$Type extends MessageType<UpdateConfigurationRequest> {
     constructor() {
         super("UpdateConfigurationRequest", [
@@ -3540,6 +4254,7 @@ export const Api = new ServiceType("Api", [
     { name: "OpenApp", options: {}, I: OpenAppRequest, O: OpenAppResponse },
     { name: "InspectOpenApi", options: {}, I: InspectOpenApiRequest, O: InspectOpenApiResponse },
     { name: "InspectGrpc", options: {}, I: InspectGrpcRequest, O: InspectGrpcResponse },
+    { name: "InspectMcp", options: {}, I: InspectMcpRequest, O: InspectMcpResponse },
     { name: "GetConfiguration", options: {}, I: GetConfigurationRequest, O: GetConfigurationResponse },
     { name: "UpdateConfiguration", options: {}, I: UpdateConfigurationRequest, O: UpdateConfigurationResponse },
     { name: "SetStoredValue", options: {}, I: SetStoredValueRequest, O: StoredValueResponse },

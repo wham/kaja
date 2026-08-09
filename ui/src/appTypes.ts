@@ -1,4 +1,4 @@
-import { Globe, FolderOpen, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
+import { Blocks, Globe, FolderOpen, Plug, Server, Sparkles, type LucideIcon } from "lucide-react";
 import { ConfigurationApp } from "./server/api";
 
 // Parameter kinds an app exposes in the New form. "file" and "folder" render a
@@ -129,6 +129,28 @@ export const appTypes: AppTypeDefinition[] = [
       label: "try the Petstore demo",
       name: "Petstore",
       parameters: { specUrl: "https://petstore3.swagger.io/api/v3/openapi.json" },
+    },
+  },
+  {
+    preview: true,
+    type: "mcp",
+    label: "MCP",
+    description: "Explore another Model Context Protocol server: its tools, resources and prompts.",
+    icon: Blocks,
+    // McpForm renders these: it reads the server first and then shows what it
+    // exposes, instead of asking for it field by field.
+    customForm: true,
+    surfaceNoun: "method",
+    parameters: [
+      { key: "url", label: "MCP endpoint", type: "url", placeholder: "https://example.com/mcp" },
+      { key: "auth", label: "Authentication", type: "text", optional: true },
+      { key: "token", label: "Token or API key", type: "text", optional: true },
+      { key: "apiKeyName", label: "Header name", type: "text", optional: true },
+    ],
+    demo: {
+      label: "try the DeepWiki demo server",
+      name: "DeepWiki",
+      parameters: { url: "https://mcp.deepwiki.com/mcp" },
     },
   },
   {

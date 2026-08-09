@@ -10,6 +10,7 @@ import (
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/apps/folder"
+	"github.com/wham/kaja/v2/pkg/apps/mcp"
 	"github.com/wham/kaja/v2/pkg/apps/openai"
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
@@ -39,11 +40,12 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 		buildNumber:            buildNumber,
 		variableStore:          variableStore,
 		apps: apps.NewManager(map[string]apps.App{
-			"grpc":     rpc.New("grpc"),
-			"twirp":    rpc.New("twirp"),
-			"openapi":  openapi.New(),
-			"openai":   openai.New(),
-			"folder":   folder.New(),
+			"grpc":    rpc.New("grpc"),
+			"twirp":   rpc.New("twirp"),
+			"openapi": openapi.New(),
+			"openai":  openai.New(),
+			"folder":  folder.New(),
+			"mcp":     mcp.New(),
 		}),
 	}
 }
@@ -261,6 +263,75 @@ func describeServer(server *rpc.Server) *GrpcServer {
 			Name:                 service.Name,
 			MethodCount:          int32(service.MethodCount),
 			StreamingMethodCount: int32(service.StreamingMethodCount),
+		})
+	}
+	return described
+}
+
+// InspectMcp reads what an MCP server exposes without creating an app, so the
+// New MCP app form can fill itself in from what answered.
+func (s *ApiService) InspectMcp(ctx context.Context, req *InspectMcpRequest) (*InspectMcpResponse, error) {
+	if req.Mcp == nil {
+		return nil, fmt.Errorf("mcp app is required")
+	}
+
+	_, parameters := flattenApp(&ConfigurationApp{App: &ConfigurationApp_Mcp{Mcp: req.Mcp}})
+	expandAppParameters(parameters, s.Variables(), NewLogger())
+
+	surface, problem := mcp.Inspect(parameters)
+	if problem != nil {
+		return &InspectMcpResponse{Problem: &McpProblem{
+			Kind:    mcpProblemKind(problem.Kind),
+			Message: problem.Message,
+			Detail:  problem.Detail,
+		}}, nil
+	}
+
+	return &InspectMcpResponse{Server: describeMcpServer(surface)}, nil
+}
+
+var mcpProblemKinds = map[mcp.ProblemKind]McpProblemKind{
+	mcp.ProblemTarget:       McpProblemKind_MCP_PROBLEM_TARGET,
+	mcp.ProblemUnreachable:  McpProblemKind_MCP_PROBLEM_UNREACHABLE,
+	mcp.ProblemTimeout:      McpProblemKind_MCP_PROBLEM_TIMEOUT,
+	mcp.ProblemUnauthorized: McpProblemKind_MCP_PROBLEM_UNAUTHORIZED,
+	mcp.ProblemForbidden:    McpProblemKind_MCP_PROBLEM_FORBIDDEN,
+	mcp.ProblemHTTPError:    McpProblemKind_MCP_PROBLEM_HTTP_ERROR,
+	mcp.ProblemNotMCP:       McpProblemKind_MCP_PROBLEM_NOT_MCP,
+	mcp.ProblemEmpty:        McpProblemKind_MCP_PROBLEM_EMPTY,
+}
+
+func mcpProblemKind(kind mcp.ProblemKind) McpProblemKind {
+	return mcpProblemKinds[kind]
+}
+
+// mcpToolLimit bounds how many tools travel back to the form. It shows a few and
+// counts the rest, and a server with three hundred of them would otherwise send
+// every description it has to fill a list nobody reads to the end.
+const mcpToolLimit = 24
+
+func describeMcpServer(surface *mcp.Surface) *McpServer {
+	described := &McpServer{
+		Name:                  surface.ServerInfo.Name,
+		Version:               surface.ServerInfo.Version,
+		ProtocolVersion:       surface.ProtocolVersion,
+		Handshake:             surface.Legacy,
+		SupportedVersions:     surface.SupportedVersions,
+		ToolCount:             int32(len(surface.Tools)),
+		ResourceCount:         int32(len(surface.Resources)),
+		ResourceTemplateCount: int32(len(surface.ResourceTemplates)),
+		PromptCount:           int32(len(surface.Prompts)),
+		Instructions:          surface.Instructions,
+	}
+	for i, tool := range surface.Tools {
+		if i == mcpToolLimit {
+			break
+		}
+		described.Tools = append(described.Tools, &McpTool{
+			Name:        tool.Name,
+			Title:       tool.Title,
+			Description: tool.Description,
+			ReadOnly:    tool.Annotations != nil && tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint,
 		})
 	}
 	return described

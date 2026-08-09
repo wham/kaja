@@ -7,6 +7,7 @@ service Api {
   rpc OpenApp(OpenAppRequest) returns (OpenAppResponse);
   rpc InspectOpenApi(InspectOpenApiRequest) returns (InspectOpenApiResponse);
   rpc InspectGrpc(InspectGrpcRequest) returns (InspectGrpcResponse);
+  rpc InspectMcp(InspectMcpRequest) returns (InspectMcpResponse);
   rpc GetConfiguration(GetConfigurationRequest) returns (GetConfigurationResponse);
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
@@ -236,6 +237,82 @@ enum OpenApiProblemKind {
   OPEN_API_PROBLEM_MALFORMED = 7;
 }
 
+// InspectMcp reads what an MCP server exposes without creating an app, so the
+// New MCP app form can fill itself in from what answered: the server's own name
+// and version, the protocol revision it speaks, and the tools, resources and
+// prompts it lists. The app carries the same parameters the app would be opened
+// with, credential included - an MCP server usually guards the list of its tools
+// as closely as the tools themselves.
+message InspectMcpRequest {
+  McpApp mcp = 1;
+}
+
+message InspectMcpResponse {
+  // Set when the server was read; the form fills itself in from it.
+  McpServer server = 1;
+  // Set when it wasn't; the form shows it in place of the summary.
+  McpProblem problem = 2;
+}
+
+message McpServer {
+  // What the server calls itself. Self-reported, and only ever displayed.
+  string name = 1;
+  string version = 2;
+  // The protocol revision the exchange settled on, e.g. "2026-07-28".
+  string protocol_version = 3;
+  // Whether the server opened with the `initialize` handshake rather than the
+  // per-request metadata the protocol uses from 2026-07-28 on.
+  bool handshake = 4;
+  // Every revision the server says it speaks. Only a modern server reports this.
+  repeated string supported_versions = 5;
+  int32 tool_count = 6;
+  int32 resource_count = 7;
+  int32 resource_template_count = 8;
+  int32 prompt_count = 9;
+  // The tools it listed, so the form can show what the app would add.
+  repeated McpTool tools = 10;
+  // The server's own guidance on how to use it, where it offers any.
+  string instructions = 11;
+}
+
+message McpTool {
+  string name = 1;
+  string title = 2;
+  string description = 3;
+  // The server's own hint that the tool only reads. It is the server's word and
+  // nothing more.
+  bool read_only = 4;
+}
+
+// McpProblem is a server that couldn't be read, classified so the form can name
+// the next move instead of printing a raw error.
+message McpProblem {
+  McpProblemKind kind = 1;
+  // One line, addressed to the user.
+  string message = 2;
+  // The underlying transport or protocol error, verbatim.
+  string detail = 3;
+}
+
+enum McpProblemKind {
+  MCP_PROBLEM_UNKNOWN = 0;
+  // The URL isn't a usable HTTP endpoint.
+  MCP_PROBLEM_TARGET = 1;
+  // The host couldn't be reached (DNS, TCP, TLS).
+  MCP_PROBLEM_UNREACHABLE = 2;
+  MCP_PROBLEM_TIMEOUT = 3;
+  // The server wants a credential.
+  MCP_PROBLEM_UNAUTHORIZED = 4;
+  // A credential was sent and rejected.
+  MCP_PROBLEM_FORBIDDEN = 5;
+  // Any other non-200 response.
+  MCP_PROBLEM_HTTP_ERROR = 6;
+  // Something answered, but it doesn't speak MCP.
+  MCP_PROBLEM_NOT_MCP = 7;
+  // It speaks MCP and exposes nothing.
+  MCP_PROBLEM_EMPTY = 8;
+}
+
 message CompileResponse {
   CompileStatus status = 1;
   repeated Log logs = 2;
@@ -377,6 +454,7 @@ message ConfigurationApp {
     OpenApiApp openapi = 4;
     OpenAiApp openai = 5;
     FolderApp folder = 7;
+    McpApp mcp = 8;
   }
 
   // Field 6 used to hold a "markdown" app: the same folder on disk, behind
@@ -465,6 +543,27 @@ message OpenAiApp {
 // is local, so it forwards no headers.
 message FolderApp {
   string path = 1;
+}
+
+// McpApp explores another Model Context Protocol server over the Streamable HTTP
+// transport. Its proto surface is generated from what that server exposes: one
+// method per tool, one per prompt, and the list/read methods for its resources.
+//
+// The credential is the app's, not the request's: kaja resolves it where it
+// holds it and applies it on the way out, so a "${secret}" token is never handed
+// to the browser.
+message McpApp {
+  // The server's MCP endpoint, e.g. "https://example.com/mcp".
+  string url = 1;
+  map<string, string> headers = 2;
+  // The credential sent with every request: "bearer", "apikey", or "none". Empty
+  // means bearer, which is what an MCP server behind a login nearly always
+  // wants.
+  string auth = 3;
+  // The bearer token, or the key for the "apikey" credential.
+  string token = 4;
+  // Header the "apikey" credential is sent under. Empty means "X-API-Key".
+  string api_key_name = 5;
 }
 
 message UpdateConfigurationRequest {
