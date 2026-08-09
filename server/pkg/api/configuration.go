@@ -68,33 +68,12 @@ func loadConfigurationFile(configurationPath string, logger *Logger) *Configurat
 //   - a "system" block, which described the running kaja rather than the workspace.
 //     Earlier versions wrote it into every file they saved, so configurations in the
 //     wild still carry one. It is `Runtime` now, and is discarded rather than moved.
+//   - a "markdown" app, whose methods each rendered one Markdown construct into a
+//     file. It is the general "folder" app now, bound to the same folder.
 func migrateConfiguration(content []byte, logger *Logger) []byte {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(content, &raw); err != nil {
 		// Leave it to protojson to report the parse error.
-		return content
-	}
-
-	projectsRaw, hasProjects := raw["projects"]
-	_, hasSystem := raw["system"]
-	if !hasProjects && !hasSystem {
-		return content
-	}
-
-	delete(raw, "system")
-
-	if !hasProjects {
-		migrated, err := json.Marshal(raw)
-		if err != nil {
-			logger.error("Failed to encode migrated configuration", err)
-			return content
-		}
-		return migrated
-	}
-
-	var projects []map[string]any
-	if err := json.Unmarshal(projectsRaw, &projects); err != nil {
-		logger.error("Failed to read legacy projects list", err)
 		return content
 	}
 
@@ -106,25 +85,63 @@ func migrateConfiguration(content []byte, logger *Logger) []byte {
 		}
 	}
 
-	for _, project := range projects {
-		apps = append(apps, legacyProjectToApp(project))
-	}
-	if len(projects) > 0 {
-		logger.info(fmt.Sprintf("Migrated %d legacy project(s) to apps", len(projects)))
-	}
+	migratedApps := migrateMarkdownApps(apps, logger)
 
-	delete(raw, "projects")
-	appsBytes, err := json.Marshal(apps)
-	if err != nil {
-		logger.error("Failed to encode migrated apps", err)
+	projectsRaw, hasProjects := raw["projects"]
+	_, hasSystem := raw["system"]
+	if !hasProjects && !hasSystem && !migratedApps {
 		return content
 	}
-	raw["apps"] = appsBytes
+
+	delete(raw, "system")
+
+	if hasProjects {
+		var projects []map[string]any
+		if err := json.Unmarshal(projectsRaw, &projects); err != nil {
+			logger.error("Failed to read legacy projects list", err)
+			return content
+		}
+		for _, project := range projects {
+			apps = append(apps, legacyProjectToApp(project))
+		}
+		if len(projects) > 0 {
+			logger.info(fmt.Sprintf("Migrated %d legacy project(s) to apps", len(projects)))
+		}
+		delete(raw, "projects")
+	}
+
+	if hasProjects || migratedApps {
+		appsBytes, err := json.Marshal(apps)
+		if err != nil {
+			logger.error("Failed to encode migrated apps", err)
+			return content
+		}
+		raw["apps"] = appsBytes
+	}
 
 	migrated, err := json.Marshal(raw)
 	if err != nil {
 		logger.error("Failed to encode migrated configuration", err)
 		return content
+	}
+	return migrated
+}
+
+// migrateMarkdownApps rewrites each legacy { "markdown": { "folder": X } } app as
+// { "folder": { "path": X } } in place, and reports whether it changed anything.
+func migrateMarkdownApps(apps []map[string]any, logger *Logger) bool {
+	migrated := false
+	for _, app := range apps {
+		block, ok := app["markdown"].(map[string]any)
+		if !ok {
+			continue
+		}
+		delete(app, "markdown")
+		app["folder"] = map[string]any{"path": stringField(block, "folder")}
+		migrated = true
+	}
+	if migrated {
+		logger.info("Migrated legacy markdown app(s) to folder apps")
 	}
 	return migrated
 }
@@ -248,7 +265,7 @@ func validateApps(configuration *Configuration, logger *Logger) {
 	validApps := []*ConfigurationApp{}
 	for _, app := range configuration.Apps {
 		if appType, _ := flattenApp(app); appType == "" {
-			logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, markdown.", app.Name), nil)
+			logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, folder.", app.Name), nil)
 			continue
 		}
 		validApps = append(validApps, app)

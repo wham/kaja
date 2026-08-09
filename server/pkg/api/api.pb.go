@@ -446,7 +446,7 @@ func (x *CompileRequest) GetProtoDir() string {
 
 // OpenApp opens an app from its configuration. "grpc"/
 // "twirp" apps describe a gRPC/Twirp service (proto files come from a static
-// directory or gRPC reflection), while built-in apps like "openapi" or "markdown"
+// directory or gRPC reflection), while built-in apps like "openapi" or "folder"
 // generate their own proto surface. In all cases the app produces proto files to
 // feed into Compile, an invocation target, and the transport protocol the client
 // uses to reach it. The server flattens the app's typed parameters to a string map
@@ -2043,7 +2043,7 @@ type Configuration struct {
 	// The JS code is using relative paths and should be not dependent on this.
 	PathPrefix string `protobuf:"bytes,1,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
 	// Apps are the single unit of configuration. A gRPC or Twirp service is just an
-	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
+	// app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
 	// are apps too. kaja renders and invokes every app the same way.
 	Apps []*ConfigurationApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
 	// User-defined variables, referenced as `${NAME}` in app configuration and read
@@ -2121,7 +2121,7 @@ type ConfigurationApp struct {
 	//	*ConfigurationApp_Twirp
 	//	*ConfigurationApp_Openapi
 	//	*ConfigurationApp_Openai
-	//	*ConfigurationApp_Markdown
+	//	*ConfigurationApp_Folder
 	App           isConfigurationApp_App `protobuf_oneof:"app"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2207,10 +2207,10 @@ func (x *ConfigurationApp) GetOpenai() *OpenAiApp {
 	return nil
 }
 
-func (x *ConfigurationApp) GetMarkdown() *MarkdownApp {
+func (x *ConfigurationApp) GetFolder() *FolderApp {
 	if x != nil {
-		if x, ok := x.App.(*ConfigurationApp_Markdown); ok {
-			return x.Markdown
+		if x, ok := x.App.(*ConfigurationApp_Folder); ok {
+			return x.Folder
 		}
 	}
 	return nil
@@ -2236,8 +2236,8 @@ type ConfigurationApp_Openai struct {
 	Openai *OpenAiApp `protobuf:"bytes,5,opt,name=openai,proto3,oneof"`
 }
 
-type ConfigurationApp_Markdown struct {
-	Markdown *MarkdownApp `protobuf:"bytes,6,opt,name=markdown,proto3,oneof"`
+type ConfigurationApp_Folder struct {
+	Folder *FolderApp `protobuf:"bytes,7,opt,name=folder,proto3,oneof"`
 }
 
 func (*ConfigurationApp_Grpc) isConfigurationApp_App() {}
@@ -2248,7 +2248,7 @@ func (*ConfigurationApp_Openapi) isConfigurationApp_App() {}
 
 func (*ConfigurationApp_Openai) isConfigurationApp_App() {}
 
-func (*ConfigurationApp_Markdown) isConfigurationApp_App() {}
+func (*ConfigurationApp_Folder) isConfigurationApp_App() {}
 
 // GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
 // proto_dir, or from server reflection when reflection is set. headers are
@@ -2667,29 +2667,29 @@ func (x *OpenAiApp) GetHeaders() map[string]string {
 	return nil
 }
 
-// MarkdownApp creates and writes Markdown files in a folder on disk. It is local,
-// so it forwards no headers.
-type MarkdownApp struct {
+// FolderApp lists, creates, reads and appends to files in a folder on disk. It
+// is local, so it forwards no headers.
+type FolderApp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Folder        string                 `protobuf:"bytes,1,opt,name=folder,proto3" json:"folder,omitempty"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MarkdownApp) Reset() {
-	*x = MarkdownApp{}
+func (x *FolderApp) Reset() {
+	*x = FolderApp{}
 	mi := &file_proto_api_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MarkdownApp) String() string {
+func (x *FolderApp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MarkdownApp) ProtoMessage() {}
+func (*FolderApp) ProtoMessage() {}
 
-func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
+func (x *FolderApp) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_api_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2701,14 +2701,14 @@ func (x *MarkdownApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MarkdownApp.ProtoReflect.Descriptor instead.
-func (*MarkdownApp) Descriptor() ([]byte, []int) {
+// Deprecated: Use FolderApp.ProtoReflect.Descriptor instead.
+func (*FolderApp) Descriptor() ([]byte, []int) {
 	return file_proto_api_proto_rawDescGZIP(), []int{31}
 }
 
-func (x *MarkdownApp) GetFolder() string {
+func (x *FolderApp) GetPath() string {
 	if x != nil {
-		return x.Folder
+		return x.Path
 	}
 	return ""
 }
@@ -2934,16 +2934,17 @@ const file_proto_api_proto_rawDesc = "" +
 	"\tvariables\x18\x06 \x03(\v2\x1d.Configuration.VariablesEntryR\tvariables\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"\xeb\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x04\x10\x05R\bprojectsR\x06system\"\xf5\x01\n" +
 	"\x10ConfigurationApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04grpc\x18\x02 \x01(\v2\b.GrpcAppH\x00R\x04grpc\x12!\n" +
 	"\x05twirp\x18\x03 \x01(\v2\t.TwirpAppH\x00R\x05twirp\x12'\n" +
 	"\aopenapi\x18\x04 \x01(\v2\v.OpenApiAppH\x00R\aopenapi\x12$\n" +
 	"\x06openai\x18\x05 \x01(\v2\n" +
-	".OpenAiAppH\x00R\x06openai\x12*\n" +
-	"\bmarkdown\x18\x06 \x01(\v2\f.MarkdownAppH\x00R\bmarkdownB\x05\n" +
-	"\x03app\"\xf8\x03\n" +
+	".OpenAiAppH\x00R\x06openai\x12$\n" +
+	"\x06folder\x18\a \x01(\v2\n" +
+	".FolderAppH\x00R\x06folderB\x05\n" +
+	"\x03appJ\x04\b\x06\x10\aR\bmarkdown\"\xf8\x03\n" +
 	"\aGrpcApp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
 	"\tproto_dir\x18\x02 \x01(\tR\bprotoDir\x12\x1e\n" +
@@ -2995,9 +2996,9 @@ const file_proto_api_proto_rawDesc = "" +
 	"\aheaders\x18\x03 \x03(\v2\x17.OpenAiApp.HeadersEntryR\aheaders\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"%\n" +
-	"\vMarkdownApp\x12\x16\n" +
-	"\x06folder\x18\x01 \x01(\tR\x06folder\"R\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1f\n" +
+	"\tFolderApp\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"R\n" +
 	"\x1aUpdateConfigurationRequest\x124\n" +
 	"\rconfiguration\x18\x01 \x01(\v2\x0e.ConfigurationR\rconfiguration\"\x8d\x01\n" +
 	"\x1bUpdateConfigurationResponse\x124\n" +
@@ -3109,7 +3110,7 @@ var file_proto_api_proto_goTypes = []any{
 	(*TwirpApp)(nil),                    // 34: TwirpApp
 	(*OpenApiApp)(nil),                  // 35: OpenApiApp
 	(*OpenAiApp)(nil),                   // 36: OpenAiApp
-	(*MarkdownApp)(nil),                 // 37: MarkdownApp
+	(*FolderApp)(nil),                   // 37: FolderApp
 	(*UpdateConfigurationRequest)(nil),  // 38: UpdateConfigurationRequest
 	(*UpdateConfigurationResponse)(nil), // 39: UpdateConfigurationResponse
 	nil,                                 // 40: Configuration.VariablesEntry
@@ -3150,7 +3151,7 @@ var file_proto_api_proto_depIdxs = []int32{
 	34, // 28: ConfigurationApp.twirp:type_name -> TwirpApp
 	35, // 29: ConfigurationApp.openapi:type_name -> OpenApiApp
 	36, // 30: ConfigurationApp.openai:type_name -> OpenAiApp
-	37, // 31: ConfigurationApp.markdown:type_name -> MarkdownApp
+	37, // 31: ConfigurationApp.folder:type_name -> FolderApp
 	41, // 32: GrpcApp.headers:type_name -> GrpcApp.HeadersEntry
 	42, // 33: TwirpApp.headers:type_name -> TwirpApp.HeadersEntry
 	43, // 34: OpenApiApp.headers:type_name -> OpenApiApp.HeadersEntry
@@ -3191,7 +3192,7 @@ func file_proto_api_proto_init() {
 		(*ConfigurationApp_Twirp)(nil),
 		(*ConfigurationApp_Openapi)(nil),
 		(*ConfigurationApp_Openai)(nil),
-		(*ConfigurationApp_Markdown)(nil),
+		(*ConfigurationApp_Folder)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

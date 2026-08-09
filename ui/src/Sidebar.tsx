@@ -590,7 +590,7 @@ export function Sidebar({
             >
               {/* The app keeps its icon: it is the one place in the tree where
                   the glyph says something the indent can't — gRPC or OpenAPI or
-                  Markdown. Everything below repeats itself, so it goes. */}
+                  Folder. Everything below repeats itself, so it goes. */}
               <div
                 className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
                 onMouseEnter={() => setHoveredApp(appName)}

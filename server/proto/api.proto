@@ -27,7 +27,7 @@ enum OpenStatus {
 
 // OpenApp opens an app from its configuration. "grpc"/
 // "twirp" apps describe a gRPC/Twirp service (proto files come from a static
-// directory or gRPC reflection), while built-in apps like "openapi" or "markdown"
+// directory or gRPC reflection), while built-in apps like "openapi" or "folder"
 // generate their own proto surface. In all cases the app produces proto files to
 // feed into Compile, an invocation target, and the transport protocol the client
 // uses to reach it. The server flattens the app's typed parameters to a string map
@@ -344,7 +344,7 @@ message Configuration {
 	// The JS code is using relative paths and should be not dependent on this.
   string path_prefix = 1;
   // Apps are the single unit of configuration. A gRPC or Twirp service is just an
-  // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "markdown"
+  // app of type "grpc"/"twirp"; built-in integrations like "openapi" or "folder"
   // are apps too. kaja renders and invokes every app the same way.
   repeated ConfigurationApp apps = 5;
   // User-defined variables, referenced as `${NAME}` in app configuration and read
@@ -376,8 +376,14 @@ message ConfigurationApp {
     TwirpApp twirp = 3;
     OpenApiApp openapi = 4;
     OpenAiApp openai = 5;
-    MarkdownApp markdown = 6;
+    FolderApp folder = 7;
   }
+
+  // Field 6 used to hold a "markdown" app: the same folder on disk, behind
+  // methods that each rendered one Markdown construct. It is the general
+  // "folder" app now; legacy config files are migrated on load.
+  reserved 6;
+  reserved "markdown";
 }
 
 // GrpcApp calls a gRPC service. Its proto surface comes from a workspace-relative
@@ -455,10 +461,10 @@ message OpenAiApp {
   map<string, string> headers = 3;
 }
 
-// MarkdownApp creates and writes Markdown files in a folder on disk. It is local,
-// so it forwards no headers.
-message MarkdownApp {
-  string folder = 1;
+// FolderApp lists, creates, reads and appends to files in a folder on disk. It
+// is local, so it forwards no headers.
+message FolderApp {
+  string path = 1;
 }
 
 message UpdateConfigurationRequest {

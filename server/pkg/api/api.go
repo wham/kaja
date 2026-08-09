@@ -9,7 +9,7 @@ import (
 
 	"github.com/wham/kaja/v2/internal/tempdir"
 	"github.com/wham/kaja/v2/pkg/apps"
-	"github.com/wham/kaja/v2/pkg/apps/markdown"
+	"github.com/wham/kaja/v2/pkg/apps/folder"
 	"github.com/wham/kaja/v2/pkg/apps/openai"
 	"github.com/wham/kaja/v2/pkg/apps/openapi"
 	"github.com/wham/kaja/v2/pkg/apps/rpc"
@@ -43,7 +43,7 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 			"twirp":    rpc.New("twirp"),
 			"openapi":  openapi.New(),
 			"openai":   openai.New(),
-			"markdown": markdown.New(),
+			"folder":   folder.New(),
 		}),
 	}
 }
