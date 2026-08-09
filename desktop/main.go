@@ -192,6 +192,31 @@ func (a *App) showLogsInFinder() {
 	revealInFinder(dir)
 }
 
+// ShowFileInFinder reveals a file in the system file browser with the file
+// selected, the way Show Config in Finder does for kaja.json. A path that isn't
+// there yet — an MCP client's configuration file before that client has written
+// one — opens the nearest directory that is, so the link always lands somewhere.
+func (a *App) ShowFileInFinder(path string) {
+	if strings.TrimSpace(path) == "" {
+		return
+	}
+	if _, err := os.Stat(path); err == nil {
+		revealFileInFinder(path)
+		return
+	}
+	for dir := filepath.Dir(path); ; {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			revealInFinder(dir)
+			return
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return
+		}
+		dir = parent
+	}
+}
+
 // ScriptFile is the on-disk representation of a Kaja script.
 // For ListScripts only Path and Name are populated; Content is fetched
 // on demand via ReadScriptFile.

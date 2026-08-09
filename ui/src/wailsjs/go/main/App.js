@@ -54,6 +54,10 @@ export function ResolvedVariables() {
   return window['go']['main']['App']['ResolvedVariables']();
 }
 
+export function ShowFileInFinder(arg1) {
+  return window['go']['main']['App']['ShowFileInFinder'](arg1);
+}
+
 export function Target(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['Target'](arg1, arg2, arg3, arg4, arg5);
 }
