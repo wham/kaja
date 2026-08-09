@@ -6,6 +6,7 @@ import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { SegmentedControl } from "./components/segmented-control";
 import { isWailsEnvironment } from "./wails";
+import { ShowFileInFinder } from "./wailsjs/go/main/App";
 import { BrowserOpenURL } from "./wailsjs/runtime/runtime";
 import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
@@ -39,7 +40,14 @@ interface StatusBarProps {
 // here and they show up as another tab in the popup.
 interface McpClient {
   label: string;
-  hint: string;
+  // configuration is the file the snippet is pasted into: the key the desktop
+  // resolved a path under, and the name to fall back to when it couldn't. A
+  // client told to run a command instead has none.
+  configuration?: { key: string; name: string };
+  // hint says what to do with the snippet. It is handed the configuration file
+  // it names — a link that reveals it, or its bare name — so the sentence around
+  // it stays with the client it belongs to.
+  hint: (file: React.ReactNode) => React.ReactNode;
   // snippet renders the connection instructions for the running server.
   snippet: (info: main.MCPInfo) => string;
 }
@@ -47,7 +55,7 @@ interface McpClient {
 const mcpClients: McpClient[] = [
   {
     label: "Claude Code",
-    hint: "Run this command to add the server to the CLI:",
+    hint: () => "Run this command to add the server to the CLI:",
     snippet: (info) => `claude mcp add --transport http kaja ${info.url} --header "Authorization: Bearer ${info.token}"`,
   },
   {
@@ -56,7 +64,8 @@ const mcpClients: McpClient[] = [
     // The header is passed via an env var because Claude Desktop splits args on
     // spaces, which would otherwise mangle "Bearer <token>".
     label: "Claude Desktop",
-    hint: "Add this to claude_desktop_config.json (bridges through mcp-remote):",
+    configuration: { key: "claudeDesktop", name: "claude_desktop_config.json" },
+    hint: (file) => <>Add this to {file}, which bridges through mcp-remote:</>,
     snippet: (info) =>
       JSON.stringify(
         {
@@ -72,7 +81,43 @@ const mcpClients: McpClient[] = [
         2,
       ),
   },
+  {
+    // Cursor talks to the server itself, so it takes the endpoint and the token
+    // as they are — no bridge, unlike Claude Desktop.
+    label: "Cursor",
+    configuration: { key: "cursor", name: "mcp.json" },
+    hint: (file) => <>Add this to {file}:</>,
+    snippet: (info) =>
+      JSON.stringify(
+        {
+          mcpServers: {
+            kaja: {
+              type: "http",
+              url: info.url,
+              headers: { Authorization: `Bearer ${info.token}` },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+  },
 ];
+
+// ConfigurationFileLink shows the file a snippet goes into and opens it in the
+// system file browser with the file selected, the way Show Config in Finder does
+// for kaja.json. A file the client hasn't written yet opens its directory.
+function ConfigurationFileLink({ path }: { path: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => ShowFileInFinder(path)}
+      className="cursor-pointer break-all border-0 bg-transparent p-0 text-left font-mono text-[11px] text-foreground underline underline-offset-2 hover:text-foreground/80"
+    >
+      {path}
+    </button>
+  );
+}
 
 // MCPStatus surfaces the localhost MCP endpoint and, per client, the snippet to
 // connect it to an agent. Shown once the server is up, which on the desktop is
@@ -87,6 +132,14 @@ function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
   const [copied, setCopied] = useState(false);
   const client = mcpClients[selected];
   const snippet = client.snippet(info);
+  const configurationPath = client.configuration ? info.configurationPaths?.[client.configuration.key] : undefined;
+  const configurationFile = client.configuration ? (
+    configurationPath ? (
+      <ConfigurationFileLink path={configurationPath} />
+    ) : (
+      <span className="font-mono text-[11px] text-foreground">{client.configuration.name}</span>
+    )
+  ) : null;
 
   const select = (index: number) => {
     setSelected(index);
@@ -133,7 +186,7 @@ function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
               </SegmentedControl.Button>
             ))}
           </SegmentedControl>
-          <span className="text-[11px] text-muted-foreground">{client.hint}</span>
+          <span className="text-[11px] text-muted-foreground">{client.hint(configurationFile)}</span>
           <pre className="m-0 whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">{snippet}</pre>
           <Button variant="outline" size="sm" onClick={copy}>
             {copied ? "Copied" : "Copy"}

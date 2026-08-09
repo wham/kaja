@@ -28,6 +28,8 @@ export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 
 export function ResolvedVariables():Promise<{[key: string]: string}>;
 
+export function ShowFileInFinder(arg1:string):Promise<void>;
+
 export function Target(arg1:string,arg2:string,arg3:Array<number>,arg4:number,arg5:string):Promise<main.TargetResult>;
 
 export function TargetServerStream(arg1:string,arg2:string,arg3:Array<number>,arg4:string,arg5:string):Promise<void>;

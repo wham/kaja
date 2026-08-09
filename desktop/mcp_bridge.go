@@ -40,13 +40,39 @@ type MCPInfo struct {
 	URL     string `json:"url"`
 	Token   string `json:"token"`
 	Error   string `json:"error"`
+	// ConfigurationPaths is where each client keeps the file its snippet goes
+	// into, keyed by the client the footer shows it under.
+	ConfigurationPaths map[string]string `json:"configurationPaths"`
 }
 
 // MCPServerInfo returns the current connection details for the UI footer.
 func (a *App) MCPServerInfo() MCPInfo {
 	a.mcpMu.Lock()
 	defer a.mcpMu.Unlock()
-	return MCPInfo{Enabled: a.mcpServer != nil, URL: a.mcpURL, Token: a.mcpToken, Error: a.mcpError}
+	return MCPInfo{
+		Enabled:            a.mcpServer != nil,
+		URL:                a.mcpURL,
+		Token:              a.mcpToken,
+		Error:              a.mcpError,
+		ConfigurationPaths: mcpClientConfigurationPaths(),
+	}
+}
+
+// mcpClientConfigurationPaths is the file each client keeps its MCP servers in,
+// so the footer can link to the one it is telling you to edit rather than only
+// naming it. A client whose path this machine can't answer for is absent, and
+// its snippet is shown with the file named and no link.
+func mcpClientConfigurationPaths() map[string]string {
+	paths := map[string]string{}
+	// The three places os.UserConfigDir reports are the three Claude Desktop
+	// looks in: Application Support, %AppData%, and ~/.config.
+	if dir, err := os.UserConfigDir(); err == nil {
+		paths["claudeDesktop"] = filepath.Join(dir, "Claude", "claude_desktop_config.json")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		paths["cursor"] = filepath.Join(home, ".cursor", "mcp.json")
+	}
+	return paths
 }
 
 // MCPSetCatalog receives the live services/methods picture from the UI after

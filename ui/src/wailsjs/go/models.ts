@@ -4,6 +4,7 @@ export namespace main {
     url: string;
     token: string;
     error: string;
+    configurationPaths: { [key: string]: string };
 
     static createFrom(source: any = {}) {
       return new MCPInfo(source);
@@ -15,6 +16,7 @@ export namespace main {
       this.url = source["url"];
       this.token = source["token"];
       this.error = source["error"];
+      this.configurationPaths = source["configurationPaths"];
     }
   }
   export class ScriptFile {
