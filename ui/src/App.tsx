@@ -17,6 +17,7 @@ import {
   clearFile,
   dropFile,
   fileConsole,
+  findBlock,
   hasCallsInFlight,
   putFile,
   recordBlock,
@@ -43,6 +44,7 @@ import { Destination, Finder } from "./Finder";
 import { Gutter } from "./Gutter";
 import { Block, blockLabel } from "./blocks";
 import { AskCancelledError, Kaja, MethodCall } from "./kaja";
+import { TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
 import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
@@ -418,6 +420,12 @@ export function App() {
     (title: string): Run => {
       const current = currentRunRef.current;
       if (current) return current;
+      // Paging a live table fetches after its run is over, and those rows belong
+      // to the run whose canvas asked for them rather than to a run of their own.
+      // A script running at the same time outranks it: that one is definitely
+      // making the call being reported.
+      const pulling = pullRunRef.current;
+      if (pulling) return pulling;
       return beginRun(title, lastRunFileIdRef.current);
     },
     [beginRun],
@@ -497,6 +505,45 @@ export function App() {
   if (!kajaRef.current) {
     kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onBlockUpdate);
   }
+
+  /**
+   * Where each table is paged and searched. This is view state rather than
+   * something the run drew, so it is held here instead of in the block — but
+   * above the console, so switching to the log and back finds the table where it
+   * was left.
+   */
+  const [tableViews, setTableViews] = useState<{ [blockId: string]: TableView }>({});
+
+  const onTableView = useCallback((blockId: string, view: TableView) => {
+    setTableViews((current) => ({ ...current, [blockId]: view }));
+  }, []);
+
+  // The run that a table is being filled for, which is what a call made by the
+  // pull is recorded against.
+  const pullRunRef = useRef<Run | null>(null);
+
+  /**
+   * Fill a live table further — the next page, or the first page of a new
+   * search. A source that is no longer held (a run read back from an earlier
+   * session, or one let go to keep the closures bounded) can't be pulled, and
+   * the table says so rather than offering a Next that leads nowhere.
+   */
+  const onTablePull = useCallback(async (blockId: string, search: string, want: number) => {
+    const found = findBlock(historyRef.current, blockId);
+    const table = found?.block;
+    if (!found || table?.kind !== "table") return;
+
+    const previous = pullRunRef.current;
+    pullRunRef.current = found.run;
+    try {
+      const live = await kajaRef.current!.pullTable(blockId, search, want);
+      if (!live) {
+        setHistory((current) => recordBlock(current, found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now()));
+      }
+    } finally {
+      pullRunRef.current = previous;
+    }
+  }, []);
 
   // Clearing a file's history clears what is being held of it for next time too;
   // leaving yesterday's run behind would make "cleared" a half-truth.
@@ -1150,9 +1197,9 @@ export function App() {
         const kaja = kajaRef.current!;
         kaja.input = text;
         const run = beginRun(file.name, file.path);
-        runTask(file.content, kaja, apps, onScriptError).finally(() =>
-          setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)),
-        );
+        runTask(file.content, kaja, apps, onScriptError)
+          .then(() => kaja.settleTables())
+          .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
       } catch (err) {
         showFileError(`Run failed: ${err}`);
       }
@@ -1382,6 +1429,9 @@ export function App() {
         const kaja = kajaRef.current!;
         kaja.input = undefined;
         const captured = await runTaskCaptured(source, kaja, appsRef.current);
+        // An agent's table has nobody to page it, so its receipt is the first
+        // page — which is exactly what it says it is.
+        await kaja.settleTables();
         result = { ...captured, methodCalls: collected.map(toMethodCallLog), blocks: [...drawn.values()].map(toBlockLog) };
       } catch (err) {
         result = {
@@ -1675,9 +1725,12 @@ export function App() {
     // speak the same language.
     const title = tab.type === "script" ? tab.script.name : (deriveScratchTitle(code) ?? viewIdentity(tab, scratchesRef.current).name);
     beginRun(title, tab.type === "script" ? tab.script.path : tab.scratchId, controller);
-    runTask(code, kajaRef.current!, apps, onScriptError, controller.signal).finally(() =>
-      setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)),
-    );
+    // A live table draws its first page itself, and those calls are the run's:
+    // the script is not over until they have landed, or the run would report a
+    // duration that stops before the work it started.
+    runTask(code, kajaRef.current!, apps, onScriptError, controller.signal)
+      .then(() => kajaRef.current!.settleTables())
+      .finally(() => setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)));
     // A run is the punctuation that settles a scratch: it is when the title is
     // re-read from the code, rather than jittering as you type.
     if (tab.type === "scratch") {
@@ -2285,6 +2338,9 @@ export function App() {
                         onViewChange={onConsoleViewChange}
                         onAnswer={onAnswerAsk}
                         onCancelAsk={onCancelAsk}
+                        tableViews={tableViews}
+                        onTableView={onTableView}
+                        onTablePull={onTablePull}
                         onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
                       />
                     </div>
@@ -2517,11 +2573,16 @@ interface McpRunReport {
 // but nobody looking at it, so it is told the shape of what it made rather than
 // the contents, which it produced and already has.
 function toBlockLog(block: Block) {
+  const table = block.kind === "table" ? block : undefined;
   return {
     kind: block.kind,
     label: blockLabel(block),
-    columns: block.kind === "table" ? block.columns : undefined,
-    rows: block.kind === "table" ? block.rows.length : undefined,
+    columns: table?.columns,
+    rows: table?.rows.length,
+    // A live table drew the page it was asked for and left its source open. An
+    // agent has nobody to press Next, so it is told the rows are a page rather
+    // than the set — the loop that would fetch the rest is its own to write.
+    more: table?.live === true && table.exhausted !== true ? true : undefined,
   };
 }
 

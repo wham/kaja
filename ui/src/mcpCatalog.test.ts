@@ -186,7 +186,7 @@ describe("buildMcpCatalog", () => {
 
     expect(built.apps).toHaveLength(0);
     expect(built.runtime).toContain("export declare const kaja: {");
-    expect(built.runtime).toContain("table(columns: string[], rows?: unknown[][]): Table;");
+    expect(built.runtime).toContain("table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;");
     expect(built.runtime).toContain('"API_BASE_URL": string;');
     // The rule the type system can't state, said where the declaration is read.
     expect(built.runtime).toContain("a top-level `return` is an error");

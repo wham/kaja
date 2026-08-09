@@ -139,6 +139,20 @@ export function recordBlock(history: RunHistory, fileId: string | undefined, run
   });
 }
 
+/**
+ * Which run drew a block, wherever it is. A live table is paged long after the
+ * run that drew it is over, and the rows it fetches belong in that run's log —
+ * the click happened on its canvas.
+ */
+export function findBlock(history: RunHistory, blockId: string): { fileId: string; run: Run; block: Block } | undefined {
+  for (const [fileId, file] of Object.entries(history)) {
+    const item = file.items.find((item) => item.id === blockId && item.block !== undefined);
+    const run = item && file.runs.find((run) => run.id === item.runId);
+    if (item?.block && run) return { fileId, run, block: item.block };
+  }
+  return undefined;
+}
+
 export function recordLogs(history: RunHistory, fileId: string | undefined, runId: string, logs: Log[], now: number): RunHistory {
   if (!fileId) return history;
   return withFile(history, fileId, now, (file) => ({ ...file, items: [...file.items, { id: newItemId(), runId, timestamp: now, logs }] }));

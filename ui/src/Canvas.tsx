@@ -1,10 +1,11 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
 import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
 import { cn } from "./cn";
 import { Spinner } from "./components/spinner";
 import { isCallInFlight, MethodCall } from "./kaja";
+import { hasControls, NO_TABLE_VIEW, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
 import { loopKey } from "./loopKey";
 import { barFraction, callErrorCode, dotClass, formatDuration } from "./callFormat";
 import { ConsoleItem, itemStatus, RunGroup, slowestOf, worstStatus } from "./runs";
@@ -32,6 +33,11 @@ interface CanvasProps {
   // Clicking a call card takes you to that call's row in the log, which is where
   // its complete record is. The card can stay minimal because of it.
   onSelectCall: (itemId: string) => void;
+  // Where each table is pointed. It is view state rather than something the run
+  // drew, so it is held above the canvas and survives switching views.
+  tableViews: { [blockId: string]: TableView };
+  onTableView: (blockId: string, view: TableView) => void;
+  onTablePull: (blockId: string, search: string, want: number) => void;
 }
 
 /**
@@ -40,7 +46,7 @@ interface CanvasProps {
  * click away in the list — and a run of consecutive calls to one method folds
  * into a single row, which is the whole reason the canvas is not the log.
  */
-export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onSelectCall }: CanvasProps) {
+export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onSelectCall, tableViews, onTableView, onTablePull }: CanvasProps) {
   const entries = useMemo(() => foldCalls(group.items), [group.items]);
 
   if (group.run.payloadsExpired) {
@@ -58,7 +64,16 @@ export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onSelectC
         // rows are still there, which is what makes it look like a rendering
         // bug rather than a layout one.
         <div key={entry.id} className="shrink-0">
-          <Canvas.Entry entry={entry} selectedItemId={selectedItemId} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={onSelectCall} />
+          <Canvas.Entry
+            entry={entry}
+            selectedItemId={selectedItemId}
+            onAnswer={onAnswer}
+            onCancelAsk={onCancelAsk}
+            onSelectCall={onSelectCall}
+            tableViews={tableViews}
+            onTableView={onTableView}
+            onTablePull={onTablePull}
+          />
         </div>
       ))}
     </div>
@@ -75,9 +90,12 @@ interface EntryProps {
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onSelectCall: (itemId: string) => void;
+  tableViews: { [blockId: string]: TableView };
+  onTableView: (blockId: string, view: TableView) => void;
+  onTablePull: (blockId: string, search: string, want: number) => void;
 }
 
-Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onSelectCall }: EntryProps) {
+Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onSelectCall, tableViews, onTableView, onTablePull }: EntryProps) {
   if (entry.kind === "calls") {
     return <Canvas.CallGroup name={entry.name} items={entry.items} selectedItemId={selectedItemId} onSelectCall={onSelectCall} />;
   }
@@ -86,7 +104,17 @@ Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onSelec
   if (item.call) return <Canvas.CallCard call={item.call} selected={item.id === selectedItemId} onSelect={() => onSelectCall(item.id)} />;
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
-  return <Canvas.Block id={item.id} block={item.block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
+  return (
+    <Canvas.Block
+      id={item.id}
+      block={item.block}
+      onAnswer={onAnswer}
+      onCancelAsk={onCancelAsk}
+      tableViews={tableViews}
+      onTableView={onTableView}
+      onTablePull={onTablePull}
+    />
+  );
 };
 
 interface BlockProps {
@@ -94,16 +122,19 @@ interface BlockProps {
   block: Block;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  tableViews: { [blockId: string]: TableView };
+  onTableView: (blockId: string, view: TableView) => void;
+  onTablePull: (blockId: string, search: string, want: number) => void;
 }
 
-Canvas.Block = function ({ id, block, onAnswer, onCancelAsk }: BlockProps) {
+Canvas.Block = function ({ id, block, onAnswer, onCancelAsk, tableViews, onTableView, onTablePull }: BlockProps) {
   switch (block.kind) {
     case "text":
       return <Canvas.Text block={block} />;
     case "code":
       return <Canvas.Code block={block} />;
     case "table":
-      return <Canvas.Table block={block} />;
+      return <Canvas.Table id={id} block={block} view={tableViews[id] ?? NO_TABLE_VIEW} onView={onTableView} onPull={onTablePull} />;
     case "ask":
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
   }
@@ -122,40 +153,132 @@ Canvas.Code = function ({ block }: { block: CodeBlock }) {
   );
 };
 
-// A wide table scrolls inside itself; the canvas never scrolls sideways as a
-// whole, because everything above and below it would move with it.
-Canvas.Table = function ({ block }: { block: TableBlock }) {
+interface TableProps {
+  id: string;
+  block: TableBlock;
+  view: TableView;
+  onView: (blockId: string, view: TableView) => void;
+  onPull: (blockId: string, search: string, want: number) => void;
+}
+
+/**
+ * A wide table scrolls inside itself; the canvas never scrolls sideways as a
+ * whole, because everything above and below it would move with it.
+ *
+ * The pager is over rows rather than requests: paging past what is loaded is
+ * what pulls the source, and nothing else does. A search that the source takes
+ * restarts it; one it doesn't filters the rows already here, and says so — a
+ * local filter that fetched would pull an API dry to find three rows.
+ */
+Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
+  const shown = tableWindow(block, view);
+  const controls = hasControls(block);
+  // A search bound for the source is debounced; one that filters what is loaded
+  // is not, because it costs nothing and lagging under the keystrokes is worse.
+  const search = useDebounced(view.search, searchesLocally(block) ? 0 : 300);
+  const { needed, want } = pullNeeded(block, { page: shown.page, search });
+
+  useEffect(() => {
+    if (needed) onPull(id, search, want);
+  }, [needed, id, search, want, onPull]);
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            {block.columns.map((column, index) => (
-              <th
-                key={index}
-                className="whitespace-nowrap border-b border-border py-1 pr-4 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-              >
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {block.rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="border-b border-border/50 py-1 pr-4 align-top text-foreground">
-                  {cell}
-                </td>
+    <div className="flex flex-col gap-1.5">
+      {/* One bar, above the rows. A pager under a fifty-row table is a control
+          you have to go looking for, and on a canvas of several blocks it is
+          hard to tell which table it belongs to. */}
+      {controls && (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Search size={12} className="shrink-0" />
+          <input
+            data-testid="canvas-table-search"
+            className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+            placeholder={searchesLocally(block) ? "Search loaded rows…" : "Search…"}
+            value={view.search}
+            // A new search is a new set, so it is read from the first page.
+            onChange={(event) => onView(id, { page: 0, search: event.target.value })}
+          />
+          {block.loading && <Spinner className="size-3 shrink-0" />}
+          <span data-testid="canvas-table-summary" className="shrink-0 truncate tabular-nums @max-[420px]:hidden">
+            {tableSummary(block, shown)}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 disabled:opacity-40 enabled:hover:text-foreground"
+            disabled={!shown.hasPrevious}
+            aria-label="Previous page"
+            onClick={() => onView(id, { ...view, page: shown.page - 1 })}
+          >
+            <ChevronLeft size={12} />
+          </button>
+          <button
+            type="button"
+            data-testid="canvas-table-next"
+            className="shrink-0 disabled:opacity-40 enabled:hover:text-foreground"
+            disabled={!shown.hasNext || block.loading === true}
+            aria-label="Next page"
+            onClick={() => onView(id, { ...view, page: shown.page + 1 })}
+          >
+            <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {block.columns.map((column, index) => (
+                <th
+                  key={index}
+                  className="whitespace-nowrap border-b border-border py-1 pr-4 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                >
+                  {column}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {block.rows.length === 0 && <div className="py-1.5 text-muted-foreground">No rows yet…</div>}
+          </thead>
+          <tbody>
+            {shown.rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="border-b border-border/50 py-1 pr-4 align-top text-foreground">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {shown.rows.length === 0 && (
+          <div className="py-1.5 text-muted-foreground">{block.loading ? "Loading…" : shown.filtered ? "No rows match." : "No rows yet…"}</div>
+        )}
+      </div>
+      {block.error !== undefined && (
+        <div className="flex items-center gap-2 text-destructive">
+          <span className="min-w-0 flex-1 truncate">{block.error}</span>
+          <button type="button" className="shrink-0 hover:text-foreground" onClick={() => onPull(id, search, shown.want)}>
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 };
+
+// A value that settles. Only a search bound for a source needs it — restarting
+// on every keystroke would fetch the same first page five times over.
+function useDebounced<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    if (delay === 0) {
+      setSettled(value);
+      return;
+    }
+    const timer = setTimeout(() => setSettled(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return delay === 0 ? value : settled;
+}
 
 interface AskProps {
   id: string;

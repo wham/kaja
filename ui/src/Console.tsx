@@ -30,6 +30,7 @@ import {
   slowestCall,
 } from "./runs";
 import { runShortcutLabel } from "./RunButton";
+import { TableView } from "./tableView";
 import { LogLevel } from "./server/api";
 import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
 
@@ -76,6 +77,9 @@ interface ConsoleProps {
   onViewChange: (view: ConsoleView) => void;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
+  tableViews: { [blockId: string]: TableView };
+  onTableView: (blockId: string, view: TableView) => void;
+  onTablePull: (blockId: string, search: string, want: number) => void;
   onClear?: () => void;
 }
 
@@ -97,6 +101,9 @@ export function Console({
   onViewChange,
   onAnswer,
   onCancelAsk,
+  tableViews,
+  onTableView,
+  onTablePull,
   onClear,
 }: ConsoleProps) {
   const [now, setNow] = useState(Date.now());
@@ -299,7 +306,16 @@ export function Console({
       </div>
 
       {selectedGroup && activeView === "canvas" ? (
-        <Canvas group={selectedGroup} selectedItemId={selection?.itemId} onAnswer={onAnswer} onCancelAsk={onCancelAsk} onSelectCall={selectFromCanvas} />
+        <Canvas
+          group={selectedGroup}
+          selectedItemId={selection?.itemId}
+          onAnswer={onAnswer}
+          onCancelAsk={onCancelAsk}
+          onSelectCall={selectFromCanvas}
+          tableViews={tableViews}
+          onTableView={onTableView}
+          onTablePull={onTablePull}
+        />
       ) : selectedGroup ? (
         <Console.ListView
           group={selectedGroup}
