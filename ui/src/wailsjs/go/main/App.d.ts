@@ -18,8 +18,6 @@ export function MCPServerInfo():Promise<main.MCPInfo>;
 
 export function MCPSetCatalog(arg1:string):Promise<void>;
 
-export function MCPSetEnabled(arg1:boolean):Promise<main.MCPInfo>;
-
 export function OpenDirectoryDialog():Promise<string>;
 
 export function OpenFileDialog():Promise<string>;

@@ -34,10 +34,6 @@ export function MCPSetCatalog(arg1) {
   return window['go']['main']['App']['MCPSetCatalog'](arg1);
 }
 
-export function MCPSetEnabled(arg1) {
-  return window['go']['main']['App']['MCPSetEnabled'](arg1);
-}
-
 export function OpenDirectoryDialog() {
   return window['go']['main']['App']['OpenDirectoryDialog']();
 }

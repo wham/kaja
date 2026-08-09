@@ -75,7 +75,8 @@ const mcpClients: McpClient[] = [
 ];
 
 // MCPStatus surfaces the localhost MCP endpoint and, per client, the snippet to
-// connect it to an agent. Shown only while the MCP feature preview is on.
+// connect it to an agent. Shown once the server is up, which on the desktop is
+// for the whole of the session.
 //
 // `active` is an agent talking to the server right now: the plug goes emerald
 // and a ring pings out of it, which is the one thing in the footer that says

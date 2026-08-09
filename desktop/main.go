@@ -101,7 +101,7 @@ type App struct {
 	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
 	activeStreams        sync.Map // streamID -> context.CancelFunc
 
-	// MCP server state (experimental). Guarded by mcpMu.
+	// MCP server state. Guarded by mcpMu.
 	mcpMu      sync.Mutex
 	mcpServer  *http.Server
 	mcpURL     string
@@ -130,6 +130,9 @@ func (a *App) startup(ctx context.Context) {
 
 	// Register the macOS "Run Kaja Script" text service (no-op on other platforms).
 	registerServices(ctx)
+
+	// The MCP server's lifetime is the process's: the UI only reports it.
+	a.startMCPServer()
 
 	// Subscribe to configuration changes and emit Wails events
 	if a.configurationWatcher != nil {
