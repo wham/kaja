@@ -86,9 +86,22 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
 
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
-  // Whether the log is following the run, like a terminal. It stops the moment
-  // you scroll off the bottom and starts again when you come back to it.
-  const [tailing, setTailing] = useState(true);
+  /**
+   * Whether the log is following the run, like a terminal. It stops the moment
+   * you scroll off the bottom and starts again when you come back to it.
+   *
+   * The ref is the answer and the state is only what redraws the chip. A run
+   * appends between two of your wheel events, and anything that read this from a
+   * render would still be following on the frame that scrolls the log back down
+   * under your hands.
+   */
+  const tailingRef = useRef(true);
+  const [tailing, setTailingState] = useState(true);
+  const setTailing = useCallback((next: boolean) => {
+    if (tailingRef.current === next) return;
+    tailingRef.current = next;
+    setTailingState(next);
+  }, []);
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
 
@@ -119,14 +132,11 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
     followedRef.current = { fileId, runId: newest?.run.id };
     // Pressing Run is a request to watch what it does, and so is opening another
     // file: either way the log goes back to following.
-    if (arrived && !tailing) {
-      setTailing(true);
-      return;
-    }
+    if (arrived) setTailing(true);
     // Arriving at another file is not a run arriving: its own selection has just
     // been restored, and only a selection with nothing left to point at is
     // moved on to the newest run.
-    const next = followSelection(selection, groups, isNewRun, tailing);
+    const next = followSelection(selection, groups, isNewRun, tailingRef.current);
     if (next?.runId !== selection?.runId || next?.itemId !== selection?.itemId) onSelect(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId, file.version, tailing]);
@@ -328,6 +338,7 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
           jsonViewerRef={jsonViewerRef}
           now={now}
           tailing={tailing}
+          tailingRef={tailingRef}
           onTailingChange={setTailing}
           onSelectRow={selectRow}
           onTabChange={onTabChange}
@@ -348,6 +359,8 @@ interface ListViewProps {
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
   now: number;
   tailing: boolean;
+  // The same answer, readable without a render — see the note where it is made.
+  tailingRef: React.MutableRefObject<boolean>;
   onTailingChange: (tailing: boolean) => void;
   onSelectRow: (itemId: string) => void;
   onTabChange: (tab: ConsoleTab) => void;
@@ -373,6 +386,7 @@ Console.ListView = function ({
   jsonViewerRef,
   now,
   tailing,
+  tailingRef,
   onTailingChange,
   onSelectRow,
   onTabChange,
@@ -380,8 +394,6 @@ Console.ListView = function ({
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [window, setWindow] = useState({ top: 0, height: 0 });
-  const tailingRef = useRef(tailing);
-  tailingRef.current = tailing;
   const onTailingRef = useRef(onTailingChange);
   onTailingRef.current = onTailingChange;
 
@@ -397,6 +409,8 @@ Console.ListView = function ({
     const measure = () => {
       setWindow({ top: element.scrollTop, height: element.clientHeight });
       const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= TAIL_SLACK;
+      // Written now, not on the render this schedules: the next row may land
+      // before that render does, and it must not scroll the log back down.
       if (atBottom !== tailingRef.current) onTailingRef.current(atBottom);
     };
 
@@ -408,13 +422,13 @@ Console.ListView = function ({
       element.removeEventListener("scroll", measure);
       observer.disconnect();
     };
-  }, []);
+  }, [tailingRef]);
 
   // Following means staying at the bottom as rows arrive.
   useLayoutEffect(() => {
     const element = scrollRef.current;
-    if (element && tailing) element.scrollTop = element.scrollHeight;
-  }, [total, tailing]);
+    if (element && tailingRef.current) element.scrollTop = element.scrollHeight;
+  }, [total, tailing, tailingRef]);
 
   const first = Math.max(0, Math.floor(window.top / CALL_ROW_HEIGHT) - OVERSCAN);
   const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / CALL_ROW_HEIGHT) + OVERSCAN * 2));
@@ -425,7 +439,7 @@ Console.ListView = function ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
+      <div ref={scrollRef} data-testid="console-log" className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
         {total === 0 ? (
           <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
             {/* A run parked on a question is in flight but is not on its way to
@@ -596,7 +610,20 @@ interface CallRowProps {
  * doesn't render again. `now` is the exception and is passed as zero unless the
  * row is the one counting up.
  */
-Console.CallRow = memo(function CallRow({ id, name, timestamp, loopKey, status, durationMs, errorCode, fraction, selected, stale, onSelect, now }: CallRowProps) {
+Console.CallRow = memo(function CallRow({
+  id,
+  name,
+  timestamp,
+  loopKey,
+  status,
+  durationMs,
+  errorCode,
+  fraction,
+  selected,
+  stale,
+  onSelect,
+  now,
+}: CallRowProps) {
   const pending = status === "pending" || status === "streaming";
 
   return (

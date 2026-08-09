@@ -21,9 +21,7 @@ const MAX_SHOWN_KEYS = 2;
  * thousand is one row, and walking a thousand requests to write it is work the
  * row does on every repaint.
  */
-export type CanvasEntry =
-  | { kind: "item"; id: string; item: ConsoleItem }
-  | { kind: "calls"; id: string; name: string; items: ConsoleItem[]; stats: CallStats };
+export type CanvasEntry = { kind: "item"; id: string; item: ConsoleItem } | { kind: "calls"; id: string; name: string; items: ConsoleItem[]; stats: CallStats };
 
 export function callName(item: ConsoleItem): string | undefined {
   return item.call && `${item.call.service.name}.${item.call.method.name}`;

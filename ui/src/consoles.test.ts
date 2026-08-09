@@ -554,4 +554,3 @@ describe("findBlock", () => {
     expect(store.findBlock("nothing")).toBeUndefined();
   });
 });
-
