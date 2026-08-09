@@ -98,7 +98,6 @@ import {
   MCPScriptResult,
   MCPServerInfo,
   MCPSetCatalog,
-  MCPSetEnabled,
   ReadScriptFile,
   RenameScript,
   ResolvedVariables,
@@ -242,9 +241,9 @@ export function App() {
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
   const previewAppsRef = useRef(previewApps);
   previewAppsRef.current = previewApps;
-  // Experimental "MCP server" feature (desktop only): exposes script edit/run and
-  // the service catalog to an agent over a localhost MCP endpoint.
-  const [previewMcp, setPreviewMcp] = usePersistedState("featurePreview:mcp", false);
+  // The MCP server (desktop only) exposes script edit/run and the service catalog
+  // to an agent over a localhost endpoint. It runs for as long as the process
+  // does, so all the UI has of it is what to show in the footer.
   const [mcpInfo, setMcpInfo] = useState<main.MCPInfo | undefined>();
   // Whether an agent is using the server right now, which the footer's plug
   // shows. It outlives the request that set it (see MCP_ACTIVITY_LINGER_MS).
@@ -578,18 +577,12 @@ export function App() {
     setColorMode((mode) => (mode === "night" ? "day" : "night"));
   }, []);
 
-  // Scripts and the MCP server are desktop-only, so those toggles are only offered
-  // in the Wails environment. gRPC/Twirp apps are always enabled; the Preview Apps
-  // toggle only reveals the experimental built-in app types (openapi/openai/markdown).
-  const featurePreviews: FeaturePreview[] = [
-    ...(isWailsEnvironment() ? [{ key: "mcp", label: "MCP server", enabled: previewMcp }] : []),
-    { key: "previewApps", label: "Preview Apps", enabled: previewApps },
-  ];
+  // gRPC/Twirp/OpenAPI apps are always enabled; the Preview Apps toggle only
+  // reveals the experimental built-in app types (openai/markdown).
+  const featurePreviews: FeaturePreview[] = [{ key: "previewApps", label: "Preview Apps", enabled: previewApps }];
 
   const onToggleFeaturePreview = useCallback((key: string) => {
-    if (key === "mcp") {
-      setPreviewMcp((enabled) => !enabled);
-    } else if (key === "previewApps") {
+    if (key === "previewApps") {
       setPreviewApps((enabled) => !enabled);
     }
   }, []);
@@ -1353,15 +1346,14 @@ export function App() {
     return () => unsub();
   }, []);
 
-  // Start/stop the localhost MCP server in step with its feature preview, and
-  // keep the connection details for the footer.
+  // The MCP server is started by the desktop process itself, so all there is to
+  // do here is read the connection details the footer shows.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    if (!previewMcp) setMcpActive(false);
-    MCPSetEnabled(previewMcp)
+    MCPServerInfo()
       .then((info) => setMcpInfo(info))
       .catch((err) => showFileError(`MCP server: ${err}`));
-  }, [previewMcp, showFileError]);
+  }, [showFileError]);
 
   // The catalog follows the apps, not the compiler. Pushing it from the
   // compilation path meant a change that compiles nothing — deleting an app,
@@ -1370,10 +1362,10 @@ export function App() {
   // the editor's declaration takes them: they are part of what a script is
   // written against.
   useEffect(() => {
-    if (!isWailsEnvironment() || !previewMcp) return;
+    if (!isWailsEnvironment()) return;
     const variableNames = Object.keys(configuration?.variables ?? {});
     MCPSetCatalog(JSON.stringify(buildMcpCatalog(apps, variableNames))).catch(() => {});
-  }, [apps, previewMcp, configuration?.variables]);
+  }, [apps, configuration?.variables]);
 
   // An agent's calls come in bursts of a few milliseconds each, so the footer's
   // plug stays lit for as long as anything is in flight and a beat longer after
@@ -2357,7 +2349,7 @@ export function App() {
           buildNumber={runtime.buildNumber}
           featurePreviews={featurePreviews}
           onToggleFeaturePreview={onToggleFeaturePreview}
-          mcpInfo={previewMcp ? mcpInfo : undefined}
+          mcpInfo={mcpInfo}
           mcpActive={mcpActive}
           apps={apps}
           configurationLoaded={configurationLoaded}
