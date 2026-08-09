@@ -281,7 +281,13 @@ export function agentFileIds(history: RunHistory): Set<string> {
 }
 
 // Whether anything the run started is still in the air, which is what the settle
-// check waits on.
-export function hasCallsInFlight(file: FileConsole, runId: string): boolean {
-  return file.items.some((item) => item.runId === runId && item.call !== undefined && isCallInFlight(item.call));
+// check waits on. A question the user hasn't answered — or a call held for
+// approval — counts: a run parked on the user is not over, however the script
+// that started it returned. A script that doesn't await its own question is
+// exactly the case this covers, and settling under it is worse than a delay —
+// the answer would arrive with no run open and start one that never ends.
+export function hasWorkInFlight(file: FileConsole, runId: string): boolean {
+  return file.items.some(
+    (item) => item.runId === runId && ((item.call !== undefined && isCallInFlight(item.call)) || (item.block !== undefined && isAwaitingUser(item.block))),
+  );
 }

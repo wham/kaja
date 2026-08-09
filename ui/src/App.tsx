@@ -19,7 +19,7 @@ import {
   dropFile,
   fileConsole,
   findBlock,
-  hasCallsInFlight,
+  hasWorkInFlight,
   putFile,
   recordBlock,
   recordCall,
@@ -1779,13 +1779,13 @@ export function App() {
 
   // A generated method-call script issues its call without awaiting it, so the
   // script's own promise settles well before the response lands. The run is over
-  // once the script has settled and nothing it started is still in flight — and
-  // that is when its wall duration is known and it is worth keeping for the next
-  // time the file is opened.
+  // once the script has settled and nothing it started is still in flight — a
+  // call, or a question it is parked on — and that is when its wall duration is
+  // known and it is worth keeping for the next time the file is opened.
   useEffect(() => {
     if (!activeRun?.settled) return;
     const file = fileConsole(historyRef.current, activeRun.fileId);
-    if (hasCallsInFlight(file, activeRun.runId)) return;
+    if (hasWorkInFlight(file, activeRun.runId)) return;
 
     if (activeRun.fileId) {
       const now = Date.now();

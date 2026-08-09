@@ -5,7 +5,7 @@ import {
   clearFile,
   dropFile,
   fileConsole,
-  hasCallsInFlight,
+  hasWorkInFlight,
   putFile,
   recordBlock,
   recordCall,
@@ -193,13 +193,34 @@ describe("running files", () => {
   });
 });
 
-describe("hasCallsInFlight", () => {
+describe("hasWorkInFlight", () => {
   it("is what the settle check waits on", () => {
     let history = startRun({}, run("r1", "a"), NOW);
     history = recordCall(history, "a", "r1", call("c1"), NOW);
-    expect(hasCallsInFlight(fileConsole(history, "a"), "r1")).toBe(true);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(true);
     history = recordCall(history, "a", "r1", call("c1", { shows: [] }), NOW);
-    expect(hasCallsInFlight(fileConsole(history, "a"), "r1")).toBe(false);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(false);
+  });
+
+  // A script that doesn't await its own question returns while the block is
+  // still on screen. Settling there leaves the answer with no run to land in,
+  // which opens one that nothing will ever finish.
+  it("keeps a run parked on the user open, however its script returned", () => {
+    const held = { kind: "approve", method: "Shows.CreateShow", request: "{}" } as const;
+    let history = startRun({}, run("r1", "a"), NOW);
+    history = recordBlock(history, "a", "r1", "b1", held, NOW);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(true);
+    history = recordBlock(history, "a", "r1", "b1", { ...held, decision: "rejected" }, NOW);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(false);
+  });
+
+  it("waits on a question the same way", () => {
+    const asked = { kind: "ask", question: "Which ledger?", answerType: "str" } as const;
+    let history = startRun({}, run("r1", "a"), NOW);
+    history = recordBlock(history, "a", "r1", "b1", asked, NOW);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(true);
+    history = recordBlock(history, "a", "r1", "b1", { ...asked, answer: "june" }, NOW);
+    expect(hasWorkInFlight(fileConsole(history, "a"), "r1")).toBe(false);
   });
 });
 
