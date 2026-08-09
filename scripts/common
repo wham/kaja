@@ -1,6 +1,85 @@
 #!/bin/bash
 set -e
 
+# The sha256 of everything given: an argument that names a file is read, any
+# other argument is taken literally. It is what a step compares against its
+# stamp to decide whether it has anything to do.
+#
+# Usage: fingerprint <file|string>...
+fingerprint() {
+    local ITEM
+    for ITEM in "$@"; do
+        if [ -f "$ITEM" ]; then
+            sha256 < "$ITEM"
+        else
+            printf '%s\n' "$ITEM"
+        fi
+    done | sha256
+}
+
+# macOS ships shasum, most Linux images ship sha256sum, and the two are spelled
+# differently enough to be worth hiding here.
+sha256() {
+    if command -v shasum &> /dev/null; then
+        shasum -a 256 | cut -d' ' -f1
+    else
+        sha256sum | cut -d' ' -f1
+    fi
+}
+
+# A step that only has to run when its inputs change records what they looked
+# like into a stamp file, and is skipped while the record still matches.
+#
+# Usage: stamp_matches <stamp_file> <fingerprint>
+stamp_matches() {
+    [ -f "$1" ] && [ "$(cat "$1")" = "$2" ]
+}
+
+# Usage: stamp_write <stamp_file> <fingerprint>
+stamp_write() {
+    mkdir -p "$(dirname "$1")"
+    printf '%s\n' "$2" > "$1"
+}
+
+# The version of a module the server is built against. A tool generated code is
+# produced with should track the library that code is compiled against, so the
+# versions come from server/go.mod rather than from whatever is latest today.
+#
+# Usage: module_version <module path>
+module_version() {
+    (cd "$PWD/server" && go list -m -f '{{.Version}}' "$1")
+}
+
+# Install a Go tool into a build directory, unless the version asked for is the
+# one already sitting there. `go install` has its own build cache, but it asks
+# the module proxy to resolve the version before consulting it - which is the
+# whole cost of the step on every run but the first, and the reason a machine
+# with no network can't start the server.
+#
+# Usage: install_go_tool <package> <version> [binary_name] [target_dir]
+#   binary_name: what to call it (defaults to the package's own name)
+#   target_dir:  where to put it (defaults to $PWD/server/build)
+install_go_tool() {
+    local PACKAGE="$1"
+    local VERSION="$2"
+    local NAME="${3:-$(basename "$PACKAGE")}"
+    local BUILD_DIR="${4:-$PWD/server/build}"
+    local STAMP="$BUILD_DIR/.$NAME.version"
+
+    if [ -x "$BUILD_DIR/$NAME" ] && stamp_matches "$STAMP" "$VERSION"; then
+        return 0
+    fi
+
+    mkdir -p "$BUILD_DIR"
+
+    echo "Installing $(basename "$PACKAGE") $VERSION..."
+    GOBIN="$BUILD_DIR" go install "$PACKAGE@$VERSION"
+    if [ "$(basename "$PACKAGE")" != "$NAME" ]; then
+        mv "$BUILD_DIR/$(basename "$PACKAGE")" "$BUILD_DIR/$NAME"
+    fi
+    stamp_write "$STAMP" "$VERSION"
+}
+
 # Install protoc-go (Go port of protoc) to a target directory.
 # The binary is named 'protoc' for compatibility. The version is pinned to the
 # one required by server/go.mod so the dev CLI tracks the embedded library
@@ -11,14 +90,8 @@ set -e
 install_protoc() {
     local BUILD_DIR="${1:-$PWD/server/build}"
 
-    mkdir -p "$BUILD_DIR"
-
-    local VERSION
-    VERSION=$(cd "$PWD/server" && go list -m -f '{{.Version}}' github.com/wham/protoc-go)
-
-    echo "Installing protoc-go $VERSION..."
-    go install "github.com/wham/protoc-go/cmd/protoc-go@$VERSION"
-    mv "$BUILD_DIR/protoc-go" "$BUILD_DIR/protoc"
+    install_go_tool github.com/wham/protoc-go/cmd/protoc-go \
+        "$(module_version github.com/wham/protoc-go)" protoc "$BUILD_DIR"
 }
 
 # The macOS version the desktop app is built for. It is what the shipped bundle

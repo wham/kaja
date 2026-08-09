@@ -7,8 +7,17 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	esbuild "github.com/evanw/esbuild/pkg/api"
+)
+
+// The generated stylesheet, named from the two directories the build runs in:
+// builder.go always has server/ as its CWD, the Tailwind CLI runs in ui/.
+const (
+	tailwindOut       = "build/tailwind.css"
+	tailwindOutFromUi = "../server/" + tailwindOut
 )
 
 // tailwindPlugin compiles ui/src/tailwind.css into server/build/tailwind.css with the
@@ -26,7 +35,7 @@ var tailwindPlugin = esbuild.Plugin{
 				"bun",
 				"./node_modules/@tailwindcss/cli/dist/index.mjs",
 				"-i", "src/tailwind.css",
-				"-o", "../server/build/tailwind.css",
+				"-o", tailwindOutFromUi,
 				"--minify",
 			)
 			// builder.go always runs with the server/ directory as CWD, so ui is ../ui
@@ -42,6 +51,65 @@ var tailwindPlugin = esbuild.Plugin{
 	},
 }
 
+// sourceStamp is what the UI sources looked like at a point in time: how many
+// files there are and the newest modification time among them. A file added,
+// removed or written moves one of the two.
+type sourceStamp struct {
+	files  int
+	newest time.Time
+	read   bool
+}
+
+func (s sourceStamp) matches(other sourceStamp) bool {
+	return s.read && other.read && s.files == other.files && s.newest.Equal(other.newest)
+}
+
+func (s *sourceStamp) take(info os.FileInfo) {
+	s.files++
+	if info.ModTime().After(s.newest) {
+		s.newest = info.ModTime()
+	}
+}
+
+// stampUiSources covers everything the bundle is built from that a developer
+// edits: the sources themselves, and the dependencies they are bundled with.
+func stampUiSources() sourceStamp {
+	stamp := stampUiDependencies()
+	if !stamp.read {
+		return stamp
+	}
+
+	if err := filepath.Walk("../ui/src", func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			stamp.take(info)
+		}
+		return nil
+	}); err != nil {
+		return sourceStamp{}
+	}
+
+	return stamp
+}
+
+// stampUiDependencies is the two files that decide what is in node_modules,
+// which is all a Monaco worker is built from.
+func stampUiDependencies() sourceStamp {
+	stamp := sourceStamp{read: true}
+
+	for _, path := range []string{"../ui/package.json", "../ui/bun.lock"} {
+		info, err := os.Stat(path)
+		if err != nil {
+			return sourceStamp{}
+		}
+		stamp.take(info)
+	}
+
+	return stamp
+}
+
 type UiBundle struct {
 	MainJs         []byte
 	MainCss        []byte
@@ -51,20 +119,57 @@ type UiBundle struct {
 
 var MonacoWorkerNames = []string{"ts", "editor", "json"}
 
-func BuildForDevelopment() *UiBundle {
-	result := esbuild.Build(esbuild.BuildOptions{
-		EntryPoints: []string{"../ui/src/main.tsx"},
-		Bundle:      true,
-		Format:      esbuild.FormatESModule,
-		Sourcemap:   esbuild.SourceMapInline,
-		Outdir:      "build",
-		Plugins:     []esbuild.Plugin{tailwindPlugin},
-		Loader: map[string]esbuild.Loader{
-			".ttf": esbuild.LoaderFile,
-		},
-	})
+// One page load asks for main.css, main.js and the codicon font, which are
+// three outputs of one build - so the development server bundles the UI when
+// the sources have changed since it last did, rather than once per request.
+// That is still "recompiled on page load": an edit is picked up by the first
+// request after it, and a reload that follows no edit can only produce the
+// bytes already in hand. The esbuild context is kept alive across rebuilds so
+// the one after an edit reuses what it parsed for the one before.
+var (
+	devMu      sync.Mutex
+	devCtx     esbuild.BuildContext
+	devBundle  *UiBundle
+	devSources sourceStamp
+)
 
-	bundle, _ := buildResultToUiBundle(result)
+func BuildForDevelopment() *UiBundle {
+	devMu.Lock()
+	defer devMu.Unlock()
+
+	sources := stampUiSources()
+	if devBundle != nil && devSources.matches(sources) {
+		return devBundle
+	}
+
+	if devCtx == nil {
+		ctx, ctxErr := esbuild.Context(esbuild.BuildOptions{
+			EntryPoints: []string{"../ui/src/main.tsx"},
+			Bundle:      true,
+			Format:      esbuild.FormatESModule,
+			Sourcemap:   esbuild.SourceMapInline,
+			Outdir:      "build",
+			Plugins:     []esbuild.Plugin{tailwindPlugin},
+			Loader: map[string]esbuild.Loader{
+				".ttf": esbuild.LoaderFile,
+			},
+		})
+		if ctxErr != nil {
+			slog.Error("Failed to create esbuild context", "error", ctxErr.Error())
+			return devBundle
+		}
+		devCtx = ctx
+	}
+
+	bundle, err := buildResultToUiBundle(devCtx.Rebuild())
+	if err != nil {
+		// Keep serving the last bundle that built, and leave the stamp behind
+		// so the next request tries again: a syntax error mid-edit belongs in
+		// the editor, not in a window that failed to load the editor.
+		return devBundle
+	}
+	devBundle = bundle
+	devSources = sources
 
 	return bundle
 }
@@ -197,6 +302,15 @@ func BuildStub(sourcesDir string) ([]byte, error) {
 	return first.Contents, nil
 }
 
+// A worker is asked for on every page load and is bundled from node_modules
+// alone, so it is built again when the dependencies change and not when the UI
+// does - no edit to ui/src can reach one.
+var (
+	workerMu      sync.Mutex
+	workerBuilt   = map[string][]byte{}
+	workerSources sourceStamp
+)
+
 func BuildMonacoWorker(name string) ([]byte, error) {
 	path := "editor/editor.worker.js"
 	switch name {
@@ -204,6 +318,18 @@ func BuildMonacoWorker(name string) ([]byte, error) {
 		path = "language/typescript/ts.worker.js"
 	case "json":
 		path = "language/json/json.worker.js"
+	}
+
+	workerMu.Lock()
+	defer workerMu.Unlock()
+
+	sources := stampUiDependencies()
+	if !workerSources.matches(sources) {
+		workerBuilt = map[string][]byte{}
+		workerSources = sources
+	}
+	if built, ok := workerBuilt[name]; ok {
+		return built, nil
 	}
 
 	result := esbuild.Build(esbuild.BuildOptions{
@@ -217,6 +343,8 @@ func BuildMonacoWorker(name string) ([]byte, error) {
 		slog.Error("Failed to build monaco worker "+name, "errors", result.Errors)
 		return nil, fmt.Errorf("failed to build monaco worker %s", name)
 	}
+
+	workerBuilt[name] = result.OutputFiles[0].Contents
 
 	return result.OutputFiles[0].Contents, nil
 }
