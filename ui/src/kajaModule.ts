@@ -83,46 +83,10 @@ export type Rows = Iterable<unknown[]> | AsyncIterable<unknown[]>;
  */
 export type RowSource = Rows | ((search: string) => Rows);
 
-/** An option kaja.ask.select offers when the label isn't the value. */
+/** An option kaja.askSelect offers when the label isn't the value. */
 export interface Choice<V> {
   label: string;
   value: V;
-}
-
-/**
- * Ask the user something and park the run on the answer. One verb per kind of
- * thing, so a script never parses what it just asked for — an answer that isn't
- * a whole number is rejected in front of the person who typed it, rather than
- * turning into NaN a line later.
- */
-export interface Ask {
-  /**
-   * Ask for text.
-   *
-   *   const name = await kaja.ask.str("Which customer?");
-   */
-  str(question: string): Promise<string>;
-  /**
-   * Ask for a whole number. The field will not submit anything else, so this
-   * always resolves with a number.
-   *
-   *   const limit = await kaja.ask.int("How many rows?");
-   */
-  int(question: string): Promise<number>;
-  /**
-   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
-   * give { label, value } pairs and the value comes back, so picking from a list
-   * of records hands you the record.
-   *
-   *   const region = await kaja.ask.select("Which region?", ["eu", "us"]);
-   *
-   *   const show = await kaja.ask.select(
-   *     "Which show?",
-   *     shows.map((show) => ({ label: show.title, value: show })),
-   *   );
-   */
-  select(question: string, options: readonly string[]): Promise<string>;
-  select<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
 }
 
 /** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
@@ -140,12 +104,35 @@ export declare const kaja: {
    */
   variables: ${kajaVariablesType(variableNames)};
   /**
-   * Pause the script and ask the user for something. The question is drawn on
-   * the run's canvas and the run stops there until it is answered; if the user
-   * cancels, the script stops. Each verb hands back the kind of thing it asked
-   * for, so never ask for text and parse it yourself.
+   * Ask the user for text, and park the run on the answer. The question is
+   * drawn on the run's canvas and the run stops there until it is answered; if
+   * the user cancels, the script stops.
+   *
+   *   const name = await kaja.askStr("Which customer?");
    */
-  ask: Ask;
+  askStr(question: string): Promise<string>;
+  /**
+   * Ask the user for a whole number. The field will not submit anything else,
+   * so this always resolves with a number — never ask for text and parse it
+   * yourself.
+   *
+   *   const limit = await kaja.askInt("How many rows?");
+   */
+  askInt(question: string): Promise<number>;
+  /**
+   * Ask the user to pick one of a fixed list. Strings resolve as themselves;
+   * give { label, value } pairs and the value comes back, so picking from a list
+   * of records hands you the record.
+   *
+   *   const region = await kaja.askSelect("Which region?", ["eu", "us"]);
+   *
+   *   const show = await kaja.askSelect(
+   *     "Which show?",
+   *     shows.map((show) => ({ label: show.title, value: show })),
+   *   );
+   */
+  askSelect(question: string, options: readonly string[]): Promise<string>;
+  askSelect<V>(question: string, options: readonly Choice<V>[]): Promise<V>;
   /**
    * Write a line onto the run's canvas.
    *
@@ -185,15 +172,12 @@ export declare const kaja: {
    *   });
    */
   table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
-  /** UUID helpers. */
-  uuid: {
-    /**
-     * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
-     *
-     *   const id = kaja.uuid.v4();
-     */
-    v4(): string;
-  };
+  /**
+   * Generate a random version 4 UUID, e.g. "9b2b1a94-3c6e-4f6e-9d2a-0f6b7c8d9e0f".
+   *
+   *   const id = kaja.uuidV4();
+   */
+  uuidV4(): string;
   /**
    * Build a google.protobuf.Value from a plain JSON value, instead of writing
    * its oneof out by hand. Objects and arrays are converted all the way down.

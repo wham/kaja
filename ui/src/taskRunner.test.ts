@@ -1,11 +1,12 @@
 import { describe, it, expect } from "bun:test";
+import { AskBlock } from "./blocks";
 import { Kaja } from "./kaja";
 import { runTaskCaptured } from "./taskRunner";
 
-function makeKaja(): Kaja {
+function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
   return new Kaja(
     () => {},
-    async () => "",
+    async (question) => answer(question),
     () => {},
   );
 }
@@ -93,11 +94,57 @@ describe("orphaned imports", () => {
   });
 });
 
-describe("kaja.uuid", () => {
+describe("the ask verbs", () => {
+  it("hands back the kind of thing it asked for", async () => {
+    const asked: AskBlock[] = [];
+    const kaja = makeKaja((question) => {
+      asked.push(question);
+      return question.answerType === "int" ? "42" : "june";
+    });
+
+    const run = await runTaskCaptured(
+      `import { kaja } from "kaja";\nconst name = await kaja.askStr("Which ledger?");\nconst count = await kaja.askInt("How many?");\nreturn [name, count, typeof count].join(" ");`,
+      kaja,
+      [],
+    );
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("june 42 number");
+    expect(asked.map((question) => question.answerType)).toEqual(["str", "int"]);
+  });
+
+  it("offers a select's labels and resolves to the value beside the one picked", async () => {
+    const asked: AskBlock[] = [];
+    const kaja = makeKaja((question) => {
+      asked.push(question);
+      return "Europe";
+    });
+
+    const run = await runTaskCaptured(
+      `import { kaja } from "kaja";\nconst region = await kaja.askSelect("Where?", [{ label: "US", value: "us" }, { label: "Europe", value: "eu" }]);\nreturn region;`,
+      kaja,
+      [],
+    );
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("eu");
+    expect(asked[0].choices).toEqual(["US", "Europe"]);
+  });
+
+  it("refuses a select with nothing to pick", async () => {
+    const kaja = makeKaja();
+
+    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn await kaja.askSelect("Where?", []);`, kaja, []);
+
+    expect(run.error).toContain("options must not be empty");
+  });
+});
+
+describe("kaja.uuidV4", () => {
   it("generates a version 4 UUID from scripts", async () => {
     const kaja = makeKaja();
 
-    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.uuid.v4();`, kaja, []);
+    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.uuidV4();`, kaja, []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -105,7 +152,7 @@ describe("kaja.uuid", () => {
 
   it("generates unique values", () => {
     const kaja = makeKaja();
-    expect(kaja.uuid.v4()).not.toBe(kaja.uuid.v4());
+    expect(kaja.uuidV4()).not.toBe(kaja.uuidV4());
   });
 });
 

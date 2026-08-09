@@ -265,7 +265,7 @@ export function App() {
   // away with it — the same buffer, now on disk.
   const [saveAs, setSaveAs] = useState<{ name: string; content: string; fromScratchId?: string } | null>(null);
   const [saveAsError, setSaveAsError] = useState<string>();
-  // Active `kaja.ask.*` prompt; null when no script is waiting for input. The
+  // Active `kaja.ask*` prompt; null when no script is waiting for input. The
   // question travels as its block, because what is being asked for decides what
   // the dialog draws — the same reading the canvas makes of the same block.
   const [askPrompt, setAskPrompt] = useState<{
@@ -479,7 +479,7 @@ export function App() {
   );
 
   /**
-   * A `kaja.ask.*` is answered on the canvas of the run that asked it, so the
+   * A `kaja.ask*` is answered on the canvas of the run that asked it, so the
    * promise waits here keyed by the block the question was drawn as. A run with
    * no console has no canvas to draw on — an agent running code that was never
    * saved — and falls back to the dialog, which needs no surface of its own.

@@ -2,7 +2,7 @@
 //
 // It lives here rather than in the block or in the canvas because three places
 // need the same reading of it: the canvas draws the control, the fallback dialog
-// draws the same control without a canvas, and `kaja.ask.*` hands the script
+// draws the same control without a canvas, and `kaja.askStr`/`askInt`/`askSelect` hand the script
 // back the kind of thing it asked for. The point of the typed asks is that the
 // parse happens where the person who typed it can still fix it, so the check has
 // to be in front of them rather than in the script a line later.
