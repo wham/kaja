@@ -1,6 +1,6 @@
 import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { blockText } from "./blocks";
+import { ApproveGesture, blockText } from "./blocks";
 import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { Canvas } from "./Canvas";
@@ -77,7 +77,7 @@ interface ConsoleProps {
   onViewChange: (view: ConsoleView) => void;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
+  onDecide: (blockId: string, gesture: ApproveGesture) => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;

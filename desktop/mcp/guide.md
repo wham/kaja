@@ -163,7 +163,10 @@ What each member is for:
   asked for, so never ask for text and parse it yourself.
 - `kaja.approve(call): Promise<T>` — hold a call until the user approves it, e.g.
   `await kaja.approve(Shows.CreateShow({ … }))`. The call goes inside the
-  parentheses, and not approving stops the script. Blocks on a human.
+  parentheses, and not approving stops the script. Blocks on a human — though
+  they can press **Approve all**, which settles every later call to the same
+  method in that run without asking again. So wrapping each call of a loop is
+  right: the reader decides where to stop reading, not the script.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
 - `kaja.input?: string` — text supplied when the script is launched from the
   macOS "Run Kaja Script" text service. `undefined` when run any other way.

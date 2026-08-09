@@ -84,7 +84,21 @@ export interface ApproveBlock {
   // The request it is about to send, already text.
   request: string;
   decision?: "approved" | "rejected";
+  // The approval covered every later call to this method too. The calls that
+  // ride on it draw no block of their own — they are already cards on the canvas
+  // and rows in the log — so this is the one place a standing approval is
+  // recorded, and it is what a run read back has to say instead of falling
+  // silent about a decision that was made once and used ten times.
+  standing?: boolean;
 }
+
+/**
+ * How a held call is settled. Two of the three approve it: this call, or this
+ * call and every later one to the same method. Nothing here reaches past the
+ * run — a standing approval is a decision about what is in front of you, not a
+ * policy the workspace keeps.
+ */
+export type ApproveGesture = "approved" | "all" | "rejected";
 
 export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock;
 
@@ -124,7 +138,7 @@ export function blockLabel(block: Block): string {
       // The verb is in the present tense only while it is still a question.
       switch (block.decision) {
         case "approved":
-          return `${block.method} approved`;
+          return block.standing ? `All ${block.method} approved` : `${block.method} approved`;
         case "rejected":
           return `${block.method} not approved`;
         default:

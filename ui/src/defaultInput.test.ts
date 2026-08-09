@@ -141,7 +141,7 @@ test("defaultInput generates a request that serializes", () => {
     new Kaja(
       () => {},
       async () => "",
-      async () => {},
+      async () => "approved" as const,
       () => {},
     ),
   );

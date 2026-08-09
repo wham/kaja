@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Search, ShieldQuestionMark } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
-import { ApproveBlock, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
 import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
 import { cn } from "./cn";
 import { Button } from "./components/button";
@@ -32,9 +32,9 @@ interface CanvasProps {
   selectedItemId?: string;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for both buttons of an approve block, because there is one decision
+  // One prop for every button of an approve block, because there is one decision
   // to make and the block records it under this name.
-  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
+  onDecide: (blockId: string, gesture: ApproveGesture) => void;
   // Clicking a call card takes you to that call's row in the log, which is where
   // its complete record is. The card can stay minimal because of it.
   onSelectCall: (itemId: string) => void;
@@ -95,9 +95,9 @@ interface EntryProps {
   selectedItemId?: string;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for both buttons of an approve block, because there is one decision
+  // One prop for every button of an approve block, because there is one decision
   // to make and the block records it under this name.
-  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
+  onDecide: (blockId: string, gesture: ApproveGesture) => void;
   onSelectCall: (itemId: string) => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
@@ -132,9 +132,9 @@ interface BlockProps {
   block: Block;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for both buttons of an approve block, because there is one decision
+  // One prop for every button of an approve block, because there is one decision
   // to make and the block records it under this name.
-  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
+  onDecide: (blockId: string, gesture: ApproveGesture) => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
@@ -340,7 +340,7 @@ Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
 interface ApproveProps {
   id: string;
   block: ApproveBlock;
-  onDecide: (blockId: string, decision: "approved" | "rejected") => void;
+  onDecide: (blockId: string, gesture: ApproveGesture) => void;
 }
 
 /**
@@ -349,9 +349,15 @@ interface ApproveProps {
  * because of what is in it, so the payload is the block rather than a click
  * away. It wears the same amber as an ask, since it parks the run the same way.
  *
- * Neither button takes focus. An ask focuses its input, which costs nothing;
- * here Enter would send the request, and a key pressed at the wrong moment is
- * exactly what this block exists to prevent.
+ * **Approve all names the method it covers**, because that is the whole question
+ * anyone hesitates over before pressing it, and a button that says "all" and
+ * means "all Shows.CreateShow" is one that has to be learned by being surprised
+ * by it. It is secondary rather than primary: reading the next one is still the
+ * expected thing to do.
+ *
+ * No button takes focus. An ask focuses its input, which costs nothing; here
+ * Enter would send the request, and a key pressed at the wrong moment is exactly
+ * what this block exists to prevent.
  */
 Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
   const waiting = block.decision === undefined;
@@ -367,9 +373,12 @@ Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
       </div>
       <pre className="max-h-64 overflow-auto rounded-md border border-border bg-background px-2.5 py-2 leading-relaxed text-foreground">{block.request}</pre>
       {waiting ? (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" data-testid="canvas-approve-send" onClick={() => onDecide(id, "approved")}>
             Approve
+          </Button>
+          <Button size="sm" variant="secondary" data-testid="canvas-approve-all" onClick={() => onDecide(id, "all")}>
+            <span className="min-w-0 max-w-[16rem] truncate">Approve all {block.method}</span>
           </Button>
           <Button size="sm" variant="outline" data-testid="canvas-approve-stop" onClick={() => onDecide(id, "rejected")}>
             Stop
@@ -377,7 +386,11 @@ Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
         </div>
       ) : (
         <div className={cn(block.decision === "rejected" ? "italic text-muted-foreground" : "text-foreground")}>
-          {block.decision === "approved" ? "Approved" : "Not approved — the script stopped here"}
+          {block.decision === "rejected"
+            ? "Not approved — the script stopped here"
+            : block.standing
+              ? `Approved — and every ${block.method} after it`
+              : "Approved"}
         </div>
       )}
     </div>

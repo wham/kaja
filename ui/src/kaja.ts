@@ -1,7 +1,7 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
 import { parseInteger } from "./ask";
-import { ApproveBlock, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
 import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
@@ -95,12 +95,16 @@ export interface Choice<V> {
   value: V;
 }
 
+// Which of the two approving gestures was made: this call, or this call and
+// every later one to the same method.
+export type ApproveDecision = Exclude<ApproveGesture, "rejected">;
+
 // The same, for a call held back until it is approved: it resolves when the call
 // may go out, and rejects when the script is to stop instead. The block travels
 // with it for the same reason a question's does — a run with no canvas asks in a
 // dialog, which has nothing but what it is handed.
 export interface ApproveRequest {
-  (call: ApproveBlock, blockId: string): Promise<void>;
+  (call: ApproveBlock, blockId: string): Promise<ApproveDecision>;
 }
 
 // A block arriving, or the same block again with more in it.
@@ -325,6 +329,11 @@ export class Kaja {
    *
    * The call goes inside the parentheses — that is what makes it a call that
    * hasn't happened yet rather than one to be sorry about.
+   *
+   * The canvas also offers **Approve all**, which settles this call and every
+   * later one to the same method in this run. The script never asks for that and
+   * never learns of it: which calls are worth reading one by one is a decision
+   * made in front of them, not written into the loop.
    */
   async approve<T>(call: Call<T>): Promise<T> {
     if (call.started) {
@@ -334,16 +343,28 @@ export class Kaja {
     // while the question was still on screen and send the call itself.
     call.claim();
 
+    // A standing approval was given for this method earlier in the run, so this
+    // call goes out without asking — and draws nothing, since a canvas of
+    // decisions nobody made is what "let it run" was pressed to be rid of. The
+    // call is still a card on the canvas and a row in the log, as every call is.
+    if (this._internal.approvedMethods.has(call.label)) return call.start();
+
     const blockId = newBlockId();
     const block: ApproveBlock = { kind: "approve", method: call.label, request: formatRequest(call.input) };
     this.#onBlockUpdate(blockId, block);
+    let decision: ApproveDecision;
     try {
-      await this.#onApprove(block, blockId);
+      decision = await this.#onApprove(block, blockId);
     } catch (error) {
       this.#onBlockUpdate(blockId, { ...block, decision: "rejected" });
       throw error;
     }
-    this.#onBlockUpdate(blockId, { ...block, decision: "approved" });
+    if (decision === "all") {
+      this._internal.approvedMethods.add(call.label);
+      this.#onBlockUpdate(blockId, { ...block, decision: "approved", standing: true });
+    } else {
+      this.#onBlockUpdate(blockId, { ...block, decision: "approved" });
+    }
     return call.start();
   }
 
@@ -603,6 +624,18 @@ class KajaInternal {
   // Signal of the run currently in flight, so the calls a script makes can be
   // aborted from the editor's Stop button. Undefined when nothing is running.
   abortSignal?: AbortSignal;
+  /**
+   * Methods that were approved for the rest of the run, by their "Service.Method"
+   * label — the same identity the block names and the button offers, so what was
+   * pressed and what it covers are one thing.
+   *
+   * The scope is the method rather than the run because that is what the button
+   * can honestly say: a script that loops over one call is the case this exists
+   * for, and one that also writes somewhere else asks again for that. And the
+   * lifetime is the run because anything longer is a policy — cleared by
+   * `runTask`, so the guard is back the next time Run is pressed.
+   */
+  readonly approvedMethods = new Set<string>();
   #onMethodCallUpdate: MethodCallUpdate;
 
   constructor(onMethodCallUpdate: MethodCallUpdate) {
