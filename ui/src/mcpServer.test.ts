@@ -46,6 +46,15 @@ describe("deriveAppName", () => {
     expect(deriveAppName("https://grpcb.in/mcp", "")).toBe("grpcb.in");
   });
 
+  test("trims what an import path can't start or end on", () => {
+    expect(deriveAppName("https://example.com/mcp", "--weather--")).toBe("weather");
+    expect(deriveAppName("https://example.com/mcp", "...")).toBe("example.com");
+  });
+
+  test("takes only the front of a name a server padded out", () => {
+    expect(deriveAppName("https://example.com/mcp", "a".repeat(5000))).toBe("a".repeat(200));
+  });
+
   test("says nothing when the host names the machine", () => {
     expect(deriveAppName("http://localhost:3000/mcp", "")).toBe("");
     expect(deriveAppName("http://127.0.0.1:3000/mcp", "")).toBe("");

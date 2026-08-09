@@ -81,9 +81,13 @@ export function deriveAppName(url: string, serverName: string): string {
   return nameFromServer(serverName) || nameFromEndpoint(url);
 }
 
+// A name is a handle, so only the front of one can be. What a server reports for
+// itself is its own text, and nothing else here bounds it.
+const MAX_SERVER_NAME = 200;
+
 function nameFromServer(serverName: string): string {
   // A registry identifier is a reverse-DNS namespace and then the name.
-  const tail = serverName.split("/").pop() ?? "";
+  const tail = serverName.slice(0, MAX_SERVER_NAME).split("/").pop() ?? "";
   const words = splitWords(tail);
   const kept = words.filter((word) => !NAME_NOISE.has(word.toLowerCase()));
   const chosen = kept.length > 0 ? kept : words;
@@ -123,8 +127,19 @@ function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+const SEPARATORS = "._-";
+
+// sanitize keeps only what an import path can carry, and trims the separators
+// off either end. The trimming is a scan rather than a `/^[._-]+|[._-]+$/`
+// replace: an anchored repetition backtracks quadratically, and this string is
+// whatever a server chose to call itself.
 function sanitize(value: string): string {
-  return value.replace(/[^\p{L}\p{N}._-]+/gu, "").replace(/^[._-]+|[._-]+$/g, "");
+  const kept = value.replace(/[^\p{L}\p{N}._-]+/gu, "");
+  let start = 0;
+  let end = kept.length;
+  while (start < end && SEPARATORS.includes(kept[start])) start++;
+  while (end > start && SEPARATORS.includes(kept[end - 1])) end--;
+  return kept.slice(start, end);
 }
 
 // uniqueAppName keeps a derived name a starting point rather than a collision: a
