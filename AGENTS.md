@@ -253,13 +253,25 @@ with everything it produced under it. One script can make three calls, and three
 unrelated rows say nothing about the thing you actually pressed.
 
 **And a run has two views of that, because they want opposite things.** The
-**list** is the flat audit log — one row per call, in wall order, always
+**log** is the flat audit log — one row per call, in wall order, always
 complete; that is what makes it scannable at two hundred rows and lets every row
 carry the same extra channels. The **canvas** is the rendered output — varied,
 and free to fold what is repetitive. Every attempt to serve both in one surface
 bent one of them out of shape, so one segmented control in the header switches
 them and **everything else about the header stops moving**. That is the change
 that pays for the restructure.
+
+**The two views are peers, and the console is the frame around them**
+(`RunLog.tsx`, `Canvas.tsx`, `Console.tsx`). The log used to be
+`Console.ListView`, a property, while the canvas was a file of its own — so a
+reader who found one had no reason to expect the other where it is. Each now has
+its own file and its own parts: `RunLog.CallRow` / `TailBar` / `PayloadPane`
+belong to the log, `Console.RunSelect` / `RunRow` to the frame, and flat against
+one another they read as the same kind of thing. `Log` alone is taken (the
+script's own log messages), and `RunList` would be read as a list of runs, which
+is what the run picker beside it actually is — so the log is `RunLog`. The
+segmented control says **Log** and **Canvas**, and `ConsoleView` is
+`"log" | "canvas"` to match; it is in-memory only, so nothing had to migrate.
 
 **A row is a call and only a call.** No disclosure triangles, no block rows, no
 run row. Splitting the views is what deletes the double-statement problem — an

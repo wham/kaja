@@ -2310,7 +2310,12 @@ export function App() {
                         </div>
                       )}
                       {view.type === "definition" && (
-                        <Definition model={view.model} onGoToDefinition={onGoToDefinition} startLineNumber={view.startLineNumber} startColumn={view.startColumn} />
+                        <Definition
+                          model={view.model}
+                          onGoToDefinition={onGoToDefinition}
+                          startLineNumber={view.startLineNumber}
+                          startColumn={view.startColumn}
+                        />
                       )}
                       {view.type === "appForm" && (
                         <AppForm
@@ -2346,7 +2351,10 @@ export function App() {
                 </div>
                 {currentIsEditor && (
                   <>
-                    <Splitter orientation={isHorizontalLayout ? "vertical" : "horizontal"} onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize} />
+                    <Splitter
+                      orientation={isHorizontalLayout ? "vertical" : "horizontal"}
+                      onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize}
+                    />
                     <div
                       style={{
                         flex: 1,
