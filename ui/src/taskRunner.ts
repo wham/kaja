@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { AskCancelledError, Kaja } from "./kaja";
+import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { printStatements } from "./appLoader";
 
@@ -134,9 +134,9 @@ export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: 
     .then(
       () => {},
       (err: unknown) => {
-        // A cancelled prompt or an aborted run simply stops the script; surface
-        // everything else.
-        if (err instanceof AskCancelledError || signal?.aborted) return;
+        // A cancelled prompt, a call that wasn't approved, or an aborted run
+        // simply stops the script; surface everything else.
+        if (err instanceof AskCancelledError || err instanceof ApprovalRejectedError || signal?.aborted) return;
         onError(err);
       },
     )
@@ -184,6 +184,9 @@ export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Pr
   } catch (err) {
     if (err instanceof AskCancelledError) {
       return { console: lines, error: "Script cancelled by user." };
+    }
+    if (err instanceof ApprovalRejectedError) {
+      return { console: lines, error: `Script stopped: ${err.message}.` };
     }
     return { console: lines, error: err instanceof Error ? err.message : String(err) };
   }

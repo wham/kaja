@@ -1,4 +1,4 @@
-import { Kaja } from "./kaja";
+import { Call, Kaja } from "./kaja";
 import { Sources, Stub } from "./sources";
 import { ConfigurationApp, Log } from "./server/api";
 
@@ -116,7 +116,7 @@ export interface Clients {
 
 export interface Client {
   kaja?: Kaja;
-  methods: { [key: string]: (input: any) => {} };
+  methods: { [key: string]: (input: any) => Call<any> };
 }
 
 export function serviceId(service: Service): string {

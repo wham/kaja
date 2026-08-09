@@ -52,9 +52,11 @@ describe("proto doc comments in service model", () => {
     const text = serviceSource!.file.text;
 
     expect(text).toContain("Sums two integers.");
-    expect(text).toContain("Sum: async (input: SumRequest)");
+    // A method hands back a Call, and the source says where that type comes from.
+    expect(text).toContain('import type { Call } from "kaja";');
+    expect(text).toContain("Sum: (input: SumRequest): Call<SumResponse>");
     // JSDoc must be attached to the method, not floating elsewhere.
-    const idx = text.indexOf("Sum: async");
+    const idx = text.indexOf("Sum: (input");
     const before = text.slice(Math.max(0, idx - 200), idx);
     expect(before).toContain("Sums two integers.");
   });

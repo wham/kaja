@@ -127,4 +127,11 @@ describe("blocks in the store", () => {
     const loaded = deserializeFile(serializeFile([run], items, NOW));
     expect(loaded.items[0].block).toEqual({ kind: "ask", question: "Which ledger?", answerType: "str", cancelled: true });
   });
+
+  // And that is the truth about the call, too: nothing ever sent it.
+  it("stores a call nobody approved as one that was not approved", () => {
+    const items: ConsoleItem[] = [{ id: "b1", runId: "r1", timestamp: NOW, block: { kind: "approve", method: "Shows.CreateShow", request: "{}" } }];
+    const loaded = deserializeFile(serializeFile([run], items, NOW));
+    expect(loaded.items[0].block).toEqual({ kind: "approve", method: "Shows.CreateShow", request: "{}", decision: "rejected" });
+  });
 });

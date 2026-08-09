@@ -121,7 +121,7 @@ describe("buildMcpCatalog", () => {
 
     const method = service.methods[0];
     expect(method.name).toBe("ListShows");
-    expect(method.signature).toBe("ListShows(input: ListShowsRequest): Promise<ListShowsResponse>");
+    expect(method.signature).toBe("ListShows(input: ListShowsRequest): Call<ListShowsResponse>");
     expect(method.input).toBe("ListShowsRequest");
     expect(method.output).toBe("ListShowsResponse");
     expect(method.doc).toBe("Lists the shows on sale.");
