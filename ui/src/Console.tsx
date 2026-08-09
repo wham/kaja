@@ -1,5 +1,5 @@
-import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture, blockText } from "./blocks";
 import { barFraction, callErrorCode, dotClass, formatBytes, formatDuration, payloadBytes, statusClass } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
@@ -9,26 +9,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { IconButton } from "./components/icon-button";
 import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
+import { consoles } from "./consoles";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { loopKey } from "./loopKey";
-import {
-  awaitingItem,
-  callItems,
-  ConsoleItem,
-  ConsoleTab,
-  ConsoleView,
-  defaultView,
-  followSelection,
-  groupRuns,
-  itemStatus,
-  Run,
-  RunGroup,
-  RunSelection,
-  RunStatus,
-  slowestCall,
-} from "./runs";
+import { ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, itemStatus, RunGroup, RunSelection, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { TableView } from "./tableView";
 import { LogLevel } from "./server/api";
@@ -40,9 +25,15 @@ export type { ConsoleItem } from "./runs";
 // never turns the console header into a full-height surface.
 const RUN_ROW_HEIGHT = 32;
 const MAX_VISIBLE_RUN_ROWS = 8;
-// The log's rows are a fixed height, which is what lets the tail bar say how
-// many of them are still below without measuring any of them.
+// The log's rows are a fixed height, which is what makes windowing it arithmetic
+// rather than measurement: the row that belongs at a scroll position is a
+// division, and the ones above and below it are two spacers.
 const CALL_ROW_HEIGHT = 24;
+// Rows drawn beyond the viewport, so a flick of the wheel doesn't show a gap.
+const OVERSCAN = 8;
+// How close to the bottom still counts as being at the bottom. A run appends
+// while you read, so this is a couple of rows rather than nothing.
+const TAIL_SLACK = CALL_ROW_HEIGHT * 2;
 // How much of the console the log may take before the payload pane stops
 // shrinking. The pane is the thing being read; the log is how you choose it.
 const MAX_LOG_HEIGHT = "45%";
@@ -57,24 +48,11 @@ const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foregr
 // Both time columns are reserved: the longest value they can ever hold sets the
 // geometry once, so nothing moves as calls settle and age.
 const DETAIL_COLUMN_CLASS = "w-[9ch] shrink-0 truncate text-right font-mono text-xs tabular-nums text-muted-foreground";
-const TIME_COLUMN_CLASS = "w-[8ch] shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground";
 
 interface ConsoleProps {
   // Which file's console this is. It is the whole scope: the runs are that
   // file's runs, and changing it swaps consoles rather than reporting a new run.
   fileId?: string;
-  runs: Run[];
-  items: ConsoleItem[];
-  // Where the console is pointing and what it is showing of the selected call.
-  // All three are kept per file by the caller, so coming back finds it as it was.
-  selection: RunSelection | null;
-  tab: ConsoleTab;
-  // Undefined until a view has been chosen, which is what lets a run that drew
-  // something open on its canvas without overriding a choice already made.
-  view?: ConsoleView;
-  onSelect: (selection: RunSelection | null) => void;
-  onTabChange: (tab: ConsoleTab) => void;
-  onViewChange: (view: ConsoleView) => void;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
@@ -89,32 +67,30 @@ interface ConsoleProps {
  * same data. The list is the flat audit log — one row per call, in wall order,
  * always complete. The canvas is the rendered output. One segmented control
  * switches them, and everything else about the header stops moving.
+ *
+ * What it reads is not React state: a run is a buffer the store appends to, and
+ * this is the only thing in the window that subscribes to it. A thousand calls
+ * repaint the console, and nothing else.
  */
-export function Console({
-  fileId,
-  runs,
-  items,
-  selection,
-  tab: activeTab,
-  view,
-  onSelect,
-  onTabChange,
-  onViewChange,
-  onAnswer,
-  onCancelAsk,
-  onDecide,
-  tableViews,
-  onTableView,
-  onTablePull,
-  onClear,
-}: ConsoleProps) {
+export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, onTableView, onTablePull, onClear }: ConsoleProps) {
+  useSyncExternalStore(
+    useCallback((notify: () => void) => (fileId === undefined ? () => {} : consoles.subscribeFile(fileId, notify)), [fileId]),
+    useCallback(() => consoles.fileVersion(fileId), [fileId]),
+  );
+
+  const file = consoles.file(fileId);
+  const groups = file.groups;
+  const selection = file.selection;
+  const activeTab = file.tab;
+  const newest = groups[groups.length - 1];
+
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
+  // Whether the log is following the run, like a terminal. It stops the moment
+  // you scroll off the bottom and starts again when you come back to it.
+  const [tailing, setTailing] = useState(true);
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
-
-  const groups = useMemo(() => groupRuns(runs, items), [runs, items]);
-  const newest = groups[groups.length - 1];
 
   // A settled call shows the wall-clock time it was made, which never changes —
   // so the clock only runs while something is still in flight, counting up in
@@ -127,6 +103,10 @@ export function Console({
     return () => clearInterval(interval);
   }, [hasInFlight]);
 
+  const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
+  const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
+  const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
+
   // The file and run the console has followed, which is what tells a run
   // arriving apart from a call arriving inside the one already on screen — and
   // both apart from the console being handed a different file altogether.
@@ -135,26 +115,33 @@ export function Console({
   useEffect(() => {
     const sameFile = followedRef.current.fileId === fileId;
     const isNewRun = sameFile && followedRef.current.runId !== newest?.run.id;
+    const arrived = !sameFile || isNewRun;
     followedRef.current = { fileId, runId: newest?.run.id };
+    // Pressing Run is a request to watch what it does, and so is opening another
+    // file: either way the log goes back to following.
+    if (arrived && !tailing) {
+      setTailing(true);
+      return;
+    }
     // Arriving at another file is not a run arriving: its own selection has just
     // been restored, and only a selection with nothing left to point at is
     // moved on to the newest run.
-    const next = followSelection(selection, groups, isNewRun);
+    const next = followSelection(selection, groups, isNewRun, tailing);
     if (next?.runId !== selection?.runId || next?.itemId !== selection?.itemId) onSelect(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, newest?.run.id, newest?.items.length, groups.length]);
+  }, [fileId, file.version, tailing]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
-  const rows = selectedGroup ? callItems(selectedGroup) : [];
-  const selectedItem = rows.find((item) => item.id === selection?.itemId);
+  const rows = selectedGroup?.calls ?? [];
+  const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
   const selectedCall = selectedItem?.call;
-  const activeView = view ?? defaultView(selectedGroup);
-  const waiting = selectedGroup ? awaitingItem(selectedGroup) : undefined;
+  const activeView = file.view ?? defaultView(selectedGroup);
+  const waiting = selectedGroup?.awaiting;
 
   const selectRun = useCallback(
     (group: RunGroup) => {
-      const calls = callItems(group);
-      onSelect({ runId: group.run.id, itemId: calls[calls.length - 1]?.id });
+      setTailing(true);
+      onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
     },
     [onSelect],
   );
@@ -195,10 +182,21 @@ export function Console({
   const selectFromCanvas = useCallback(
     (itemId: string) => {
       if (!selectedGroup) return;
+      setTailing(false);
       onViewChange("list");
       onSelect({ runId: selectedGroup.run.id, itemId });
     },
     [selectedGroup, onSelect, onViewChange],
+  );
+
+  // Picking a row is a decision to read it, so the log stops moving under it.
+  const selectRow = useCallback(
+    (itemId: string) => {
+      if (!selectedGroup) return;
+      setTailing(false);
+      onSelect({ runId: selectedGroup.run.id, itemId });
+    },
+    [selectedGroup, onSelect],
   );
 
   // With no run there is no selection to show and no views to choose between:
@@ -323,13 +321,15 @@ export function Console({
         <Console.ListView
           group={selectedGroup}
           rows={rows}
-          selection={selection}
+          selectedItemId={selection?.itemId}
           activeTab={activeTab}
-          selectedCall={selectedCall}
+          selectedItem={selectedItem}
           waiting={waiting !== undefined}
           jsonViewerRef={jsonViewerRef}
           now={now}
-          onSelect={onSelect}
+          tailing={tailing}
+          onTailingChange={setTailing}
+          onSelectRow={selectRow}
           onTabChange={onTabChange}
           onGoToCanvas={() => onViewChange("canvas")}
         />
@@ -341,84 +341,160 @@ export function Console({
 interface ListViewProps {
   group: RunGroup;
   rows: ConsoleItem[];
-  selection: RunSelection | null;
+  selectedItemId?: string;
   activeTab: ConsoleTab;
-  selectedCall?: MethodCall;
+  selectedItem?: ConsoleItem;
   waiting: boolean;
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
   now: number;
-  onSelect: (selection: RunSelection | null) => void;
+  tailing: boolean;
+  onTailingChange: (tailing: boolean) => void;
+  onSelectRow: (itemId: string) => void;
   onTabChange: (tab: ConsoleTab) => void;
   onGoToCanvas: () => void;
 }
 
 /**
  * The flat audit log. A row is a call and only a call — no disclosure triangles,
- * no block rows, no run row — which is what keeps it scannable at two hundred
- * rows and lets every row carry the same two extra channels.
+ * no block rows, no run row — which is what keeps it scannable and lets every
+ * row carry the same two extra channels.
+ *
+ * Only the rows on screen are drawn. The rest are two spacers, because a fixed
+ * row height means the log's length is a number rather than a measurement — so
+ * it stays complete at any length without a thousand rows in the document.
  */
 Console.ListView = function ({
   group,
   rows,
-  selection,
+  selectedItemId,
   activeTab,
-  selectedCall,
+  selectedItem,
   waiting,
   jsonViewerRef,
   now,
-  onSelect,
+  tailing,
+  onTailingChange,
+  onSelectRow,
   onTabChange,
   onGoToCanvas,
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rowsBelow = useRowsBelow(scrollRef, rows.length);
-  const slowest = useMemo(() => slowestCall(group), [group]);
-  const failures = rows.filter((item) => itemStatus(item) === "error").length;
+  const [window, setWindow] = useState({ top: 0, height: 0 });
+  const tailingRef = useRef(tailing);
+  tailingRef.current = tailing;
+  const onTailingRef = useRef(onTailingChange);
+  onTailingRef.current = onTailingChange;
+
+  const total = rows.length;
+  const slowest = group.stats.slowest;
+  const failures = group.failures;
   const scriptFailed = group.items.some((item) => item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const measure = () => {
+      setWindow({ top: element.scrollTop, height: element.clientHeight });
+      const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= TAIL_SLACK;
+      if (atBottom !== tailingRef.current) onTailingRef.current(atBottom);
+    };
+
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Following means staying at the bottom as rows arrive.
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (element && tailing) element.scrollTop = element.scrollHeight;
+  }, [total, tailing]);
+
+  const first = Math.max(0, Math.floor(window.top / CALL_ROW_HEIGHT) - OVERSCAN);
+  const count = Math.max(0, Math.min(total - first, Math.ceil(window.height / CALL_ROW_HEIGHT) + OVERSCAN * 2));
+  const visible = rows.slice(first, first + count);
+  // What is still below the fold. The log is never collapsed or summarised away,
+  // so this says what is out of sight rather than standing in for it.
+  const rowsBelow = Math.max(0, total - Math.round((window.top + window.height) / CALL_ROW_HEIGHT));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} className="@container shrink overflow-y-auto" style={{ maxHeight: MAX_LOG_HEIGHT }}>
-        {rows.length === 0 ? (
+        {total === 0 ? (
           <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
             {/* A run parked on a question is in flight but is not on its way to
                 a call — the tail bar below already says what it is doing. */}
             {group.inFlight && !waiting ? "Waiting for the first call…" : "No calls."}
           </div>
         ) : (
-          rows.map((item) => (
-            <Console.CallRow
-              key={item.id}
-              item={item}
-              selected={item.id === selection?.itemId}
-              slowest={slowest}
-              stale={group.run.stale === true}
-              onSelect={() => onSelect({ runId: group.run.id, itemId: item.id })}
-              now={now}
-            />
-          ))
+          <div style={{ height: total * CALL_ROW_HEIGHT }}>
+            <div style={{ transform: `translateY(${first * CALL_ROW_HEIGHT}px)` }}>
+              {visible.map((item) => (
+                <Console.CallRow
+                  key={item.id}
+                  id={item.id}
+                  name={`${item.call!.service.name}.${item.call!.method.name}`}
+                  timestamp={item.timestamp}
+                  loopKey={item.key}
+                  status={itemStatus(item)}
+                  durationMs={item.call!.durationMs}
+                  errorCode={callErrorCode(item.call!)}
+                  fraction={barFraction(item.call!.durationMs, slowest)}
+                  selected={item.id === selectedItemId}
+                  stale={group.run.stale === true}
+                  onSelect={onSelectRow}
+                  now={now}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      <Console.TailBar waiting={waiting} scriptFailed={scriptFailed} rowsBelow={rowsBelow} failures={failures} onGoToCanvas={onGoToCanvas} />
+      <Console.TailBar
+        waiting={waiting}
+        scriptFailed={scriptFailed}
+        rowsBelow={rowsBelow}
+        failures={failures}
+        dropped={group.dropped}
+        tailing={tailing}
+        onFollow={() => onTailingChange(true)}
+        onGoToCanvas={onGoToCanvas}
+      />
 
       {/* The payload sits in a pane of its own that never reflows as you move
           through the log — which is why Request/Response/Headers live down here
           rather than in the header. */}
       <div className={cn("flex min-h-0 flex-1 flex-col border-t border-border", group.run.stale && "opacity-70")}>
         {group.run.payloadsExpired ? (
-          <div className="flex items-center gap-2 px-4 py-3">
-            <span className="text-xs text-muted-foreground">Response no longer kept — run to see it live</span>
-            <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
-          </div>
-        ) : selectedCall ? (
-          <Console.DetailContent methodCall={selectedCall} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
+          <Console.NoPayload>Response no longer kept — run to see it live</Console.NoPayload>
+        ) : selectedItem?.payloadsDropped ? (
+          <Console.NoPayload>Payload let go to keep this run bounded — run to see it live</Console.NoPayload>
+        ) : selectedItem?.call ? (
+          <Console.DetailContent methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
-            {rows.length === 0 ? "Nothing to show." : "Select a call."}
+            {total === 0 ? "Nothing to show." : "Select a call."}
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// A payload that is not there any more, and why. Expiry is only bearable when it
+// is a stated state rather than a silent hole.
+Console.NoPayload = function ({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 px-4 py-3">
+      <span className="text-xs text-muted-foreground">{children}</span>
+      <span className="font-mono text-xs text-muted-foreground">{runShortcutLabel}</span>
     </div>
   );
 };
@@ -428,6 +504,11 @@ interface TailBarProps {
   scriptFailed: boolean;
   rowsBelow: number;
   failures: number;
+  // Rows a very long run stopped keeping. The log says where it stops being
+  // complete rather than quietly ending there.
+  dropped: number;
+  tailing: boolean;
+  onFollow: () => void;
   onGoToCanvas: () => void;
 }
 
@@ -436,8 +517,8 @@ interface TailBarProps {
  * script threw, is a fact about the whole run, and the log stays readable while
  * it waits — the pause blocks the script, not your reading.
  */
-Console.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, onGoToCanvas }: TailBarProps) {
-  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0) return null;
+Console.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, dropped, tailing, onFollow, onGoToCanvas }: TailBarProps) {
+  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0 && dropped === 0 && tailing) return null;
 
   const state = waiting ? "waiting" : scriptFailed ? "failed" : "counts";
 
@@ -460,7 +541,19 @@ Console.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, onGoTo
       {state === "failed" && <span className="text-destructive">Script failed</span>}
       {state === "counts" && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
       <div className="ml-auto flex shrink-0 items-center gap-3">
+        {dropped > 0 && <span className="text-muted-foreground">{dropped} not kept</span>}
         {failures > 0 && <span className="text-amber-600 dark:text-amber-400">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
+        {!tailing && (
+          <button
+            type="button"
+            data-testid="console-follow"
+            className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onFollow}
+          >
+            <ArrowDown size={11} />
+            Latest
+          </button>
+        )}
         {(state === "waiting" || state === "failed") && (
           <button
             type="button"
@@ -479,11 +572,17 @@ Console.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, onGoTo
 };
 
 interface CallRowProps {
-  item: ConsoleItem;
+  id: string;
+  name: string;
+  timestamp: number;
+  loopKey?: string;
+  status: RunStatus;
+  durationMs?: number;
+  errorCode?: string;
+  fraction?: number;
   selected: boolean;
-  slowest?: number;
   stale: boolean;
-  onSelect: () => void;
+  onSelect: (itemId: string) => void;
   now: number;
 }
 
@@ -491,28 +590,26 @@ interface CallRowProps {
  * One call, and the same shape for every one of them: when it happened, what it
  * was, which pass through the loop it belonged to, and how long it took — as a
  * number and as a length.
+ *
+ * Every prop is a value rather than an object, which is what makes the memo
+ * hold: a settled row is handed the same twelve values on every repaint and
+ * doesn't render again. `now` is the exception and is passed as zero unless the
+ * row is the one counting up.
  */
-Console.CallRow = memo(function CallRow({ item, selected, slowest, stale, onSelect, now }: CallRowProps) {
-  const call = item.call!;
-  const status = itemStatus(item);
+Console.CallRow = memo(function CallRow({ id, name, timestamp, loopKey, status, durationMs, errorCode, fraction, selected, stale, onSelect, now }: CallRowProps) {
   const pending = status === "pending" || status === "streaming";
-  const errorCode = callErrorCode(call);
-  const key = loopKey(call.input);
-  const fraction = barFraction(call.durationMs, slowest);
 
   return (
     <div
       data-testid="console-call-row"
       className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
       style={{ height: CALL_ROW_HEIGHT }}
-      onClick={onSelect}
+      onClick={() => onSelect(id)}
     >
       {pending ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
-      <span className="w-[8ch] shrink-0 font-mono text-xs tabular-nums text-muted-foreground @max-[360px]:hidden">{formatClockTime(item.timestamp)}</span>
-      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", selected ? "text-foreground" : "text-muted-foreground")}>
-        {call.service.name}.{call.method.name}
-      </span>
-      {key && <span className="shrink-0 truncate font-mono text-xs text-muted-foreground/80 @max-[440px]:hidden">{key}</span>}
+      <span className="w-[8ch] shrink-0 font-mono text-xs tabular-nums text-muted-foreground @max-[360px]:hidden">{formatClockTime(timestamp)}</span>
+      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", selected ? "text-foreground" : "text-muted-foreground")}>{name}</span>
+      {loopKey && <span className="shrink-0 truncate font-mono text-xs text-muted-foreground/80 @max-[440px]:hidden">{loopKey}</span>}
       {errorCode && <span className="shrink-0 font-mono text-xs text-destructive">{errorCode}</span>}
       {fraction !== undefined && (
         <span className="shrink-0 @max-[500px]:hidden" style={{ width: BAR_WIDTH }} aria-hidden>
@@ -522,40 +619,10 @@ Console.CallRow = memo(function CallRow({ item, selected, slowest, stale, onSele
           />
         </span>
       )}
-      <span className={DETAIL_COLUMN_CLASS}>{pending ? formatElapsed(now - item.timestamp) : formatDuration(call.durationMs)}</span>
+      <span className={DETAIL_COLUMN_CLASS}>{pending ? formatElapsed(now - timestamp) : formatDuration(durationMs)}</span>
     </div>
   );
 });
-
-/**
- * How many rows are still below the fold. The log is never collapsed or
- * summarised away — it stays complete at any length — so this says what is out
- * of sight rather than standing in for it.
- */
-function useRowsBelow(ref: React.RefObject<HTMLDivElement | null>, total: number): number {
-  const [rowsBelow, setRowsBelow] = useState(0);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const measure = () => {
-      const shown = Math.round((element.scrollTop + element.clientHeight) / CALL_ROW_HEIGHT);
-      setRowsBelow(Math.max(0, total - shown));
-    };
-
-    measure();
-    element.addEventListener("scroll", measure, { passive: true });
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => {
-      element.removeEventListener("scroll", measure);
-      observer.disconnect();
-    };
-  }, [ref, total]);
-
-  return rowsBelow;
-}
 
 interface RunSelectProps {
   groups: RunGroup[];
@@ -874,7 +941,7 @@ interface RunSummaryLine {
 // The columns every row in the history shares — the pill shows them for the
 // selected run, the list for all of them.
 function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummaryLine {
-  const waiting = awaitingItem(group) !== undefined;
+  const waiting = group.awaiting !== undefined;
   const time = group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt);
   const outcome = waiting
     ? "waiting"

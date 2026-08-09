@@ -179,6 +179,13 @@ interface LiveTable {
 // expired, which is a state the canvas already states.
 const MAX_LIVE_TABLES = 24;
 
+/**
+ * How many calls to one method a run reads remembered values out of. The
+ * completion list keeps a handful per field, so the ones after this would offer
+ * nothing the first few didn't — and a loop is exactly where that adds up.
+ */
+const SAMPLED_CALLS_PER_METHOD = 5;
+
 function isAsyncIterable(value: any): value is AsyncIterable<unknown[]> {
   return value != null && typeof value[Symbol.asyncIterator] === "function";
 }
@@ -689,6 +696,14 @@ class KajaInternal {
    * `runTask`, so the guard is back the next time Run is pressed.
    */
   readonly approvedMethods = new Set<string>();
+  /**
+   * How many calls to each method this run has already read values out of.
+   * Remembering walks a request and a response with their schemas, and it feeds
+   * a completion list that keeps five values per field — so a loop calling one
+   * method a thousand times is nine hundred and ninety-five walks for a list
+   * that was full after the first few. Cleared with the approvals, by the run.
+   */
+  readonly sampledMethods = new Map<string, number>();
   #onMethodCallUpdate: MethodCallUpdate;
 
   constructor(onMethodCallUpdate: MethodCallUpdate) {
@@ -698,11 +713,15 @@ class KajaInternal {
   methodCallUpdate(methodCall: MethodCall) {
     if (methodCall.output && !methodCall.error) {
       const method = `${methodCall.service.name}.${methodCall.method.name}`;
-      if (methodCall.inputTypeName) {
-        rememberValues(methodCall.inputTypeName, methodCall.input, methodCall.inputType, { method, origin: "request" });
-      }
-      if (methodCall.outputTypeName) {
-        rememberValues(methodCall.outputTypeName, methodCall.output, methodCall.outputType, { method, origin: "response" });
+      const seen = this.sampledMethods.get(method) ?? 0;
+      if (seen < SAMPLED_CALLS_PER_METHOD) {
+        this.sampledMethods.set(method, seen + 1);
+        if (methodCall.inputTypeName) {
+          rememberValues(methodCall.inputTypeName, methodCall.input, methodCall.inputType, { method, origin: "request" });
+        }
+        if (methodCall.outputTypeName) {
+          rememberValues(methodCall.outputTypeName, methodCall.output, methodCall.outputType, { method, origin: "response" });
+        }
       }
     }
     this.#onMethodCallUpdate(methodCall);

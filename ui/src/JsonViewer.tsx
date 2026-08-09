@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { formatJson } from "./formatter";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import "./monacoTheme";
+import { drawnText, printJson } from "./payloadText";
 
 // A private language rather than the built-in "json" one: that language is wired
 // to the JSON language service, which validates every JSON model against the app
@@ -39,7 +39,9 @@ export interface JsonViewerHandle {
 export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function JsonViewer({ value, rawText }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const [jsonText, setJsonText] = useState("");
+  // The full text, held rather than stored, so drawing a truncated payload
+  // doesn't cost a render and copying still gets the whole thing.
+  const jsonTextRef = useRef("");
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -51,7 +53,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     },
     copyToClipboard: async () => {
       try {
-        await navigator.clipboard.writeText(jsonText);
+        await navigator.clipboard.writeText(jsonTextRef.current);
       } catch (err) {
         console.error("Failed to copy:", err);
       }
@@ -65,7 +67,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     }
 
     editorRef.current = monaco.editor.create(containerRef.current, {
-      value: jsonText,
+      value: jsonTextRef.current,
       language: LANGUAGE_ID,
       automaticLayout: true,
       // Read-only configuration
@@ -114,26 +116,13 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
     };
   }, []);
 
-  // Format JSON and update editor
+  // Print the payload into the editor. Synchronous on purpose: the selection
+  // follows a run as it happens, so this runs as often as the console repaints,
+  // and an async format could land over a newer payload.
   useEffect(() => {
-    async function updateContent() {
-      let text: string;
-      if (rawText !== undefined) {
-        text = rawText;
-      } else {
-        let stringified = JSON.stringify(value);
-        if (stringified === undefined || stringified === null) {
-          stringified = "";
-        }
-        text = await formatJson(stringified);
-      }
-      setJsonText(text);
-
-      if (editorRef.current) {
-        editorRef.current.setValue(text);
-      }
-    }
-    updateContent();
+    const text = rawText ?? printJson(value);
+    jsonTextRef.current = text;
+    editorRef.current?.setValue(drawnText(text));
   }, [value, rawText]);
 
   return (

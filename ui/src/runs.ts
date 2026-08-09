@@ -1,4 +1,7 @@
 import { Block, blockLabel, isAwaitingUser } from "./blocks";
+// Type only: the fold is maintained in callGroups, which reads its items from
+// here. Importing the value would close the circle.
+import type { CanvasEntry } from "./callGroups";
 import { isCallInFlight, MethodCall } from "./kaja";
 import { Log, LogLevel } from "./server/api";
 
@@ -49,6 +52,14 @@ export interface ConsoleItem {
   call?: MethodCall;
   logs?: Log[];
   block?: Block;
+  // What identifies this call, read off its request when it was issued. The
+  // request never changes after that, and the log draws this on every row — so
+  // it is read once here rather than per row per repaint.
+  key?: string;
+  // Set when the payload was let go to keep a long run bounded. The row is still
+  // the record that the call happened; only what it carried is gone, which is
+  // the same bargain the store makes with an expired run.
+  payloadsDropped?: boolean;
 }
 
 export type RunStatus = "pending" | "streaming" | "success" | "error";
@@ -66,9 +77,30 @@ export type ConsoleTab = "request" | "response" | "headers";
  */
 export type ConsoleView = "list" | "canvas";
 
+/**
+ * One run and everything under it. It is maintained by the file's console as the
+ * run happens rather than derived from a flat list on every render — a run of a
+ * thousand calls is re-read on every repaint, and re-deriving it there is what
+ * made a spike unwatchable.
+ */
 export interface RunGroup {
   run: Run;
+  // Everything the run produced, in emission order, never re-sorted.
   items: ConsoleItem[];
+  // The log's rows: a row is a call and only a call.
+  calls: ConsoleItem[];
+  // The canvas, folded as it was drawn.
+  entries: CanvasEntry[];
+  // What the run says about itself, counted as its items arrived.
+  stats: ItemStats;
+  // The question the run is stopped on, if it is stopped on one.
+  awaiting?: ConsoleItem;
+  // Whether the run drew anything of its own, which is what decides the view it
+  // opens in.
+  drew: boolean;
+  // Rows a very long run stopped keeping. Stated rather than silent: the log is
+  // the audit record, so where it stops being complete it has to say so.
+  dropped: number;
   // The worst status the run contains: a green run means every call passed.
   status: RunStatus;
   // Whether anything it started is still in flight.
@@ -120,6 +152,95 @@ export function itemName(item: ConsoleItem): string {
   return logs.length === 1 ? logs[0].message.trim() : `${logs.length} log messages`;
 }
 
+/**
+ * What a set of items says about itself, accumulated as they arrive rather than
+ * re-derived from them. A run and a folded row on the canvas both want the same
+ * five numbers, and both are read on every repaint while the set behind them can
+ * be thousands long — so it is counted once, here.
+ *
+ * `add` is idempotent and is meant to be called again for the same item: a call
+ * reaches the console when it is issued and again when it settles, and that is
+ * an update to what is already counted rather than a second call.
+ */
+export class ItemStats {
+  #of = new Map<string, { status: RunStatus; inFlight: boolean; duration?: number }>();
+  #counts: Record<RunStatus, number> = { pending: 0, streaming: 0, success: 0, error: 0 };
+  #inFlight = 0;
+  #settled = 0;
+  #slowest = 0;
+  #start = Infinity;
+  #end = -Infinity;
+
+  has(id: string): boolean {
+    return this.#of.has(id);
+  }
+
+  add(item: ConsoleItem): void {
+    const was = this.#of.get(item.id);
+    if (was) {
+      this.#counts[was.status]--;
+      if (was.inFlight) this.#inFlight--;
+    }
+
+    // A block the run is parked on is not on its way to a call, but the run is
+    // not over either — the script is stopped inside it waiting to be answered.
+    const inFlight = item.call !== undefined ? isCallInFlight(item.call) : item.block !== undefined && isAwaitingUser(item.block);
+    const status = itemStatus(item);
+    this.#counts[status]++;
+    if (inFlight) this.#inFlight++;
+
+    // A duration is written once, when the call settles, so it only ever moves
+    // the window outward.
+    const duration = item.call?.durationMs;
+    if (duration !== undefined && was?.duration === undefined) {
+      this.#settled++;
+      this.#slowest = Math.max(this.#slowest, duration);
+      this.#start = Math.min(this.#start, item.timestamp);
+      this.#end = Math.max(this.#end, item.timestamp + duration);
+    }
+
+    this.#of.set(item.id, { status, inFlight, duration });
+  }
+
+  get size(): number {
+    return this.#of.size;
+  }
+
+  // The worst status the set contains — there is no "partially succeeded", and
+  // the dot is the only thing anyone needs to read after a press.
+  get status(): RunStatus {
+    if (this.#of.size === 0) return "pending";
+    if (this.#counts.error > 0) return "error";
+    if (this.#counts.pending > 0) return "pending";
+    if (this.#counts.streaming > 0) return "streaming";
+    return "success";
+  }
+
+  get failures(): number {
+    return this.#counts.error;
+  }
+
+  get inFlight(): boolean {
+    return this.#inFlight > 0;
+  }
+
+  // The longest call, which every duration bar is drawn against. Bars only mean
+  // something with calls to compare, so a set of one gets none.
+  get slowest(): number | undefined {
+    return this.#settled > 1 ? this.#slowest : undefined;
+  }
+
+  /**
+   * Wall time for the whole set — not the sum of its calls, so a fan-out reports
+   * what it actually cost. Undefined while anything in it is still in flight,
+   * since it hasn't finished taking as long as it will.
+   */
+  get duration(): number | undefined {
+    if (this.#of.size === 0 || this.#settled !== this.#of.size) return undefined;
+    return this.#end < this.#start ? undefined : this.#end - this.#start;
+  }
+}
+
 // A run's status is the worst status it contains — there is no "partially
 // succeeded", and the header dot is the only thing anyone needs to read after a
 // press. A run that has produced nothing at all is still pending.
@@ -132,60 +253,11 @@ export function worstStatus(items: ConsoleItem[]): RunStatus {
   return "success";
 }
 
-/**
- * Calls nest under the run that made them, ordered by start and never
- * re-sorted. Runs come back oldest first, which is the order the history reads
- * in; a run with no items left (its calls aged out) still gets a group, because
- * the header is what says it happened.
- */
-export function groupRuns(runs: Run[], items: ConsoleItem[]): RunGroup[] {
-  const byRun = new Map<string, ConsoleItem[]>();
-  for (const item of items) {
-    const list = byRun.get(item.runId);
-    if (list) list.push(item);
-    else byRun.set(item.runId, [item]);
-  }
-
-  return [...runs]
-    .sort((a, b) => a.startedAt - b.startedAt)
-    .map((run) => {
-      const runItems = byRun.get(run.id) ?? [];
-      return {
-        run,
-        items: runItems,
-        status: worstStatus(runItems),
-        // A run parked on a question has nothing in the air, but it is not over
-        // either — the script is stopped inside it waiting to be answered.
-        inFlight:
-          !run.stale &&
-          runItems.some((item) => (item.call !== undefined && isCallInFlight(item.call)) || (item.block !== undefined && isAwaitingUser(item.block))),
-        failures: runItems.filter((item) => itemStatus(item) === "error").length,
-      };
-    });
-}
-
 // The log is calls and only calls: a row is a call, full stop. Everything else a
 // run produced is on the canvas, which is what stops the two views saying the
 // same thing twice.
-export function callItems(group: RunGroup): ConsoleItem[] {
-  return group.items.filter((item) => item.call !== undefined);
-}
-
 export function callCount(group: RunGroup): number {
-  return callItems(group).length;
-}
-
-// The question the run is stopped on, if it is stopped on one. This is what puts
-// a dot on the Canvas tab and an amber bar at the tail of the log.
-export function awaitingItem(group: RunGroup): ConsoleItem | undefined {
-  return group.items.find((item) => item.block !== undefined && isAwaitingUser(item.block));
-}
-
-// Whether the run drew anything of its own. A run that only made calls has a
-// canvas of call cards, which is a true but redundant view of its log — so it
-// is not what the console opens on.
-export function hasDrawing(group: RunGroup): boolean {
-  return group.items.some((item) => item.block !== undefined || item.logs !== undefined);
+  return group.calls.length;
 }
 
 /**
@@ -195,19 +267,11 @@ export function hasDrawing(group: RunGroup): boolean {
  * file — debugging is a mode, not a click.
  */
 export function defaultView(group: RunGroup | undefined): ConsoleView {
-  return group && hasDrawing(group) ? "canvas" : "list";
+  return group?.drew ? "canvas" : "list";
 }
 
-/**
- * The longest call in the run, which every duration bar is drawn against. Bars
- * only mean something in a run with calls to compare, so a run of one gets none.
- */
-export function slowestCall(group: RunGroup): number | undefined {
-  return slowestOf(callItems(group));
-}
-
-// The same measure over any run of calls, which is what the canvas draws a
-// folded group's ticks against.
+// The measure a set of calls is drawn against, kept for reading a list that is
+// already complete. A live run counts it as it goes (`ItemStats`).
 export function slowestOf(items: ConsoleItem[]): number | undefined {
   const durations = items.map((item) => item.call?.durationMs).filter((duration): duration is number => duration !== undefined);
   return durations.length > 1 ? Math.max(...durations) : undefined;
@@ -225,15 +289,23 @@ export interface RunSelection {
  * to see what it did, so a run arriving (`isNewRun`) always takes the selection —
  * including from an older run that was deliberately stepped back to. Anything
  * else only moves the cursor within the run being watched: a call landing in a
- * later run leaves a stepped-back one alone, while inside the watched run it
- * follows the newest call, which is what selects one in flight the moment it is
- * issued. A selection whose run has gone has nothing left to point at and
- * follows the newest too.
+ * later run leaves a stepped-back one alone. A selection whose run has gone has
+ * nothing left to point at and follows the newest too.
+ *
+ * Inside the run being watched the cursor follows the newest call only while the
+ * log is `tailing` — scrolled to the bottom, like a terminal. Following every
+ * call was right at five a second and is the most expensive thing in the room at
+ * five hundred, and it is also wrong: a row you scrolled back to read should not
+ * be pulled out from under you.
  */
-export function followSelection(current: RunSelection | null, groups: RunGroup[], isNewRun: boolean): RunSelection | null {
+export function followSelection(current: RunSelection | null, groups: RunGroup[], isNewRun: boolean, tailing: boolean): RunSelection | null {
   const newest = groups[groups.length - 1];
   if (!newest) return null;
-  if (!isNewRun && current && current.runId !== newest.run.id && groups.some((group) => group.run.id === current.runId)) return current;
-  const calls = callItems(newest);
-  return { runId: newest.run.id, itemId: calls[calls.length - 1]?.id };
+  const known = current !== null && groups.some((group) => group.run.id === current.runId);
+  if (!isNewRun && known) {
+    // A run stepped back to keeps the cursor, and so does the newest one once
+    // the log has been scrolled off the bottom.
+    if (current.runId !== newest.run.id || !tailing) return current;
+  }
+  return { runId: newest.run.id, itemId: newest.calls[newest.calls.length - 1]?.id };
 }
