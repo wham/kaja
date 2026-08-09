@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
+import { CallFold, CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
 import { MethodCall } from "./kaja";
 import { ConsoleItem } from "./runs";
 import { LogLevel } from "./server/api";
@@ -103,6 +103,62 @@ describe("groupFailures", () => {
     const items = [call("a", "GetShow"), call("b", "GetShow", { error: { code: "NOT_FOUND" } }), call("c", "GetShow")];
 
     expect(groupFailures(items)).toBe(1);
+  });
+});
+
+describe("a folded row's numbers", () => {
+  // The row carries its own numbers so a loop of a thousand doesn't get walked
+  // on every repaint. This is what keeps that fast path and the rule it stands
+  // for from drifting apart.
+  it("say the same as deriving them from the calls would", () => {
+    const items = [
+      call("a", "GetShow", { input: { id: "vera-lune" }, timestamp: NOW, durationMs: 300 }),
+      call("b", "GetShow", { input: { id: "moth-lantern" }, timestamp: NOW + 10, durationMs: 120 }),
+      call("c", "GetShow", { input: { id: "salt-choir" }, timestamp: NOW + 20, durationMs: 90, error: { code: "NOT_FOUND" } }),
+    ];
+    const entry = foldCalls(items)[0];
+
+    expect(entry.kind).toBe("calls");
+    if (entry.kind !== "calls") return;
+    expect(entry.stats.duration).toBe(groupDuration(items));
+    expect(entry.stats.failures).toBe(groupFailures(items));
+    expect(entry.stats.keyLabel).toBe(groupKeyLabel(items));
+  });
+
+  it("catch up when a call that was in flight settles", () => {
+    const fold = new CallFold();
+    const items = [call("a", "GetShow", { durationMs: 100 }), call("b", "GetShow", { durationMs: 100 })];
+    // The third is issued before it has an answer, which is how every call
+    // reaches the console the first time.
+    const pending = call("c", "GetShow", { output: undefined, durationMs: undefined });
+    for (const item of [...items, pending]) fold.push(item);
+
+    const entry = fold.entries[0];
+    expect(entry.kind).toBe("calls");
+    if (entry.kind !== "calls") return;
+    expect(entry.stats.duration).toBeUndefined();
+
+    // The same object settles in place, which is how the client reports it.
+    pending.call!.durationMs = 100;
+    pending.call!.error = { code: "NOT_FOUND" };
+    fold.patched(pending);
+
+    expect(entry.stats.failures).toBe(1);
+    expect(entry.stats.duration).toBe(groupDuration([...items, pending]));
+  });
+
+  it("do not count a call twice however often it is patched", () => {
+    const fold = new CallFold();
+    const item = call("a", "GetShow", { input: { id: "vera-lune" }, error: { code: "NOT_FOUND" } });
+    for (const other of [item, call("b", "GetShow"), call("c", "GetShow")]) fold.push(other);
+
+    const entry = fold.entries[0];
+    if (entry.kind !== "calls") throw new Error("expected a fold");
+    fold.patched(item);
+    fold.patched(item);
+
+    expect(entry.stats.failures).toBe(1);
+    expect(entry.stats.keyLabel).toBe("vera-lune");
   });
 });
 

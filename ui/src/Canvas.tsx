@@ -1,16 +1,16 @@
 import { ChevronLeft, ChevronRight, Search, ShieldQuestionMark } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
-import { CanvasEntry, foldCalls, groupDuration, groupFailures, groupKeyLabel } from "./callGroups";
+import { CallStats, CanvasEntry } from "./callGroups";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { Spinner } from "./components/spinner";
-import { isCallInFlight, MethodCall } from "./kaja";
+import { MethodCall } from "./kaja";
 import { hasControls, NO_TABLE_VIEW, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
 import { loopKey } from "./loopKey";
 import { barFraction, callErrorCode, dotClass, formatDuration } from "./callFormat";
-import { ConsoleItem, itemStatus, RunGroup, slowestOf, worstStatus } from "./runs";
+import { ConsoleItem, itemStatus, RunGroup } from "./runs";
 import { Log, LogLevel } from "./server/api";
 
 // The strip of ticks a folded group draws, and the shape of one tick. The whole
@@ -52,7 +52,10 @@ interface CanvasProps {
  * into a single row, which is the whole reason the canvas is not the log.
  */
 export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onDecide, onSelectCall, tableViews, onTableView, onTablePull }: CanvasProps) {
-  const entries = useMemo(() => foldCalls(group.items), [group.items]);
+  // The fold is not derived here: it is maintained as the run happens, so a loop
+  // of a thousand costs one row's worth of work per call instead of a walk of
+  // every call per repaint.
+  const entries = group.entries;
 
   if (group.run.payloadsExpired) {
     return <Canvas.Notice>Canvas no longer kept — run to see it live</Canvas.Notice>;
@@ -106,7 +109,7 @@ interface EntryProps {
 
 Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onDecide, onSelectCall, tableViews, onTableView, onTablePull }: EntryProps) {
   if (entry.kind === "calls") {
-    return <Canvas.CallGroup name={entry.name} items={entry.items} selectedItemId={selectedItemId} onSelectCall={onSelectCall} />;
+    return <Canvas.CallGroup name={entry.name} items={entry.items} stats={entry.stats} selectedItemId={selectedItemId} onSelectCall={onSelectCall} />;
   }
 
   const item = entry.item;
@@ -547,6 +550,10 @@ Canvas.CallCard = function ({ call, selected, onSelect }: { call: MethodCall; se
 interface CallGroupProps {
   name: string;
   items: ConsoleItem[];
+  // What the row says about the calls under it, counted as they arrived. A loop
+  // of a thousand is one row, and walking a thousand requests to write it is
+  // work the row would otherwise do on every repaint.
+  stats: CallStats;
   selectedItemId?: string;
   onSelectCall: (itemId: string) => void;
 }
@@ -561,13 +568,13 @@ interface CallGroupProps {
  * rather than a trip to the list — and each one is its own way into that call's
  * complete record.
  */
-Canvas.CallGroup = function ({ name, items, selectedItemId, onSelectCall }: CallGroupProps) {
-  const status = worstStatus(items);
-  const inFlight = items.some((item) => item.call !== undefined && isCallInFlight(item.call));
-  const slowest = slowestOf(items);
-  const failures = groupFailures(items);
-  const keys = groupKeyLabel(items);
-  const duration = formatDuration(groupDuration(items));
+Canvas.CallGroup = function ({ name, items, stats, selectedItemId, onSelectCall }: CallGroupProps) {
+  const status = stats.status;
+  const inFlight = stats.inFlight;
+  const slowest = stats.slowest;
+  const failures = stats.failures;
+  const keys = stats.keyLabel;
+  const duration = formatDuration(stats.duration);
   const shown = items.slice(0, MAX_TICKS);
   const hidden = items.length - shown.length;
   // The strip has the budget, not the tick: past a certain density every tick is

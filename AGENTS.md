@@ -264,25 +264,88 @@ and it is why Request/Response/Headers moved **down onto the payload pane**: the
 header no longer rearranges itself as the selection moves, and the pane never
 reflows as you step through the log.
 
-**The console belongs to the file** (`runHistory.ts`). There is no shared
+**A response is printed, not formatted** (`payloadText.ts`). The pane follows the
+selection, which follows a run as it happens, so this runs as often as the
+console repaints — and prettier costs about 2 ms and a parser download per
+payload against a fiftieth of that for `JSON.stringify`, which the two disagree
+about only in places nobody reads a response for. Being synchronous is the other
+half: a slow payload can no longer land over a newer one. Prettier stays where it
+earns its keep — generated TypeScript, and the JSON *documents* the app form and
+Variables edit. Past 2 MB the pane draws the head and says how much it left, on
+the same rule as everything else here: a limit that states itself.
+
+**The console belongs to the file** (`consoles.ts`). There is no shared
 console: a run lands in the console of the script it was pressed on and stays
 there, so switching files switches consoles and coming back finds the runs, the
 selection, the tab and the view as they were left.
 
-- **Keyed by file, not held on the view.** `RunHistory` is `{ [fileId]:
-  FileConsole }`, where a `fileId` is a scratch id or a script path and a
-  `FileConsole` is that file's runs, items, selection, tab and view. Views are a
-  ten-slot cache, so a console living on one would be thrown away by ordinary
-  navigation. ("Source" was the old name for this and is taken: it means an
-  app's generated proto TypeScript.)
+- **Keyed by file, not held on the view.** `Consoles` maps a `fileId` — a scratch
+  id or a script path — to a `FileConsole`: that file's runs, its items, its
+  selection, tab and view. Views are a ten-slot cache, so a console living on one
+  would be thrown away by ordinary navigation. ("Source" was the old name for
+  this and is taken: it means an app's generated proto TypeScript.)
+- **A run is a buffer, not React state, and nothing above the console subscribes
+  to it.** A call reaches the console two or three times — issued, streaming,
+  settled — and when each of those was a `setHistory` at the root of the window,
+  a thousand-call run rendered the sidebar, the command row, every mounted view
+  and the editor with them a few thousand times over. So the store is mutable and
+  external: items are appended, a call that settles is the same object written
+  again, and `Console` is the one component that subscribes
+  (`useSyncExternalStore` over `FileConsole.version`). What React still holds is
+  the small, slow-moving part — which file is on screen.
+  - **Notification is coalesced to the frame.** Two hundred calls landing between
+    two paints are one repaint, so the cost of a spike is the cost of drawing it
+    rather than the cost of the calls. A **gesture** — a click, a run starting or
+    ending, a question drawn or answered — notifies at once instead: only the
+    stream of a running script is worth holding back.
+  - **What a run says about itself is counted, not derived** (`ItemStats`). Its
+    status, failures, slowest call, wall duration and whether anything is in
+    flight are maintained as items arrive; `add` is idempotent so a settling call
+    is an update rather than a recount. The pure functions this replaced
+    (`worstStatus`, `slowestOf`) are kept as the definition it is tested against
+    — the fast path and the rule must not become two rules.
+  - **The sidebar's three sets are three booleans per file.** Running, agent-run
+    and waiting-for-an-answer used to be three walks of every item of every file
+    on every call a script made; they are now flags the store keeps, published on
+    their own subscription so a flip is rare and a call never touches them.
+  - **Settling hangs off the store, not off a render** (`subscribeQuiet`). A run
+    is over when its script has returned and nothing it started is in flight, and
+    asking that question once per call was the other thing that put the whole
+    window in the path of a loop.
 - **An item is anything that happened in a run** — a call, a block the script
   drew, or the log messages it printed. Blocks are items rather than a parallel
   world, so they inherit run grouping, ordering, the per-file console and the
   store without any of it being written twice.
 - **The scope is what makes the history worth stepping through.** `⌃↑`/`⌃↓` walk
-  *this file's* runs, so one go at it is comparable against the last. Caps are
-  per file (25 runs, 300 items), so a chatty script can no longer evict another's
-  history; fifty files hold a console at once and the least recently run is let go.
+  *this file's* runs, so one go at it is comparable against the last. A file keeps
+  25 runs, so a chatty script can no longer evict another's history; fifty files
+  hold a console at once and the least recently touched is let go.
+- **The row and the payload expire separately, because only one of them costs
+  anything.** A row is a name, a key, a duration and a status; the payload is the
+  response. So a run keeps **every** row up to 20,000 (past that it says how many
+  it stopped keeping — a log that is silently incomplete is worse than one that
+  admits where it ends), while a file keeps the payloads of its **500** most
+  recent calls and the older rows say `Payload let go to keep this run bounded`.
+  That is the bargain the store already makes with a run read back from an
+  earlier session, applied to a run that is simply very long. Retention is by
+  count rather than by bytes on purpose: measuring bytes means serializing every
+  payload, which is the kind of per-call work this is all about removing.
+- **Only the rows on screen are in the document.** The log's rows are a fixed
+  24px, which makes windowing arithmetic rather than measurement — the row at a
+  scroll position is a division, and everything above and below it is one spacer
+  each. Forty rows are drawn where there are two thousand, and the tail bar goes
+  on saying what is below. A row takes values rather than an object so its memo
+  holds; `now` reaches it as zero unless it is the one counting up.
+- **The log follows the run like a terminal, and stops when you scroll.**
+  Following every call as it was issued is right at five calls a second and is
+  the most expensive thing in the room at five hundred — and it is also wrong: a
+  row you scrolled back to read should not be pulled out from under you. So the
+  cursor follows the newest call only while the log is at the bottom, leaving it
+  is what stops it, and a `↓ Latest` chip in the tail bar is the way back.
+  Pressing Run starts following again, because that is what pressing Run means.
+  The flag lives in a ref rather than in state: a run appends between two of your
+  wheel events, and a render-lagged answer would scroll the log back down under
+  your hands.
 - **Runs are numbered, not named.** A console holds one script's runs, so naming
   each after that script says the same thing on every row — the pill reads `Run
   3 · 14:03 · 1.2 s` and the picker hangs off it, which keeps run identity in the
@@ -440,6 +503,13 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   worth a fold (`MIN_FOLD`): it saves one line and costs a click. The duration is
   the group's **wall time**, not the sum of its calls, so a fan-out reports what
   it actually cost — the same number a run's own duration is.
+  - **The fold is maintained, not derived** (`CallFold`). A call either extends
+    the row it belongs to or starts a new one, which is a fixed amount of work
+    however long the loop turns out to be; a folded row carries its own numbers
+    (`CallStats`, an `ItemStats` plus the loop keys) because a fold is exactly
+    where walking a thousand requests per repaint stops being free.
+    `foldCalls(items)` is that same fold run to the end, for a list that is
+    already complete — one definition of what folds and what a folded row says.
   - **The ticks are what keep it a canvas rather than a summary.** One per call,
     drawn against the slowest in the group, so which iteration was slow is a
     shape here rather than a trip to the list — and each is its own way into that

@@ -8,35 +8,12 @@ import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
 import { Braces, Code, FileCode, PenLine, Save as SaveIcon, ScrollText, X } from "lucide-react";
 import * as monaco from "monaco-editor";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
 import { CommandRow } from "./CommandRow";
 import { Console } from "./Console";
-import { ConsoleTab, ConsoleView, newRunId, Run, RunSelection } from "./runs";
-import {
-  adoptStoredRuns,
-  clearFile,
-  dropFile,
-  fileConsole,
-  findBlock,
-  hasWorkInFlight,
-  putFile,
-  recordBlock,
-  recordCall,
-  recordLogs,
-  renameFile,
-  RunHistory,
-  agentFileIds,
-  runningFileIds,
-  setSelection,
-  setTab,
-  setView,
-  settleRun,
-  startRun,
-  takeFile,
-  waitingFileIds,
-  FileConsole,
-} from "./runHistory";
+import { newRunId, Run } from "./runs";
+import { consoles, FileConsole } from "./consoles";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
 import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
 import { Compiler } from "./Compiler";
@@ -137,6 +114,12 @@ const MAX_EDITOR_HEIGHT_RATIO = 0.55;
 // gives it the full width instead.
 const SIDE_BY_SIDE_MIN_WIDTH = 1600;
 
+// What the sidebar reads off every file's console: which are running, which an
+// agent is driving, and which are stopped on a question. Three booleans, so a
+// flip is rare and a call never touches them.
+const subscribeConsoleFlags = (notify: () => void) => consoles.subscribeFlags(notify);
+const consoleFlagsVersion = () => consoles.flagsVersion();
+
 // Compare the parts of an app's configuration that require recompilation when
 // changed: its type and parameters. Headers are excluded.
 function appNeedsRecompile(a: ConfigurationApp, b: ConfigurationApp): boolean {
@@ -215,12 +198,14 @@ export function App() {
     window.innerWidth >= SIDE_BY_SIDE_MIN_WIDTH ? "horizontal" : "vertical",
   );
   const [colorMode, setColorMode] = usePersistedState<ColorMode>("colorMode", "night");
-  // Every file's console: its runs, the calls under them, and where it was left
-  // pointing. The console belongs to the file, so this is keyed by file and not
-  // held on the view — views are a cache and get evicted.
-  const [history, setHistory] = useState<RunHistory>({});
-  const historyRef = useRef(history);
-  historyRef.current = history;
+  /**
+   * Every file's console lives in `consoles`, not here. A run writes to it two
+   * or three times per call, and a thousand-call run that wrote each of those
+   * into state at this level would render the whole window — sidebar, command
+   * row, every mounted view and the editor with them — a few thousand times.
+   * Only the console subscribes to it, and only on the frame.
+   */
+  useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
   // The run calls are being attributed to. Cleared once the run settles, so a
   // stray call afterwards starts one of its own rather than joining a run that
   // is over.
@@ -415,7 +400,7 @@ export function App() {
     const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), ...of };
     currentRunRef.current = run;
     if (fileId) lastRunFileIdRef.current = fileId;
-    setHistory((current) => startRun(current, run, run.startedAt));
+    consoles.startRun(run, run.startedAt);
     setActiveRun({ runId: run.id, fileId, startedAt: run.startedAt, controller, settled: false });
     return run;
   }, []);
@@ -454,7 +439,7 @@ export function App() {
       // tree, and more of them are made this way once you are working.
       recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
       const run = openRun(methodCall.method.name);
-      setHistory((current) => recordCall(current, run.fileId, run.id, methodCall, Date.now()));
+      consoles.recordCall(run.fileId, run.id, methodCall, Date.now());
     },
     [openRun],
   );
@@ -466,7 +451,7 @@ export function App() {
       console.error("Script error:", error);
       const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
       const run = openRun("Script error");
-      setHistory((current) => recordLogs(current, run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now()));
+      consoles.recordLogs(run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now());
     },
     [openRun],
   );
@@ -479,7 +464,7 @@ export function App() {
       // what it drew is collected here and reported back as the receipt.
       mcpBlockCollectorRef.current?.set(blockId, block);
       const run = openRun("Script output");
-      setHistory((current) => recordBlock(current, run.fileId, run.id, blockId, block, Date.now()));
+      consoles.recordBlock(run.fileId, run.id, blockId, block, Date.now());
     },
     [openRun],
   );
@@ -578,7 +563,7 @@ export function App() {
    * the table says so rather than offering a Next that leads nowhere.
    */
   const onTablePull = useCallback(async (blockId: string, search: string, want: number) => {
-    const found = findBlock(historyRef.current, blockId);
+    const found = consoles.findBlock(blockId);
     const table = found?.block;
     if (!found || table?.kind !== "table") return;
 
@@ -587,7 +572,7 @@ export function App() {
     try {
       const live = await kajaRef.current!.pullTable(blockId, search, want);
       if (!live) {
-        setHistory((current) => recordBlock(current, found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now()));
+        consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now());
       }
     } finally {
       pullRunRef.current = previous;
@@ -597,7 +582,7 @@ export function App() {
   // Clearing a file's history clears what is being held of it for next time too;
   // leaving yesterday's run behind would make "cleared" a half-truth.
   const onClearConsole = useCallback((fileId: string) => {
-    setHistory((current) => clearFile(current, fileId, Date.now()));
+    consoles.clearFile(fileId, Date.now());
     dropStoredFile(fileId);
   }, []);
 
@@ -1111,8 +1096,7 @@ export function App() {
       applyScratches((list) => list.filter((candidate) => candidate.id !== scratch.id));
       // The console goes with the script, and is held alongside it so taking the
       // discard back brings the runs back too.
-      const [remaining, taken] = takeFile(historyRef.current, scratch.id);
-      setHistory(remaining);
+      const taken = consoles.takeFile(scratch.id);
       dropStoredFile(scratch.id);
       if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
       setDiscarded({ scratch, runs: taken });
@@ -1127,8 +1111,8 @@ export function App() {
       if (held) {
         applyScratches((list) => [held.scratch, ...list]);
         if (held.runs) {
-          setHistory((current) => putFile(current, held.scratch.id, held.runs!));
-          saveRuns(held.scratch.id, held.runs.runs, held.runs.items);
+          consoles.putFile(held.scratch.id, held.runs);
+          saveRuns(held.scratch.id, held.runs.runs, held.runs.allItems());
         }
       }
       return null;
@@ -1192,7 +1176,7 @@ export function App() {
       const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === id);
       applyViews((views) => (shown ? dropView(showScript(views, script, content), shown.id) : views));
       applyScratches((list) => list.filter((candidate) => candidate.id !== id));
-      setHistory((current) => renameFile(current, id, script.path));
+      consoles.renameFile(id, script.path);
       renameStoredFile(id, script.path);
     },
     [applyScratches, applyViews],
@@ -1515,7 +1499,7 @@ export function App() {
         applyScratches((list) => list.filter((candidate) => candidate.id !== id));
         // Saving changes what the file is called, not what it is, so its runs
         // come along to the path it now lives at.
-        setHistory((current) => renameFile(current, id, script.path));
+        consoles.renameFile(id, script.path);
         renameStoredFile(id, script.path);
       }
       setSaveAs(null);
@@ -1539,7 +1523,7 @@ export function App() {
       applyViews((views) => views.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
       setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
       // The file is the console's key, so a rename moves it rather than losing it.
-      setHistory((current) => renameFile(current, oldPath, renamed.path));
+      consoles.renameFile(oldPath, renamed.path);
       renameStoredFile(oldPath, renamed.path);
     },
     [applyViews],
@@ -1581,7 +1565,7 @@ export function App() {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
       setPinnedScriptPath((current) => (current === path ? undefined : current));
       // The file is gone, so its console goes with it.
-      setHistory((current) => dropFile(current, path));
+      consoles.dropFile(path);
       dropStoredFile(path);
       applyViews((views) => {
         const shown = views.find((candidate) => candidate.type === "script" && candidate.script.path === path);
@@ -1780,39 +1764,49 @@ export function App() {
     }
   }, [apps, beginRun, onScriptError, updateScratch]);
 
-  // A generated method-call script issues its call without awaiting it, so the
-  // script's own promise settles well before the response lands. The run is over
-  // once the script has settled and nothing it started is still in flight — a
-  // call, or a question it is parked on — and that is when its wall duration is
-  // known and it is worth keeping for the next time the file is opened.
-  useEffect(() => {
-    if (!activeRun?.settled) return;
-    const file = fileConsole(historyRef.current, activeRun.fileId);
-    if (hasWorkInFlight(file, activeRun.runId)) return;
+  /**
+   * A generated method-call script issues its call without awaiting it, so the
+   * script's own promise settles well before the response lands. The run is over
+   * once the script has settled and nothing it started is still in flight — a
+   * call, or a question it is parked on — and that is when its wall duration is
+   * known and it is worth keeping for the next time the file is opened.
+   *
+   * It hangs off the store rather than off a render, because the alternative is
+   * asking the question again for every call a run makes.
+   */
+  const activeRunRef = useRef(activeRun);
+  activeRunRef.current = activeRun;
 
-    if (activeRun.fileId) {
+  const settleIfQuiet = useCallback(() => {
+    const run = activeRunRef.current;
+    if (!run?.settled) return;
+    if (consoles.hasWorkInFlight(run.fileId, run.runId)) return;
+
+    if (run.fileId) {
       const now = Date.now();
-      const next = settleRun(historyRef.current, activeRun.fileId, activeRun.runId, now - activeRun.startedAt, now);
-      setHistory(next);
-      const settled = fileConsole(next, activeRun.fileId);
-      saveRuns(activeRun.fileId, settled.runs, settled.items, now);
+      if (consoles.settleRun(run.fileId, run.runId, now - run.startedAt, now)) {
+        const settled = consoles.file(run.fileId);
+        saveRuns(run.fileId, settled.runs, settled.allItems(), now);
+      }
     }
-    if (currentRunRef.current?.id === activeRun.runId) currentRunRef.current = null;
+    if (currentRunRef.current?.id === run.runId) currentRunRef.current = null;
     setActiveRun(null);
-  }, [history, activeRun]);
+  }, []);
+
+  useEffect(() => consoles.subscribeQuiet(settleIfQuiet), [settleIfQuiet]);
+  // The script returning is the other half: a run whose calls all landed while
+  // it was still going has nothing left to report it.
+  useEffect(settleIfQuiet, [activeRun, settleIfQuiet]);
 
   // Which file the console is reporting on. Everything below the editor is that
   // file's: its runs, where it was left pointing, and what it was showing.
   const currentFileId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "scratch" ? currentView.scratchId : undefined;
-  const currentConsole = fileConsole(history, currentFileId);
 
   // Reopening a script gives you its code and, if we still hold them, the runs
   // it last made. They are read once and sit underneath anything run since.
   useEffect(() => {
-    if (!currentFileId || fileConsole(historyRef.current, currentFileId).loaded) return;
-    const fileId = currentFileId;
-    const stored = loadRuns(fileId);
-    setHistory((current) => adoptStoredRuns(current, fileId, stored, Date.now()));
+    if (!currentFileId || consoles.file(currentFileId).loaded) return;
+    consoles.adoptStoredRuns(currentFileId, loadRuns(currentFileId), Date.now());
   }, [currentFileId]);
 
   // Stop aborts the calls the run has in flight; the script itself stops at the
@@ -2096,19 +2090,9 @@ export function App() {
   }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onMethodSelect, onVariablesClick, onShowCompileLog]);
 
   // Which files have something in the air, so a run started on one script says
-  // so while you are looking at another.
-  const runningFiles = useMemo(() => runningFileIds(history), [history]);
-  const agentFiles = useMemo(() => agentFileIds(history), [history]);
-  const waitingFiles = useMemo(() => waitingFileIds(history), [history]);
-
-  const onConsoleSelect = useCallback(
-    (selection: RunSelection | null) => setHistory((current) => setSelection(current, currentFileId, selection, Date.now())),
-    [currentFileId],
-  );
-
-  const onConsoleTabChange = useCallback((tab: ConsoleTab) => setHistory((current) => setTab(current, currentFileId, tab, Date.now())), [currentFileId]);
-
-  const onConsoleViewChange = useCallback((view: ConsoleView) => setHistory((current) => setView(current, currentFileId, view, Date.now())), [currentFileId]);
+  // so while you are looking at another. Three sets the store keeps rather than
+  // three walks of every call it holds.
+  const { running: runningFiles, agent: agentFiles, waiting: waitingFiles } = consoles.flagSets();
 
   // What the empty state offers instead of an illustration: the last few things
   // you were in. On a first run there are none and the list is simply absent.
@@ -2371,14 +2355,6 @@ export function App() {
                     >
                       <Console
                         fileId={currentFileId}
-                        runs={currentConsole.runs}
-                        items={currentConsole.items}
-                        selection={currentConsole.selection}
-                        tab={currentConsole.tab}
-                        view={currentConsole.view}
-                        onSelect={onConsoleSelect}
-                        onTabChange={onConsoleTabChange}
-                        onViewChange={onConsoleViewChange}
                         onAnswer={onAnswerAsk}
                         onCancelAsk={onCancelAsk}
                         onDecide={onDecideApproval}

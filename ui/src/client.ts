@@ -172,7 +172,10 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
           methodCall.streamOutputs = [];
 
           for await (const message of streamCall.responses) {
-            methodCall.streamOutputs = [...methodCall.streamOutputs, message];
+            // Appended, not copied: the console holds this object rather than a
+            // snapshot of it, so rebuilding the array per message would be a
+            // quadratic cost for a stream nothing is reading differently.
+            methodCall.streamOutputs.push(message);
             methodCall.output = message;
             client.kaja?._internal.methodCallUpdate(methodCall);
           }
