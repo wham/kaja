@@ -74,9 +74,29 @@ export interface ListValue {
 export interface Table {
   /**
    * Append a row. It appears at once, so a loop paints as it runs. A cell can be
-   * anything; it is rendered as text.
+   * anything; it is rendered as text. Fewer cells than there are columns leaves
+   * the rest blank, so a row can be written before the work that fills it is
+   * done — the handle it hands back is how you finish it.
    */
-  row(...cells: unknown[]): void;
+  row(...cells: unknown[]): Row;
+  /**
+   * Add a column, once the run knows it needs one. The rows already drawn grow a
+   * blank cell for it.
+   */
+  column(name: string): void;
+}
+
+/** A row already on the canvas, which the run can keep up to date. */
+export interface Row {
+  /**
+   * Rewrite the row: the same cells in the same order row() took them. A row is
+   * only ever the whole of itself, so pass every cell, not just the one that
+   * changed.
+   *
+   *   const row = table.row(account.id, "checking…");
+   *   row.update(account.id, await check(account));
+   */
+  update(...cells: unknown[]): void;
 }
 
 /**
@@ -183,6 +203,18 @@ export declare const kaja: {
    *   const table = kaja.table(["id", "name", "status"]);
    *   for (const account of accounts) {
    *     table.row(account.id, account.name, await check(account));
+   *   }
+   *
+   * A row hands back a handle, so a table can keep saying what is true while the
+   * run goes on: write the row when the work starts, update it when it ends.
+   * This is how a summary table is built — never redraw the whole table.
+   *
+   *   const rows = accounts.map((account) => ({
+   *     account,
+   *     row: table.row(account.id, account.name, "checking…"),
+   *   }));
+   *   for (const { account, row } of rows) {
+   *     row.update(account.id, account.name, await check(account));
    *   }
    *
    * The rows can be given instead — an array, or a source that yields them as

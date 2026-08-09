@@ -39,6 +39,92 @@ describe("kaja.table", () => {
     expect(only().rows).toEqual([["1"], ["2"]]);
   });
 
+  // A row is written when the work starts and rewritten when it finishes, which
+  // is what makes a summary table paint rather than report at the end.
+  it("rewrites a row from its handle", () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id", "status"]);
+    const first = table.row(1, "checking…");
+    const second = table.row(2, "checking…");
+
+    second.update(2, "matched");
+    expect(only().rows).toEqual([
+      ["1", "checking…"],
+      ["2", "matched"],
+    ]);
+
+    first.update(1, "failed");
+    expect(only().rows).toEqual([
+      ["1", "failed"],
+      ["2", "matched"],
+    ]);
+  });
+
+  // The canvas compares what it was handed against what it holds, so a row
+  // rewritten in place would repaint nothing.
+  it("hands the canvas a new array for every update", () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id"]);
+    const row = table.row(1);
+    const before = only().rows;
+
+    row.update(2);
+    expect(only().rows).not.toBe(before);
+    expect(before).toEqual([["1"]]);
+  });
+
+  // A row is as wide as the table, so one written before its values are known
+  // draws blanks rather than a ragged edge — the canvas draws a cell per cell.
+  it("pads a short row to the columns, whether written, updated or pulled", async () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id", "name", "status"]);
+    const row = table.row(1);
+    expect(only().rows).toEqual([["1", "", ""]]);
+
+    row.update(1, "Vera");
+    expect(only().rows).toEqual([["1", "Vera", ""]]);
+
+    const source = draw();
+    source.kaja.table(["id", "name"], [[1], [2, "Lune"]]);
+    expect(source.only().rows).toEqual([
+      ["1", ""],
+      ["2", "Lune"],
+    ]);
+  });
+
+  it("grows every row when a column is added", () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id"]);
+    const row = table.row(1);
+    table.column("status");
+
+    expect(only().columns).toEqual(["id", "status"]);
+    expect(only().rows).toEqual([["1", ""]]);
+
+    row.update(1, "matched");
+    expect(only().rows).toEqual([["1", "matched"]]);
+  });
+
+  // A source that takes the search is restarted from the top, so the rows a
+  // handle pointed into answer a question nobody is asking. Nothing to rewrite,
+  // so nothing happens — better than a script ending on someone else's search.
+  it("goes quiet when the row it points at is gone", async () => {
+    const { kaja, only, id } = draw();
+    const table = kaja.table(["n"], async function* (search: string) {
+      yield [`${search || "all"}-1`];
+    });
+    await kaja.settleTables();
+
+    const row = table.row("written");
+    expect(only().rows).toHaveLength(2);
+
+    await kaja.pullTable(id(), "vera", 50);
+    expect(only().rows).toEqual([["vera-1"]]);
+
+    row.update("rewritten");
+    expect(only().rows).toEqual([["vera-1"]]);
+  });
+
   /**
    * The whole claim: a source is pulled for the page that is being looked at and
    * not one row further. A generator makes that structural — the loop simply

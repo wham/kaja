@@ -109,6 +109,27 @@ Rows land one at a time, so the canvas fills as the loop runs rather than after
 it. `run_script` reports what you drew — each block's kind, and a table's columns
 and row count — so you can check the output landed.
 
+**A row can be rewritten after it is drawn**, which is how a summary table is
+built: `.row(...)` hands back a handle, and `.update(...)` takes the same cells
+in the same order. Write the row when the work starts and update it when it
+finishes, rather than waiting until the end and drawing the table once.
+
+```ts
+const table = kaja.table(["show", "seats", "status"]);
+await Promise.all(
+  shows.map(async (show) => {
+    const row = table.row(show.title, show.seatsAvailable, "checking…");
+    const seating = await Seating.GetAvailability({ showId: show.id });
+    row.update(show.title, seating.available, seating.available > 0 ? "on sale" : "sold out");
+  }),
+);
+```
+
+A row is only ever the whole of itself, so pass every cell, not just the one that
+changed; fewer cells than columns leaves the rest blank. `table.column(name)`
+adds a column if the run turns out to need one, and the rows already drawn grow a
+blank cell for it.
+
 **A table can page and search itself.** Hand it the rows instead of pushing
 them, and it gets a search box and a pager for free — an array is drawn as it is,
 and a function is pulled a page at a time, only when the person reading it pages
@@ -155,8 +176,9 @@ What each member is for:
 - `kaja.text(text)`, `kaja.code(code, language?)` — draw a line or a snippet on
   the canvas.
 - `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
-  appends to it. `rows` can be an array, or a source (an async generator) the
-  table pulls a page at a time as it is paged through.
+  appends to it and hands back a row whose `.update(...cells)` rewrites it, and
+  `.column(name)` adds a column. `rows` can be an array, or a source (an async
+  generator) the table pulls a page at a time as it is paged through.
 - `kaja.askStr(question)`, `kaja.askInt(question)`,
   `kaja.askSelect(question, options)` — ask the user for text, a whole number,
   or one of a list; each blocks on a human and hands back the kind of thing it
