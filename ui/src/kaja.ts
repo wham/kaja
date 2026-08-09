@@ -114,7 +114,20 @@ export interface BlockUpdate {
  * the loop to finish would make the interesting part the part you can't watch.
  */
 export interface Table {
-  row(...cells: unknown[]): void;
+  row(...cells: unknown[]): Row;
+  column(name: string): void;
+}
+
+/**
+ * A row that is already on the canvas. **Updating one is writing it again** —
+ * the same cells in the same order `row` took them — because a row is only ever
+ * the whole of itself: naming a cell would need the columns to be keys, and
+ * restating two cells that didn't change is the cheaper of the two. That is what
+ * a summary table is: a row declared when the work starts and rewritten when it
+ * finishes, so the table paints rather than reporting at the end.
+ */
+export interface Row {
+  update(...cells: unknown[]): void;
 }
 
 /**
@@ -179,6 +192,14 @@ function openIterator(rows: Rows): Iterator<unknown[]> | AsyncIterator<unknown[]
 // error, on the same rule formatCell follows: readable beats correct-or-nothing.
 function toCells(row: unknown): string[] {
   return Array.isArray(row) ? row.map(formatCell) : [formatCell(row)];
+}
+
+// A row is as wide as the table. Fewer cells than columns draws blanks rather
+// than a ragged edge, which is what lets a row be written before the work that
+// fills it is done; more are left alone, since dropping them would hide what the
+// script had.
+function padCells(cells: string[], width: number): string[] {
+  return cells.length >= width ? cells : [...cells, ...new Array(width - cells.length).fill("")];
 }
 
 // The request a call is holding, as the approve block shows it. A block is
@@ -373,6 +394,13 @@ export class Kaja {
    *   const table = kaja.table(["id", "name", "status"]);
    *   for (const account of accounts) table.row(account.id, account.name, "matched");
    *
+   * A row hands back a handle, so a table can keep saying what is true as the
+   * script runs: write the row when the work starts and update it when it ends.
+   *
+   *   const row = table.row(account.id, account.name, "checking…");
+   *   const result = await check(account);
+   *   row.update(account.id, account.name, result.status);
+   *
    * The rows can also be given: an array is drawn as it is, and a source is
    * pulled a page at a time as the table is paged through.
    *
@@ -389,7 +417,7 @@ export class Kaja {
     const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
 
     if (Array.isArray(rows)) {
-      block.rows = rows.map(toCells);
+      block.rows = rows.map((row) => padCells(toCells(row), block.columns.length));
     } else if (rows !== undefined) {
       if (typeof rows !== "function" && !isAsyncIterable(rows) && !isIterable(rows)) {
         throw new Error("kaja.table: rows must be an array, an iterable of rows, or a function returning one");
@@ -413,11 +441,36 @@ export class Kaja {
     // a run nobody is watching (an agent's) still reports a page of rows.
     if (block.live) void this.pullTable(blockId, "", pageSizeOf(block));
 
+    // A new array each time, at both levels: the canvas compares what it was
+    // handed against what it holds, and a row pushed or spliced into the same
+    // array is invisible to it.
+    const write = (index: number, cells: unknown[]) => {
+      const row = padCells(cells.map(formatCell), block.columns.length);
+      block.rows = block.rows.map((current, at) => (at === index ? row : current));
+      this.#onBlockUpdate(blockId, { ...block });
+    };
+
     return {
-      row: (...cells: unknown[]) => {
-        // A new array each time: the canvas compares what it was handed against
-        // what it holds, and a row pushed into the same array is invisible to it.
-        block.rows = [...block.rows, cells.map(formatCell)];
+      row: (...cells: unknown[]): Row => {
+        const index = block.rows.length;
+        block.rows = [...block.rows, padCells(cells.map(formatCell), block.columns.length)];
+        this.#onBlockUpdate(blockId, { ...block });
+        return {
+          update: (...cells: unknown[]) => {
+            // The row a handle points at can be gone: a source that takes the
+            // search is restarted from the top, and the rows it had answered a
+            // question nobody is asking any more. There is nothing to rewrite,
+            // so nothing happens — a handle going quiet is better than a script
+            // ending on someone else's search.
+            if (index < block.rows.length) write(index, cells);
+          },
+        };
+      },
+      column: (name: string) => {
+        // Widening the table widens the rows it has already drawn, so the header
+        // and the rows can never disagree about how many columns there are.
+        block.columns = [...block.columns, formatCell(name)];
+        block.rows = block.rows.map((row) => padCells(row, block.columns.length));
         this.#onBlockUpdate(blockId, { ...block });
       },
     };
@@ -496,7 +549,7 @@ export class Kaja {
           block.exhausted = true;
           break;
         }
-        block.rows = [...block.rows, toCells(next.value)];
+        block.rows = [...block.rows, padCells(toCells(next.value), block.columns.length)];
         this.#onBlockUpdate(blockId, { ...block });
       }
     } catch (error) {

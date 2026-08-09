@@ -360,6 +360,27 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   part the part you can't watch. Blocks are recorded against their own id
   (`recordBlock`), so a block that fills in stays where it was emitted rather
   than jumping to the end.
+- **A row is a handle too, and updating one is writing it again.** `.row(...)`
+  hands back a `Row` with one verb, `.update(...cells)`, taking the same cells in
+  the same order — so a row is declared when its work starts and rewritten when
+  it finishes, which is what a summary table is. Naming the cell instead
+  (`row.update({ status })`) would make the columns keys and buy nothing on a
+  table narrow enough to want this; restating two cells that didn't change is the
+  cheaper of the two, and a patch verb can be added later if wide tables ever ask
+  for it — it can't be an *overload*, since a cell may itself be an object. The
+  block is unchanged by any of it: `rows` is still `string[][]`, an update is the
+  same wholesale re-emit an append is, and a stored run reads back the last
+  values, because the canvas is what the run drew and not how it got there.
+  **A row is as wide as the table** (`padCells`): fewer cells than columns draws
+  blanks rather than a ragged edge — which is what lets a row be written before
+  the work that fills it is done — and `.column(name)` widens the rows already
+  drawn along with the header, so the two can never disagree. Extra cells are
+  left alone, since dropping them would hide what the script had. Renaming a
+  column, removing a row and flashing a changed cell are all **out**: the first
+  two make the canvas rewrite what it drew, and the third is a script asking for
+  how it looks. A handle into a table filled from a **source** goes quiet rather
+  than throwing — a server-side search restarts the source from the top, so the
+  row it pointed at is answering a question nobody is asking any more.
 - **A table's rows are an iterable, and that is the whole of static-versus-live.**
   An array is one; so is an async generator, and one of those only runs when
   something pulls it — which is what makes paging fetch a page and nothing else.
