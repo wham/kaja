@@ -32,7 +32,9 @@ export function RunButton({ onRun, onStop, running, startedAt, error }: RunButto
       onClick={running ? onStop : onRun}
       className={cn(
         "flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2.5",
-        running ? "border border-border bg-secondary text-secondary-foreground" : "border-none bg-emerald-600 text-white hover:bg-emerald-700",
+        running
+          ? "border border-border bg-secondary text-secondary-foreground"
+          : "border-none bg-[image:var(--brand-gradient)] text-white hover:brightness-110",
         disabled && "cursor-default opacity-45",
       )}
     >

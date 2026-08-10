@@ -30,6 +30,12 @@
      editors, responses, forms — sits on --background, one step below it, so the
      thing you stare at longest is the quietest plane in the window. */
   --chrome: oklch(0.97 0 0);
+
+  /* The logo's own gradient (see docs/logo.svg), same in both themes because a
+     logo is a logo. It fills Run, which is the one saturated element in the
+     window — so the brightest pixel in the app is a brand pixel, and green is
+     left to mean only that a call succeeded. */
+  --brand-gradient: linear-gradient(90deg, #b9682f 0%, #893c67 55%, #8b3bc8 100%);
 }
 
 .dark {
