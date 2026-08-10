@@ -8,7 +8,7 @@ import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
 import { MethodCall } from "./kaja";
-import { callStatus, ConsoleItem, ConsoleTab, itemStatus, RunGroup, RunStatus } from "./runs";
+import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { LogLevel } from "./server/api";
 import { unwrapFailure, upstreamRequestLine } from "./upstreamHeaders";
@@ -39,6 +39,10 @@ interface RunLogProps {
   activeTab: ConsoleTab;
   selectedItem?: ConsoleItem;
   waiting: boolean;
+  // How much of what the script printed is mixed into the rows, so the tail bar
+  // can say what is being left out.
+  logFloor: LogFloor;
+  printed: { lines: number; errors: number };
   jsonViewerRef: React.MutableRefObject<JsonViewerHandle | null>;
   now: number;
   tailing: boolean;
@@ -47,6 +51,7 @@ interface RunLogProps {
   onTailingChange: (tailing: boolean) => void;
   onSelectRow: (itemId: string) => void;
   onTabChange: (tab: ConsoleTab) => void;
+  onShowLogs: () => void;
   onGoToCanvas: () => void;
 }
 
@@ -66,6 +71,8 @@ export function RunLog({
   activeTab,
   selectedItem,
   waiting,
+  logFloor,
+  printed,
   jsonViewerRef,
   now,
   tailing,
@@ -73,6 +80,7 @@ export function RunLog({
   onTailingChange,
   onSelectRow,
   onTabChange,
+  onShowLogs,
   onGoToCanvas,
 }: RunLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -83,7 +91,11 @@ export function RunLog({
   const total = rows.length;
   const slowest = group.stats.slowest;
   const failures = group.failures;
-  const scriptFailed = group.items.some((item) => item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
+  const scriptFailed = group.items.some((item) => !item.printed && item.logs?.some((log) => log.level === LogLevel.LEVEL_ERROR));
+  // What the floor is keeping out. With the floor off that is everything the
+  // script printed, which is exactly when the tail bar has something to offer.
+  const shown = rows.length - group.calls.length;
+  const hidden = { lines: printed.lines - shown, errors: logFloor === "off" ? printed.errors : 0 };
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -132,23 +144,36 @@ export function RunLog({
         ) : (
           <div style={{ height: total * CALL_ROW_HEIGHT }}>
             <div style={{ transform: `translateY(${first * CALL_ROW_HEIGHT}px)` }}>
-              {visible.map((item) => (
-                <RunLog.CallRow
-                  key={item.id}
-                  id={item.id}
-                  name={`${item.call!.service.name}.${item.call!.method.name}`}
-                  timestamp={item.timestamp}
-                  loopKey={item.key}
-                  status={itemStatus(item)}
-                  durationMs={item.call!.durationMs}
-                  errorCode={callErrorCode(item.call!)}
-                  fraction={barFraction(item.call!.durationMs, slowest)}
-                  selected={item.id === selectedItemId}
-                  stale={group.run.stale === true}
-                  onSelect={onSelectRow}
-                  now={now}
-                />
-              ))}
+              {visible.map((item) =>
+                item.call ? (
+                  <RunLog.CallRow
+                    key={item.id}
+                    id={item.id}
+                    name={`${item.call.service.name}.${item.call.method.name}`}
+                    timestamp={item.timestamp}
+                    loopKey={item.key}
+                    status={itemStatus(item)}
+                    durationMs={item.call.durationMs}
+                    errorCode={callErrorCode(item.call)}
+                    fraction={barFraction(item.call.durationMs, slowest)}
+                    selected={item.id === selectedItemId}
+                    stale={group.run.stale === true}
+                    onSelect={onSelectRow}
+                    now={now}
+                  />
+                ) : (
+                  <RunLog.LogRow
+                    key={item.id}
+                    id={item.id}
+                    timestamp={item.timestamp}
+                    level={printedLevel(item)}
+                    message={item.logs?.[0]?.message ?? ""}
+                    selected={item.id === selectedItemId}
+                    stale={group.run.stale === true}
+                    onSelect={onSelectRow}
+                  />
+                ),
+              )}
             </div>
           </div>
         )}
@@ -160,8 +185,11 @@ export function RunLog({
         rowsBelow={rowsBelow}
         failures={failures}
         dropped={group.dropped}
+        hiddenLines={hidden.lines}
+        hiddenErrors={hidden.errors}
         tailing={tailing}
         onFollow={() => onTailingChange(true)}
+        onShowLogs={onShowLogs}
         onGoToCanvas={onGoToCanvas}
       />
 
@@ -175,9 +203,13 @@ export function RunLog({
           <RunLog.NoPayload>Payload let go to keep this run bounded — run to see it live</RunLog.NoPayload>
         ) : selectedItem?.call ? (
           <RunLog.PayloadPane methodCall={selectedItem.call} activeTab={activeTab} onTabChange={onTabChange} jsonViewerRef={jsonViewerRef} />
+        ) : selectedItem?.printed ? (
+          <RunLog.PrintedPane message={selectedItem.logs?.[0]?.message ?? ""} level={printedLevel(selectedItem)} />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground">
-            {total === 0 ? "Nothing to show." : "Select a call."}
+            {/* With logs mixed in, a row is not necessarily a call — and this
+                pane is what a printed line's full text opens into. */}
+            {total === 0 ? "Nothing to show." : logFloor === "off" ? "Select a call." : "Select a row."}
           </div>
         )}
       </div>
@@ -196,6 +228,81 @@ RunLog.NoPayload = function ({ children }: { children: React.ReactNode }) {
   );
 };
 
+interface LogRowProps {
+  id: string;
+  timestamp: number;
+  level: LogLevel;
+  message: string;
+  selected: boolean;
+  stale: boolean;
+  onSelect: (itemId: string) => void;
+}
+
+/**
+ * One line the script printed, mixed into the calls at the point it was printed.
+ *
+ * It is the same fixed 24px as a call row and truncates rather than wrapping —
+ * the log's windowing is arithmetic only because every row is that height, and a
+ * `console.log` of a whole response would otherwise be a row a screen tall. The
+ * full line is one click away in the pane below, which had nothing to show for a
+ * row that isn't a call anyway.
+ */
+RunLog.LogRow = memo(function LogRow({ id, timestamp, level, message, selected, stale, onSelect }: LogRowProps) {
+  return (
+    <div
+      data-testid="console-log-row"
+      className={cn("flex shrink-0 cursor-pointer items-center gap-2.5 px-3", selected ? "bg-accent" : "hover:bg-accent/50", stale && "opacity-75")}
+      style={{ height: CALL_ROW_HEIGHT }}
+      onClick={() => onSelect(id)}
+    >
+      {/* A printed line is a channel rather than a verdict, so it takes a bar in
+          the status slot instead of a dot: it is deliberately not one of the
+          things the run's dot is the worst of. */}
+      <span className={cn("h-[9px] w-[2px] shrink-0 rounded-full", logLevelClass(level))} />
+      <span className="w-[8ch] shrink-0 font-mono text-xs tabular-nums text-muted-foreground @max-[360px]:hidden">{formatClockTime(timestamp)}</span>
+      <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", level >= LogLevel.LEVEL_WARN ? logLevelTextClass(level) : "text-muted-foreground/80")}>
+        {message}
+      </span>
+    </div>
+  );
+});
+
+// The full text of a printed line, which is why the row above it may truncate.
+RunLog.PrintedPane = function ({ message, level }: { message: string; level: LogLevel }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-[30px] shrink-0 items-center gap-2 border-b border-border px-3">
+        <span className={cn("h-[9px] w-[2px] shrink-0 rounded-full", logLevelClass(level))} />
+        <span className="text-xs text-muted-foreground">{logLevelLabel(level)}</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
+        <pre className={cn("whitespace-pre-wrap break-words font-mono text-xs", level >= LogLevel.LEVEL_WARN ? logLevelTextClass(level) : "text-foreground")}>
+          {message}
+        </pre>
+      </div>
+    </div>
+  );
+};
+
+function logLevelClass(level: LogLevel): string {
+  if (level === LogLevel.LEVEL_ERROR) return "bg-destructive";
+  if (level === LogLevel.LEVEL_WARN) return "bg-amber-500";
+  return "bg-muted-foreground/40";
+}
+
+function logLevelTextClass(level: LogLevel): string {
+  if (level === LogLevel.LEVEL_ERROR) return "text-destructive";
+  if (level === LogLevel.LEVEL_WARN) return "text-amber-600 dark:text-amber-400";
+  return "text-muted-foreground";
+}
+
+function logLevelLabel(level: LogLevel): string {
+  if (level === LogLevel.LEVEL_ERROR) return "console.error";
+  if (level === LogLevel.LEVEL_WARN) return "console.warn";
+  if (level === LogLevel.LEVEL_DEBUG) return "console.debug";
+  return "console.log";
+}
+
 interface TailBarProps {
   waiting: boolean;
   scriptFailed: boolean;
@@ -204,8 +311,15 @@ interface TailBarProps {
   // Rows a very long run stopped keeping. The log says where it stops being
   // complete rather than quietly ending there.
   dropped: number;
+  // Lines the script printed that the floor is not showing, and how many of them
+  // were errors. Left out of the list is not the same as never happened, and a
+  // clean list over a run that printed an error is the one thing this refuses to
+  // be — so it is stated here, where what is out of sight is always stated.
+  hiddenLines: number;
+  hiddenErrors: number;
   tailing: boolean;
   onFollow: () => void;
+  onShowLogs: () => void;
   onGoToCanvas: () => void;
 }
 
@@ -214,8 +328,20 @@ interface TailBarProps {
  * script threw, is a fact about the whole run, and the log stays readable while
  * it waits — the pause blocks the script, not your reading.
  */
-RunLog.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, dropped, tailing, onFollow, onGoToCanvas }: TailBarProps) {
-  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0 && dropped === 0 && tailing) return null;
+RunLog.TailBar = function ({
+  waiting,
+  scriptFailed,
+  rowsBelow,
+  failures,
+  dropped,
+  hiddenLines,
+  hiddenErrors,
+  tailing,
+  onFollow,
+  onShowLogs,
+  onGoToCanvas,
+}: TailBarProps) {
+  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0 && dropped === 0 && hiddenLines === 0 && tailing) return null;
 
   const state = waiting ? "waiting" : scriptFailed ? "failed" : "counts";
 
@@ -238,6 +364,20 @@ RunLog.TailBar = function ({ waiting, scriptFailed, rowsBelow, failures, dropped
       {state === "failed" && <span className="text-destructive">Script failed</span>}
       {state === "counts" && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
       <div className="ml-auto flex shrink-0 items-center gap-3">
+        {hiddenLines > 0 && (
+          <button
+            type="button"
+            data-testid="console-show-logs"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onShowLogs}
+            title="Mix what the script printed into the calls"
+          >
+            {/* A dot rather than a second "errors" — the failed-call count sits a
+                few pixels to the right and the two must not read as one number. */}
+            {hiddenErrors > 0 && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
+            {hiddenLines === 1 ? "1 log line" : `${hiddenLines} log lines`}
+          </button>
+        )}
         {dropped > 0 && <span className="text-muted-foreground">{dropped} not kept</span>}
         {failures > 0 && <span className="text-amber-600 dark:text-amber-400">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
         {!tailing && (

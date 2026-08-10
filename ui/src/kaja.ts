@@ -2,6 +2,7 @@ import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
 import { parseInteger } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
+import { LogSink } from "./scriptConsole";
 import { pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
@@ -290,8 +291,8 @@ export class Kaja {
   #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onApprove: ApproveRequest, onBlockUpdate: BlockUpdate) {
-    this._internal = new KajaInternal(onMethodCallUpdate);
+  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onApprove: ApproveRequest, onBlockUpdate: BlockUpdate, onLog: LogSink) {
+    this._internal = new KajaInternal(onMethodCallUpdate, onLog);
     this.#onAsk = onAsk;
     this.#onApprove = onApprove;
     this.#onBlockUpdate = onBlockUpdate;
@@ -704,10 +705,18 @@ class KajaInternal {
    * that was full after the first few. Cleared with the approvals, by the run.
    */
   readonly sampledMethods = new Map<string, number>();
+  /**
+   * Where a line the script printed goes. It is here rather than passed into
+   * `runScript` because both doors — the editor's Run and the MCP server's — hold
+   * the one `Kaja`, and the sink outlives any single run the way the rest of this
+   * does.
+   */
+  readonly onLog: LogSink;
   #onMethodCallUpdate: MethodCallUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate) {
+  constructor(onMethodCallUpdate: MethodCallUpdate, onLog: LogSink) {
     this.#onMethodCallUpdate = onMethodCallUpdate;
+    this.onLog = onLog;
   }
 
   methodCallUpdate(methodCall: MethodCall) {

@@ -268,17 +268,73 @@ reader who found one had no reason to expect the other where it is. Each now has
 its own file and its own parts: `RunLog.CallRow` / `TailBar` / `PayloadPane`
 belong to the log, `Console.RunSelect` / `RunRow` to the frame, and flat against
 one another they read as the same kind of thing. `Log` alone is taken (the
-script's own log messages), and `RunList` would be read as a list of runs, which
-is what the run picker beside it actually is — so the log is `RunLog`. The
-segmented control says **Log** and **Canvas**, and `ConsoleView` is
-`"log" | "canvas"` to match; it is in-memory only, so nothing had to migrate.
+script's own log messages, which the calls view now mixes in), and `RunList` would
+be read as a list of runs, which is what the run picker beside it actually is — so
+the component is `RunLog`, the run's log. The segmented control says **Calls** and
+**Canvas**, and `ConsoleView` is `"calls" | "canvas"` to match; it is in-memory
+only, so nothing had to migrate.
 
-**A row is a call and only a call.** No disclosure triangles, no block rows, no
-run row. Splitting the views is what deletes the double-statement problem — an
+**A row is a call and only a call** — no disclosure triangles, no block rows, no
+run row — which is why the view is called **Calls** rather than Log: "log" is what
+anyone means by what a script printed, and that is a separate thing this view can
+*mix in*. Splitting the views is what deletes the double-statement problem — an
 index of "table · 42 rows" rows sitting above the same tables rendered below —
 and it is why Request/Response/Headers moved **down onto the payload pane**: the
 header no longer rearranges itself as the selection moves, and the pane never
 reflows as you step through the log.
+
+**What a script printed is a channel, and the Calls view is where it is read.**
+`console.log` and friends are the logging API — there is no `kaja.log`, because the
+`kaja` object holds the verbs that are Kaja's own and logging is not one of them:
+a second spelling would add a decision without adding a capability, and the value
+of a log line is that it costs nothing to write and nothing to delete.
+
+- **The scope is what tells a script's lines from Kaja's own** (`scriptConsole.ts`).
+  The script body is wrapped in a function taking `console` as a parameter, so
+  inside it the name resolves to the run's console and everywhere else in the app
+  to the real one — app code a script calls into keeps the real console, and a
+  closure the script defines keeps this one however late it fires. No origin
+  tagging, no allowlist, nothing to drift. **Kaja's own `console.log` never
+  appears in a run**, which is right and not a limitation: what fires during a run
+  is transport tracing that duplicates the request and response the payload pane
+  already shows properly, eight lines to a call. When the system does have
+  something to say in a run it says it in the console's own vocabulary — a row, a
+  status, a tail-bar statement — never as a text stream. If a log line is the only
+  way to say it, it didn't need saying.
+- **The wrapper is built from the console, not declared as five methods.** The
+  five-method stand-in it replaced made `console.table(rows)` throw
+  "console.table is not a function" inside an agent's snippet. Everything that
+  isn't a level — `table`, `time`, `group`, `dir`, and whatever a runtime adds
+  next — passes straight through to devtools, which is where instrumentation
+  belongs and where it stays. The five levels map onto the proto's own ordered
+  enum (`LEVEL_DEBUG` 0 … `LEVEL_ERROR` 3), with `log` and `info` sharing `INFO`.
+- **A printed line is not a verdict** (`printed` on `ConsoleItem`). It never
+  colours the run's dot and never counts as something drawn — a script that prints
+  `console.error("retry 2")` in a loop and finishes is not a failed run, and one
+  whose only output is `console.log` must not open on an empty canvas. The
+  script-error item, which is a verdict Kaja wrote, goes on being one.
+- **Off by default, and a floor rather than four checkboxes.** `LogFloor` is
+  `off` / `error` / `warn` / `all`: the levels are ordered, so "warnings but not
+  errors" is not a question anyone asks, and one control beats four switches over
+  a list that is usually empty. It lives on `FileConsole` beside `view`, on the
+  same rule — debugging is a mode, not a click — and its control only exists while
+  the run printed something.
+- **Off is only bearable because the tail bar says what is missing.** A clean list
+  over a run that printed an error is a log that is silently incomplete, so the
+  bar states `4 log lines · 1 error` and is the way to turn the floor on.
+- **A log row is the same fixed 24px and truncates; the pane holds the line.** The
+  windowing is arithmetic only because every row is that height, and the payload
+  pane had nothing to show for a row that isn't a call anyway — so selecting one
+  shows the whole message, which is what makes `console.log(someObject)` worth
+  doing.
+- **A line lands where it was printed and a call where it was issued**
+  (`callRows`), so a line printed while a call is in flight sits after that call's
+  row rather than after its response. Both lists are already ordered, so the mix
+  is a merge rather than a sort.
+- **kaja.log gets the lines with their origin attached** — `[ui] [INFO] [script] …`
+  via `logScriptLine`, so the level column stays greppable. The script's console
+  forwards to `deviceConsole`, the console as it was before `installUiLog` patched
+  it, so a script error isn't written to the file twice.
 
 **A response is printed, not formatted** (`payloadText.ts`). The pane follows the
 selection, which follows a run as it happens, so this runs as often as the

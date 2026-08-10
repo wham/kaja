@@ -2,8 +2,8 @@ import { Block, isAwaitingUser } from "./blocks";
 import { CallFold } from "./callGroups";
 import { MethodCall } from "./kaja";
 import { loopKey } from "./loopKey";
-import { ConsoleItem, ConsoleTab, ConsoleView, ItemStats, newItemId, Run, RunGroup, RunSelection, RunStatus } from "./runs";
-import { Log } from "./server/api";
+import { ConsoleItem, ConsoleTab, ConsoleView, ItemStats, LogFloor, newItemId, Run, RunGroup, RunSelection, RunStatus } from "./runs";
+import { Log, LogLevel } from "./server/api";
 
 /**
  * The console belongs to the file. A run is made by pressing Run on something,
@@ -43,6 +43,7 @@ const MAX_FILES = 50;
 class Group implements RunGroup {
   readonly items: ConsoleItem[] = [];
   readonly calls: ConsoleItem[] = [];
+  readonly printed: ConsoleItem[] = [];
   readonly stats = new ItemStats();
   readonly fold = new CallFold();
   drew = false;
@@ -83,7 +84,11 @@ class Group implements RunGroup {
     }
     this.items.push(item);
     if (item.call) this.calls.push(item);
-    if (item.block !== undefined || item.logs !== undefined) this.drew = true;
+    if (item.printed) this.printed.push(item);
+    // What the script drew, which is what decides the view a run opens in. A line
+    // it printed is not drawing: a script whose only output is `console.log`
+    // opening on its canvas would open on a canvas with nothing on it.
+    if (item.block !== undefined || (item.logs !== undefined && !item.printed)) this.drew = true;
     if (item.block !== undefined && isAwaitingUser(item.block)) this.#asked.push(item);
     this.stats.add(item);
     this.fold.push(item);
@@ -107,6 +112,9 @@ export class FileConsole {
   // Undefined until a view has been chosen, which is what lets a run that drew
   // something open on its canvas while an explicit choice still outranks it.
   view?: ConsoleView;
+  // How much of what a script printed the calls view mixes in. Off by default, so
+  // the list is a clean audit of calls until it is asked to be something else.
+  logFloor: LogFloor = "off";
   // Whether the store has been consulted for this file yet, so it is read once
   // rather than on every visit.
   loaded = false;
@@ -232,6 +240,13 @@ export class FileConsole {
 
   recordLogs(runId: string, logs: Log[], now: number): void {
     this.#append(runId, { id: newItemId(), runId, timestamp: now, logs });
+  }
+
+  // One `console.*` call from the script. Lines are kept one to an item rather
+  // than gathered: the calls view draws a row per line, and a row is what makes a
+  // line selectable and therefore readable in full.
+  recordPrinted(runId: string, level: LogLevel, message: string, now: number): void {
+    this.#append(runId, { id: newItemId(), runId, timestamp: now, logs: [{ level, message }], printed: true });
   }
 
   // The run's wall duration is known once the script has settled and everything
@@ -420,6 +435,12 @@ export class Consoles {
     this.#touch(fileId);
   }
 
+  recordPrinted(fileId: string | undefined, runId: string, level: LogLevel, message: string, now: number): void {
+    if (!fileId) return;
+    this.#ensure(fileId, now).recordPrinted(runId, level, message, now);
+    this.#touch(fileId);
+  }
+
   settleRun(fileId: string | undefined, runId: string, durationMs: number, now: number): boolean {
     if (!fileId) return false;
     const file = this.#ensure(fileId, now);
@@ -473,6 +494,16 @@ export class Consoles {
     const file = this.#ensure(fileId, now);
     if (file.view === view) return;
     file.view = view;
+    this.#touch(fileId, true);
+  }
+
+  // Whether the calls view mixes in what the script printed, and down to which
+  // level. Kept beside the view because it is the same kind of decision.
+  setLogFloor(fileId: string | undefined, floor: LogFloor, now: number): void {
+    if (!fileId) return;
+    const file = this.#ensure(fileId, now);
+    if (file.logFloor === floor) return;
+    file.logFloor = floor;
     this.#touch(fileId, true);
   }
 

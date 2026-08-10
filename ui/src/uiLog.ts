@@ -1,3 +1,4 @@
+import { cloneConsole } from "./scriptConsole";
 import { LogFromUI } from "./wailsjs/go/main/App";
 import { isWailsEnvironment } from "./wails";
 
@@ -26,6 +27,30 @@ function send(level: string, args: unknown[]): void {
   const message = args.map(formatArg).join(" ");
   // Logging must never throw or recurse back into the patched console.
   LogFromUI(level, message).catch(() => {});
+}
+
+/**
+ * The console as it was before `installUiLog` patched it.
+ *
+ * A script's console forwards here rather than to the live one: the patched
+ * `error`/`warn` write to kaja.log themselves, and a script's lines are written
+ * there by `logScriptLine` with their origin attached — so forwarding to the
+ * patch would put every script error in the file twice, once anonymously.
+ */
+export const deviceConsole: Console = cloneConsole(console);
+
+/**
+ * A line a script printed, in kaja.log. The level column stays a level so the
+ * file is still greppable by severity, and `[script]` says where the line came
+ * from: `2026-08-10T… [ui] [INFO] [script] 42 shows`.
+ *
+ * No-op outside the desktop, like everything else here.
+ */
+export function logScriptLine(level: string, message: string): void {
+  if (!isWailsEnvironment()) {
+    return;
+  }
+  LogFromUI(level, `[script] ${message}`).catch(() => {});
 }
 
 /**

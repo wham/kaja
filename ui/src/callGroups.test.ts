@@ -184,3 +184,23 @@ describe("groupKeyLabel", () => {
     expect(groupKeyLabel(items)).toBe("vera-lune, moth-lantern +2");
   });
 });
+
+describe("what a script printed", () => {
+  const printed = (id: string): ConsoleItem => ({ id, runId: "run-1", timestamp: 0, logs: [{ level: LogLevel.LEVEL_INFO, message: "tick" }], printed: true });
+
+  // The canvas is what the run drew, and printing is not drawing.
+  it("never reaches the canvas", () => {
+    const entries = foldCalls([call("c1", "ListShows"), printed("p1"), call("c2", "ListShows")]);
+    expect(entries.flatMap((entry) => (entry.kind === "calls" ? entry.items : [entry.item])).map((item) => item.id)).toEqual(["c1", "c2"]);
+  });
+
+  /**
+   * "Anything drawn between two calls breaks the group" is about drawing. A loop
+   * that logs each iteration would otherwise never fold at all.
+   */
+  it("does not break a loop's fold", () => {
+    const entries = foldCalls([call("c1", "ListShows"), printed("p1"), call("c2", "ListShows"), printed("p2"), call("c3", "ListShows")]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("calls");
+  });
+});

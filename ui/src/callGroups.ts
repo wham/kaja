@@ -83,6 +83,17 @@ export class CallFold {
   }
 
   push(item: ConsoleItem): void {
+    /**
+     * A line the script printed is not something it drew, so it never reaches the
+     * canvas — it belongs in the calls view, where it can be read against the call
+     * before it.
+     *
+     * It doesn't break a fold either, which is the consequence worth stating:
+     * "anything drawn between two calls breaks the group" is about drawing, and a
+     * loop that logs each iteration would otherwise never fold at all.
+     */
+    if (item.printed) return;
+
     const name = callName(item);
     if (name === undefined) {
       this.#loose = 0;

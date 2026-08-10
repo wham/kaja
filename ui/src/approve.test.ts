@@ -16,6 +16,7 @@ function held(decide: (call: ApproveBlock) => Promise<ApproveDecision>) {
       return decide(call);
     },
     (blockId, block) => void blocks.set(blockId, block),
+    () => {},
   );
   const approvals = (): ApproveBlock[] => [...blocks.values()].filter((block): block is ApproveBlock => block.kind === "approve");
   const only = (): ApproveBlock => {

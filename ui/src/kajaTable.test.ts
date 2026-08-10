@@ -11,6 +11,7 @@ function draw() {
     () => Promise.reject(new Error("not asked")),
     () => Promise.reject(new Error("not approved")),
     (blockId, block) => void blocks.set(blockId, block),
+    () => {},
   );
   const only = (): TableBlock => {
     const block = [...blocks.values()].find((block) => block.kind === "table");

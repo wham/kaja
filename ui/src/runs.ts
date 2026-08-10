@@ -52,6 +52,14 @@ export interface ConsoleItem {
   call?: MethodCall;
   logs?: Log[];
   block?: Block;
+  /**
+   * Set when the lines were printed by the script rather than written by Kaja as
+   * a verdict about the run. The difference is what they are worth: a verdict is
+   * the run's status, while a printed line is a channel — a script that prints
+   * `console.error("retry 2")` in a loop and finishes is not a failed run. So a
+   * printed item never colours the run's dot and never counts as something drawn.
+   */
+  printed?: boolean;
   // What identifies this call, read off its request when it was issued. The
   // request never changes after that, and the log draws this on every row — so
   // it is read once here rather than per row per repaint.
@@ -75,7 +83,34 @@ export type ConsoleTab = "request" | "response" | "headers";
  * it scannable at two hundred rows; the canvas wants to be varied. Serving both
  * in one surface bends one of them out of shape.
  */
-export type ConsoleView = "log" | "canvas";
+export type ConsoleView = "calls" | "canvas";
+
+/**
+ * How much of what the script printed the calls view mixes in. Off is the
+ * default, so the list is calls and nothing else until it is asked otherwise; the
+ * rest is a floor rather than a set of independent switches, because the levels
+ * are ordered (`LEVEL_DEBUG` 0 … `LEVEL_ERROR` 3) and "warnings but not errors"
+ * is not a thing anyone wants to ask for.
+ *
+ * It is remembered per file, on the same rule the view is: debugging is a mode,
+ * not a click.
+ */
+export type LogFloor = "off" | "error" | "warn" | "all";
+
+// The lowest level a floor admits. Off admits nothing, which is what makes this
+// undefined rather than a number no level can be below.
+export function logFloorLevel(floor: LogFloor): LogLevel | undefined {
+  switch (floor) {
+    case "off":
+      return undefined;
+    case "error":
+      return LogLevel.LEVEL_ERROR;
+    case "warn":
+      return LogLevel.LEVEL_WARN;
+    case "all":
+      return LogLevel.LEVEL_DEBUG;
+  }
+}
 
 /**
  * One run and everything under it. It is maintained by the file's console as the
@@ -87,8 +122,13 @@ export interface RunGroup {
   run: Run;
   // Everything the run produced, in emission order, never re-sorted.
   items: ConsoleItem[];
-  // The log's rows: a row is a call and only a call.
+  // The calls view's rows, before anything is mixed into them: a call and only a
+  // call.
   calls: ConsoleItem[];
+  // What the script printed, in emission order, kept beside the calls rather than
+  // among them — the mix is a view's decision and the floor can change without
+  // the run being re-read.
+  printed: ConsoleItem[];
   // The canvas, folded as it was drawn.
   entries: CanvasEntry[];
   // What the run says about itself, counted as its items arrived.
@@ -142,7 +182,17 @@ export function blockStatus(block: Block): RunStatus {
 export function itemStatus(item: ConsoleItem): RunStatus {
   if (item.call) return callStatus(item.call);
   if (item.block) return blockStatus(item.block);
+  // A line the script printed says something about the script's own reckoning,
+  // not about whether the run succeeded — only a verdict Kaja wrote does that.
+  if (item.printed) return "success";
   return item.logs ? logsStatus(item.logs) : "success";
+}
+
+// The level a printed item reports at, which is what the floor is read against
+// and what colours its row. An item holds the lines of one call, so it is one
+// level; the worst of them is the honest reading if that ever stops being true.
+export function printedLevel(item: ConsoleItem): LogLevel {
+  return (item.logs ?? []).reduce<LogLevel>((worst, log) => (log.level > worst ? log.level : worst), LogLevel.LEVEL_DEBUG);
 }
 
 export function itemName(item: ConsoleItem): string {
@@ -261,13 +311,53 @@ export function callCount(group: RunGroup): number {
 }
 
 /**
+ * The rows the calls view draws: its calls, with whatever the floor admits of
+ * what the script printed mixed in where it was printed.
+ *
+ * It reads `items`, which is the run in **emission order, never re-sorted** — so
+ * the order is the order things happened, by construction. Merging the two lists
+ * by timestamp was the obvious alternative and it is wrong: a log line and the
+ * call issued right after it land in the same millisecond often enough that the
+ * tie-break decides the reading, and `Date.now()` is not what put them in the run
+ * in the first place.
+ *
+ * A printed line therefore lands where it was **printed** and a call where it was
+ * **issued** — so a line printed while a call is in flight sits after that call's
+ * row, not after its response. That is what the log has always meant by order.
+ */
+export function callRows(group: RunGroup, floor: LogFloor): ConsoleItem[] {
+  const least = logFloorLevel(floor);
+  if (least === undefined || group.printed.length === 0) return group.calls;
+
+  const rows: ConsoleItem[] = [];
+  for (const item of group.items) {
+    if (item.call) rows.push(item);
+    else if (item.printed && printedLevel(item) >= least) rows.push(item);
+  }
+  // Nothing admitted means the calls themselves, so the caller's memo holds and
+  // the row list is the same object it was.
+  return rows.length === group.calls.length ? group.calls : rows;
+}
+
+// What the calls view's tail bar says about the lines it is not showing. A run
+// that printed an error and shows a clean list is a log that is silently
+// incomplete, which is the one thing this console refuses to be.
+export function printedCounts(group: RunGroup): { lines: number; errors: number } {
+  let errors = 0;
+  for (const item of group.printed) {
+    if (printedLevel(item) === LogLevel.LEVEL_ERROR) errors++;
+  }
+  return { lines: group.printed.length, errors };
+}
+
+/**
  * Which view a run opens in when nothing has been chosen. A script executed for
- * its output opens on that output; one that only calls opens on its log, where
+ * its output opens on that output; one that only calls opens on the calls, where
  * everything it did actually is. An explicit choice outranks this and sticks per
  * file — debugging is a mode, not a click.
  */
 export function defaultView(group: RunGroup | undefined): ConsoleView {
-  return group?.drew ? "canvas" : "log";
+  return group?.drew ? "canvas" : "calls";
 }
 
 // The measure a set of calls is drawn against, kept for reading a list that is
