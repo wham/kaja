@@ -150,7 +150,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           {rows.length === 0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing matches “{query}”.</div>}
           {recentRows.length > 0 && <GroupHeader>Recent</GroupHeader>}
           {recentRows.map((destination, index) => (
-            <Row
+            <DestinationRow
               key={destination.key}
               destination={destination}
               index={index}
@@ -162,7 +162,7 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           ))}
           {otherRows.length > 0 && <GroupHeader border={recentRows.length > 0}>All files</GroupHeader>}
           {otherRows.map((destination, index) => (
-            <Row
+            <DestinationRow
               key={destination.key}
               destination={destination}
               index={recentRows.length + index}
@@ -188,7 +188,7 @@ function GroupHeader({ border, children }: { border?: boolean; children: React.R
   );
 }
 
-function Row({
+function DestinationRow({
   destination,
   index,
   recent,

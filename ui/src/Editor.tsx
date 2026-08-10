@@ -48,7 +48,7 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
 });
 
 // Scripts get the kaja object through `import { kaja } from "kaja"` — the task
-// runner resolves the import at run time (see taskRunner). Back the import with
+// runner resolves the import at run time (see scriptRunner). Back the import with
 // a model (not an extra lib) so autocomplete can auto-import it and
 // go-to-definition lands here. Called again whenever the configured variables
 // change (see App.tsx) to refresh the typed `variables` member.

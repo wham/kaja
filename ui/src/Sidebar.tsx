@@ -23,8 +23,9 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { appType, getAppType } from "./appTypes";
-import { SimpleTooltip } from "./components/tooltip";
+import { appType } from "./appTypes";
+import { AppTypeIcon } from "./AppTypeIcon";
+import { PreviewPill } from "./PreviewPill";
 import { Method, App, Script, Service, methodId } from "./apps";
 import { isUntouched, Scratch } from "./scratches";
 import { titleParts } from "./scratchTitle";
@@ -54,8 +55,6 @@ import {
 export const TRAFFIC_LIGHTS_INSET = 78;
 
 const RECENT_SCRATCHES = 6;
-
-const pillClass = "ml-1.5 rounded bg-accent px-[5px] py-px text-[9px] font-bold text-accent-foreground";
 
 // A section header is a row of the same height as the rows under it — the tree
 // is an index, and an index reads as a list of names.
@@ -135,25 +134,6 @@ function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; 
       }}
     />
   );
-}
-
-// An app's type is its icon, the same one its New entry and its settings tab
-// carry. The word is a hover away for whoever needs it.
-export function AppTypeIcon({ type, size = 16, className }: { type: string; size?: number; className?: string }) {
-  const definition = getAppType(type);
-  if (!definition) return null;
-  const Icon = definition.icon;
-  return (
-    <SimpleTooltip text={definition.label}>
-      <span role="img" aria-label={definition.label} className={cn("inline-flex shrink-0 items-center text-muted-foreground", className)}>
-        <Icon size={size} />
-      </span>
-    </SimpleTooltip>
-  );
-}
-
-export function PreviewPill() {
-  return <span className={pillClass}>Preview</span>;
 }
 
 interface SidebarProps {

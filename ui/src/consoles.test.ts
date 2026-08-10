@@ -391,10 +391,10 @@ describe("selection, tab and view", () => {
 
   it("sticks to the file across later runs", () => {
     start("a.ts", "run-1");
-    store.setView("a.ts", "list", NOW);
+    store.setView("a.ts", "log", NOW);
     start("a.ts", "run-2");
 
-    expect(store.file("a.ts").view).toBe("list");
+    expect(store.file("a.ts").view).toBe("log");
   });
 });
 
@@ -473,11 +473,11 @@ describe("the view a run opens in", () => {
     store.recordCall("a.ts", created.id, call("GetShow"), NOW);
     paint();
 
-    expect(defaultView(store.file("a.ts").groups[0])).toBe("list");
+    expect(defaultView(store.file("a.ts").groups[0])).toBe("log");
   });
 
   it("opens on the log when there is no run at all", () => {
-    expect(defaultView(undefined)).toBe("list");
+    expect(defaultView(undefined)).toBe("log");
   });
 });
 

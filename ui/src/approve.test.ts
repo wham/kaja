@@ -147,7 +147,7 @@ describe("kaja.approve — approve all", () => {
     const { kaja, asked } = held(async () => "all");
 
     await kaja.approve(stub().call);
-    // What runTask does at the top of every run: the guard is back the next time
+    // What runScript does at the top of every run: the guard is back the next time
     // Run is pressed.
     kaja._internal.approvedMethods.clear();
     await kaja.approve(stub().call);

@@ -2,7 +2,7 @@ import { ActionList } from "./components/action-list";
 import { Dialog } from "./components/dialog";
 import { useRef } from "react";
 import { appTypes } from "./appTypes";
-import { PreviewPill } from "./Sidebar";
+import { PreviewPill } from "./PreviewPill";
 
 interface NewAppDialogProps {
   // When the Apps feature preview is off, only gRPC/Twirp/OpenAPI are offered.

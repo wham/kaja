@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { AskBlock } from "./blocks";
 import { Kaja } from "./kaja";
-import { runTaskCaptured } from "./taskRunner";
+import { runScriptCaptured } from "./scriptRunner";
 
 function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
   return new Kaja(
@@ -17,7 +17,7 @@ describe("kaja.variables injection", () => {
     const kaja = makeKaja();
     kaja.variables = { API_BASE_URL: "https://api.example.com", TEAM_ID: "42" };
 
-    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.API_BASE_URL + " / " + kaja.variables.TEAM_ID;`, kaja, []);
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.API_BASE_URL + " / " + kaja.variables.TEAM_ID;`, kaja, []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toBe("https://api.example.com / 42");
@@ -27,7 +27,7 @@ describe("kaja.variables injection", () => {
     const kaja = makeKaja();
     kaja.variables = { HELLO: "world" };
 
-    const run = await runTaskCaptured(`import { kaja } from "./kaja";\nreturn kaja.variables.HELLO;`, kaja, []);
+    const run = await runScriptCaptured(`import { kaja } from "./kaja";\nreturn kaja.variables.HELLO;`, kaja, []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toBe("world");
@@ -36,12 +36,12 @@ describe("kaja.variables injection", () => {
   it("reflects updates to variables on the shared kaja object", async () => {
     const kaja = makeKaja();
     kaja.variables = { TOKEN: "old" };
-    let run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
+    let run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
     expect(run.result).toBe("old");
 
     // Updating the same instance (as applyConfiguration does) is visible to the next run.
     kaja.variables = { TOKEN: "new" };
-    run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
+    run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.variables.TOKEN;`, kaja, []);
     expect(run.result).toBe("new");
   });
 });
@@ -50,7 +50,7 @@ describe("TypeScript execution", () => {
   it("runs scripts with type annotations and generics", async () => {
     const kaja = makeKaja();
 
-    const run = await runTaskCaptured(
+    const run = await runScriptCaptured(
       `import { kaja } from "kaja";
 function pick<T>(items: T[]): T {
   return items[0];
@@ -66,21 +66,21 @@ return pick<number>([base]) + 1;`,
   });
 
   it("supports top-level await in scripts without imports", async () => {
-    const run = await runTaskCaptured(`const value: string = await Promise.resolve("ok");\nreturn value;`, makeKaja(), []);
+    const run = await runScriptCaptured(`const value: string = await Promise.resolve("ok");\nreturn value;`, makeKaja(), []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toBe("ok");
   });
 
   it("reports syntax errors with the line in the script", async () => {
-    const run = await runTaskCaptured(`const a = 1;\nconst b = ;`, makeKaja(), []);
+    const run = await runScriptCaptured(`const a = 1;\nconst b = ;`, makeKaja(), []);
 
     expect(run.result).toBeUndefined();
     expect(run.error).toContain("Line 2");
   });
 
   it("captures runtime errors", async () => {
-    const run = await runTaskCaptured(`const items: string[] = [];\nreturn items[0].length;`, makeKaja(), []);
+    const run = await runScriptCaptured(`const items: string[] = [];\nreturn items[0].length;`, makeKaja(), []);
 
     expect(run.error).toBeDefined();
   });
@@ -88,7 +88,7 @@ return pick<number>([base]) + 1;`,
 
 describe("orphaned imports", () => {
   it("reports a clear error when the imported app no longer exists", async () => {
-    const run = await runTaskCaptured(`import { Teams } from "teams/teams";\nTeams.GetAllTeams({});`, makeKaja(), []);
+    const run = await runScriptCaptured(`import { Teams } from "teams/teams";\nTeams.GetAllTeams({});`, makeKaja(), []);
 
     expect(run.result).toBeUndefined();
     expect(run.error).toContain(`app "teams" was not found`);
@@ -103,7 +103,7 @@ describe("the ask verbs", () => {
       return question.answerType === "int" ? "42" : "june";
     });
 
-    const run = await runTaskCaptured(
+    const run = await runScriptCaptured(
       `import { kaja } from "kaja";\nconst name = await kaja.askStr("Which ledger?");\nconst count = await kaja.askInt("How many?");\nreturn [name, count, typeof count].join(" ");`,
       kaja,
       [],
@@ -121,7 +121,7 @@ describe("the ask verbs", () => {
       return "Europe";
     });
 
-    const run = await runTaskCaptured(
+    const run = await runScriptCaptured(
       `import { kaja } from "kaja";\nconst region = await kaja.askSelect("Where?", [{ label: "US", value: "us" }, { label: "Europe", value: "eu" }]);\nreturn region;`,
       kaja,
       [],
@@ -135,7 +135,7 @@ describe("the ask verbs", () => {
   it("refuses a select with nothing to pick", async () => {
     const kaja = makeKaja();
 
-    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn await kaja.askSelect("Where?", []);`, kaja, []);
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn await kaja.askSelect("Where?", []);`, kaja, []);
 
     expect(run.error).toContain("options must not be empty");
   });
@@ -145,7 +145,7 @@ describe("kaja.uuidV4", () => {
   it("generates a version 4 UUID from scripts", async () => {
     const kaja = makeKaja();
 
-    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.uuidV4();`, kaja, []);
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.uuidV4();`, kaja, []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -228,7 +228,7 @@ describe("kaja.value", () => {
   it("builds values from scripts", async () => {
     const kaja = makeKaja();
 
-    const run = await runTaskCaptured(`import { kaja } from "kaja";\nreturn kaja.value(["a", 1]);`, kaja, []);
+    const run = await runScriptCaptured(`import { kaja } from "kaja";\nreturn kaja.value(["a", 1]);`, kaja, []);
 
     expect(run.error).toBeUndefined();
     expect(run.result).toEqual({

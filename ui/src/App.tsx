@@ -16,10 +16,10 @@ import { newRunId, Run } from "./runs";
 import { consoles, FileConsole } from "./consoles";
 import { dropStoredFile, loadRuns, renameStoredFile, saveRuns } from "./runStore";
 import { NoFileBlankslate, RecentFile } from "./NoFileBlankslate";
-import { Compiler } from "./Compiler";
+import { CompileLog } from "./CompileLog";
 import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
-import { Gutter } from "./Gutter";
+import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel } from "./blocks";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, MethodCall } from "./kaja";
@@ -32,7 +32,8 @@ import { methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
-import { RunButton, useSyntaxErrors } from "./RunButton";
+import { RunButton } from "./RunButton";
+import { useSyntaxErrors } from "./syntaxErrors";
 import { Sidebar, TRAFFIC_LIGHTS_INSET } from "./Sidebar";
 import { NewAppDialog } from "./NewAppDialog";
 import { StatusBar, ColorMode } from "./StatusBar";
@@ -83,7 +84,7 @@ import {
   WriteScriptFile,
 } from "./wailsjs/go/main/App";
 import { main } from "./wailsjs/go/models";
-import { runTask, runTaskCaptured } from "./taskRunner";
+import { runScript, runScriptCaptured } from "./scriptRunner";
 
 // How long a discarded scratch is held before it is really gone. Nothing was on
 // disk, so this is undo rather than a confirmation.
@@ -98,7 +99,7 @@ const MCP_ACTIVITY_LINGER_MS = 2500;
 // that is about to reopen.
 function openScratchIds(): string[] {
   const persisted = getPersistedValue<PersistedViewState>("views");
-  return (persisted?.views ?? []).flatMap((tab) => ("scratchId" in tab ? [tab.scratchId] : []));
+  return (persisted?.views ?? []).flatMap((view) => ("scratchId" in view ? [view.scratchId] : []));
 }
 
 // Vertical padding the editor reserves around the code (see Editor.tsx).
@@ -159,17 +160,19 @@ export function App() {
   const configurationRef = useRef(configuration);
   configurationRef.current = configuration;
   // Where each variable's value came from. A value the configuration only names
-  // never travels, so this is all the Variables tab knows about it.
+  // never travels, so this is all the Variables view knows about it.
   const [variableStatus, setVariableStatus] = useState<VariableStatus[]>([]);
-  // What the Variables tab holds that nothing else does: whether it is dirty,
-  // whether it could save, and how to make it. The tab strip marks the dot and
-  // the close gesture offers the save, so both live out here.
+  // What the Variables view holds that nothing else does: whether it is dirty,
+  // whether it could save, and how to make it. Nothing reads any of it: the tab
+  // strip that marked the dot and the close gesture that offered the save are
+  // both gone, so this and `Variables.onStateChange` are dead until something
+  // wants them again.
   const [variablesState, setVariablesState] = useState<VariablesState>({ dirty: false, canSave: false, save: async () => {} });
   const variablesStateRef = useRef(variablesState);
   variablesStateRef.current = variablesState;
   const [apps, setApps] = useState<AppModel[]>([]);
   // Every scratch ever made, newest activity first — unlimited, kept in the
-  // app, named from its own code. Independent of what is open: closing a tab
+  // app, named from its own code. Independent of what is open: closing a view
   // puts a scratch away, it doesn't throw it out.
   const [scratches, setScratches] = useState<Scratch[]>(() =>
     pruneScratches(getPersistedValue<Scratch[]>("scratches") ?? [], Date.now(), new Set(openScratchIds())),
@@ -219,7 +222,7 @@ export function App() {
   scratchesRef.current = scratches;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasViewMemory = useRef(getPersistedValue<PersistedViewState>("views") !== undefined);
-  const viewsRestoredRef = useRef(views.some((tab) => tab.type === "scratch"));
+  const viewsRestoredRef = useRef(views.some((view) => view.type === "scratch"));
   const [scripts, setScripts] = useState<Script[]>();
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
@@ -268,10 +271,10 @@ export function App() {
   } | null>(null);
   // Whether the New app dialog is open.
   const [newAppOpen, setNewAppOpen] = useState(false);
-  // Whether the active tab's JSON parses. It gates switching back to the form or
+  // Whether the active view's JSON parses. It gates switching back to the form or
   // the table, which is why it lives out here with the control that does the
   // switch.
-  const [viewJsonValid, setTabJsonValid] = useState(true);
+  const [viewJsonValid, setViewJsonValid] = useState(true);
   const viewJsonValidRef = useRef(viewJsonValid);
   viewJsonValidRef.current = viewJsonValid;
   // One-shot signal to auto-expand a just-added app in the sidebar.
@@ -287,7 +290,7 @@ export function App() {
   const [bulkScratches, setBulkScratches] = useState<{ verb: "save" | "discard"; scratches: Scratch[] } | null>(null);
   // Path of the script pinned to the macOS "Run Kaja Script" text service.
   const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
-  // The run in flight, if any: which tab issued it, when it started, and the
+  // The run in flight, if any: which view issued it, when it started, and the
   // controller its Stop button aborts. `settled` marks the script itself as
   // finished — the run is only over once its calls have landed too.
   const [activeRun, setActiveRun] = useState<{ runId: string; fileId?: string; startedAt: number; controller?: AbortController; settled: boolean } | null>(
@@ -297,7 +300,7 @@ export function App() {
   // so discarding is undoable rather than confirmed.
   const [discarded, setDiscarded] = useState<{ scratch: Scratch; runs?: FileConsole } | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Pending debounced disk writes for open script views, keyed by tab id.
+  // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
   // refreshOpenScriptEditors), not a user edit — skip the debounced disk save.
@@ -310,16 +313,16 @@ export function App() {
     window.setTimeout(() => setFileError((current) => (current === message ? undefined : current)), 4000);
   }, []);
 
-  // Flush a script tab's pending debounced write immediately (e.g. before its
+  // Flush a script view's pending debounced write immediately (e.g. before its
   // model is disposed). No-op if nothing is pending.
   const flushScriptWrite = useCallback(
-    (tab: View) => {
-      if (tab.type !== "script") return;
-      const timer = scriptSaveTimers.current.get(tab.id);
+    (view: View) => {
+      if (view.type !== "script") return;
+      const timer = scriptSaveTimers.current.get(view.id);
       if (!timer) return;
       clearTimeout(timer);
-      scriptSaveTimers.current.delete(tab.id);
-      WriteScriptFile(tab.script.path, tab.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+      scriptSaveTimers.current.delete(view.id);
+      WriteScriptFile(view.script.path, view.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
     },
     [showFileError],
   );
@@ -354,12 +357,12 @@ export function App() {
   );
 
   const disposeView = useCallback(
-    (tab: View) => {
-      if (tab.type !== "scratch" && tab.type !== "script") return;
-      flushScriptWrite(tab);
-      editorRegistryRef.current.delete(tab.id);
-      setEditorContentHeights(({ [tab.id]: _removed, ...rest }) => rest);
-      tab.model.dispose();
+    (view: View) => {
+      if (view.type !== "scratch" && view.type !== "script") return;
+      flushScriptWrite(view);
+      editorRegistryRef.current.delete(view.id);
+      setEditorContentHeights(({ [view.id]: _removed, ...rest }) => rest);
+      view.model.dispose();
     },
     [flushScriptWrite],
   );
@@ -379,9 +382,9 @@ export function App() {
       const next = update(previous);
       if (next === previous) return;
 
-      const kept = new Set(next.map((tab) => tab.id));
-      for (const tab of previous) {
-        if (!kept.has(tab.id)) disposeView(tab);
+      const kept = new Set(next.map((view) => view.id));
+      for (const view of previous) {
+        if (!kept.has(view.id)) disposeView(view);
       }
 
       viewsRef.current = next;
@@ -653,29 +656,29 @@ export function App() {
 
   // Refresh open task editors to trigger re-validation
   const refreshOpenScratchEditors = useCallback(() => {
-    viewsRef.current.forEach((tab) => {
-      if (tab.type === "scratch") {
-        const value = tab.model.getValue();
-        tab.model.setValue(value);
+    viewsRef.current.forEach((view) => {
+      if (view.type === "scratch") {
+        const value = view.model.getValue();
+        view.model.setValue(value);
       }
     });
   }, []);
 
   // Poke open script editors so TypeScript re-resolves service-module imports
   // (e.g. "app/service") once their backing source models exist. Script models
-  // are frequently created (on tab restore or open) before compilation produces
+  // are frequently created (on view restore or open) before compilation produces
   // the service definitions, so the TS worker caches "cannot find module" and
   // never clears it on its own. Use an identity edit — not setValue — to keep
   // undo history, and suppress the auto-save it would otherwise trigger.
   const refreshOpenScriptEditors = useCallback(() => {
-    viewsRef.current.forEach((tab) => {
-      if (tab.type === "script") {
+    viewsRef.current.forEach((view) => {
+      if (view.type === "script") {
         // onDidChangeContent fires synchronously within pushEditOperations, so
         // bracketing the poke leaves the set empty afterwards — a later real
         // edit is never mistaken for a poke even if the edit fires no event.
-        suppressScriptSave.current.add(tab.id);
-        tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: tab.model.getValue() }], () => null);
-        suppressScriptSave.current.delete(tab.id);
+        suppressScriptSave.current.add(view.id);
+        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: view.model.getValue() }], () => null);
+        suppressScriptSave.current.delete(view.id);
       }
     });
   }, []);
@@ -776,15 +779,15 @@ export function App() {
         // alone, it just stops compiling. Only a rename needs following, so the
         // imports keep resolving.
         if (renames.size > 0) {
-          viewsRef.current.forEach((tab) => {
-            if (tab.type !== "scratch") return;
-            let value = tab.model.getValue();
+          viewsRef.current.forEach((view) => {
+            if (view.type !== "scratch") return;
+            let value = view.model.getValue();
             for (const [oldName, newName] of renames) {
               value = remapEditorCode(value, oldName, newName);
             }
-            if (value !== tab.model.getValue()) {
-              tab.model.setValue(value);
-              updateScratch(tab.scratchId, (scratch) => ({ ...scratch, code: value }));
+            if (value !== view.model.getValue()) {
+              view.model.setValue(value);
+              updateScratch(view.scratchId, (scratch) => ({ ...scratch, code: value }));
             }
           });
         }
@@ -931,10 +934,10 @@ export function App() {
   useEffect(() => {
     const handler = () => {
       // Flush any pending debounced script auto-saves before the page goes away.
-      for (const tab of viewsRef.current) {
-        if (tab.type === "script" && scriptSaveTimers.current.has(tab.id)) {
-          clearTimeout(scriptSaveTimers.current.get(tab.id)!);
-          WriteScriptFile(tab.script.path, tab.model.getValue()).catch(() => {});
+      for (const view of viewsRef.current) {
+        if (view.type === "script" && scriptSaveTimers.current.has(view.id)) {
+          clearTimeout(scriptSaveTimers.current.get(view.id)!);
+          WriteScriptFile(view.script.path, view.model.getValue()).catch(() => {});
         }
       }
       scriptSaveTimers.current.clear();
@@ -980,7 +983,7 @@ export function App() {
       });
     });
 
-    // A source model appearing after a script tab's own model was created does
+    // A source model appearing after a script view's own model was created does
     // not retroactively clear the stale "cannot find module" error on the
     // script; poke the open script editors so TypeScript re-resolves. (Task views
     // are opened only after their app has compiled, so they resolve on creation
@@ -1004,7 +1007,7 @@ export function App() {
         return;
       }
 
-      // Only auto-open the first method on first-time use (no previous tab memory)
+      // Only auto-open the first method on first-time use (no previous view memory)
       if (!hasViewMemory.current) {
         const defaultMethodAndService = getDefaultMethod(updatedApps[0].services);
         if (!defaultMethodAndService) {
@@ -1224,7 +1227,7 @@ export function App() {
         const kaja = kajaRef.current!;
         kaja.input = text;
         const run = beginRun(file.name, file.path);
-        runTask(file.content, kaja, apps, onScriptError)
+        runScript(file.content, kaja, apps, onScriptError)
           .then(() => kaja.settleTables())
           .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
       } catch (err) {
@@ -1249,10 +1252,10 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const disposables: monaco.IDisposable[] = [];
-    for (const tab of views) {
-      if (tab.type !== "script") continue;
-      const { id, model } = tab;
-      const path = tab.script.path;
+    for (const view of views) {
+      if (view.type !== "script") continue;
+      const { id, model } = view;
+      const path = view.script.path;
       disposables.push(
         model.onDidChangeContent(() => {
           if (suppressScriptSave.current.has(id)) return;
@@ -1272,9 +1275,9 @@ export function App() {
   }, [views, showFileError]);
 
   // Script views are file-backed, so disk is their source of truth. The persisted
-  // tab-state cache can go stale while the app is closed — an MCP write_script, an
+  // view-state cache can go stale while the app is closed — an MCP write_script, an
   // external editor, or another window can change the file — so on mount re-read
-  // each restored script tab from disk and reconcile its model. Without this a
+  // each restored script view from disk and reconcile its model. Without this a
   // reload would show the cached copy captured before the file last changed. The
   // beforeunload handler flushes pending saves, so disk is never behind the cache.
   useEffect(() => {
@@ -1282,19 +1285,19 @@ export function App() {
     let cancelled = false;
     (async () => {
       let reconciled = false;
-      for (const tab of viewsRef.current) {
-        if (tab.type !== "script") continue;
+      for (const view of viewsRef.current) {
+        if (view.type !== "script") continue;
         try {
-          const file = await ReadScriptFile(tab.script.path);
-          if (cancelled || !file || tab.model.getValue() === file.content) continue;
+          const file = await ReadScriptFile(view.script.path);
+          if (cancelled || !file || view.model.getValue() === file.content) continue;
           // Suppress the auto-save this edit would trigger — the content is disk's.
-          suppressScriptSave.current.add(tab.id);
-          tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: file.content }], () => null);
-          suppressScriptSave.current.delete(tab.id);
+          suppressScriptSave.current.add(view.id);
+          view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: file.content }], () => null);
+          suppressScriptSave.current.delete(view.id);
           reconciled = true;
         } catch {
           // File missing or unreadable (e.g. deleted while closed); keep the
-          // restored buffer rather than dropping the user's tab.
+          // restored buffer rather than dropping the user's view.
         }
       }
       if (!cancelled && reconciled) persistViews();
@@ -1308,11 +1311,11 @@ export function App() {
   // ⌘S names a script and writes it to disk, which is what makes it a file.
   const onRequestSaveAsScript = useCallback(() => {
     if (!isWailsEnvironment()) return;
-    const tab = viewsRef.current[0];
-    if (!tab || (tab.type !== "scratch" && tab.type !== "script")) return;
-    const defaultName = tab.type === "scratch" ? proposeFileName(viewIdentity(tab, scratchesRef.current).name) : tab.script.name.replace(/\.ts$/, "");
+    const view = viewsRef.current[0];
+    if (!view || (view.type !== "scratch" && view.type !== "script")) return;
+    const defaultName = view.type === "scratch" ? proposeFileName(viewIdentity(view, scratchesRef.current).name) : view.script.name.replace(/\.ts$/, "");
     setSaveAsError(undefined);
-    setSaveAs({ name: defaultName, content: tab.model.getValue(), fromScratchId: tab.type === "scratch" ? tab.scratchId : undefined });
+    setSaveAs({ name: defaultName, content: view.model.getValue(), fromScratchId: view.type === "scratch" ? view.scratchId : undefined });
   }, []);
 
   const onSaveScratch = useCallback((scratch: Scratch) => {
@@ -1454,7 +1457,7 @@ export function App() {
       try {
         const kaja = kajaRef.current!;
         kaja.input = undefined;
-        const captured = await runTaskCaptured(source, kaja, appsRef.current);
+        const captured = await runScriptCaptured(source, kaja, appsRef.current);
         // An agent's table has nobody to page it, so its receipt is the first
         // page — which is exactly what it says it is.
         await kaja.settleTables();
@@ -1516,11 +1519,11 @@ export function App() {
   }, []);
 
   // Reflect a rename that already happened on disk: update the sidebar list,
-  // re-point any open tab, and keep the context-menu pin on the renamed file.
+  // re-point any open view, and keep the context-menu pin on the renamed file.
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
-      applyViews((views) => views.map((tab) => (tab.type === "script" && tab.script.path === oldPath ? { ...tab, script: renamed } : tab)));
+      applyViews((views) => views.map((view) => (view.type === "script" && view.script.path === oldPath ? { ...view, script: renamed } : view)));
       setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
       // The file is the console's key, so a rename moves it rather than losing it.
       consoles.renameFile(oldPath, renamed.path);
@@ -1559,7 +1562,7 @@ export function App() {
   }, [renameScript, applyScriptRename]);
 
   // Reflect a deletion that already happened on disk: drop the script from the
-  // sidebar list and the context-menu pin, and close its tab.
+  // sidebar list and the context-menu pin, and close its view.
   const removeScriptFromUI = useCallback(
     (path: string) => {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
@@ -1583,7 +1586,7 @@ export function App() {
     [applyViews],
   );
 
-  // Right-click → Delete: confirm, then remove the file and close its tab.
+  // Right-click → Delete: confirm, then remove the file and close its view.
   const onConfirmDeleteScript = useCallback(
     async (script: Script) => {
       try {
@@ -1598,23 +1601,23 @@ export function App() {
   );
 
   // Reflect script changes made through the MCP server: live-reload the content
-  // of an open tab on write, and keep the sidebar list in step with
-  // create/rename/delete — no manual refresh or tab switch needed.
+  // of an open view on write, and keep the sidebar list in step with
+  // create/rename/delete — no manual refresh or view switch needed.
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const unsub = EventsOn("mcp:scriptsChanged", (payload: { action: string; path: string; name?: string; content?: string; oldPath?: string }) => {
       switch (payload.action) {
         case "write": {
-          const tab = viewsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
+          const view = viewsRef.current.find((t) => t.type === "script" && t.script.path === payload.path);
           const content = payload.content ?? "";
-          if (tab?.type === "script" && tab.model.getValue() !== content) {
+          if (view?.type === "script" && view.model.getValue() !== content) {
             // The content just came from disk. Apply it as an edit (not setValue)
             // so undo history survives, and suppress the auto-save it would
             // otherwise trigger — writing it straight back would be redundant.
-            suppressScriptSave.current.add(tab.id);
-            tab.model.pushEditOperations([], [{ range: tab.model.getFullModelRange(), text: content }], () => null);
-            suppressScriptSave.current.delete(tab.id);
-            // Keep the persisted tab-state cache in step so a reload restores this
+            suppressScriptSave.current.add(view.id);
+            view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: content }], () => null);
+            suppressScriptSave.current.delete(view.id);
+            // Keep the persisted view-state cache in step so a reload restores this
             // content, not the stale copy captured before the write.
             persistViews();
           }
@@ -1687,17 +1690,17 @@ export function App() {
         // and that isn't the user typing.
         if (!editorInstance.hasTextFocus()) return;
 
-        const tab = viewsRef.current.find((candidate) => candidate.id === viewId);
-        if (tab?.type !== "scratch") return;
+        const view = viewsRef.current.find((candidate) => candidate.id === viewId);
+        if (view?.type !== "scratch") return;
         // A scratch has no save step, so its text is written back as it is
         // typed — debounced, because every keystroke would be a store write.
-        const pending = scratchSaveTimers.current.get(tab.scratchId);
+        const pending = scratchSaveTimers.current.get(view.scratchId);
         if (pending) clearTimeout(pending);
         scratchSaveTimers.current.set(
-          tab.scratchId,
+          view.scratchId,
           setTimeout(() => {
-            scratchSaveTimers.current.delete(tab.scratchId);
-            updateScratch(tab.scratchId, (scratch) => ({ ...scratch, code: tab.model.getValue(), updatedAt: Date.now() }));
+            scratchSaveTimers.current.delete(view.scratchId);
+            updateScratch(view.scratchId, (scratch) => ({ ...scratch, code: view.model.getValue(), updatedAt: Date.now() }));
           }, 400),
         );
       });
@@ -1719,13 +1722,13 @@ export function App() {
         : undefined;
 
   const toggleJsonView = useCallback((): void => {
-    const tab = viewsRef.current[0];
-    if (tab?.type !== "appForm" && tab?.type !== "variables") return;
-    if (tab.editMode === "json" && !viewJsonValidRef.current) return;
+    const view = viewsRef.current[0];
+    if (view?.type !== "appForm" && view?.type !== "variables") return;
+    if (view.editMode === "json" && !viewJsonValidRef.current) return;
     applyViews((views) =>
-      tab.type === "appForm"
-        ? setAppFormEditMode(views, tab.id, tab.editMode === "json" ? "form" : "json")
-        : setVariablesEditMode(views, tab.id, tab.editMode === "json" ? "table" : "json"),
+      view.type === "appForm"
+        ? setAppFormEditMode(views, view.id, view.editMode === "json" ? "form" : "json")
+        : setVariablesEditMode(views, view.id, view.editMode === "json" ? "table" : "json"),
     );
   }, [applyViews]);
   const toggleJsonViewRef = useRef(toggleJsonView);
@@ -1737,11 +1740,11 @@ export function App() {
   // Run the current file's editor contents. Triggered by Run in the command
   // row, by ⌘⏎ and by F5.
   const onRunCurrentTab = useCallback(() => {
-    const tab = viewsRef.current[0];
-    if (!tab || (tab.type !== "scratch" && tab.type !== "script")) {
+    const view = viewsRef.current[0];
+    if (!view || (view.type !== "scratch" && view.type !== "script")) {
       return;
     }
-    const editor = editorRegistryRef.current.get(tab.id);
+    const editor = editorRegistryRef.current.get(view.id);
     if (!editor) {
       return;
     }
@@ -1749,18 +1752,18 @@ export function App() {
     const controller = new AbortController();
     // Run names reuse the derived script names, so the console and the sidebar
     // speak the same language.
-    const title = tab.type === "script" ? tab.script.name : (deriveScratchTitle(code) ?? viewIdentity(tab, scratchesRef.current).name);
-    beginRun(title, tab.type === "script" ? tab.script.path : tab.scratchId, controller);
+    const title = view.type === "script" ? view.script.name : (deriveScratchTitle(code) ?? viewIdentity(view, scratchesRef.current).name);
+    beginRun(title, view.type === "script" ? view.script.path : view.scratchId, controller);
     // A live table draws its first page itself, and those calls are the run's:
     // the script is not over until they have landed, or the run would report a
     // duration that stops before the work it started.
-    runTask(code, kajaRef.current!, apps, onScriptError, controller.signal)
+    runScript(code, kajaRef.current!, apps, onScriptError, controller.signal)
       .then(() => kajaRef.current!.settleTables())
       .finally(() => setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)));
     // A run is the punctuation that settles a scratch: it is when the title is
     // re-read from the code, rather than jittering as you type.
-    if (tab.type === "scratch") {
-      updateScratch(tab.scratchId, (scratch) => markRun(scratch, code, Date.now()));
+    if (view.type === "scratch") {
+      updateScratch(view.scratchId, (scratch) => markRun(scratch, code, Date.now()));
     }
   }, [apps, beginRun, onScriptError, updateScratch]);
 
@@ -1872,7 +1875,7 @@ export function App() {
     setNewAppOpen(true);
   };
 
-  // Picking a type in the New dialog opens the create form tab for that type. The
+  // Picking a type in the New dialog opens the create form view for that type. The
   // type is fixed at creation and not editable in the form afterwards.
   const onSelectAppType = (type: string) => {
     setNewAppOpen(false);
@@ -1926,7 +1929,7 @@ export function App() {
   };
 
   // Which apps reference each ${NAME}. Names no variable defines are in here
-  // too: the Variables tab shows them as a warning with the apps that use them.
+  // too: the Variables view shows them as a warning with the apps that use them.
   const variableUsage = useMemo(() => {
     const usage: { [name: string]: string[] } = {};
     for (const name of Object.keys(configuration?.variables ?? {})) {
@@ -1949,7 +1952,7 @@ export function App() {
     applyViews(showVariables);
   }, [applyViews]);
 
-  // Saving the Variables tab writes the configuration, which names the
+  // Saving the Variables view writes the configuration, which names the
   // variables, and clears what this machine was holding for a variable that
   // stopped being stored. Values going the other way don't come through here:
   // they are written the moment they are entered.
@@ -2238,7 +2241,7 @@ export function App() {
               />
             </div>
           )}
-          <Gutter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
+          <Splitter orientation="vertical" onResize={onSidebarResize} hitAreaSize={sidebarCollapsed ? 12 : undefined} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: mainMinWidth, minHeight: 0 }}>
             <CommandRow
               leftInset={commandRowInset}
@@ -2285,10 +2288,10 @@ export function App() {
                     overflow,
                   }}
                 >
-                  {bodies.map((tab) => (
-                    <div key={tab.id} style={{ display: tab.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                      {tab.type === "compiler" && (
-                        <Compiler
+                  {bodies.map((view) => (
+                    <div key={view.id} style={{ display: view.id === currentView?.id ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                      {view.type === "compiler" && (
+                        <CompileLog
                           apps={apps}
                           configurationLoaded={configurationLoaded}
                           onNewAppClick={onNewAppClick}
@@ -2296,43 +2299,48 @@ export function App() {
                           expandApp={compileLogExpandApp}
                         />
                       )}
-                      {(tab.type === "scratch" || tab.type === "script") && (
+                      {(view.type === "scratch" || view.type === "script") && (
                         <div className="relative flex min-h-0 flex-1 flex-col">
                           <Editor
-                            model={tab.model}
-                            onMount={(editor) => onEditorReady(tab.id, editor)}
+                            model={view.model}
+                            onMount={(editor) => onEditorReady(view.id, editor)}
                             onGoToDefinition={onGoToDefinition}
-                            viewState={tab.viewState}
+                            viewState={view.viewState}
                           />
                         </div>
                       )}
-                      {tab.type === "definition" && (
-                        <Definition model={tab.model} onGoToDefinition={onGoToDefinition} startLineNumber={tab.startLineNumber} startColumn={tab.startColumn} />
+                      {view.type === "definition" && (
+                        <Definition
+                          model={view.model}
+                          onGoToDefinition={onGoToDefinition}
+                          startLineNumber={view.startLineNumber}
+                          startColumn={view.startColumn}
+                        />
                       )}
-                      {tab.type === "appForm" && (
+                      {view.type === "appForm" && (
                         <AppForm
-                          mode={tab.mode}
-                          initialData={tab.initialData}
+                          mode={view.mode}
+                          initialData={view.initialData}
                           allApps={configuration?.apps ?? []}
                           variables={configuration?.variables ?? {}}
                           readOnly={!runtime.canUpdateConfiguration}
-                          editMode={tab.editMode}
+                          editMode={view.editMode}
                           onSubmit={onAppFormSubmit}
                           onCancel={onAppFormCancel}
-                          onJsonValidChange={setTabJsonValid}
+                          onJsonValidChange={setViewJsonValid}
                         />
                       )}
-                      {tab.type === "variables" && (
+                      {view.type === "variables" && (
                         <Variables
                           variables={configuration?.variables ?? {}}
                           status={variableStatus}
                           storeAvailable={runtime.variableStoreAvailable}
                           usage={variableUsage}
                           readOnly={!runtime.canUpdateConfiguration}
-                          editMode={tab.editMode}
-                          onEditModeChange={(editMode) => applyViews((views) => setVariablesEditMode(views, tab.id, editMode))}
-                          onJsonValidChange={setTabJsonValid}
-                          active={tab.id === currentView?.id}
+                          editMode={view.editMode}
+                          onEditModeChange={(editMode) => applyViews((views) => setVariablesEditMode(views, view.id, editMode))}
+                          onJsonValidChange={setViewJsonValid}
+                          active={view.id === currentView?.id}
                           onSave={onVariablesSave}
                           onStoreValue={onStoreVariableValue}
                           onStateChange={onVariablesStateChange}
@@ -2343,7 +2351,10 @@ export function App() {
                 </div>
                 {currentIsEditor && (
                   <>
-                    <Gutter orientation={isHorizontalLayout ? "vertical" : "horizontal"} onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize} />
+                    <Splitter
+                      orientation={isHorizontalLayout ? "vertical" : "horizontal"}
+                      onResize={isHorizontalLayout ? onEditorWidthResize : onEditorResize}
+                    />
                     <div
                       style={{
                         flex: 1,

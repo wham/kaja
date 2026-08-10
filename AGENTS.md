@@ -253,13 +253,25 @@ with everything it produced under it. One script can make three calls, and three
 unrelated rows say nothing about the thing you actually pressed.
 
 **And a run has two views of that, because they want opposite things.** The
-**list** is the flat audit log — one row per call, in wall order, always
+**log** is the flat audit log — one row per call, in wall order, always
 complete; that is what makes it scannable at two hundred rows and lets every row
 carry the same extra channels. The **canvas** is the rendered output — varied,
 and free to fold what is repetitive. Every attempt to serve both in one surface
 bent one of them out of shape, so one segmented control in the header switches
 them and **everything else about the header stops moving**. That is the change
 that pays for the restructure.
+
+**The two views are peers, and the console is the frame around them**
+(`RunLog.tsx`, `Canvas.tsx`, `Console.tsx`). The log used to be
+`Console.ListView`, a property, while the canvas was a file of its own — so a
+reader who found one had no reason to expect the other where it is. Each now has
+its own file and its own parts: `RunLog.CallRow` / `TailBar` / `PayloadPane`
+belong to the log, `Console.RunSelect` / `RunRow` to the frame, and flat against
+one another they read as the same kind of thing. `Log` alone is taken (the
+script's own log messages), and `RunList` would be read as a list of runs, which
+is what the run picker beside it actually is — so the log is `RunLog`. The
+segmented control says **Log** and **Canvas**, and `ConsoleView` is
+`"log" | "canvas"` to match; it is in-memory only, so nothing had to migrate.
 
 **A row is a call and only a call.** No disclosure triangles, no block rows, no
 run row. Splitting the views is what deletes the double-statement problem — an
@@ -562,7 +574,7 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
     a click, not a wall. All-methods was the alternative and it cannot be named:
     it would cover calls you have not seen.
   - **The lifetime is the run, because anything longer is a policy.**
-    `runTask` clears `_internal.approvedMethods` at the top of every run — both
+    `runScript` clears `_internal.approvedMethods` at the top of every run — both
     doors, the editor's and the MCP server's — so the guard is back the next time
     Run is pressed, and nothing about it is ever written to disk. The key is the
     call's own `Service.Method` label, the same identity the block names.
@@ -776,7 +788,7 @@ fix, since there is no longer a toggle to cycle.
 
 ### MCP server architecture
 
-- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/taskRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into the webview. So the MCP server lives in the desktop process but reaches the webview for runs.
+- **Why it's bridged** — scripts execute in the webview's JS context (`ui/src/scriptRunner.ts`, via `new Function`), where the `kaja` object and the service clients live. Editing scripts is plain file I/O the Go side already does; _running_ a script has to round-trip into the webview. So the MCP server lives in the desktop process but reaches the webview for runs.
 - **Server** — `desktop/mcp` is a self-contained, Wails-free package: JSON-RPC 2.0 over HTTP (MCP Streamable HTTP, single-response — no SSE), bound to `127.0.0.1` on a fixed port (`41521`, next to the web port `41520`) and guarded by a bearer token persisted at `<kajaHome>/mcp-token`. Fixing the port and persisting the token keep the `claude mcp add` command valid across restarts. If the port is already in use the server does **not** fall back to a random one (that would silently break the configured command); it reports the conflict through `MCPInfo.Error`, which the footer surfaces (`desktop/mcp_bridge.go`). It talks to the app only through the `mcp.Bridge` interface, so it is unit-tested with a fake (`desktop/mcp/server_test.go`).
 - **The answer is TypeScript, because that is all a script is.** An author writes `Shows.ListShows({ pageSize: 25 })` against an interface named `ListShowsRequest`; nothing they write is protobuf, and nothing they are shown should be. So the tools hand back **the generated declarations themselves** — the code the script is checked against — rather than a description of the wire format behind them. A declaration can't disagree with the compiler; a second model of one can, and did.
 - **Three tools answer everything, and none grows with the API.** `list_services` is an **index**: every app, service and method as one TypeScript signature (`ListShows(input: ListShowsRequest): Promise<ListShowsResponse>`) with a `read`/`write` mark and its HTTP request — filterable by `app`, `service` or free-text `search`. It carries no declarations; dumping the generated modules is what overflowed an agent's context and forced it to grep a JSON blob. `describe_method "Shows.ListShows"` is the other half: the import line, the signature, and the declarations of **every type that signature names, transitively** (`declarationsFor`), then the call to start from. `describe_type "Show"` looks one type up on its own, which is also where a cut-off answer points. A miss doesn't just say no — an ambiguous name lists its candidates, an unknown one the nearest matches — because a dead end costs a whole round trip. Answers are bounded: declarations are cut after `maxDeclarationLines` (spent line by line, since one response type can be four hundred properties), a run payload after `maxPayload`, and the cut names what to ask for next.

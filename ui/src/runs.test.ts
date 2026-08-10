@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
 import { Block } from "./blocks";
-import { ConsoleItem, ItemStats, itemStatus, slowestOf, worstStatus } from "./runs";
+import { callStatus, ConsoleItem, ItemStats, itemStatus, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -143,5 +143,35 @@ describe("ItemStats", () => {
     ];
 
     expect(statsOf(concurrent).duration).toBe(320);
+  });
+});
+
+describe("callStatus", () => {
+  function methodCall(changes: Partial<MethodCall>): MethodCall {
+    return { id: "c", appName: "app", service: { name: "S" }, method: { name: "M" }, input: {}, timestamp: NOW, ...changes } as MethodCall;
+  }
+
+  it("reads a response that arrived as success", () => {
+    expect(callStatus(methodCall({ output: { id: 1 } }))).toBe("success");
+  });
+
+  it("has not answered until an output is set", () => {
+    expect(callStatus(methodCall({}))).toBe("pending");
+  });
+
+  // A REST operation can answer with a bare scalar — the HTTP envelope exists
+  // for exactly that — so a falsy payload is a response, not a missing one.
+  // Testing presence rather than truthiness is what tells the two apart.
+  it.each([[null], [0], [""], [false]])("treats the falsy response %p as a response", (output) => {
+    expect(callStatus(methodCall({ output }))).toBe("success");
+  });
+
+  it("reports an error over anything else", () => {
+    expect(callStatus(methodCall({ output: { id: 1 }, error: { message: "nope" } }))).toBe("error");
+  });
+
+  it("is streaming until the stream completes", () => {
+    expect(callStatus(methodCall({ streamOutputs: [] }))).toBe("streaming");
+    expect(callStatus(methodCall({ streamOutputs: [], streamComplete: true, output: {} }))).toBe("success");
   });
 });

@@ -75,7 +75,7 @@ export type ConsoleTab = "request" | "response" | "headers";
  * it scannable at two hundred rows; the canvas wants to be varied. Serving both
  * in one surface bends one of them out of shape.
  */
-export type ConsoleView = "list" | "canvas";
+export type ConsoleView = "log" | "canvas";
 
 /**
  * One run and everything under it. It is maintained by the file's console as the
@@ -267,7 +267,7 @@ export function callCount(group: RunGroup): number {
  * file — debugging is a mode, not a click.
  */
 export function defaultView(group: RunGroup | undefined): ConsoleView {
-  return group?.drew ? "canvas" : "list";
+  return group?.drew ? "canvas" : "log";
 }
 
 // The measure a set of calls is drawn against, kept for reading a list that is

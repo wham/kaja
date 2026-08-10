@@ -3,7 +3,7 @@ import { Check, CircleX, RotateCw, TriangleAlert } from "lucide-react";
 import { cn } from "./cn";
 import { App } from "./apps";
 import { appType } from "./appTypes";
-import { AppTypeIcon } from "./Sidebar";
+import { AppTypeIcon } from "./AppTypeIcon";
 import { IconButton } from "./components/icon-button";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
 import { Spinner } from "./components/spinner";

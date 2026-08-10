@@ -100,9 +100,9 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
   return { args, runCode: printStatements(runStatements) };
 }
 
-// runTask runs a script and resolves once it settles, so the caller can show it
+// runScript runs a script and resolves once it settles, so the caller can show it
 // as running. Passing a signal lets the caller abort the calls it makes.
-export function runTask(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void, signal?: AbortSignal): Promise<void> {
+export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void, signal?: AbortSignal): Promise<void> {
   const clearSignal = () => {
     if (kaja._internal.abortSignal === signal) {
       kaja._internal.abortSignal = undefined;
@@ -152,10 +152,10 @@ export interface CapturedRun {
   error?: string;
 }
 
-// runTaskCaptured runs a script and collects its console output, return value,
+// runScriptCaptured runs a script and collects its console output, return value,
 // and any error instead of letting them escape. Used by the MCP server so an
 // agent can see what a script did.
-export async function runTaskCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
+export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
   const lines: string[] = [];
   const record = (level: string, parts: unknown[]) => {
     lines.push(parts.map(stringifyConsoleArg).join(" "));

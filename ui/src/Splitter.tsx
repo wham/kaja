@@ -2,13 +2,13 @@ import { useState } from "react";
 
 import { cn } from "./cn";
 
-interface GutterProps {
+interface SplitterProps {
   orientation: "vertical" | "horizontal";
   onResize: (delta: number) => void;
   hitAreaSize?: number;
 }
 
-export function Gutter({ orientation, onResize, hitAreaSize }: GutterProps) {
+export function Splitter({ orientation, onResize, hitAreaSize }: SplitterProps) {
   const [isResizing, setIsResizing] = useState(false);
   const isVertical = orientation === "vertical";
 
