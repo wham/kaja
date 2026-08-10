@@ -75,7 +75,6 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
 
   let transport;
   if (isWailsEnvironment()) {
-    console.log("Creating client in Wails environment - using WailsTransport in target mode");
     // Use Wails transport in target mode for external API calls (supports both Twirp and gRPC)
     // Pass appRef so URL and headers are read dynamically at request time
     transport = new WailsTransport({
