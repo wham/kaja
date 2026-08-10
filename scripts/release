@@ -3,13 +3,18 @@
 # Driven by .github/workflows/release.yml (manual "Run workflow" button).
 #
 # Lifecycle of a version:
-#   1. open  — bump productVersion, commit, tag, draft a GitHub Release. The
-#              commit lands on main, which triggers the testflight workflow, so a
-#              build carrying the new version shows up in TestFlight automatically.
-#   2. ...    — keep merging to main; each push yields a new TestFlight build of
+#   1. open  — bump productVersion on a branch and open a PR.
+#   2. merge — merge that PR yourself. main is protected: the bump has to arrive
+#              as a PR and pass the demo check, so this one step is not CI's.
+#   3. ...   — keep merging to main; each push yields a new TestFlight build of
 #              this version (build number = workflow run number).
-#   3. ship  — when you promote that TestFlight build to the App Store, publish
-#              the draft Release so the GitHub Releases page mirrors what is live.
+#   4. ship  — when you promote one of those builds to the App Store, tag the
+#              commit and publish a GitHub Release for it.
+#
+# Nothing is tagged or drafted before ship. A tag written at open time names the
+# commit that opened the version rather than the one that shipped, and notes
+# generated there cover the previous cycle — the work being released has not
+# been written yet.
 #
 # Usage:
 #   scripts/release open <patch|minor|major>
@@ -48,33 +53,39 @@ next_version() {
 
 cmd_open() {
     local bump="${1:-minor}"
-    local version
+    local version branch
     version="$(next_version "$bump")"
+    branch="open-$version"
     echo "Opening version $version (bump: $bump, from $(current_version))"
 
     jq --arg v "$version" '.info.productVersion = $v' "$WAILS_JSON" > "$WAILS_JSON.tmp"
     mv "$WAILS_JSON.tmp" "$WAILS_JSON"
 
+    git switch -c "$branch"
     git add "$WAILS_JSON"
     git commit -m "Opened version $version"
-    git tag -f "$version"
-    git push origin HEAD
-    git push origin "$version" --force
+    git push origin "$branch"
 
-    gh release create "$version" \
-        --draft \
-        --title "$version" \
-        --generate-notes
+    gh pr create \
+        --base main \
+        --head "$branch" \
+        --title "Opened version $version" \
+        --body "Merge to start building $version. Every push to main then uploads a TestFlight build carrying it; run the release workflow with \`ship\` once one of those builds is promoted to the App Store."
 
-    echo "Drafted GitHub Release $version."
-    echo "New pushes to main now produce TestFlight builds of $version."
+    echo "Opened a PR for $version. Merge it to start building $version."
 }
 
 cmd_ship() {
     local version
     version="$(current_version)"
-    echo "Shipping version $version"
-    gh release edit "$version" --draft=false --latest
+    echo "Shipping version $version at $(git rev-parse --short HEAD)"
+
+    gh release create "$version" \
+        --target "$(git rev-parse HEAD)" \
+        --title "$version" \
+        --generate-notes \
+        --latest
+
     echo "Published GitHub Release $version."
 }
 

@@ -147,5 +147,5 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 
 Releases are cut from GitHub — no local build needed. Every push to `main` uploads a new build to TestFlight. To ship a version, run the **release** workflow (Actions → Run workflow):
 
-- `open` (with `patch`/`minor`/`major`) — bumps the version, tags it, and drafts a GitHub Release. TestFlight builds now carry the new version.
-- `ship` — publishes the draft Release. Run it when you promote that TestFlight build to the App Store.
+- `open` (with `patch`/`minor`/`major`) — bumps the version on a branch and opens a PR. **Merge it yourself**: `main` is protected, so the bump has to arrive as a PR and pass the `demo` check. TestFlight builds carry the new version from then on.
+- `ship` — tags the commit and publishes a GitHub Release for it, with notes covering the whole cycle. Run it when you promote one of those TestFlight builds to the App Store.
