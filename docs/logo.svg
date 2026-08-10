@@ -1,21 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 202 80" width="202" height="80" preserveAspectRatio="xMinYMid meet">
-  <defs>
-    <linearGradient id="kajaGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#B9682F"/>
-      <stop offset="55%" stop-color="#893C67"/>
-      <stop offset="100%" stop-color="#8B3BC8"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Increased scale from 0.8 -> 0.85 to restore visual weight -->
-  <g transform="translate(3 0) scale(0.85)">
-    <path d="M8 50 H34 L44 18 L54 50 L64 82 L74 50 H74"
-          fill="none" stroke="url(#kajaGrad)" stroke-width="8.5"
-          stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="88" cy="42" r="8" fill="#8A3ACA"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="316" height="88" viewBox="0 0 316 88" fill="none" role="img" aria-label="Kaja">
+  <defs><linearGradient id="kajaLock" x1="4" y1="24" x2="44" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#B0503F"></stop><stop offset="1" stop-color="#8A35D8"></stop></linearGradient></defs>
+  
+  <g transform="translate(4 -22) scale(2.75)">
+    <path d="M4 29 H13 L19 13 L28 35 L33 24 H44" stroke="url(#kajaLock)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>
   </g>
-
-  <text x="90" y="52"
-        font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-        font-size="44" font-weight="600" fill="#FFFFFF">Kaja</text>
+  
+  <text x="152" y="63" font-family="Figtree, &#39;Plus Jakarta Sans&#39;, &#39;Segoe UI&#39;, system-ui, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.2" fill="#FAFAFA">Kaja</text>
 </svg>
