@@ -1,6 +1,6 @@
-import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Logs, Trash2, UnfoldVertical } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Logs, Maximize, Minimize, Trash2, UnfoldVertical } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ApproveGesture, blockText } from "./blocks";
+import { ApproveGesture } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
 import { Canvas } from "./Canvas";
@@ -27,10 +27,17 @@ const MAX_VISIBLE_RUN_ROWS = 8;
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
+// The room the macOS traffic lights need in the full-screen bar, which is the
+// only chrome left once the canvas has the window.
+const TRAFFIC_LIGHTS_INSET = 78;
+
 interface ConsoleProps {
   // Which file's console this is. It is the whole scope: the runs are that
   // file's runs, and changing it swaps consoles rather than reporting a new run.
   fileId?: string;
+  // Whether the window's own traffic lights sit in the top-left, which the
+  // full-screen bar has to keep clear.
+  reserveTrafficLights?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
@@ -50,7 +57,7 @@ interface ConsoleProps {
  * this is the only thing in the window that subscribes to it. A thousand calls
  * repaint the console, and nothing else.
  */
-export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, onTableView, onTablePull, onClear }: ConsoleProps) {
+export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, onDecide, tableViews, onTableView, onTablePull, onClear }: ConsoleProps) {
   useSyncExternalStore(
     useCallback((notify: () => void) => (fileId === undefined ? () => {} : consoles.subscribeFile(fileId, notify)), [fileId]),
     useCallback(() => consoles.fileVersion(fileId), [fileId]),
@@ -82,6 +89,15 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
   }, []);
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
+  /**
+   * Whether the canvas has the whole window. It is a size rather than a mode —
+   * the run keeps running, the log keeps recording — so it is held here and
+   * nowhere else: it belongs to the run being read, not to the workspace, and
+   * nothing about it is worth surviving a restart.
+   */
+  const [fullScreen, setFullScreen] = useState(false);
+  // Carried across entering and leaving, so the way back lands where you left.
+  const canvasScroll = useRef(0);
 
   // A settled call shows the wall-clock time it was made, which never changes —
   // so the clock only runs while something is still in flight, counting up in
@@ -162,31 +178,53 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
   }, [groups, selection?.runId, selectRun]);
 
   const handleCopy = useCallback(() => {
-    if (activeView === "canvas") {
-      const text = (selectedGroup?.items ?? [])
-        .map((item) => (item.block ? blockText(item.block) : item.call ? `${item.call.service.name}.${item.call.method.name}` : ""))
-        .filter((line) => line.length > 0)
-        .join("\n\n");
-      navigator.clipboard?.writeText(text);
-    } else {
-      jsonViewerRef.current?.copyToClipboard();
-    }
+    jsonViewerRef.current?.copyToClipboard();
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
-  }, [activeView, selectedGroup]);
+  }, []);
 
-  // Clicking a call on the canvas is a request for its complete record, which
-  // only the log has — so it takes you there rather than unrolling a payload
-  // into the flow.
+  // Clicking a mark on the strip, or a failure the run said nothing about, is a
+  // request for that call's complete record — which only the log has, so it
+  // takes you there rather than unrolling a payload into the canvas.
   const selectFromCanvas = useCallback(
     (itemId: string) => {
       if (!selectedGroup) return;
       setTailing(false);
+      setFullScreen(false);
       onViewChange("calls");
       onSelect({ runId: selectedGroup.run.id, itemId });
     },
     [selectedGroup, onSelect, onViewChange],
   );
+
+  // Full-screen belongs to the run you were reading: another script is another
+  // run, and the log is a flat list that gains nothing from the room.
+  useEffect(() => {
+    setFullScreen(false);
+  }, [fileId]);
+
+  useEffect(() => {
+    if (activeView !== "canvas") setFullScreen(false);
+  }, [activeView]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+        if (activeView !== "canvas" || !selectedGroup) return;
+        event.preventDefault();
+        setFullScreen((on) => !on);
+        return;
+      }
+      // Esc is the canvas's only when nothing else wanted it: a focused ask
+      // field cancels its question first, and a held call refuses itself.
+      if (event.key === "Escape" && fullScreen && !event.defaultPrevented) {
+        event.preventDefault();
+        setFullScreen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeView, selectedGroup, fullScreen]);
 
   // Picking a row is a decision to read it, so the log stops moving under it.
   const selectRow = useCallback(
@@ -211,6 +249,30 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
 
   const showUtilities = activeView === "canvas" || selectedCall !== undefined;
   const position = selectedGroup ? groups.indexOf(selectedGroup) + 1 : groups.length;
+
+  const canvas = selectedGroup && (
+    <Canvas
+      group={selectedGroup}
+      fullScreen={fullScreen}
+      onAnswer={onAnswer}
+      onCancelAsk={onCancelAsk}
+      onDecide={onDecide}
+      onSelectCall={selectFromCanvas}
+      onFullScreen={() => setFullScreen(true)}
+      scrollRef={canvasScroll}
+      tableViews={tableViews}
+      onTableView={onTableView}
+      onTablePull={onTablePull}
+    />
+  );
+
+  if (fullScreen && selectedGroup && activeView === "canvas") {
+    return (
+      <Console.FullScreen group={selectedGroup} reserveTrafficLights={reserveTrafficLights} now={now} onLeave={() => setFullScreen(false)}>
+        {canvas}
+      </Console.FullScreen>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -279,7 +341,20 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
         )}
         {showUtilities && (
           <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
-            {activeView === "calls" && (
+            {/* Copy is gone from the canvas: a document of six different kinds
+                of block has no coherent clipboard form, and the button quietly
+                produced a poor one. The room it held is the way to more room. */}
+            {activeView === "canvas" ? (
+              <IconButton
+                icon={Maximize}
+                aria-label="Full screen"
+                variant="ghost"
+                size="sm"
+                className={utilityButtonClass}
+                data-testid="console-fullscreen"
+                onClick={() => setFullScreen(true)}
+              />
+            ) : (
               <>
                 <IconButton
                   icon={FoldVertical}
@@ -298,32 +373,22 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
                   onClick={() => jsonViewerRef.current?.unfoldAll()}
                 />
                 <div className="h-4 w-px bg-border" />
+                <IconButton icon={copied ? Check : Copy} aria-label="Copy JSON" variant="ghost" size="sm" className={utilityButtonClass} onClick={handleCopy} />
               </>
             )}
-            <IconButton
-              icon={copied ? Check : Copy}
-              aria-label={activeView === "canvas" ? "Copy canvas" : "Copy JSON"}
-              variant="ghost"
-              size="sm"
-              className={utilityButtonClass}
-              onClick={handleCopy}
-            />
           </div>
         )}
       </div>
 
       {selectedGroup && activeView === "canvas" ? (
-        <Canvas
-          group={selectedGroup}
-          selectedItemId={selection?.itemId}
-          onAnswer={onAnswer}
-          onCancelAsk={onCancelAsk}
-          onDecide={onDecide}
-          onSelectCall={selectFromCanvas}
-          tableViews={tableViews}
-          onTableView={onTableView}
-          onTablePull={onTablePull}
-        />
+        <>
+          {/* The only place the run's calls are stated, now that a call is not
+              a block. It is the canvas's row and lives under the header rather
+              than in it, so the header stops moving as the selection does — and
+              a run that only drew has no calls to state, so it has no row. */}
+          {selectedGroup.strip.calls > 0 && <Canvas.RunStrip group={selectedGroup} onSelectCall={selectFromCanvas} />}
+          {canvas}
+        </>
       ) : selectedGroup ? (
         <RunLog
           group={selectedGroup}
@@ -413,6 +478,70 @@ Console.LogFloorSelect = function ({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+};
+
+interface FullScreenProps {
+  group: RunGroup;
+  reserveTrafficLights?: boolean;
+  now: number;
+  onLeave: () => void;
+  children: React.ReactNode;
+}
+
+/**
+ * The canvas with the whole window: sidebar, editor, splitters, console header,
+ * run strip and status bar all covered. It is a view state rather than a second
+ * window — the run keeps running and the log keeps recording behind it — so the
+ * only chrome left is a 40px bar that keeps the window's traffic lights and says
+ * three things: which script, which run, and the way out.
+ */
+Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, children }: FullScreenProps) {
+  const waiting = group.awaiting !== undefined;
+  const time = formatClockTime(group.run.startedAt);
+
+  return (
+    <div data-testid="console-fullscreen-canvas" className="fixed inset-0 z-50 flex flex-col bg-background">
+      <div
+        className="flex h-[40px] shrink-0 items-center gap-3 border-b border-border pr-3"
+        style={{ paddingLeft: reserveTrafficLights ? TRAFFIC_LIGHTS_INSET : 12 }}
+      >
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate font-mono text-xs text-foreground">{group.run.title}</span>
+          <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">
+            Run {group.run.number} · {time}
+          </span>
+        </div>
+        {waiting ? (
+          <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-amber-500/[0.12] px-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="font-mono text-xs text-amber-600 dark:text-amber-400">waiting for you</span>
+          </div>
+        ) : group.inFlight ? (
+          <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
+            <Spinner className="size-3" />
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
+          </div>
+        ) : (
+          <span className={cn("shrink-0 font-mono text-xs", group.status === "error" ? "text-destructive" : "text-muted-foreground")}>
+            {group.status === "error" ? "failed" : formatDuration(group.run.durationMs)}
+          </span>
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          <span className="font-mono text-xs text-muted-foreground">Esc</span>
+          <IconButton
+            icon={Minimize}
+            aria-label="Leave full screen"
+            variant="ghost"
+            size="sm"
+            className={utilityButtonClass}
+            data-testid="console-fullscreen-leave"
+            onClick={onLeave}
+          />
+        </div>
+      </div>
+      {children}
+    </div>
   );
 };
 

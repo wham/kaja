@@ -434,7 +434,8 @@ selection, the tab and the view as they were left.
   nothing to compare gets no bars.
 - **The log is never collapsed or summarised away.** It stays complete at any
   length, and the tail bar says what is out of sight (`13 more`) rather than
-  standing in for it. Loop folding belongs on the canvas only.
+  standing in for it. The canvas summarises the run's calls into one strip; the
+  log is the place that never does.
 - **A run that has nowhere to land is not kept** — but almost nothing has nowhere
   to land, because an agent's inline snippet is given a scratch to run in (see
   the MCP section). What is left is a call arriving with no run open, which gets
@@ -477,6 +478,30 @@ selection, the tab and the view as they were left.
 - **With no run there is nothing to select.** The console drops its header
   entirely until something has been run, rather than showing Response as
   selected and the other two as disabled over an empty panel.
+- **Copy is gone from the canvas, and full-screen has its place.** A document of
+  six different kinds of block has no coherent clipboard form and the button
+  quietly produced a poor one; if it comes back it should be per block — a table's
+  own affordance producing TSV — not one button claiming to serialise a document.
+  The Calls view keeps its Copy, because a payload is one thing and copying it
+  means something. Stop is not in this header either: it is `RunButton` in the
+  CommandRow, which already swaps to a spinner, "Stop" and an elapsed counter.
+- **Full-screen is a size, not a mode** (`Console.FullScreen`). The canvas takes
+  the whole window — sidebar, editor, splitters, console header, run strip and
+  status bar all covered — and the only chrome left is a 40px bar that keeps the
+  window's traffic lights and says which script, which run, and the way out. The
+  run keeps running and the log keeps recording behind it; padding grows to 32px
+  and text blocks measure 72ch instead of 60ch; everything interactive works
+  exactly as it does in the panel.
+  - **In and out:** the `Maximize` icon in the console header or `⌘⇧F`; `Esc`, the
+    `Minimize` icon, or `⌘⇧F` again. **Esc is the canvas's only when nothing else
+    wants it** — a focused ask field cancels its question first and a held call
+    refuses itself first, both by `preventDefault` on the document, which is why
+    the canvas checks `defaultPrevented` before claiming it. The second Esc leaves.
+  - **It belongs to the run you were reading**, so it is component state and
+    nothing else: not persisted, dropped when the file changes and when the view
+    goes back to Calls. The Calls view has no full-screen at all — a flat list of
+    calls gains nothing from the room and the splitter already sizes it. The canvas's
+    scroll offset is carried across in a ref, so leaving lands where you left.
 
 ## The canvas is what a run drew
 
@@ -560,53 +585,51 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   - **An agent sees one page.** Nobody is there to press Next, so `run_script`
     reports `more: true` and the loop that reads the rest is the agent's own to
     write.
-- **Calls appear as one-line cards.** They can stay minimal because the complete
-  record is one click away: clicking a card selects that call's row in the list
-  and switches to it. The payload is never unrolled into the flow — that is
-  master/detail smuggled back in at 90°.
-- **A loop is one row** (`callGroups.ts`). Ten cards saying the same method name
-  ten times is the log's job, and the log does it better — so consecutive calls
-  to one method fold into a single row: the name once, `×10`, and the loop key
-  that tells them apart (`groupKeyLabel`, reading `loopKey` — one key they all
-  share is stated once, many are named until they stop fitting). **Consecutive is
-  the whole rule.** Anything the script drew between two calls breaks the group,
-  because the canvas is the run in the order it happened and gathering calls that
-  weren't next to each other would rewrite the story to fit the fold. Two is not
-  worth a fold (`MIN_FOLD`): it saves one line and costs a click. The duration is
-  the group's **wall time**, not the sum of its calls, so a fan-out reports what
-  it actually cost — the same number a run's own duration is.
-  - **The fold is maintained, not derived** (`CallFold`). A call either extends
-    the row it belongs to or starts a new one, which is a fixed amount of work
-    however long the loop turns out to be; a folded row carries its own numbers
-    (`CallStats`, an `ItemStats` plus the loop keys) because a fold is exactly
-    where walking a thousand requests per repaint stops being free.
-    `foldCalls(items)` is that same fold run to the end, for a list that is
-    already complete — one definition of what folds and what a folded row says.
-  - **The ticks are what keep it a canvas rather than a summary.** One per call,
-    drawn against the slowest in the group, so which iteration was slow is a
-    shape here rather than a trip to the list — and each is its own way into that
-    call's record, which is what a bare `×10` would cost. The **strip** has the
-    width budget, not the tick: past a certain density every tick is the minimum
-    width and the strip stops claiming to measure anything, and past `MAX_TICKS`
-    it draws what fits and says how many it left out. A tick too thin to hit is
-    worse than one that admits it has nothing to say. Below the width the strip
-    needs it goes entirely and the row's name is the only way in, which is the
-    same degradation the log's columns make.
-  - **A fold never hides a failure.** The failed call keeps its own tick, in
-    destructive, and the row states the count — it is not split out into its own
-    card, because `×4` / error / `×5` is three rows for one loop and reads worse
-    than the one row that says `1 error`.
-  - **The selection is reflected back.** The tick for the call the log is pointing
-    at is lit, so stepping through the list is visible on the canvas. Without it
-    the arrow between the views only runs one way.
-- **There is no timeline strip above the canvas.** It is the obvious version of
-  the above and it is the double-statement problem again — an index of the same
-  calls sitting over the content. The fold has to *be* how a call renders in the
-  flow, not a summary added over it.
+- **A call is not a block, and the body draws blocks and nothing else.** Cards,
+  folded loop rows and per-call ticks in the flow are all gone: the document is
+  `text`, `code`, `table`, `ask`, `approve` and the run's own logs — the ones
+  Kaja wrote, never a line the script printed — in emission order, separated by
+  16px. The run's calls are stated once, in the strip below —
+  a card in the flow was the log again at 90°, and a fold of them was an index of
+  the same calls sitting over the content. `group.drawn` is that document, kept as
+  the run happens so the canvas never filters an item list to find it.
+- **The run strip is where the calls are** (`runStrip.ts`, `Canvas.RunStrip`). One
+  28px row directly under the console header, on the canvas view only, holding the
+  marks, `N calls`, `N failed`, and the two methods the run called most with their
+  counts. A run that only drew has no calls to state and gets no row.
+  - **The mode is decided by the room, not by a count.** Slots are
+    `floor(availableWidth / 5)` capped at 200, and the strip is dropped entirely
+    under 240px of it. While the calls still fit the slots each one gets its own
+    **tick** — 4px by 9px, hover names the method and duration, click selects it in
+    the log. Past that the same row becomes a **histogram**: one bar per bucket,
+    its height that bucket's slowest call against the run's slowest, red if any of
+    them failed, click selects the bucket's first call. So a 300px panel switches
+    at 60 calls and a wide one at 200, which is the same rule twice — draw one
+    tick per call for exactly as long as a tick can still be a tick.
+  - **The buckets are maintained, not derived** (`RunStrip`). A call updates one
+    bucket on arrival, and when there are more buckets than the strip could ever
+    draw, adjacent pairs are merged and the capacity doubles — O(slots), log(N)
+    times over a run of any length. A call's bucket is `floor(ordinal / capacity)`,
+    so a call settling finds its own bucket without anything searching, and `add`
+    is idempotent because a call arrives issued and again settled. Resizing merges
+    the buckets down on the way out rather than rebuilding them.
+- **A failed call does not interrupt the document if the script reported it.** A
+  table with a result column is a better place for a 409 than a red row above it,
+  so the destructive row is drawn only for failures **nothing was drawn after** —
+  a counter over everything that happens in the run, against where it last drew
+  (`Group.unreported`). A table filling row by row keeps covering its own
+  failures; a run that fails and says nothing collects its failures at the end of
+  the document, one row per method with `Open in log` beside it.
 - **A block that asks is a block that pauses the run.** `kaja.ask*` is drawn
   where it happened and the canvas stops there — the empty space under it *is*
   the pause. Answering appends the next block. A dialogue is not a sixth block
   type; it is what a sequence of asks reads as.
+- **An answered ask is a record and collapses to one row.** Keeping the block's
+  full shape and only changing its colour made a run with ten answered asks ten
+  cards; it is a 34px row instead — a `CircleCheck`, the question dimmed and
+  truncating, the answer as a chip on the right that titles in full on hover. A
+  cancelled one is the same row with a `CircleX` and "Cancelled — the script
+  stopped here". The waiting state is unchanged.
 - **A block that approves is one of those, about a call that hasn't happened.**
   `kaja.approve(Shows.CreateShow({ … }))` draws the call and the request it is
   about to send, and parks the run in front of it: **Approve** sends it and hands
@@ -617,14 +640,25 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   because what makes a call worth approving is what is in it, and a click away is
   too far for the one block you are meant to read before deciding. No button
   takes focus: an ask focuses its input for free, but here Enter would send the
-  request, which is the thing this block exists to prevent.
-- **The third button is "Approve all", and what it covers is in its name.** A
-  loop is read a couple of times and then let go, so **Approve all
-  `Shows.CreateShow`** settles this call and every later one to that method; the
-  ones that ride on it draw no block, since a canvas of decisions nobody made is
-  what pressing it was meant to be rid of — they are already cards on the canvas
-  and rows in the log. It is secondary, because reading the next one is still the
-  expected thing to do.
+  request, which is the thing this block exists to prevent. `⏎` approves **this
+  call only** and `Esc` stops the script; the standing approval always costs a
+  deliberate pointer or arrow gesture.
+- **The payload is clipped to 12 lines, then a fade and a footer** reading
+  `N more lines · Expand`. Expand takes the window — the same Approve / Stop pair
+  is under it there — so a decision is never made from a screen you had to leave
+  to read. The header carries the method and the request's **size**, which is the
+  one fact about a payload that survives collapsing.
+- **Approve is a split button, and the standing approval lives in its menu.** The
+  main half approves this call; the caret opens two items, `This call` and
+  `Every <Method> this run`. The method name is only in the menu, so a long one
+  never reflows the row. A loop is read a couple of times and then let go, and the
+  calls that ride on the standing approval draw no block — a canvas of decisions
+  nobody made is what pressing it was meant to be rid of. **Stop is
+  `variant="secondary"`**, not outline and not destructive: it is a refusal, not a
+  catastrophe, and it must not out-weigh Approve.
+- **A settled approve block is a record, not a control.** It loses its amber and
+  its payload — the request collapses to a size and a `View` that brings it back —
+  and states the decision in one line.
   - **The scope is the method because that is what the button can honestly say.**
     A script that also writes somewhere else asks again for that method, which is
     a click, not a wall. All-methods was the alternative and it cannot be named:

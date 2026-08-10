@@ -45,9 +45,10 @@ follows from that:
 1. **The buffer.** Items are appended and a settling call is the same object
    written again, so nothing is copied per update. What a run says about itself —
    status, failures, slowest, wall time, in-flight — is counted as items arrive
-   (`ItemStats`), and so is the canvas fold (`CallFold`). The pure functions those
-   replaced are kept as the definition they are tested against, so the fast path
-   and the rule cannot become two rules.
+   (`ItemStats`), and so is the canvas's account of the run's calls (`RunStrip`,
+   which replaced the fold `CallFold` maintained the same way). The pure
+   functions `ItemStats` replaced are kept as the definition it is tested
+   against, so the fast path and the rule cannot become two rules.
 2. **Frame coalescing.** Two hundred calls between two paints are one repaint.
    Gestures — a click, a run starting or ending, a question drawn — still notify
    at once.
@@ -86,8 +87,9 @@ the calls themselves.
 
 ## What this deliberately does not do
 
-- **No collapsing or summarising the log.** Its job is to be complete; windowing
-  gives that for free, and a fold there would be the canvas's job done twice.
+- **No collapsing or summarising the calls view.** Its job is to be complete;
+  windowing gives that for free, and summarising there would be the canvas's
+  strip done twice.
 - **No worker.** The work was re-rendering, not JSON. Moving it off-thread would
   have split the state and fixed nothing.
 - **No throttling the calls.** The script decides how many calls it makes.

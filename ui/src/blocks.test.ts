@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { Block, blockLabel, blockText, formatCell, isAwaitingUser } from "./blocks";
+import { Block, blockLabel, formatCell, isAwaitingUser } from "./blocks";
 
 describe("isAwaitingUser", () => {
   it("is true only for a question nobody has answered", () => {
@@ -45,24 +45,6 @@ describe("blockLabel", () => {
     expect(blockLabel(held)).toBe("Approve Shows.CreateShow");
     expect(blockLabel({ ...held, decision: "approved" })).toBe("Shows.CreateShow approved");
     expect(blockLabel({ ...held, decision: "rejected" })).toBe("Shows.CreateShow not approved");
-  });
-});
-
-describe("blockText", () => {
-  // The copy button hands out something pasteable, so a table leaves as its own
-  // rows rather than as a drawing of them.
-  it("copies a table as its columns and rows", () => {
-    const table: Block = { kind: "table", columns: ["id", "status"], rows: [["ac_1", "matched"]] };
-    expect(blockText(table)).toBe("id\tstatus\nac_1\tmatched");
-  });
-
-  it("copies a question with what it was answered", () => {
-    expect(blockText({ kind: "ask", question: "Which ledger?", answerType: "str", answer: "june" })).toBe("Which ledger?\njune");
-  });
-
-  it("copies a held call with the request it was holding", () => {
-    const held: Block = { kind: "approve", method: "Shows.CreateShow", request: '{ "title": "Vera Lune" }', decision: "approved" };
-    expect(blockText(held)).toBe('Shows.CreateShow approved\n{ "title": "Vera Lune" }');
   });
 });
 

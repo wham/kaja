@@ -1,8 +1,8 @@
 import { Block, blockLabel, isAwaitingUser } from "./blocks";
-// Type only: the fold is maintained in callGroups, which reads its items from
-// here. Importing the value would close the circle.
-import type { CanvasEntry } from "./callGroups";
 import { isCallInFlight, MethodCall } from "./kaja";
+// Type only: the strip is maintained in runStrip, which reads its items from
+// here. Importing the value would close the circle.
+import type { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
 /**
@@ -129,8 +129,14 @@ export interface RunGroup {
   // among them — the mix is a view's decision and the floor can change without
   // the run being re-read.
   printed: ConsoleItem[];
-  // The canvas, folded as it was drawn.
-  entries: CanvasEntry[];
+  // The canvas: what the run drew, in emission order. A call is not a block and
+  // is not in here — the strip is where the run's calls are stated.
+  drawn: ConsoleItem[];
+  // The run's calls as one row, bucketed as they arrived.
+  strip: RunStrip;
+  // Calls that failed with nothing drawn after them, which is the only kind of
+  // failure the canvas interrupts itself for.
+  unreported: FailureNotice[];
   // What the run says about itself, counted as its items arrived.
   stats: ItemStats;
   // The question the run is stopped on, if it is stopped on one.
@@ -148,6 +154,54 @@ export interface RunGroup {
   // How many of its calls failed, which is what the header says instead of
   // repeating the duration of each one.
   failures: number;
+}
+
+/**
+ * A failure the script never said anything about. A call that fails inside a
+ * loop which writes its own result column has already been reported in a better
+ * place than a red row above it, so the canvas only interrupts itself for the
+ * ones nothing was drawn after — and states them once per method rather than
+ * once per call.
+ */
+export interface FailureNotice {
+  // The call the row opens in the log — the first of them.
+  itemId: string;
+  method: string;
+  count: number;
+  // What it failed with: the status or code, and whatever the server said.
+  code?: string;
+  message?: string;
+}
+
+// One line for a set of failures that are the same failure. The key is what
+// makes two of them the same, so it is what the row can honestly state.
+export function failureNotices(items: ConsoleItem[]): FailureNotice[] {
+  const notices = new Map<string, FailureNotice>();
+  for (const item of items) {
+    if (!item.call?.error) continue;
+    const method = `${item.call.service.name}.${item.call.method.name}`;
+    const code = failureCode(item.call);
+    const message = failureMessage(item.call);
+    const key = `${method} ${code ?? ""} ${message ?? ""}`;
+    const known = notices.get(key);
+    if (known) known.count++;
+    else notices.set(key, { itemId: item.id, method, count: 1, code, message });
+  }
+  return [...notices.values()];
+}
+
+function failureCode(call: MethodCall): string | undefined {
+  const status = call.error?.status;
+  if (typeof status === "number" && status > 0) return String(status);
+  const code = call.error?.code;
+  return typeof code === "string" && code.length > 0 && code.length <= 24 ? code : undefined;
+}
+
+function failureMessage(call: MethodCall): string | undefined {
+  const message = call.error?.message;
+  if (typeof message !== "string" || message.length === 0) return undefined;
+  const line = message.trim().split("\n")[0] ?? "";
+  return line.length > 120 ? `${line.slice(0, 119)}…` : line;
 }
 
 let sequence = 0;
