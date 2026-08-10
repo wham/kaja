@@ -86,12 +86,18 @@ script is a file someone opens and presses Run on, so everything it has to say
 belongs where they will see it. Never build a table out of Markdown, ASCII or
 `console.table`; `kaja.table` is the table.
 
-`console.log(...)` is not that channel. It is the transcript, which `run_script`
-hands back to you and nobody else reads, so it is **for you while you are
-working** — a count, a filtered id, a shape worth checking before you write the
-real thing. Leave it out of a script you keep. You do not need it to see what a
-call did, either: `run_script` already reports every call's request and
-response.
+`console.log(...)` is not that channel. It is the log, which `run_script` hands
+back to you, so it is **for you while you are working** — a count, a filtered id,
+a shape worth checking before you write the real thing. Leave it out of a script
+you keep. You do not need it to see what a call did, either: `run_script` already
+reports every call's request and response.
+
+Every level works and is recorded as the level it was printed at —
+`console.debug`, `console.log`, `console.info`, `console.warn`, `console.error` —
+and so does every other console method (`table`, `time`, `group`, …), which goes
+to devtools and is not reported back. There is no `kaja.log`: the standard
+console is the logging API. The person whose Kaja this is can mix your lines into
+the run's Calls view, so they are not private — but they are not output either.
 
 ```ts
 import { kaja } from "kaja";

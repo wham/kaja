@@ -43,6 +43,8 @@ import { Editor, registerKajaModule, setValueCompletionApps } from "./Editor";
 import { formatTypeScript } from "./formatter";
 import { monacoTheme, surfaceColor } from "./monacoTheme";
 import { remapEditorCode, remapSourcesToNewName } from "./sources";
+import { logFileLevel } from "./scriptConsole";
+import { logScriptLine } from "./uiLog";
 import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } from "./server/api";
 import { getApiClient } from "./server/connection";
 import {
@@ -447,6 +449,24 @@ export function App() {
     [openRun],
   );
 
+  /**
+   * A line the script printed. It lands in the run it was printed in, so it can
+   * be read against the calls around it, and in kaja.log with its origin
+   * attached — the file is what a TestFlight user can actually send back.
+   *
+   * It is not a verdict: an error-level line says something went wrong in the
+   * script's own reckoning, not that the run failed, so it never colours the
+   * run's dot. Only `onScriptError` below does that.
+   */
+  const onScriptLog = useCallback(
+    (level: LogLevel, message: string) => {
+      logScriptLine(logFileLevel(level), message);
+      const run = openRun("Script output");
+      consoles.recordPrinted(run.fileId, run.id, level, message, Date.now());
+    },
+    [openRun],
+  );
+
   // Show a failed script run in the console; a script that dies silently looks
   // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
   const onScriptError = useCallback(
@@ -540,7 +560,7 @@ export function App() {
 
   const kajaRef = useRef<Kaja>(null);
   if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onApprove, onBlockUpdate);
+    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onApprove, onBlockUpdate, onScriptLog);
   }
 
   /**

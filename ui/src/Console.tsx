@@ -1,5 +1,5 @@
-import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Trash2, UnfoldVertical } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Logs, Trash2, UnfoldVertical } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture, blockText } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
 import { formatClockTime, formatDayLabel, formatElapsed, isSameDay } from "./callTime";
@@ -12,7 +12,7 @@ import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
-import { ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, RunGroup, RunSelection } from "./runs";
+import { callRows, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, printedCounts, RunGroup, RunSelection } from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { TableView } from "./tableView";
 
@@ -120,11 +120,22 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
   }, [fileId, file.version, tailing]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
-  const rows = selectedGroup?.calls ?? [];
+  const logFloor = file.logFloor;
+  // The merge is a walk of two ordered lists, so it is cheap — but it is read on
+  // every repaint of a run that may be thousands long, and both sides only ever
+  // grow at the end. Memoizing on the lengths is what makes a repaint that
+  // changed nothing cost nothing.
+  const rows = useMemo(
+    () => (selectedGroup ? callRows(selectedGroup, logFloor) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedGroup, selectedGroup?.calls.length, selectedGroup?.printed.length, logFloor],
+  );
+  const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
   const selectedItem = selection?.itemId !== undefined ? rows.find((item) => item.id === selection.itemId) : undefined;
   const selectedCall = selectedItem?.call;
   const activeView = file.view ?? defaultView(selectedGroup);
   const waiting = selectedGroup?.awaiting;
+  const onLogFloorChange = useCallback((floor: LogFloor) => consoles.setLogFloor(fileId, floor, Date.now()), [fileId]);
 
   const selectRun = useCallback(
     (group: RunGroup) => {
@@ -171,7 +182,7 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
     (itemId: string) => {
       if (!selectedGroup) return;
       setTailing(false);
-      onViewChange("log");
+      onViewChange("calls");
       onSelect({ runId: selectedGroup.run.id, itemId });
     },
     [selectedGroup, onSelect, onViewChange],
@@ -213,13 +224,16 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
         <div className="h-4 w-px shrink-0 bg-border" />
         <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
+          {/* "Calls" rather than "Log": a row here is a call and only a call,
+              and "log" is what anyone means by what a script printed — which is
+              now a thing this view can mix in. */}
           <SegmentedControl.Button
-            selected={activeView === "log"}
+            selected={activeView === "calls"}
             className="h-[20px] px-2.5 py-0 text-xs"
-            onClick={() => onViewChange("log")}
-            data-testid="console-view-log"
+            onClick={() => onViewChange("calls")}
+            data-testid="console-view-calls"
           >
-            Log
+            Calls
           </SegmentedControl.Button>
           <SegmentedControl.Button
             selected={activeView === "canvas"}
@@ -258,9 +272,14 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
             {position} of {groups.length}
           </span>
         </div>
+        {/* Only there when the run printed something, on the same rule as
+            everything else in this header: a control over nothing is chrome. */}
+        {activeView === "calls" && printed.lines > 0 && (
+          <Console.LogFloorSelect floor={logFloor} lines={printed.lines} errors={printed.errors} onChange={onLogFloorChange} />
+        )}
         {showUtilities && (
           <div className="ml-auto flex shrink-0 items-center gap-2 @max-[430px]:hidden">
-            {activeView === "log" && (
+            {activeView === "calls" && (
               <>
                 <IconButton
                   icon={FoldVertical}
@@ -313,6 +332,8 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
           activeTab={activeTab}
           selectedItem={selectedItem}
           waiting={waiting !== undefined}
+          logFloor={logFloor}
+          printed={printed}
           jsonViewerRef={jsonViewerRef}
           now={now}
           tailing={tailing}
@@ -320,12 +341,80 @@ export function Console({ fileId, onAnswer, onCancelAsk, onDecide, tableViews, o
           onTailingChange={setTailing}
           onSelectRow={selectRow}
           onTabChange={onTabChange}
+          onShowLogs={() => onLogFloorChange("all")}
           onGoToCanvas={() => onViewChange("canvas")}
         />
       ) : null}
     </div>
   );
 }
+
+const FLOOR_LABELS: { floor: LogFloor; label: string; note: string }[] = [
+  { floor: "off", label: "Off", note: "Calls only" },
+  { floor: "error", label: "Errors", note: "console.error" },
+  { floor: "warn", label: "Warnings", note: "console.warn and above" },
+  { floor: "all", label: "All", note: "Everything the script printed" },
+];
+
+/**
+ * How much of what the script printed the calls view mixes in.
+ *
+ * A floor rather than a checkbox per level: the levels are ordered, and
+ * "warnings but not errors" is not a question anyone asks. It is one control
+ * because four switches over a list that is usually empty is more chrome than
+ * the thing it configures.
+ */
+Console.LogFloorSelect = function ({
+  floor,
+  lines,
+  errors,
+  onChange,
+}: {
+  floor: LogFloor;
+  lines: number;
+  errors: number;
+  onChange: (floor: LogFloor) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = floor !== "off";
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid="console-log-floor"
+          aria-label="Include what the script printed"
+          className={cn(
+            "ml-auto flex h-[26px] shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs @max-[430px]:hidden",
+            active ? "border-border bg-muted text-foreground" : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+        >
+          <Logs size={13} />
+          <span className="font-mono tabular-nums">{lines}</span>
+          {errors > 0 && <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-label={`${errors} printed at error level`} />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom" className="w-[240px] p-0">
+        <div className="border-b border-border px-3 py-2 text-xs tracking-[0.06em] text-muted-foreground">SCRIPT LOG</div>
+        {FLOOR_LABELS.map((option) => (
+          <DropdownMenuItem
+            key={option.floor}
+            className={cn("h-9 gap-3 rounded-none px-3", option.floor === floor && "bg-accent")}
+            onSelect={() => {
+              onChange(option.floor);
+              setOpen(false);
+            }}
+          >
+            <span className="w-3 shrink-0">{option.floor === floor && <Check size={13} />}</span>
+            <span className="flex-1 text-xs text-foreground">{option.label}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{option.note}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 interface RunSelectProps {
   groups: RunGroup[];

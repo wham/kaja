@@ -262,12 +262,6 @@ export class WailsTransport implements RpcTransport {
     input: I,
     options: RpcOptions,
   ): { response: Promise<O>; status: Promise<RpcStatus>; trailers: Promise<RpcMetadata> } {
-    console.log(
-      `Wails${this.mode === "target" ? "Target" : ""}Transport calling method:`,
-      this.mode === "target" ? `${method.service.typeName}/${method.name}` : method.name,
-      this.mode === "target" ? `target: ${this.appRef?.target}` : "",
-    );
-
     const resultPromise = this.executeCall(method, input);
     const responsePromise = resultPromise.then((result) => result.output);
     const statusPromise = resultPromise.then(() => ({ code: "OK", detail: "" }));
@@ -282,25 +276,11 @@ export class WailsTransport implements RpcTransport {
 
   private async executeCall<I extends object, O extends object>(method: MethodInfo<I, O>, input: I): Promise<{ output: O; trailers: RpcMetadata }> {
     try {
-      console.log(`Executing Wails ${this.mode} call for method:`, method.name);
-      if (this.mode === "target") {
-        console.log("Target URL:", this.appRef?.target);
-      }
-      console.log("Input object:", input);
-
-      // Serialize input using protobuf-ts
+      // Serialize input using protobuf-ts. An empty result is valid: a method with
+      // no parameters has nothing to encode.
       const inputBytes = method.I.toBinary(input, { writeUnknownFields: false });
-      console.log("Serialized inputBytes length:", inputBytes.length);
-
-      // Empty serialization is valid for methods with no parameters
-      if (inputBytes.length === 0 && this.mode === "api") {
-        console.log("Empty serialization - this is valid for methods with no parameters like GetConfiguration");
-      }
-
       // Convert to array and ensure all values are valid bytes (0-255)
       const inputArray = Array.from(inputBytes);
-      console.log("Input array length:", inputArray.length);
-
       // Validate that all values are proper bytes (only if there are bytes)
       if (inputArray.length > 0) {
         const invalidBytes = inputArray.filter((b) => b < 0 || b > 255 || !Number.isInteger(b));
@@ -313,13 +293,11 @@ export class WailsTransport implements RpcTransport {
       const trailers: RpcMetadata = {};
 
       if (this.mode === "api") {
-        console.log("Calling Wails Twirp with method:", method.name);
         responseBody = await Twirp(method.name, inputArray);
       } else {
         // mode === "target" - read URL and headers dynamically from appRef
         const fullMethodPath = `${method.service.typeName}/${method.name}`;
         const headersJson = JSON.stringify(transportHeaders(this.appRef!.configuration));
-        console.log("Calling Wails Target with method:", fullMethodPath, "protocol:", this.protocol, "headers:", headersJson);
         const result = await Target(this.appRef!.target, fullMethodPath, inputArray, this.protocol, headersJson);
 
         if (result.statusCode >= 400) {
@@ -339,11 +317,8 @@ export class WailsTransport implements RpcTransport {
         responseBody = result.body;
       }
 
-      console.log(`Wails ${this.mode} result:`, responseBody);
-
       // Both API and Target modes use the same response handling (base64 decoding)
       const output = method.O.fromBinary(responseBytes(responseBody));
-      console.log(`Wails ${this.mode} output:`, output);
       return { output, trailers };
     } catch (error) {
       console.error(`Wails ${this.mode} call failed:`, error);

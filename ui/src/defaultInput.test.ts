@@ -143,6 +143,7 @@ test("defaultInput generates a request that serializes", () => {
       async () => "",
       async () => "approved" as const,
       () => {},
+      () => {},
     ),
   );
 

@@ -30,8 +30,13 @@ const header = `// The Kaja runtime, imported as: import { kaja } from "kaja";
 // a top-level \`return\` is an error, so a script never returns anything. What it
 // produces it draws — kaja.text/code/table draw on the run's canvas, which is
 // what the person who ran it reads, and the calls it makes are recorded whether
-// or not it mentions them. console.log writes a transcript beside that, which is
-// somewhere to probe rather than somewhere to put a script's output.`;
+// or not it mentions them.
+//
+// console.log and friends write a log beside that: the console's Calls view can
+// mix those lines in among the calls, which is where a line is worth reading
+// against the call before it. It is somewhere to probe rather than somewhere to
+// put a script's output — the canvas is the output. There is no kaja.log; the
+// standard console is the logging API, at every level.`;
 
 export function kajaModuleDeclaration(variableNames: string[]): string {
   return `${header}

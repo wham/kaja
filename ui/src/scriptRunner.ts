@@ -2,6 +2,8 @@ import ts from "typescript";
 import { ApprovalRejectedError, AskCancelledError, Kaja } from "./kaja";
 import { Client, App, serviceId } from "./apps";
 import { printStatements } from "./appLoader";
+import { scriptConsole } from "./scriptConsole";
+import { deviceConsole } from "./uiLog";
 
 // Scripts are TypeScript but new Function only accepts JavaScript, so transpile
 // first. Parse errors are thrown with line numbers pointing into the user's
@@ -117,9 +119,14 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
 
-    // Wrap the user's code in an async function so async keyword can be used
+    // Wrap the user's code in an async function so async keyword can be used.
+    // `console` is a parameter of that wrapper, which is the whole of how a
+    // script's log lines are told from Kaja's own: inside the body the name
+    // resolves to the run's console, and everywhere else in the app to the real
+    // one — including in app code this script calls into.
     const func = new Function(
       ...Object.keys(args),
+      "console",
       `
       return (async function() {
         ${runCode}
@@ -127,7 +134,7 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
     `,
     );
 
-    result = func(...Object.values(args));
+    result = func(...Object.values(args), scriptConsole(kaja._internal.onLog, deviceConsole));
   } catch (err) {
     clearSignal();
     onError(err);
@@ -157,18 +164,14 @@ export interface CapturedRun {
 // agent can see what a script did.
 export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
   const lines: string[] = [];
-  const record = (level: string, parts: unknown[]) => {
-    lines.push(parts.map(stringifyConsoleArg).join(" "));
-    // Mirror to the real console so it still shows in dev tools.
-    (console as any)[level]?.(...parts);
-  };
-  const captureConsole = {
-    log: (...parts: unknown[]) => record("log", parts),
-    info: (...parts: unknown[]) => record("info", parts),
-    warn: (...parts: unknown[]) => record("warn", parts),
-    error: (...parts: unknown[]) => record("error", parts),
-    debug: (...parts: unknown[]) => record("debug", parts),
-  };
+  // The same console the editor's Run installs, teed into the report. An agent's
+  // snippet runs in the agent's scratch, so its lines belong in that scratch's
+  // console as well as in the answer: a run nobody is watching is still a run
+  // somebody can go and look at.
+  const captureConsole = scriptConsole((level, message) => {
+    lines.push(message);
+    kaja._internal.onLog(level, message);
+  }, deviceConsole);
 
   kaja._internal.approvedMethods.clear();
   kaja._internal.sampledMethods.clear();
@@ -195,14 +198,5 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
       return { console: lines, error: `Script stopped: ${err.message}.` };
     }
     return { console: lines, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-function stringifyConsoleArg(value: unknown): string {
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-  } catch {
-    return String(value);
   }
 }

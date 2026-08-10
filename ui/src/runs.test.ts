@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
 import { Block } from "./blocks";
-import { callStatus, ConsoleItem, ItemStats, itemStatus, slowestOf, worstStatus } from "./runs";
+import { callRows, callStatus, ConsoleItem, ItemStats, itemStatus, printedCounts, printedLevel, RunGroup, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -173,5 +173,98 @@ describe("callStatus", () => {
   it("is streaming until the stream completes", () => {
     expect(callStatus(methodCall({ streamOutputs: [] }))).toBe("streaming");
     expect(callStatus(methodCall({ streamOutputs: [], streamComplete: true, output: {} }))).toBe("success");
+  });
+});
+
+function printed(id: string, at: number, level: LogLevel, message = "hello"): ConsoleItem {
+  return { id, runId: "run-1", timestamp: at, logs: [{ level, message }], printed: true };
+}
+
+// `callRows` reads the run's emission order off `items`, so a fixture states that
+// order and the two sub-lists are derived from it — the same way the store builds
+// them.
+function group(...items: ConsoleItem[]): RunGroup {
+  return { items, calls: items.filter((item) => item.call), printed: items.filter((item) => item.printed) } as RunGroup;
+}
+
+describe("printed items", () => {
+  /**
+   * A script that prints `console.error("retry 2")` in a loop and finishes is not
+   * a failed run. Only a verdict Kaja wrote about the run colours its dot.
+   */
+  it("never colour the run's status, at any level", () => {
+    expect(itemStatus(printed("p1", NOW, LogLevel.LEVEL_ERROR))).toBe("success");
+    expect(worstStatus([call("c1", "run-1"), printed("p1", NOW, LogLevel.LEVEL_ERROR)])).toBe("success");
+  });
+
+  // A script error is a verdict and goes on saying so.
+  it("leave a script error's verdict alone", () => {
+    expect(itemStatus(logs("l1", "run-1", LogLevel.LEVEL_ERROR))).toBe("error");
+  });
+
+  it("report the worst level they hold", () => {
+    expect(printedLevel(printed("p1", NOW, LogLevel.LEVEL_WARN))).toBe(LogLevel.LEVEL_WARN);
+    expect(printedLevel({ id: "p2", runId: "run-1", timestamp: NOW, printed: true, logs: [] })).toBe(LogLevel.LEVEL_DEBUG);
+  });
+});
+
+describe("callRows", () => {
+  const run = () =>
+    group(
+      printed("p1", NOW + 10, LogLevel.LEVEL_INFO),
+      call("c1", "run-1", { timestamp: NOW + 10 }),
+      printed("p2", NOW + 20, LogLevel.LEVEL_ERROR),
+      call("c2", "run-1", { timestamp: NOW + 20 }),
+    );
+
+  it("is calls and only calls with the floor off", () => {
+    expect(callRows(run(), "off")).toEqual(run().calls);
+  });
+
+  /**
+   * Every timestamp here is shared with the call beside it, which is what a log
+   * line printed immediately before a call actually looks like. Emission order is
+   * the answer; a timestamp tie-break would decide it by accident.
+   */
+  it("keeps the order things happened in, ties and all", () => {
+    expect(callRows(run(), "all").map((item) => item.id)).toEqual(["p1", "c1", "p2", "c2"]);
+  });
+
+  it("admits a level and everything above it", () => {
+    expect(callRows(run(), "error").map((item) => item.id)).toEqual(["c1", "p2", "c2"]);
+    expect(callRows(run(), "warn").map((item) => item.id)).toEqual(["c1", "p2", "c2"]);
+  });
+
+  it("returns the calls themselves when nothing is admitted, so the memo holds", () => {
+    const only = group(call("c1", "run-1"), printed("p1", NOW + 20, LogLevel.LEVEL_INFO));
+    expect(callRows(only, "error")).toBe(only.calls);
+  });
+
+  /**
+   * A line printed while a call is in flight sits after that call's row, not
+   * after its response: a call's row goes in when it was issued, which is what
+   * the log has always meant by order.
+   */
+  it("places a line printed during a call after that call", () => {
+    const during = group(call("c1", "run-1", { timestamp: NOW, durationMs: 500 }), printed("p1", NOW + 100, LogLevel.LEVEL_INFO));
+    expect(callRows(during, "all").map((item) => item.id)).toEqual(["c1", "p1"]);
+  });
+
+  // Blocks belong to the canvas and are never rows here.
+  it("leaves out what the run drew", () => {
+    const drew = group(call("c1", "run-1"), block("b1", "run-1", { kind: "text", text: "hello" }), printed("p1", NOW, LogLevel.LEVEL_INFO));
+    expect(callRows(drew, "all").map((item) => item.id)).toEqual(["c1", "p1"]);
+  });
+
+  it("keeps every line when there are no calls at all", () => {
+    const only = group(printed("p1", NOW, LogLevel.LEVEL_INFO), printed("p2", NOW, LogLevel.LEVEL_ERROR));
+    expect(callRows(only, "all").map((item) => item.id)).toEqual(["p1", "p2"]);
+  });
+});
+
+describe("printedCounts", () => {
+  it("counts the lines and the errors among them", () => {
+    const only = group(printed("p1", NOW, LogLevel.LEVEL_INFO), printed("p2", NOW, LogLevel.LEVEL_ERROR), printed("p3", NOW, LogLevel.LEVEL_ERROR));
+    expect(printedCounts(only)).toEqual({ lines: 3, errors: 2 });
   });
 });

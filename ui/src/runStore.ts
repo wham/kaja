@@ -47,6 +47,7 @@ interface StoredItem {
   timestamp: number;
   call?: StoredCall;
   logs?: Log[];
+  printed?: boolean;
   block?: Block;
 }
 
@@ -145,7 +146,14 @@ export function serializeFile(runs: Run[], items: ConsoleItem[], now: number): S
 }
 
 function toStoredItem(item: ConsoleItem): StoredItem {
-  return { id: item.id, timestamp: item.timestamp, call: item.call ? toStoredCall(item.call) : undefined, logs: item.logs, block: storedBlock(item.block) };
+  return {
+    id: item.id,
+    timestamp: item.timestamp,
+    call: item.call ? toStoredCall(item.call) : undefined,
+    logs: item.logs,
+    printed: item.printed,
+    block: storedBlock(item.block),
+  };
 }
 
 // A question that was never answered is stored as one that was abandoned: the
@@ -186,6 +194,7 @@ export function deserializeFile(stored: StoredFile): LoadedRuns {
         timestamp: item.timestamp,
         call: item.call ? fromStoredCall(item.call) : undefined,
         logs: item.logs,
+        printed: item.printed,
         block: item.block,
       });
     }

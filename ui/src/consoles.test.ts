@@ -391,10 +391,10 @@ describe("selection, tab and view", () => {
 
   it("sticks to the file across later runs", () => {
     start("a.ts", "run-1");
-    store.setView("a.ts", "log", NOW);
+    store.setView("a.ts", "calls", NOW);
     start("a.ts", "run-2");
 
-    expect(store.file("a.ts").view).toBe("log");
+    expect(store.file("a.ts").view).toBe("calls");
   });
 });
 
@@ -473,11 +473,11 @@ describe("the view a run opens in", () => {
     store.recordCall("a.ts", created.id, call("GetShow"), NOW);
     paint();
 
-    expect(defaultView(store.file("a.ts").groups[0])).toBe("log");
+    expect(defaultView(store.file("a.ts").groups[0])).toBe("calls");
   });
 
   it("opens on the log when there is no run at all", () => {
-    expect(defaultView(undefined)).toBe("log");
+    expect(defaultView(undefined)).toBe("calls");
   });
 });
 
@@ -552,5 +552,65 @@ describe("findBlock", () => {
     expect(store.findBlock("table-1")?.run.id).toBe(created.id);
     expect(store.findBlock("table-1")?.fileId).toBe("a.ts");
     expect(store.findBlock("nothing")).toBeUndefined();
+  });
+});
+
+describe("what a script printed", () => {
+  it("is kept beside the calls rather than among them", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 shows", NOW + 1);
+    paint();
+
+    const group = store.file("a.ts").groups[0];
+    expect(group.calls).toHaveLength(1);
+    expect(group.printed).toHaveLength(1);
+    // Both are still items, which is what puts them in one order.
+    expect(group.items).toHaveLength(2);
+  });
+
+  /**
+   * A script whose only output is `console.log` would otherwise open on a canvas
+   * with nothing on it. Printing is not drawing.
+   */
+  it("does not count as something drawn", () => {
+    const created = start("a.ts");
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "42 shows", NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].drew).toBe(false);
+    expect(defaultView(store.file("a.ts").groups[0])).toBe("calls");
+  });
+
+  it("does not fail a run, even at error level", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("GetShow"), NOW);
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_ERROR, "gave up on page 3", NOW + 1);
+    paint();
+
+    expect(store.file("a.ts").groups[0].status).toBe("success");
+    expect(store.file("a.ts").groups[0].failures).toBe(0);
+  });
+
+  // A script error is a verdict Kaja wrote, and goes on being one.
+  it("leaves a script error failing the run", () => {
+    const created = start("a.ts");
+    store.recordLogs("a.ts", created.id, [{ level: LogLevel.LEVEL_ERROR, message: "boom" }], NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].status).toBe("error");
+  });
+});
+
+describe("the log floor", () => {
+  it("is off until it is asked for, and then sticks to the file", () => {
+    start("a.ts");
+    expect(store.file("a.ts").logFloor).toBe("off");
+
+    store.setLogFloor("a.ts", "all", NOW);
+    expect(store.file("a.ts").logFloor).toBe("all");
+    // Another file is another decision.
+    start("b.ts");
+    expect(store.file("b.ts").logFloor).toBe("off");
   });
 });

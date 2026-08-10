@@ -2,12 +2,14 @@ import { describe, it, expect } from "bun:test";
 import { AskBlock } from "./blocks";
 import { Kaja } from "./kaja";
 import { runScriptCaptured } from "./scriptRunner";
+import { LogLevel } from "./server/api";
 
 function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
   return new Kaja(
     () => {},
     async (question) => answer(question),
     async () => "approved" as const,
+    () => {},
     () => {},
   );
 }
@@ -239,5 +241,66 @@ describe("kaja.value", () => {
         },
       },
     });
+  });
+});
+
+describe("the console a script sees", () => {
+  function withSink(): { kaja: Kaja; lines: { level: LogLevel; message: string }[] } {
+    const lines: { level: LogLevel; message: string }[] = [];
+    const kaja = new Kaja(
+      () => {},
+      async () => "",
+      async () => "approved" as const,
+      () => {},
+      (level, message) => void lines.push({ level, message }),
+    );
+    return { kaja, lines };
+  }
+
+  it("reports what the script printed, at the level it printed it", async () => {
+    const { kaja, lines } = withSink();
+
+    const run = await runScriptCaptured(`console.log("42 shows");\nconsole.error("gave up");`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(lines).toEqual([
+      { level: LogLevel.LEVEL_INFO, message: "42 shows" },
+      { level: LogLevel.LEVEL_ERROR, message: "gave up" },
+    ]);
+    // The agent's report gets the same lines, since a snippet is answered as well
+    // as recorded.
+    expect(run.console).toEqual(["42 shows", "gave up"]);
+  });
+
+  it("hands the script every console method, not only the five levels", async () => {
+    const { kaja } = withSink();
+
+    const run = await runScriptCaptured(`console.table([{ id: 1 }]);\nreturn typeof console.table;`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(run.result).toBe("function");
+  });
+
+  /**
+   * The shadow is lexical, so a closure the script defines keeps it however late
+   * it fires — which is what makes a line printed from a callback land in the run
+   * that started it.
+   */
+  it("is kept by callbacks the script defines", async () => {
+    const { kaja, lines } = withSink();
+
+    const run = await runScriptCaptured(`await new Promise((done) => setTimeout(() => { console.log("later"); done(undefined); }, 0));`, kaja, []);
+
+    expect(run.error).toBeUndefined();
+    expect(lines).toEqual([{ level: LogLevel.LEVEL_INFO, message: "later" }]);
+  });
+
+  it("does not capture logging from outside the script", async () => {
+    const { kaja, lines } = withSink();
+
+    console.log("this is Kaja debugging itself");
+    await runScriptCaptured(`console.log("this is the script");`, kaja, []);
+
+    expect(lines).toEqual([{ level: LogLevel.LEVEL_INFO, message: "this is the script" }]);
   });
 });
