@@ -1,8 +1,21 @@
 import { Block, isAwaitingUser } from "./blocks";
-import { CallFold } from "./callGroups";
 import { MethodCall } from "./kaja";
 import { loopKey } from "./loopKey";
-import { ConsoleItem, ConsoleTab, ConsoleView, ItemStats, LogFloor, newItemId, Run, RunGroup, RunSelection, RunStatus } from "./runs";
+import {
+  ConsoleItem,
+  ConsoleTab,
+  ConsoleView,
+  FailureNotice,
+  failureNotices,
+  ItemStats,
+  LogFloor,
+  newItemId,
+  Run,
+  RunGroup,
+  RunSelection,
+  RunStatus,
+} from "./runs";
+import { RunStrip } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
 /**
@@ -44,19 +57,35 @@ class Group implements RunGroup {
   readonly items: ConsoleItem[] = [];
   readonly calls: ConsoleItem[] = [];
   readonly printed: ConsoleItem[] = [];
+  // What the canvas draws, in emission order. A call is not one of these, and
+  // neither is a line the script printed.
+  readonly drawn: ConsoleItem[] = [];
   readonly stats = new ItemStats();
-  readonly fold = new CallFold();
+  readonly strip = new RunStrip();
   drew = false;
   dropped = 0;
   // Blocks that were at some point waiting on the user. There are a handful of
   // these in a run at most, so the one it is parked on is found rather than
   // tracked.
   readonly #asked: ConsoleItem[] = [];
+  /**
+   * A counter over everything that happens in the run, which is the whole of how
+   * "was this failure reported" is answered: a failed call remembers where it
+   * settled, the run remembers where it last drew, and a failure that came after
+   * the last thing drawn is one nothing has spoken for.
+   */
+  #seq = 0;
+  #drawnAt = 0;
+  readonly #failed = new Map<string, { item: ConsoleItem; seq: number }>();
 
   constructor(public run: Run) {}
 
-  get entries() {
-    return this.fold.entries;
+  // Failures nothing was drawn after. A script that reports its own — a table
+  // with a result column — keeps drawing past them, and the canvas stays quiet.
+  get unreported(): FailureNotice[] {
+    if (this.#failed.size === 0) return [];
+    const late = [...this.#failed.values()].filter((failure) => failure.seq > this.#drawnAt);
+    return late.length === 0 ? [] : failureNotices(late.map((failure) => failure.item));
   }
 
   get status(): RunStatus {
@@ -88,10 +117,14 @@ class Group implements RunGroup {
     // What the script drew, which is what decides the view a run opens in. A line
     // it printed is not drawing: a script whose only output is `console.log`
     // opening on its canvas would open on a canvas with nothing on it.
-    if (item.block !== undefined || (item.logs !== undefined && !item.printed)) this.drew = true;
+    if (item.block !== undefined || (item.logs !== undefined && !item.printed)) {
+      this.drawn.push(item);
+      this.drew = true;
+    }
     if (item.block !== undefined && isAwaitingUser(item.block)) this.#asked.push(item);
     this.stats.add(item);
-    this.fold.push(item);
+    this.strip.add(item);
+    this.#mark(item);
     return true;
   }
 
@@ -101,7 +134,19 @@ class Group implements RunGroup {
   patched(item: ConsoleItem): void {
     if (item.block !== undefined && isAwaitingUser(item.block) && !this.#asked.includes(item)) this.#asked.push(item);
     this.stats.add(item);
-    this.fold.patched(item);
+    this.strip.add(item);
+    this.#mark(item);
+  }
+
+  // Where in the run this happened, and what it was: a run's own drawing, or a
+  // call that failed. Both arrive more than once, and both only ever move the
+  // mark forward.
+  #mark(item: ConsoleItem): void {
+    this.#seq++;
+    // Printing is not drawing, here as everywhere else: a loop that logs each
+    // iteration would otherwise speak for every failure it logged past.
+    if (item.block !== undefined || (item.logs !== undefined && !item.printed)) this.#drawnAt = this.#seq;
+    else if (item.call?.error !== undefined) this.#failed.set(item.id, { item, seq: this.#seq });
   }
 }
 

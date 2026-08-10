@@ -2386,6 +2386,7 @@ export function App() {
                     >
                       <Console
                         fileId={currentFileId}
+                        reserveTrafficLights={isDesktopMac}
                         onAnswer={onAnswerAsk}
                         onCancelAsk={onCancelAsk}
                         onDecide={onDecideApproval}

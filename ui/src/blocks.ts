@@ -147,23 +147,6 @@ export function blockLabel(block: Block): string {
   }
 }
 
-// The canvas as text, for the copy button. A table goes out as its columns and
-// rows rather than as a drawing of one, so it can be pasted somewhere useful.
-export function blockText(block: Block): string {
-  switch (block.kind) {
-    case "text":
-      return block.text;
-    case "code":
-      return block.code;
-    case "table":
-      return [block.columns, ...block.rows].map((cells) => cells.join("\t")).join("\n");
-    case "ask":
-      return block.cancelled ? `${block.question}\n(cancelled)` : `${block.question}\n${block.answer ?? ""}`;
-    case "approve":
-      return `${blockLabel(block)}\n${block.request}`;
-  }
-}
-
 // Cells arrive from a script, so they are whatever the script had — a number, a
 // date, an object it never meant to print. Everything lands as text, because a
 // table column that is sometimes a value and sometimes "[object Object]" is

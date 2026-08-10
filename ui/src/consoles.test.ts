@@ -164,14 +164,81 @@ describe("a run of a thousand calls", () => {
     expect(notified).toBe(1);
   });
 
-  it("folds into one row on the canvas", () => {
+  it("keeps calls off the canvas and states them on the strip", () => {
     const created = start("a.ts");
     for (let i = 0; i < 200; i++) store.recordCall("a.ts", created.id, call("GetShow", { input: { id: `show-${i}` } }), NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { kind: "text", text: "done" }, NOW);
     paint();
 
-    const entries = store.file("a.ts").groups[0].entries;
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe("calls");
+    const group = store.file("a.ts").groups[0];
+    expect(group.drawn).toHaveLength(1);
+    expect(group.strip.calls).toBe(200);
+    expect(group.strip.methodLabel).toBe("Shows.GetShow ×200");
+  });
+});
+
+describe("what a script printed", () => {
+  // The canvas is what the run drew, and printing is not drawing.
+  it("never reaches the canvas", () => {
+    const created = start("a.ts");
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "tick", NOW);
+    paint();
+
+    const group = store.file("a.ts").groups[0];
+    expect(group.drawn).toHaveLength(0);
+    expect(group.drew).toBe(false);
+  });
+
+  // A loop that logs each iteration would otherwise speak for every failure it
+  // logged past.
+  it("does not report a failure on the script's behalf", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordPrinted("a.ts", created.id, LogLevel.LEVEL_INFO, "tick", NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].unreported).toHaveLength(1);
+  });
+});
+
+describe("failures the run said nothing about", () => {
+  it("names a failed call nothing was drawn after", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND", message: "no such show" } }), NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].unreported).toEqual([
+      { itemId: expect.any(String), method: "Shows.GetShow", count: 1, code: "NOT_FOUND", message: "no such show" },
+    ]);
+  });
+
+  it("stays quiet about one the script drew past", () => {
+    const created = start("a.ts");
+    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { kind: "table", columns: ["id", "result"], rows: [["show-1", "404"]] }, NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].unreported).toHaveLength(0);
+  });
+
+  it("stays quiet about one a table drew past long after it was emitted", () => {
+    const created = start("a.ts");
+    const table: Block = { kind: "table", columns: ["id", "result"], rows: [] };
+    store.recordBlock("a.ts", created.id, "block-1", table, NOW);
+    store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    store.recordBlock("a.ts", created.id, "block-1", { ...table, rows: [["show-1", "404"]] }, NOW);
+    paint();
+
+    expect(store.file("a.ts").groups[0].unreported).toHaveLength(0);
+  });
+
+  it("says one row for a method that failed the same way ten times", () => {
+    const created = start("a.ts");
+    for (let i = 0; i < 10; i++) store.recordCall("a.ts", created.id, call("GetShow", { error: { code: "NOT_FOUND" } }), NOW);
+    paint();
+
+    const [notice] = store.file("a.ts").groups[0].unreported;
+    expect(notice.count).toBe(10);
   });
 });
 

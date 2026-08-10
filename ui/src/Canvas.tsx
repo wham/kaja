@@ -1,43 +1,51 @@
-import { ChevronLeft, ChevronRight, Search, ShieldQuestionMark } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Search, ShieldQuestionMark } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
-import { CallStats, CanvasEntry } from "./callGroups";
+import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
 import { Button } from "./components/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
-import { MethodCall } from "./kaja";
 import { hasControls, NO_TABLE_VIEW, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
-import { loopKey } from "./loopKey";
-import { barFraction, callErrorCode, dotClass, formatDuration } from "./callFormat";
-import { ConsoleItem, itemStatus, RunGroup } from "./runs";
+import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
+import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
 
-// The strip of ticks a folded group draws, and the shape of one tick. The whole
-// strip is budgeted rather than each tick, so ten calls read as a duration
-// profile and thirty read as a count — a tick too thin to hit is worse than one
-// that admits it has nothing left to say.
-const STRIP_WIDTH = 240;
-const TICK_GAP = 2;
-const TICK_MIN_WIDTH = 5;
-const TICK_MAX_WIDTH = 26;
-// Past this the ticks are drawn for the first calls only and the row says how
-// many it left out, on the same rule as the log's tail bar.
-const MAX_TICKS = 32;
+/**
+ * What the counts and the label at the end of the strip need before the marks
+ * get any room. The strip is what is left of the row after them, which is what
+ * "available width" means: the same run draws ticks in a wide panel and buckets
+ * in a narrow one.
+ */
+const STRIP_RESERVE = 160;
+
+// How much of a held request is shown before the block starts claiming room the
+// document needs for everything after it. Past this it fades out and says how
+// much it kept back — a decision is never made from a payload you had to leave
+// the screen to read, so Expand is beside the number.
+const APPROVE_CLIP_LINES = 12;
 
 interface CanvasProps {
   group: RunGroup;
-  // Which call the log is pointing at, so stepping through it is visible here
-  // too. The canvas → list arrow is one click; this is the way back.
-  selectedItemId?: string;
+  // Whether this is the full-screen canvas rather than the console's third of
+  // the window. It is a size and not a mode: everything below reads it only to
+  // decide how much air a block is given.
+  fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   // One prop for every button of an approve block, because there is one decision
   // to make and the block records it under this name.
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
-  // Clicking a call card takes you to that call's row in the log, which is where
-  // its complete record is. The card can stay minimal because of it.
+  // Where a failure the script never mentioned leads: its row in the log, which
+  // is where the complete record of every call is.
   onSelectCall: (itemId: string) => void;
+  // Expanding a held request takes the window, so a decision is never made from
+  // a payload you had to leave the screen to read.
+  onFullScreen?: () => void;
+  // Kept across entering and leaving full-screen, so the way back lands where
+  // you left rather than at the top of the document.
+  scrollRef?: React.MutableRefObject<number>;
   // Where each table is pointed. It is view state rather than something the run
   // drew, so it is held above the canvas and survives switching views.
   tableViews: { [blockId: string]: TableView };
@@ -46,16 +54,41 @@ interface CanvasProps {
 }
 
 /**
- * What the run drew, in emission order. Calls appear as one-line cards where the
- * story needs them — they can stay minimal because the complete record is one
- * click away in the list — and a run of consecutive calls to one method folds
- * into a single row, which is the whole reason the canvas is not the log.
+ * What the run drew, in emission order, and nothing else. A call is not a block
+ * and is not drawn as one — the strip above states every call the run made, so
+ * the document is the text, the tables and the questions, with the air between
+ * them that the call rows used to take.
  */
-export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onDecide, onSelectCall, tableViews, onTableView, onTablePull }: CanvasProps) {
-  // The fold is not derived here: it is maintained as the run happens, so a loop
-  // of a thousand costs one row's worth of work per call instead of a walk of
-  // every call per repaint.
-  const entries = group.entries;
+export function Canvas({
+  group,
+  fullScreen,
+  onAnswer,
+  onCancelAsk,
+  onDecide,
+  onSelectCall,
+  onFullScreen,
+  scrollRef,
+  tableViews,
+  onTableView,
+  onTablePull,
+}: CanvasProps) {
+  const drawn = group.drawn;
+  const unreported = group.unreported;
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Entering and leaving full-screen is the same document in another container,
+  // so the offset is carried rather than the element.
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element || !scrollRef) return;
+    element.scrollTop = scrollRef.current;
+    const remember = () => void (scrollRef.current = element.scrollTop);
+    element.addEventListener("scroll", remember, { passive: true });
+    return () => {
+      remember();
+      element.removeEventListener("scroll", remember);
+    };
+  }, [scrollRef, fullScreen]);
 
   if (group.run.payloadsExpired) {
     return <Canvas.Notice>Canvas no longer kept — run to see it live</Canvas.Notice>;
@@ -63,30 +96,126 @@ export function Canvas({ group, selectedItemId, onAnswer, onCancelAsk, onDecide,
   if (group.items.length === 0) {
     return <Canvas.Notice>{group.inFlight ? "Waiting for the first call…" : "This run drew nothing."}</Canvas.Notice>;
   }
+  if (drawn.length === 0 && unreported.length === 0) {
+    return <Canvas.Notice>{group.inFlight ? "Nothing drawn yet…" : "This run drew nothing."}</Canvas.Notice>;
+  }
 
   return (
-    <div className={cn("@container flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 font-mono text-xs", group.run.stale && "opacity-70")}>
-      {entries.map((entry) => (
+    <div
+      ref={scroller}
+      data-testid="canvas"
+      className={cn(
+        "@container flex min-h-0 flex-1 flex-col gap-4 overflow-auto font-mono text-xs",
+        fullScreen ? "px-8 py-6" : "p-3",
+        group.run.stale && "opacity-70",
+      )}
+    >
+      {drawn.map((item) => (
         // Blocks keep their full height and the canvas scrolls. Without this a
         // long table is squeezed to a couple of rows to make the run fit — the
         // rows are still there, which is what makes it look like a rendering
         // bug rather than a layout one.
-        <div key={entry.id} className="shrink-0">
+        <div key={item.id} className="shrink-0">
           <Canvas.Entry
-            entry={entry}
-            selectedItemId={selectedItemId}
+            item={item}
+            fullScreen={fullScreen}
             onAnswer={onAnswer}
             onCancelAsk={onCancelAsk}
             onDecide={onDecide}
-            onSelectCall={onSelectCall}
+            onFullScreen={onFullScreen}
             tableViews={tableViews}
             onTableView={onTableView}
             onTablePull={onTablePull}
           />
         </div>
       ))}
+      {unreported.map((failure) => (
+        <div key={failure.itemId} className="shrink-0">
+          <Canvas.Failure failure={failure} onOpen={() => onSelectCall(failure.itemId)} />
+        </div>
+      ))}
     </div>
   );
+}
+
+interface RunStripProps {
+  group: RunGroup;
+  onSelectCall: (itemId: string) => void;
+}
+
+/**
+ * The run's calls, as one 28px row under the console header — the only place the
+ * canvas states them now that a call is not a block.
+ *
+ * The mode is decided by the room, not by a count: one mark per call for exactly
+ * as long as a mark can still be a call, and buckets past that. So the same run
+ * is a list of ticks in a wide panel and a profile in a narrow one, and neither
+ * is claiming to draw something it isn't.
+ */
+Canvas.RunStrip = function ({ group, onSelectCall }: RunStripProps) {
+  const row = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = row.current;
+    if (!element) return;
+    const measure = () => setWidth(element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const slots = slotsFor(width - STRIP_RESERVE);
+  const view = group.strip.view(slots);
+  const slowest = group.stats.slowest;
+  const calls = group.strip.calls;
+  const failures = group.strip.failures;
+  const label = group.strip.methodLabel;
+
+  return (
+    <div ref={row} data-testid="run-strip" className="@container flex h-[28px] shrink-0 items-center gap-2 border-b border-border px-3 font-mono text-xs">
+      {view.slots.length > 0 && (
+        <span
+          className={cn("flex min-w-0 shrink overflow-hidden", view.mode === "bars" && "items-end")}
+          style={{ gap: SLOT_WIDTH - TICK_WIDTH, height: BAR_MAX_HEIGHT }}
+        >
+          {view.slots.map((slot) => (
+            <button
+              key={slot.itemId}
+              type="button"
+              data-testid="run-strip-slot"
+              className={cn(
+                "block shrink-0 rounded-sm hover:bg-foreground/60",
+                slot.failures > 0 ? "bg-destructive/70" : slot.calls === 0 ? "bg-muted-foreground/30" : "bg-muted-foreground/60",
+              )}
+              style={{ width: TICK_WIDTH, height: view.mode === "ticks" ? TICK_HEIGHT : barHeight(slot.slowest, slowest) }}
+              title={slotTitle(slot)}
+              aria-label={slotTitle(slot)}
+              onClick={() => onSelectCall(slot.itemId)}
+            />
+          ))}
+        </span>
+      )}
+      <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+        {calls.toLocaleString()} {calls === 1 ? "call" : "calls"}
+      </span>
+      {failures > 0 && <span className="shrink-0 whitespace-nowrap text-destructive">{failures.toLocaleString()} failed</span>}
+      {label && <span className="ml-auto min-w-0 truncate text-muted-foreground @max-[420px]:hidden">{label}</span>}
+    </div>
+  );
+};
+
+// What a mark says it is. One call names itself; a bucket says how many it holds
+// and how slow the slowest of them was, which is the whole reason it has a
+// height.
+function slotTitle(slot: StripSlot): string {
+  const duration = formatDuration(slot.slowest > 0 ? slot.slowest : undefined);
+  if (slot.method !== undefined) return [slot.method, duration].filter(Boolean).join(" · ");
+  const parts = [`${slot.calls.toLocaleString()} calls`];
+  if (duration) parts.push(`slowest ${duration}`);
+  if (slot.failures > 0) parts.push(`${slot.failures} failed`);
+  return parts.join(" · ");
 }
 
 Canvas.Notice = function ({ children }: { children: React.ReactNode }) {
@@ -94,35 +223,29 @@ Canvas.Notice = function ({ children }: { children: React.ReactNode }) {
 };
 
 interface EntryProps {
-  entry: CanvasEntry;
-  selectedItemId?: string;
+  item: ConsoleItem;
+  fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
-  // One prop for every button of an approve block, because there is one decision
-  // to make and the block records it under this name.
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
-  onSelectCall: (itemId: string) => void;
+  onFullScreen?: () => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
 }
 
-Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onDecide, onSelectCall, tableViews, onTableView, onTablePull }: EntryProps) {
-  if (entry.kind === "calls") {
-    return <Canvas.CallGroup name={entry.name} items={entry.items} stats={entry.stats} selectedItemId={selectedItemId} onSelectCall={onSelectCall} />;
-  }
-
-  const item = entry.item;
-  if (item.call) return <Canvas.CallCard call={item.call} selected={item.id === selectedItemId} onSelect={() => onSelectCall(item.id)} />;
+Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull }: EntryProps) {
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
   return (
     <Canvas.Block
       id={item.id}
       block={item.block}
+      fullScreen={fullScreen}
       onAnswer={onAnswer}
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
+      onFullScreen={onFullScreen}
       tableViews={tableViews}
       onTableView={onTableView}
       onTablePull={onTablePull}
@@ -133,20 +256,22 @@ Canvas.Entry = function ({ entry, selectedItemId, onAnswer, onCancelAsk, onDecid
 interface BlockProps {
   id: string;
   block: Block;
+  fullScreen?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
   // One prop for every button of an approve block, because there is one decision
   // to make and the block records it under this name.
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
+  onFullScreen?: () => void;
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
 }
 
-Canvas.Block = function ({ id, block, onAnswer, onCancelAsk, onDecide, tableViews, onTableView, onTablePull }: BlockProps) {
+Canvas.Block = function ({ id, block, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull }: BlockProps) {
   switch (block.kind) {
     case "text":
-      return <Canvas.Text block={block} />;
+      return <Canvas.Text block={block} fullScreen={fullScreen} />;
     case "code":
       return <Canvas.Code block={block} />;
     case "table":
@@ -154,12 +279,18 @@ Canvas.Block = function ({ id, block, onAnswer, onCancelAsk, onDecide, tableView
     case "ask":
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
     case "approve":
-      return <Canvas.Approve id={id} block={block} onDecide={onDecide} />;
+      return <Canvas.Approve id={id} block={block} fullScreen={fullScreen} onDecide={onDecide} onFullScreen={onFullScreen} />;
   }
 };
 
-Canvas.Text = function ({ block }: { block: TextBlock }) {
-  return <div className="whitespace-pre-wrap break-words leading-relaxed text-foreground">{block.text}</div>;
+// Prose is measured rather than left to the container: a table wants the whole
+// width and a paragraph wants a line you can come back from.
+Canvas.Text = function ({ block, fullScreen }: { block: TextBlock; fullScreen?: boolean }) {
+  return (
+    <div className="whitespace-pre-wrap break-words leading-relaxed text-foreground" style={{ maxWidth: fullScreen ? "72ch" : "60ch" }}>
+      {block.text}
+    </div>
+  );
 };
 
 Canvas.Code = function ({ block }: { block: CodeBlock }) {
@@ -320,18 +451,19 @@ interface AskProps {
  * list rather than a field, because an answer that can only be one of five
  * things should not be typeable as a sixth; anything else is a field that
  * refuses to submit until the answer is the kind of thing that was asked for.
+ *
+ * An answered one is a record and collapses to one row: ten answered asks were
+ * ten cards saying nothing the row doesn't.
  */
 Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
   const waiting = block.answer === undefined && !block.cancelled;
 
+  if (!waiting) return <Canvas.AskSettled block={block} />;
+
   return (
-    <div className={cn("flex flex-col gap-2 rounded-r-md border-l-2 py-2.5 pl-3 pr-3", waiting ? "border-amber-500 bg-amber-500/10" : "border-border bg-card")}>
-      <div className={cn("whitespace-pre-wrap break-words", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>{block.question}</div>
-      {!waiting ? (
-        <div className={cn("break-words", block.cancelled ? "italic text-muted-foreground" : "text-foreground")}>
-          {block.cancelled ? "Cancelled" : block.answer}
-        </div>
-      ) : block.answerType === "select" ? (
+    <div className="flex flex-col gap-2 rounded-r-md border-l-2 border-amber-500 bg-amber-500/10 py-2.5 pl-3 pr-3">
+      <div className="whitespace-pre-wrap break-words text-amber-600 dark:text-amber-400">{block.question}</div>
+      {block.answerType === "select" ? (
         <Canvas.AskChoices choices={block.choices ?? []} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
       ) : (
         <Canvas.AskField answerType={block.answerType} onAnswer={(answer) => onAnswer(id, answer)} onCancel={() => onCancelAsk(id)} />
@@ -340,10 +472,36 @@ Canvas.Ask = function ({ id, block, onAnswer, onCancelAsk }: AskProps) {
   );
 };
 
+// The question dimmed and truncating, the answer as a chip beside it. A long
+// answer truncates in the chip and titles in full.
+Canvas.AskSettled = function ({ block }: { block: AskBlock }) {
+  return (
+    <div data-testid="canvas-ask-settled" className="flex h-[34px] items-center gap-3 rounded-md border border-border bg-card px-3">
+      {block.cancelled ? (
+        <CircleX size={12} className="shrink-0 text-muted-foreground" />
+      ) : (
+        <CircleCheck size={12} className="shrink-0 text-muted-foreground" />
+      )}
+      <span className="min-w-0 truncate text-muted-foreground" title={block.question}>
+        {block.question}
+      </span>
+      {block.cancelled ? (
+        <span className="ml-auto shrink-0 italic text-muted-foreground">Cancelled — the script stopped here</span>
+      ) : (
+        <span className="ml-auto min-w-0 max-w-[50%] truncate rounded bg-muted px-2 py-0.5 text-foreground" title={block.answer}>
+          {block.answer}
+        </span>
+      )}
+    </div>
+  );
+};
+
 interface ApproveProps {
   id: string;
   block: ApproveBlock;
+  fullScreen?: boolean;
   onDecide: (blockId: string, gesture: ApproveGesture) => void;
+  onFullScreen?: () => void;
 }
 
 /**
@@ -352,40 +510,115 @@ interface ApproveProps {
  * because of what is in it, so the payload is the block rather than a click
  * away. It wears the same amber as an ask, since it parks the run the same way.
  *
- * **Approve all names the method it covers**, because that is the whole question
- * anyone hesitates over before pressing it, and a button that says "all" and
- * means "all Shows.CreateShow" is one that has to be learned by being surprised
- * by it. It is secondary rather than primary: reading the next one is still the
- * expected thing to do.
+ * **The standing approval is in the menu, not on the row.** The method it covers
+ * is the whole question anyone hesitates over before pressing it, and a name of
+ * any length in the caret's menu costs the row nothing.
  *
- * No button takes focus. An ask focuses its input, which costs nothing; here
- * Enter would send the request, and a key pressed at the wrong moment is exactly
- * what this block exists to prevent.
+ * No button takes focus. ⏎ approves this call and only this call; the standing
+ * approval always costs a deliberate gesture, and Esc stops the script. A key
+ * pressed at the wrong moment must not send the request the block exists to
+ * hold.
  */
-Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
+Canvas.Approve = function ({ id, block, fullScreen, onDecide, onFullScreen }: ApproveProps) {
   const waiting = block.decision === undefined;
+  const [expanded, setExpanded] = useState(false);
+  // A settled block is a record: the payload collapses to its size, and View is
+  // the way back to it for the one that is worth re-reading.
+  const [showRequest, setShowRequest] = useState(false);
+  // Open, ⏎ belongs to the scope menu — otherwise the standing approval it is
+  // sitting on would be settled as "this call" on the way past.
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const size = formatBytes(new TextEncoder().encode(block.request).length);
+
+  useEffect(() => {
+    if (!waiting || scopeOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // A table's search box is still typeable while a call is held, and ⏎ in it
+      // means "search now" — it must not be the thing that sends the request.
+      if (isTyping(event.target)) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        onDecide(id, "approved");
+      } else if (event.key === "Escape") {
+        // Claimed here so full-screen doesn't take it: a run held in front of a
+        // call is what Esc is about while one is on screen.
+        event.preventDefault();
+        onDecide(id, "rejected");
+      }
+    };
+    // On the document rather than the window, so it is answered before
+    // full-screen's own Esc whatever order the two effects happened to run in.
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [waiting, scopeOpen, id, onDecide]);
 
   return (
     <div
       data-testid="canvas-approve"
-      className={cn("flex flex-col gap-2 rounded-r-md border-l-2 py-2.5 pl-3 pr-3", waiting ? "border-amber-500 bg-amber-500/10" : "border-border bg-card")}
+      className={cn(
+        "flex max-w-[620px] flex-col gap-2 rounded-r-md border-l-2 py-2.5 pl-3 pr-3",
+        waiting ? "border-amber-500 bg-amber-500/10" : "border-border bg-card",
+      )}
     >
       <div className={cn("flex items-center gap-2", waiting ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
         <ShieldQuestionMark size={12} className="shrink-0" />
-        <span className="min-w-0 truncate">{block.method}</span>
+        <span className="min-w-0 truncate">{waiting ? `${block.method} is about to run` : block.method}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
+          {size}
+          {!waiting && (
+            <>
+              <span aria-hidden>·</span>
+              <button type="button" data-testid="canvas-approve-view" className="hover:text-foreground" onClick={() => setShowRequest((shown) => !shown)}>
+                View
+              </button>
+            </>
+          )}
+        </span>
       </div>
-      <pre className="max-h-64 overflow-auto rounded-md border border-border bg-background px-2.5 py-2 leading-relaxed text-foreground">{block.request}</pre>
+      {(waiting || showRequest) && (
+        <Canvas.Payload
+          text={block.request}
+          expanded={expanded}
+          onExpand={() => {
+            setExpanded(true);
+            // The room is the point: a request worth reading in full is worth
+            // the window, and the decision stays under it either way.
+            onFullScreen?.();
+          }}
+        />
+      )}
       {waiting ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" data-testid="canvas-approve-send" onClick={() => onDecide(id, "approved")}>
-            Approve
-          </Button>
-          <Button size="sm" variant="secondary" data-testid="canvas-approve-all" onClick={() => onDecide(id, "all")}>
-            <span className="min-w-0 max-w-[16rem] truncate">Approve all {block.method}</span>
-          </Button>
-          <Button size="sm" variant="outline" data-testid="canvas-approve-stop" onClick={() => onDecide(id, "rejected")}>
+        <div className="flex items-center gap-2">
+          {/* One button with two halves: the main one approves what is in front
+              of you, and the caret is where the standing approval names the
+              method it would cover. */}
+          <div className="flex items-stretch overflow-hidden rounded-md">
+            <Button size="sm" className="h-8 rounded-none px-3" data-testid="canvas-approve-send" onClick={() => onDecide(id, "approved")}>
+              Approve
+            </Button>
+            <DropdownMenu open={scopeOpen} onOpenChange={setScopeOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="h-8 rounded-none border-l border-black/20 px-1.5" aria-label="Approval scope" data-testid="canvas-approve-scope">
+                  <ChevronDown size={12} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="bottom" className="w-[270px]">
+                <DropdownMenuItem className="gap-2 font-mono text-xs" onSelect={() => onDecide(id, "approved")}>
+                  <span className="min-w-0 flex-1 truncate">This call</span>
+                  <span className="text-muted-foreground">⏎</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 font-mono text-xs" data-testid="canvas-approve-all" onSelect={() => onDecide(id, "all")}>
+                  <span className="min-w-0 flex-1 truncate">Every {block.method} this run</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {/* A refusal, not a catastrophe: it must not out-weigh Approve. */}
+          <Button size="sm" variant="secondary" className="h-8" data-testid="canvas-approve-stop" onClick={() => onDecide(id, "rejected")}>
             Stop
           </Button>
+          <span className="ml-auto shrink-0 text-muted-foreground">⏎ · Esc</span>
         </div>
       ) : (
         <div className={cn(block.decision === "rejected" ? "italic text-muted-foreground" : "text-foreground")}>
@@ -395,6 +628,55 @@ Canvas.Approve = function ({ id, block, onDecide }: ApproveProps) {
               ? `Approved — and every ${block.method} after it`
               : "Approved"}
         </div>
+      )}
+    </div>
+  );
+};
+
+// Whether the keystroke belongs to something being typed in. The canvas's own
+// keys are for the document, and a field on it is not the document.
+function isTyping(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element?.tagName) return false;
+  return element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+}
+
+interface PayloadProps {
+  text: string;
+  expanded: boolean;
+  onExpand: () => void;
+}
+
+/**
+ * A request, clipped to the height a decision can be made from. What is left out
+ * is stated rather than scrolled past: a payload that quietly continues below
+ * the fold is one nobody reads to the end of.
+ */
+Canvas.Payload = function ({ text, expanded, onExpand }: PayloadProps) {
+  const lines = text.split("\n");
+  const hidden = expanded ? 0 : Math.max(0, lines.length - APPROVE_CLIP_LINES);
+
+  return (
+    <div className="relative overflow-hidden rounded-md border border-border bg-background">
+      <pre className={cn("overflow-x-auto px-2.5 py-2 leading-relaxed text-foreground", expanded && "max-h-[60vh] overflow-y-auto")}>
+        {hidden > 0 ? lines.slice(0, APPROVE_CLIP_LINES).join("\n") : text}
+      </pre>
+      {hidden > 0 && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 bottom-[22px] h-[26px] bg-gradient-to-b from-transparent to-background" />
+          <button
+            type="button"
+            data-testid="canvas-approve-expand"
+            className="flex w-full items-center gap-1.5 border-t border-border px-2.5 py-1 text-left text-muted-foreground hover:text-foreground"
+            onClick={onExpand}
+          >
+            <span>
+              {hidden} more {hidden === 1 ? "line" : "lines"}
+            </span>
+            <span aria-hidden>·</span>
+            <span>Expand</span>
+          </button>
+        </>
       )}
     </div>
   );
@@ -446,6 +728,8 @@ Canvas.AskField = function ({ answerType, onAnswer, onCancel }: AskFieldProps) {
               event.preventDefault();
               submit();
             } else if (event.key === "Escape") {
+              // A focused field takes Esc before full-screen does; the second
+              // one, with nothing left wanting it, is the way out.
               event.preventDefault();
               onCancel();
             }
@@ -518,168 +802,31 @@ Canvas.AskChoices = function ({ choices, onAnswer, onCancel }: AskChoicesProps) 
   );
 };
 
-// A call on the canvas is a one-line card: enough to place it in the story, and
-// a click away from the row that holds everything about it.
-Canvas.CallCard = function ({ call, selected, onSelect }: { call: MethodCall; selected: boolean; onSelect: () => void }) {
-  const status = call.error ? "error" : call.output === undefined && call.streamOutputs === undefined ? "pending" : "success";
-  const code = callErrorCode(call);
-
-  return (
-    <button
-      type="button"
-      data-testid="canvas-call-card"
-      className={cn(
-        "flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-1.5 text-left hover:bg-accent",
-        selected ? "border-muted-foreground/40" : "border-border",
-      )}
-      onClick={onSelect}
-    >
-      <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
-      <span
-        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", status === "error" ? "bg-red-500" : status === "pending" ? "bg-muted-foreground" : "bg-emerald-500")}
-      />
-      <span className="min-w-0 flex-1 truncate text-foreground">
-        {call.service.name}.{call.method.name}
-      </span>
-      {code && <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">{code}</span>}
-      <span className="shrink-0 tabular-nums text-muted-foreground">{formatDuration(call.durationMs)}</span>
-    </button>
-  );
-};
-
-interface CallGroupProps {
-  name: string;
-  items: ConsoleItem[];
-  // What the row says about the calls under it, counted as they arrived. A loop
-  // of a thousand is one row, and walking a thousand requests to write it is
-  // work the row would otherwise do on every repaint.
-  stats: CallStats;
-  selectedItemId?: string;
-  onSelectCall: (itemId: string) => void;
-}
-
 /**
- * A loop, as one row. Ten calls to one method are ten identical cards saying the
- * same name ten times, which is the log's job and the log does it better — so
- * the canvas says the name once, how many there were, and what told them apart.
- *
- * The ticks are what keep it a canvas rather than a summary: one per call, drawn
- * against the slowest in the group, so which iteration was slow is a shape here
- * rather than a trip to the list — and each one is its own way into that call's
- * complete record.
+ * A failure nothing was drawn after. The canvas does not interrupt itself for a
+ * call whose failure the script reported in a better place — a table with a
+ * result column — so what is left is the one the run said nothing about, stated
+ * once per method with the way into the complete record beside it.
  */
-Canvas.CallGroup = function ({ name, items, stats, selectedItemId, onSelectCall }: CallGroupProps) {
-  const status = stats.status;
-  const inFlight = stats.inFlight;
-  const slowest = stats.slowest;
-  const failures = stats.failures;
-  const keys = stats.keyLabel;
-  const duration = formatDuration(stats.duration);
-  const shown = items.slice(0, MAX_TICKS);
-  const hidden = items.length - shown.length;
-  // The strip has the budget, not the tick: past a certain density every tick is
-  // the minimum width and the strip stops claiming to measure anything.
-  const slot = Math.max(TICK_MIN_WIDTH + TICK_GAP, Math.min(TICK_MAX_WIDTH + TICK_GAP, Math.floor(STRIP_WIDTH / shown.length)));
+Canvas.Failure = function ({ failure, onOpen }: { failure: FailureNotice; onOpen: () => void }) {
+  const said = [failure.code, failure.message].filter(Boolean).join(" ");
 
   return (
-    <div data-testid="canvas-call-group" className="flex w-full items-center gap-2.5 rounded-md border border-border bg-card pr-2.5">
-      {/* The name is the way in for the whole group; the ticks are the way in
-          for one call of it. Below the width the strip needs, the name is the
-          only one left — the same degradation the log's columns make. */}
-      <button
-        type="button"
-        data-testid="canvas-group-label"
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-l-md py-1.5 pl-2.5 text-left hover:bg-accent"
-        onClick={() => onSelectCall(items[0].id)}
-      >
-        <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
-        {inFlight ? <Spinner className="size-3" /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass(status))} />}
-        <span className="shrink-0 truncate text-foreground">{name}</span>
-        <span className="shrink-0 tabular-nums text-muted-foreground">×{items.length}</span>
-        {keys && <span className="min-w-0 truncate text-muted-foreground/80 @max-[420px]:hidden">{keys}</span>}
+    <div
+      data-testid="canvas-failure"
+      className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-destructive"
+    >
+      <AlertTriangle size={12} className="shrink-0" />
+      <span className="min-w-0 truncate">
+        {failure.count > 1 && `${failure.count} × `}
+        {failure.method} failed{said && ` — ${said}`}
+      </span>
+      <button type="button" className="ml-auto shrink-0 whitespace-nowrap hover:text-foreground" onClick={onOpen}>
+        Open in log
       </button>
-      <div className="flex shrink-0 items-center @max-[520px]:hidden" style={{ gap: TICK_GAP }}>
-        {shown.map((item, index) => (
-          <Canvas.Tick
-            key={item.id}
-            item={item}
-            name={name}
-            index={index}
-            total={items.length}
-            slowest={slowest}
-            maxWidth={slot - TICK_GAP}
-            selected={item.id === selectedItemId}
-            onSelect={() => onSelectCall(item.id)}
-          />
-        ))}
-        {hidden > 0 && (
-          <button
-            type="button"
-            className="pl-1 tabular-nums text-muted-foreground hover:text-foreground"
-            title={`${hidden} more not drawn — open the ${shown.length + 1}${nth(shown.length + 1)} in the list`}
-            onClick={() => onSelectCall(items[shown.length].id)}
-          >
-            +{hidden}
-          </button>
-        )}
-      </div>
-      {failures > 0 && <span className="shrink-0 text-destructive">{failures === 1 ? "1 error" : `${failures} errors`}</span>}
-      <span className="w-[9ch] shrink-0 truncate text-right tabular-nums text-muted-foreground">{duration}</span>
     </div>
   );
 };
-
-interface TickProps {
-  item: ConsoleItem;
-  name: string;
-  index: number;
-  total: number;
-  slowest?: number;
-  maxWidth: number;
-  selected: boolean;
-  onSelect: () => void;
-}
-
-/**
- * One call of a folded group: as long as it took, coloured only when it failed —
- * the group's dot already says how the group went, so the strip is free to be a
- * measurement. A call still in flight has no length yet and gets the minimum.
- */
-Canvas.Tick = function ({ item, name, index, total, slowest, maxWidth, selected, onSelect }: TickProps) {
-  const status = itemStatus(item);
-  const duration = item.call?.durationMs;
-  const fraction = barFraction(duration, slowest);
-  const width = fraction === undefined ? TICK_MIN_WIDTH : Math.round(TICK_MIN_WIDTH + fraction * Math.max(0, maxWidth - TICK_MIN_WIDTH));
-  const key = loopKey(item.call?.input);
-  const detail = [key, formatDuration(duration)].filter((part) => part !== undefined).join(" · ");
-
-  return (
-    <button
-      type="button"
-      data-testid="canvas-call-tick"
-      className="group/tick shrink-0 py-1"
-      style={{ width }}
-      title={detail}
-      aria-label={`${name}, call ${index + 1} of ${total}${detail ? `, ${detail}` : ""}`}
-      aria-current={selected || undefined}
-      onClick={onSelect}
-    >
-      <span
-        className={cn(
-          "block h-[8px] rounded-[2px]",
-          status === "error" ? "bg-destructive/60" : status === "success" ? "bg-muted-foreground/35" : "bg-muted-foreground/15",
-          selected && "bg-foreground/70",
-          "group-hover/tick:bg-foreground/50",
-        )}
-      />
-    </button>
-  );
-};
-
-function nth(position: number): string {
-  if (position % 100 >= 11 && position % 100 <= 13) return "th";
-  return { 1: "st", 2: "nd", 3: "rd" }[position % 10] ?? "th";
-}
 
 // A script that threw is the run's own failure rather than any one call's, so it
 // lands on the canvas as the last thing that happened.
