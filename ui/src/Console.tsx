@@ -103,8 +103,7 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
   // A settled call shows the wall-clock time it was made, which never changes —
   // so the clock only runs while something is still going, counting up in tenths
   // for the run and the call that are.
-  const hasRunning = groups.some((group) => group.running);
-  const ticking = hasRunning || groups.some((group) => group.inFlight);
+  const ticking = groups.some((group) => group.running || group.inFlight);
 
   useEffect(() => {
     if (!ticking) return;
@@ -284,10 +283,7 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
           change the split pays for. Everything leaves in order of what it is
           worth as the panel narrows, and the run pill truncates through all of
           it. */}
-      <div className="@container relative flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
-        {/* The console has a run going, which the pill can only say while the
-            run it names is the one running. */}
-        {hasRunning && <KajaTrace.Rule />}
+      <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
         <div className="h-4 w-px shrink-0 bg-border" />
         <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
@@ -508,10 +504,9 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
   return (
     <div data-testid="console-fullscreen-canvas" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div
-        className="relative flex h-[40px] shrink-0 items-center gap-3 overflow-hidden border-b border-border pr-3"
+        className="flex h-[40px] shrink-0 items-center gap-3 border-b border-border pr-3"
         style={{ paddingLeft: reserveTrafficLights ? TRAFFIC_LIGHTS_INSET : 12 }}
       >
-        {group.running && <KajaTrace.Rule />}
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="truncate font-mono text-xs text-foreground">{group.run.title}</span>
           <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">

@@ -62,19 +62,3 @@ export function KajaTrace({ width = 20, height = 12, running = false, strokeWidt
     </svg>
   );
 }
-
-/**
- * The same stroke as a two-pixel rule along the bottom of the console header,
- * filling left to right on the trace's own beat. It says the console has a run
- * going while you are reading some other run in it, which the pill — which
- * names the run you selected — can't.
- */
-KajaTrace.Rule = function () {
-  return (
-    <div
-      data-testid="kaja-trace-rule"
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] origin-left animate-trace-sweep bg-gradient-to-r from-brand-rust to-brand-violet"
-    />
-  );
-};

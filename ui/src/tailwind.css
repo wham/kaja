@@ -31,8 +31,9 @@
      thing you stare at longest is the quietest plane in the window. */
   --chrome: oklch(0.97 0 0);
 
-  /* The two ends of the logo gradient. The mark is the same rust-to-violet in
-     both themes, so these are defined once and never redefined under .dark. */
+  /* The two ends of the logo gradient, read by the mark's own stops. It is the
+     same rust-to-violet in both themes, so these are defined once and never
+     redefined under .dark. */
   --brand-rust: #b0503f;
   --brand-violet: #8a35d8;
 }
@@ -87,8 +88,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chrome: var(--chrome);
-  --color-brand-rust: var(--brand-rust);
-  --color-brand-violet: var(--brand-violet);
 
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
@@ -97,25 +96,14 @@
      stays inside it. */
   --animate-signal: signal 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 
-  /* A run in flight: the mark drawing itself left to right, and the same stroke
-     filling a rule under the console header. One duration for both, so the two
-     read as one motion rather than two things that happen to be moving. */
+  /* A run in flight: the mark drawing itself left to right, over and over for
+     as long as the run is going. */
   --animate-trace: trace 1.4s linear infinite;
-  --animate-trace-sweep: trace-sweep 1.4s linear infinite;
 }
 
 @keyframes trace {
   to {
     stroke-dashoffset: 0;
-  }
-}
-
-@keyframes trace-sweep {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
   }
 }
 
