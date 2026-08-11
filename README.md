@@ -49,10 +49,16 @@
 docker run --pull always --name kaja -d -p 41520:41520 \
     -v /my_app/proto:/workspace/proto \
     -v /my_app/kaja.json:/workspace/kaja.json \
+    -v /my_app/scripts:/workspace/scripts \
     --add-host=host.docker.internal:host-gateway kajatools/kaja:latest
 ```
 
 Then open [http://localhost:41520](http://localhost:41520).
+
+The `scripts` mount is optional: `.ts` files in `/workspace/scripts` appear under
+**Scripts** in the sidebar, ready to open and run. The container serves its
+workspace read-only, so they can't be edited from the browser — check them into
+the repository they belong to and mount them in.
 
 ## Configuration
 

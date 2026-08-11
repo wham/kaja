@@ -73,10 +73,10 @@ import { flushPersistedWrites, getPersistedValue, setPersistedValue } from "./st
 import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
+import { canWriteScripts, listScriptFiles, readScriptFile } from "./scriptFiles";
 import {
   CreateScript,
   DeleteScript,
-  ListScripts,
   MCPScriptResult,
   MCPServerInfo,
   MCPSetCatalog,
@@ -319,7 +319,7 @@ export function App() {
   // model is disposed). No-op if nothing is pending.
   const flushScriptWrite = useCallback(
     (view: View) => {
-      if (view.type !== "script") return;
+      if (view.type !== "script" || !canWriteScripts()) return;
       const timer = scriptSaveTimers.current.get(view.id);
       if (!timer) return;
       clearTimeout(timer);
@@ -894,15 +894,13 @@ export function App() {
     }
   }, [views, scratches]);
 
-  // Load the global scripts directory (desktop only). Scripts are independent
-  // of apps; they bind to an app at run time via their import paths.
+  // Load the global scripts directory. Scripts are independent of apps; they
+  // bind to an app at run time via their import paths. The folder is read
+  // wherever it is — off disk on the desktop, through the server in a browser,
+  // which is what makes a workspace's own scripts visible in a container.
   const refreshScripts = useCallback(() => {
-    if (!isWailsEnvironment()) {
-      setScripts(undefined);
-      return;
-    }
-    ListScripts()
-      .then((list) => setScripts((list ?? []).map((s) => ({ path: s.path, name: s.name })).sort((a, b) => a.name.localeCompare(b.name))))
+    listScriptFiles()
+      .then((list) => setScripts(list.sort((a, b) => a.name.localeCompare(b.name))))
       .catch((err) => {
         console.error("Failed to list scripts", err);
         setScripts([]);
@@ -1207,11 +1205,10 @@ export function App() {
 
   const onScriptSelect = useCallback(
     async (script: Script) => {
-      if (!isWailsEnvironment()) return;
       try {
-        const file = await ReadScriptFile(script.path);
+        const file = await readScriptFile(script);
         if (!file) return;
-        applyViews((views) => showScript(views, { path: file.path, name: file.name }, file.content));
+        applyViews((views) => showScript(views, file.script, file.content));
       } catch (err) {
         showFileError(`Open failed: ${err}`);
       }
@@ -1300,15 +1297,17 @@ export function App() {
   // each restored script view from disk and reconcile its model. Without this a
   // reload would show the cached copy captured before the file last changed. The
   // beforeunload handler flushes pending saves, so disk is never behind the cache.
+  // A browser reads through the server rather than off disk, and it is the case
+  // that goes stale hardest: nothing there can write the file, so every change to
+  // one arrived from somewhere this session never saw.
   useEffect(() => {
-    if (!isWailsEnvironment()) return;
     let cancelled = false;
     (async () => {
       let reconciled = false;
       for (const view of viewsRef.current) {
         if (view.type !== "script") continue;
         try {
-          const file = await ReadScriptFile(view.script.path);
+          const file = await readScriptFile(view.script);
           if (cancelled || !file || view.model.getValue() === file.content) continue;
           // Suppress the auto-save this edit would trigger — the content is disk's.
           suppressScriptSave.current.add(view.id);
@@ -2233,9 +2232,9 @@ export function App() {
                 scripts={scripts}
                 canUpdateConfiguration={runtime.canUpdateConfiguration}
                 onSelect={onMethodSelect}
-                onScriptSelect={isWailsEnvironment() ? onScriptSelect : undefined}
-                onRenameScript={isWailsEnvironment() ? onRenameScript : undefined}
-                onDeleteScript={isWailsEnvironment() ? (script) => setDeleteScript(script) : undefined}
+                onScriptSelect={onScriptSelect}
+                onRenameScript={canWriteScripts() ? onRenameScript : undefined}
+                onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
                 onPinScript={isDesktopMac ? onPinScript : undefined}
                 pinnedScriptPath={pinnedScriptPath}
                 runningFileIds={runningFiles}
@@ -2321,11 +2320,16 @@ export function App() {
                       )}
                       {(view.type === "scratch" || view.type === "script") && (
                         <div className="relative flex min-h-0 flex-1 flex-col">
+                          {/* A file the server can't write is a file you read and
+                              run, not one you edit into a change nothing would
+                              keep. A scratch beside it is unaffected: it lives in
+                              this browser, so it is as writable here as anywhere. */}
                           <Editor
                             model={view.model}
                             onMount={(editor) => onEditorReady(view.id, editor)}
                             onGoToDefinition={onGoToDefinition}
                             viewState={view.viewState}
+                            readOnly={view.type === "script" && !canWriteScripts()}
                           />
                         </div>
                       )}

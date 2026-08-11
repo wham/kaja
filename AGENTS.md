@@ -159,14 +159,33 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   absent — not disabled — once there is nothing unsaved, so a saved file's row is
   just its name and Run. Same two verbs as the sidebar row, so the model stays
   single; they answer different moments (mid-edit, versus tidying up after).
-- **The web is the same app minus one verb, and minus the state that verb
-  produces.** Scratches are IndexedDB on both platforms, so the list, the titles
-  and the history are identical; only Save is missing, because only the desktop
-  has a disk to write to. So the **dot, the amber count and the word "unsaved"
-  are desktop-only** — on the web every row is in the same state, and a mark
-  every row carries marks nothing. The command row's save/discard pair goes with
-  them: it is defined by collapsing away when there is nothing unsaved, and on
-  the web it never could.
+- **The web is the same app minus the verbs that write a file, and minus the
+  state those verbs produce.** Scratches are IndexedDB on both platforms, so the
+  list, the titles and the history are identical; Save, Rename and Delete file
+  are missing, because the server serves a workspace it does not own. So the
+  **dot, the amber count and the word "unsaved" are desktop-only** — on the web
+  no row can change that state, and a mark every row carries marks nothing. The
+  command row's save/discard pair goes with them: it is defined by collapsing
+  away when there is nothing unsaved, and on the web it never could. A script
+  row's **⋯ goes too, rather than opening onto nothing** (`hasScriptMenu`), and
+  its right-click is left to the browser.
+- **The reads are not one of those verbs, so the web has the workspace's own
+  scripts** (`scriptFiles.ts`). The `scripts` folder beside kaja.json is read
+  wherever it is: the desktop opens the file, a browser goes through
+  `ListScripts`/`ReadScript` on the Api service, and either way the rows are
+  files in the one `Scripts` list. That is what puts a workspace's scripts in a
+  container — `docker run -v .../workspace:/workspace` already mounts the folder,
+  and nothing used to read it — so a demo workspace can ship the scripts that
+  demonstrate it (`workspace/scripts`). **The name is not a path**: the server
+  resolves it inside the scripts folder through an `os.Root`, on the same rule
+  the folder app follows, because a path arriving from a browser is not a handle
+  to follow.
+- **A file the server can't write is read-only, stated by refusing the edit.**
+  The script's editor takes `readOnly` rather than accepting keystrokes into a
+  buffer nothing would keep — the same shape as an app form whose fields are
+  disabled, and the same reason. A scratch beside it is unaffected: it lives in
+  the browser, so it is as writable there as anywhere, and `⌘N` is the way to
+  take a copy of a script somewhere you can change it.
 
 ## The tree is an index, so it reads as a list of names
 
@@ -829,9 +848,11 @@ small popup with a toggle per experimental feature. Enabled features are marked 
 
 **Scripts, Variables, the MCP server and OpenAPI apps are not previews** — they
 are the app. Scripts are what everything you run is, and Variables is what they
-and app configuration read, so both ship. The only thing gating scripts and the
-MCP server now is the platform: saving writes a file and the server serves one,
-so both need a disk (`isWailsEnvironment()`). **The MCP server's lifetime is the
+and app configuration read, so both ship. What the platform still gates is
+narrower than the feature: **writing** a script needs a disk this process owns
+(`canWriteScripts()` in `scriptFiles.ts`, which is `isWailsEnvironment()`), and
+the MCP server needs one to serve — but reading the workspace's scripts is the
+server's to do, so the web lists and runs them. **The MCP server's lifetime is the
 desktop process's** — `startup` starts it and `shutdown` stops it, there is no
 enable/disable call, and the UI's only part in it is reading `MCPServerInfo` for
 the footer's plug. A port already in use is still reported through `MCPInfo.Error`
@@ -879,7 +900,7 @@ fix, since there is no longer a toggle to cycle.
 - **Variables** — the `variables` map in `kaja.json` (managed in the Variables tab, read by scripts as `kaja.variables.<name>`) is also usable in app configuration through `${NAME}` expansion, including inside longer values (e.g. part of a URL). A variable's value either **is** the value, or names the source that holds it outside the file: `"${secret}"` (the OS keychain, else `KAJA_<NAME>` in the environment) or `"${env:X}"` (the environment variable `X`, which may sit inside a longer value). "Secret" is not a kind of variable — there is one list, one namespace, one syntax; the only axis is where the value lives. The invariant everything rests on: **a value that isn't written in `kaja.json` is never displayed and never sent to a remote browser**, so kaja.json is safe to commit and only names what a workspace needs.
   - **Resolving** — `server/pkg/api/variables.go`. `NewResolver(variables, store)` resolves every variable once against a `VariableStore` (the OS keychain; the web server binds none) and the environment, in the order keychain → `KAJA_<NAME>` → unset. The keychain wins because the desktop app is where the value was typed. A variable whose source holds nothing is not defined at all: `${NAME}` passes through literally, which is what the tab says happens. `VariableStatus` (`FILE`/`KEYCHAIN`/`ENVIRONMENT`/`UNSET` plus the env name consulted) rides on `GetConfigurationResponse` and `UpdateConfigurationResponse`; `GetConfigurationResponse.variable_store_available` says whether this machine can store anything at all.
   - **Expanding** — creation parameters in `OpenApp` (`expandAppParameters`), and **headers in Go, both builds**: the browser sends `${NAME}` unexpanded (`client.ts`, `wails-transport.ts` no longer expand anything), and the `/target/{method...}` handler / the Wails `Target`+`TargetServerStream` resolve them. `ApiService.InvokeApp` is the single door for in-process apps — it expands the headers and **redacts** the resolved values back out of what the app reports exchanging with its upstream, so the Headers view shows `Bearer ${TOKEN}`. Redaction restores headers the client sent exactly, and masks anything the app synthesized by content (only values ≥ 8 chars, below which a value is indistinguishable from ordinary text).
-  - **Scripts** read resolved values, including stored ones, via the desktop-only `ResolvedVariables` Wails binding — scripts are desktop-only (`isWailsEnvironment()`), where the UI runs inside the app's own process, so there is no asymmetry to observe. On the web `kaja.variables` is the configuration's own text.
+  - **Scripts** read resolved values, including stored ones, via the desktop-only `ResolvedVariables` Wails binding — on the desktop the UI runs inside the app's own process, so a value it resolved is one it already holds and there is no asymmetry to observe. On the web `kaja.variables` is the configuration's own text: a script runs in a remote browser there, which is the one place a value kaja.json doesn't carry must not reach.
   - **Storing** — `desktop/variable_store.go`, service `kaja`, account `<configurationPath>#<NAME>` so two workspaces keep their own value. macOS goes through the **Security framework directly** (`variable_store_darwin.go`, cgo, following `bookmark_darwin.go`): kaja ships sandboxed through the App Store, where shelling out to `/usr/bin/security` — what a keyring library does — neither works nor files items under the app. Queries set `kSecUseDataProtectionKeychain` (TN3137) so items are scoped to the app's access group from its `com.apple.application-identifier` entitlement; the trade-off is that an **unsigned local `wails build` has no such entitlement** and gets `errSecMissingEntitlement`, so the keychain path only works in a signed build. Windows/Linux keep `go-keyring` (`variable_store_other.go`) — it talks to the Credential Manager and Secret Service directly, no CLI. `Available()` probes once for an item that isn't there; anything but success-or-not-found reports false and the UI asks for the environment instead. `SetStoredValue`/`ClearStoredValue` write it; the value never travels back out and there is no reveal. **A stored value is written the moment it is entered** (⏎ or blur in the row's field, `onStoreValue` → `SetStoredValue`), not on Save: it is machine state, not file state. That is the one asymmetry in the screen and the row says so while a value is being typed; Cancel doesn't take it back. Clearing still rides the save, because what clears it is a row that stopped being stored — a file edit Cancel can undo.
   - **The tab** — `Variables.tsx`, reached from the sidebar's `{}` button, which is only there while the **Scripts** or **Preview Apps** preview is on: variables exist to be read by scripts and by app configuration, so the tab rides along with whichever of those is enabled and an open tab closes when the last one goes off. **No subheader**: the tab is already named Variables with the same `{}` glyph, so the body starts at the table. Three bands — command row, body, and a 52px footer holding Cancel and Save Changes that never scrolls away. The table is Name `168px` · Value `flex` · Used by `64px` · a `20px` actions column, header row `26px`, data rows `44px`, and a trailing `36px` **add row** that sits where the new row will appear. One list; the value cell renders from the value's own text (typing `${secret}` does what the source picker does), so the table and the JSON never diverge. The source is the one decision on a row, so it is stated on the row: a `bg-muted` picker welded to the left edge of the value field names where the value comes from (Value / Keychain / Environment) and changes it in one click, and the field to its right is whatever that source needs — a text box, the keychain's `Held on this machine · Replace` (`Not set · Set`), or an environment reference with a trailing **resolved** / **not set**. Delete isn't a mode, so it left that list for a hover-revealed trash at the row end; while it is under the pointer the row's **Used by** count turns `text-destructive`, because deleting a variable two apps read breaks those references. The empty state is centred in the body band — between the command row and the footer, capped at `340px` — and carries the whole story, since there is no header line to. A read-only configuration (`canUpdateConfiguration` false, i.e. Docker) is a different screen rather than a disabled one: name, source and resolved / not resolved, no footer, under a line saying to set `KAJA_<NAME>` in the container environment. Banners name references no variable defines — read from the rows, so deleting a variable an app uses says so at once — and variables that didn't resolve. Names are validated against `[A-Za-z_][A-Za-z0-9_]*` and `${secret}` must be the whole value (`variableExpansion.ts`, unit-tested; mirrored server-side in `validateVariables`). Saving keeps the tab open; a dirty tab wears a dot after its title and closing it offers Save / Discard / Cancel. Keyboard: `⌘J` switches views, `⏎` in the last row's value opens a new row, `⌫` on an empty new row removes it, `Esc` leaves the JSON view when it parses, `⌘S` saves. Saving a variable recompiles the apps whose parameters reference it (`appReferencesChangedVariable` in `App.tsx`) — an environment change can't be observed, so that only happens on save or config reload. The app form suggests variables when `${` is typed (`VariableSuggestInput` in `AppForm.tsx`, showing the source rather than the value for source-backed rows), and the JSON edit mode does the same via a Monaco completion provider. **Every field that ends up as an app parameter is one of those inputs**, the custom OpenAPI form included — document URL, fetch header, server and base URL, token, username, password — so there is no field a variable can be written into by hand but not suggested in. Credentials are plain text rather than masked: what a field holds may be a `${NAME}` naming where the value is kept, and a masked field can't be read back to tell which.
   - **The JSON view** — the same Monaco editor the app settings tab uses, on the same `</>` rule (below), seeded from what the table currently holds so switching loses nothing and parsed back into rows on the way out. A line above it says which file and which block, because config-versus-document is the confusion an editor on a tab invites, and that keychain values appear as `${secret}` rather than as themselves. A failure to parse is a `34px` bar above the footer, not a toast, naming the line (`variablesJson.ts`, unit-tested: the editor's own diagnostic when there is one, else the engine's message, whose wording and position differ between V8 and WebKit); Save and the way back to the table are both disabled while it is red. Monaco resolves JSON diagnostics globally, so both editors' schemas are registered together in `jsonSchemas.ts`, each matched to its own model URI.

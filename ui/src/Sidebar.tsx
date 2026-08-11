@@ -226,10 +226,18 @@ export function Sidebar({
   const hasScratches = (scratches?.length ?? 0) > 0;
   const unsavedCount = scratches?.length ?? 0;
   const scriptCount = (scripts?.length ?? 0) + unsavedCount;
-  // On disk versus not is only a distinction where there is a disk. The web has
-  // no Save, so every row is in the same state and the dot, the amber count and
-  // the word "unsaved" would all be marking a difference that can't exist.
+  // Unsaved is only a state where saving is a verb. The web has no Save, so no
+  // row can leave the state it is in, and the amber count and the word "unsaved"
+  // would be naming a change that can't be made; the dot goes with them, since a
+  // mark that never resolves is a warning about nothing. A workspace's own
+  // scripts do appear there, above the scratches, and the finder's FileCode /
+  // PenLine is where that difference is drawn — a 5px dot is too quiet to carry
+  // it without the colour that means "you can fix this".
   const canSave = onSaveScratch !== undefined;
+  // Rename, delete and pin are all a disk's to offer. Where none of them is, the
+  // row has no menu to open — so it grows no ⋯ on hover and its right-click is
+  // left to the browser, rather than opening an empty popup.
+  const hasScriptMenu = onRenameScript !== undefined || onDeleteScript !== undefined || onPinScript !== undefined;
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
   // The Scripts header trades its count for the bulk verbs while it is hovered.
   const [scriptsHeaderHovered, setScriptsHeaderHovered] = useState(false);
@@ -422,7 +430,7 @@ export function Sidebar({
             {scriptsExpanded && (
               <TreeView leaf aria-label="Scripts">
                 {(scripts ?? []).map((script) => {
-                  const active = hoveredScript === script.path || scriptMenu?.script.path === script.path;
+                  const active = (hoveredScript === script.path || scriptMenu?.script.path === script.path) && hasScriptMenu;
                   return (
                     <TreeView.Item
                       id={`script-${script.path}`}
@@ -431,6 +439,7 @@ export function Sidebar({
                         // TreeView.Item doesn't forward these handlers, so attach them to the DOM node.
                         if (el) {
                           el.oncontextmenu = (e) => {
+                            if (!hasScriptMenu) return;
                             e.preventDefault();
                             setScriptMenu({ script, top: e.clientY, left: e.clientX });
                           };
@@ -703,28 +712,32 @@ export function Sidebar({
               {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem
-            onSelect={() => {
-              const script = scriptMenu?.script;
-              if (script) onRenameScript?.(script);
-            }}
-          >
-            <Pencil size={16} />
-            Rename…
-          </DropdownMenuItem>
+          {onRenameScript && (
+            <DropdownMenuItem
+              onSelect={() => {
+                const script = scriptMenu?.script;
+                if (script) onRenameScript(script);
+              }}
+            >
+              <Pencil size={16} />
+              Rename…
+            </DropdownMenuItem>
+          )}
           {/* This one takes a file off disk, which is why it is confirmed and
               why it says so. The unsaved row's menu below reads differently on
               purpose. */}
-          <DropdownMenuItem
-            variant="danger"
-            onSelect={() => {
-              const script = scriptMenu?.script;
-              if (script) onDeleteScript?.(script);
-            }}
-          >
-            <Trash2 size={16} />
-            Delete file
-          </DropdownMenuItem>
+          {onDeleteScript && (
+            <DropdownMenuItem
+              variant="danger"
+              onSelect={() => {
+                const script = scriptMenu?.script;
+                if (script) onDeleteScript(script);
+              }}
+            >
+              <Trash2 size={16} />
+              Delete file
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Cursor-anchored context menu for an app. */}
