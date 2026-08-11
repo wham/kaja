@@ -25,10 +25,21 @@ RUN if [ "$RUN_TESTS" = "true" ] ; then \
   fi
 RUN go build -ldflags "-X main.GitRef=$GIT_REF" -o /build/server ./cmd/server
 
-FROM alpine:latest AS runner
+FROM alpine:latest AS server
 COPY --from=builder /build/server /server/
 RUN apk update && apk add --no-cache make
 WORKDIR /server
 EXPOSE 41520
 #CMD ["sh", "-c", "sleep 10000000 && ./server"]
 CMD ["./server"]
+
+# The same server with the demo workspace baked in, so it needs no volume to
+# have something to show. This is what the per-pull-request preview app on Fly
+# deploys (deploy/preview/fly.toml).
+FROM server AS preview
+COPY workspace /workspace
+
+# What ships, and last on purpose: a `docker build .` that names no target
+# builds the final stage, so the published image stays the plain server however
+# many variants are added above it.
+FROM server AS runner

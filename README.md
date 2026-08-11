@@ -143,6 +143,14 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - Test server: `(cd server && go test ./... -tags development -v)` — the tag `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
 - Update demo protos: `scripts/demo-protos` (The demo services are deployed via [kaja/tools/website](github.com/kaja-tools/website))
 
+### Preview apps
+
+Every pull request is deployed to its own Fly app at `https://kaja-pr-<number>.fly.dev`, so a change can be clicked through before it is merged. The **preview** workflow rebuilds it on every push and destroys the app when the pull request closes; the URL is a comment on the pull request throughout.
+
+The preview serves this repository's own `workspace/` — the demo apps `scripts/server` starts on — baked into the image by the Dockerfile's `preview` stage. Its configuration is read-only, like any server build, so a preview never asks Fly for a disk.
+
+Fork pull requests are skipped: they have no access to the token. Setting this up in a fresh repository takes a `FLY_API_TOKEN` secret that may create and destroy apps (`fly tokens create org <org>` — an app-scoped deploy token can't create the per-pull-request apps), and optionally a `FLY_ORG` variable if the org isn't `personal`.
+
 ### Releases
 
 Releases are cut from GitHub — no local build needed. Every push to `main` uploads a new build to TestFlight. To ship a version, run the **release** workflow (Actions → Run workflow):

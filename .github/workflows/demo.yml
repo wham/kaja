@@ -18,7 +18,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Build Docker image
-        run: docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true --build-arg GIT_REF=${{ github.sha }}
+        run: docker build . -t kaja-dev:latest --target runner --build-arg RUN_TESTS=true --build-arg GIT_REF=${{ github.sha }}
 
       - name: Start Docker container
         run: |
