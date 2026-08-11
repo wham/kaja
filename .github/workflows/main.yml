@@ -1,4 +1,9 @@
 name: main
+# What a push to main ships: the published image, and the public demo.
+#
+# The two are independent builds of the same commit and run in parallel — the
+# demo builds `workspace/` into the image it runs, so it has nothing to wait for
+# the Docker Hub push to hand it.
 on:
   push:
     branches:
@@ -26,3 +31,36 @@ jobs:
             kajatools/kaja:latest
           build-args: |
             GIT_REF=${{ github.sha }}
+
+  # demo.kaja.tools, deployed from the commit that changed it rather than from
+  # whatever image happened to be published when something else deployed. This
+  # is the same app and the same certificate as before; only what deploys it
+  # moved here.
+  #
+  # Uses the FLY_API_TOKEN the preview workflow already needs. GIT_REF is what
+  # the running Kaja reports as its version, so the demo names its own commit.
+  demo:
+    runs-on: ubuntu-latest
+    # A Fly deploy of an app must not overlap with another of the same app.
+    concurrency: deploy-demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set — create one with 'fly tokens create org <org>'"
+            exit 1
+          fi
+          flyctl deploy . \
+            --config deploy/demo/fly.toml \
+            --build-arg GIT_REF="${{ github.sha }}" \
+            --remote-only \
+            --yes

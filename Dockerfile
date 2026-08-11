@@ -34,9 +34,11 @@ EXPOSE 41520
 CMD ["./server"]
 
 # The same server with the demo workspace baked in, so it needs no volume to
-# have something to show. This is what the per-pull-request preview app on Fly
-# deploys (deploy/preview/fly.toml).
-FROM server AS preview
+# have something to show. Both Fly deployments are this one image: demo.kaja.tools
+# (deploy/demo/fly.toml) and every pull request's own app
+# (deploy/preview/fly.toml). One target rather than two is the point — what a
+# pull request is clicked through on is what the demo will be once it merges.
+FROM server AS demo
 COPY workspace /workspace
 
 # What ships, and last on purpose: a `docker build .` that names no target
