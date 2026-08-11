@@ -7,6 +7,7 @@ import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { unwrapEnvelope } from "./httpEnvelope";
 import { JsonViewer, JsonViewerHandle } from "./JsonViewer";
+import { KajaTrace } from "./KajaTrace";
 import { MethodCall } from "./kaja";
 import { callStatus, ConsoleItem, ConsoleTab, itemStatus, LogFloor, printedLevel, RunGroup, RunStatus } from "./runs";
 import { runShortcutLabel } from "./RunButton";
@@ -139,7 +140,7 @@ export function RunLog({
           <div className="flex h-[24px] items-center px-3 text-xs text-muted-foreground">
             {/* A run parked on a question is in flight but is not on its way to
                 a call — the tail bar below already says what it is doing. */}
-            {group.inFlight && !waiting ? "Waiting for the first call…" : "No calls."}
+            {group.running && !waiting ? "Waiting for the first call…" : "No calls."}
           </div>
         ) : (
           <div style={{ height: total * CALL_ROW_HEIGHT }}>
@@ -182,6 +183,9 @@ export function RunLog({
       <RunLog.TailBar
         waiting={waiting}
         scriptFailed={scriptFailed}
+        running={group.running && !waiting}
+        calls={group.calls.length}
+        elapsedMs={now - group.run.startedAt}
         rowsBelow={rowsBelow}
         failures={failures}
         dropped={group.dropped}
@@ -306,6 +310,11 @@ function logLevelLabel(level: LogLevel): string {
 interface TailBarProps {
   waiting: boolean;
   scriptFailed: boolean;
+  // Whether the run is still going, which is the one state here that is about
+  // the run rather than about what the log is leaving out.
+  running: boolean;
+  calls: number;
+  elapsedMs: number;
   rowsBelow: number;
   failures: number;
   // Rows a very long run stopped keeping. The log says where it stops being
@@ -331,6 +340,9 @@ interface TailBarProps {
 RunLog.TailBar = function ({
   waiting,
   scriptFailed,
+  running,
+  calls,
+  elapsedMs,
   rowsBelow,
   failures,
   dropped,
@@ -341,9 +353,9 @@ RunLog.TailBar = function ({
   onShowLogs,
   onGoToCanvas,
 }: TailBarProps) {
-  if (!waiting && !scriptFailed && rowsBelow <= 0 && failures === 0 && dropped === 0 && hiddenLines === 0 && tailing) return null;
+  if (!waiting && !scriptFailed && !running && rowsBelow <= 0 && failures === 0 && dropped === 0 && hiddenLines === 0 && tailing) return null;
 
-  const state = waiting ? "waiting" : scriptFailed ? "failed" : "counts";
+  const state = waiting ? "waiting" : scriptFailed ? "failed" : running ? "running" : "counts";
 
   return (
     <div
@@ -352,7 +364,7 @@ RunLog.TailBar = function ({
         "flex h-[26px] shrink-0 items-center gap-2 border-t px-3 font-mono text-xs",
         state === "waiting" && "border-l-2 border-l-amber-500 border-t-border bg-amber-500/10",
         state === "failed" && "border-l-2 border-l-destructive border-t-border bg-destructive/10",
-        state === "counts" && "border-t-border",
+        (state === "running" || state === "counts") && "border-t-border",
       )}
     >
       {state === "waiting" && (
@@ -362,7 +374,18 @@ RunLog.TailBar = function ({
         </>
       )}
       {state === "failed" && <span className="text-destructive">Script failed</span>}
-      {state === "counts" && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
+      {/* The one place the mark is the running indicator. The row exists only
+          while the run does, so nothing here is aligned to a glyph that is about
+          to change width. */}
+      {state === "running" && (
+        <>
+          <KajaTrace running />
+          <span className="text-muted-foreground">
+            {calls === 1 ? "1 call" : `${calls} calls`} · {formatElapsed(elapsedMs)}
+          </span>
+        </>
+      )}
+      {(state === "running" || state === "counts") && rowsBelow > 0 && <span className="text-muted-foreground">{rowsBelow} more</span>}
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {hiddenLines > 0 && (
           <button

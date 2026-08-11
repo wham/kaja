@@ -100,15 +100,15 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
   const canvasScroll = useRef(0);
 
   // A settled call shows the wall-clock time it was made, which never changes —
-  // so the clock only runs while something is still in flight, counting up in
-  // tenths for the call that is.
-  const hasInFlight = groups.some((group) => group.inFlight);
+  // so the clock only runs while something is still going, counting up in tenths
+  // for the run and the call that are.
+  const ticking = groups.some((group) => group.running || group.inFlight);
 
   useEffect(() => {
-    if (!hasInFlight) return;
+    if (!ticking) return;
     const interval = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(interval);
-  }, [hasInFlight]);
+  }, [ticking]);
 
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
@@ -517,7 +517,7 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
             <span className="font-mono text-xs text-amber-600 dark:text-amber-400">waiting for you</span>
           </div>
-        ) : group.inFlight ? (
+        ) : group.running ? (
           <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
             <Spinner className="size-3" />
             <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
@@ -574,6 +574,10 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
           )}
           title={summary?.name}
         >
+          {/* The mark is not here: it is three times the width of the dot it
+              would swap back to, and the pill's whole label steps left as the
+              run lands. The log's tail bar, which nothing is aligned to, is
+              where it goes. */}
           {summary?.pending && !summary.waiting ? (
             <Spinner className="size-3" />
           ) : (
@@ -667,9 +671,12 @@ interface RunSummaryLine {
 function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummaryLine {
   const waiting = group.awaiting !== undefined;
   const time = group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt);
+  // Still going is a state of the run, not of a call: a script sleeping between
+  // two of them is running, and a verdict read off the calls so far would be one
+  // the run has not reached.
   const outcome = waiting
     ? "waiting"
-    : group.inFlight
+    : group.running
       ? formatElapsed(now - group.run.startedAt)
       : group.status === "error"
         ? "failed"
@@ -679,7 +686,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
     name: runName(group, groups),
     detail: outcome ? `${time} · ${outcome}` : time,
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
-    pending: group.inFlight,
+    pending: group.running,
     waiting,
     agent: group.run.origin === "agent",
   };

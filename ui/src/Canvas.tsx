@@ -94,10 +94,10 @@ export function Canvas({
     return <Canvas.Notice>Canvas no longer kept — run to see it live</Canvas.Notice>;
   }
   if (group.items.length === 0) {
-    return <Canvas.Notice>{group.inFlight ? "Waiting for the first call…" : "This run drew nothing."}</Canvas.Notice>;
+    return <Canvas.Notice>{group.running ? "Waiting for the first call…" : "This run drew nothing."}</Canvas.Notice>;
   }
   if (drawn.length === 0 && unreported.length === 0) {
-    return <Canvas.Notice>{group.inFlight ? "Nothing drawn yet…" : "This run drew nothing."}</Canvas.Notice>;
+    return <Canvas.Notice>{group.running ? "Nothing drawn yet…" : "This run drew nothing."}</Canvas.Notice>;
   }
 
   return (

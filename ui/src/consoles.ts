@@ -98,6 +98,12 @@ class Group implements RunGroup {
     return !this.run.stale && this.stats.inFlight;
   }
 
+  // The run has not settled: its script has not returned, or something it
+  // started has not landed. A duration is what a settled run has.
+  get running(): boolean {
+    return !this.run.stale && this.run.durationMs === undefined;
+  }
+
   get failures(): number {
     return this.stats.failures;
   }
