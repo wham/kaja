@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 docker rm -f kaja-dev &> /dev/null || true
 
 GIT_REF=$(git rev-parse HEAD 2>/dev/null || echo "")
-docker build . -t kaja-dev:latest --build-arg RUN_TESTS=true --build-arg GIT_REF=$GIT_REF
+docker build . -t kaja-dev:latest --target runner --build-arg RUN_TESTS=true --build-arg GIT_REF=$GIT_REF
 
 rm pipe &> /dev/null || true
 mkfifo pipe

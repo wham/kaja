@@ -32,3 +32,10 @@ WORKDIR /server
 EXPOSE 41520
 #CMD ["sh", "-c", "sleep 10000000 && ./server"]
 CMD ["./server"]
+
+# The same server with the demo workspace baked in, so it needs no volume to
+# have something to show. This is what the per-pull-request preview app on Fly
+# deploys (deploy/preview/fly.toml). It is the last stage, so everything that
+# builds the published image asks for "runner" by name.
+FROM runner AS preview
+COPY workspace /workspace

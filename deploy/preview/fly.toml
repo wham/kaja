@@ -1,0 +1,35 @@
+# The Fly config every pull request preview is deployed with. One config serves
+# them all: the workflow passes the app name (kaja-pr-<number>) with --app, so
+# the name below is only what flyctl falls back to.
+#
+# The Dockerfile is at the repository root, so the build context must be too:
+#   fly deploy . --config deploy/preview/fly.toml --app kaja-pr-123
+app = "kaja-preview"
+primary_region = "sjc"
+
+[build]
+  # Resolved relative to this file; the build context is the repository root.
+  dockerfile = "../../Dockerfile"
+  # The server plus workspace/, so the preview comes up on the demo apps.
+  build-target = "preview"
+
+[http_service]
+  internal_port = 41520
+  force_https = true
+  # A preview is idle almost all of its life: no machine runs until someone
+  # opens the URL, and it stops again afterwards.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # A deploy that ends with a server that never answered should fail the check
+  # rather than hand out a URL that doesn't load.
+  [[http_service.checks]]
+    path = "/status"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

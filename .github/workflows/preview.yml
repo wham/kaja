@@ -1,0 +1,96 @@
+name: preview
+# Every pull request gets its own Kaja running on Fly, at
+# https://kaja-pr-<number>.fly.dev, serving the repository's own demo workspace
+# (workspace/kaja.json). It is rebuilt on every push to the pull request and
+# destroyed when the pull request closes.
+#
+# Needs a FLY_API_TOKEN repository secret that may create and destroy apps in
+# the org — `fly tokens create org <org>`, not the app-scoped deploy token —
+# and optionally a FLY_ORG repository variable (defaults to "personal").
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One deploy per pull request at a time; a newer push supersedes an in-flight
+# one, and closing supersedes both.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  FLY_ORG: ${{ vars.FLY_ORG || 'personal' }}
+  APP_NAME: kaja-pr-${{ github.event.number }}
+
+jobs:
+  deploy:
+    # A fork's pull request has no access to the token, so there is nothing to
+    # deploy with. Closing is the destroy job's.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Check the token is set
+        run: |
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set — create one with 'fly tokens create org <org>'"
+            exit 1
+          fi
+
+      - name: Create the app if it doesn't exist yet
+        run: flyctl apps create "$APP_NAME" --org "$FLY_ORG" || true
+
+      # The Dockerfile is at the repository root, so the build context is "."
+      # and the config is passed separately. GIT_REF is what the running Kaja
+      # reports as its version, so the preview names the commit it was built
+      # from.
+      - name: Deploy
+        run: |
+          flyctl deploy . \
+            --config deploy/preview/fly.toml \
+            --app "$APP_NAME" \
+            --build-arg GIT_REF="${{ github.event.pull_request.head.sha }}" \
+            --ha=false \
+            --remote-only \
+            --yes
+
+      - name: Build the preview comment
+        run: |
+          {
+            echo "## 🚀 Preview"
+            echo
+            echo "This pull request is running at <https://${APP_NAME}.fly.dev>."
+            echo
+            echo "It serves the \`workspace/\` demo configuration, read-only, and is destroyed when this pull request closes."
+          } > preview-comment.md
+
+      - name: Post sticky preview comment
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: preview
+          path: preview-comment.md
+
+  destroy:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Destroy the app
+        run: flyctl apps destroy "$APP_NAME" --yes || true
+
+      - name: Remove the preview comment
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: preview
+          delete: true
