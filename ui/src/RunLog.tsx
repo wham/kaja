@@ -374,11 +374,12 @@ RunLog.TailBar = function ({
         </>
       )}
       {state === "failed" && <span className="text-destructive">Script failed</span>}
-      {/* The mark again, at the size this row can carry. The log's own tail is
-          where a run says it is still going; the row goes when it lands. */}
+      {/* The one place the mark is the running indicator. The row exists only
+          while the run does, so nothing here is aligned to a glyph that is about
+          to change width. */}
       {state === "running" && (
         <>
-          <KajaTrace running width={16} height={10} strokeWidth={4.5} />
+          <KajaTrace running />
           <span className="text-muted-foreground">
             {calls === 1 ? "1 call" : `${calls} calls`} · {formatElapsed(elapsedMs)}
           </span>

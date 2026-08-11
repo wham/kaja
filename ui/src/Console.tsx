@@ -11,7 +11,6 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
-import { KajaTrace } from "./KajaTrace";
 import { RunLog } from "./RunLog";
 import { callRows, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, printedCounts, RunGroup, RunSelection } from "./runs";
 import { runShortcutLabel } from "./RunButton";
@@ -520,7 +519,7 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
           </div>
         ) : group.running ? (
           <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
-            <KajaTrace running width={18} height={11} />
+            <Spinner className="size-3" />
             <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
           </div>
         ) : (
@@ -575,9 +574,15 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
           )}
           title={summary?.name}
         >
-          {/* While the run is going the status dot is the mark, drawing itself;
-              it snaps back to a plain dot the moment the run lands. */}
-          {summary?.pending && !summary.waiting ? <KajaTrace running /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
+          {/* The mark is not here: it is three times the width of the dot it
+              would swap back to, and the pill's whole label steps left as the
+              run lands. The log's tail bar, which nothing is aligned to, is
+              where it goes. */}
+          {summary?.pending && !summary.waiting ? (
+            <Spinner className="size-3" />
+          ) : (
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
+          )}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
           {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (

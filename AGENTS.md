@@ -444,22 +444,25 @@ selection, the tab and the view as they were left.
   in `startRun`), because a position would renumber as the oldest runs are
   trimmed out from under it. `Run.title` still carries the derived script name,
   which is what the window title and the store read.
-- **The mark is the running indicator** (`KajaTrace.tsx`). The logo is a trace — a
-  line that dips, spikes and settles — which is what a run is, so while a run is
-  going the pill's status dot **is** the mark, drawing itself left to right on a
-  1.4s beat (`--animate-trace`, `--brand-rust` / `--brand-violet`). The log's tail
-  bar says the same thing in its own row — the mark, `2 calls · 5.8 s` — and so
-  does the full-screen bar. Motion **only** while the run is going: it snaps back
-  to a plain dot the moment the run lands, and it is the one thing in the chrome
-  that moves. It replaces the spinner in those three places and nowhere else —
-  the run-history rows keep theirs, because a 20px mark in a list of 6px dots
-  moves every label it sits beside, and the sidebar's glyph slot is 12px square,
-  which a mark this wide can't be read in.
+- **The mark is the running indicator, in the log's tail bar and nowhere else**
+  (`KajaTrace.tsx`). The logo is a trace — a line that dips, spikes and settles —
+  which is what a run is, so while a run is going the tail bar states it in the
+  mark's own hand: the trace drawing itself left to right on a 1.4s beat
+  (`--animate-trace`, `--brand-rust` / `--brand-violet`), then `2 calls · 5.8 s`.
+  Motion **only** while the run is going, and it is the one thing in the chrome
+  that moves.
+- **Which is why it is not in the run pill.** The mark is three times the width of
+  the status dot it would swap back to, so the pill's whole label — name, agent
+  glyph, detail — steps sideways at the exact moment the run lands, which is the
+  moment you are reading it. The tail bar has no such problem: the row exists only
+  while the run does, and nothing is aligned to it. Same reason the run-history
+  rows and the sidebar's 12px glyph slot keep their spinners. Everywhere the mark
+  is not, the spinner still is.
 - **The mark alone, with nothing under it.** A 2px gradient rule filling along the
-  bottom of the console header was tried alongside it and cut: an 8px mark
-  redrawing itself is already the only thing moving on the screen, and a rule
-  under the header is a second statement of it at forty times the width — one
-  that reads as a progress bar for a run whose progress nothing knows.
+  bottom of the console header was tried alongside it and cut: the mark redrawing
+  itself is already the only thing moving on the screen, and a rule under the
+  header is a second statement of it at forty times the width — one that reads as
+  a progress bar for a run whose progress nothing knows.
 - **Which is about the run, not about a call** (`Group.running`, beside
   `inFlight`). A script sleeping between two calls has nothing in flight and is
   very much still running, so an indicator hung off `inFlight` blinks through a
