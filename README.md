@@ -161,5 +161,5 @@ Fork pull requests are skipped: they have no access to the token. Setting this u
 
 Releases are cut from GitHub — no local build needed. Every push to `main` uploads a new build to TestFlight. To ship a version, run the **release** workflow (Actions → Run workflow):
 
-- `open` (with `patch`/`minor`/`major`) — bumps the version on a branch and opens a PR. **Merge it yourself**: `main` is protected, so the bump has to arrive as a PR and pass the `demo` check. TestFlight builds carry the new version from then on.
+- `open` (with `patch`/`minor`/`major`) — bumps the version on a branch and opens a PR. **Merge it yourself**: `main` is protected, so the bump has to arrive as a PR and pass the `test` check. TestFlight builds carry the new version from then on.
 - `ship` — tags the commit and publishes a GitHub Release for it, with notes covering the whole cycle. Run it when you promote one of those TestFlight builds to the App Store.

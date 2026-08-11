@@ -1,0 +1,21 @@
+name: test
+# The UI and server test suites, run where they always ran: inside the image
+# build, which is what `RUN_TESTS=true` turns on (`bun run tsc`, `bun test`,
+# `go test ./...`). Building the `runner` target as well keeps a pull request
+# from merging an image that doesn't build.
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and test
+        run: docker build . --target runner --build-arg RUN_TESTS=true --build-arg GIT_REF=${{ github.sha }}
