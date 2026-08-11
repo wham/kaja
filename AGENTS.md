@@ -1061,6 +1061,7 @@ Both share the same backend code but differ in how they're packaged:
 - `quirks/proto/`, `grpcbin/proto/` - Proto files for the Twirp service and grpcb.in. Nothing else needs local protos: theatre is OpenAPI (its spec is fetched from `spec_url` at runtime) and seating uses gRPC server reflection
 - Run `scripts/demo-protos` to update proto files from kaja-tools/website and moul/pb
 - The `scripts/server` script starts kaja with this workspace by default
+- **It is also what both public deployments serve**, baked into the image by the Dockerfile's `demo` stage: `demo.kaja.tools` (`deploy/demo/fly.toml`, deployed by the **main** workflow on every push to main) and each pull request's own app (`deploy/preview/fly.toml`). One image and one workspace rather than a separate public config, so a change is clicked through on exactly what it becomes when it merges — and so the demo can never drift from what a developer sees. The demo services themselves live in kaja-tools/website; nothing of the demo's configuration does any more.
 
 ### Code Generation Flow
 

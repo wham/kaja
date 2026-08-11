@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://kaja.tools/demo/"><strong>Live Demo</strong></a> ·
+  <a href="https://demo.kaja.tools"><strong>Live Demo</strong></a> ·
   <a href="https://kaja.tools"><strong>Website</strong></a>
 </p>
 
@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <a href="https://kaja.tools/demo/">
+  <a href="https://demo.kaja.tools">
     <img src="docs/screenshot-1.png" alt="Kaja — calling a gRPC service with TypeScript" width="720" />
   </a>
 </p>
@@ -147,15 +147,23 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - Test UI: `(cd ui && bun test)`
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -tags development -v)` — the tag `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
-- Update demo protos: `scripts/demo-protos` (The demo services are deployed via [kaja/tools/website](github.com/kaja-tools/website))
+- Update demo protos: `scripts/demo-protos` — refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo *services* live in [kaja-tools/website](https://github.com/kaja-tools/website); `theatre` and `seating` need no protos here, since one is OpenAPI and the other serves gRPC reflection.
 
-### Preview apps
+### The demo, and the preview apps
 
-Every pull request is deployed to its own Fly app at `https://kaja-pr-<number>.fly.dev`, so a change can be clicked through before it is merged. The **preview** workflow rebuilds it on every push and destroys the app when the pull request closes; the URL is a comment on the pull request throughout.
+Both public deployments serve this repository's own `workspace/` — the demo apps `scripts/server` starts on — baked into the image by the Dockerfile's `demo` stage. **One image, two places it runs**, so a change is clicked through on exactly what it will become:
 
-The preview serves this repository's own `workspace/` — the demo apps `scripts/server` starts on — baked into the image by the Dockerfile's `preview` stage. Its configuration is read-only, like any server build, so a preview never asks Fly for a disk.
+- **[demo.kaja.tools](https://demo.kaja.tools)** (`deploy/demo/fly.toml`) — deployed by the **main** workflow on every push to `main`, and so from the commit that changed it. One machine stays up, so the first visitor of the day doesn't wait for a cold start.
+- **`https://kaja-pr-<number>.fly.dev`** (`deploy/preview/fly.toml`) — one app per pull request, so a change can be clicked through before it is merged. The **preview** workflow rebuilds it on every push and destroys the app when the pull request closes; the URL is a comment on the pull request throughout. A preview runs no machine until someone opens its URL.
 
-Fork pull requests are skipped: they have no access to the token. Setting this up in a fresh repository takes a `FLY_API_TOKEN` secret that may create and destroy apps (`fly tokens create org <org>` — an app-scoped deploy token can't create the per-pull-request apps), and optionally a `FLY_ORG` variable if the org isn't `personal`.
+The workspace's configuration is read-only, like any server build, so neither ever asks Fly for a disk, and `workspace/scripts/` ships with them — the demo opens with scripts to press Run on.
+
+Fork pull requests are skipped: they have no access to the token. Setting this up in a fresh repository takes a `FLY_API_TOKEN` secret that may create and destroy apps (`fly tokens create org <org>` — an app-scoped deploy token can't create the per-pull-request apps), and optionally a `FLY_ORG` variable if the org isn't `personal`. The demo's own app and certificate are created once, by hand:
+
+```bash
+fly apps create kaja-demo
+fly certs add demo.kaja.tools --app kaja-demo
+```
 
 ### Releases
 

@@ -10,8 +10,9 @@ primary_region = "sjc"
 [build]
   # Resolved relative to this file; the build context is the repository root.
   dockerfile = "../../Dockerfile"
-  # The server plus workspace/, so the preview comes up on the demo apps.
-  build-target = "preview"
+  # The server plus workspace/, so the preview comes up on the demo apps — the
+  # same image demo.kaja.tools runs.
+  build-target = "demo"
 
 [http_service]
   internal_port = 41520

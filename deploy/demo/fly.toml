@@ -1,0 +1,39 @@
+# The Fly config demo.kaja.tools is deployed with, on every push to main. The
+# app and its certificate already exist; nothing here creates either.
+#   fly certs add demo.kaja.tools --app kaja-demo
+#
+# It is the same image a pull request preview runs (deploy/preview/fly.toml),
+# built from the same target, so what a change was clicked through on before it
+# merged is what the demo becomes after.
+#
+# The Dockerfile is at the repository root, so the build context must be too:
+#   fly deploy . --config deploy/demo/fly.toml
+app = "kaja-demo"
+primary_region = "sjc"
+
+[build]
+  # Resolved relative to this file; the build context is the repository root.
+  dockerfile = "../../Dockerfile"
+  # The server plus workspace/, so the demo serves this repository's own apps.
+  build-target = "demo"
+
+[http_service]
+  internal_port = 41520
+  force_https = true
+  # Unlike a preview, this is a front door: one machine stays up, so the first
+  # visitor of the day doesn't wait for a cold start.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # A deploy that ends with a server that never answered should fail the check
+  # rather than replace a working demo with one that doesn't load.
+  [[http_service.checks]]
+    path = "/status"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
