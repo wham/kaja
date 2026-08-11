@@ -11,6 +11,7 @@ import { SegmentedControl } from "./components/segmented-control";
 import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
+import { KajaTrace } from "./KajaTrace";
 import { RunLog } from "./RunLog";
 import { callRows, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, printedCounts, RunGroup, RunSelection } from "./runs";
 import { runShortcutLabel } from "./RunButton";
@@ -100,15 +101,16 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
   const canvasScroll = useRef(0);
 
   // A settled call shows the wall-clock time it was made, which never changes —
-  // so the clock only runs while something is still in flight, counting up in
-  // tenths for the call that is.
-  const hasInFlight = groups.some((group) => group.inFlight);
+  // so the clock only runs while something is still going, counting up in tenths
+  // for the run and the call that are.
+  const hasRunning = groups.some((group) => group.running);
+  const ticking = hasRunning || groups.some((group) => group.inFlight);
 
   useEffect(() => {
-    if (!hasInFlight) return;
+    if (!ticking) return;
     const interval = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(interval);
-  }, [hasInFlight]);
+  }, [ticking]);
 
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
@@ -282,7 +284,10 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
           change the split pays for. Everything leaves in order of what it is
           worth as the panel narrows, and the run pill truncates through all of
           it. */}
-      <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
+      <div className="@container relative flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
+        {/* The console has a run going, which the pill can only say while the
+            run it names is the one running. */}
+        {hasRunning && <KajaTrace.Rule />}
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
         <div className="h-4 w-px shrink-0 bg-border" />
         <SegmentedControl className="h-[26px] shrink-0 p-[2px]" aria-label="Run view">
@@ -503,9 +508,10 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
   return (
     <div data-testid="console-fullscreen-canvas" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div
-        className="flex h-[40px] shrink-0 items-center gap-3 border-b border-border pr-3"
+        className="relative flex h-[40px] shrink-0 items-center gap-3 overflow-hidden border-b border-border pr-3"
         style={{ paddingLeft: reserveTrafficLights ? TRAFFIC_LIGHTS_INSET : 12 }}
       >
+        {group.running && <KajaTrace.Rule />}
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="truncate font-mono text-xs text-foreground">{group.run.title}</span>
           <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">
@@ -517,9 +523,9 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
             <span className="font-mono text-xs text-amber-600 dark:text-amber-400">waiting for you</span>
           </div>
-        ) : group.inFlight ? (
+        ) : group.running ? (
           <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
-            <Spinner className="size-3" />
+            <KajaTrace running width={18} height={11} />
             <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
           </div>
         ) : (
@@ -574,11 +580,9 @@ Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }:
           )}
           title={summary?.name}
         >
-          {summary?.pending && !summary.waiting ? (
-            <Spinner className="size-3" />
-          ) : (
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />
-          )}
+          {/* While the run is going the status dot is the mark, drawing itself;
+              it snaps back to a plain dot the moment the run lands. */}
+          {summary?.pending && !summary.waiting ? <KajaTrace running /> : <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", summary?.dotClass)} />}
           <span className="shrink-0 font-mono text-xs text-foreground">{summary?.name}</span>
           {summary?.agent && <Bot size={12} className="shrink-0 text-muted-foreground" aria-label="Run by an agent" />}
           {summary?.detail && (
@@ -667,9 +671,12 @@ interface RunSummaryLine {
 function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummaryLine {
   const waiting = group.awaiting !== undefined;
   const time = group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt);
+  // Still going is a state of the run, not of a call: a script sleeping between
+  // two of them is running, and a verdict read off the calls so far would be one
+  // the run has not reached.
   const outcome = waiting
     ? "waiting"
-    : group.inFlight
+    : group.running
       ? formatElapsed(now - group.run.startedAt)
       : group.status === "error"
         ? "failed"
@@ -679,7 +686,7 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
     name: runName(group, groups),
     detail: outcome ? `${time} · ${outcome}` : time,
     dotClass: cn(waiting ? "bg-amber-500" : dotClass(group.status), group.run.stale && "opacity-50"),
-    pending: group.inFlight,
+    pending: group.running,
     waiting,
     agent: group.run.origin === "agent",
   };

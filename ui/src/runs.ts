@@ -151,6 +151,10 @@ export interface RunGroup {
   status: RunStatus;
   // Whether anything it started is still in flight.
   inFlight: boolean;
+  // Whether the run itself is still going. Wider than `inFlight`, and it is the
+  // one the chrome reports: a script sleeping between two calls has nothing in
+  // flight and is very much still running.
+  running: boolean;
   // How many of its calls failed, which is what the header says instead of
   // repeating the duration of each one.
   failures: number;

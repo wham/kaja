@@ -444,6 +444,25 @@ selection, the tab and the view as they were left.
   in `startRun`), because a position would renumber as the oldest runs are
   trimmed out from under it. `Run.title` still carries the derived script name,
   which is what the window title and the store read.
+- **The mark is the running indicator** (`KajaTrace.tsx`). The logo is a trace — a
+  line that dips, spikes and settles — which is what a run is, so while a run is
+  going the pill's status dot **is** the mark, drawing itself left to right, and
+  a 2px rust-to-violet rule fills along the bottom of the console header on the
+  same 1.4s beat (`--animate-trace` / `--animate-trace-sweep`, `--brand-rust` /
+  `--brand-violet`). The log's tail bar says the same thing in its own row — the
+  mark, `2 calls · 5.8 s` — and the full-screen bar carries both. Motion **only**
+  while the run is going: it snaps back to a plain dot the moment the run lands,
+  and it is the one thing in the chrome that moves. It replaces the spinner in
+  those three places and nowhere else — the run-history rows keep theirs, because
+  a 20px mark in a list of 6px dots moves every label it sits beside, and the
+  sidebar's glyph slot is 12px square, which a mark this wide can't be read in.
+- **Which is about the run, not about a call** (`Group.running`, beside
+  `inFlight`). A script sleeping between two calls has nothing in flight and is
+  very much still running, so an indicator hung off `inFlight` blinks through a
+  run and — worse — the pill reported `failed` while the script was still going.
+  `running` is `durationMs === undefined` on a run that isn't stale: a settled run
+  is one with a duration. Everything that reports the run's state reads it; the
+  in-flight count is still what the strip and the payload machinery care about.
 - **Two extra channels on every row, and no third.** The **loop key**
   (`loopKey.ts`) is the identifying value read off the request — the only thing
   making two hundred identical method names tellable apart — and it shares its
