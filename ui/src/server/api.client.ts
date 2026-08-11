@@ -11,6 +11,8 @@ import type { UpdateConfigurationResponse } from "./api";
 import type { UpdateConfigurationRequest } from "./api";
 import type { GetConfigurationResponse } from "./api";
 import type { GetConfigurationRequest } from "./api";
+import type { InspectMcpResponse } from "./api";
+import type { InspectMcpRequest } from "./api";
 import type { InspectGrpcResponse } from "./api";
 import type { InspectGrpcRequest } from "./api";
 import type { InspectOpenApiResponse } from "./api";
@@ -42,6 +44,10 @@ export interface IApiClient {
      * @generated from protobuf rpc: InspectGrpc
      */
     inspectGrpc(input: InspectGrpcRequest, options?: RpcOptions): UnaryCall<InspectGrpcRequest, InspectGrpcResponse>;
+    /**
+     * @generated from protobuf rpc: InspectMcp
+     */
+    inspectMcp(input: InspectMcpRequest, options?: RpcOptions): UnaryCall<InspectMcpRequest, InspectMcpResponse>;
     /**
      * @generated from protobuf rpc: GetConfiguration
      */
@@ -97,31 +103,38 @@ export class ApiClient implements IApiClient, ServiceInfo {
         return stackIntercept<InspectGrpcRequest, InspectGrpcResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * @generated from protobuf rpc: InspectMcp
+     */
+    inspectMcp(input: InspectMcpRequest, options?: RpcOptions): UnaryCall<InspectMcpRequest, InspectMcpResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<InspectMcpRequest, InspectMcpResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * @generated from protobuf rpc: GetConfiguration
      */
     getConfiguration(input: GetConfigurationRequest, options?: RpcOptions): UnaryCall<GetConfigurationRequest, GetConfigurationResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetConfigurationRequest, GetConfigurationResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: UpdateConfiguration
      */
     updateConfiguration(input: UpdateConfigurationRequest, options?: RpcOptions): UnaryCall<UpdateConfigurationRequest, UpdateConfigurationResponse> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateConfigurationRequest, UpdateConfigurationResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: SetStoredValue
      */
     setStoredValue(input: SetStoredValueRequest, options?: RpcOptions): UnaryCall<SetStoredValueRequest, StoredValueResponse> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: ClearStoredValue
      */
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
     }
 }

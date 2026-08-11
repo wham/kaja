@@ -10,6 +10,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { AppSurface, appHeaders, appParameters, appType, buildApp, getAppType, typeForwardsHeaders } from "./appTypes";
 import { AppNameField } from "./AppNameField";
 import { GrpcForm } from "./GrpcForm";
+import { McpForm } from "./McpForm";
 import { OpenApiForm } from "./OpenApiForm";
 import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
@@ -448,6 +449,20 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
                 // behind the previous one's transport and credentials.
                 type === "grpc" ? (
                   <GrpcForm
+                    key={initialData?.name || "__new__"}
+                    name={name}
+                    onNameChange={setName}
+                    duplicateName={duplicateName}
+                    takenNames={takenNames}
+                    parameters={parameters}
+                    onParametersChange={setParameters}
+                    variables={variables}
+                    readOnly={readOnly}
+                    onSurfaceChange={setSurface}
+                    onReadyChange={setCustomReady}
+                  />
+                ) : type === "mcp" ? (
+                  <McpForm
                     key={initialData?.name || "__new__"}
                     name={name}
                     onNameChange={setName}

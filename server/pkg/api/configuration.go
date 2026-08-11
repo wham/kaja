@@ -265,7 +265,7 @@ func validateApps(configuration *Configuration, logger *Logger) {
 	validApps := []*ConfigurationApp{}
 	for _, app := range configuration.Apps {
 		if appType, _ := flattenApp(app); appType == "" {
-			logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, folder.", app.Name), nil)
+			logger.error(fmt.Sprintf("App %q has no type set. Use one of grpc, twirp, openapi, openai, folder, mcp.", app.Name), nil)
 			continue
 		}
 		validApps = append(validApps, app)
