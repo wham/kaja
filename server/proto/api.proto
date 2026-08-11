@@ -12,6 +12,8 @@ service Api {
   rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
   rpc SetStoredValue(SetStoredValueRequest) returns (StoredValueResponse);
   rpc ClearStoredValue(ClearStoredValueRequest) returns (StoredValueResponse);
+  rpc ListScripts(ListScriptsRequest) returns (ListScriptsResponse);
+  rpc ReadScript(ReadScriptRequest) returns (ReadScriptResponse);
 }
 
 message CompileRequest {
@@ -412,6 +414,38 @@ message ClearStoredValueRequest {
 
 message StoredValueResponse {
   repeated VariableStatus variable_status = 1;
+}
+
+// A script the workspace ships: a .ts file in the flat `scripts` folder beside
+// kaja.json. The desktop app reads that folder off disk directly; these two RPCs
+// are how a browser reaches the same folder, which is what puts a script mounted
+// into a container in the sidebar. The server never writes one - saving is the
+// verb a workspace it does not own doesn't offer - so there is no counterpart to
+// the desktop's write, create, rename and delete.
+message Script {
+  // Absolute path on the machine serving the workspace. It identifies the script
+  // (the console and the run store are keyed on it) and is not a handle the
+  // client may read back: ReadScript takes the name.
+  string path = 1;
+  string name = 2;
+  // Only set by ReadScript. A listing carries names, not contents.
+  string content = 3;
+}
+
+message ListScriptsRequest {}
+
+message ListScriptsResponse {
+  repeated Script scripts = 1;
+}
+
+// ReadScript reads one script by its bare file name. A name is not a path: it is
+// resolved inside the scripts folder, which is the whole access boundary.
+message ReadScriptRequest {
+  string name = 1;
+}
+
+message ReadScriptResponse {
+  Script script = 1;
 }
 
 message Configuration {

@@ -4,6 +4,10 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Api } from "./api";
+import type { ReadScriptResponse } from "./api";
+import type { ReadScriptRequest } from "./api";
+import type { ListScriptsResponse } from "./api";
+import type { ListScriptsRequest } from "./api";
 import type { StoredValueResponse } from "./api";
 import type { ClearStoredValueRequest } from "./api";
 import type { SetStoredValueRequest } from "./api";
@@ -64,6 +68,14 @@ export interface IApiClient {
      * @generated from protobuf rpc: ClearStoredValue
      */
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse>;
+    /**
+     * @generated from protobuf rpc: ListScripts
+     */
+    listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse>;
+    /**
+     * @generated from protobuf rpc: ReadScript
+     */
+    readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse>;
 }
 /**
  * @generated from protobuf service Api
@@ -136,5 +148,19 @@ export class ApiClient implements IApiClient, ServiceInfo {
     clearStoredValue(input: ClearStoredValueRequest, options?: RpcOptions): UnaryCall<ClearStoredValueRequest, StoredValueResponse> {
         const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<ClearStoredValueRequest, StoredValueResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ListScripts
+     */
+    listScripts(input: ListScriptsRequest, options?: RpcOptions): UnaryCall<ListScriptsRequest, ListScriptsResponse> {
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListScriptsRequest, ListScriptsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: ReadScript
+     */
+    readScript(input: ReadScriptRequest, options?: RpcOptions): UnaryCall<ReadScriptRequest, ReadScriptResponse> {
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ReadScriptRequest, ReadScriptResponse>("unary", this._transport, method, opt, input);
     }
 }
