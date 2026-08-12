@@ -30,6 +30,12 @@
         "url": "dns:seating.kaja.tools:443",
         "reflection": true
       }
+    },
+    {
+      "name": "concierge",
+      "mcp": {
+        "url": "https://concierge.kaja.tools/mcp"
+      }
     }
   ]
 }
