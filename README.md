@@ -47,16 +47,6 @@
 - **Still yours to drive.** Click a method and Kaja writes you the call, with full autocomplete for apps, methods and message fields.
 - **macOS & Docker.** Available on the [Mac App Store](https://apps.apple.com/us/app/kaja-for-grpc-and-twirp/id6761604205?mt=12) or as a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
 
-## Connect your agent
-
-The MCP server runs inside the desktop app, bound to `127.0.0.1:41521` and guarded by a token. The plug in the status bar carries the connection snippet for your client, ready to paste. For Claude Code it is:
-
-```
-claude mcp add --transport http kaja http://127.0.0.1:41521 --header "Authorization: Bearer <token>"
-```
-
-Connected, an agent gets an index of every method your apps expose (`list_services`), the TypeScript declarations behind any one of them (`describe_method`, `describe_type`), and the means to run and keep scripts (`run_script`, `create_script`, and the rest of the script tools). A snippet it runs inline goes into a scratch buffer in your sidebar, titled from its own code, so its runs sit in the same console as yours.
-
 ## Run with Docker
 
 ```
