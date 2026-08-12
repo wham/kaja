@@ -2,12 +2,12 @@
   <a href="https://kaja.tools"><img src="docs/logo.svg" alt="Kaja" /></a>
 </p>
 
-<h3 align="center">Explore and call your APIs with code</h3>
+<h3 align="center">A canvas for your APIs</h3>
 
 <p align="center">
-  A code-based UI for exploring and calling <a href="https://grpc.io">gRPC</a> and <a href="https://github.com/twitchtv/twirp">Twirp</a> APIs.
+  An agent calling your APIs leaves you a transcript to trust. Kaja gives it a canvas instead.
   <br/>
-  Write TypeScript to construct requests, call services, and inspect responses — no forms, no clicking through fields.
+  Connect your <a href="https://grpc.io">gRPC</a>, <a href="https://www.openapis.org">OpenAPI</a> and <a href="https://modelcontextprotocol.io">MCP</a> apps, and what your agent does is drawn, logged call by call, and paused for your approval whenever you want one.
 </p>
 
 <p align="center">
@@ -33,15 +33,29 @@
 
 <p align="center">
   <a href="https://demo.kaja.tools">
-    <img src="docs/screenshot-1.png" alt="Kaja — calling a gRPC service with TypeScript" width="720" />
+    <img src="docs/screenshot-1.png" alt="Kaja running a script against a gRPC app" width="720" />
   </a>
 </p>
 
 ## Features
 
-- **Code-based** — Write TypeScript to call your APIs. Full autocomplete for services, methods, and message fields.
-- **gRPC & Twirp** — Native support for both protocols. Reads your `.proto` files or uses [gRPC server reflection](https://grpc.io/docs/guides/reflection/).
-- **macOS & Docker** — Available on the [Mac App Store](https://apps.apple.com/us/app/kaja-for-grpc-and-twirp/id6761604205?mt=12) or as a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
+- **Your agent drives it.** Kaja runs an [MCP](https://modelcontextprotocol.io) server, so your agent reads what your apps expose, writes TypeScript against them, and runs it. Nothing it does is invisible: every run lands in the sidebar next to your own.
+- **A canvas, not a transcript.** A script draws what it produced. Tables fill row by row as a loop runs, page and search themselves, and sit alongside text and code.
+- **Every call is on the record.** Request, response, headers and duration for each call in a run, whoever pressed Run.
+- **Approval when you want it.** A script can hold a call until you approve it, so a write goes out when you say so and not before.
+- **gRPC, OpenAPI and MCP.** Read the surface from your `.proto` files, from [gRPC server reflection](https://grpc.io/docs/guides/reflection/), from an OpenAPI document, or from another MCP server. [Twirp](https://github.com/twitchtv/twirp) is supported too.
+- **Still yours to drive.** Click a method and Kaja writes you the call, with full autocomplete for apps, methods and message fields.
+- **macOS & Docker.** Available on the [Mac App Store](https://apps.apple.com/us/app/kaja-for-grpc-and-twirp/id6761604205?mt=12) or as a [Docker container](https://hub.docker.com/r/kajatools/kaja) for any environment.
+
+## Connect your agent
+
+The MCP server runs inside the desktop app, bound to `127.0.0.1:41521` and guarded by a token. The plug in the status bar carries the connection snippet for your client, ready to paste. For Claude Code it is:
+
+```
+claude mcp add --transport http kaja http://127.0.0.1:41521 --header "Authorization: Bearer <token>"
+```
+
+Connected, an agent gets an index of every method your apps expose (`list_services`), the TypeScript declarations behind any one of them (`describe_method`, `describe_type`), and the means to run and keep scripts (`run_script`, `create_script`, and the rest of the script tools). A snippet it runs inline goes into a scratch buffer in your sidebar, titled from its own code, so its runs sit in the same console as yours.
 
 ## Run with Docker
 
