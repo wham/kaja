@@ -136,10 +136,6 @@ func (a *App) startup(ctx context.Context) {
 	// Register the macOS "Run Kaja Script" text service (no-op on other platforms).
 	registerServices(ctx)
 
-	// The window buttons are part of the same row as the sidebar header and the
-	// command row, so they sit on the same line as everything in it.
-	alignTrafficLights(headerBandHeight)
-
 	// The MCP server's lifetime is the process's: the UI only reports it.
 	a.startMCPServer()
 
@@ -754,6 +750,14 @@ func main() {
 	app := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
 
 	appMenu := app.buildAppMenu()
+
+	// The window buttons are part of the same row as the sidebar header and the
+	// command row, so they sit on the same line as everything in it. Asked for
+	// here rather than from the startup hook, which runs on a goroutine of its
+	// own and behind whatever else that hook does: this is the window's
+	// geometry, so it is queued before the app runs rather than racing the
+	// first frame.
+	alignTrafficLights(headerBandHeight)
 
 	err = wails.Run(&options.App{
 		Title: "Kaja",

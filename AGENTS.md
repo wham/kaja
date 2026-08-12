@@ -829,11 +829,16 @@ inset only when the sidebar is collapsed).
     itself on the next click into the app, which is the shape of the bug this
     is written against. So **every view between the window and the buttons is
     watched**, the buttons included, and applying is a no-op once it is already
-    right. It is **deferred to the end of the run loop turn**, so the last word
-    belongs to us rather than to the layout pass still running, and a pass that
-    moved all four views is one apply rather than four. **Fullscreen is left
-    alone**: there the buttons belong to the menu bar overlay, which is
-    AppKit's to place.
+    right — which is what most of those passes come to.
+  - **Corrected in the same turn it is broken in, and again once that turn is
+    over.** The first is what stops it being seen: the pass that moved the
+    buttons ends in a frame, and a move put right on the *next* turn is a
+    visible jump about a second after the window opens, which is what deferring
+    it alone looked like. The second is the backstop, because the pass is still
+    running and may move them again after we are done. Setting a frame posts
+    the notification this all hangs off, so the reentrancy guard is what keeps
+    the correction out of itself. **Fullscreen is left alone**: there the
+    buttons belong to the menu bar overlay, which is AppKit's to place.
 
 - **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
   only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing

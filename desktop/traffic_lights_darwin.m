@@ -16,15 +16,16 @@
 // AppKit re-runs that layout on its own schedule — the window is first shown,
 // the title changes, the appearance changes, fullscreen ends — and puts them
 // back where it wants them, so every view between the window and the buttons
-// is watched and the geometry is applied again whenever one of them moves.
-// Applying is written to be a no-op once it is already right, and is deferred
-// to the end of the run loop turn so the last word belongs to us rather than
-// to the layout pass that is still running.
+// is watched and the geometry is applied again whenever one of them moves,
+// both inside the pass that moved it and once that pass is over. Applying is
+// written to be a no-op once it is already right, which is what most of those
+// passes come to.
 
 @interface KajaTrafficLights : NSObject {
     CGFloat _bandHeight;
     NSWindow *_window;   // The app's own window; dropped when it closes.
     NSArray *_observed;  // The views being watched, retained for as long as they are.
+    BOOL _applying;
     BOOL _scheduled;
 }
 - (instancetype)initWithBandHeight:(CGFloat)bandHeight;
@@ -114,26 +115,31 @@ void kajaAlignTrafficLights(double bandHeight) {
     [self observe:[NSArray array]];
 }
 
+// Corrected twice, for two different reasons. Now, because this turn ends in a
+// frame and a move put right on the next turn is a jump — which is what
+// correcting it only on the next turn looked like. And again once the turn is
+// over, because the pass that moved this view is still running and may move it
+// again after we are done.
 - (void)viewFrameChanged:(NSNotification *)notification {
+    [self apply];
     [self scheduleApply];
 }
 
-// AppKit moves the buttons from inside its own layout pass, and a frame set
-// while that is running is one it may still overwrite. Waiting for the turn to
-// end also folds a pass that moved all four views into a single apply.
 - (void)scheduleApply {
     if (_scheduled || _window == nil) {
         return;
     }
     _scheduled = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
+        self->_scheduled = NO;
         [self apply];
     });
 }
 
+// Setting a frame in here posts the notification that calls this back, so the
+// guard is what keeps the correction out of itself.
 - (void)apply {
-    _scheduled = NO;
-    if (_window == nil) {
+    if (_applying || _window == nil) {
         return;
     }
     // In fullscreen the buttons belong to the menu bar overlay, which is
@@ -160,6 +166,7 @@ void kajaAlignTrafficLights(double bandHeight) {
 
     [self observe:@[ container, titleBar, close, miniaturize, zoom ]];
 
+    _applying = YES;
     NSRect wanted = container.frame;
     wanted.size.height = _bandHeight;
     wanted.origin.y = NSHeight(_window.frame) - _bandHeight;
@@ -176,6 +183,7 @@ void kajaAlignTrafficLights(double bandHeight) {
             [button setFrameOrigin:NSMakePoint(NSMinX(button.frame), y)];
         }
     }
+    _applying = NO;
 }
 
 // The buttons can be removed and re-added, taking their container with them, so
