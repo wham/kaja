@@ -804,6 +804,42 @@ absent whenever there is nothing unsaved, which is most of the time. The sidebar
 across the seam, and the macOS traffic lights stay in it (the row takes over the
 inset only when the sidebar is collapsed).
 
+- **The lights move to the band, not the band to the lights**
+  (`desktop/traffic_lights_darwin.m`). AppKit centres the three window buttons
+  on the 28pt title bar, six points above the centre of the 40px band, so the
+  window's top-left corner read as two staggered baselines — the lights on one,
+  and **+**, `{ }`, the panel toggle and the file's own Save on the other. There
+  is no position to set: `mac.TitleBar` is six booleans, and Wails has had the
+  request open since v2. So the title bar container is made as tall as the band
+  and the buttons are centred in it, which is what Electron's
+  `trafficLightPosition` is underneath — public AppKit throughout, so it holds
+  in the sandboxed App Store build, and it is the same cgo-rather-than-a-library
+  move the keychain and the Finder reveal already make. **Nothing in the layout
+  moves and no vertical space is spent**, which is why this and not a strip of
+  its own for the lights (28px, on a laptop) or a 28px row pinned to the top of
+  a 40px band (bottom-heavy by 12px, for no native change).
+  - **The container only makes the room; the move is the buttons' own.** AppKit
+    lays the buttons out a fixed distance below the container's *top*, so a
+    taller container moves nothing by itself — it is what keeps them from being
+    clipped once they are lower than AppKit would ever put them.
+  - **Re-applied rather than set once.** AppKit re-runs that layout whenever it
+    feels like it — the window is first shown, the title changes (which kaja
+    does on every run), the appearance changes, fullscreen ends — and puts the
+    buttons back. Applying once landed the first window 6px out and fixed
+    itself on the next click into the app, which is the shape of the bug this
+    is written against. So **every view between the window and the buttons is
+    watched**, the buttons included, and applying is a no-op once it is already
+    right — which is what most of those passes come to.
+  - **Corrected in the same turn it is broken in, and again once that turn is
+    over.** The first is what stops it being seen: the pass that moved the
+    buttons ends in a frame, and a move put right on the *next* turn is a
+    visible jump about a second after the window opens, which is what deferring
+    it alone looked like. The second is the backstop, because the pass is still
+    running and may move them again after we are done. Setting a frame posts
+    the notification this all hangs off, so the reentrancy guard is what keeps
+    the correction out of itself. **Fullscreen is left alone**: there the
+    buttons belong to the menu bar overlay, which is AppKit's to place.
+
 - **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
   only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing
   that existed to serve itself. What is left is a **cache**: `MOUNTED_LIMIT`
