@@ -818,13 +818,22 @@ inset only when the sidebar is collapsed).
   moves and no vertical space is spent**, which is why this and not a strip of
   its own for the lights (28px, on a laptop) or a 28px row pinned to the top of
   a 40px band (bottom-heavy by 12px, for no native change).
-  - **Re-applied rather than set once.** AppKit re-lays the container out
-    whenever it feels like it — the window title changes, which kaja does on
-    every run, and the appearance changes, and fullscreen ends. So the geometry
-    is re-applied from an observation of the container's own frame plus the
-    window's resize and exit-fullscreen notifications, and applying it is a
-    no-op once it is already right. **Fullscreen is left alone**: there the
-    buttons belong to the menu bar overlay, which is AppKit's to place.
+  - **The container only makes the room; the move is the buttons' own.** AppKit
+    lays the buttons out a fixed distance below the container's *top*, so a
+    taller container moves nothing by itself — it is what keeps them from being
+    clipped once they are lower than AppKit would ever put them.
+  - **Re-applied rather than set once.** AppKit re-runs that layout whenever it
+    feels like it — the window is first shown, the title changes (which kaja
+    does on every run), the appearance changes, fullscreen ends — and puts the
+    buttons back. Applying once landed the first window 6px out and fixed
+    itself on the next click into the app, which is the shape of the bug this
+    is written against. So **every view between the window and the buttons is
+    watched**, the buttons included, and applying is a no-op once it is already
+    right. It is **deferred to the end of the run loop turn**, so the last word
+    belongs to us rather than to the layout pass still running, and a pass that
+    moved all four views is one apply rather than four. **Fullscreen is left
+    alone**: there the buttons belong to the menu bar overlay, which is
+    AppKit's to place.
 
 - **"Open" is not a concept** — `views.ts`. Once the strip was gone, the open set
   only fed the recent chips, `⌘P⏎`, and its own Close command, so it was a thing

@@ -6,20 +6,26 @@
 // Neither AppKit nor Wails has a position to set (AppKit only offers the whole
 // title bar, and wails/v2 mac.TitleBar is six booleans), so we do what every
 // app that wants this does: make the title bar container as tall as the band
-// and centre the buttons in it. Nothing here is private — the buttons are asked
-// for by name and only their frames are touched — so it holds in the sandboxed
-// App Store build.
+// and put the buttons in the middle of it. Nothing here is private — the
+// buttons are asked for by name and only their frames are touched — so it
+// holds in the sandboxed App Store build.
 //
-// AppKit re-lays the container out on its own schedule: the window title
-// changes, the appearance changes, fullscreen ends. That is what the observers
-// are for, and why applying the geometry is written to be a no-op once it is
-// already right.
+// A taller container does not move anything on its own: AppKit lays the
+// buttons out a fixed distance below the container's top, so the container is
+// only what keeps them from being clipped and the move is the buttons' own.
+// AppKit re-runs that layout on its own schedule — the window is first shown,
+// the title changes, the appearance changes, fullscreen ends — and puts them
+// back where it wants them, so every view between the window and the buttons
+// is watched and the geometry is applied again whenever one of them moves.
+// Applying is written to be a no-op once it is already right, and is deferred
+// to the end of the run loop turn so the last word belongs to us rather than
+// to the layout pass that is still running.
 
 @interface KajaTrafficLights : NSObject {
     CGFloat _bandHeight;
-    NSWindow *_window;    // The app's own window; dropped when it closes.
-    NSView *_container;   // The title bar container currently being observed.
-    BOOL _applying;
+    NSWindow *_window;   // The app's own window; dropped when it closes.
+    NSArray *_observed;  // The views being watched, retained for as long as they are.
+    BOOL _scheduled;
 }
 - (instancetype)initWithBandHeight:(CGFloat)bandHeight;
 @end
@@ -95,7 +101,7 @@ void kajaAlignTrafficLights(double bandHeight) {
 
 - (void)windowChanged:(NSNotification *)notification {
     if (notification.object == _window) {
-        [self apply];
+        [self scheduleApply];
     }
 }
 
@@ -105,15 +111,29 @@ void kajaAlignTrafficLights(double bandHeight) {
         return;
     }
     _window = nil;
-    [self observeContainer:nil];
+    [self observe:[NSArray array]];
 }
 
-- (void)containerFrameChanged:(NSNotification *)notification {
-    [self apply];
+- (void)viewFrameChanged:(NSNotification *)notification {
+    [self scheduleApply];
+}
+
+// AppKit moves the buttons from inside its own layout pass, and a frame set
+// while that is running is one it may still overwrite. Waiting for the turn to
+// end also folds a pass that moved all four views into a single apply.
+- (void)scheduleApply {
+    if (_scheduled || _window == nil) {
+        return;
+    }
+    _scheduled = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self apply];
+    });
 }
 
 - (void)apply {
-    if (_applying || _window == nil) {
+    _scheduled = NO;
+    if (_window == nil) {
         return;
     }
     // In fullscreen the buttons belong to the menu bar overlay, which is
@@ -128,7 +148,8 @@ void kajaAlignTrafficLights(double bandHeight) {
     if (close == nil || miniaturize == nil || zoom == nil) {
         return;
     }
-    NSView *container = close.superview.superview;
+    NSView *titleBar = close.superview;
+    NSView *container = titleBar.superview;
     if (container == nil) {
         return;
     }
@@ -137,8 +158,7 @@ void kajaAlignTrafficLights(double bandHeight) {
         return;
     }
 
-    _applying = YES;
-    [self observeContainer:container];
+    [self observe:@[ container, titleBar, close, miniaturize, zoom ]];
 
     NSRect wanted = container.frame;
     wanted.size.height = _bandHeight;
@@ -147,34 +167,35 @@ void kajaAlignTrafficLights(double bandHeight) {
         [container setFrame:wanted];
     }
 
-    CGFloat y = floor((_bandHeight - buttonHeight) / 2.0);
+    // The container is now the band, so the middle of the band is the middle of
+    // the container — in the coordinates of whatever view holds the buttons.
+    NSPoint middle = [titleBar convertPoint:NSMakePoint(0.0, _bandHeight / 2.0) fromView:container];
+    CGFloat y = floor(middle.y - buttonHeight / 2.0);
     for (NSButton *button in @[ close, miniaturize, zoom ]) {
         if (NSMinY(button.frame) != y) {
             [button setFrameOrigin:NSMakePoint(NSMinX(button.frame), y)];
         }
     }
-    _applying = NO;
 }
 
-// The buttons can be removed and re-added, taking the container with them, so
-// the observation follows whichever container is holding them now. It is
-// retained for as long as it is observed, since the notification centre does
-// not hold it and an observation of a released view is a dangling one.
-- (void)observeContainer:(NSView *)container {
-    if (container == _container) {
+// The buttons can be removed and re-added, taking their container with them, so
+// the observation follows whichever views are holding them now. They are
+// retained for as long as they are observed, since the notification centre does
+// not hold them and an observation of a released view is a dangling one.
+- (void)observe:(NSArray *)views {
+    if ([_observed isEqualToArray:views]) {
         return;
     }
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    if (_container != nil) {
-        [center removeObserver:self name:NSViewFrameDidChangeNotification object:_container];
-        [_container release];
+    for (NSView *view in _observed) {
+        [center removeObserver:self name:NSViewFrameDidChangeNotification object:view];
     }
-    _container = [container retain];
-    if (container == nil) {
-        return;
+    [_observed release];
+    _observed = [views retain];
+    for (NSView *view in _observed) {
+        [view setPostsFrameChangedNotifications:YES];
+        [center addObserver:self selector:@selector(viewFrameChanged:) name:NSViewFrameDidChangeNotification object:view];
     }
-    [container setPostsFrameChangedNotifications:YES];
-    [center addObserver:self selector:@selector(containerFrameChanged:) name:NSViewFrameDidChangeNotification object:container];
 }
 
 @end
