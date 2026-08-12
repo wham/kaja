@@ -1,11 +1,12 @@
-// Where the free seats are, for a show you pick.
+// Where the free seats are, for a film you pick.
 //
-// Two apps in one script: the shows come from an OpenAPI service over HTTP, the
-// seats from a gRPC one, and the script joins them on the id. A script is not
-// bound to an app — it binds to whatever its imports resolve to at run time.
+// Two apps in one script: the programme comes from an OpenAPI service over
+// HTTP, the seats from a gRPC one, and the script joins them on the id. A
+// script is not bound to an app — it binds to whatever its imports resolve to
+// at run time.
 //
-// kaja.askSelect parks the run on the canvas until the question is answered, so
-// there is no reason to hard-code an id to try a second show.
+// kaja.askSelect parks the run on the canvas until the question is answered,
+// so there is no reason to hard-code an id to try a second film.
 
 import { kaja } from "kaja";
 import { TheKajaTheatre } from "theatre/service";
@@ -14,8 +15,8 @@ import { Seating, SeatStatus, Section } from "seating/proto/seating";
 const { items: shows } = await TheKajaTheatre.ListShows({});
 
 const show = await kaja.askSelect(
-  "Which show?",
-  shows.map((show) => ({ label: `${show.title} · ${show.genre}`, value: show })),
+  "Which film?",
+  shows.map((show) => ({ label: `${show.title} · ${show.director}, ${show.year}`, value: show })),
 );
 
 const { seatMap } = await Seating.GetSeatMap({ showId: show.id });
