@@ -1099,6 +1099,7 @@ Both share the same backend code but differ in how they're packaged:
 - Run `scripts/demo-protos` to update proto files from kaja-tools/website and moul/pb
 - The `scripts/server` script starts kaja with this workspace by default
 - **It is also what both public deployments serve**, baked into the image by the Dockerfile's `demo` stage: `demo.kaja.tools` (`deploy/demo/fly.toml`, deployed by the **main** workflow on every push to main) and each pull request's own app (`deploy/preview/fly.toml`). One image and one workspace rather than a separate public config, so a change is clicked through on exactly what it becomes when it merges — and so the demo can never drift from what a developer sees. The demo services themselves live in kaja-tools/website; nothing of the demo's configuration does any more.
+- **The public demo shows fewer apps, and that is a cut made on the way to the build.** The **main** workflow drops the two apps that exercise kaja rather than read well to a first-time visitor (`jq` over `workspace/kaja.json`, in the `demo` job) before `flyctl deploy` sees the checkout. There is still one kaja.json in the repository and nothing in kaja that knows a deployment can hide an app — the server has no such setting and must not grow one, since a preview and a developer are meant to get every app. The step fails on a name no app is called, because a filter that quietly matches nothing reads as an app that is simply still there.
 
 ### Code Generation Flow
 
