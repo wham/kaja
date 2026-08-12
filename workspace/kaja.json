@@ -1,6 +1,26 @@
 {
   "apps": [
     {
+      "name": "bakebook",
+      "openapi": {
+        "spec_url": "https://bakebook.kaja.tools/openapi.yaml"
+      }
+    },
+    {
+      "name": "oven",
+      "grpc": {
+        "url": "dns:oven.kaja.tools:443",
+        "reflection": true
+      }
+    },
+    {
+      "name": "kitchen",
+      "mcp": {
+        "url": "https://kitchen.kaja.tools/mcp",
+        "auth": "none"
+      }
+    },
+    {
       "name": "grpcb.in",
       "grpc": {
         "url": "grpc://grpcb.in:9000",
@@ -16,19 +36,6 @@
           "X-Yolo": "kaja123",
           "Authorization": "Bear brown"
         }
-      }
-    },
-    {
-      "name": "theatre",
-      "openapi": {
-        "spec_url": "https://theatre.kaja.tools/openapi.yaml"
-      }
-    },
-    {
-      "name": "seating",
-      "grpc": {
-        "url": "dns:seating.kaja.tools:443",
-        "reflection": true
       }
     }
   ]

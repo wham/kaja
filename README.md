@@ -147,7 +147,7 @@ The development scripts require [Go](https://go.dev/doc/install) and [Bun](https
 - Test UI: `(cd ui && bun test)`
 - TSC UI: `(cd ui && bun run tsc)`
 - Test server: `(cd server && go test ./... -tags development -v)` — the tag `scripts/server` builds with. Without it the packages embed a production UI bundle, which only `go run cmd/build-ui/main.go` writes.
-- Update demo protos: `scripts/demo-protos` — refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo *services* live in [kaja-tools/website](https://github.com/kaja-tools/website); `theatre` and `seating` need no protos here, since one is OpenAPI and the other serves gRPC reflection.
+- Update demo protos: `scripts/demo-protos` — refreshes the `quirks` and `grpcb.in` protos in `workspace/`. The demo *services* live in [kaja-tools/website](https://github.com/kaja-tools/website); `bakebook`, `oven` and `kitchen` need no protos here, since they are OpenAPI, gRPC reflection and MCP respectively.
 
 ### The demo, and the preview apps
 
