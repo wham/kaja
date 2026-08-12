@@ -247,50 +247,7 @@ func boolField(m map[string]any, keys ...string) bool {
 }
 
 func applyEnvironmentVariables(configuration *Configuration, logger *Logger) {
-	hideApps(configuration, os.Getenv("KAJA_HIDE_APPS"), logger)
-}
-
-// hideApps drops the apps KAJA_HIDE_APPS names - a comma-separated list of app
-// names, matched case-insensitively - from the configuration as it is read.
-//
-// It is a deployment's answer to "this workspace, minus a few apps", so that a
-// workspace served by more than one deployment stays one kaja.json rather than
-// forking into a copy per audience. demo.kaja.tools is the one that sets it; a
-// pull request preview and a developer run the same file and get every app.
-//
-// The list is not the configuration's to carry: an app hidden here is hidden for
-// as long as the process runs, which is what makes it safe for the file to go on
-// naming every app it has.
-func hideApps(configuration *Configuration, names string, logger *Logger) {
-	hidden := map[string]bool{}
-	for _, name := range strings.Split(names, ",") {
-		if name = strings.TrimSpace(name); name != "" {
-			hidden[strings.ToLower(name)] = false
-		}
-	}
-	if len(hidden) == 0 {
-		return
-	}
-
-	kept := []*ConfigurationApp{}
-	for _, app := range configuration.Apps {
-		key := strings.ToLower(app.Name)
-		if _, ok := hidden[key]; ok {
-			hidden[key] = true
-			logger.info(fmt.Sprintf("App %q is hidden by KAJA_HIDE_APPS", app.Name))
-			continue
-		}
-		kept = append(kept, app)
-	}
-	configuration.Apps = kept
-
-	// A name that matched nothing is a typo in a deployment's environment, which
-	// would otherwise show up as an app that is still there.
-	for name, matched := range hidden {
-		if !matched {
-			logger.info(fmt.Sprintf("KAJA_HIDE_APPS names %q, which no app in this configuration is called", name))
-		}
-	}
+	// Reserved for future environment variable overrides
 }
 
 func normalize(configuration *Configuration, logger *Logger) {

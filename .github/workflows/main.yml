@@ -47,6 +47,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # The demo shows the apps worth showing a first-time visitor, which is
+      # fewer than a developer works with. It is a cut made to the checkout on
+      # the way to the build - one kaja.json in the repository, and nothing in
+      # kaja that knows a deployment can hide an app - so a preview and a
+      # developer still get every one of them.
+      - name: Leave the exercise apps out of the demo workspace
+        run: |
+          set -euo pipefail
+          hidden='["grpcb.in", "quirks"]'
+          for name in $(echo "$hidden" | jq -r '.[]'); do
+            if ! jq -e --arg name "$name" 'any(.apps[]; .name == $name)' workspace/kaja.json > /dev/null; then
+              echo "::error::No app in workspace/kaja.json is called '$name'"
+              exit 1
+            fi
+          done
+          jq --argjson hidden "$hidden" \
+            '.apps |= map(select(.name as $name | $hidden | index($name) | not))' \
+            workspace/kaja.json > workspace/kaja.demo.json
+          mv workspace/kaja.demo.json workspace/kaja.json
+          jq -r '"Demo apps: " + ([.apps[].name] | join(", "))' workspace/kaja.json
+
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
