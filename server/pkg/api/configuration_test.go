@@ -344,6 +344,66 @@ func TestExpandVariables(t *testing.T) {
 	}
 }
 
+func TestHideApps(t *testing.T) {
+	cases := []struct {
+		names    string
+		expected []string
+	}{
+		{"", []string{"alpha", "beta", "gamma"}},
+		{"beta", []string{"alpha", "gamma"}},
+		{"beta,gamma", []string{"alpha"}},
+		{" beta , gamma ", []string{"alpha"}},
+		{"BETA", []string{"alpha", "gamma"}},
+		{"delta", []string{"alpha", "beta", "gamma"}},
+		{"alpha,beta,gamma", []string{}},
+	}
+
+	for _, c := range cases {
+		configuration := &Configuration{Apps: []*ConfigurationApp{
+			{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"},
+		}}
+		hideApps(configuration, c.names, NewLogger())
+
+		got := []string{}
+		for _, app := range configuration.Apps {
+			got = append(got, app.Name)
+		}
+		if strings.Join(got, ",") != strings.Join(c.expected, ",") {
+			t.Errorf("hideApps(%q) kept %v, expected %v", c.names, got, c.expected)
+		}
+	}
+}
+
+// A deployment hides apps through the environment, so the file it reads goes on
+// naming every one of them.
+func TestLoadGetConfigurationResponse_HidesAppsFromEnvironment(t *testing.T) {
+	configContent := `{
+		"apps": [
+			{"name": "kept", "grpc": {"url": "http://localhost:8080"}},
+			{"name": "hidden", "grpc": {"url": "http://localhost:8081"}}
+		]
+	}`
+
+	tmpfile, err := os.CreateTemp("", "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	t.Setenv("KAJA_HIDE_APPS", "hidden")
+
+	configuration := LoadGetConfigurationResponse(tmpfile.Name()).Configuration
+	if len(configuration.Apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(configuration.Apps))
+	}
+	if configuration.Apps[0].Name != "kept" {
+		t.Errorf("expected app %q, got %q", "kept", configuration.Apps[0].Name)
+	}
+}
+
 func TestOpenApp_ExpandsVariables(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "config-*.json")
 	if err != nil {

@@ -17,6 +17,14 @@ primary_region = "sjc"
   # The server plus workspace/, so the demo serves this repository's own apps.
   build-target = "demo"
 
+# The public demo shows the apps worth showing a first-time visitor, which is
+# fewer than a developer works with. The image and the workspace are the same
+# ones a preview runs - the two apps below are dropped as kaja.json is read, so
+# there is still one configuration file and one image, not a public copy of
+# either.
+[env]
+  KAJA_HIDE_APPS = "grpcb.in,quirks"
+
 [http_service]
   internal_port = 41520
   force_https = true
