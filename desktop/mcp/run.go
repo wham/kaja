@@ -143,6 +143,14 @@ func renderBlock(index int, block BlockLog) string {
 		if len(block.Columns) > 0 {
 			fmt.Fprintf(&b, "  [%s]", strings.Join(block.Columns, ", "))
 		}
+		// A cell that is a function is fetched when its row is drawn, and nobody
+		// is drawing this one past the first page.
+		if block.Pending > 0 {
+			fmt.Fprintf(&b, "  %d cell(s) not loaded", block.Pending)
+		}
+		if block.Failed > 0 {
+			fmt.Fprintf(&b, "  %d cell(s) failed", block.Failed)
+		}
 	} else if block.Label != "" {
 		fmt.Fprintf(&b, "  %s", block.Label)
 	}

@@ -139,6 +139,25 @@ changed; fewer cells than columns leaves the rest blank. `table.column(name)`
 adds a column if the run turns out to need one, and the rows already drawn grow a
 blank cell for it.
 
+**A cell can be a value you do not have yet.** Hand the table a promise where a
+value would go and the row is drawn with everything it already has, with that one
+cell loading until it lands — which is what to write when part of a row comes
+from a second call:
+
+```ts
+const seating = Seating.GetAvailability({ showIds: shows.map((show) => show.id) });
+for (const show of shows) {
+  table.row(show.id, show.title, seating.then((s) => s.byShow[show.id].available));
+}
+```
+
+A **function** instead of a promise is work nobody has asked for yet: it is
+called when its row is drawn, so rows past the first page cost nothing until
+someone pages to them, and a failed one can be retried from the canvas. Nobody is
+paging your run, so a function past the first page is never called in it — use a
+promise when the value has to be in the run you are reporting. A cell that fails
+draws as `—` with the message on hover, and the rest of the table carries on.
+
 **A table can page and search itself.** Hand it the rows instead of pushing
 them, and it gets a search box and a pager for free — an array is drawn as it is,
 and a function is pulled a page at a time, only when the person reading it pages
@@ -204,6 +223,8 @@ What each member is for:
   `.column(name)` adds a column, and `.total(count)` states how many rows the
   whole result set holds when the API says. `rows` can be an array, or a source
   (an async generator) the table pulls a page at a time as it is paged through.
+  A cell can be a promise or a function rather than a value, and draws as loading
+  until it arrives.
 - `kaja.askStr(question)`, `kaja.askInt(question)`,
   `kaja.askSelect(question, options)` — ask the user for text, a whole number,
   or one of a list; each blocks on a human and hands back the kind of thing it

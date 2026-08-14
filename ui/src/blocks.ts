@@ -23,10 +23,29 @@ export interface CodeBlock {
  * plain JSON because a block is stored as itself — the source that fills a live
  * table lives beside it, in the Kaja instance, keyed by the block's id.
  */
+/**
+ * What a cell is doing instead of holding a value. No error means it is still
+ * coming; an error means it stopped, and `retry` says whether asking again is
+ * something that could work — a function can be called again, a promise can't.
+ *
+ * Whether the work has actually *started* is not in here: that is the closure
+ * side's business, exactly as a live table's source is. A thunk nobody has
+ * reached and a promise still in flight are the same sentence to the canvas, and
+ * it is the true one — the cell isn't here yet.
+ */
+export interface CellStatus {
+  error?: string;
+  retry?: boolean;
+}
+
 export interface TableBlock {
   kind: "table";
   columns: string[];
   rows: string[][];
+  // The cells that aren't values, by row and then column. Sparse at both levels
+  // and absent from a table that has none, so a table of plain cells is stored
+  // exactly as it was before any of this existed.
+  cells?: { [row: number]: { [column: number]: CellStatus } };
   // Rows come from a source that is still open, so paging forward pulls more.
   live?: boolean;
   // A pull is in flight. The table says so; the run does not, because the run is
@@ -106,6 +125,39 @@ export interface ApproveBlock {
 export type ApproveGesture = "approved" | "all" | "rejected";
 
 export type Block = TextBlock | CodeBlock | TableBlock | AskBlock | ApproveBlock;
+
+/** What a cell is doing, or nothing at all if it is simply a value. */
+export function cellStatus(block: TableBlock, row: number, column: number): CellStatus | undefined {
+  return block.cells?.[row]?.[column];
+}
+
+/**
+ * The same map with one cell set, or cleared once its value is here. A new
+ * object at every level, on the same rule the rows follow: the canvas compares
+ * what it was handed against what it holds, and a map written in place is
+ * invisible to it. An empty map is dropped rather than kept as `{}`, so a table
+ * whose cells have all landed is stored as the plain table it has become.
+ */
+export function withCellStatus(block: TableBlock, row: number, column: number, status: CellStatus | undefined): TableBlock["cells"] {
+  const cells = { ...(block.cells ?? {}) };
+  const inRow = { ...(cells[row] ?? {}) };
+  if (status === undefined) delete inRow[column];
+  else inRow[column] = status;
+  if (Object.keys(inRow).length === 0) delete cells[row];
+  else cells[row] = inRow;
+  return Object.keys(cells).length === 0 ? undefined : cells;
+}
+
+/**
+ * …and with a whole row's cells cleared, which is what rewriting a row does: the
+ * cells that were on their way answered the row as it was.
+ */
+export function withoutRowStatus(block: TableBlock, row: number): TableBlock["cells"] {
+  if (block.cells?.[row] === undefined) return block.cells;
+  const cells = { ...block.cells };
+  delete cells[row];
+  return Object.keys(cells).length === 0 ? undefined : cells;
+}
 
 let sequence = 0;
 

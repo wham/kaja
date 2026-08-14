@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TableBlock } from "./blocks";
-import { bodyMinHeight, hasControls, numericColumns, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
+import { bodyMinHeight, cellsKey, hasControls, numericColumns, pendingCells, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
 
 function table(rows: number, extra: Partial<TableBlock> = {}): TableBlock {
   return {
@@ -20,6 +20,26 @@ describe("tableWindow", () => {
     expect(shown.rows[0][0]).toBe("10");
     expect([shown.from, shown.to, shown.total]).toEqual([11, 20, 25]);
     expect([shown.hasPrevious, shown.hasNext]).toEqual([true, true]);
+  });
+
+  // A cell is addressed by where its row sits in the table, which is arithmetic
+  // until a local filter takes rows out of the middle.
+  it("says where the drawn rows sit in the table", () => {
+    expect(tableWindow(table(25), { page: 1, search: "" }).indices).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    const filtered = tableWindow(table(25), { page: 0, search: "show 2" });
+    expect(filtered.rows.map((row) => row[0])).toEqual(["2", "20", "21", "22", "23", "24"]);
+    expect(filtered.indices).toEqual([2, 20, 21, 22, 23, 24]);
+  });
+
+  // The page held on screen while the next one is fetched is drawn from the same
+  // cells as any other page, so it is addressed the same way.
+  it("says where the page it is holding sits too", () => {
+    const shown = tableWindow(table(10, { live: true }), { page: 1, search: "" });
+
+    expect(shown.held).toHaveLength(10);
+    expect(shown.heldIndices).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(tableWindow(table(25), { page: 1, search: "" }).heldIndices).toEqual([]);
   });
 
   it("has no next page on the last page of a static table", () => {
@@ -226,6 +246,37 @@ describe("hasControls", () => {
   it("is true for a table that can still grow, or could have", () => {
     expect(hasControls(table(3, { live: true }))).toBe(true);
     expect(hasControls(table(3, { expired: true }))).toBe(true);
+  });
+});
+
+describe("pendingCells", () => {
+  const waiting = { 1: { 1: {} }, 12: { 0: {}, 1: { error: "429 Too Many Requests", retry: true } } };
+
+  // A cell is asked for when it is drawn: the rows you never page to cost
+  // nothing, which is the whole reason a cell can be a function.
+  it("asks for the cells of the rows being drawn, and no others", () => {
+    const block = table(25, { cells: waiting });
+
+    expect(pendingCells(block, tableWindow(block, { page: 0, search: "" }).indices)).toEqual([{ row: 1, column: 1 }]);
+    expect(pendingCells(block, tableWindow(block, { page: 1, search: "" }).indices)).toEqual([{ row: 12, column: 0 }]);
+  });
+
+  // The canvas draws a failed cell on every frame, so asking on sight would be a
+  // loop rather than a retry. It is asked for when someone asks.
+  it("never asks again for a cell that stopped", () => {
+    expect(pendingCells(table(25, { cells: waiting }), [12]).map((cell) => cell.column)).toEqual([0]);
+  });
+
+  // A run read back has lost the closures, which is a state the table already
+  // says rather than a row of bars that will never fill.
+  it("asks nothing of a table whose source is gone", () => {
+    expect(pendingCells(table(25, { cells: waiting, expired: true }), [1, 12])).toEqual([]);
+    expect(pendingCells(table(25), [1, 12])).toEqual([]);
+  });
+
+  it("keys a set of cells by what is in it", () => {
+    expect(cellsKey(pendingCells(table(25, { cells: waiting }), [1, 12]))).toBe("1:1,12:0");
+    expect(cellsKey([])).toBe("");
   });
 });
 

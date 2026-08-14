@@ -586,6 +586,41 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   how it looks. A handle into a table filled from a **source** goes quiet rather
   than throwing — a server-side search restarts the source from the top, so the
   row it pointed at is answering a question nobody is asking any more.
+- **A cell that is work rather than a value says which kind of work it is, and
+  that is the whole of loading-versus-here** (`CellStatus` on the block,
+  `LiveCell` beside it). A **promise** is work the script already started, so the
+  table only waits for it; a **function** is work nobody has asked for yet, so
+  the table asks — when the row is drawn, and again if a failed one is retried.
+  That is `restartable` one level down: a function can be called again and a
+  promise is finished, which is why one offers Retry and the other can't. An
+  `Error`, thrown or returned, is a cell that stopped. Nothing in the signatures
+  changed — `row(...cells: unknown[])` always accepted all of this, and a promise
+  used to render as `{}`.
+  - **The row is drawn with everything it already has**, which is the point: the
+    rows appear at once and the cells fetched by a second call fill in after
+    them. A waiting cell is the **same bar a skeleton row draws** — with no
+    shimmer (cells fill one at a time and that is movement enough) and no 150ms
+    delay (the bar arrives *with* the row rather than replacing something, so
+    there is nothing to flash). A stopped one is a dim `—` with the message on
+    hover: a column of numbers with `429 Too Many Requests` in the middle of it
+    stops being a column, and the width is 12ch on a good day.
+  - **Drawn is what asks** (`pendingCells`, `pullCells`). The canvas asks for
+    every waiting cell it can see on every frame, so *asking* is idempotent
+    rather than the work — a cell is started once, and the table is what knows
+    it. The exception is the one that has to be: a failed cell is asked for only
+    when someone asks, since retrying on sight is a loop and not a retry. The
+    first page is asked for with the table, on the rule that already makes a live
+    table pull its own — a run nobody is watching still fills one. Six cells are
+    in flight at a time, because a page draw asks for fifty at once.
+  - **A cell is addressed by where its row sits, not by where it landed on the
+    page** (`TableWindow.indices`), which is arithmetic until a local filter takes
+    rows out of the middle. Answers are checked against the row's **revision** on
+    the way in, so a row rewritten and a source restarted both drop what was
+    still coming — they answered the row as it was. A block whose cells have all
+    landed is stored as the plain table it has become, and one read back has lost
+    its closures, so a waiting cell reads as the `run to load` the table already
+    says. An agent's run reports the cells that never landed rather than passing
+    off blanks as values.
 - **A table's rows are an iterable, and that is the whole of static-versus-live.**
   An array is one; so is an async generator, and one of those only runs when
   something pulls it — which is what makes paging fetch a page and nothing else.
