@@ -655,15 +655,19 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
       were reading: `opacity-40` and `pointer-events-none` rather than thrown
       away, with a 2px indeterminate bar along the bottom edge of the toolbar
       and a spinner in place of the pressed button's chevron, so the loader is
-      also where the click was.
+      also where the click was. **It stays on the click, and dims on the
+      delay** — the two are separate (`stale` and `holding`), because a page
+      cleared while the dim waits its 150ms out is the blink the wait exists to
+      prevent.
     - **A first draw has nothing to dim**, so it draws skeleton rows — one per
       row of the page being fetched, one slow shimmer across the whole set, and
       bar widths fixed per column index, since widths that re-roll on every
       render look like activity that isn't there.
-    - **Under 150ms nothing is drawn at all** (`TABLE_LOADING_DELAY_MS`). A page
-      off a local server is back inside a frame or two, and a dim that flashes
-      reads as a glitch rather than as progress. The frame is already held, so
-      the wait costs no movement.
+    - **Under 150ms nothing is said at all** (`TABLE_LOADING_DELAY_MS`): no dim,
+      no bar, no skeleton — the rows just change. A page off a local server is
+      back inside a frame or two, and a dim that flashes reads as a glitch
+      rather than as progress. The frame is already held, so the wait costs no
+      movement.
     - **The toolbar states the page that was clicked**, not the rows in hand
       (`TableWindow.pending`): `51–100 of 2,431` while it is fetched, or
       `Loading 1–50…` before a source has reported a count. The range used to be
