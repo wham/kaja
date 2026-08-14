@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TableBlock } from "./blocks";
-import { hasControls, numericColumns, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
+import { bodyMinHeight, hasControls, numericColumns, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
 
 function table(rows: number, extra: Partial<TableBlock> = {}): TableBlock {
   return {
@@ -84,6 +84,68 @@ describe("tableWindow", () => {
     expect(tableWindow(table(20, { live: true, total: 200 }), { page: 1, search: "" }).hasNext).toBe(true);
     // …and the clamp stops letting a page past the loaded rows through with it.
     expect(tableWindow(table(20, { live: true, total: 20 }), { page: 5, search: "" }).page).toBe(1);
+  });
+});
+
+describe("a page in flight", () => {
+  // Nothing is destroyed and nothing resizes: the page that was on screen stays
+  // there while the next one is fetched.
+  it("holds the page that was on screen", () => {
+    const shown = tableWindow(table(10, { live: true }), { page: 1, search: "" });
+
+    expect(shown.pending).toBe(true);
+    expect(shown.rows).toEqual([]);
+    expect(shown.held.map((row) => row[0])).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  });
+
+  // The first draw of a table has nothing to hold, which is what the skeleton
+  // rows are for — and how many of them there are is what the frame reserves.
+  it("has nothing to hold on a first draw, and expects a full page", () => {
+    const shown = tableWindow(table(0, { live: true }), { page: 0, search: "" });
+
+    expect([shown.pending, shown.held.length, shown.expected]).toEqual([true, 0, 10]);
+  });
+
+  it("expects the short last page a reported total pins down", () => {
+    expect(tableWindow(table(20, { live: true, total: 25 }), { page: 2, search: "" }).expected).toBe(5);
+  });
+
+  // A page that stopped is not a page on its way: Retry is what asks again.
+  it("is not pending once the source ran out, was counted out, or failed", () => {
+    expect(tableWindow(table(10, { live: true, exhausted: true }), { page: 1, search: "" }).pending).toBe(false);
+    expect(tableWindow(table(20, { live: true, total: 20 }), { page: 1, search: "" }).pending).toBe(false);
+    expect(tableWindow(table(10, { live: true, error: "unreachable" }), { page: 1, search: "" }).pending).toBe(false);
+    expect(tableWindow(table(25, { live: true }), { page: 0, search: "show 2" }).pending).toBe(false);
+  });
+});
+
+describe("holdsPage", () => {
+  function hold(block: TableBlock, view = { page: 0, search: "" }) {
+    return bodyMinHeight(block, tableWindow(block, view));
+  }
+
+  // A fetch is 200–800ms and a table sits in the middle of a document: a page
+  // that collapsed and grew back would move everything below it twice a click.
+  it("keeps a full page's height while the table can page", () => {
+    // header 28 + 10 rows × 26.
+    expect(hold(table(0, { live: true }))).toBe(288);
+    expect(hold(table(10, { live: true }), { page: 1, search: "" })).toBe(288);
+    expect(hold(table(25, { live: true, exhausted: true }))).toBe(288);
+  });
+
+  // …and only then. By the last page of a table that can no longer page nothing
+  // is going to move again, and a local filter's result is the whole of it.
+  it("lets the rows decide once there is nothing left to page to", () => {
+    expect(hold(table(25, { live: true, exhausted: true }), { page: 2, search: "" })).toBeUndefined();
+    expect(hold(table(25), { page: 2, search: "" })).toBeUndefined();
+    expect(hold(table(25, { live: true }), { page: 0, search: "show 2" })).toBeUndefined();
+    // A table that fits on a page was never a frame with a pager in it.
+    expect(hold(table(10))).toBeUndefined();
+  });
+
+  // A short last page still reserves what it is about to take, not a page.
+  it("reserves what a counted last page will fill", () => {
+    expect(hold(table(20, { live: true, total: 25 }), { page: 2, search: "" })).toBe(158);
   });
 });
 
@@ -204,8 +266,27 @@ describe("tableSummary", () => {
   });
 
   it("says so when there is nothing", () => {
-    const block = table(0, { live: true });
+    const block = table(0, { live: true, exhausted: true });
     expect(tableSummary(block, tableWindow(block, { page: 0, search: "" }))).toBe("No rows");
+  });
+
+  // The count used to drop to zero and back on every click, because the range
+  // was read off rows that hadn't arrived. A page in flight states the page that
+  // was clicked, and the count once the source has reported one.
+  it("states the page being fetched rather than the rows in hand", () => {
+    const first = table(0, { live: true });
+    expect(tableSummary(first, tableWindow(first, { page: 0, search: "" }))).toBe("Loading 1–10…");
+
+    const counted = table(0, { live: true, total: 2431 });
+    expect(tableSummary(counted, tableWindow(counted, { page: 0, search: "" }))).toBe("1–10 of 2,431");
+
+    const paging = table(10, { live: true, total: 2431 });
+    expect(tableSummary(paging, tableWindow(paging, { page: 1, search: "" }))).toBe("11–20 of 2,431");
+
+    // A source that reported a count knows where its last page ends, so the
+    // range it states is the short one it is about to draw.
+    const last = table(20, { live: true, total: 25 });
+    expect(tableSummary(last, tableWindow(last, { page: 2, search: "" }))).toBe("21–25 of 25");
   });
 });
 

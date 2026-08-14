@@ -643,6 +643,32 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
     **28px** — the search box is a real input, and Previous/Next are two 28px
     buttons **joined into one pair**, so there is no gap between them to miss
     into. That is what the 12px chevrons in a line of body text were not.
+  - **Paging moves nothing** (`holdsPage`, `bodyMinHeight`). A fetch is 200–800ms
+    and a table sits in the middle of a document, so a page that collapsed to a
+    loading row and grew back would move every block below it twice per click.
+    The frame keeps the height of a **full page** — `28 + pageSize × 26` as a
+    `min-height` on the body — for as long as the table can page; only the final
+    page of a table that can no longer page shrinks to its rows, and by then
+    nothing is going to move again. A local filter is instant and its result is
+    the whole of it, so it is the one narrowing allowed to shrink.
+    - **The old page stays, dimmed** (`TableWindow.held`). It is the page you
+      were reading: `opacity-40` and `pointer-events-none` rather than thrown
+      away, with a 2px indeterminate bar along the bottom edge of the toolbar
+      and a spinner in place of the pressed button's chevron, so the loader is
+      also where the click was.
+    - **A first draw has nothing to dim**, so it draws skeleton rows — one per
+      row of the page being fetched, one slow shimmer across the whole set, and
+      bar widths fixed per column index, since widths that re-roll on every
+      render look like activity that isn't there.
+    - **Under 150ms nothing is drawn at all** (`TABLE_LOADING_DELAY_MS`). A page
+      off a local server is back inside a frame or two, and a dim that flashes
+      reads as a glitch rather than as progress. The frame is already held, so
+      the wait costs no movement.
+    - **The toolbar states the page that was clicked**, not the rows in hand
+      (`TableWindow.pending`): `51–100 of 2,431` while it is fetched, or
+      `Loading 1–50…` before a source has reported a count. The range used to be
+      read off rows that hadn't arrived, so it dropped to zero and back on every
+      click — including the first draw, which is the one everybody sees.
   - **One row is one line.** Cells truncate rather than wrap — a wrapped cell
     breaks the 26px rhythm the grid is read down — and a long one carries its
     full value as a hover title. A column whose every non-empty cell is a number
