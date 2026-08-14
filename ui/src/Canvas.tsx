@@ -356,10 +356,14 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   // is a press cleared between the click and the fetch it caused.
   if (pressed !== undefined && block.loading !== true && !shown.pending) setPressed(undefined);
 
-  // Nothing is destroyed and nothing resizes: the old page holds its place at
-  // reduced opacity until the new one is here.
-  const holding = busy && shown.pending && shown.held.length > 0;
-  const drawn = holding ? shown.held : shown.rows;
+  // Nothing is destroyed and nothing resizes: the page that was on screen is
+  // what is on screen until the next one is here. That happens on the click,
+  // never on the delay — the wait decides when to *say* a page is coming, and a
+  // page cleared while the saying waits is the blink the wait was there to
+  // prevent.
+  const stale = shown.pending && shown.held.length > 0;
+  const drawn = stale ? shown.held : shown.rows;
+  const holding = busy && stale;
   const skeleton = busy && shown.pending && drawn.length === 0;
   // A search bound for the source is debounced; one that filters what is loaded
   // is not, because it costs nothing and lagging under the keystrokes is worse.
