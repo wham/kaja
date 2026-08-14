@@ -215,8 +215,11 @@ What each member is for:
   method in that run without asking again. So wrapping each call of a loop is
   right: the reader decides where to stop reading, not the script.
 - `kaja.variables.<name>` — the user's configured variables, resolved.
-- `kaja.input?: string` — text supplied when the script is launched from the
-  macOS "Run Kaja Script" text service. `undefined` when run any other way.
+- `kaja.input` — what a `kaja://run/<script>?url=…&note=…` link handed this run,
+  read by name (`kaja.input.url`). Every value is text, and the whole query
+  belongs to the script. Empty when the script is run any other way, so guard a
+  parameter (`kaja.input.url ?? ""`) or ask for it with `kaja.askStr` and the
+  script works from a link and from the editor alike.
 - `kaja.uuidV4(): string` — a random version 4 UUID.
 - `kaja.value(json)`, `kaja.struct(json)`, `kaja.listValue(json)` — build a field
   typed `Value`, `Struct` or `ListValue`. Those hold **any** JSON, and their wire

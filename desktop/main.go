@@ -106,6 +106,12 @@ type App struct {
 	workspaceDir         string   // base for resolving relative protoDir; also holds the global scripts dir
 	activeStreams        sync.Map // streamID -> context.CancelFunc
 
+	// Inbound kaja:// links, and whether the UI is listening for them yet.
+	// Guarded by linkMu.
+	linkMu       sync.Mutex
+	linksReady   bool
+	pendingLinks []string
+
 	// MCP server state. Guarded by mcpMu.
 	mcpMu      sync.Mutex
 	mcpServer  *http.Server
@@ -133,8 +139,8 @@ func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurat
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Register the macOS "Run Kaja Script" text service (no-op on other platforms).
-	registerServices(ctx)
+	// The UI says when it is listening, and everything held so far goes to it.
+	runtime.EventsOn(ctx, "link:ready", func(...interface{}) { a.flushLinks() })
 
 	// The MCP server's lifetime is the process's: the UI only reports it.
 	a.startMCPServer()
@@ -150,6 +156,40 @@ func (a *App) startup(ctx context.Context) {
 // OnShutdown hook stops the MCP server if it is running.
 func (a *App) shutdown(ctx context.Context) {
 	a.stopMCPServer()
+}
+
+// openLink is what macOS hands a kaja:// link to. It is held until the UI is
+// listening rather than emitted at once: a link is what launches the app as
+// often as not, and on a cold launch this runs long before there is a webview
+// to hear it. What the link means is the UI's to decide (scriptLink.ts) — the
+// whole of it travels as text.
+func (a *App) openLink(link string) {
+	a.linkMu.Lock()
+	if !a.linksReady {
+		a.pendingLinks = append(a.pendingLinks, link)
+		a.linkMu.Unlock()
+		return
+	}
+	a.linkMu.Unlock()
+	a.deliverLink(link)
+}
+
+func (a *App) flushLinks() {
+	a.linkMu.Lock()
+	a.linksReady = true
+	pending := a.pendingLinks
+	a.pendingLinks = nil
+	a.linkMu.Unlock()
+
+	for _, link := range pending {
+		a.deliverLink(link)
+	}
+}
+
+func (a *App) deliverLink(link string) {
+	runtime.WindowUnminimise(a.ctx)
+	runtime.WindowShow(a.ctx)
+	runtime.EventsEmit(a.ctx, "link:open", link)
 }
 
 // buildAppMenu assembles the native application menu.
@@ -784,7 +824,8 @@ func main() {
 		},
 		LogLevel: logger.ERROR,
 		Mac: &mac.Options{
-			TitleBar: mac.TitleBarHidden(),
+			TitleBar:  mac.TitleBarHidden(),
+			OnUrlOpen: app.openLink,
 			About: &mac.AboutInfo{
 				Title:   config.Info.ProductName + " " + config.Info.ProductVersion,
 				Message: config.Info.Copyright,

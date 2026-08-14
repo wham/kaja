@@ -9,8 +9,8 @@ import {
   Check,
   CircleX,
   FileCode,
+  Link2,
   Pencil,
-  Pin,
   Plus,
   RotateCw,
   Save,
@@ -80,7 +80,6 @@ function ScriptGlyph({
   running,
   agent,
   waiting,
-  pinned,
   saved,
   dim,
   dot = true,
@@ -88,7 +87,6 @@ function ScriptGlyph({
   running?: boolean;
   agent?: boolean;
   waiting?: boolean;
-  pinned?: boolean;
   saved?: boolean;
   dim?: boolean;
   dot?: boolean;
@@ -106,8 +104,6 @@ function ScriptGlyph({
         <span className="flex" title={agent ? "An agent is running this" : "Running"}>
           <Spinner className="size-3" />
         </span>
-      ) : pinned ? (
-        <Pin size={12} />
       ) : dot ? (
         <span
           aria-hidden
@@ -144,8 +140,6 @@ interface SidebarProps {
   scratches?: Scratch[];
   currentScratchId?: string;
   currentScriptPath?: string;
-  // Path of the script pinned to the macOS "Run Kaja Script" text service.
-  pinnedScriptPath?: string;
   // Files with a run still in the air. A run keeps going when you navigate away
   // from it, and its console is no longer on screen to say so — the row is.
   runningFileIds?: Set<string>;
@@ -174,7 +168,8 @@ interface SidebarProps {
   onScriptSelect?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
-  onPinScript?: (script: Script) => void;
+  // Copies the `kaja://run/<script>` link that runs this script.
+  onCopyScriptLink?: (script: Script) => void;
   // Opens the compile log for an app, from the marker on a failed or warned app.
   onShowCompileLog: (appName: string) => void;
   onRecompileApp: (appName: string) => void;
@@ -197,7 +192,6 @@ export function Sidebar({
   scratches,
   currentScratchId,
   currentScriptPath,
-  pinnedScriptPath,
   runningFileIds,
   agentFileIds,
   waitingFileIds,
@@ -212,7 +206,7 @@ export function Sidebar({
   onScriptSelect,
   onRenameScript,
   onDeleteScript,
-  onPinScript,
+  onCopyScriptLink,
   onShowCompileLog,
   onRecompileApp,
   onNewAppClick,
@@ -234,10 +228,10 @@ export function Sidebar({
   // PenLine is where that difference is drawn — a 5px dot is too quiet to carry
   // it without the colour that means "you can fix this".
   const canSave = onSaveScratch !== undefined;
-  // Rename, delete and pin are all a disk's to offer. Where none of them is, the
-  // row has no menu to open — so it grows no ⋯ on hover and its right-click is
-  // left to the browser, rather than opening an empty popup.
-  const hasScriptMenu = onRenameScript !== undefined || onDeleteScript !== undefined || onPinScript !== undefined;
+  // Rename, delete and the link are all a desktop's to offer. Where none of them
+  // is, the row has no menu to open — so it grows no ⋯ on hover and its
+  // right-click is left to the browser, rather than opening an empty popup.
+  const hasScriptMenu = onRenameScript !== undefined || onDeleteScript !== undefined || onCopyScriptLink !== undefined;
   const [scriptsExpanded, setScriptsExpanded] = useState<boolean>(() => getPersistedValue<boolean>("scriptsExpanded") ?? true);
   // The Scripts header trades its count for the bulk verbs while it is hovered.
   const [scriptsHeaderHovered, setScriptsHeaderHovered] = useState(false);
@@ -466,7 +460,6 @@ export function Sidebar({
                           running={runningFileIds?.has(script.path)}
                           agent={agentFileIds?.has(script.path)}
                           waiting={waitingFileIds?.has(script.path)}
-                          pinned={pinnedScriptPath === script.path}
                           saved
                           dot={canSave}
                         />
@@ -701,15 +694,18 @@ export function Sidebar({
       />
       <DropdownMenu open={!!scriptMenu} onOpenChange={(open) => !open && setScriptMenu(null)}>
         <DropdownMenuContent align="start" anchor={scriptMenuAnchorRef} className="w-48">
-          {onPinScript && (
+          {/* The link is the script's address outside Kaja — paste it into a
+              launcher, a Shortcut, a shell. Parameters are appended to it there,
+              which is where the values that fill them come from. */}
+          {onCopyScriptLink && (
             <DropdownMenuItem
               onSelect={() => {
                 const script = scriptMenu?.script;
-                if (script) onPinScript(script);
+                if (script) onCopyScriptLink(script);
               }}
             >
-              <Pin size={16} />
-              {pinnedScriptPath === scriptMenu?.script.path ? "Unpin from context menu" : "Pin to context menu"}
+              <Link2 size={16} />
+              Copy Link
             </DropdownMenuItem>
           )}
           {onRenameScript && (

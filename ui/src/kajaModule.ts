@@ -147,11 +147,15 @@ export interface Choice<V> {
 /** The Kaja runtime object. Import it with: import { kaja } from "kaja"; */
 export declare const kaja: {
   /**
-   * The selected text passed in when the script is launched from the macOS
-   * "Run Kaja Script" text service. Undefined when the script is run manually
-   * from the editor, so guard with a fallback (e.g. kaja.input ?? "").
+   * What a \`kaja://run/<script>?url=…&note=…\` link handed this run, read by
+   * name: \`kaja.input.url\`. Every value is text, and the whole query belongs
+   * to the script — no parameter name is reserved.
+   *
+   * Empty when the script is run from the editor, so a parameter the link
+   * didn't carry is undefined: guard it (\`kaja.input.url ?? ""\`), or ask for
+   * it with \`kaja.askStr\` and the script works both ways.
    */
-  input?: string;
+  input: { [name: string]: string };
   /**
    * User-defined variables. Manage them in the Variables tab; read them here,
    * e.g. kaja.variables.API_BASE_URL. A variable whose value this machine holds
