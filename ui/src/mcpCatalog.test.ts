@@ -187,6 +187,10 @@ describe("buildMcpCatalog", () => {
     expect(built.apps).toHaveLength(0);
     expect(built.runtime).toContain("export declare const kaja: {");
     expect(built.runtime).toContain("table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;");
+    // Including the verbs on the handle it hands back — the total is a number
+    // only the script's source has, so an agent has to be able to read that it
+    // is wanted.
+    expect(built.runtime).toContain("total(count: number | undefined): void;");
     expect(built.runtime).toContain('"API_BASE_URL": string;');
     // The rule the type system can't state, said where the declaration is read.
     expect(built.runtime).toContain("a top-level `return` is an error");

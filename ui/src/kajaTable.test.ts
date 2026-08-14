@@ -228,6 +228,43 @@ describe("kaja.table", () => {
     expect(only().rows).toEqual([["one"]]);
   });
 
+  // The count an API reports beside a page is the one thing the table cannot
+  // work out for itself, so the script hands it on.
+  it("takes a total from the script", () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["n"]);
+
+    table.total(2431);
+    expect(only().total).toBe(2431);
+
+    // A source that stops reporting one leaves the table where a cursor-based
+    // source always is, and anything that isn't a count says nothing at all.
+    table.total(undefined);
+    expect(only().total).toBeUndefined();
+    table.total(Number.NaN);
+    expect(only().total).toBeUndefined();
+  });
+
+  // A source reports its total from inside its own loop, through the handle the
+  // script is still assigning — so nothing it yields may run before it is.
+  it("takes a total from a source, through the handle", async () => {
+    const { kaja, only, id } = draw();
+    const shows: { total(count: number): void } = kaja.table(["n"], async function* (search: string) {
+      shows.total(search === "" ? 2431 : 12);
+      yield ["one"];
+      yield ["two"];
+    });
+    await kaja.settleTables();
+
+    expect(only().rows).toHaveLength(2);
+    expect(only().total).toBe(2431);
+
+    // A new search is a new result set, so the count it had answers a question
+    // nobody is asking any more.
+    await kaja.pullTable(id(), "vera", 50);
+    expect(only().total).toBe(12);
+  });
+
   // A block read back from the store has no source; Next has to say so rather
   // than lead nowhere.
   it("reports a table whose source it no longer holds", async () => {

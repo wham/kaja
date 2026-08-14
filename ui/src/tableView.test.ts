@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TableBlock } from "./blocks";
-import { hasControls, pullNeeded, tableSummary, tableWindow } from "./tableView";
+import { hasControls, numericColumns, pullNeeded, tableSummary, tableWindow, totalOf } from "./tableView";
 
 function table(rows: number, extra: Partial<TableBlock> = {}): TableBlock {
   return {
@@ -76,6 +76,15 @@ describe("tableWindow", () => {
   it("does not offer a next page past a local filter's matches", () => {
     expect(tableWindow(table(25, { live: true }), { page: 0, search: "show 2" }).hasNext).toBe(false);
   });
+
+  // A source that reported a total has said where it ends, which is the one
+  // thing that spares the click that comes back with nothing.
+  it("stops at a total the source reported", () => {
+    expect(tableWindow(table(20, { live: true, total: 20 }), { page: 1, search: "" }).hasNext).toBe(false);
+    expect(tableWindow(table(20, { live: true, total: 200 }), { page: 1, search: "" }).hasNext).toBe(true);
+    // …and the clamp stops letting a page past the loaded rows through with it.
+    expect(tableWindow(table(20, { live: true, total: 20 }), { page: 5, search: "" }).page).toBe(1);
+  });
 });
 
 describe("pullNeeded", () => {
@@ -127,6 +136,11 @@ describe("pullNeeded", () => {
     expect(pullNeeded(block, { page: 1, search: "vera" })).toEqual({ needed: true, want: 20 });
   });
 
+  it("stops asking once it holds every row the source counted", () => {
+    expect(pullNeeded(table(20, { live: true, total: 20 }), { page: 2, search: "" }).needed).toBe(false);
+    expect(pullNeeded(table(20, { live: true, total: 200 }), { page: 2, search: "" }).needed).toBe(true);
+  });
+
   it("never asks on behalf of a source that is gone", () => {
     const block = table(3, { live: true, expired: true, serverSearch: true, loadedSearch: "vera" });
 
@@ -153,20 +167,62 @@ describe("hasControls", () => {
   });
 });
 
+describe("totalOf", () => {
+  it("is the rows, until a source says otherwise", () => {
+    expect(totalOf(table(25))).toEqual({ count: 25, exact: true });
+    // A source that is still open has only counted this far, and says so.
+    expect(totalOf(table(25, { live: true }))).toEqual({ count: 25, exact: false });
+    expect(totalOf(table(25, { live: true, total: 2431 }))).toEqual({ count: 2431, exact: true });
+  });
+
+  // A total is a claim and exhaustion is the truth.
+  it("prefers what the source turned out to hold", () => {
+    expect(totalOf(table(20, { live: true, exhausted: true, total: 2431 }))).toEqual({ count: 20, exact: true });
+    expect(totalOf(table(25, { live: true, total: 10 }))).toEqual({ count: 25, exact: true });
+  });
+});
+
 describe("tableSummary", () => {
-  it("states a total it knows, and a count it doesn't", () => {
+  it("states a total the script reported, and marks one it inferred", () => {
     const block = table(25);
     expect(tableSummary(block, tableWindow(block, { page: 0, search: "" }))).toBe("1–10 of 25");
 
     const live = table(25, { live: true });
-    expect(tableSummary(live, tableWindow(live, { page: 0, search: "" }))).toBe("1–10 · 25 loaded");
+    expect(tableSummary(live, tableWindow(live, { page: 0, search: "" }))).toBe("1–10 of 25+");
 
-    const expired = table(25, { expired: true });
-    expect(tableSummary(expired, tableWindow(expired, { page: 0, search: "" }))).toBe("1–10 of 25 loaded — run to load the rest");
+    const counted = table(25, { live: true, total: 2431 });
+    expect(tableSummary(counted, tableWindow(counted, { page: 0, search: "" }))).toBe("1–10 of 2,431");
+
+    const expired = table(25, { expired: true, total: 2431 });
+    expect(tableSummary(expired, tableWindow(expired, { page: 0, search: "" }))).toBe("1–10 of 2,431 loaded — run to load the rest");
   });
 
   it("says a local filter is searching what is loaded", () => {
     const block = table(25, { live: true });
-    expect(tableSummary(block, tableWindow(block, { page: 0, search: "show 2" }))).toBe("1–6 of 6 matching, of 25 loaded");
+    expect(tableSummary(block, tableWindow(block, { page: 0, search: "show 2" }))).toBe("1–6 of 6 matching · 25 loaded");
+    expect(tableSummary(block, tableWindow(block, { page: 0, search: "vera" }))).toBe("No rows matching · 25 loaded");
+  });
+
+  it("says so when there is nothing", () => {
+    const block = table(0, { live: true });
+    expect(tableSummary(block, tableWindow(block, { page: 0, search: "" }))).toBe("No rows");
+  });
+});
+
+describe("numericColumns", () => {
+  // A script hands the table text, so a column of numbers is one that looks like
+  // it — decided per column, and never by one cell that happens to be a digit.
+  it("reads a column of numbers off the page", () => {
+    const rows = [
+      ["ten_zvm78", "17mar2022", "4", "1,204"],
+      ["ent_YEQwo", "adam-user", "", "-12.5"],
+    ];
+
+    expect(numericColumns(rows, 4)).toEqual([false, false, true, true]);
+  });
+
+  it("calls an empty column nothing", () => {
+    expect(numericColumns([["", ""]], 2)).toEqual([false, false]);
+    expect(numericColumns([], 2)).toEqual([false, false]);
   });
 });

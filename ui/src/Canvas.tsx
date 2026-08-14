@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Search, ShieldQuestionMark } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
@@ -7,7 +7,7 @@ import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
-import { hasControls, NO_TABLE_VIEW, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
+import { hasControls, NO_TABLE_VIEW, numericColumns, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
 import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
@@ -311,6 +311,11 @@ interface TableProps {
 }
 
 /**
+ * The one block that is wider than the text around it, so it is the one block
+ * with a frame: a card with its own toolbar, a header band under it, and the
+ * canvas's 16px gap doing the rest. Without the frame the header row reads as
+ * another line of the paragraph above it.
+ *
  * A wide table scrolls inside itself; the canvas never scrolls sideways as a
  * whole, because everything above and below it would move with it.
  *
@@ -328,63 +333,86 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   // a second search — and ⏎ says "now", which is what the wait is for.
   const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
+  const numeric = numericColumns(shown.rows, block.columns.length);
 
   useEffect(() => {
     if (needed) onPull(id, search, want);
   }, [needed, id, search, want, onPull]);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="overflow-hidden rounded-lg border border-border">
       {/* One bar, above the rows. A pager under a fifty-row table is a control
           you have to go looking for, and on a canvas of several blocks it is
-          hard to tell which table it belongs to. */}
+          hard to tell which table it belongs to. Everything in it is 28px,
+          which is what a pointer wants and what a 12px glyph never was. */}
       {controls && (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Search size={12} className="shrink-0" />
-          <input
-            data-testid="canvas-table-search"
-            className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            placeholder={searchesLocally(block) ? "Search loaded rows…" : "Search…"}
-            value={view.search}
-            // A new search is a new set, so it is read from the first page.
-            onChange={(event) => onView(id, { page: 0, search: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") searchNow();
-            }}
-          />
+        <div className="flex h-10 items-center gap-2 border-b border-border bg-card px-2">
+          <div className="flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring">
+            <Search size={13} className="shrink-0 text-muted-foreground" />
+            <input
+              data-testid="canvas-table-search"
+              className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+              placeholder={searchesLocally(block) ? "Search rows" : "Search"}
+              value={view.search}
+              // A new search is a new set, so it is read from the first page.
+              onChange={(event) => onView(id, { page: 0, search: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") searchNow();
+              }}
+            />
+            {view.search !== "" && (
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+                onClick={() => onView(id, { page: 0, search: "" })}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
           {block.loading && <Spinner className="size-3 shrink-0" />}
-          <span data-testid="canvas-table-summary" className="shrink-0 truncate tabular-nums @max-[420px]:hidden">
-            {tableSummary(block, shown)}
-          </span>
-          <button
-            type="button"
-            className="shrink-0 disabled:opacity-40 enabled:hover:text-foreground"
-            disabled={!shown.hasPrevious}
-            aria-label="Previous page"
-            onClick={() => onView(id, { ...view, page: shown.page - 1 })}
-          >
-            <ChevronLeft size={12} />
-          </button>
-          <button
-            type="button"
-            data-testid="canvas-table-next"
-            className="shrink-0 disabled:opacity-40 enabled:hover:text-foreground"
-            disabled={!shown.hasNext || block.loading === true}
-            aria-label="Next page"
-            onClick={() => onView(id, { ...view, page: shown.page + 1 })}
-          >
-            <ChevronRight size={12} />
-          </button>
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            <span data-testid="canvas-table-summary" className="min-w-0 truncate tabular-nums text-muted-foreground @max-[520px]:hidden">
+              {tableSummary(block, shown)}
+            </span>
+            {/* Two buttons joined into a pair: one target to aim at, and the
+                gap between them can't be missed into. */}
+            <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
+              <button
+                type="button"
+                className="flex h-7 w-7 items-center justify-center border-r border-input text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                disabled={!shown.hasPrevious}
+                aria-label="Previous page"
+                onClick={() => onView(id, { ...view, page: shown.page - 1 })}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                type="button"
+                data-testid="canvas-table-next"
+                className="flex h-7 w-7 items-center justify-center text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
+                disabled={!shown.hasNext || block.loading === true}
+                aria-label="Next page"
+                onClick={() => onView(id, { ...view, page: shown.page + 1 })}
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
-            <tr>
+            <tr className="bg-muted">
               {block.columns.map((column, index) => (
                 <th
                   key={index}
-                  className="whitespace-nowrap border-b border-border py-1 pr-4 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                  className={cn(
+                    "h-7 whitespace-nowrap border-b border-border px-3 text-left font-medium uppercase text-muted-foreground",
+                    numeric[index] && "text-right",
+                  )}
                 >
                   {column}
                 </th>
@@ -393,9 +421,15 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
           </thead>
           <tbody>
             {shown.rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
+              // One row is one line: a cell that wrapped would break the 26px
+              // rhythm the whole grid is read down.
+              <tr key={rowIndex} className="last:[&>td]:border-b-0">
                 {row.map((cell, cellIndex) => (
-                  <td key={cellIndex} className="border-b border-border/50 py-1 pr-4 align-top text-foreground">
+                  <td
+                    key={cellIndex}
+                    className={cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric[cellIndex] && "text-right")}
+                    title={cell.length > 48 ? cell : undefined}
+                  >
                     {cell}
                   </td>
                 ))}
@@ -403,14 +437,35 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
             ))}
           </tbody>
         </table>
-        {shown.rows.length === 0 && (
-          <div className="py-1.5 text-muted-foreground">{block.loading ? "Loading…" : shown.filtered ? "No rows match." : "No rows yet…"}</div>
-        )}
       </div>
+      {shown.rows.length === 0 && (
+        <div className="flex h-10 items-center gap-2 px-3 text-muted-foreground">
+          {block.loading ? (
+            "Loading…"
+          ) : shown.filtered ? (
+            <>
+              <span className="min-w-0 truncate">No rows match “{view.search.trim()}”</span>
+              <button
+                type="button"
+                className="shrink-0 underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+                onClick={() => onView(id, { page: 0, search: "" })}
+              >
+                Clear search
+              </button>
+            </>
+          ) : (
+            "No rows yet…"
+          )}
+        </div>
+      )}
       {block.error !== undefined && (
-        <div className="flex items-center gap-2 text-destructive">
+        <div className="flex h-10 items-center gap-2 border-t border-border bg-destructive/10 px-3 text-destructive">
           <span className="min-w-0 flex-1 truncate">{block.error}</span>
-          <button type="button" className="shrink-0 hover:text-foreground" onClick={() => onPull(id, search, shown.want)}>
+          <button
+            type="button"
+            className="shrink-0 underline decoration-destructive/40 underline-offset-2 hover:text-foreground"
+            onClick={() => onPull(id, search, shown.want)}
+          >
             Retry
           </button>
         </div>

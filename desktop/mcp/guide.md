@@ -156,7 +156,22 @@ kaja.table(["id", "title", "seats"], async function* (search) {
 
 Declare the `search` parameter and the search box is handed to your source, which
 is started again for each new search; leave it out and the box filters the rows
-already loaded. **Nobody is paging your run**, so `run_script` draws the first
+already loaded. **If the API reports a total, hand it on** — the table counts the
+rows it has and nothing else, so `1–50 of 2,431` is a number only your source
+knows:
+
+```ts
+const customers = kaja.table(["key", "name"], async function* () {
+  for (let page = 1; ; page++) {
+    const result = await Customers.ListCustomers({ page });
+    customers.total(result.totalCount);
+    yield* result.items.map((customer) => [customer.key, customer.name]);
+  }
+});
+```
+
+A source paging a cursor has no total and says nothing; the table then reports
+what it has loaded and that there is more. **Nobody is paging your run**, so `run_script` draws the first
 page and reports `more: true` — if you need the whole set, write the loop and
 read it yourself. Prefer this over `.row(...)` whenever the API pages: the person
 who opens the script gets the rest without running anything.
@@ -185,9 +200,10 @@ What each member is for:
 - `kaja.text(text)`, `kaja.code(code, language?)` — draw a line or a snippet on
   the canvas.
 - `kaja.table(columns, rows?)` — draw a table; the handle's `.row(...cells)`
-  appends to it and hands back a row whose `.update(...cells)` rewrites it, and
-  `.column(name)` adds a column. `rows` can be an array, or a source (an async
-  generator) the table pulls a page at a time as it is paged through.
+  appends to it and hands back a row whose `.update(...cells)` rewrites it,
+  `.column(name)` adds a column, and `.total(count)` states how many rows the
+  whole result set holds when the API says. `rows` can be an array, or a source
+  (an async generator) the table pulls a page at a time as it is paged through.
 - `kaja.askStr(question)`, `kaja.askInt(question)`,
   `kaja.askSelect(question, options)` — ask the user for text, a whole number,
   or one of a list; each blocks on a human and hands back the kind of thing it

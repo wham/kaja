@@ -47,6 +47,25 @@ export function hasControls(block: TableBlock): boolean {
   return block.live === true || block.expired === true || block.rows.length > pageSizeOf(block);
 }
 
+/**
+ * How big the whole result set is, and whether that is the size of it or only
+ * what has been seen so far. A script that has an API's count says it; one
+ * paging a cursor has nothing to say, and the table counts what it has and marks
+ * the number as a floor rather than passing it off as the total.
+ */
+export interface TableTotal {
+  count: number;
+  exact: boolean;
+}
+
+export function totalOf(block: TableBlock): TableTotal {
+  // A total is a claim and exhaustion is the truth: a source that reported 2,431
+  // and ran out at 2,000 has 2,000 rows in it. The other way round, a count the
+  // rows have already passed is a number the table can see is wrong.
+  if (block.total !== undefined && block.exhausted !== true) return { count: Math.max(block.total, block.rows.length), exact: true };
+  return { count: block.rows.length, exact: !isOpen(block) };
+}
+
 export interface TableWindow {
   // The rows to draw, and where they sit in what the table has.
   rows: string[][];
@@ -75,7 +94,7 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
   // The last page of what is loaded — plus one while the source is open, since
   // paging into rows that aren't here yet is exactly how they are asked for.
   const loadedPages = Math.max(0, Math.ceil(rows.length / size) - 1);
-  const page = Math.max(0, Math.min(view.page, isOpen(block) && !filtered ? loadedPages + 1 : loadedPages));
+  const page = Math.max(0, Math.min(view.page, canGrow(block) && !filtered ? loadedPages + 1 : loadedPages));
   const start = page * size;
   const shown = rows.slice(start, start + size);
 
@@ -90,8 +109,9 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
     hasPrevious: page > 0,
     // No lookahead: pulling one row past the page to light the button up would
     // fetch a whole page to answer a question nobody asked. A live source offers
-    // Next until it runs out, and a click that yields nothing closes it out.
-    hasNext: start + shown.length < rows.length || (isOpen(block) && !filtered),
+    // Next until it runs out, and a click that yields nothing closes it out —
+    // unless it reported a total, which is exactly the click that saves.
+    hasNext: start + shown.length < rows.length || (canGrow(block) && !filtered),
     want: (page + 1) * size,
   };
 }
@@ -99,6 +119,13 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
 // Whether more rows can still be had from the source.
 export function isOpen(block: TableBlock): boolean {
   return block.live === true && block.exhausted !== true && block.expired !== true;
+}
+
+// …and whether they are worth asking for. A source that reported a total has
+// said where it ends, so the pager stops there rather than on the click that
+// comes back with nothing.
+export function canGrow(block: TableBlock): boolean {
+  return isOpen(block) && (block.total === undefined || block.rows.length < block.total);
 }
 
 /**
@@ -122,18 +149,53 @@ export function pullNeeded(block: TableBlock, view: TableView): { needed: boolea
   if (block.loading === true || block.error !== undefined || block.exhausted === true) return { needed: false, want };
   // Searching what is loaded must not pull an API dry to find three rows.
   if (searchesLocally(block) && view.search.trim() !== "") return { needed: false, want };
-  return { needed: block.rows.length < want, want };
+  return { needed: canGrow(block) && block.rows.length < want, want };
 }
 
 /**
- * What the footer says about how much there is. A static table knows its total;
- * a live one only knows what it has, and says so rather than implying the count
- * is the answer.
+ * What the toolbar says about how much there is. One sentence in one shape —
+ * `1–50 of 2,431` — with a `+` where the total is a floor rather than a count:
+ * the script reported one, or the source ran out and what is loaded is all there
+ * was, or neither and the table says how far it has got.
  */
 export function tableSummary(block: TableBlock, window: TableWindow): string {
-  const range = window.total === 0 ? "No rows" : `${window.from}–${window.to} of ${window.total}`;
-  if (window.filtered) return `${range} matching, of ${window.loaded} loaded`;
-  if (block.expired === true) return `${range} loaded — run to load the rest`;
-  if (isOpen(block)) return `${window.from}–${window.to} · ${window.loaded} loaded`;
-  return range;
+  const range = `${count(window.from)}–${count(window.to)}`;
+  if (window.filtered) {
+    return window.total === 0
+      ? `No rows matching · ${count(window.loaded)} loaded`
+      : `${range} of ${count(window.total)} matching · ${count(window.loaded)} loaded`;
+  }
+  const whole = totalOf(block);
+  if (whole.count === 0) return "No rows";
+  const total = `${count(whole.count)}${whole.exact ? "" : "+"}`;
+  // A source that said how many there are before it had sent any: the count is
+  // the one thing worth stating, and the rows are on their way.
+  if (window.to === 0) return `0 of ${total}`;
+  if (block.expired === true) return `${range} of ${total} loaded — run to load the rest`;
+  return `${range} of ${total}`;
+}
+
+function count(value: number): string {
+  return value.toLocaleString();
+}
+
+const NUMBER = /^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?%?$/;
+
+/**
+ * Which columns read from the right. A script hands the table text, so this is
+ * decided by what the cells are rather than by anything declared: a column is a
+ * column of numbers when every cell in it that says anything is one. It is
+ * settled on the page being drawn, which is the only place it shows.
+ */
+export function numericColumns(rows: string[][], columns: number): boolean[] {
+  return Array.from({ length: columns }, (_, index) => {
+    let seen = false;
+    for (const row of rows) {
+      const cell = (row[index] ?? "").trim();
+      if (cell === "") continue;
+      if (!NUMBER.test(cell)) return false;
+      seen = true;
+    }
+    return seen;
+  });
 }

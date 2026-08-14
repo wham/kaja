@@ -90,6 +90,24 @@ export interface Table {
    * blank cell for it.
    */
   column(name: string): void;
+  /**
+   * State how many rows there are in the whole result set — the count an API
+   * reports beside a page, which is the only place it can come from. Say it as
+   * you learn it; the last word wins, and a new search starts the question over.
+   *
+   *   const customers = kaja.table(["key", "name"], async function* (search) {
+   *     for (let page = 1; ; page++) {
+   *       const result = await Customers.ListCustomers({ page, search });
+   *       customers.total(result.totalCount);
+   *       yield* result.items.map((customer) => [customer.key, customer.name]);
+   *     }
+   *   });
+   *
+   * A source paging a cursor has nothing to say here and says nothing: the table
+   * then reports how many rows it has loaded and that there are more, rather
+   * than passing that count off as the total.
+   */
+  total(count: number | undefined): void;
 }
 
 /** A row already on the canvas, which the run can keep up to date. */
@@ -237,6 +255,10 @@ export declare const kaja: {
    *       if (!(pageToken = page.nextPageToken)) return;
    *     }
    *   });
+   *
+   * The table counts the rows it has. An API that reports how many there are in
+   * total is the only thing that knows, so hand that on with the handle's
+   * total() as the pages arrive.
    */
   table(columns: string[], rows?: RowSource, options?: { pageSize?: number }): Table;
   /**
