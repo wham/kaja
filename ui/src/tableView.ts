@@ -8,6 +8,15 @@ import { TableBlock } from "./blocks";
  */
 export const DEFAULT_PAGE_SIZE = 50;
 
+/**
+ * The frame a table is drawn in. The heights are stated here as well as in the
+ * class names because the room a page takes is arithmetic the table does: a page
+ * in flight holds exactly the height the page it is fetching will fill, so
+ * nothing below the table moves while it is fetched.
+ */
+const ROW_HEIGHT = 26;
+const HEADER_HEIGHT = 28;
+
 // Where a table is currently pointed. This is view state rather than something
 // the run drew, so it is held beside the console and not in the block.
 export interface TableView {
@@ -81,6 +90,16 @@ export interface TableWindow {
   hasNext: boolean;
   // How many rows the source must hold for this page to be full.
   want: number;
+  // The page isn't here yet and the source can still bring it, so what is drawn
+  // is a page in flight rather than the page as it is.
+  pending: boolean;
+  // What stays on screen while it is: the page that was being read, which is
+  // dimmed rather than thrown away. Empty when there is nothing to hold — the
+  // first draw of a table, or a source restarted by a search.
+  held: string[][];
+  // How many rows this page holds once it is here. A total the source reported
+  // is what makes a short last page reserve the room it will actually take.
+  expected: number;
 }
 
 /**
@@ -98,14 +117,28 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
   const start = page * size;
   const shown = rows.slice(start, start + size);
 
+  // A page that isn't full yet and a source that can still fill it: the rows are
+  // on their way. An error is the one thing that says they are not — the table
+  // stopped where it stopped, and Retry is what asks again.
+  const pending = !filtered && block.error === undefined && shown.length < size && canGrow(block);
+  const whole = totalOf(block);
+  const expected = !filtered && whole.exact ? Math.max(0, Math.min(size, whole.count - start)) : size;
+  // The range being fetched, not the rows in hand: the toolbar states the page
+  // that was clicked for as long as it takes to arrive, rather than dropping to
+  // zero and back on every click.
+  const to = pending ? start + expected : start + shown.length;
+
   return {
     rows: shown,
     page,
-    from: shown.length === 0 ? 0 : start + 1,
-    to: start + shown.length,
+    from: to === 0 ? 0 : start + 1,
+    to,
     total: rows.length,
     loaded: block.rows.length,
     filtered,
+    pending,
+    held: pending && page > 0 ? rows.slice(start - size, start) : [],
+    expected,
     hasPrevious: page > 0,
     // No lookahead: pulling one row past the page to light the button up would
     // fetch a whole page to answer a question nobody asked. A live source offers
@@ -153,6 +186,26 @@ export function pullNeeded(block: TableBlock, view: TableView): { needed: boolea
 }
 
 /**
+ * Whether the frame keeps the height of a full page. A fetch is 200–800ms and a
+ * table is drawn in the middle of a document, so a page that collapsed to a
+ * loading row and grew back would move everything below it twice per click. The
+ * frame holds for as long as the table can page; only the final page of a table
+ * that can no longer page shrinks to its rows, and by then nothing is going to
+ * move again. A local filter is instant and its result is the whole of it, so it
+ * is the one narrowing that is allowed to shrink.
+ */
+export function holdsPage(block: TableBlock, window: TableWindow): boolean {
+  if (!hasControls(block) || window.filtered) return false;
+  return window.pending || block.loading === true || window.hasNext;
+}
+
+/** The height that hold comes to, or nothing where the rows decide it. */
+export function bodyMinHeight(block: TableBlock, window: TableWindow): number | undefined {
+  if (!holdsPage(block, window)) return undefined;
+  return HEADER_HEIGHT + window.expected * ROW_HEIGHT;
+}
+
+/**
  * What the toolbar says about how much there is. One sentence in one shape —
  * `1–50 of 2,431` — with a `+` where the total is a floor rather than a count:
  * the script reported one, or the source ran out and what is loaded is all there
@@ -166,10 +219,14 @@ export function tableSummary(block: TableBlock, window: TableWindow): string {
       : `${range} of ${count(window.total)} matching · ${count(window.loaded)} loaded`;
   }
   const whole = totalOf(block);
+  // A page in flight states the page that was clicked. A source that reported a
+  // count says it too — that is the whole of what is known — and one that hasn't
+  // says only which rows are on their way, rather than passing off what it
+  // happens to hold as the size of the set.
+  if (window.pending) return whole.exact && whole.count > 0 ? `${range} of ${count(whole.count)}` : `Loading ${range}…`;
   if (whole.count === 0) return "No rows";
   const total = `${count(whole.count)}${whole.exact ? "" : "+"}`;
-  // A source that said how many there are before it had sent any: the count is
-  // the one thing worth stating, and the rows are on their way.
+  // A source that said how many there are and then stopped before sending any.
   if (window.to === 0) return `0 of ${total}`;
   if (block.expired === true) return `${range} of ${total} loaded — run to load the rest`;
   return `${range} of ${total}`;

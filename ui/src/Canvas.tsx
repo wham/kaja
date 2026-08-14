@@ -7,7 +7,7 @@ import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
-import { hasControls, NO_TABLE_VIEW, numericColumns, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
+import { bodyMinHeight, hasControls, NO_TABLE_VIEW, numericColumns, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
 import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
@@ -25,6 +25,20 @@ const STRIP_RESERVE = 160;
 // much it kept back — a decision is never made from a payload you had to leave
 // the screen to read, so Expand is beside the number.
 const APPROVE_CLIP_LINES = 12;
+
+/**
+ * How long a table's pull has to be taking before anything is drawn about it. A
+ * page off a local server is back inside a frame or two, and a dim that flashes
+ * for 40ms reads as a glitch rather than as progress.
+ */
+const TABLE_LOADING_DELAY_MS = 150;
+
+/**
+ * Skeleton bar widths, by column index. Fixed rather than random: widths that
+ * re-roll on every render look like activity that isn't there, and a column of
+ * bars that all end in the same place reads as a column.
+ */
+const SKELETON_WIDTHS = ["58%", "76%", "44%", "66%", "52%", "70%"];
 
 interface CanvasProps {
   group: RunGroup;
@@ -323,30 +337,50 @@ interface TableProps {
  * what pulls the source, and nothing else does. A search that the source takes
  * restarts it; one it doesn't filters the rows already here, and says so — a
  * local filter that fetched would pull an API dry to find three rows.
+ *
+ * **Paging moves nothing.** The frame keeps the height of a full page while the
+ * table can still page, so the blocks below it stay where they are; the page
+ * that was on screen stays too, dimmed, until the next one is here. Only a first
+ * draw has nothing to dim, and that is what the skeleton rows are for.
  */
 Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
+  const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
+  // Which chevron was pressed, so the spinner is where the click was. It is the
+  // press that is remembered rather than the direction of the move: the page can
+  // be clamped, and a pull can start without either button being touched.
+  const [pressed, setPressed] = useState<"previous" | "next" | undefined>(undefined);
+  // Forgotten once the page it asked for is here — and not a moment before: the
+  // pull it started is one effect away, so a press cleared on "not loading yet"
+  // is a press cleared between the click and the fetch it caused.
+  if (pressed !== undefined && block.loading !== true && !shown.pending) setPressed(undefined);
+
+  // Nothing is destroyed and nothing resizes: the old page holds its place at
+  // reduced opacity until the new one is here.
+  const holding = busy && shown.pending && shown.held.length > 0;
+  const drawn = holding ? shown.held : shown.rows;
+  const skeleton = busy && shown.pending && drawn.length === 0;
   // A search bound for the source is debounced; one that filters what is loaded
   // is not, because it costs nothing and lagging under the keystrokes is worse.
   // The text is settled before it is debounced, so the space after a word is not
   // a second search — and ⏎ says "now", which is what the wait is for.
   const [search, searchNow] = useDebounced(view.search.trim(), searchesLocally(block) ? 0 : 300);
   const { needed, want } = pullNeeded(block, { page: shown.page, search });
-  const numeric = numericColumns(shown.rows, block.columns.length);
+  const numeric = numericColumns(drawn, block.columns.length);
 
   useEffect(() => {
     if (needed) onPull(id, search, want);
   }, [needed, id, search, want, onPull]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
+    <div className="overflow-hidden rounded-lg border border-border" aria-busy={busy || undefined}>
       {/* One bar, above the rows. A pager under a fifty-row table is a control
           you have to go looking for, and on a canvas of several blocks it is
           hard to tell which table it belongs to. Everything in it is 28px,
           which is what a pointer wants and what a 12px glyph never was. */}
       {controls && (
-        <div className="flex h-10 items-center gap-2 border-b border-border bg-card px-2">
+        <div className="relative flex h-10 items-center gap-2 border-b border-border bg-card px-2">
           <div className="flex h-7 w-[200px] min-w-0 shrink items-center gap-1.5 rounded-md border border-input bg-background px-2 focus-within:border-ring">
             <Search size={13} className="shrink-0 text-muted-foreground" />
             <input
@@ -371,22 +405,34 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
               </button>
             )}
           </div>
-          {block.loading && <Spinner className="size-3 shrink-0" />}
+          {/* A pull in flight, along the bottom edge of the toolbar: the one
+              thing that moves, 2px of it, and it says nothing about how far
+              along the fetch is because nothing knows. */}
+          {busy && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden">
+              <div className="h-full w-1/3 rounded-full bg-foreground/40 animate-sweep motion-reduce:animate-none" />
+            </div>
+          )}
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <span data-testid="canvas-table-summary" className="min-w-0 truncate tabular-nums text-muted-foreground @max-[520px]:hidden">
               {tableSummary(block, shown)}
             </span>
             {/* Two buttons joined into a pair: one target to aim at, and the
-                gap between them can't be missed into. */}
+                gap between them can't be missed into. The loader is also where
+                the click was — the pressed one holds a spinner in place of its
+                chevron, rather than the toolbar reporting it somewhere else. */}
             <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
               <button
                 type="button"
                 className="flex h-7 w-7 items-center justify-center border-r border-input text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
                 disabled={!shown.hasPrevious}
                 aria-label="Previous page"
-                onClick={() => onView(id, { ...view, page: shown.page - 1 })}
+                onClick={() => {
+                  setPressed("previous");
+                  onView(id, { ...view, page: shown.page - 1 });
+                }}
               >
-                <ChevronLeft size={15} />
+                {busy && pressed === "previous" ? <Spinner className="size-3.5" /> : <ChevronLeft size={15} />}
               </button>
               <button
                 type="button"
@@ -394,70 +440,96 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
                 className="flex h-7 w-7 items-center justify-center text-muted-foreground disabled:opacity-40 enabled:hover:bg-accent enabled:hover:text-accent-foreground"
                 disabled={!shown.hasNext || block.loading === true}
                 aria-label="Next page"
-                onClick={() => onView(id, { ...view, page: shown.page + 1 })}
+                onClick={() => {
+                  setPressed("next");
+                  onView(id, { ...view, page: shown.page + 1 });
+                }}
               >
-                <ChevronRight size={15} />
+                {busy && pressed === "next" ? <Spinner className="size-3.5" /> : <ChevronRight size={15} />}
               </button>
             </div>
           </div>
         </div>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-muted">
-              {block.columns.map((column, index) => (
-                <th
-                  key={index}
-                  className={cn(
-                    "h-7 whitespace-nowrap border-b border-border px-3 text-left font-medium uppercase text-muted-foreground",
-                    numeric[index] && "text-right",
-                  )}
-                >
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.rows.map((row, rowIndex) => (
-              // One row is one line: a cell that wrapped would break the 26px
-              // rhythm the whole grid is read down.
-              <tr key={rowIndex} className="last:[&>td]:border-b-0">
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={cellIndex}
-                    className={cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric[cellIndex] && "text-right")}
-                    title={cell.length > 48 ? cell : undefined}
+      {/* The height of a full page, held for as long as the table can page, so
+          a fetch, a short last page and a filtered result all leave the blocks
+          below exactly where they were. */}
+      <div className="relative flex flex-col" style={{ minHeight: bodyMinHeight(block, shown) }}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-muted">
+                {block.columns.map((column, index) => (
+                  <th
+                    key={index}
+                    className={cn(
+                      "h-7 whitespace-nowrap border-b border-border px-3 text-left font-medium uppercase text-muted-foreground",
+                      numeric[index] && "text-right",
+                    )}
                   >
-                    {cell}
-                  </td>
+                    {column}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {shown.rows.length === 0 && (
-        <div className="flex h-10 items-center gap-2 px-3 text-muted-foreground">
-          {block.loading ? (
-            "Loading…"
-          ) : shown.filtered ? (
-            <>
-              <span className="min-w-0 truncate">No rows match “{view.search.trim()}”</span>
-              <button
-                type="button"
-                className="shrink-0 underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
-                onClick={() => onView(id, { page: 0, search: "" })}
-              >
-                Clear search
-              </button>
-            </>
-          ) : (
-            "No rows yet…"
-          )}
+            </thead>
+            {/* Rows that are on their way out stop responding to the pointer:
+                what is under it is the page you were reading, not the one you
+                asked for. */}
+            <tbody className={cn(holding && "pointer-events-none opacity-40")}>
+              {skeleton
+                ? Array.from({ length: shown.expected }, (_, rowIndex) => (
+                    <tr key={rowIndex} className="last:[&>td]:border-b-0">
+                      {block.columns.map((_, cellIndex) => (
+                        <td key={cellIndex} className="h-[26px] border-b border-border/50 px-3">
+                          <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[cellIndex % SKELETON_WIDTHS.length] }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                : drawn.map((row, rowIndex) => (
+                    // One row is one line: a cell that wrapped would break the
+                    // 26px rhythm the whole grid is read down.
+                    <tr key={rowIndex} className="last:[&>td]:border-b-0">
+                      {row.map((cell, cellIndex) => (
+                        <td
+                          key={cellIndex}
+                          className={cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric[cellIndex] && "text-right")}
+                          title={cell.length > 48 ? cell : undefined}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+            </tbody>
+          </table>
         </div>
-      )}
+        {/* One slow shimmer across the whole set rather than one per bar: fifty
+            bars each pulsing on their own is a light show, not a wait. */}
+        {skeleton && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-7 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent animate-shimmer motion-reduce:animate-none" />
+        )}
+        {/* Nothing at all while a page is on its way and under the delay: a
+            flash of loading state is worse than no state. */}
+        {drawn.length === 0 && !skeleton && !shown.pending && (
+          <div className="flex h-10 items-center gap-2 px-3 text-muted-foreground">
+            {shown.filtered ? (
+              <>
+                <span className="min-w-0 truncate">No rows match “{view.search.trim()}”</span>
+                <button
+                  type="button"
+                  className="shrink-0 underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+                  onClick={() => onView(id, { page: 0, search: "" })}
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              "No rows yet…"
+            )}
+          </div>
+        )}
+      </div>
       {block.error !== undefined && (
         <div className="flex h-10 items-center gap-2 border-t border-border bg-destructive/10 px-3 text-destructive">
           <span className="min-w-0 flex-1 truncate">{block.error}</span>
@@ -488,6 +560,24 @@ function useDebounced<T>(value: T, delay: number): [T, () => void] {
     return () => clearTimeout(timer);
   }, [value, delay]);
   return [delay === 0 ? value : settled, () => setSettled(value)];
+}
+
+/**
+ * True once something has been true for this long, and false the moment it
+ * stops. A loading state is worth drawing only if it will be read: under the
+ * delay the fetch is already back, and what was drawn about it was a flicker.
+ */
+function useDelayed(active: boolean, delay: number): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setHeld(false);
+      return;
+    }
+    const timer = setTimeout(() => setHeld(true), delay);
+    return () => clearTimeout(timer);
+  }, [active, delay]);
+  return active && held;
 }
 
 interface AskProps {

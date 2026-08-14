@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Block, TableBlock } from "./blocks";
 import { Kaja } from "./kaja";
+import { bodyMinHeight, tableSummary, tableWindow } from "./tableView";
 
 // A Kaja with nowhere to draw but a map of what it drew, which is what a table
 // is: a block that keeps being handed back with more in it.
@@ -270,6 +271,42 @@ describe("kaja.table", () => {
   it("reports a table whose source it no longer holds", async () => {
     const { kaja } = draw();
     expect(await kaja.pullTable("block-gone", "", 50)).toBe(false);
+  });
+
+  /**
+   * The whole of what paging looks like, against the shape a real script has: a
+   * source that fetches a page at a time and reports the count it was sent
+   * beside it. Nothing about the frame may move between these states — the range
+   * never drops to zero, and the height is a full page throughout.
+   */
+  it("never drops to nothing between one page and the next", async () => {
+    const { kaja, only, id } = draw();
+    const shows = kaja.table(["id"], async function* () {
+      for (let page = 1; ; page++) {
+        shows.total(2431);
+        yield* Array.from({ length: 50 }, (_, row) => [`show-${(page - 1) * 50 + row}`]);
+      }
+    });
+
+    const height = 28 + 50 * 26;
+    const at = (page: number) => {
+      const window = tableWindow(only(), { page, search: "" });
+      return { summary: tableSummary(only(), window), height: bodyMinHeight(only(), window), rows: window.rows.length, held: window.held.length };
+    };
+
+    // Drawn, and its first page not yet asked for: the count is the one thing
+    // nothing knows yet, so the table says which rows are on their way.
+    expect(at(0)).toEqual({ summary: "Loading 1–50…", height, rows: 0, held: 0 });
+
+    await kaja.settleTables();
+    expect(at(0)).toEqual({ summary: "1–50 of 2,431", height, rows: 50, held: 0 });
+
+    // Next, before the pull it asks for has landed: the page that was on screen
+    // is what stays there, and the toolbar already states the page being read.
+    expect(at(1)).toEqual({ summary: "51–100 of 2,431", height, rows: 0, held: 50 });
+
+    await kaja.pullTable(id(), "", 100);
+    expect(at(1)).toEqual({ summary: "51–100 of 2,431", height, rows: 50, held: 0 });
   });
 
   it("takes a plain array of rows from an iterable source", async () => {

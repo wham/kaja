@@ -99,11 +99,37 @@
   /* A run in flight: the mark drawing itself left to right, over and over for
      as long as the run is going. */
   --animate-trace: trace 1.4s linear infinite;
+
+  /* A table's page in flight: 2px along the bottom edge of its toolbar. It is
+     indeterminate because nothing knows how far along a fetch is. */
+  --animate-sweep: sweep 1.1s ease-in-out infinite;
+
+  /* One shimmer across a whole set of skeleton rows — slow, because it is
+     saying "waiting", not "working". */
+  --animate-shimmer: shimmer 1.8s linear infinite;
 }
 
 @keyframes trace {
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
 
