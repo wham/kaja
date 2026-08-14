@@ -121,6 +121,7 @@ export interface BlockUpdate {
 export interface Table {
   row(...cells: unknown[]): Row;
   column(name: string): void;
+  total(count: number | undefined): void;
 }
 
 /**
@@ -173,6 +174,10 @@ interface LiveTable {
   // search changes drops what it was doing instead of appending to the new set.
   generation: number;
   pulling?: Promise<void>;
+  // The first page, which is pulled a microtask after the table is drawn. It is
+  // held apart from `pulling` because it settles before that one is set, and the
+  // run waits for both.
+  first?: Promise<void>;
 }
 
 // Live sources are closures, so they are held rather than collected. A console
@@ -440,10 +445,23 @@ export class Kaja {
    *       if (!(pageToken = page.nextPageToken)) return;
    *     }
    *   });
+   *
+   * An API that reports how many rows there are in total is the only thing that
+   * knows; say it through the handle as the pages arrive, and the table states it
+   * instead of counting what it has.
+   *
+   *   const shows = kaja.table(["id", "title"], async function* () {
+   *     for (let page = 1; ; page++) {
+   *       const result = await Shows.ListShows({ page });
+   *       shows.total(result.totalCount);
+   *       yield* result.shows.map((show) => [show.id, show.title]);
+   *     }
+   *   });
    */
   table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
     const blockId = newBlockId();
     const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
+    let live: LiveTable | undefined;
 
     if (Array.isArray(rows)) {
       block.rows = rows.map((row) => padCells(toCells(row), block.columns.length));
@@ -461,14 +479,20 @@ export class Kaja {
       block.live = true;
       block.serverSearch = restartable && rows.length > 0;
       block.loadedSearch = "";
-      this.#openTable(blockId, { block, open, restartable, search: "", generation: 0 });
+      live = { block, open, restartable, search: "", generation: 0 };
+      this.#openTable(blockId, live);
     }
 
     this.#onBlockUpdate(blockId, { ...block });
     // A live table draws its first page itself rather than waiting to be looked
     // at: the run is what fetched it, so its calls belong in the run's log — and
     // a run nobody is watching (an agent's) still reports a page of rows.
-    if (block.live) void this.pullTable(blockId, "", pageSizeOf(block));
+    //
+    // A microtask later, though, so `const shows = kaja.table(…)` is assigned
+    // before any source body runs. A source reports its total through that
+    // handle, from inside its own loop, and pulling here and now would run the
+    // loop while the name it reaches for is still in its dead zone.
+    if (live) live.first = Promise.resolve().then(() => void this.pullTable(blockId, "", pageSizeOf(block)));
 
     // A new array each time, at both levels: the canvas compares what it was
     // handed against what it holds, and a row pushed or spliced into the same
@@ -500,6 +524,13 @@ export class Kaja {
         // and the rows can never disagree about how many columns there are.
         block.columns = [...block.columns, formatCell(name)];
         block.rows = block.rows.map((row) => padCells(row, block.columns.length));
+        this.#onBlockUpdate(blockId, { ...block });
+      },
+      total: (count: number | undefined) => {
+        // A total is a claim about the whole set, so anything that isn't a count
+        // says nothing rather than something wrong — an API that stops reporting
+        // one leaves the table where a cursor-based source always is.
+        block.total = typeof count === "number" && Number.isFinite(count) && count >= 0 ? Math.floor(count) : undefined;
         this.#onBlockUpdate(blockId, { ...block });
       },
     };
@@ -542,6 +573,10 @@ export class Kaja {
       table.block.rows = [];
       table.block.exhausted = false;
       table.block.loadedSearch = search;
+      // A total counts a result set, and this is a different one. The source
+      // reports the new one as it answers; until it does, the table says how many
+      // it has and that there are more, which is what it in fact knows.
+      table.block.total = undefined;
     } else if (table.pulling) {
       // Single flight: a pull already under way is filling the same table, and a
       // second one would interleave its rows with the first's.
@@ -602,9 +637,14 @@ export class Kaja {
    */
   async settleTables(): Promise<void> {
     for (let pass = 0; pass < 8; pass++) {
-      const pulling = [...this.#tables.values()].map((table) => table.pulling).filter((promise): promise is Promise<void> => promise !== undefined);
+      const pulling = [...this.#tables.values()]
+        .flatMap((table) => [table.first, table.pulling])
+        .filter((promise): promise is Promise<void> => promise !== undefined);
       if (pulling.length === 0) return;
       await Promise.all(pulling);
+      // The first pull is over once it has been awaited; leaving it here would
+      // make every later pass find work that is already done.
+      for (const table of this.#tables.values()) table.first = undefined;
     }
   }
 

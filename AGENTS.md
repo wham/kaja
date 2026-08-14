@@ -603,6 +603,27 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
     until it runs out and a click that yields nothing closes it out. This is also
     why the page clamp lets **one** page past the loaded rows through — paging
     into rows that aren't here yet is how they are asked for.
+  - **How big the whole thing is, the script is the only one who can say.**
+    `.total(count)` on the handle takes the number an API reports beside a page,
+    said from inside the source's own loop as it learns it (`totalOf`), and the
+    toolbar reads `1–50 of 2,431` instead of counting what it holds. It is a verb
+    rather than an option because the count arrives *with* the first page — an
+    option would make every script fetch a page before drawing the table it is
+    fetching for — and it is on the handle rather than a second parameter of the
+    source because arity there already means "restart me for each search". A
+    cursor-based API has nothing to say and says nothing: the count is then what
+    is loaded, marked `of 120+` while the source is open and exact once it runs
+    out. **A total is a claim and exhaustion is the truth** — a source that
+    promised 2,431 and stopped at 2,000 has 2,000 rows in it, and a count the
+    rows have already passed is one the table can see is wrong. A restart clears
+    it, because it counted a result set nobody is asking about any more. It is
+    also the one thing that spares the no-lookahead click: with a total, the
+    pager stops where the set does.
+  - **A live table's first page is pulled a microtask after it is drawn.** A
+    source reports its total through the handle the script is still assigning
+    (`const shows = kaja.table(…, async function* () { shows.total(…) })`), so
+    nothing the source runs may happen before that name is bound. The run still
+    waits for it (`LiveTable.first`, awaited by `settleTables`).
   - **Declaring the search parameter is what asks for the search text.** A source
     that takes one is restarted for each new search (a new search is a new result
     set); one that doesn't is never restarted, and the box filters the rows
@@ -614,6 +635,22 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
     rows, holding the search box, the count and the pager. A static table that
     fits on a page reads exactly as it did before any of this existed, and a
     pager under a fifty-row table is a control you have to go looking for.
+  - **The table is the one block with a frame, because it is the one block wider
+    than the text.** Without it the header row reads as another line of the
+    paragraph above it. So: a card (`rounded-lg border`), a 40px toolbar on
+    `bg-card` above the rows, a `bg-muted` header band, 26px rows, and the
+    canvas's own 16px gap doing the separating. Everything in the toolbar is
+    **28px** — the search box is a real input, and Previous/Next are two 28px
+    buttons **joined into one pair**, so there is no gap between them to miss
+    into. That is what the 12px chevrons in a line of body text were not.
+  - **One row is one line.** Cells truncate rather than wrap — a wrapped cell
+    breaks the 26px rhythm the grid is read down — and a long one carries its
+    full value as a hover title. A column whose every non-empty cell is a number
+    reads from the right (`numericColumns`), decided by what the cells are rather
+    than by anything declared, since a script hands the table text.
+  - **The empty state is a row inside the frame**, not the run's blankslate:
+    `No rows match “xyz”` with Clear search beside it. So is a source's error,
+    with its Retry. Both are 40px, and the columns stay on screen above them.
   - **A live table expires like a payload does.** The source is a closure, so it
     cannot be stored: read back, the table is the rows it had, saying
     `run to load the rest` rather than offering a Next that leads nowhere

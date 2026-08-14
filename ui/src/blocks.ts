@@ -45,6 +45,11 @@ export interface TableBlock {
   expired?: boolean;
   // How many rows a page holds. Absent means the default.
   pageSize?: number;
+  // How many rows the whole result set holds, as the script reported it — the
+  // count an API sends beside a page, which nothing else here could know. Absent
+  // is the honest state of a cursor-based source: the table then says how many it
+  // has and that there are more, rather than implying the two are the same.
+  total?: number;
   // What the last pull failed with. The call itself is in the log; this is what
   // the table says about why it stopped filling.
   error?: string;
