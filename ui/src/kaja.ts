@@ -1,9 +1,23 @@
 import { IMessageType } from "@protobuf-ts/runtime";
 import { Method, Service } from "./apps";
 import { parseInteger } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, formatCell, newBlockId, TableBlock, TextBlock } from "./blocks";
+import {
+  ApproveBlock,
+  ApproveGesture,
+  AskBlock,
+  Block,
+  CellStatus,
+  cellStatus,
+  CodeBlock,
+  formatCell,
+  newBlockId,
+  TableBlock,
+  TextBlock,
+  withCellStatus,
+  withoutRowStatus,
+} from "./blocks";
 import { LogSink } from "./scriptConsole";
-import { pageSizeOf } from "./tableView";
+import { CellRef, pageSizeOf } from "./tableView";
 import { rememberValues } from "./typeMemory";
 
 // Thrown when the user cancels a `kaja.ask*` prompt. The task runner
@@ -119,7 +133,7 @@ export interface BlockUpdate {
  * the loop to finish would make the interesting part the part you can't watch.
  */
 export interface Table {
-  row(...cells: unknown[]): Row;
+  row(...cells: Cell[]): Row;
   column(name: string): void;
   total(count: number | undefined): void;
 }
@@ -133,8 +147,19 @@ export interface Table {
  * finishes, so the table paints rather than reporting at the end.
  */
 export interface Row {
-  update(...cells: unknown[]): void;
+  update(...cells: Cell[]): void;
 }
+
+/**
+ * A cell the script has, or one it is getting. A **promise** is work already
+ * started; a **function** is work nobody has asked for yet, so the table asks —
+ * when the row is drawn, and again if you retry it. An `Error`, thrown or
+ * returned, is a cell that stopped rather than a value.
+ *
+ * It is `unknown` to TypeScript, which is what it has always been. The alias is
+ * where the rule is written down.
+ */
+export type Cell = unknown | PromiseLike<unknown> | (() => unknown);
 
 /**
  * Rows a table draws. An array is an iterable; so is an async generator, and one
@@ -155,12 +180,31 @@ export interface TableOptions {
   pageSize?: number;
 }
 
+/**
+ * A cell the table is getting rather than holding. The closure beside the
+ * block's `CellStatus`, on the same rule the source is: the block is JSON the
+ * console stores, and a function can't be.
+ */
+interface LiveCell {
+  // The work, while nobody has asked for it — a function that hasn't been
+  // called, or a failed one waiting on Retry. A promise never has one: it was
+  // already running when the script handed it over, and can't be run again.
+  open?: () => unknown;
+  running?: Promise<void>;
+  // The row's revision when this cell was declared. A row rewritten since is not
+  // the row this answers, so the answer is dropped rather than written over it.
+  revision: number;
+}
+
 // What a live table is filled from. The block is the JSON the console stores;
 // this is the closure beside it, which is why it lives on the Kaja instance —
 // that outlives any one run, and a table stays live after the script is over.
 interface LiveTable {
   block: TableBlock;
-  open: (search: string) => Rows;
+  // Absent on a table that was handed its rows outright. Such a table is held
+  // here anyway once it has a cell that isn't a value: what is kept is the
+  // closures, and a cell is one.
+  open?: (search: string) => Rows;
   iterator?: Iterator<unknown[]> | AsyncIterator<unknown[]>;
   // Whether the source can be started again. A function can be; an iterable that
   // is already running cannot, so it has neither a server search nor a retry
@@ -178,12 +222,34 @@ interface LiveTable {
   // held apart from `pulling` because it settles before that one is set, and the
   // run waits for both.
   first?: Promise<void>;
+  // The cells that aren't values, by row and then column, so rewriting a row
+  // lets go of everything that was answering it in one move.
+  cells: Map<number, Map<number, LiveCell>>;
+  // Bumped every time a row is written and never reset — a revision that started
+  // over would let a cell declared before a restart answer the row that replaced
+  // it, which is the one thing this exists to prevent.
+  revision: number;
+  rowRevision: number[];
+  // Every cell still outstanding, which is what the run waits for…
+  running: Set<Promise<void>>;
+  // …and the ones past the gate, which is what the next one waits for. Two sets
+  // rather than a count: a cell waiting for a slot is outstanding but not in
+  // flight, and racing a set that holds the waiters is a race nobody wins.
+  inFlight: Set<Promise<void>>;
 }
 
 // Live sources are closures, so they are held rather than collected. A console
 // that has drawn hundreds of tables lets the oldest go; those tables read as
 // expired, which is a state the canvas already states.
 const MAX_LIVE_TABLES = 24;
+
+/**
+ * How many of a table's cells are fetched at once. A page draw asks for every
+ * cell it can see in one go, and fifty rows must not put fifty requests on the
+ * wire in one frame — they arrive as a rolling handful instead, in the order
+ * they were declared.
+ */
+const MAX_CELLS_IN_FLIGHT = 6;
 
 /**
  * How many calls to one method a run reads remembered values out of. The
@@ -207,8 +273,18 @@ function openIterator(rows: Rows): Iterator<unknown[]> | AsyncIterator<unknown[]
 
 // A row is cells. Anything else a source yields is one cell rather than an
 // error, on the same rule formatCell follows: readable beats correct-or-nothing.
-function toCells(row: unknown): string[] {
-  return Array.isArray(row) ? row.map(formatCell) : [formatCell(row)];
+function toCells(row: unknown): unknown[] {
+  return Array.isArray(row) ? row : [row];
+}
+
+// A cell that is already running. A Call is one of these, so a method handed
+// straight to a table is a cell the table waits for.
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return typeof (value as { then?: unknown } | null | undefined)?.then === "function";
+}
+
+function cellFailure(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 // A row is as wide as the table. Fewer cells than columns draws blanks rather
@@ -435,6 +511,12 @@ export class Kaja {
    *   const result = await check(account);
    *   row.update(account.id, account.name, result.status);
    *
+   * A cell can be a value the script is still getting rather than one it has —
+   * a promise it already started, or a function the table calls when the row is
+   * drawn. The row appears with everything it has and that cell fills in after.
+   *
+   *   table.row(show.id, show.title, () => Ratings.GetRating({ id: show.id }));
+   *
    * The rows can also be given: an array is drawn as it is, and a source is
    * pulled a page at a time as the table is paged through.
    *
@@ -461,10 +543,21 @@ export class Kaja {
   table(columns: string[], rows?: RowSource, options?: TableOptions): Table {
     const blockId = newBlockId();
     const block: TableBlock = { kind: "table", columns: columns.map(formatCell), rows: [], pageSize: options?.pageSize };
-    let live: LiveTable | undefined;
+    const table: LiveTable = {
+      block,
+      restartable: false,
+      search: "",
+      generation: 0,
+      revision: 0,
+      rowRevision: [],
+      cells: new Map(),
+      running: new Set(),
+      inFlight: new Set(),
+    };
+    let live = false;
 
     if (Array.isArray(rows)) {
-      block.rows = rows.map((row) => padCells(toCells(row), block.columns.length));
+      block.rows = rows.map((row, index) => this.#declareRow(blockId, table, index, toCells(row)));
     } else if (rows !== undefined) {
       if (typeof rows !== "function" && !isAsyncIterable(rows) && !isIterable(rows)) {
         throw new Error("kaja.table: rows must be an array, an iterable of rows, or a function returning one");
@@ -475,12 +568,13 @@ export class Kaja {
       // source that ignores it would otherwise be restarted on every keystroke
       // to fetch the same page back.
       const restartable = typeof rows === "function";
-      const open = restartable ? rows : () => rows;
+      table.restartable = restartable;
+      table.open = restartable ? rows : () => rows;
       block.live = true;
       block.serverSearch = restartable && rows.length > 0;
       block.loadedSearch = "";
-      live = { block, open, restartable, search: "", generation: 0 };
-      this.#openTable(blockId, live);
+      live = true;
+      this.#openTable(blockId, table);
     }
 
     this.#onBlockUpdate(blockId, { ...block });
@@ -492,13 +586,13 @@ export class Kaja {
     // before any source body runs. A source reports its total through that
     // handle, from inside its own loop, and pulling here and now would run the
     // loop while the name it reaches for is still in its dead zone.
-    if (live) live.first = Promise.resolve().then(() => void this.pullTable(blockId, "", pageSizeOf(block)));
+    if (live) table.first = Promise.resolve().then(() => void this.pullTable(blockId, "", pageSizeOf(block)));
 
     // A new array each time, at both levels: the canvas compares what it was
     // handed against what it holds, and a row pushed or spliced into the same
     // array is invisible to it.
     const write = (index: number, cells: unknown[]) => {
-      const row = padCells(cells.map(formatCell), block.columns.length);
+      const row = this.#declareRow(blockId, table, index, cells);
       block.rows = block.rows.map((current, at) => (at === index ? row : current));
       this.#onBlockUpdate(blockId, { ...block });
     };
@@ -506,7 +600,7 @@ export class Kaja {
     return {
       row: (...cells: unknown[]): Row => {
         const index = block.rows.length;
-        block.rows = [...block.rows, padCells(cells.map(formatCell), block.columns.length)];
+        block.rows = [...block.rows, this.#declareRow(blockId, table, index, cells)];
         this.#onBlockUpdate(blockId, { ...block });
         return {
           update: (...cells: unknown[]) => {
@@ -552,6 +646,160 @@ export class Kaja {
   }
 
   /**
+   * Write a row's cells and take note of the ones that are not values. A
+   * **promise** is work the script already started, so the table only waits for
+   * it; a **function** is work nobody has asked for yet, so the table asks —
+   * when the row is drawn, and again if a failed one is retried. The row's
+   * revision is stamped here, and it is what an answer arriving late is checked
+   * against.
+   */
+  #declareRow(blockId: string, table: LiveTable, index: number, cells: unknown[]): string[] {
+    const block = table.block;
+    const revision = (table.rowRevision[index] = ++table.revision);
+    // Whatever was on its way answered the row as it was, which is not the row
+    // this is writing.
+    table.cells.delete(index);
+    block.cells = withoutRowStatus(block, index);
+
+    const text = cells.map((cell, column) => {
+      // Thrown or returned, an Error is a cell that stopped — a script that
+      // hands its failures back rather than throwing them is saying the same
+      // thing in the other voice. There is nothing to call again: the script had
+      // the failure, not a way to repeat it.
+      if (cell instanceof Error) {
+        block.cells = withCellStatus(block, index, column, { error: cell.message });
+        return "";
+      }
+      if (typeof cell === "function") return this.#awaitCell(blockId, table, index, column, revision, cell as () => unknown);
+      if (isThenable(cell)) return this.#awaitCell(blockId, table, index, column, revision, undefined, cell);
+      return formatCell(cell);
+    });
+    return padCells(text, block.columns.length);
+  }
+
+  // A cell that is not here yet: blank text, a status saying so, and the closure
+  // beside the block. A table with one is held for the same reason a live one
+  // is — what is kept is the closures.
+  #awaitCell(blockId: string, table: LiveTable, row: number, column: number, revision: number, open?: () => unknown, started?: PromiseLike<unknown>): string {
+    const cell: LiveCell = { revision, open };
+    const byColumn = table.cells.get(row) ?? new Map<number, LiveCell>();
+    byColumn.set(column, cell);
+    table.cells.set(row, byColumn);
+    table.block.cells = withCellStatus(table.block, row, column, {});
+    if (!this.#tables.has(blockId)) this.#openTable(blockId, table);
+
+    if (started !== undefined) {
+      cell.running = this.#hold(
+        table,
+        this.#fillCell(blockId, table, cell, row, column, () => started, false),
+      );
+    } else if (row < pageSizeOf(table.block)) {
+      // The first page is asked for with the table, on the same rule that makes
+      // a live table pull its own: a run nobody is watching still fills one.
+      this.#startCell(blockId, table, row, column);
+    }
+    return "";
+  }
+
+  /**
+   * Start a cell nobody has called yet, or hand back the run it is already in.
+   * Having work to do is what says it hasn't started — `open` is taken when a
+   * cell starts and put back only when a retryable one fails, so a cell that
+   * finished has neither work nor a way to be started twice.
+   */
+  #startCell(blockId: string, table: LiveTable, row: number, column: number): Promise<void> | undefined {
+    const cell = table.cells.get(row)?.get(column);
+    if (cell === undefined) return undefined;
+    const open = cell.open;
+    if (open === undefined) return cell.running;
+    cell.open = undefined;
+
+    if (cellStatus(table.block, row, column)?.error !== undefined) {
+      // Asking again is what clears the last failure: the cell goes back to
+      // waiting rather than reading as stopped while it is being fetched.
+      table.block.cells = withCellStatus(table.block, row, column, {});
+      this.#onBlockUpdate(blockId, { ...table.block });
+    }
+    cell.running = this.#hold(table, this.#fillCell(blockId, table, cell, row, column, open, true));
+    return cell.running;
+  }
+
+  /**
+   * Run a cell's work and write what comes back. A cell that fails writes the
+   * failure rather than throwing it: the loop that drew the row is long over,
+   * and the one place the failure belongs is the cell it happened in.
+   *
+   * `gated` is both halves of what a function is and a promise isn't — it waits
+   * for a slot before starting, and it can be started again.
+   */
+  async #fillCell(blockId: string, table: LiveTable, cell: LiveCell, row: number, column: number, work: () => unknown, gated: boolean): Promise<void> {
+    // A rolling handful rather than a page all at once. The wait is here, past
+    // the point where the cell counts as started, so a second draw of the same
+    // page doesn't queue it twice.
+    while (gated && table.inFlight.size >= MAX_CELLS_IN_FLIGHT) await Promise.race([...table.inFlight]);
+
+    const filling = (async () => {
+      try {
+        const value = await work();
+        if (value instanceof Error) throw value;
+        this.#writeCell(blockId, table, cell, row, column, formatCell(value), undefined);
+      } catch (error) {
+        // Put the work back where a retry finds it. A function can be called
+        // again; a promise is finished, whatever it settled as.
+        if (gated) cell.open = work;
+        this.#writeCell(blockId, table, cell, row, column, undefined, { error: cellFailure(error), retry: gated || undefined });
+      }
+    })();
+
+    if (gated) {
+      table.inFlight.add(filling);
+      void filling.finally(() => table.inFlight.delete(filling));
+    }
+    await filling;
+  }
+
+  #writeCell(blockId: string, table: LiveTable, cell: LiveCell, row: number, column: number, text: string | undefined, status: CellStatus | undefined): void {
+    const block = table.block;
+    // The row this answers can be gone or rewritten — a source that takes the
+    // search is restarted from the top, and a row updated asked a different
+    // question. Either way there is nothing here for the answer to land in.
+    if (table.rowRevision[row] !== cell.revision) return;
+    if (text !== undefined) {
+      block.rows = block.rows.map((current, at) => (at === row ? current.map((value, index) => (index === column ? text : value)) : current));
+    }
+    block.cells = withCellStatus(block, row, column, status);
+    this.#onBlockUpdate(blockId, { ...block });
+  }
+
+  // Everything outstanding, so the run can wait for it.
+  #hold(table: LiveTable, promise: Promise<void>): Promise<void> {
+    table.running.add(promise);
+    void promise.finally(() => table.running.delete(promise));
+    return promise;
+  }
+
+  /**
+   * Start the cells a page is drawing. Asking is what is idempotent, not the
+   * work: the canvas asks for every cell it can see on every frame, and a cell
+   * that has started, finished or stopped is not started again. A failed one is
+   * the exception it has to be — it is asked for only when someone asks.
+   *
+   * Resolves false when the table is gone, and the caller marks it expired on
+   * the same rule a pull that finds no source does.
+   */
+  async pullCells(blockId: string, cells: CellRef[]): Promise<boolean> {
+    const table = this.#tables.get(blockId);
+    if (!table) return false;
+
+    const started = cells
+      .filter((ref) => ref.retry === true || cellStatus(table.block, ref.row, ref.column)?.error === undefined)
+      .map((ref) => this.#startCell(blockId, table, ref.row, ref.column))
+      .filter((promise): promise is Promise<void> => promise !== undefined);
+    await Promise.all(started);
+    return true;
+  }
+
+  /**
    * Fill a live table up to `want` rows, restarting its source first if it takes
    * the search text and the text has changed. Rows are emitted as they arrive,
    * so a page paints while it fills. Resolves false when the source is gone —
@@ -559,7 +807,7 @@ export class Kaja {
    */
   async pullTable(blockId: string, search: string, want: number): Promise<boolean> {
     const table = this.#tables.get(blockId);
-    if (!table) return false;
+    if (!table?.open) return false;
 
     const searched = table.block.serverSearch === true && table.search !== search;
     if (searched || table.restart) {
@@ -573,6 +821,11 @@ export class Kaja {
       table.block.rows = [];
       table.block.exhausted = false;
       table.block.loadedSearch = search;
+      // The cells that were coming belonged to those rows. A revision is never
+      // reused, so the ones still in flight write nothing when they land.
+      table.cells.clear();
+      table.rowRevision = [];
+      table.block.cells = undefined;
       // A total counts a result set, and this is a different one. The source
       // reports the new one as it answers; until it does, the table says how many
       // it has and that there are more, which is what it in fact knows.
@@ -603,7 +856,7 @@ export class Kaja {
     this.#onBlockUpdate(blockId, { ...block });
 
     try {
-      if (!table.iterator) table.iterator = openIterator(table.open(table.search));
+      if (!table.iterator) table.iterator = openIterator(table.open!(table.search));
       while (block.rows.length < want) {
         const next = await table.iterator.next();
         // A restart happened while this was awaiting; its rows answer a search
@@ -613,7 +866,7 @@ export class Kaja {
           block.exhausted = true;
           break;
         }
-        block.rows = [...block.rows, padCells(toCells(next.value), block.columns.length)];
+        block.rows = [...block.rows, this.#declareRow(blockId, table, block.rows.length, toCells(next.value))];
         this.#onBlockUpdate(blockId, { ...block });
       }
     } catch (error) {
@@ -633,12 +886,13 @@ export class Kaja {
   /**
    * Resolves once no table is still filling. A script that draws a live table
    * and ends is not over until its first page has landed — those calls are the
-   * run's, and the run's duration is what they cost.
+   * run's, and the run's duration is what they cost. A cell the script handed
+   * over is the same bargain one column narrower.
    */
   async settleTables(): Promise<void> {
     for (let pass = 0; pass < 8; pass++) {
       const pulling = [...this.#tables.values()]
-        .flatMap((table) => [table.first, table.pulling])
+        .flatMap((table) => [table.first, table.pulling, ...table.running])
         .filter((promise): promise is Promise<void> => promise !== undefined);
       if (pulling.length === 0) return;
       await Promise.all(pulling);

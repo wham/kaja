@@ -1,13 +1,26 @@
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Search, ShieldQuestionMark, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, RotateCw, Search, ShieldQuestionMark, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { answerPlaceholder, answerProblem, AskAnswerType, normalizeAnswer } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, CodeBlock, TableBlock, TextBlock } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, CellStatus, cellStatus, CodeBlock, TableBlock, TextBlock } from "./blocks";
 import { formatBytes, formatDuration } from "./callFormat";
 import { cn } from "./cn";
 import { Button } from "./components/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/dropdown-menu";
 import { Spinner } from "./components/spinner";
-import { bodyMinHeight, hasControls, NO_TABLE_VIEW, numericColumns, pullNeeded, searchesLocally, tableSummary, tableWindow, TableView } from "./tableView";
+import {
+  bodyMinHeight,
+  CellRef,
+  cellsKey,
+  hasControls,
+  NO_TABLE_VIEW,
+  numericColumns,
+  pendingCells,
+  pullNeeded,
+  searchesLocally,
+  tableSummary,
+  tableWindow,
+  TableView,
+} from "./tableView";
 import { ConsoleItem, FailureNotice, RunGroup } from "./runs";
 import { barHeight, BAR_MAX_HEIGHT, slotsFor, SLOT_WIDTH, StripSlot, TICK_HEIGHT, TICK_WIDTH } from "./runStrip";
 import { Log, LogLevel } from "./server/api";
@@ -65,6 +78,8 @@ interface CanvasProps {
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
+  // The cells a drawn page is waiting for, and the retry of one that stopped.
+  onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
 /**
@@ -85,6 +100,7 @@ export function Canvas({
   tableViews,
   onTableView,
   onTablePull,
+  onTableCells,
 }: CanvasProps) {
   const drawn = group.drawn;
   const unreported = group.unreported;
@@ -140,6 +156,7 @@ export function Canvas({
             tableViews={tableViews}
             onTableView={onTableView}
             onTablePull={onTablePull}
+            onTableCells={onTableCells}
           />
         </div>
       ))}
@@ -246,9 +263,11 @@ interface EntryProps {
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
+  // The cells a drawn page is waiting for, and the retry of one that stopped.
+  onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
-Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull }: EntryProps) {
+Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull, onTableCells }: EntryProps) {
   if (item.logs) return <Canvas.Logs logs={item.logs} />;
   if (!item.block) return null;
   return (
@@ -263,6 +282,7 @@ Canvas.Entry = function ({ item, fullScreen, onAnswer, onCancelAsk, onDecide, on
       tableViews={tableViews}
       onTableView={onTableView}
       onTablePull={onTablePull}
+      onTableCells={onTableCells}
     />
   );
 };
@@ -280,16 +300,30 @@ interface BlockProps {
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
+  // The cells a drawn page is waiting for, and the retry of one that stopped.
+  onTableCells: (blockId: string, cells: CellRef[]) => void;
 }
 
-Canvas.Block = function ({ id, block, fullScreen, onAnswer, onCancelAsk, onDecide, onFullScreen, tableViews, onTableView, onTablePull }: BlockProps) {
+Canvas.Block = function ({
+  id,
+  block,
+  fullScreen,
+  onAnswer,
+  onCancelAsk,
+  onDecide,
+  onFullScreen,
+  tableViews,
+  onTableView,
+  onTablePull,
+  onTableCells,
+}: BlockProps) {
   switch (block.kind) {
     case "text":
       return <Canvas.Text block={block} fullScreen={fullScreen} />;
     case "code":
       return <Canvas.Code block={block} />;
     case "table":
-      return <Canvas.Table id={id} block={block} view={tableViews[id] ?? NO_TABLE_VIEW} onView={onTableView} onPull={onTablePull} />;
+      return <Canvas.Table id={id} block={block} view={tableViews[id] ?? NO_TABLE_VIEW} onView={onTableView} onPull={onTablePull} onCells={onTableCells} />;
     case "ask":
       return <Canvas.Ask id={id} block={block} onAnswer={onAnswer} onCancelAsk={onCancelAsk} />;
     case "approve":
@@ -322,6 +356,7 @@ interface TableProps {
   view: TableView;
   onView: (blockId: string, view: TableView) => void;
   onPull: (blockId: string, search: string, want: number) => void;
+  onCells: (blockId: string, cells: CellRef[]) => void;
 }
 
 /**
@@ -342,8 +377,14 @@ interface TableProps {
  * table can still page, so the blocks below it stay where they are; the page
  * that was on screen stays too, dimmed, until the next one is here. Only a first
  * draw has nothing to dim, and that is what the skeleton rows are for.
+ *
+ * A cell can be waiting on its own, and the same bar says so: a script hands a
+ * table a promise or a function where a value would go, and the row is drawn
+ * with everything it already has. A cell is asked for when it is drawn, which is
+ * what makes the second half of a five-hundred-row table cost nothing until it
+ * is looked at.
  */
-Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
+Canvas.Table = function ({ id, block, view, onView, onPull, onCells }: TableProps) {
   const shown = tableWindow(block, view);
   const controls = hasControls(block);
   const busy = useDelayed(block.loading === true, TABLE_LOADING_DELAY_MS);
@@ -363,6 +404,7 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   // prevent.
   const stale = shown.pending && shown.held.length > 0;
   const drawn = stale ? shown.held : shown.rows;
+  const drawnIndices = stale ? shown.heldIndices : shown.indices;
   const holding = busy && stale;
   const skeleton = busy && shown.pending && drawn.length === 0;
   // A search bound for the source is debounced; one that filters what is loaded
@@ -376,6 +418,19 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
   useEffect(() => {
     if (needed) onPull(id, search, want);
   }, [needed, id, search, want, onPull]);
+
+  // The cells on screen ask for themselves. The list is read through a ref and
+  // the effect keyed on what is in it, so a repaint that changes nothing about
+  // which cells are waiting doesn't ask again — and asking twice would be free
+  // anyway: a cell is started once, and the table is what knows that.
+  const waiting = pendingCells(block, drawnIndices);
+  const waitingRef = useRef(waiting);
+  waitingRef.current = waiting;
+  const waitingKey = cellsKey(waiting);
+
+  useEffect(() => {
+    if (waitingRef.current.length > 0) onCells(id, waitingRef.current);
+  }, [waitingKey, id, onCells]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border" aria-busy={busy || undefined}>
@@ -495,13 +550,15 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
                     // 26px rhythm the whole grid is read down.
                     <tr key={rowIndex} className="last:[&>td]:border-b-0">
                       {row.map((cell, cellIndex) => (
-                        <td
+                        <Canvas.TableCell
                           key={cellIndex}
-                          className={cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric[cellIndex] && "text-right")}
-                          title={cell.length > 48 ? cell : undefined}
-                        >
-                          {cell}
-                        </td>
+                          cell={cell}
+                          column={cellIndex}
+                          numeric={numeric[cellIndex]}
+                          status={cellStatus(block, drawnIndices[rowIndex], cellIndex)}
+                          expired={block.expired === true}
+                          onRetry={() => onCells(id, [{ row: drawnIndices[rowIndex], column: cellIndex, retry: true }])}
+                        />
                       ))}
                     </tr>
                   ))}
@@ -547,6 +604,73 @@ Canvas.Table = function ({ id, block, view, onView, onPull }: TableProps) {
         </div>
       )}
     </div>
+  );
+};
+
+interface TableCellProps {
+  cell: string;
+  column: number;
+  numeric: boolean;
+  // What the cell is doing instead of holding a value, if it isn't holding one.
+  status?: CellStatus;
+  expired: boolean;
+  onRetry: () => void;
+}
+
+/**
+ * One cell, in one of three states. A value is drawn as itself; a cell that
+ * isn't here yet is the same bar a skeleton row draws, so a waiting cell and a
+ * waiting page read as one thing; a cell that stopped is a dim `—` with the
+ * message on hover — a column of numbers with `429 Too Many Requests` in the
+ * middle of it stops being a column, and the width is 12ch on a good day.
+ *
+ * Two deliberate differences from the page loader. **No shimmer**: cells fill in
+ * one at a time and that is movement enough, where fifty bars pulsing on their
+ * own would be a light show. **No delay**: the bar arrives with the row rather
+ * than replacing something that was on screen, so there is nothing to flash.
+ */
+Canvas.TableCell = function ({ cell, column, numeric, status, expired, onRetry }: TableCellProps) {
+  const className = cn("h-[26px] max-w-[48ch] truncate border-b border-border/50 px-3 text-foreground", numeric && "text-right");
+
+  if (status === undefined) {
+    return (
+      <td className={className} title={cell.length > 48 ? cell : undefined}>
+        {cell}
+      </td>
+    );
+  }
+
+  if (status.error === undefined) {
+    // A run read back has lost the closure that would have filled this, which is
+    // the state the table already says: run it again to load the rest.
+    if (expired) {
+      return (
+        <td className={cn(className, "text-muted-foreground")} title="Run to load">
+          —
+        </td>
+      );
+    }
+    return (
+      <td className={className}>
+        <div className="h-2 rounded-full bg-foreground/10" style={{ width: SKELETON_WIDTHS[column % SKELETON_WIDTHS.length] }} />
+      </td>
+    );
+  }
+
+  // Asking again is only offered where it could work: a function can be called
+  // again, a promise is finished whatever it settled as.
+  const retry = status.retry === true && !expired;
+  return (
+    <td className={cn(className, "text-destructive")} title={retry ? `${status.error} · click to retry` : status.error}>
+      {retry ? (
+        <button type="button" className={cn("group/cell flex h-full w-full items-center gap-1", numeric && "justify-end")} aria-label="Retry" onClick={onRetry}>
+          <span>—</span>
+          <RotateCw size={11} className="opacity-0 transition-opacity group-hover/cell:opacity-100" />
+        </button>
+      ) : (
+        "—"
+      )}
+    </td>
   );
 };
 

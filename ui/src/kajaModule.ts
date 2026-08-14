@@ -76,15 +76,40 @@ export interface ListValue {
   values: Value[];
 }
 
+/**
+ * A cell a table draws. Anything is a value and is rendered as text — but a
+ * value you do not have yet is one of these two instead, and the cell draws as
+ * loading until it arrives:
+ *
+ *   () => Ratings.GetRating({ id })   a function: nothing has been called yet,
+ *                                     so it is called when the row is drawn —
+ *                                     the rows you never page to cost nothing —
+ *                                     and can be called again if it fails.
+ *   ratings.then((r) => r[id])        a promise: work already under way, which
+ *                                     the table only waits for.
+ *
+ * An Error, thrown or returned, is a cell that stopped: it draws as "—" with the
+ * message on hover, and the rest of the table carries on filling.
+ */
+export type Cell = unknown;
+
 /** A table being filled in on the run's canvas. */
 export interface Table {
   /**
-   * Append a row. It appears at once, so a loop paints as it runs. A cell can be
-   * anything; it is rendered as text. Fewer cells than there are columns leaves
-   * the rest blank, so a row can be written before the work that fills it is
-   * done — the handle it hands back is how you finish it.
+   * Append a row. It appears at once, so a loop paints as it runs. Fewer cells
+   * than there are columns leaves the rest blank, so a row can be written before
+   * the work that fills it is done — the handle it hands back is how you finish
+   * it.
+   *
+   * A cell that isn't a value yet is a promise or a function (see Cell), which
+   * is how a row is drawn from what you already have while the rest of it is
+   * fetched:
+   *
+   *   for (const show of shows) {
+   *     table.row(show.id, show.title, () => Ratings.GetRating({ id: show.id }));
+   *   }
    */
-  row(...cells: unknown[]): Row;
+  row(...cells: Cell[]): Row;
   /**
    * Add a column, once the run knows it needs one. The rows already drawn grow a
    * blank cell for it.
@@ -119,8 +144,11 @@ export interface Row {
    *
    *   const row = table.row(account.id, "checking…");
    *   row.update(account.id, await check(account));
+   *
+   * Cells that were still on their way when a row is rewritten are dropped: they
+   * answered the row as it was.
    */
-  update(...cells: unknown[]): void;
+  update(...cells: Cell[]): void;
 }
 
 /**
@@ -239,6 +267,15 @@ export declare const kaja: {
    *   }));
    *   for (const { account, row } of rows) {
    *     row.update(account.id, account.name, await check(account));
+   *   }
+   *
+   * A cell whose value comes from somewhere else can be handed over as a promise
+   * or a function instead, and draws as loading until it lands. The rows appear
+   * with everything they already have:
+   *
+   *   const ratings = Ratings.GetRatings({ ids });
+   *   for (const show of shows) {
+   *     table.row(show.id, show.title, ratings.then((r) => r.byId[show.id]));
    *   }
    *
    * The rows can be given instead — an array, or a source that yields them as

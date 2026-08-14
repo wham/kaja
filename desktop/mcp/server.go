@@ -61,6 +61,11 @@ type BlockLog struct {
 	Label   string   `json:"label,omitempty"`
 	Columns []string `json:"columns,omitempty"`
 	Rows    int      `json:"rows,omitempty"`
+	// Cells of a table that hold no value: the ones still to be fetched, and the
+	// ones that stopped. A table with holes in it must say so rather than read
+	// as a table of blanks.
+	Pending int `json:"pending,omitempty"`
+	Failed  int `json:"failed,omitempty"`
 }
 
 // RunResult is the outcome of running a script in the webview. Result is what a

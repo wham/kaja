@@ -14,7 +14,7 @@ import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
 import { callRows, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, printedCounts, RunGroup, RunSelection } from "./runs";
 import { runShortcutLabel } from "./RunButton";
-import { TableView } from "./tableView";
+import { CellRef, TableView } from "./tableView";
 
 export type { ConsoleItem } from "./runs";
 
@@ -44,6 +44,7 @@ interface ConsoleProps {
   tableViews: { [blockId: string]: TableView };
   onTableView: (blockId: string, view: TableView) => void;
   onTablePull: (blockId: string, search: string, want: number) => void;
+  onTableCells: (blockId: string, cells: CellRef[]) => void;
   onClear?: () => void;
 }
 
@@ -57,7 +58,18 @@ interface ConsoleProps {
  * this is the only thing in the window that subscribes to it. A thousand calls
  * repaint the console, and nothing else.
  */
-export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, onDecide, tableViews, onTableView, onTablePull, onClear }: ConsoleProps) {
+export function Console({
+  fileId,
+  reserveTrafficLights,
+  onAnswer,
+  onCancelAsk,
+  onDecide,
+  tableViews,
+  onTableView,
+  onTablePull,
+  onTableCells,
+  onClear,
+}: ConsoleProps) {
   useSyncExternalStore(
     useCallback((notify: () => void) => (fileId === undefined ? () => {} : consoles.subscribeFile(fileId, notify)), [fileId]),
     useCallback(() => consoles.fileVersion(fileId), [fileId]),
@@ -263,6 +275,7 @@ export function Console({ fileId, reserveTrafficLights, onAnswer, onCancelAsk, o
       tableViews={tableViews}
       onTableView={onTableView}
       onTablePull={onTablePull}
+      onTableCells={onTableCells}
     />
   );
 

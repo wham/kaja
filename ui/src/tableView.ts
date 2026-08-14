@@ -78,6 +78,10 @@ export function totalOf(block: TableBlock): TableTotal {
 export interface TableWindow {
   // The rows to draw, and where they sit in what the table has.
   rows: string[][];
+  // Where each drawn row sits in `block.rows`, which is what a cell that isn't
+  // here yet is addressed by. Arithmetic but for a local filter, which is
+  // exactly what makes it worth carrying rather than recomputing.
+  indices: number[];
   page: number;
   from: number;
   to: number;
@@ -97,6 +101,7 @@ export interface TableWindow {
   // dimmed rather than thrown away. Empty when there is nothing to hold — the
   // first draw of a table, or a source restarted by a search.
   held: string[][];
+  heldIndices: number[];
   // How many rows this page holds once it is here. A total the source reported
   // is what makes a short last page reserve the room it will actually take.
   expected: number;
@@ -109,7 +114,10 @@ export interface TableWindow {
 export function tableWindow(block: TableBlock, view: TableView): TableWindow {
   const size = pageSizeOf(block);
   const filtered = searchesLocally(block) && view.search.trim() !== "";
-  const rows = filtered ? block.rows.filter((row) => matchesSearch(row, view.search)) : block.rows;
+  // A filter keeps the rows it matched *and* where they came from: a cell is
+  // addressed by its place in the table, not by where it landed on the page.
+  const matched = filtered ? block.rows.flatMap((row, index) => (matchesSearch(row, view.search) ? [index] : [])) : undefined;
+  const rows = matched ? matched.map((index) => block.rows[index]) : block.rows;
   // The last page of what is loaded — plus one while the source is open, since
   // paging into rows that aren't here yet is exactly how they are asked for.
   const loadedPages = Math.max(0, Math.ceil(rows.length / size) - 1);
@@ -128,8 +136,12 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
   // zero and back on every click.
   const to = pending ? start + expected : start + shown.length;
 
+  const at = (from: number, count: number) => (matched ? matched.slice(from, from + count) : Array.from({ length: count }, (_, offset) => from + offset));
+  const held = pending && page > 0 ? rows.slice(start - size, start) : [];
+
   return {
     rows: shown,
+    indices: at(start, shown.length),
     page,
     from: to === 0 ? 0 : start + 1,
     to,
@@ -137,7 +149,8 @@ export function tableWindow(block: TableBlock, view: TableView): TableWindow {
     loaded: block.rows.length,
     filtered,
     pending,
-    held: pending && page > 0 ? rows.slice(start - size, start) : [],
+    held,
+    heldIndices: at(start - size, held.length),
     expected,
     hasPrevious: page > 0,
     // No lookahead: pulling one row past the page to light the button up would
@@ -183,6 +196,41 @@ export function pullNeeded(block: TableBlock, view: TableView): { needed: boolea
   // Searching what is loaded must not pull an API dry to find three rows.
   if (searchesLocally(block) && view.search.trim() !== "") return { needed: false, want };
   return { needed: canGrow(block) && block.rows.length < want, want };
+}
+
+/** One cell of one row, which is what a cell that isn't here yet is asked for by. */
+export interface CellRef {
+  row: number;
+  column: number;
+  // Ask again for a cell that stopped. The canvas draws a failed cell on every
+  // frame, so retrying on sight would be a loop rather than a retry — this is
+  // the click and nothing else.
+  retry?: boolean;
+}
+
+/**
+ * Which cells the drawn rows are waiting for. A cell is asked for when it is
+ * drawn, so a table of five hundred rows costs five hundred calls only if you
+ * page through all of it — the same bargain the pager makes for the rows
+ * themselves. Asking for one already running is free: the table starts a cell
+ * once, and knows which ones it has started.
+ */
+export function pendingCells(block: TableBlock, indices: number[]): CellRef[] {
+  // A source that is gone took its cells with it, and what is left is a state
+  // the table already says: run it again to load the rest.
+  if (block.cells === undefined || block.expired === true) return [];
+  const refs: CellRef[] = [];
+  for (const row of indices) {
+    for (const [column, status] of Object.entries(block.cells[row] ?? {})) {
+      if (status.error === undefined) refs.push({ row, column: Number(column) });
+    }
+  }
+  return refs;
+}
+
+/** What identifies a set of cells to an effect that must not fire twice for it. */
+export function cellsKey(cells: CellRef[]): string {
+  return cells.map(({ row, column }) => `${row}:${column}`).join(",");
 }
 
 /**

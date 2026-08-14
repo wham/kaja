@@ -318,3 +318,192 @@ describe("kaja.table", () => {
     expect(only().live).toBe(true);
   });
 });
+
+// A value the script has and one it is getting are the same cell to everything
+// downstream: the row is drawn with what it already has, and the rest lands in
+// place. Which of the two it is decided by what the cell is — a promise is work
+// already started, a function is work nobody has asked for yet.
+describe("kaja.table cells", () => {
+  it("draws the row at once and fills a promise in when it lands", async () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id", "rating"]);
+    table.row(1, Promise.resolve(4.6));
+
+    expect(only().rows).toEqual([["1", ""]]);
+    expect(only().cells).toEqual({ 0: { 1: {} } });
+
+    await kaja.settleTables();
+    expect(only().rows).toEqual([["1", "4.6"]]);
+    // A table whose cells have all landed is the plain table it has become.
+    expect(only().cells).toBeUndefined();
+  });
+
+  // The run is not over until the cells it handed over are here: they are work
+  // the script started, on the same rule a live table's first page is.
+  it("waits for the cells the script handed over", async () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id"]);
+    table.row(new Promise((resolve) => setTimeout(() => resolve("late"), 5)));
+
+    await kaja.settleTables();
+    expect(only().rows).toEqual([["late"]]);
+  });
+
+  /**
+   * The whole reason a function is worth having beside a promise: it is work
+   * nobody has asked for. The first page is asked for with the table, so a run
+   * nobody is watching still fills one; everything past it costs a call only if
+   * you page to it.
+   */
+  it("calls a function when its row is drawn, and not before", async () => {
+    const { kaja, only, id } = draw();
+    const called: number[] = [];
+    const table = kaja.table(["n"], undefined, { pageSize: 2 });
+    for (const row of [0, 1, 2, 3]) {
+      table.row(() => {
+        called.push(row);
+        return `row-${row}`;
+      });
+    }
+
+    await kaja.settleTables();
+    expect(called).toEqual([0, 1]);
+    expect(only().rows).toEqual([["row-0"], ["row-1"], [""], [""]]);
+
+    // The second page is drawn: its cells ask for themselves.
+    expect(
+      await kaja.pullCells(id(), [
+        { row: 2, column: 0 },
+        { row: 3, column: 0 },
+      ]),
+    ).toBe(true);
+    expect(called).toEqual([0, 1, 2, 3]);
+    expect(only().rows).toEqual([["row-0"], ["row-1"], ["row-2"], ["row-3"]]);
+  });
+
+  // The canvas asks for every cell it can see on every frame it draws, so asking
+  // is what has to be idempotent — not the work.
+  it("starts a cell once, however often it is asked for", async () => {
+    const { kaja, id } = draw();
+    let called = 0;
+    const table = kaja.table(["n"]);
+    table.row(() => ++called);
+
+    await kaja.pullCells(id(), [{ row: 0, column: 0 }]);
+    await kaja.pullCells(id(), [{ row: 0, column: 0 }]);
+    await kaja.settleTables();
+    expect(called).toBe(1);
+  });
+
+  it("keeps a cell that stopped, and fills it when it is retried", async () => {
+    const { kaja, only, id } = draw();
+    let attempt = 0;
+    const table = kaja.table(["id", "rating"]);
+    table.row(1, () => {
+      if (attempt++ === 0) throw new Error("429 Too Many Requests");
+      return 4.1;
+    });
+    await kaja.settleTables();
+
+    expect(only().rows).toEqual([["1", ""]]);
+    expect(only().cells).toEqual({ 0: { 1: { error: "429 Too Many Requests", retry: true } } });
+
+    // Drawing it again must not retry it: that is a loop, not a retry.
+    await kaja.pullCells(id(), [{ row: 0, column: 1 }]);
+    expect(attempt).toBe(1);
+
+    await kaja.pullCells(id(), [{ row: 0, column: 1, retry: true }]);
+    await kaja.settleTables();
+    expect(only().rows).toEqual([["1", "4.1"]]);
+    expect(only().cells).toBeUndefined();
+  });
+
+  // A promise is finished, whatever it settled as. Retry is offered only where
+  // it could work.
+  it("has nothing to call again when a promise rejects", async () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["id", "rating"]);
+    table.row(1, Promise.reject(new Error("upstream is down")));
+    await kaja.settleTables();
+
+    expect(only().cells).toEqual({ 0: { 1: { error: "upstream is down" } } });
+  });
+
+  // Thrown or returned, an Error is a cell that stopped — a script that hands
+  // its failures back rather than throwing them says the same thing.
+  it("reads a returned Error as a failure", async () => {
+    const { kaja, only } = draw();
+    const table = kaja.table(["a", "b", "c"]);
+    table.row(new Error("as a value"), () => new Error("from a function"), Promise.resolve(new Error("from a promise")));
+    await kaja.settleTables();
+
+    expect(only().rows).toEqual([["", "", ""]]);
+    expect(only().cells).toEqual({
+      0: { 0: { error: "as a value" }, 1: { error: "from a function", retry: true }, 2: { error: "from a promise" } },
+    });
+  });
+
+  // A row rewritten is a different row: what was on its way answered the one
+  // that was there.
+  it("drops a cell whose row has been rewritten", async () => {
+    const { kaja, only } = draw();
+    let land: (value: string) => void = () => {};
+    const table = kaja.table(["id", "status"]);
+    const row = table.row(1, new Promise<string>((resolve) => (land = resolve)));
+
+    row.update(1, "settled");
+    expect(only().cells).toBeUndefined();
+
+    land("late");
+    await kaja.settleTables();
+    expect(only().rows).toEqual([["1", "settled"]]);
+    expect(only().cells).toBeUndefined();
+  });
+
+  // A source that takes the search is restarted from the top, and the cells of
+  // the rows it had belong to a question nobody is asking any more.
+  it("drops the cells of a source that is restarted", async () => {
+    const { kaja, only, id } = draw();
+    let land = () => {};
+    kaja.table(["n"], async function* (search: string) {
+      yield [search === "" ? new Promise<string>((resolve) => (land = () => resolve("late"))) : `${search}-1`];
+    });
+    // The rows, without waiting for the cell: settling waits for a cell the
+    // script handed over, and this one is deliberately still out there.
+    await kaja.pullTable(id(), "", 50);
+    expect(only().cells).toEqual({ 0: { 0: {} } });
+
+    await kaja.pullTable(id(), "vera", 50);
+    land();
+    await kaja.settleTables();
+
+    expect(only().rows).toEqual([["vera-1"]]);
+    expect(only().cells).toBeUndefined();
+  });
+
+  // A page draw asks for every cell it can see at once, and fifty rows must not
+  // put fifty requests on the wire in one frame.
+  it("fetches a handful of cells at a time", async () => {
+    const { kaja } = draw();
+    let running = 0;
+    let most = 0;
+    const table = kaja.table(["n"], undefined, { pageSize: 30 });
+    for (let row = 0; row < 20; row++) {
+      table.row(async () => {
+        running++;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        running--;
+        return row;
+      });
+    }
+    await kaja.settleTables();
+
+    expect(most).toBe(6);
+  });
+
+  it("reports a table whose cells it no longer holds", async () => {
+    const { kaja } = draw();
+    expect(await kaja.pullCells("block-gone", [{ row: 0, column: 0 }])).toBe(false);
+  });
+});

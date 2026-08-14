@@ -21,9 +21,9 @@ import { Definition } from "./Definition";
 import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
-import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel } from "./blocks";
+import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
 import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, MethodCall } from "./kaja";
-import { TableView } from "./tableView";
+import { CellRef, TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
 import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
@@ -596,6 +596,29 @@ export function App() {
       const live = await kajaRef.current!.pullTable(blockId, search, want);
       if (!live) {
         consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now());
+      }
+    } finally {
+      pullRunRef.current = previous;
+    }
+  }, []);
+
+  /**
+   * Start the cells a table is drawing — or retry one that stopped. The same
+   * shape as a pull, and for the same reason: the work belongs to the run whose
+   * canvas asked for it, and a table whose closures are gone says so rather than
+   * leaving a row of bars that will never fill.
+   */
+  const onTableCells = useCallback(async (blockId: string, cells: CellRef[]) => {
+    const found = consoles.findBlock(blockId);
+    const table = found?.block;
+    if (!found || table?.kind !== "table") return;
+
+    const previous = pullRunRef.current;
+    pullRunRef.current = found.run;
+    try {
+      const held = await kajaRef.current!.pullCells(blockId, cells);
+      if (!held) {
+        consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, expired: true }, Date.now());
       }
     } finally {
       pullRunRef.current = previous;
@@ -2397,6 +2420,7 @@ export function App() {
                         tableViews={tableViews}
                         onTableView={onTableView}
                         onTablePull={onTablePull}
+                        onTableCells={onTableCells}
                         onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
                       />
                     </div>
@@ -2697,7 +2721,26 @@ function toBlockLog(block: Block) {
     // agent has nobody to press Next, so it is told the rows are a page rather
     // than the set — the loop that would fetch the rest is its own to write.
     more: table?.live === true && table.exhausted !== true ? true : undefined,
+    // A cell that is a function is fetched when its row is drawn, and past the
+    // first page nobody drew this one. A table with holes in it says so rather
+    // than reading as a table of blanks.
+    ...countCells(table),
   };
+}
+
+// The cells that hold no value, told apart by whether they are still coming or
+// have stopped. Both are absent from a table whose cells are all values, which
+// is every table that has none.
+function countCells(table: TableBlock | undefined): { pending?: number; failed?: number } {
+  let pending = 0;
+  let failed = 0;
+  for (const row of Object.values<{ [column: number]: CellStatus }>(table?.cells ?? {})) {
+    for (const status of Object.values<CellStatus>(row)) {
+      if (status.error === undefined) pending++;
+      else failed++;
+    }
+  }
+  return { pending: pending || undefined, failed: failed || undefined };
 }
 
 // toMethodCallLog flattens a MethodCall into the shape the MCP server returns to
