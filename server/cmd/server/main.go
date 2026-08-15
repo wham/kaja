@@ -6,17 +6,12 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
-	"strings"
 
 	assets "github.com/wham/kaja/v2"
-	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
 	"github.com/wham/kaja/v2/pkg/agent"
 	"github.com/wham/kaja/v2/pkg/api"
-	"github.com/wham/kaja/v2/pkg/apps"
 )
 
 // GitRef is the git commit hash or tag, set at build time via ldflags
@@ -156,76 +151,11 @@ func main() {
 		}
 	})
 
-	mux.HandleFunc("/target/{method...}", func(w http.ResponseWriter, r *http.Request) {
-		contentType := r.Header.Get("Content-Type")
-		targetHeader := r.Header.Get("X-Target")
-
-		// Headers with an X-Header- prefix are forwarded to the target. Their values still
-		// carry ${NAME} references: the browser sends them unexpanded, because a variable's
-		// value may be one this server holds and the browser is not allowed to know.
-		forwardHeaders := make(map[string]string)
-		for name, values := range r.Header {
-			if strings.HasPrefix(name, "X-Header-") && len(values) > 0 {
-				headerName := strings.TrimPrefix(name, "X-Header-")
-				forwardHeaders[headerName] = values[0]
-			}
-		}
-
-		// The reserved header names the app the call belongs to and goes no further: it is
-		// what the credential and the transport are looked up by.
-		appName := apps.TakeAppName(forwardHeaders)
-
-		// App targets (kaja-app://<id>) are invoked in-process by the app manager instead of
-		// being proxied. InvokeApp expands the headers and redacts what it reports back.
-		if apps.IsAppTarget(targetHeader) {
-			grpc.ServeAppGRPCWeb(w, r, r.PathValue("method"), func(method string, message []byte, headers map[string]string) (*apps.InvokeResult, error) {
-				return apiService.InvokeApp(targetHeader, method, message, headers)
-			}, forwardHeaders)
-			return
-		}
-
-		forwardHeaders = apiService.Variables().ExpandAll(forwardHeaders)
-
-		// The app's own credential is applied here rather than sent from the browser, so a
-		// "${secret}" token never leaves this process.
-		connection := apiService.AppConnection(appName)
-		forwardHeaders = apps.MergeMetadata(forwardHeaders, connection.Metadata)
-
-		target, err := url.Parse(targetHeader)
-		if err != nil {
-			slog.Warn("Failed to parse X-Target header", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Invalid X-Target header"))
-			return
-		}
-
-		if strings.HasPrefix(contentType, "application/grpc-web") ||
-			strings.HasPrefix(contentType, "application/grpc-web-text") {
-
-			proxy, err := grpc.NewProxy(target, connection.TLS)
-			if err != nil {
-				slog.Error("Failed to create gRPC proxy", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			proxy.ServeHTTP(w, r, r.PathValue("method"), forwardHeaders)
-			return
-		} else {
-			proxy := httputil.NewSingleHostReverseProxy(target)
-			proxy.Director = func(req *http.Request) {
-				req.Host = target.Host
-				req.URL.Scheme = target.Scheme
-				req.URL.Host = target.Host
-				// Replace /target/ with /twirp/ and append to the target path.
-				path := strings.Replace(req.URL.Path, "/target/", "/twirp/", 1)
-				req.URL.Path = target.Path + path
-				for name, value := range forwardHeaders {
-					req.Header.Set(name, value)
-				}
-			}
-			proxy.ServeHTTP(w, r)
-		}
-	})
+	// Handle /target path. The same handler an exported app serves, so a call
+	// goes out the same way whichever of the two it was made in.
+	mux.HandleFunc("/target/{method...}", api.TargetHandler(apiService, func(r *http.Request) string {
+		return r.PathValue("method")
+	}))
 
 	root := http.NewServeMux()
 	root.Handle(configuration.PathPrefix+"/", logRequest(http.StripPrefix(configuration.PathPrefix, mux)))

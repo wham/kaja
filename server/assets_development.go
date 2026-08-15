@@ -34,3 +34,7 @@ func ReadUiBundle() *ui.UiBundle {
 func ReadMonacoWorker(name string) ([]byte, error) {
 	return ui.BuildMonacoWorker(name)
 }
+
+func ReadPlayerBundle() (*ui.PlayerBundle, error) {
+	return ui.BuildPlayer()
+}

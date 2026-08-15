@@ -30,6 +30,19 @@ var monacoEditorWorkerJs []byte
 //go:embed build/monaco.json.worker.js
 var monacoJsonWorkerJs []byte
 
+//go:embed build/player.js
+var playerJs []byte
+
+//go:embed build/player.css
+var playerCss []byte
+
+// ReadPlayerBundle is the UI an exported script runs on. It is embedded like
+// everything else, so a runner carries its own screen and an exported app is
+// one file with nothing beside it.
+func ReadPlayerBundle() (*ui.PlayerBundle, error) {
+	return &ui.PlayerBundle{Js: playerJs, Css: playerCss}, nil
+}
+
 func ReadUiBundle() *ui.UiBundle {
 	return &ui.UiBundle{
 		MainJs:     mainJs,
