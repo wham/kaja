@@ -12,6 +12,7 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
 import { formatJson } from "./formatter";
+import { codeFontSize } from "./monacoTheme";
 import { VARIABLES_JSON_URI } from "./jsonSchemas";
 import { VariableSource, VariableStatus } from "./server/api";
 import { SECRET_SOURCE, VariableKind, environmentReferences, storedEnvName, variableKind, variableNameError, variableValueError } from "./variableExpansion";
@@ -268,6 +269,7 @@ export function Variables({
     editorRef.current = monaco.editor.create(editorContainerRef.current, {
       model: modelRef.current,
       automaticLayout: true,
+      fontSize: codeFontSize(),
       padding: { top: 12, bottom: 12 },
       minimap: { enabled: false },
       lineNumbers: "off",

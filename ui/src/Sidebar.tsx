@@ -31,6 +31,7 @@ import { isUntouched, Scratch } from "./scratches";
 import { titleParts } from "./scratchTitle";
 import { appWarnings, firstErrorMessage } from "./compileSummary";
 import { getPersistedValue, setPersistedValue } from "./storage";
+import { useMediaQuery } from "./useMediaQuery";
 import {
   appNodeId,
   Fold,
@@ -251,6 +252,11 @@ export function Sidebar({
   const [scratchMenu, setScratchMenu] = useState<{ scratch: Scratch; top: number; left: number } | null>(null);
   const scratchMenuAnchorRef = useRef<HTMLDivElement>(null);
   const [hoveredScratch, setHoveredScratch] = useState<string | null>(null);
+  // A row's verbs are revealed by the cursor, and a finger has none: on a touch
+  // screen there is no hover to wait for and no right-click behind it either, so
+  // the row simply carries them. Nothing moves under the pointer that way —
+  // there is no pointer.
+  const touch = useMediaQuery("(hover: none)");
 
   useEffect(() => {
     setPersistedValue("scriptsExpanded", scriptsExpanded);
@@ -424,7 +430,7 @@ export function Sidebar({
             {scriptsExpanded && (
               <TreeView leaf aria-label="Scripts">
                 {(scripts ?? []).map((script) => {
-                  const active = (hoveredScript === script.path || scriptMenu?.script.path === script.path) && hasScriptMenu;
+                  const active = (touch || hoveredScript === script.path || scriptMenu?.script.path === script.path) && hasScriptMenu;
                   return (
                     <TreeView.Item
                       id={`script-${script.path}`}
@@ -478,7 +484,7 @@ export function Sidebar({
                   );
                 })}
                 {(scratches ?? []).slice(0, RECENT_SCRATCHES).map((scratch) => {
-                  const active = hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id;
+                  const active = touch || hoveredScratch === scratch.id || scratchMenu?.scratch.id === scratch.id;
                   return (
                     <TreeView.Item
                       id={`scratch-${scratch.id}`}
@@ -559,6 +565,8 @@ export function Sidebar({
           const treeApp = treeApps[appIndex];
           const appId = appNodeId(appName);
           const isExpanded = isOpen(folds, appId);
+          // The row's own highlight stays the cursor's; only the verb on it is
+          // unconditional where there is no cursor to reveal it with.
           const active = hoveredApp === appName || appMenu?.appName === appName;
 
           return (
@@ -588,7 +596,7 @@ export function Sidebar({
                 <span className="truncate">{appName}</span>
                 <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
                 <span className="ml-auto flex w-6 shrink-0 items-center justify-center">
-                  {active && (
+                  {(touch || active) && (
                     <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
                   )}
                 </span>
@@ -637,7 +645,7 @@ export function Sidebar({
                                       {/* Adding a call to the scratch you already have open is
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. */}
-                                      {hoveredMethod === mId && (
+                                      {(touch || hoveredMethod === mId) && (
                                         <RowAction
                                           icon={PlusIcon}
                                           label={`Add ${method.name} to the open scratch`}

@@ -28,15 +28,24 @@ interface CommandRowProps {
 // the file's own save/discard · spacer · action · hairline · search · layout.
 // Nothing else may be added to it — new controls go in the sidebar header or the
 // console header.
+//
+// As the row narrows, things leave in order of what they are worth, the way the
+// console header's do: the keyboard hint on Run first (there is no keyboard on
+// the screen this narrows for), then the search icon, whose verb the trigger
+// beside it already carries. The finder truncates through all of it, because
+// with the sidebar collapsed it is the only thing saying where you are.
 export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, onSearch, layout, onToggleLayout }: CommandRowProps) {
   const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
 
   return (
     <div
-      className="flex h-[40px] shrink-0 items-center gap-2 border-b border-border bg-chrome px-3"
+      className="@container flex h-[40px] shrink-0 items-center gap-2 border-b border-border bg-chrome px-3"
       style={{ paddingLeft: leftInset, "--wails-draggable": "drag" } as React.CSSProperties}
     >
-      <div className="flex min-w-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+      {/* The left side is what may shrink, and the finder inside it is what
+          truncates: the right side is buttons, and a button that has given up
+          room is a button drawn over its neighbour. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
         <SimpleTooltip text={sidebarCollapsed ? `Show sidebar (${modifier}B)` : `Hide sidebar (${modifier}B)`} side="bottom">
           <IconButton
             icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
@@ -44,19 +53,28 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
             onClick={onToggleSidebar}
             size="sm"
             variant="ghost"
-            className="size-[26px]"
+            className="size-[26px] shrink-0"
             tooltip={false}
           />
         </SimpleTooltip>
         {finder}
         {fileActions}
       </div>
-      <div className="flex-1" />
       <div className="flex shrink-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
         {action}
         {action && <Hairline />}
+        {/* The trigger beside it opens the same finder, so on a row this narrow
+            the icon is the one thing here that says nothing new. */}
         <SimpleTooltip text={`Find a file (${modifier}K)`} side="bottom">
-          <IconButton icon={Search} aria-label="Find a file" onClick={onSearch} size="sm" variant="ghost" className="size-[26px]" tooltip={false} />
+          <IconButton
+            icon={Search}
+            aria-label="Find a file"
+            onClick={onSearch}
+            size="sm"
+            variant="ghost"
+            className="size-[26px] @max-[380px]:hidden"
+            tooltip={false}
+          />
         </SimpleTooltip>
         <SimpleTooltip text={layout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
           <IconButton

@@ -115,7 +115,10 @@ export function Finder({ recent, elsewhere, errorCount, open, onOpenChange, high
           aria-controls="finder"
           aria-label={current ? `${current.name} — go to another file` : "Go to a file"}
           className={cn(
-            "relative flex h-[26px] shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
+            // It gives up room before anything else in the row does — a label
+            // that truncates is read; a button that shrinks is one drawn over
+            // the button next to it.
+            "relative flex h-[26px] min-w-0 items-center gap-2 rounded-md border bg-card px-2.5 hover:bg-accent",
             open && "bg-accent",
             errorCount > 0 ? "border-destructive" : "border-border",
           )}
@@ -260,7 +263,14 @@ function TriggerContent({ destination, errorCount }: { destination?: Destination
       >
         {destination.name}
       </span>
-      {qualifier && !dropLabel && <span className={cn("shrink-0 text-xs", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>}
+      {/* The probe drops it when the name alone fills the trigger; the container
+          query drops it when the row is too narrow for the trigger to be that
+          wide in the first place, which the probe measures nothing about. Either
+          way the qualifier goes before the name truncates — a name cut to its
+          last letter says less than no qualifier does. */}
+      {qualifier && !dropLabel && (
+        <span className={cn("shrink-0 text-xs @max-[340px]:hidden", errorCount > 0 ? "text-destructive" : "text-muted-foreground")}>{qualifier}</span>
+      )}
     </>
   );
 }

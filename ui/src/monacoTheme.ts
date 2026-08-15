@@ -104,3 +104,16 @@ export function monacoTheme(colorMode: ColorMode): string {
 export function surfaceColor(colorMode: ColorMode): string {
   return surfaces[colorMode].background;
 }
+
+/**
+ * How big the code is. Monaco's own default everywhere there is a pointer, and
+ * 16px where there is a finger — iOS zooms the page in when a field under 16px
+ * takes focus and never zooms back out, so tapping into the code would leave the
+ * window narrower than the layout, which is what a phone reads as the chrome
+ * overlapping itself. Monaco copies this onto its hidden input, which is the
+ * field iOS is actually deciding about, so it is set here rather than fought
+ * with a stylesheet.
+ */
+export function codeFontSize(): number | undefined {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches ? 16 : undefined;
+}

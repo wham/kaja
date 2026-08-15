@@ -271,17 +271,21 @@ export function StatusBar({
 
   // The right padding is 11, not 12: these glyphs are smaller than the rest of the
   // chrome's, so they need one pixel less to land on the same 16px right line.
+  //
+  // sticky left keeps the bar where the window is on a screen too narrow to hold
+  // the panes side by side: the app pans horizontally there, and a footer that
+  // pans with it takes its own buttons off the screen.
   return (
-    <div className="flex h-[30px] shrink-0 items-center border-t border-border bg-chrome pl-3 pr-[11px]">
-      <div className="flex items-center gap-2">
+    <div className="sticky left-0 flex h-[30px] shrink-0 items-center border-t border-border bg-chrome pl-3 pr-[11px]">
+      <div className="flex min-w-0 items-center gap-2">
         {leftItems.map((item, index) => (
           <Fragment key={index}>
-            {index > 0 && <div className="h-3 w-px bg-border" />}
+            {index > 0 && <div className="h-3 w-px shrink-0 bg-border" />}
             {item}
           </Fragment>
         ))}
       </div>
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
         {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} active={mcpActive} />}
         {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
         <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
