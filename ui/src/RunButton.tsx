@@ -41,7 +41,9 @@ export function RunButton({ onRun, onStop, running, startedAt, error }: RunButto
       {running ? (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">{(elapsedMs / 1000).toFixed(1)}s</span>
       ) : (
-        !disabled && <span className="font-mono text-xs opacity-70">{runShortcutLabel}</span>
+        // The hint is the first thing to go as the command row narrows: the
+        // screens that narrow it that far have no keyboard to press.
+        !disabled && <span className="font-mono text-xs opacity-70 @max-[380px]:hidden">{runShortcutLabel}</span>
       )}
     </button>
   );

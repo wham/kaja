@@ -1,6 +1,6 @@
 import * as monaco from "monaco-editor";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import "./monacoTheme";
+import { codeFontSize } from "./monacoTheme";
 import { drawnText, printJson } from "./payloadText";
 
 // A private language rather than the built-in "json" one: that language is wired
@@ -70,6 +70,7 @@ export const JsonViewer = forwardRef<JsonViewerHandle, JsonViewerProps>(function
       value: jsonTextRef.current,
       language: LANGUAGE_ID,
       automaticLayout: true,
+      fontSize: codeFontSize(),
       // Read-only configuration
       readOnly: true,
       domReadOnly: true,

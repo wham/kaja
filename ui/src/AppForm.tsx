@@ -16,6 +16,7 @@ import { VariableSuggestInput } from "./VariableSuggestInput";
 import { ConfigurationApp } from "./server/api";
 import { OpenDirectoryDialog, OpenFileDialog } from "./wailsjs/go/main/App";
 import { formatJson } from "./formatter";
+import { codeFontSize } from "./monacoTheme";
 import { APP_CONFIG_JSON_URI } from "./jsonSchemas";
 import { getVariables } from "./variableExpansion";
 import { isWailsEnvironment } from "./wails";
@@ -301,6 +302,7 @@ export function AppForm({ mode, initialData, allApps, variables, readOnly = fals
         editorRef.current = monaco.editor.create(editorContainerRef.current, {
           model: monacoModelRef.current,
           automaticLayout: true,
+          fontSize: codeFontSize(),
           padding: { top: 16, bottom: 16 },
           minimap: { enabled: false },
           renderLineHighlight: "none",

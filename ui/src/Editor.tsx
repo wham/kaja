@@ -5,6 +5,7 @@ import { formatTypeScript, formatTypeScriptWithCursor } from "./formatter";
 import { findTimestamps, timestampToDate, formatDateForDisplay } from "./timestampPicker";
 import { TimestampPickerContentWidget } from "./TimestampPickerWidget";
 import { kajaModuleDeclaration } from "./kajaModule";
+import { codeFontSize } from "./monacoTheme";
 import { suggestValues } from "./valueCompletions";
 
 self.MonacoEnvironment = {
@@ -294,6 +295,7 @@ export function Editor({ model, onMount, onGoToDefinition, readOnly = false, sta
         model,
         language: "typescript",
         automaticLayout: true,
+        fontSize: codeFontSize(),
         padding: {
           top: 16,
           bottom: 16,

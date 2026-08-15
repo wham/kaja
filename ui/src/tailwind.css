@@ -155,4 +155,18 @@
     background-color: var(--background);
     color: var(--foreground);
   }
+
+  /* iOS zooms the page in when a field smaller than 16px takes focus, and never
+     zooms back out — the window is then narrower than the layout, which is what
+     a phone reads as the chrome overlapping itself. So on a touch screen a
+     field is 16px; the density that costs is a density no finger wanted. The
+     editor's hidden input is the same field to iOS and is set the same way, in
+     Monaco's own options (see codeFontSize). */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]),
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
 }
