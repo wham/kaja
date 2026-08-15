@@ -38,7 +38,7 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   live in IndexedDB (`scratches.ts`, `Scratch`), unlimited, on web and desktop
   alike. The verb is just **Save** (never "save as script", never "save
   permanently" — the unsaved ones are permanent too): it **writes a file**, which
-  is what makes it visible to the MCP server, the macOS text service, and
+  is what makes it visible to the MCP server, to a `kaja://` link, and to
   anything else outside Kaja. So saving is desktop-only, and the scratch it came
   from goes away with it rather than lingering as a copy.
 - **Clicking a method never asks what to do with it** (`onMethodSelect`). The
@@ -186,6 +186,52 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   disabled, and the same reason. A scratch beside it is unaffected: it lives in
   the browser, so it is as writable there as anywhere, and `⌘N` is the way to
   take a copy of a script somewhere you can change it.
+
+## Script links
+
+**`kaja://run/<script>?key=value&key=value` is a script's address outside Kaja**
+(`scriptLink.ts`). It replaced the macOS "Run Kaja Script" text service, which
+was reachable only from a *selection* — so the thing you had just copied could
+not be sent at all — carried one unnamed string, and ran whichever single script
+was pinned. A URL is what every launcher on the machine already knows how to
+build, so being addressable is the whole feature: a Raycast quicklink with
+`{clipboard}` in it, an Alfred workflow, a Shortcut on a hotkey, `open` from a
+shell. Kaja integrates with none of them and reaches none of them.
+
+- **The verb is the host and the script is the path, which is what leaves the
+  query to the script.** `kaja://run/slack-thread?url=…&note=…`: nothing in the
+  query string is reserved, so a script may take a parameter called `script` or
+  `run` without knowing any of this exists. Putting the script in a `?script=`
+  of its own is what would have created that collision, and the first script to
+  want the name would have found it taken. The `.ts` is implied — `CreateScript`
+  already reads a name that way — so the link says `slack-thread`.
+- **Every value is text, and `kaja.input` is a map of them** (`kaja.input.url`),
+  empty when the script is run any other way. Not `undefined` when empty: a
+  parameter that wasn't sent is undefined either way, and `kaja.input?.url` on
+  every line would be noise for a distinction nothing acts on. Pressing Run
+  clears it, so the last link's parameters can never ride along on a run that
+  carried none. A script that reads `kaja.input.url ?? await kaja.askStr(…)`
+  works from a link and from the editor alike, which is the shape to write.
+- **The door is open to anything that can open a URL, so a link states what it
+  wants and stops.** The script is opened *behind* the dialog — reading it is
+  the reason the question is worth asking — and the dialog names the script and
+  every parameter it is about to hand over. `⏎` runs it, because a link that
+  arrived from a hotkey is one gesture from a run and should stay that way.
+  There is **no "don't ask again"**: a remembered answer is a policy, on the same
+  rule that keeps `kaja.approve`'s standing approval inside its own run, and this
+  door is the one place where the thing on the other side may not be a person.
+- **A link is what launches Kaja as often as not, so the desktop holds it.** On
+  a cold launch macOS delivers the URL long before there is a webview to hear
+  it, so `openLink` buffers until the UI emits `link:ready` and then flushes
+  (`main.go`). It rides on a Wails event in each direction rather than a bound
+  method, which is what keeps the generated bindings out of it.
+- **The link comes from the row that runs it**: right-click a script → **Copy
+  Link**, which is where the pin used to be. Nobody types one of these by hand,
+  and the parameters are appended wherever it is pasted, since that is where the
+  values that fill them come from.
+- **Desktop only**, because registering a scheme is a bundle's to do
+  (`info.protocols` in `wails.json` → `CFBundleURLTypes`). The web has no such
+  door and grows no menu item for one.
 
 ## The tree is an index, so it reads as a list of names
 
@@ -1023,7 +1069,7 @@ the footer's plug. A port already in use is still reported through `MCPInfo.Erro
 rather than falling back to a random one; freeing the port and restarting is the
 fix, since there is no longer a toggle to cycle.
 
-- **macOS "Run Kaja Script" text service** — select text in any app, then right-click → Services → "Run Kaja Script" to run a _pinned_ script with the selection exposed as `kaja.input` (macOS desktop only).
+- **Script links** — `kaja://run/<script>?key=value&key=value` runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`, desktop only — a URL scheme is a bundle's to register). It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Script links** below.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Folder app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp/OpenAPI always; the experimental built-ins (mcp/openai/folder) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load, as is a legacy `"markdown"` app — the same folder on disk, behind methods that each rendered one Markdown construct — which becomes a `"folder"` app.
 
 ### Apps architecture

@@ -12,7 +12,8 @@
   "info": {
     "productName": "Kaja",
     "productVersion": "0.14.0",
-    "copyright": "2026 Tomas Vesely"
+    "copyright": "2026 Tomas Vesely",
+    "protocols": [{ "scheme": "kaja", "description": "Kaja script link", "role": "Viewer" }]
   },
   "author": {
     "name": "Tomas Vesely",

@@ -74,6 +74,7 @@ import { FirstAppBlankslate } from "./FirstAppBlankslate";
 import { isWailsEnvironment } from "./wails";
 import { EventsEmit, EventsOn, WindowSetTitle } from "./wailsjs/runtime";
 import { canWriteScripts, listScriptFiles, readScriptFile } from "./scriptFiles";
+import { isLinkedScript, parseScriptLink, scriptLink } from "./scriptLink";
 import {
   CreateScript,
   DeleteScript,
@@ -290,8 +291,8 @@ export function App() {
   // The Scripts header's bulk verbs, each confirmed against the list it is about
   // to act on. Nothing here can reach a saved script.
   const [bulkScratches, setBulkScratches] = useState<{ verb: "save" | "discard"; scratches: Scratch[] } | null>(null);
-  // Path of the script pinned to the macOS "Run Kaja Script" text service.
-  const [pinnedScriptPath, setPinnedScriptPath] = useState<string | undefined>(() => getPersistedValue<string>("contextMenuScriptPath"));
+  // A `kaja://run/…` link that arrived and is waiting to be let through.
+  const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The run in flight, if any: which view issued it, when it started, and the
   // controller its Stop button aborts. `settled` marks the script itself as
   // finished — the run is only over once its calls have landed too.
@@ -1239,53 +1240,85 @@ export function App() {
     [applyViews, showFileError],
   );
 
-  // Persist the pinned script path so the macOS text service keeps targeting it
-  // across restarts.
-  useEffect(() => {
-    setPersistedValue("contextMenuScriptPath", pinnedScriptPath);
-  }, [pinnedScriptPath]);
-
-  // Right-click → toggle which script the macOS "Run Kaja Script" service runs.
-  const onPinScript = useCallback((script: Script) => {
-    setPinnedScriptPath((current) => (current === script.path ? undefined : script.path));
+  // Right-click → the `kaja://run/<script>` link that runs this script, for
+  // whatever the link is going to be pasted into.
+  const onCopyScriptLink = useCallback((script: Script) => {
+    navigator.clipboard?.writeText(scriptLink(script.name)).catch(() => {});
   }, []);
 
-  // Run the pinned script with text handed over by the macOS text service,
-  // exposing it to the script as `kaja.input`.
-  const runContextMenuScript = useCallback(
-    async (text: string) => {
-      if (!isWailsEnvironment()) return;
-      if (!pinnedScriptPath) {
-        showFileError("Pin a script to the context menu first.");
+  // A `kaja://run/…` link opens the script it names and asks. Anything that can
+  // open a URL can arrive here — a launcher, a Shortcut, a web page — so the
+  // link is never taken as permission by itself: it says which script and with
+  // what, and pressing Run is what runs it.
+  const openScriptLink = useCallback(
+    (text: string) => {
+      const parsed = parseScriptLink(text);
+      if (!parsed.ok) {
+        showFileError(parsed.error);
         return;
       }
-      try {
-        const file = await ReadScriptFile(pinnedScriptPath);
-        if (!file) return;
-        // Open the script so the run is visible, then run it.
-        await onScriptSelect({ path: file.path, name: file.name });
-        const kaja = kajaRef.current!;
-        kaja.input = text;
-        const run = beginRun(file.name, file.path);
-        runScript(file.content, kaja, apps, onScriptError)
-          .then(() => kaja.settleTables())
-          .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
-      } catch (err) {
-        showFileError(`Run failed: ${err}`);
+      const script = (scriptsRef.current ?? []).find((candidate) => isLinkedScript(candidate.name, parsed.link.script));
+      if (!script) {
+        showFileError(`No script named "${parsed.link.script}".`);
+        return;
       }
+      // Open it first, so the question is asked over the script it is about.
+      void onScriptSelect(script);
+      setLinkPrompt({ script, input: parsed.link.input });
     },
-    [pinnedScriptPath, onScriptSelect, apps, showFileError, onScriptError, beginRun],
+    [onScriptSelect, showFileError],
   );
 
-  const runContextMenuScriptRef = useRef(runContextMenuScript);
-  runContextMenuScriptRef.current = runContextMenuScript;
+  const openScriptLinkRef = useRef(openScriptLink);
+  openScriptLinkRef.current = openScriptLink;
 
-  // Wire the native macOS "Run Kaja Script" text service.
+  // Run what the link asked for, with its query as `kaja.input`.
+  const onConfirmScriptLink = useCallback(async () => {
+    const prompt = linkPrompt;
+    setLinkPrompt(null);
+    if (!prompt) return;
+    try {
+      const file = await ReadScriptFile(prompt.script.path);
+      if (!file) return;
+      const kaja = kajaRef.current!;
+      kaja.input = prompt.input;
+      const run = beginRun(file.name, file.path);
+      runScript(file.content, kaja, apps, onScriptError)
+        .then(() => kaja.settleTables())
+        .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
+    } catch (err) {
+      showFileError(`Run failed: ${err}`);
+    }
+  }, [linkPrompt, apps, showFileError, onScriptError, beginRun]);
+
+  // ⏎ runs what the link asked for. The dialog has nothing to type into, and
+  // the whole point of a link is that it is one gesture away from a run.
+  useEffect(() => {
+    if (!linkPrompt) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      void onConfirmScriptLink();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [linkPrompt, onConfirmScriptLink]);
+
   useEffect(() => {
     if (!isWailsEnvironment()) return;
-    const unsub = EventsOn("service:runScript", (text: string) => runContextMenuScriptRef.current(text));
+    const unsub = EventsOn("link:open", (link: string) => openScriptLinkRef.current(link));
     return () => unsub();
   }, []);
+
+  // A link that launched the app arrived long before any of this existed, and
+  // the desktop holds those until we say we are here — which is once the script
+  // list is in, since before that there is nothing for a link to name.
+  const linksReadyRef = useRef(false);
+  useEffect(() => {
+    if (!isWailsEnvironment() || linksReadyRef.current || scripts === undefined) return;
+    linksReadyRef.current = true;
+    EventsEmit("link:ready");
+  }, [scripts]);
 
   // Auto-save: open script views persist to disk on edit (debounced). No ⌘S, no
   // dirty indicator.
@@ -1498,7 +1531,7 @@ export function App() {
       });
       try {
         const kaja = kajaRef.current!;
-        kaja.input = undefined;
+        kaja.input = {};
         const captured = await runScriptCaptured(source, kaja, appsRef.current);
         // An agent's table has nobody to page it, so its receipt is the first
         // page — which is exactly what it says it is.
@@ -1561,12 +1594,11 @@ export function App() {
   }, []);
 
   // Reflect a rename that already happened on disk: update the sidebar list,
-  // re-point any open view, and keep the context-menu pin on the renamed file.
+  // re-point any open view.
   const applyScriptRename = useCallback(
     (oldPath: string, renamed: Script) => {
       setScripts((prev) => (prev ?? []).map((s) => (s.path === oldPath ? renamed : s)).sort((a, b) => a.name.localeCompare(b.name)));
       applyViews((views) => views.map((view) => (view.type === "script" && view.script.path === oldPath ? { ...view, script: renamed } : view)));
-      setPinnedScriptPath((current) => (current === oldPath ? renamed.path : current));
       // The file is the console's key, so a rename moves it rather than losing it.
       consoles.renameFile(oldPath, renamed.path);
       renameStoredFile(oldPath, renamed.path);
@@ -1604,11 +1636,10 @@ export function App() {
   }, [renameScript, applyScriptRename]);
 
   // Reflect a deletion that already happened on disk: drop the script from the
-  // sidebar list and the context-menu pin, and close its view.
+  // sidebar list, and close its view.
   const removeScriptFromUI = useCallback(
     (path: string) => {
       setScripts((prev) => (prev ?? []).filter((s) => s.path !== path));
-      setPinnedScriptPath((current) => (current === path ? undefined : current));
       // The file is gone, so its console goes with it.
       consoles.dropFile(path);
       dropStoredFile(path);
@@ -1796,6 +1827,9 @@ export function App() {
     // speak the same language.
     const title = view.type === "script" ? view.script.name : (deriveScratchTitle(code) ?? viewIdentity(view, scratchesRef.current).name);
     beginRun(title, view.type === "script" ? view.script.path : view.scratchId, controller);
+    // Pressing Run carries no input, so whatever a link left behind goes: the
+    // last link's parameters must not ride along on the next run.
+    kajaRef.current!.input = {};
     // A live table draws its first page itself, and those calls are the run's:
     // the script is not over until they have landed, or the run would report a
     // duration that stops before the work it started.
@@ -2258,8 +2292,7 @@ export function App() {
                 onScriptSelect={onScriptSelect}
                 onRenameScript={canWriteScripts() ? onRenameScript : undefined}
                 onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
-                onPinScript={isDesktopMac ? onPinScript : undefined}
-                pinnedScriptPath={pinnedScriptPath}
+                onCopyScriptLink={isWailsEnvironment() ? onCopyScriptLink : undefined}
                 runningFileIds={runningFiles}
                 agentFileIds={agentFiles}
                 waitingFileIds={waitingFiles}
@@ -2583,6 +2616,37 @@ export function App() {
             <pre className="max-h-64 overflow-auto rounded-md border border-border bg-background px-2.5 py-2 leading-relaxed text-foreground">
               {approvePrompt.call.request}
             </pre>
+          </div>
+        </Dialog>
+      )}
+      {linkPrompt && (
+        // Anything that can open a URL can get this far, so the link states
+        // what it wants and stops. The script is open behind this, which is the
+        // reading that makes the decision worth asking for.
+        <Dialog
+          title="Run from a link"
+          onClose={() => setLinkPrompt(null)}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setLinkPrompt(null) },
+            { content: "Run", variant: "default", onClick: () => void onConfirmScriptLink() },
+          ]}
+        >
+          <div className="flex flex-col gap-2 font-mono text-xs">
+            <div className="text-foreground">{linkPrompt.script.name}</div>
+            {Object.keys(linkPrompt.input).length > 0 ? (
+              <div className="flex max-h-64 flex-col gap-1 overflow-auto rounded-md border border-border bg-background px-2.5 py-2">
+                {Object.entries(linkPrompt.input).map(([name, value]) => (
+                  <div key={name} className="flex gap-2 leading-relaxed">
+                    <span className="shrink-0 text-muted-foreground">{name}</span>
+                    <span className="truncate text-foreground" title={value}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted-foreground">No parameters.</div>
+            )}
           </div>
         </Dialog>
       )}

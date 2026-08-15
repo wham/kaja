@@ -360,9 +360,9 @@ function toListValue(input: JsonValue[]): ListValue {
 
 export class Kaja {
   readonly _internal: KajaInternal;
-  // Text passed in when a script is run from the macOS "Run Kaja Script" text
-  // service. Scripts can read it as `kaja.input`.
-  input?: string;
+  // The query a `kaja://run/<script>?...` link carried, readable as
+  // `kaja.input.<name>`. Empty when the script is run any other way.
+  input: { [key: string]: string } = {};
   // User-defined variables, readable as `kaja.variables.<name>`. These are the
   // resolved values, including the ones kaja.json only names and this machine
   // holds - scripts are the desktop only, where there is no remote browser
