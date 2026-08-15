@@ -1,4 +1,4 @@
-import { Bot, Check, ChevronDown, ChevronsUpDown, ChevronUp, Copy, FoldVertical, Logs, Maximize, Minimize, Trash2, UnfoldVertical } from "lucide-react";
+import { Bot, Check, ChevronsUpDown, Copy, FoldVertical, Logs, Maximize, Minimize, Trash2, UnfoldVertical } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApproveGesture } from "./blocks";
 import { dotClass, formatDuration } from "./callFormat";
@@ -260,7 +260,6 @@ export function Console({
   }
 
   const showUtilities = activeView === "canvas" || selectedCall !== undefined;
-  const position = selectedGroup ? groups.indexOf(selectedGroup) + 1 : groups.length;
 
   const canvas = selectedGroup && (
     <Canvas
@@ -290,11 +289,13 @@ export function Console({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* One row spanning the full console width, and it holds its shape: which
-          run, which view, how to step through them, and what to do with what is
-          shown. Nothing here rearranges as the selection moves — that is the
-          change the split pays for. Everything leaves in order of what it is
-          worth as the panel narrows, and the run pill truncates through all of
-          it. */}
+          run, which view, and what to do with what is shown. Stepping through
+          the runs is the picker's and ⌃↑/⌃↓'s — a pair of arrows beside a
+          picker that already lists every run is the same verb twice, at the
+          cost of the room the pill truncates for. Nothing here rearranges as
+          the selection moves — that is the change the split pays for.
+          Everything leaves in order of what it is worth as the panel narrows,
+          and the run pill truncates through all of it. */}
       <div className="@container flex h-[35px] shrink-0 items-center gap-3 overflow-hidden border-b border-border px-3">
         <Console.RunSelect groups={groups} selectedGroup={selectedGroup} onSelect={selectRun} onClear={onClear} now={now} />
         <div className="h-4 w-px shrink-0 bg-border" />
@@ -322,31 +323,6 @@ export function Console({
             {waiting && activeView !== "canvas" && <span data-testid="canvas-badge" className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
           </SegmentedControl.Button>
         </SegmentedControl>
-        <div className="flex shrink-0 items-center gap-1 @max-[560px]:hidden">
-          <IconButton
-            icon={ChevronUp}
-            aria-label="Previous run"
-            variant="ghost"
-            size="sm"
-            tooltip={false}
-            className="h-6 w-6"
-            disabled={position <= 1}
-            onClick={() => selectRun(groups[Math.max(0, position - 2)])}
-          />
-          <IconButton
-            icon={ChevronDown}
-            aria-label="Next run"
-            variant="ghost"
-            size="sm"
-            tooltip={false}
-            className="h-6 w-6"
-            disabled={position >= groups.length}
-            onClick={() => selectRun(groups[Math.min(groups.length - 1, position)])}
-          />
-          <span className="whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground">
-            {position} of {groups.length}
-          </span>
-        </div>
         {/* Only there when the run printed something, on the same rule as
             everything else in this header: a control over nothing is chrome. */}
         {activeView === "calls" && printed.lines > 0 && (
