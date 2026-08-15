@@ -319,9 +319,20 @@ type fetchCredentials struct {
 // not known yet, so it falls back the same way invocations do: username/password
 // as HTTP Basic, otherwise a bearer token. An explicit spec header wins over both.
 func loadSpec(specURL string, credentials fetchCredentials, log func(string)) (*spec, *problem) {
+	body, contentType, p := fetchSpec(specURL, credentials, log)
+	if p != nil {
+		return nil, p
+	}
+	return readSpec(body, contentType)
+}
+
+// fetchSpec reads the document itself. It is split out from loadSpec because an
+// export freezes the bytes into the bundle rather than the parse of them: what
+// travels is the document, so the exported app reads exactly what was read here.
+func fetchSpec(specURL string, credentials fetchCredentials, log func(string)) ([]byte, string, *problem) {
 	req, err := http.NewRequest(http.MethodGet, specURL, nil)
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}
+		return nil, "", &problem{Kind: problemUnreachable, Message: "Couldn't fetch " + hostOf(specURL), Detail: err.Error()}
 	}
 	req.Header.Set("Accept", "application/yaml, application/json, text/yaml, text/plain, */*")
 	applyFetchAuth(req, credentials)
@@ -329,7 +340,7 @@ func loadSpec(specURL string, credentials fetchCredentials, log func(string)) (*
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't reach " + hostOf(specURL), Detail: unwrapURLError(err)}
+		return nil, "", &problem{Kind: problemUnreachable, Message: "Couldn't reach " + hostOf(specURL), Detail: unwrapURLError(err)}
 	}
 	defer resp.Body.Close()
 
@@ -342,16 +353,16 @@ func loadSpec(specURL string, credentials fetchCredentials, log func(string)) (*
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, specFetchProblem(specURL, resp)
+		return nil, "", specFetchProblem(specURL, resp)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
-		return nil, &problem{Kind: problemUnreachable, Message: "Couldn't read the response from " + hostOf(specURL), Detail: err.Error()}
+		return nil, "", &problem{Kind: problemUnreachable, Message: "Couldn't read the response from " + hostOf(specURL), Detail: err.Error()}
 	}
 	log(fmt.Sprintf("Read %d bytes of spec", len(body)))
 
-	return readSpec(body, contentType)
+	return body, contentType, nil
 }
 
 // readSpec parses a fetched or uploaded document, classifying what came back when

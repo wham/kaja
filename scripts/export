@@ -1,0 +1,61 @@
+#!/bin/bash
+set -e
+
+# Export a script as an app that runs on its own.
+#
+# Usage: scripts/export <script> [--workspace kaja.json] [--out app.kaja] [--bundle-only]
+#
+# It writes two things by default: the .kaja bundle, and — because the runner is
+# the same bytes for every export — a copy of that runner with the bundle
+# appended to it, which is one file you can hand to somebody. Nothing here
+# compiles the script or the app: what the bundle holds was frozen at export.
+#
+# The runner is built for this machine. Building it for another is the same
+# command with GOOS/GOARCH set, which is what a release matrix does — the point
+# of appending rather than generating is that no toolchain is involved in the
+# export itself.
+
+source "$(dirname "$0")/common"
+
+cd "$(dirname "$0")/.."
+
+SCRIPT=""
+WORKSPACE="../workspace/kaja.json"
+OUT=""
+BUNDLE_ONLY=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --workspace) WORKSPACE="$2"; shift 2 ;;
+        --out) OUT="$2"; shift 2 ;;
+        --bundle-only) BUNDLE_ONLY=true; shift ;;
+        *) SCRIPT="$1"; shift ;;
+    esac
+done
+
+if [ -z "$SCRIPT" ]; then
+    echo "Usage: scripts/export <script> [--workspace kaja.json] [--out app.kaja] [--bundle-only]"
+    exit 2
+fi
+
+# The player is part of the UI bundle, so an export needs the UI built. Same
+# rule as everywhere else here: the step states what it is made of, and is
+# skipped when its inputs are the ones it last ran on.
+UI_STAMP="server/build/.export-ui"
+UI_FINGERPRINT=$(fingerprint $(find ui/src -type f | sort) ui/package.json ui/bun.lock)
+if ! stamp_matches "$UI_STAMP" "$UI_FINGERPRINT" || [ ! -f server/build/player.js ]; then
+    (cd ui && bun install --silent)
+    (cd server && go run cmd/build-ui/main.go)
+    stamp_write "$UI_STAMP" "$UI_FINGERPRINT"
+fi
+
+ARGS=(-script "$SCRIPT" -workspace "$WORKSPACE")
+[ -n "$OUT" ] && ARGS+=(-out "$OUT")
+
+if [ "$BUNDLE_ONLY" = false ]; then
+    # One binary for this platform, appended to once per export.
+    (cd server && go build -o build/kaja-run ./cmd/kaja-run)
+    ARGS+=(-runner "$PWD/server/build/kaja-run")
+fi
+
+(cd server && go run ./cmd/kaja-export "${ARGS[@]}")

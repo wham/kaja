@@ -593,6 +593,76 @@ nowhere else, so one object read two ways one line apart.
 - It is a fragment rather than an element, so the caller owns the truncation,
   the font and the weight: the same name is 13px in a row and mono in a title.
 
+## Exporting a script as an app
+
+**A script that draws is already an app; exporting one is writing down what kaja
+works out on every start.** Opening the apps, compiling their protos, building
+the client stub, resolving the imports — an export does all four once and freezes
+the answers, which is why what comes out needs no compiler, no protoc, no esbuild
+and, wherever an app can say what it read, no network. `scripts/export <script>`
+is the door; `server/pkg/bundle` is the format, `server/pkg/api/export.go` the
+exporter, `server/cmd/kaja-run` the runner and `ui/src/player/` the screen.
+
+- **A `.kaja` is a zip, and the runner reads one from a file or from the end of
+  itself.** That second reading is the whole of what makes an exported app one
+  file: a zip's directory is at its end and its offsets are relative, so a reader
+  steps over whatever precedes it — which here is a whole program. So exporting a
+  binary is `AppendTo`: copy a prebuilt runner, append the bundle, done.
+  **Nothing is compiled to make one**, which is what makes exporting for another
+  platform a matter of having that platform's runner rather than of shipping a
+  toolchain — the runner is content-independent, so a built one and a downloaded
+  one are the same bytes. (An exported file is unsigned. A file made here carries
+  no quarantine bit, so it runs on the machine that made it; sending it to
+  another Mac is what asks for a signature, and a compiler would not have helped.)
+- **The bundle holds four things and one of them is not the values.** The
+  transpiled script, the stub, each app's frozen proto surface, and the manifest —
+  which carries variable *names* and where each will look, never what they
+  resolve to. A `"${secret}"` travels as the environment variable to set, which
+  is also what the export warns about at the one moment somebody can act on it,
+  and what the player's own banner says when the runner starts and finds nothing
+  there.
+- **Freezing is the app's to do, not the exporter's** (`apps.Freezer`). An app
+  that reads a document can carry the document — an OpenAPI app inlines its spec
+  as `spec_content` **and resolves `base_url`**, because a document's `servers`
+  may be relative and relative-to-the-document is a question only the document's
+  URL can answer, which is a thing only export time still knows. An app that
+  reads its surface from a server can only be that server's client, so an MCP app
+  is not frozen and says so. A reflected gRPC app is frozen by what reflection
+  already wrote: `Open` puts the discovered protos in a directory, so the export
+  keeps the directory and turns `reflection` off.
+- **The imports are resolved once, so the player carries no compiler.** Kaja
+  walks a script's TypeScript on every run to find out what `Shows` is;
+  `bundle.ScanImports` does it at export and the manifest records which stub
+  module each name lives in. What a name *is* is still read from the stub at run
+  time — a generated service is a `ServiceType` and carries its own methods, an
+  enum is a plain object — because a manifest that claimed otherwise could
+  disagree with the module it describes. **Named imports only**, the same rule the
+  editor and the MCP guide state, and an unnamed form is refused by name rather
+  than dropped.
+- **The player is a second entry point, not a mode of the first**
+  (`ui/src/player/`, built as `player.js` beside `main.js`). It is the same
+  `Kaja`, the same `Canvas`, the same console store — and no Monaco, no
+  TypeScript, no tree, no finder, no editor: **600 KB against 11 MB.** It draws
+  the canvas as the **full-screen** one, because that is what an exported app is:
+  the whole window with one document in it.
+- **The runner puts the workspace back and then is an ordinary kaja.** It unpacks
+  the frozen protos, writes a `kaja.json` from the manifest, and hands it to the
+  same `ApiService` — so variable resolution, an app's credential and transport,
+  and the way a call leaves the process are all the code that already existed.
+  That is also why `/target/{method...}` is `api.TargetHandler` now rather than
+  written out in the web server: a call that reached its upstream one way in kaja
+  and another way in an exported app would be two products.
+- **`kaja.input` is the query string**, which is the same thing a `kaja://run`
+  link fills. So an exported app takes parameters without inventing a way to, and
+  `kaja.askStr` is its form.
+- **A script that writes is not run on sight.** `runOnLoad` is off for a script
+  holding a `kaja.approve`, because running it the moment a page opens would
+  answer the question the block exists to ask.
+- **`kaja.variables` reaches the script only on the loopback address.** There the
+  browser and the process are the same trust boundary, which is the desktop's
+  rule; bound anywhere else the runner is the web server, and the values stay in
+  the process and leave it only as headers on the way out.
+
 ## The tree is an index, so it reads as a list of names
 
 Rows are **22px** at **13px**, chevrons 12px — a dense desktop client's sizing,
@@ -1665,7 +1735,7 @@ local agent exactly as the desktop one is.
 /
 ├── desktop/          # Desktop application (Wails framework)
 ├── protoc-gen-kaja/  # Protoc plugin for TypeScript codegen (Go)
-├── server/           # Backend server (Go) - serves both web and desktop
+├── server/           # Backend server (Go) - serves the web, the desktop and exported apps
 ├── ui/               # Frontend UI (React/TypeScript)
 ├── workspace/        # Demo workspace with example proto definitions
 ├── scripts/          # Build and development scripts
@@ -1732,6 +1802,9 @@ Both share the same backend code but differ in how they're packaged:
 **`/server/`** - Go backend:
 
 - `cmd/server/` - Main server application
+- `cmd/kaja-export/` - Writes a script and everything it calls into a `.kaja` bundle
+- `cmd/kaja-run/` - Runs one: the same bytes for every export, which is what makes exporting a copy rather than a build
+- `pkg/bundle/` - The bundle format: the manifest, the archive (read from a file or from the end of the running executable), and the script's import scanner
 - `cmd/build-ui/` - Tool to bundle React UI with esbuild
 - `pkg/api/` - Generated proto code (Go)
 - `pkg/mcp/` - Kaja's own MCP server, bridged to a window by whichever build is running it

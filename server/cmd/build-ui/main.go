@@ -78,6 +78,19 @@ func build(outputDirectory string, staticSrc string) error {
 		return err
 	}
 
+	player, err := ui.BuildPlayer()
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path.Join(outputDirectory, "player.js"), player.Js, 0644); err != nil {
+		slog.Error("Failed to write output file", "error", err)
+		return err
+	}
+	if err := os.WriteFile(path.Join(outputDirectory, "player.css"), player.Css, 0644); err != nil {
+		slog.Error("Failed to write output file", "error", err)
+		return err
+	}
+
 	for _, worker := range ui.MonacoWorkerNames {
 		workerData, err := ui.BuildMonacoWorker(worker)
 		if err != nil {

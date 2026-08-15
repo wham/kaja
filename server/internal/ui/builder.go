@@ -242,6 +242,52 @@ func BuildForProduction() (*UiBundle, error) {
 	return buildResultToUiBundle(result)
 }
 
+// PlayerBundle is the UI an exported script runs on: the canvas, and the run
+// that draws it. It is a second entry point rather than a mode of the first
+// because what it leaves out is most of the weight — the editor, the compiler
+// it type-checks against, the tree, the finder, the console's two views. What
+// an exported app has to do is run one script and draw what it drew.
+type PlayerBundle struct {
+	Js  []byte
+	Css []byte
+}
+
+func BuildPlayer() (*PlayerBundle, error) {
+	result := esbuild.Build(esbuild.BuildOptions{
+		EntryPoints:       []string{"../ui/src/player/main.tsx"},
+		Bundle:            true,
+		Format:            esbuild.FormatESModule,
+		MinifyWhitespace:  true,
+		MinifyIdentifiers: true,
+		MinifySyntax:      true,
+		KeepNames:         true,
+		Outdir:            "build/player",
+		Plugins:           []esbuild.Plugin{tailwindPlugin},
+	})
+
+	if len(result.Errors) > 0 {
+		for _, e := range result.Errors {
+			if e.Location != nil {
+				slog.Error("ESBuild error", "text", e.Text, "file", e.Location.File, "line", e.Location.Line, "column", e.Location.Column)
+			} else {
+				slog.Error("ESBuild error", "text", e.Text)
+			}
+		}
+		return nil, fmt.Errorf("failed to build the player")
+	}
+
+	bundle := &PlayerBundle{}
+	for _, file := range result.OutputFiles {
+		switch {
+		case strings.HasSuffix(file.Path, ".js"):
+			bundle.Js = file.Contents
+		case strings.HasSuffix(file.Path, ".css"):
+			bundle.Css = file.Contents
+		}
+	}
+	return bundle, nil
+}
+
 func buildResultToUiBundle(result esbuild.BuildResult) (*UiBundle, error) {
 	if len(result.Errors) > 0 {
 		for _, e := range result.Errors {

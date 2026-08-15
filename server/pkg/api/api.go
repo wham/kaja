@@ -50,6 +50,13 @@ func NewApiService(configurationPath string, canUpdateConfiguration bool, gitRef
 	}
 }
 
+// ConfigurationPath is the kaja.json this service reads. An exported app writes
+// one from its bundle and then reads it back like any other workspace, which is
+// what keeps everything downstream of the file unchanged.
+func (s *ApiService) ConfigurationPath() string {
+	return s.configurationPath
+}
+
 // Apps returns the app manager, used by the request router to invoke methods on
 // opened app instances.
 func (s *ApiService) Apps() *apps.Manager {
