@@ -1,18 +1,46 @@
+// One screening's house, row by row.
+//
+// Picking the screening is the join again, in miniature: the schedule says
+// which film is at which house, and the other two lists say what either of
+// those is called.
+
 import { kaja } from "kaja";
-import { TheKajaTheatre } from "theatre/service";
+import { Theatre } from "theatre/service";
 import { Seating, SeatStatus, Section } from "seating/proto/seating";
 
-const programme = await TheKajaTheatre.ListShows({ limit: 100, cursor: "" });
-
-const show = await kaja.askSelect(
-  `Which film? The first 100 screenings of ${programme.total}.`,
-  programme.shows.map((show) => ({ label: `${show.title} · ${show.director}, ${show.year}`, value: show })),
+const { theaters } = await Theatre.ListTheaters({ city: "" });
+const house = await kaja.askSelect(
+  "Which house?",
+  theaters.map((theater) => ({ label: `${theater.name} · ${theater.city}, ${theater.state}`, value: theater })),
 );
 
-const { seatMap } = await Seating.GetSeatMap({ showId: show.id });
-if (!seatMap) throw new Error(`No seat map for ${show.id}`);
+const page = await Theatre.ListShows({ theaterId: house.id, movieId: "", city: "", limit: 25, cursor: "" });
+const { movies } = await Theatre.ListMovies({
+  ids: page.shows.map((show) => show.movieId),
+  genre: "",
+  limit: 500,
+  cursor: "",
+});
+const films = new Map(movies.map((movie) => [movie.id, movie]));
 
-kaja.text(`${show.title} — ${seatMap.available} free, ${seatMap.held} held, ${seatMap.sold} sold.`);
+const screening = await kaja.askSelect(
+  `Which screening? The next ${page.shows.length} of ${page.total} at ${house.name}.`,
+  page.shows.map((show) => ({
+    label: `${films.get(show.movieId)?.title ?? show.movieId} · ${new Date(show.startsAt).toLocaleString(undefined, {
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: house.timeZone,
+    })}`,
+    value: show,
+  })),
+);
+
+const { seatMap } = await Seating.GetSeatMap({ showId: screening.id });
+if (!seatMap) throw new Error(`No seat map for ${screening.id}`);
+
+const film = films.get(screening.movieId);
+kaja.text(`${film?.title ?? screening.movieId} at ${house.name} — ${seatMap.available} free, ${seatMap.held} held, ${seatMap.sold} sold.`);
 
 const table = kaja.table(["section", "row", "free", "held", "sold", "seats"]);
 for (const section of seatMap.sections) {
