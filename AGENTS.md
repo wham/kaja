@@ -456,7 +456,10 @@ selection, the tab and the view as they were left.
 - **The scope is what makes the history worth stepping through.** `⌃↑`/`⌃↓` walk
   *this file's* runs, so one go at it is comparable against the last. A file keeps
   25 runs, so a chatty script can no longer evict another's history; fifty files
-  hold a console at once and the least recently touched is let go.
+  hold a console at once and the least recently touched is let go. There are **no
+  prev/next arrows** beside the pill: the picker already lists every run and is
+  the gesture anyone reaches for, so a pair of chevrons and an `N of M` was the
+  same verb twice, spending header room the pill truncates for.
 - **The row and the payload expire separately, because only one of them costs
   anything.** A row is a name, a key, a duration and a status; the payload is the
   response. So a run keeps **every** row up to 20,000 (past that it says how many
