@@ -2493,6 +2493,7 @@ export function App() {
                 onShowCompileLog={onShowCompileLog}
                 onRecompileApp={onRecompile}
                 onNewAppClick={onNewAppClick}
+                onNewScript={onNewDraft}
                 onVariablesClick={onVariablesClick}
                 autoExpandApp={autoExpandApp}
                 reserveTrafficLights={isDesktopMac}

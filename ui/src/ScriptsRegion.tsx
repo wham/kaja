@@ -45,10 +45,11 @@ import { useMediaQuery } from "./useMediaQuery";
  * **The section is what makes those two groups one thing.** Drafts and Files
  * are halves of a single question — what you run — and a reader who meets them
  * as two headers floating above the app tree has to work that out. So the
- * region says its own name once, at the top, in the register the app rows below
- * use; the groups nest visibly under it, and the filter belongs to it rather
- * than to either half. It is a title, not a node: both groups already fold, and
- * a third chevron would only be a shortcut for pressing those two.
+ * section says its own name once, in the band above these rows, which is the
+ * sidebar's to draw: the band and the one over Apps are the same band, and it
+ * takes the traffic lights and the section's own verbs with it. What is left
+ * here is the two groups and the filter, which belongs to the section rather
+ * than to either half — which is why it searches both.
  *
  * **And it is one list of names, in one font.** Mono on a file row was doing
  * double duty as the tell for "this one is on disk" — the group label carries
@@ -73,10 +74,6 @@ const DEPTH_INDENT = 14;
 // The chevron column a folder row spends and a file row doesn't.
 const CHEVRON_SLOT = 18;
 
-// The region's own name, in the register the app rows below use: 13px and
-// foreground, so Scripts and an app read as peers across the hairline. It takes
-// no chevron — the two groups under it already fold.
-const SECTION_TITLE = "flex h-[22px] select-none items-center px-2 text-[13px] font-medium text-foreground";
 const GROUP_HEADER = "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
 const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-1 text-[13px] outline-none focus-visible:bg-accent/50";
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
@@ -173,21 +170,12 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [props.onCreateFolder]);
 
-  const hasAnything = scripts.length > 0 || drafts.length > 0 || folders.length > 0;
-  if (!hasAnything) return null;
-
   const active = (key: string) => touch || hovered === key;
 
   return (
+    // Named by the band above it, which is the sidebar's: the heading is stated
+    // once rather than twice.
     <nav aria-labelledby="scripts-section">
-      {/* Said once, at the top: Drafts and Files are two halves of one thing,
-          and this is the thing. The filter below belongs to it rather than to
-          either group, which is why it searches both. It names the nav region
-          too, so the heading is stated once rather than twice. */}
-      <h2 id="scripts-section" className={SECTION_TITLE}>
-        Scripts
-      </h2>
-
       {/* The filter appears once the region is big enough to need one. It
           matches names and folder paths, flattens the result, and says how many
           it found — the one place a count lives outside the group headers,
