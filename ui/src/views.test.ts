@@ -69,7 +69,7 @@ describe("viewIdentity", () => {
     const identity = viewIdentity(scratchView("scratch-1", "s1"), [scratch]);
 
     expect(identity.name).toBe("GetShow · vera-lune");
-    expect(identity.path).toBe("Scripts");
+    expect(identity.path).toBe("Drafts");
     expect(identity.origin).toBe("theatre");
   });
 });

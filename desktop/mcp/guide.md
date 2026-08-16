@@ -23,13 +23,24 @@ there is nothing else to go and read.
 
 Running a snippet to see what a real response looks like is the right thing to
 do, and it is cheap. It is not invisible, though: **an inline `run_script` is run
-in a scratch buffer in the user's own sidebar**, titled from your code, and every
-run lands in that buffer's console beside the runs the user made themselves. You
-get the same buffer each time, so ten tries at one call read as ten runs of one
-script rather than ten files — and if you `create_script` exactly what you last
-ran, that buffer becomes the file rather than leaving a copy behind.
+in a draft in the user's own sidebar**, pinned at the top of their Drafts under
+your own name, titled from your code, and every run lands in that draft's console
+beside the runs the user made themselves. You get the same draft each time, so
+ten tries at one call read as ten runs of one script rather than ten files — and
+if you `create_script` exactly what you last ran, that draft becomes the file
+rather than leaving a copy behind. The user can clear it like any draft; the next
+snippet you run makes another.
 
 Write your snippets as if someone is reading them, because someone can.
+
+## Where a script goes
+
+Saved scripts live in folders. `create_script` takes a name that may name one —
+`create_script "reports/weekly-usage"` files it under `reports`, creating the
+folder if it isn't there — and `rename_script` moves a file the same way, because
+on disk renaming and moving are one operation. `list_scripts` reports the folder
+each script is filed in. File a script where a person would look for it rather
+than dropping everything at the root.
 
 ## Read or write
 

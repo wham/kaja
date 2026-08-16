@@ -16,7 +16,15 @@ func StopAccessing(path string) {}
 
 type BookmarkStore struct{}
 
+type bookmarkEntry struct {
+	Key string
+}
+
 func NewBookmarkStore(path string) *BookmarkStore { return &BookmarkStore{} }
+
+// There are no bookmarks to restore off a sandbox this platform doesn't have,
+// which is a stand-in the package needs to compile rather than a feature.
+func (s *BookmarkStore) loadEntries() ([]bookmarkEntry, error) { return nil, nil }
 
 func (s *BookmarkStore) Save(key string, dirPath string) error {
 	return nil

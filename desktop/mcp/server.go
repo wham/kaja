@@ -26,8 +26,11 @@ var guide string
 // ScriptInfo is a script on disk. Content is populated only where it makes
 // sense (reads, creates, renames).
 type ScriptInfo struct {
-	Path    string `json:"path"`
-	Name    string `json:"name"`
+	Path string `json:"path"`
+	Name string `json:"name"`
+	// The folder the script is filed in, relative to the workspace's scripts
+	// root. Empty for one at the root.
+	Folder  string `json:"folder,omitempty"`
 	Content string `json:"content,omitempty"`
 }
 
@@ -89,8 +92,10 @@ type Bridge interface {
 	RenameScript(path, newName string) (ScriptInfo, error)
 	DeleteScript(path string) error
 	// RunScript executes a script in the webview and returns what it produced.
-	// Exactly one of path or code is set.
-	RunScript(ctx context.Context, path, code string) (RunResult, error)
+	// Exactly one of path or code is set. client is what the agent calls itself,
+	// which is what the draft an inline snippet runs in is labelled with — an
+	// actor you recognise rather than a mechanism you translate.
+	RunScript(ctx context.Context, path, code, client string) (RunResult, error)
 	// Catalog returns the most recent services/methods picture, possibly empty
 	// if nothing has compiled yet.
 	Catalog() Catalog
@@ -100,6 +105,10 @@ type Bridge interface {
 	Activity(inFlight int)
 }
 
+// defaultClientName is what an agent is called when it announces no name of its
+// own. The row it labels has to say something, and "Agent" is at least true.
+const defaultClientName = "Agent"
+
 // Server is the localhost MCP HTTP handler.
 type Server struct {
 	bridge Bridge
@@ -107,6 +116,9 @@ type Server struct {
 
 	mu       sync.Mutex
 	inFlight int
+	// What the last client to hand shake called itself. One buffer is shared by
+	// every client, so the name on it is whichever one touched it last.
+	client string
 }
 
 // NewServer builds a server. token guards every request via a bearer header;
@@ -208,7 +220,7 @@ func (s *Server) authorized(r *http.Request) bool {
 func (s *Server) dispatch(ctx context.Context, method string, params json.RawMessage) (interface{}, *rpcError) {
 	switch method {
 	case "initialize":
-		return s.handleInitialize(), nil
+		return s.handleInitialize(params), nil
 	case "ping":
 		return map[string]interface{}{}, nil
 	case "tools/list":
@@ -224,7 +236,30 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	}
 }
 
-func (s *Server) handleInitialize() interface{} {
+// handleInitialize also learns what the client calls itself. The name is only
+// ever read back onto the draft an inline run lands in, so a client that never
+// runs anything never names anything.
+func (s *Server) handleInitialize(params json.RawMessage) interface{} {
+	var announced struct {
+		ClientInfo struct {
+			Title string `json:"title"`
+			Name  string `json:"name"`
+		} `json:"clientInfo"`
+	}
+	if err := json.Unmarshal(params, &announced); err == nil {
+		// A title is written to be read; a name is an identifier ("claude-code").
+		// Prefer the one meant for a person, since that is where this ends up.
+		name := strings.TrimSpace(announced.ClientInfo.Title)
+		if name == "" {
+			name = strings.TrimSpace(announced.ClientInfo.Name)
+		}
+		if name != "" {
+			s.mu.Lock()
+			s.client = name
+			s.mu.Unlock()
+		}
+	}
+
 	return map[string]interface{}{
 		"protocolVersion": protocolVersion,
 		"capabilities": map[string]interface{}{
@@ -237,6 +272,16 @@ func (s *Server) handleInitialize() interface{} {
 		},
 		"instructions": guide,
 	}
+}
+
+// clientName is what the last handshake announced, or the fallback.
+func (s *Server) clientName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == "" {
+		return defaultClientName
+	}
+	return s.client
 }
 
 func writeRPC(w http.ResponseWriter, resp rpcResponse) {

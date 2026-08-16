@@ -27,48 +27,60 @@
 - Don't reference specific example services (e.g. names of APIs used to reproduce a bug) in code, comments, or tests. Keep them generic — they are just random examples.
 - Values seen in earlier calls are never written into a generated request: `defaultInput.ts` only ever emits zero values (a `Value`/`Struct`/`ListValue` field's zero value is its kaja builder — `kaja.value(null)` — since it has no writable literal), and `typeMemory.ts` + `valueCompletions.ts` offer what was seen as editor completions, each labelled with the field and call it came from.
 
-## Scratches, scripts and the sidebar
+## Drafts, files and the sidebar
 
 **Everything you run is a script; the only axis is whether it has a name.** A
 method in the sidebar is a *template*, not a document — clicking it fills a
-**scratch**, and a scratch is the unit of exploration.
+**draft**, and a draft is the unit of exploration. The Scripts region is two
+labelled groups, and four rules hold the whole thing together.
 
-- **A scratch is kept in the app; a script is on disk.** That is the whole
-  distinction, and it is not "temporary vs. permanent" — both persist. Scratches
-  live in IndexedDB (`scratches.ts`, `Scratch`), unlimited, on web and desktop
-  alike. The verb is just **Save** (never "save as script", never "save
-  permanently" — the unsaved ones are permanent too): it **writes a file**, which
-  is what makes it visible to the MCP server, to a `kaja://` link, and to
-  anything else outside Kaja. So saving is desktop-only, and the scratch it came
-  from goes away with it rather than lingering as a copy.
+1. **A draft has no name and no place. A file has both.** That is the entire
+   difference, and the group label states it. It is *not* "temporary vs.
+   permanent": a draft survives quit, crash and reopen exactly as a file does, so
+   nothing about one is styled as a warning. The amber dot is gone from the
+   sidebar entirely.
+2. **Files never turn into drafts on their own.** Editing a saved file leaves it
+   a file, in place, with a modified dot. There is exactly one way into Drafts —
+   run something that has no file yet, a method or `⌘N` — so there is no
+   branching and no forking: a variant of a file is a copy of the file.
+3. **Naming a draft moves it into Files.** The naming sheet asks for a name and a
+   folder, nothing else. The row leaves Drafts and appears where you filed it.
+4. **Discarding is safe by default.** Untouched drafts (still identical to the
+   generated call) are cleared without asking; edited ones are never removed
+   without a confirm that names them.
+
+**"Scratch" is the name in the code**, where it says precisely which storage tier
+this is (`scratches.ts`, `Scratch`, IndexedDB, unlimited, web and desktop alike);
+the UI says **Draft**, everywhere.
+
+- **Five verbs, each on exactly one object.** You **name** a draft, **save** a
+  file, **clear** drafts, **delete** a file, and **revert** a file to saved.
+  Nothing says "unsaved", because nothing is at risk.
 - **Clicking a method never asks what to do with it** (`onMethodSelect`). The
-  current scratch decides: an **untouched** one (still exactly its generated
+  current draft decides: an **untouched** one (still exactly its generated
   code, never run — `isUntouched`) is a browsing buffer and gets **taken over**;
-  a worked-in one is left alone and the call starts a **new** scratch. So
-  browsing the tree leaves one scratch behind, not a trail, and work is never
+  a worked-in one is left alone and the call starts a **new** draft. So
+  browsing the tree leaves one draft behind, not a trail, and work is never
   silently overwritten. **A new one is never a copy of one that is already
   there**: before either of those, `findUntouched` looks for an untouched
-  scratch holding exactly this call, from this app, and **reopens** it — two
+  draft holding exactly this call, from this app, and **reopens** it — two
   browsing buffers of the same call are one buffer written twice, identical
   down to the title and the dim. It is decided before the takeover, which is
   what would otherwise make the duplicate. Reopening settles nothing (`reopen`
   only bumps `updatedAt`, so the buffer sits at the top of the list and out of
-  the pruner's reach) — a run or an edit is still what turns a buffer into work.
+  the sweep's reach) — a run or an edit is still what turns a buffer into work.
+  The agent's draft is never taken over by a click of yours: it isn't yours.
   Appending is the deliberate gesture — **⌥click, or the
-  `+` on the row** — so a scratch never grows a second call by drifting.
+  `+` on the row** — so a draft never grows a second call by drifting.
   `appendCall` merges the import lines instead of stacking a second copy, and
   edits the text rather than reprinting it so the author's formatting survives.
   Generated code is run through prettier **before it reaches the model**: the
   editor's format-on-open only fires when a model is created, and taking over a
-  scratch writes into a model that already exists, so a twenty-field request
+  draft writes into a model that already exists, so a twenty-field request
   would otherwise sit on one line. The editor wraps rather than scrolling
   sideways — the pane is short on purpose, and horizontal scrolling is worse
   than vertical.
-- **An agent explores in one too.** A snippet run over MCP is run in a scratch —
-  the same one each time (see the MCP section). Exploration is a scratch whoever
-  is doing it, which is what puts an agent's runs in the sidebar and in the run
-  history instead of somewhere the user can't see.
-- **A scratch names itself from its own code** (`scratchTitle.ts`), which Kaja
+- **A draft names itself from its own code** (`scratchTitle.ts`), which Kaja
   can do better than a chat app names conversations: the content is typed code
   against a known schema, so the title is a formatting job rather than a
   summarization one, and it comes out the same every time. `ListShows`,
@@ -83,109 +95,183 @@ method in the sidebar is a *template*, not a document — clicking it fills a
   that only draws would otherwise be titled `text +3`.
 - **The title re-derives at deliberate moments, never while typing**: on a run
   (`markRun`) and on an append (`withCode`), because both are punctuation. There
-  is **no rename** — naming a script and saving it are the same act, so the code
-  decides until you save, and then the filename does.
-- **Unlimited only works because the browsing buffers clear themselves out.**
-  `pruneScratches` drops scratches that were never run and never edited past
-  their generated form after 14 days, and never touches one that is on screen.
-  Anything run or edited is kept forever.
-- **A scratch is not bound to an app.** Deleting an app leaves your scratches
-  alone — they just stop compiling. Only a *rename* is followed, so the imports
-  keep resolving. (This is why `linkTabsToApps` is gone: there is nothing to
-  re-bind.)
-- **There is one list, not two.** The sidebar and the finder both show saved
-  and unsaved together under a single `Scripts` heading, in one vocabulary — two
-  headings would teach a taxonomy the model doesn't have. **A dot is the whole
-  difference**: amber for a script that isn't on disk, hollow grey for one that
-  is. It replaced the file icon because a 5px mark is quieter than a drawing in
-  a 22px row that already spends a glyph on the app above it — not to save
-  width, since `ScriptGlyph` holds the slot open at the run spinner's 12px
-  either way. The finder, which has the room, keeps `FileCode` / `PenLine`.
-  Saved sit above, then the six most recent unsaved; the rest are `⌘P` away,
-  which is what makes an unlimited history usable. So saving is a change of
-  state, not a move between places — the row's dot goes hollow and it rises, it
-  doesn't vanish from one section and reappear in another. The word "scratch" survives in
-  the code, where it names the storage tier precisely, and nowhere in the UI.
-  `origin` on a scratch is only the app name the trigger shows beside the title,
-  to tell two same-named calls in different apps apart. **Nothing in the method
-  tree is ever "current"** — the tree is the API's catalog, not a reflection of
-  what you are looking at, and a scratch is free to grow past the method it came
-  from anyway. A **hairline** separates the two halves, because a script and the
-  method it was written from can carry the same label a few rows apart and must
-  never read as one list.
+  is **no rename of a draft** — naming one and filing it are the same act, so the
+  code decides until you name it, and then the filename does.
 - **The browsing buffer says so.** "An untouched one gets taken over, a
   worked-in one doesn't" is a good rule you could otherwise only learn by being
-  surprised by it, so it has a tell: a scratch that is still `isUntouched` is
-  **dimmed** — label and dot, in the sidebar row and in the finder's trigger and
-  rows (`provisional` on `ViewIdentity` and on a finder `Destination`) — and
-  resolves to full weight the moment it is edited or run. Not italics, and not a
-  word; the dim is the reading. Beside it, `titleParts` splits the qualifier the
-  naming rule produced (`· vera-lune`, `· 5, 3`) off the name so the row can dim
-  that too.
-- **Delete and discard are different words for different consequences.** A saved
-  row's menu is `Rename…` / **`Delete file`**, destructive and confirmed, because
-  it takes a file off disk. An unsaved row's is `Save…` / **`Discard`**, neutral
-  and **undoable** — the row goes and a bar offers it back for eight seconds
-  (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove. Saving proposes
-  the filename from the derived name (`proposeFileName`), so the section
-  converges on one naming convention instead of splitting into files and
-  not-files by casing.
-- **The frequent verbs are on the row, not behind the menu.** A script is made by
+  surprised by it, so it has a tell: a draft that is still `isUntouched` is
+  **dimmed** — in the sidebar row and in the finder's trigger and rows
+  (`provisional` on `ViewIdentity` and on a finder `Destination`) — and resolves
+  to full weight the moment it is edited or run. Not italics, and not a word; the
+  dim is the reading. Beside it, `titleParts` splits the qualifier the naming rule
+  produced (`· vera-lune`, `· 5, 3`) off the name so the row can dim that too.
+- **A draft is not bound to an app.** Deleting an app leaves your drafts
+  alone — they just stop compiling. Only a *rename* is followed, so the imports
+  keep resolving.
+
+### The two groups
+
+`ScriptsRegion.tsx` is the whole region; `Sidebar.tsx` is the API's catalog below
+the hairline and hands the region in as a node, because the two are different
+lists that share nothing but the panel.
+
+- **Group headers are 22px rows too**, at `text-xs`, their chevrons in the same
+  column as the app rows' below, and their rows indent to 24px so the group label
+  and the row text share a left edge. Both groups collapse, and a collapsed one
+  keeps its count, so `Drafts 12` is still readable when folded away.
+- **Two counts, and only two.** They earn their place because the group can be
+  collapsed and because the number answers a question you do ask: how much is in
+  here that I haven't filed. Folder rows carry **nothing** on the right — a count
+  next to `billing` answers a question nobody asked and collides with the two that
+  are load-bearing — which also frees that edge for the hover actions. The filter
+  is the one exception: it states its hit count, since there is no other way to
+  see the size of a result.
+- **Only one dot survives**, the hollow modified marker on a file with unsaved
+  edits. The run indicators (spinner, the amber waiting ring, the agent's emerald
+  dot) share the trailing slot with it, which is a fixed 24px whatever is in it —
+  so a run starting under the cursor never moves the label out from under it. The
+  row that carries three buttons widens the slot instead. Nothing is drawn in a
+  leading slot any more: with the amber dot retired there was nothing left to put
+  there, and 18px of indent is better spent on the name.
+- **Header actions live on the group they act on**: `Trash2` on Drafts, an
+  overflow menu on Files (`New folder… ⇧⌘N`, `Reveal in Finder`). Both are
+  revealed by the cursor and always present for the keyboard.
+- **The frequent verbs are on the row, not behind the menu.** A draft is made by
   clicking a method, run twice and thrown away — a several-times-a-minute loop
-  that shouldn't cost hover → ⋯ → click → click. So an unsaved row's hover
-  carries **✓ save · ✕ discard · ⋯**, and `⌫` on the focused row does the same as
-  the ✕. The menu survives for the rarer items. A **saved** row keeps only the
-  kebab: taking a file off disk is not the loop this is for, and it still asks
-  first.
-- **Nothing in a row moves under the cursor.** `TreeView.TrailingVisual` is a
-  fixed 24px whether or not it holds anything, so a label's truncation point
-  doesn't shift when the row grows a kebab on hover; the row that carries three
-  buttons widens that slot instead, and **keeps its leading dot** — trading the
-  dot for 11px was tried and it makes the label jump exactly as you reach for it.
-  A label truncating a little sooner is the cheaper cost, and it is what
-  truncation is for. The **leading** slot is fixed the same way (`ScriptGlyph`,
-  12px): a run spinner, the pin, the dot and — on the web — nothing at all all
-  occupy it, and a run starting under the cursor must not move the name either.
-- **The pile has a size and two verbs.** The `Scripts` header states how many
-  scripts there are, and how many of them are unsaved, in amber. Under the cursor
-  that count becomes **save them all** and **discard the unsaved**, each confirmed
-  against the list it is about to touch — a bulk save names every file from its
-  own title (`proposeFileNames`, disambiguated against disk and against each
-  other), and the discard says which saved scripts it is keeping. Neither verb
-  can reach a file, which is what makes "dump everything I'm not keeping" a
-  one-click action rather than a destructive one.
-- **The one you are editing has the pair beside its name**, in the command row:
-  a dot, `Save ⌘S`, and a discard that closes the file with it. All three are
-  absent — not disabled — once there is nothing unsaved, so a saved file's row is
-  just its name and Run. Same two verbs as the sidebar row, so the model stays
-  single; they answer different moments (mid-edit, versus tidying up after).
+  that shouldn't cost hover → ⋯ → click → click. So a draft row's hover carries
+  **save · ✕ discard · ⋯**, and `⌫` on the focused row does the same as the ✕. A
+  **file** row keeps only the kebab: taking a file off disk is not the loop this
+  is for, and it still asks first.
+- **Delete and discard are different words for different consequences.** A file
+  row's menu is `Save ⌘S` / `Revert to saved` (both only while it has edits) /
+  `Copy Link` / `Rename…` / `Move to…` / **`Delete file`**, destructive and
+  confirmed, because it takes a file off disk — the only action in the sidebar
+  that does, and the only one in `text-destructive`. A draft row's is `Name…` /
+  **`Discard`**, neutral and **undoable** — the row goes and a bar offers it back
+  for eight seconds (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove.
+  There is no route from a file into Drafts: that group is for things that have
+  never had a name.
+- **Clearing the pile has two verbs and one dialog.** The Drafts header's menu is
+  `Clear untouched` (n) / `Clear all` (n) / `Sweep untouched weekly`. Untouched
+  means byte-identical to the generated call and never run, so clearing those
+  removes nothing you wrote and needs **no confirm** — clicking the method again
+  writes the same thing back. `Clear all` asks only when it costs something, and
+  then the dialog **names the work at stake**: `9 are untouched and regenerate on
+  demand. 3 have edits that aren't saved anywhere:` over the list. Both buttons
+  are actions — **Keep edited (n)** clears the untouched ones and **Clear all n**
+  is destructive — so closing the dialog clears nothing: the safe path is the fast
+  one, not the one you fall into. Either way the bar offers an undo.
+- **The pile is capped, not scrolled.** Drafts draws `VISIBLE_DRAFTS` (8) rows,
+  most recently opened first, with **edited ones pinned above the browsing
+  buffers** (`orderScratches`) so work never hides behind generated calls; the
+  rest are `n more…`, which expands in place. That is what keeps the region a
+  predictable share of the panel: its height is bounded by folder depth in Files,
+  not by draft accumulation.
+- **The sweep is what makes unlimited work.** `pruneScratches` drops drafts that
+  were never run and never edited past their generated form after `SWEEP_DAYS`
+  (7), never touches one that is on screen, never touches the agent's row, and is
+  off entirely when `sweepDrafts` is off. Anything run or edited is kept forever.
+- **A filter appears when the region earns one** — past ~15 rows. It matches names
+  and folder paths, **flattens** both groups (a tree of one match per branch is a
+  worse answer than a list), and shows the folder as a dim suffix on each hit.
+- **Empty states.** Zero drafts hides the Drafts group entirely rather than
+  showing an empty label — there is nothing there and nothing to say about it.
+  Zero files keeps its header and says one line: where files come from.
+
+### Folders
+
+- **A folder in Files is a real directory** under the workspace's scripts root.
+  Creating one, renaming it and moving a file all hit disk immediately — no
+  staged state — which is also what gives an import a stable path to reference.
+  An **empty folder persists**: it is a directory, not a UI grouping, so it sorts
+  with the rest and shows nothing when expanded. Folders sort first,
+  alphabetically, files after (`scriptTree.ts`, unit-tested).
+- **Making one is inline, never a dialog.** The row is a real row from the first
+  keystroke, so you can see where it lands while you type: `⏎` creates the
+  directory, `Esc` or an empty name cancels, and a duplicate shows the field in
+  `border-destructive` and refuses `⏎`. **Rename is the same row**, so the
+  interaction is learned once. Three doors lead to it — the Files group menu
+  (`⇧⌘N`, at the root), right-clicking a folder (one level deeper), and the
+  naming sheet's own `New folder…`, so filing a draft somewhere new needs no trip
+  to the sidebar.
+- **A file's path is its name**, so renaming and moving are one write
+  (`RenameScript`, `renameScriptFile`). The naming sheet is therefore **one sheet
+  for three moments** — naming a draft, renaming a file, moving one — with the
+  same two fields; only its title and its button differ. The folder select lists
+  the folders that exist plus `New folder…`, and the last folder used is the
+  default, so repeat filing is Enter-Enter.
+- **Drafts stay flat, permanently.** Foldering one would mean giving it a place,
+  and a place is half of what a file is. If you want it organised, name it.
+- **A name is resolved inside the folder, never followed out of it.** Everything
+  crossing into `desktop/scripts.go` — from the UI, from an agent, from a browser
+  — is reduced to a relative path (`filepath.IsLocal`, no dot segments) and opened
+  through an `os.Root`. That is the whole access boundary, the same rule the
+  folder app and the server's `ReadScript` follow, which is why the MCP bridge no
+  longer guards paths of its own.
+
+### Saving, and what the web hasn't got
+
+- **A file is saved, not auto-saved.** The buffer and the disk are two things:
+  `ScriptView.savedContent` is what is on disk, the gap between them is the
+  modified dot, `⌘S` closes it and `Revert to saved` throws the buffer away. Both
+  verbs are **absent** — not disabled — while there is no gap. Nothing is written
+  on quit either: unsaved edits ride in the view cache and come back with their
+  dot, because writing a file somebody hasn't saved is exactly what the dot exists
+  to say we don't do. A file re-read on start-up only takes disk's text when the
+  buffer matches what we last saved.
+- **The one you are editing has the pair beside its name**, in the command row.
+  On a draft it is `Name ⌘S` and a discard; on a file, a dot, `Save ⌘S` and a
+  revert. Same verbs as the sidebar row, answering a different moment (mid-edit,
+  versus tidying up after).
 - **The web is the same app minus the verbs that write a file, and minus the
-  state those verbs produce.** Scratches are IndexedDB on both platforms, so the
-  list, the titles and the history are identical; Save, Rename and Delete file
-  are missing, because the server serves a workspace it does not own. So the
-  **dot, the amber count and the word "unsaved" are desktop-only** — on the web
-  no row can change that state, and a mark every row carries marks nothing. The
-  command row's save/discard pair goes with them: it is defined by collapsing
-  away when there is nothing unsaved, and on the web it never could. A script
-  row's **⋯ goes too, rather than opening onto nothing** (`hasScriptMenu`), and
-  its right-click is left to the browser.
+  state those verbs produce.** Drafts are IndexedDB on both platforms, so the
+  list, the titles, the clearing and the history are identical; Name, Save,
+  Rename, Move, Delete file and New folder are missing, because the server serves
+  a workspace it does not own. The **modified dot** goes with them — no row can
+  reach that state — and so do the row's ⋯ and the command row's pair.
 - **The reads are not one of those verbs, so the web has the workspace's own
   scripts** (`scriptFiles.ts`). The `scripts` folder beside kaja.json is read
-  wherever it is: the desktop opens the file, a browser goes through
-  `ListScripts`/`ReadScript` on the Api service, and either way the rows are
-  files in the one `Scripts` list. That is what puts a workspace's scripts in a
-  container — `docker run -v .../workspace:/workspace` already mounts the folder,
-  and nothing used to read it — so a demo workspace can ship the scripts that
-  demonstrate it (`workspace/scripts`). **The name is not a path**: the server
-  resolves it inside the scripts folder through an `os.Root`, on the same rule
-  the folder app follows, because a path arriving from a browser is not a handle
-  to follow.
+  wherever it is, at any depth: the desktop opens the files itself, a browser goes
+  through `ListScripts`/`ReadScript` on the Api service, and either way the rows
+  are files in the one `Files` group. That is what puts a workspace's scripts in a
+  container — `docker run -v .../workspace:/workspace` already mounts the folder —
+  so a demo workspace can ship the scripts that demonstrate it
+  (`workspace/scripts`).
 - **A file the server can't write is read-only, stated by refusing the edit.**
   The script's editor takes `readOnly` rather than accepting keystrokes into a
   buffer nothing would keep — the same shape as an app form whose fields are
-  disabled, and the same reason. A scratch beside it is unaffected: it lives in
+  disabled, and the same reason. A draft beside it is unaffected: it lives in
   the browser, so it is as writable there as anywhere, and `⌘N` is the way to
   take a copy of a script somewhere you can change it.
+
+### The agent's draft
+
+**An agent explores in a draft too**, which is what puts its runs in the sidebar
+and in the run history instead of somewhere the user can't see. A snippet run
+over MCP is run in **one** draft, the same one every time. What it needs beyond
+an ordinary draft is attribution, liveness, and a clear answer to "can I touch
+this".
+
+- **One row, pinned above your own, wearing the last client's name.** The label is
+  whatever the agent called itself at the handshake (`clientInfo.title`, else
+  `clientInfo.name`, else `Agent` — captured in `desktop/mcp/server.go` and
+  carried into the run), so the row reads `Claude` rather than "MCP workspace": an
+  actor you recognise instead of a mechanism you translate. `agentClient` on the
+  `Scratch` is the whole of it, and `isAgentScratch` is what pins the row,
+  excludes it from the count and spares it from the sweep. The `Plug` icon is
+  already MCP in the status bar.
+- **The emerald dot is the only live indicator in the sidebar.** It goes out the
+  moment the call finishes, and the row stays, name and all — it persists with no
+  client connected, because that is how you read what the last one did.
+- **It can be cleared like any draft, and the agent simply makes another.** That
+  is the point of it being a draft rather than a fixture: clearing it is one
+  deliberate act and costs nothing, and the next snippet an agent runs starts a
+  new one.
+- **Naming it works the same way** and does the same thing — a name and a folder —
+  except the file is yours from then on. `create_script` also consumes it when
+  what was saved is exactly what was last run (`consumeAgentScratch`), on the same
+  rule a person's Name follows: the buffer became the file, so it doesn't linger
+  as a copy, and its console follows it to the path.
 
 ## Script links
 
@@ -452,7 +538,7 @@ console: a run lands in the console of the script it was pressed on and stays
 there, so switching files switches consoles and coming back finds the runs, the
 selection, the tab and the view as they were left.
 
-- **Keyed by file, not held on the view.** `Consoles` maps a `fileId` — a scratch
+- **Keyed by file, not held on the view.** `Consoles` maps a `fileId` — a draft
   id or a script path — to a `FileConsole`: that file's runs, its items, its
   selection, tab and view. Views are a ten-slot cache, so a console living on one
   would be thrown away by ordinary navigation. ("Source" was the old name for
@@ -567,7 +653,7 @@ selection, the tab and the view as they were left.
   standing in for it. The canvas summarises the run's calls into one strip; the
   log is the place that never does.
 - **A run that has nowhere to land is not kept** — but almost nothing has nowhere
-  to land, because an agent's inline snippet is given a scratch to run in (see
+  to land, because an agent's inline snippet is given a draft to run in (see
   the MCP section). What is left is a call arriving with no run open, which gets
   one under the file the last run came from, which is where a late call almost
   certainly belongs.
@@ -583,9 +669,10 @@ selection, the tab and the view as they were left.
   showing — including a run parked on a question, which is awaiting an answer
   rather than a call.
 - **Renaming or saving moves the console; deleting takes it with the file.**
-  Saving a scratch to disk changes what the file is called, not what it is, so
-  its runs follow it from the scratch id to the path (`renameFile`). Discarding a
-  scratch is undoable, so its console is held alongside it and comes back.
+  Naming a draft changes what the file is called, not what it is, so its runs
+  follow it from the draft id to the path (`renameFile`), and a move or a rename
+  moves them again. Discarding a draft is undoable, so its console is held
+  alongside it and comes back.
 - **A run's status is the worst status it contains** (`worstStatus`) — there is
   no "partially succeeded", and the pill's dot is the only thing anyone needs to
   read after a press. Items are ordered by start, never re-sorted, and keep their
@@ -952,8 +1039,8 @@ support surface. There is no `kaja.html`, no styling arguments, no layout contro
   stays readable throughout: the pause blocks the script, not your reading.
 - **An ask with no canvas falls back to the dialog.** A run with no file has no
   console to draw on, and the modal needs no surface of its own. An agent's
-  snippet is not that case any more — it has a scratch, so its question is drawn
-  on that scratch's canvas and the sidebar row wears the waiting ring, which is
+  snippet is not that case any more — it has a draft, so its question is drawn
+  on that draft's canvas and the sidebar row wears the waiting ring, which is
   the right place for a question nobody is looking at. A question that was never
   answered is stored as cancelled, because the promise it was blocking died with
   the session.
@@ -981,13 +1068,14 @@ illustration, and it degrades correctly: on a first run the recent list is
 **There is no tab strip, and no open files either.** The pane shows one thing —
 whatever you last selected — and the window's right side opens with one 40px
 **command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
-sidebar toggle · finder · the file's own save/discard · spacer · action ·
+sidebar toggle · finder · the file's own pair · spacer · action ·
 hairline · search · layout. There are
 no recent chips — with one pane and a finder, they were the last echo of a tab
 strip. Nothing else may be added to it; new controls go in the sidebar header or
-the console header. The save/discard pair is the one exception, and it earned it
-by belonging to the file the trigger just named rather than to the window — it is
-absent whenever there is nothing unsaved, which is most of the time. The sidebar header is 40px too, so the two line up
+the console header. The file's own pair — `Name`/discard on a draft, `Save`/revert
+on a file with edits — is the one exception, and it earned it by belonging to the
+file the trigger just named rather than to the window; it is absent whenever
+there is nothing to save, which is most of the time. The sidebar header is 40px too, so the two line up
 across the seam, and the macOS traffic lights stay in it (the row takes over the
 inset only when the sidebar is collapsed).
 
@@ -1077,7 +1165,8 @@ inset only when the sidebar is collapsed).
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
   with itself.
 - **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
-  `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save. `⌃Tab`, `⌘1–9` and
+  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save a
+  file, or name a draft. `⌃Tab`, `⌘1–9` and
   `⌘W` are gone: there are no positions to number and nothing to close.
 - **Split panes are cut, not deferred.** The pane holds one thing by
   construction; splitting it reintroduces "which one is current", which is the
@@ -1092,7 +1181,7 @@ inset only when the sidebar is collapsed).
 Experimental features are opt-in through the **feature previews** menu — a beaker
 button in the footer next to the theme selector (`FeaturePreviews.tsx`) that opens a
 small popup with a toggle per experimental feature. Enabled features are marked with a
-"Preview" pill in the UI (`PreviewPill` in `Sidebar.tsx`). Toggle state persists via
+"Preview" pill in the UI (`PreviewPill`). Toggle state persists via
 `usePersistedState` under `featurePreview:<key>` keys.
 
 **Scripts, Variables, the MCP server and OpenAPI apps are not previews** — they
@@ -1165,7 +1254,7 @@ shared between them but the protocol's name.
 - **The answer is TypeScript, because that is all a script is.** An author writes `Shows.ListShows({ pageSize: 25 })` against an interface named `ListShowsRequest`; nothing they write is protobuf, and nothing they are shown should be. So the tools hand back **the generated declarations themselves** — the code the script is checked against — rather than a description of the wire format behind them. A declaration can't disagree with the compiler; a second model of one can, and did.
 - **Three tools answer everything, and none grows with the API.** `list_services` is an **index**: every app, service and method as one TypeScript signature (`ListShows(input: ListShowsRequest): Promise<ListShowsResponse>`) with a `read`/`write` mark and its HTTP request — filterable by `app`, `service` or free-text `search`. It carries no declarations; dumping the generated modules is what overflowed an agent's context and forced it to grep a JSON blob. `describe_method "Shows.ListShows"` is the other half: the import line, the signature, and the declarations of **every type that signature names, transitively** (`declarationsFor`), then the call to start from. `describe_type "Show"` looks one type up on its own, which is also where a cut-off answer points. A miss doesn't just say no — an ambiguous name lists its candidates, an unknown one the nearest matches — because a dead end costs a whole round trip. Answers are bounded: declarations are cut after `maxDeclarationLines` (spent line by line, since one response type can be four hundred properties), a run payload after `maxPayload`, and the cut names what to ask for next.
 - **The UI settles what the TypeScript is; Go settles what to show.** `ui/src/declarations.ts` re-emits each generated interface and enum from its own AST — member names and type text verbatim, the API's description kept, the `@generated from protobuf field: …` bookkeeping dropped (it names a wire encoding no script depends on and is the only place protobuf would surface at all), and the app's marks folded into the JSDoc where a reader meets them: `[required]`, `[query parameter]`, `[carries the HTTP payload]`. `ui/src/mcpCatalog.ts` gathers those plus the signatures. `desktop/mcp` decides the framing: read versus write, the closure, the cut, the failure advice. The `.client` modules are left out — `I<Service>Client` is the transport's interface, not one a script writes against.
-- **A method's example is the code Kaja already writes.** `describe_method` hands back `generateMethodEditorCode` — the same call clicking the method in the tree puts in a scratch. One method, one starting point, whichever way you came at it; a second example generator is a second thing to keep in step.
+- **A method's example is the code Kaja already writes.** `describe_method` hands back `generateMethodEditorCode` — the same call clicking the method in the tree puts in a draft. One method, one starting point, whichever way you came at it; a second example generator is a second thing to keep in step.
 - **A generated stub reads as source.** `createServiceInterfaceDefinition` prints its service object `multiLine`; the TypeScript printer puts a synthesized object literal on one line otherwise, so a thirty-method service arrived as one enormous line and any line-based reader — Monaco's hover, an agent grepping a stub — had to pull the whole module to find one signature. It and the `Method` model are both filled from one read of the client interface (`readSignatures`), which is the only place a method's TypeScript names are written down.
 - **`kaja.value` is in the generated request, not just in the guide.** A field typed `Value`, `Struct` or `ListValue` holds any JSON and its wire shape is a `kind` oneof nobody writes by hand, so `defaultInput.ts` used to leave such fields out of a generated request entirely — which meant the one place the builder could be learned didn't mention it, and an agent wrote its own `str`/`bool` helpers for the encoding. The builders postdate that decision: `kaja.value(null)` sends, so it is what the generated request now holds, in the editor and in `describe_method` alike, and `describe_method` names the builder beneath the declarations that mention the type.
 - **The `kaja` object is a declaration too, not a description of one.** It is the other half of what a script is written against and the half no app declares — the canvas verbs, the workspace's variables, `ask`, the JSON builders — so it follows the same rule the service types do: `ui/src/kajaModule.ts` writes it once, Monaco backs the `kaja` import with it (`registerKajaModule`), `buildMcpCatalog` carries it as `Catalog.Runtime`, and `describe_type "kaja"` (or any `kaja.<member>`) hands back that exact text. It was described from memory in the guide before, which is how the canvas verbs came to be documented for the editor and invisible to an agent, which then wrote a Markdown table by hand. `list_services` names it in its preamble, because nothing else in an index of methods would.
@@ -1173,7 +1262,7 @@ shared between them but the protocol's name.
 - **The canvas is the output; `console.log` is where an agent probes.** Both channels exist, but they are not a pair to pick from: a script is a file someone opens and presses Run on, so what it has to say goes on the canvas, and the transcript is read by the agent that asked for the run and by nobody else. Naming them side by side is what taught an agent to end every script with `console.log(response)` — so the guide's first example draws with `kaja.text`, `runtimeNote` states the canvas first and gives `console.log` its scope (probe with it, leave it out of a script you keep), and both say the thing that makes it unnecessary: **`run_script` already reports every call's request and response**, so the only value worth printing is one the script computed. It is not removed and not discouraged in a snippet — that is the one place it is the right tool.
 - **A run reports what it drew.** An agent's run has a canvas and nobody looking at it, so `RunResult.Blocks` is the receipt — each block's kind, and a table's columns and row count (`toBlockLog` in `App.tsx`, collected through `mcpBlockCollectorRef` as the blocks are emitted). The contents are not echoed: the agent produced them.
 - **The guide is not the only channel.** `initialize` returns `instructions` (the embedded `guide.md`) and `kaja://guide` is a resource, but a client may drop or summarise either. So the script runtime contract an agent would otherwise discover by probing — top-level `await` works, there is **no return value**, `kaja.text`/`kaja.code`/`kaja.table` are the canvas a script draws its output on and `console.log` is the transcript to probe with, imports are `<app>/<path>` and **named imports only**, `prompt`/`alert`/`confirm` do nothing — is repeated in `run_script`'s **tool description**, which no client can drop.
-- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's scratch** (`agentScratch` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row in the sidebar, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one scratch, which is what makes them comparable, rather than eight rows. It is an ordinary scratch in every other way — savable, discardable, pruned by the same rules — and if it is discarded the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentScratch`, matched on content), on the same rule a person's Save follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path.
+- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's draft** (`agentScratch` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row pinned at the top of Drafts under the client's own name, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one draft, which is what makes them comparable, rather than eight rows. It is an ordinary draft in every other way — nameable, discardable — except that it is outside the count and outside the sweep; if it is cleared the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentScratch`, matched on content), on the same rule a person's Name follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path. The client's name arrives with the run (`RunScript(ctx, path, code, client)`), read off the `initialize` handshake — see **The agent's draft**.
 - **The footer says when the server is being used.** An agent works in a window nobody is watching, so the plug in the status bar is the one thing that reports it: while a request is being served it goes emerald and a ring pings out of it (`animate-signal`, sized to stay inside the 30px bar rather than Tailwind's own `ping`, which doubles the element). The **server** counts requests in flight and reports each change through `Bridge.Activity`, which the desktop emits as `mcp:activity`; the **UI** decides how long it lingers, because that is a question about being seen rather than about the protocol. A `ping` is a keepalive and doesn't count. Calls arrive in bursts of a few milliseconds, so the mark holds for `MCP_ACTIVITY_LINGER_MS` (2.5s) after the last one is answered — without it a whole burst would come and go inside one frame — and it stays lit for the whole of a long `run_script` rather than expiring under it.
 - **Nothing yet stops an agent writing.** Visibility is the whole of it for now: a snippet's calls are shown, not gated, and the `read`/`write` mark in `list_services` plus the guide's "confirm before running a write" are advice an agent may ignore. A gate belongs at the one place every call goes through (`client.ts`), keyed on something the run carries — that is where to put it when it is wanted.
 - **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` in place of the response — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.

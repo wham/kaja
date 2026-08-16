@@ -24,7 +24,11 @@ func workspaceWithScripts(t *testing.T, scripts map[string]string) string {
 		t.Fatalf("failed to create scripts dir: %v", err)
 	}
 	for name, content := range scripts {
-		if err := os.WriteFile(filepath.Join(scriptsDir, name), []byte(content), 0644); err != nil {
+		path := filepath.Join(scriptsDir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("failed to create folder for %s: %v", name, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatalf("failed to write script %s: %v", name, err)
 		}
 	}
@@ -60,6 +64,52 @@ func TestListScriptsReadsTheFolderBesideTheConfiguration(t *testing.T) {
 	// A listing carries names; contents cost a read each.
 	if response.Scripts[0].Content != "" {
 		t.Errorf("expected a listing to carry no content, got %q", response.Scripts[0].Content)
+	}
+}
+
+// A folder in Files is a real directory, so a listing is the whole tree and each
+// script says which folder it is filed in.
+func TestListScriptsWalksTheFolders(t *testing.T) {
+	configurationPath := workspaceWithScripts(t, map[string]string{
+		"programme.ts":              "// shows",
+		"reports/churn.ts":          "// churn",
+		"reports/weekly/usage.ts":   "// usage",
+		"seed-data/ingest.ts":       "// ingest",
+		".hidden/nothing-to-see.ts": "// hidden",
+	})
+	service := NewApiService(configurationPath, false, "", "", nil)
+
+	response, err := service.ListScripts(context.Background(), &ListScriptsRequest{})
+	if err != nil {
+		t.Fatalf("failed to list scripts: %v", err)
+	}
+
+	got := make([]string, 0, len(response.Scripts))
+	for _, script := range response.Scripts {
+		got = append(got, script.Folder+"|"+script.Name)
+	}
+	want := []string{"|programme.ts", "reports|churn.ts", "reports/weekly|usage.ts", "seed-data|ingest.ts"}
+	if len(got) != len(want) {
+		t.Fatalf("listed %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("listed %v, want %v", got, want)
+		}
+	}
+}
+
+// A folder is part of a script's name now, so reading one is the same read.
+func TestReadScriptInAFolder(t *testing.T) {
+	configurationPath := workspaceWithScripts(t, map[string]string{"reports/churn.ts": "// churn"})
+	service := NewApiService(configurationPath, false, "", "", nil)
+
+	response, err := service.ReadScript(context.Background(), &ReadScriptRequest{Name: "reports/churn.ts"})
+	if err != nil {
+		t.Fatalf("failed to read script: %v", err)
+	}
+	if response.Script.Content != "// churn" || response.Script.Folder != "reports" || response.Script.Name != "churn.ts" {
+		t.Errorf("read back %+v", response.Script)
 	}
 }
 
@@ -103,7 +153,8 @@ func TestReadScriptRefusesAnythingButAPlainScriptName(t *testing.T) {
 		"../kaja.json",
 		"../../etc/passwd",
 		"/etc/passwd",
-		"nested/programme.ts",
+		"reports/../../kaja.json",
+		".hidden/programme.ts",
 		"",
 		"kaja.json",
 		"programme.txt",

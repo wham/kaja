@@ -74,7 +74,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "list_scripts",
-			"description": "List the saved Kaja scripts (name and path).",
+			"description": "List the saved Kaja scripts: each one's name, the folder it is filed in, and its path.",
 			"inputSchema": obj(map[string]interface{}{}),
 		},
 		{
@@ -91,19 +91,20 @@ func toolDefinitions() []map[string]interface{} {
 			}, "path", "content"),
 		},
 		{
-			"name":        "create_script",
-			"description": "Create a new script. Fails if one with the same name already exists.",
+			"name": "create_script",
+			"description": "Create a new script. Fails if one with the same name already exists. " +
+				"Scripts live in folders: name a folder in the path to file it there, and the folder is created if it doesn't exist.",
 			"inputSchema": obj(map[string]interface{}{
-				"name":    str("File name, e.g. \"sync-users\". A .ts extension is added if missing."),
+				"name":    str("File name, e.g. \"sync-users\" or \"reports/weekly-usage\". A .ts extension is added if missing."),
 				"content": str("Initial TypeScript contents."),
 			}, "name", "content"),
 		},
 		{
 			"name":        "rename_script",
-			"description": "Rename a script.",
+			"description": "Rename a script, or move it into another folder — on disk those are one operation, because a file's path is its name.",
 			"inputSchema": obj(map[string]interface{}{
 				"path":     str("Absolute path of the script to rename."),
-				"new_name": str("New file name. A .ts extension is added if missing."),
+				"new_name": str("New name, optionally with a folder (\"reports/churn\"). A .ts extension is added if missing."),
 			}, "path", "new_name"),
 		},
 		{
@@ -115,8 +116,9 @@ func toolDefinitions() []map[string]interface{} {
 			"name": "run_script",
 			"description": "Run a script and return its console output, what it drew on the run's canvas, and every RPC it made with a typed verdict on each. " +
 				"Provide either path (a saved script) or code (an inline snippet). " +
-				"Inline code is not hidden: it runs in a scratch buffer in the user's own sidebar, titled from your code, and every run lands in " +
-				"that buffer's console beside the user's own runs. You get the same buffer each time. A rejected call does not throw - it is " +
+				"Inline code is not hidden: it runs in a draft in the user's own sidebar, pinned at the top of Drafts and labelled with your name, " +
+				"and every run lands in that draft's console beside the user's own runs. You get the same draft each time; if the user clears it, " +
+				"the next run makes another. A rejected call does not throw - it is " +
 				"reported and the script keeps going, with undefined in place of the response. " +
 				runtimeNote,
 			"inputSchema": obj(map[string]interface{}{
@@ -263,7 +265,7 @@ func (s *Server) runScript(ctx context.Context, path, code string) map[string]in
 	if path == "" && code == "" {
 		return errorToolResult(fmt.Errorf("provide either path or code"))
 	}
-	result, err := s.bridge.RunScript(ctx, path, code)
+	result, err := s.bridge.RunScript(ctx, path, code, s.clientName())
 	if err != nil {
 		return errorToolResult(err)
 	}

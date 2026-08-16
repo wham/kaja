@@ -1,5 +1,19 @@
 import { describe, expect, it } from "bun:test";
-import { appendCall, createScratch, findUntouched, isUntouched, markRun, pruneScratches, reopen, Scratch, takeOver, withCode } from "./scratches";
+import {
+  appendCall,
+  createScratch,
+  editedScratches,
+  findUntouched,
+  isUntouched,
+  markRun,
+  orderScratches,
+  pruneScratches,
+  reopen,
+  Scratch,
+  takeOver,
+  untouchedScratches,
+  withCode,
+} from "./scratches";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -110,6 +124,52 @@ describe("pruneScratches", () => {
 
   it("never drops one that is open", () => {
     expect(pruneScratches([stale("browsed")], NOW, new Set(["browsed"]))).toHaveLength(1);
+  });
+
+  // The agent's row persists with no client connected — that is how you read
+  // what the last one did — so only a deliberate clear removes it.
+  it("never sweeps the agent's draft", () => {
+    expect(pruneScratches([stale("agent", { agentClient: "Claude" })], NOW, new Set())).toHaveLength(1);
+  });
+
+  it("sweeps nothing while the sweep is off", () => {
+    expect(pruneScratches([stale("browsed")], NOW, new Set(), false)).toHaveLength(1);
+  });
+});
+
+describe("the Drafts group", () => {
+  const draft = (id: string, updatedAt: number, extra: Partial<Scratch> = {}): Scratch => ({
+    ...createScratch(listShows, undefined, updatedAt),
+    id,
+    updatedAt,
+    ...extra,
+  });
+
+  it("pins the agent's row first, then work, then the browsing buffers", () => {
+    const ordered = orderScratches([
+      draft("browsed-old", NOW - 2 * DAY),
+      draft("edited", NOW - 3 * DAY, { code: listShows + "// mine" }),
+      draft("browsed-new", NOW),
+      draft("agent", NOW - 9 * DAY, { agentClient: "Claude" }),
+      draft("ran", NOW - DAY, { ran: true }),
+    ]);
+
+    expect(ordered.map((scratch) => scratch.id)).toEqual(["agent", "ran", "edited", "browsed-new", "browsed-old"]);
+  });
+
+  // Clearing untouched drafts must not reach the agent's row or your work.
+  it("counts untouched and edited without the agent's row", () => {
+    const list = [draft("browsed", NOW), draft("edited", NOW, { code: listShows + "// mine" }), draft("agent", NOW, { agentClient: "Claude" })];
+
+    expect(untouchedScratches(list).map((scratch) => scratch.id)).toEqual(["browsed"]);
+    expect(editedScratches(list).map((scratch) => scratch.id)).toEqual(["edited"]);
+  });
+
+  // Clicking a method takes over a browsing buffer of your own, never the one an
+  // agent is writing in.
+  it("never reopens the agent's draft as a browsing buffer", () => {
+    const agent = draft("agent", NOW, { agentClient: "Claude" });
+    expect(findUntouched([agent], agent.code, agent.originAppName)).toBeUndefined();
   });
 });
 

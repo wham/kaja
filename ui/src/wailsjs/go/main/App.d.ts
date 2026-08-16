@@ -6,7 +6,13 @@ export function CancelStream(arg1:string):Promise<void>;
 
 export function CreateScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 
+export function CreateScriptFolder(arg1:string):Promise<string>;
+
 export function DeleteScript(arg1:string):Promise<void>;
+
+export function DeleteScriptFolder(arg1:string):Promise<void>;
+
+export function ListScriptFolders():Promise<Array<string>>;
 
 export function ListScripts():Promise<Array<main.ScriptFile>>;
 
@@ -26,7 +32,11 @@ export function ReadScriptFile(arg1:string):Promise<main.ScriptFile>;
 
 export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 
+export function RenameScriptFolder(arg1:string,arg2:string):Promise<string>;
+
 export function ResolvedVariables():Promise<Record<string, string>>;
+
+export function ScriptsFolder():Promise<string>;
 
 export function ShowFileInFinder(arg1:string):Promise<void>;
 

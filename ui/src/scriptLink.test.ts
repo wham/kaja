@@ -94,3 +94,18 @@ describe("isLinkedScript", () => {
     expect(linkName("nightly")).toBe("nightly");
   });
 });
+
+// A folder is part of a script's name, so it is part of the link — two files
+// can share a base name, and the link has to say which one it means.
+describe("a script in a folder", () => {
+  test("keeps the folder in the link, with each segment encoded on its own", () => {
+    expect(scriptLink("reports/weekly usage.ts")).toBe("kaja://run/reports/weekly%20usage");
+    expect(parseScriptLink("kaja://run/reports/weekly%20usage")).toEqual({ ok: true, link: { script: "reports/weekly usage", input: {} } });
+  });
+
+  test("matches the whole name, and a bare name from a link written before folders existed", () => {
+    expect(isLinkedScript("reports/churn.ts", "reports/churn")).toBe(true);
+    expect(isLinkedScript("reports/churn.ts", "churn")).toBe(true);
+    expect(isLinkedScript("billing/churn.ts", "reports/churn")).toBe(false);
+  });
+});

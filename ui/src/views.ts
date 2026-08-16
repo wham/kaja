@@ -56,9 +56,12 @@ export interface AppFormView extends ViewBase {
 
 export interface ScriptView extends ViewBase {
   type: "script";
-  // File-backed script in the global scripts directory; content auto-saves to disk.
+  // A file in the workspace's scripts directory.
   script: Script;
   model: monaco.editor.ITextModel;
+  // What is on disk. Editing a file leaves it a file, in place, with a modified
+  // dot — so the buffer and the disk are two things, and this is the second one.
+  savedContent: string;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
 
@@ -139,14 +142,22 @@ export function showScratch(views: View[], scratch: Scratch): View[] {
 export function showScript(views: View[], script: Script, content: string): View[] {
   const existing = views.find((view) => view.type === "script" && view.script.path === script.path);
   if (existing?.type === "script") {
-    // Refresh contents in case the file changed on disk.
-    existing.model.setValue(content);
+    // Edits that aren't on disk are the buffer's, so opening the file again
+    // keeps them; only a buffer that matches what we last saved takes the
+    // file's own text, in case it changed underneath.
+    if (existing.model.getValue() === existing.savedContent) existing.model.setValue(content);
+    existing.savedContent = content;
     existing.script = script;
     return visit([...views], existing.id);
   }
 
   const view = nextView("script");
-  return show(views, { ...view, type: "script", script, model: editorModel(view.id, content) });
+  return show(views, { ...view, type: "script", script, savedContent: content, model: editorModel(view.id, content) });
+}
+
+/** What a saved file now holds on disk, after it was written or re-read. */
+export function markScriptSaved(views: View[], id: string, savedContent: string): View[] {
+  return update<ScriptView>(views, id, "script", { savedContent });
 }
 
 export function showDefinition(views: View[], model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number): View[] {
@@ -184,7 +195,7 @@ export function setVariablesEditMode(views: View[], id: string, editMode: "table
 
 export interface ViewIdentity {
   name: string;
-  // Where it sits, for the finder's list: "benchling / Folders", "Scripts".
+  // Where it sits, for the finder's list: "benchling / Folders", "Drafts".
   path: string;
   // The qualifier the trigger carries beside the name, empty where the name is
   // already the whole answer.
@@ -205,14 +216,21 @@ export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentit
       const scratch = scratches.find((candidate) => candidate.id === view.scratchId);
       return {
         name: scratch?.title ?? "Scratch",
-        path: "Scripts",
+        path: "Drafts",
         origin: scratch?.originAppName ?? "",
         icon: PenLine,
         provisional: scratch !== undefined && isUntouched(scratch),
       };
     }
     case "script":
-      return { name: view.script.name, path: "Scripts", origin: "", icon: FileCode };
+      // The folder is the qualifier, which is what tells two same-named files
+      // in different folders apart.
+      return {
+        name: view.script.name,
+        path: view.script.folder ? `Files / ${view.script.folder}` : "Files",
+        origin: view.script.folder,
+        icon: FileCode,
+      };
     case "definition":
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
@@ -254,7 +272,11 @@ interface PersistedScriptView {
   type: "script";
   scriptPath: string;
   scriptName: string;
+  scriptFolder?: string;
   code: string;
+  // Both halves are kept, because a file with edits that aren't on disk has to
+  // come back with those edits and still know it has them.
+  savedContent?: string;
   viewState?: object;
 }
 
@@ -283,7 +305,9 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
         type: "script",
         scriptPath: view.script.path,
         scriptName: view.script.name,
+        scriptFolder: view.script.folder,
         code: view.model.getValue(),
+        savedContent: view.savedContent,
         viewState: (getViewState(view.id) ?? view.viewState) as object | undefined,
       });
     }
@@ -301,8 +325,9 @@ export function restoreViews(state: PersistedViewState | undefined, scratches: S
       views.push({
         ...view,
         type: "script",
-        script: { path: persisted.scriptPath, name: persisted.scriptName },
+        script: { path: persisted.scriptPath, name: persisted.scriptName, folder: persisted.scriptFolder ?? "" },
         model: editorModel(view.id, persisted.code),
+        savedContent: persisted.savedContent ?? persisted.code,
         viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
       });
       continue;

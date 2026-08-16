@@ -10,8 +10,20 @@ export function CreateScript(arg1, arg2) {
   return window['go']['main']['App']['CreateScript'](arg1, arg2);
 }
 
+export function CreateScriptFolder(arg1) {
+  return window['go']['main']['App']['CreateScriptFolder'](arg1);
+}
+
 export function DeleteScript(arg1) {
   return window['go']['main']['App']['DeleteScript'](arg1);
+}
+
+export function DeleteScriptFolder(arg1) {
+  return window['go']['main']['App']['DeleteScriptFolder'](arg1);
+}
+
+export function ListScriptFolders() {
+  return window['go']['main']['App']['ListScriptFolders']();
 }
 
 export function ListScripts() {
@@ -50,8 +62,16 @@ export function RenameScript(arg1, arg2) {
   return window['go']['main']['App']['RenameScript'](arg1, arg2);
 }
 
+export function RenameScriptFolder(arg1, arg2) {
+  return window['go']['main']['App']['RenameScriptFolder'](arg1, arg2);
+}
+
 export function ResolvedVariables() {
   return window['go']['main']['App']['ResolvedVariables']();
+}
+
+export function ScriptsFolder() {
+  return window['go']['main']['App']['ScriptsFolder']();
 }
 
 export function ShowFileInFinder(arg1) {

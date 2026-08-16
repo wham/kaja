@@ -155,7 +155,7 @@ func (a *App) stopMCPServer() {
 }
 
 // runScript asks the webview to run a script and waits for the result.
-func (a *App) runScript(ctx context.Context, path, code string) (mcp.RunResult, error) {
+func (a *App) runScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
 	id := randomToken(8)
 	ch := make(chan mcp.RunResult, 1)
 	a.mcpMu.Lock()
@@ -167,7 +167,7 @@ func (a *App) runScript(ctx context.Context, path, code string) (mcp.RunResult, 
 		a.mcpMu.Unlock()
 	}()
 
-	runtime.EventsEmit(a.ctx, "mcp:runScript", map[string]string{"id": id, "path": path, "code": code})
+	runtime.EventsEmit(a.ctx, "mcp:runScript", map[string]string{"id": id, "path": a.scriptPath(path), "code": code, "client": client})
 
 	select {
 	case result := <-ch:
@@ -225,28 +225,14 @@ func randomToken(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// guardScriptPath confines an MCP-supplied path or name to a single file
-// directly inside the flat scripts directory, defeating path traversal from the
-// (untrusted) MCP endpoint. The directory is flat, so only the base name can
-// ever matter; the cleaned result is additionally checked to stay within the
-// root before any filesystem use.
-func (a *App) guardScriptPath(p string) (string, error) {
-	if strings.TrimSpace(p) == "" {
-		return "", fmt.Errorf("empty script path")
-	}
-	root := filepath.Clean(a.scriptsDir())
-	resolved := filepath.Clean(filepath.Join(root, filepath.Base(p)))
-	if resolved == root || !strings.HasPrefix(resolved, root+string(os.PathSeparator)) {
-		return "", fmt.Errorf("invalid script path %q", p)
-	}
-	return resolved, nil
-}
-
 // mcpBridge adapts the App's file methods to the mcp.Bridge interface. It exists
 // because the App already exposes a ListScripts/CreateScript with Wails-shaped
 // return types; the adapter converts those to the MCP shapes without colliding.
-// Every path or name crossing this boundary is run through guardScriptPath so an
-// agent can only touch files inside the scripts directory.
+//
+// Nothing guards paths here any more: every one of those methods resolves the
+// name it is given inside the scripts folder through an os.Root, which is the
+// whole access boundary and is the same one the browser goes through. An agent's
+// path is a name to resolve, exactly like anyone else's.
 type mcpBridge struct{ app *App }
 
 func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
@@ -256,17 +242,13 @@ func (b mcpBridge) ListScripts() ([]mcp.ScriptInfo, error) {
 	}
 	out := make([]mcp.ScriptInfo, 0, len(files))
 	for _, f := range files {
-		out = append(out, mcp.ScriptInfo{Path: f.Path, Name: f.Name})
+		out = append(out, mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder})
 	}
 	return out, nil
 }
 
 func (b mcpBridge) ReadScript(path string) (string, error) {
-	safePath, err := b.app.guardScriptPath(path)
-	if err != nil {
-		return "", err
-	}
-	f, err := b.app.ReadScriptFile(safePath)
+	f, err := b.app.ReadScriptFile(path)
 	if err != nil {
 		return "", err
 	}
@@ -274,71 +256,45 @@ func (b mcpBridge) ReadScript(path string) (string, error) {
 }
 
 func (b mcpBridge) WriteScript(path, content string) error {
-	safePath, err := b.app.guardScriptPath(path)
-	if err != nil {
+	if err := b.app.WriteScriptFile(path, content); err != nil {
 		return err
 	}
-	if err := b.app.WriteScriptFile(safePath, content); err != nil {
-		return err
-	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "write", "path": safePath, "content": content})
+	b.app.notifyScriptsChanged(map[string]string{"action": "write", "path": b.app.scriptPath(path), "content": content})
 	return nil
 }
 
 func (b mcpBridge) CreateScript(name, content string) (mcp.ScriptInfo, error) {
-	safePath, err := b.app.guardScriptPath(name)
-	if err != nil {
-		return mcp.ScriptInfo{}, err
-	}
-	f, err := b.app.CreateScript(filepath.Base(safePath), content)
+	f, err := b.app.CreateScript(name, content)
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
 	// The content travels with it so the UI can tell whether this file is the
-	// agent's own buffer being saved, in which case the buffer goes with it.
-	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name, "content": f.Content})
-	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Content: f.Content}, nil
+	// agent's own draft being saved, in which case the draft goes with it.
+	b.app.notifyScriptsChanged(map[string]string{"action": "create", "path": f.Path, "name": f.Name, "folder": f.Folder, "content": f.Content})
+	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
 
 func (b mcpBridge) RenameScript(path, newName string) (mcp.ScriptInfo, error) {
-	safePath, err := b.app.guardScriptPath(path)
+	from := b.app.scriptPath(path)
+	f, err := b.app.RenameScript(path, newName)
 	if err != nil {
 		return mcp.ScriptInfo{}, err
 	}
-	safeNewPath, err := b.app.guardScriptPath(newName)
-	if err != nil {
-		return mcp.ScriptInfo{}, err
-	}
-	f, err := b.app.RenameScript(safePath, filepath.Base(safeNewPath))
-	if err != nil {
-		return mcp.ScriptInfo{}, err
-	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "rename", "oldPath": safePath, "path": f.Path, "name": f.Name})
-	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Content: f.Content}, nil
+	b.app.notifyScriptsChanged(map[string]string{"action": "rename", "oldPath": from, "path": f.Path, "name": f.Name, "folder": f.Folder})
+	return mcp.ScriptInfo{Path: f.Path, Name: f.Name, Folder: f.Folder, Content: f.Content}, nil
 }
 
 func (b mcpBridge) DeleteScript(path string) error {
-	safePath, err := b.app.guardScriptPath(path)
-	if err != nil {
+	resolved := b.app.scriptPath(path)
+	if err := b.app.DeleteScript(path); err != nil {
 		return err
 	}
-	if err := b.app.DeleteScript(safePath); err != nil {
-		return err
-	}
-	b.app.notifyScriptsChanged(map[string]string{"action": "delete", "path": safePath})
+	b.app.notifyScriptsChanged(map[string]string{"action": "delete", "path": resolved})
 	return nil
 }
 
-func (b mcpBridge) RunScript(ctx context.Context, path, code string) (mcp.RunResult, error) {
-	// Only a saved-script run carries a path; confine it. Inline code has none.
-	if path != "" {
-		safePath, err := b.app.guardScriptPath(path)
-		if err != nil {
-			return mcp.RunResult{}, err
-		}
-		path = safePath
-	}
-	return b.app.runScript(ctx, path, code)
+func (b mcpBridge) RunScript(ctx context.Context, path, code, client string) (mcp.RunResult, error) {
+	return b.app.runScript(ctx, path, code, client)
 }
 
 func (b mcpBridge) Catalog() mcp.Catalog {

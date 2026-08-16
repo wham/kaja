@@ -2478,12 +2478,13 @@ func (x *StoredValueResponse) GetVariableStatus() []*VariableStatus {
 	return nil
 }
 
-// A script the workspace ships: a .ts file in the flat `scripts` folder beside
-// kaja.json. The desktop app reads that folder off disk directly; these two RPCs
-// are how a browser reaches the same folder, which is what puts a script mounted
-// into a container in the sidebar. The server never writes one - saving is the
-// verb a workspace it does not own doesn't offer - so there is no counterpart to
-// the desktop's write, create, rename and delete.
+// A script the workspace ships: a .ts file anywhere under the `scripts` folder
+// beside kaja.json. The desktop app reads that folder off disk directly; these
+// two RPCs are how a browser reaches the same folder, which is what puts a
+// script mounted into a container in the sidebar. The server never writes one -
+// saving is the verb a workspace it does not own doesn't offer - so there is no
+// counterpart to the desktop's write, create, rename and delete, and no way for
+// a browser to make a folder either.
 type Script struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Absolute path on the machine serving the workspace. It identifies the script
@@ -2492,7 +2493,10 @@ type Script struct {
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Only set by ReadScript. A listing carries names, not contents.
-	Content       string `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Content string `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	// The folder the script is filed in, relative to the scripts root and with
+	// forward slashes. Empty for one at the root.
+	Folder        string `protobuf:"bytes,4,opt,name=folder,proto3" json:"folder,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2544,6 +2548,13 @@ func (x *Script) GetName() string {
 func (x *Script) GetContent() string {
 	if x != nil {
 		return x.Content
+	}
+	return ""
+}
+
+func (x *Script) GetFolder() string {
+	if x != nil {
+		return x.Folder
 	}
 	return ""
 }
@@ -2628,7 +2639,8 @@ func (x *ListScriptsResponse) GetScripts() []*Script {
 	return nil
 }
 
-// ReadScript reads one script by its bare file name. A name is not a path: it is
+// ReadScript reads one script by its name within the scripts folder, which may
+// name a folder ("reports/churn.ts"). It is never joined onto anything: it is
 // resolved inside the scripts folder, which is the whole access boundary.
 type ReadScriptRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3744,11 +3756,12 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x17ClearStoredValueRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"O\n" +
 	"\x13StoredValueResponse\x128\n" +
-	"\x0fvariable_status\x18\x01 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"J\n" +
+	"\x0fvariable_status\x18\x01 \x03(\v2\x0f.VariableStatusR\x0evariableStatus\"b\n" +
 	"\x06Script\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\"\x14\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12\x16\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\x14\n" +
 	"\x12ListScriptsRequest\"8\n" +
 	"\x13ListScriptsResponse\x12!\n" +
 	"\ascripts\x18\x01 \x03(\v2\a.ScriptR\ascripts\"'\n" +

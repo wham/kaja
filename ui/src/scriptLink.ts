@@ -22,21 +22,40 @@ export interface ScriptLink {
 
 export type ParsedScriptLink = { ok: true; link: ScriptLink } | { ok: false; error: string };
 
-/** The name a link spells a script with: its file name, without the `.ts`. */
+/**
+ * The name a link spells a script with: its name within the scripts folder,
+ * without the `.ts`. A file in a folder keeps the folder — `reports/churn` —
+ * because that is its name, and two files can share a base name.
+ */
 export function linkName(fileName: string): string {
   return fileName.replace(/\.ts$/, "");
 }
 
-/** Whether a script file is the one a link names, written with or without `.ts`. */
-export function isLinkedScript(fileName: string, named: string): boolean {
-  return linkName(fileName) === linkName(named);
+/**
+ * Whether a script file is the one a link names, written with or without `.ts`.
+ * A link that names no folder matches by base name, which is what every link
+ * written before folders existed says.
+ */
+export function isLinkedScript(scriptName: string, named: string): boolean {
+  const wanted = linkName(named);
+  if (linkName(scriptName) === wanted) return true;
+  return !wanted.includes("/") && baseName(linkName(scriptName)) === wanted;
 }
 
 /** The link that runs a script. What the sidebar's Copy Link puts on the clipboard. */
 export function scriptLink(fileName: string, input?: { [key: string]: string }): string {
-  const link = `${LINK_SCHEME}://run/${encodeURIComponent(linkName(fileName))}`;
+  const path = linkName(fileName)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const link = `${LINK_SCHEME}://run/${path}`;
   const query = new URLSearchParams(input ?? {}).toString();
   return query ? `${link}?${query}` : link;
+}
+
+function baseName(path: string): string {
+  const at = path.lastIndexOf("/");
+  return at === -1 ? path : path.slice(at + 1);
 }
 
 export function parseScriptLink(text: string): ParsedScriptLink {
@@ -53,7 +72,7 @@ export function parseScriptLink(text: string): ParsedScriptLink {
   if (url.host.toLowerCase() !== "run") {
     return { ok: false, error: `${LINK_SCHEME}://${url.host} is not something Kaja does. Links run a script: ${LINK_SCHEME}://run/<script>` };
   }
-  const script = decodeSegment(url.pathname.replace(/^\/+/, "")).trim();
+  const script = url.pathname.replace(/^\/+/, "").split("/").map(decodeSegment).join("/").trim();
   if (!script) {
     return { ok: false, error: `This link names no script. Links run a script: ${LINK_SCHEME}://run/<script>` };
   }
