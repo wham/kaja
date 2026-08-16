@@ -358,25 +358,135 @@ function toListValue(input: JsonValue[]): ListValue {
   return { values: input.map((item) => toValue(item)) };
 }
 
+/**
+ * Where one run's output goes, and what it was given to start with. A `Kaja` is
+ * built from one of these per run, so a script's calls, blocks, questions and
+ * log lines are addressed to the run that made them before it makes any — which
+ * is what lets two scripts run at once without either being able to reach the
+ * other's console. Nothing here is reassigned once the run has begun.
+ */
+export interface RunContext {
+  onMethodCallUpdate: MethodCallUpdate;
+  onAsk: AskRequest;
+  onApprove: ApproveRequest;
+  onBlockUpdate: BlockUpdate;
+  onLog: LogSink;
+  /**
+   * The query a `kaja://run/<script>?...` link carried. It is given at the start
+   * rather than assigned afterwards, so one link's parameters can never be found
+   * by the next run — the two runs are different objects.
+   */
+  input?: { [key: string]: string };
+}
+
+/**
+ * The one `Kaja` per run holds what belongs to that run. This holds what
+ * outlives it: the workspace's variables, and the live tables — which are paged
+ * long after the run that drew them is over, and must stay bounded across all
+ * runs rather than per run.
+ */
+export class KajaHost {
+  // The resolved values, including the ones kaja.json only names and this
+  // machine holds - scripts are the desktop only, where there is no remote
+  // browser being handed a value it shouldn't have.
+  variables: { [key: string]: string } = {};
+  readonly tables = new LiveTables();
+
+  /** A fresh run, with its output already addressed. */
+  run(context: RunContext): Kaja {
+    return new Kaja(context, this);
+  }
+
+  /**
+   * Whether this block's source is still held, which is what Next depends on. It
+   * is asked of the host rather than of a run, because the canvas asking has
+   * only a block id and no idea which run drew it.
+   */
+  hasLiveTable(blockId: string): boolean {
+    return this.tables.has(blockId);
+  }
+
+  /**
+   * Page a table by its block, from the canvas rather than from a script. The
+   * run that drew it is the one that fetches — its Kaja still holds the source,
+   * so the calls land in that run's log however long ago it ended.
+   */
+  pullTable(blockId: string, search: string, want: number): Promise<boolean> {
+    return this.tables.owner(blockId)?.pullTable(blockId, search, want) ?? Promise.resolve(false);
+  }
+
+  /** Start a table's cells, on the same rule as a pull. */
+  pullCells(blockId: string, cells: CellRef[]): Promise<boolean> {
+    return this.tables.owner(blockId)?.pullCells(blockId, cells) ?? Promise.resolve(false);
+  }
+}
+
+/**
+ * Every live table, whoever drew it. It is one map rather than one per run for
+ * two reasons: `MAX_LIVE_TABLES` is a budget for the app, not for a run, and a
+ * page fetched from the canvas arrives knowing only a block id. Holding the
+ * owner beside each table is also what keeps a finished run's `Kaja` — and so
+ * its console, its approvals and its bound clients — alive exactly as long as
+ * something can still call into it, and no longer.
+ */
+export class LiveTables {
+  #entries = new Map<string, { table: LiveTable; owner: Kaja }>();
+
+  open(blockId: string, table: LiveTable, owner: Kaja): void {
+    if (this.#entries.size >= MAX_LIVE_TABLES) {
+      const oldest = this.#entries.keys().next();
+      if (!oldest.done) this.#entries.delete(oldest.value);
+    }
+    this.#entries.set(blockId, { table, owner });
+  }
+
+  get(blockId: string): LiveTable | undefined {
+    return this.#entries.get(blockId)?.table;
+  }
+
+  has(blockId: string): boolean {
+    return this.#entries.has(blockId);
+  }
+
+  owner(blockId: string): Kaja | undefined {
+    return this.#entries.get(blockId)?.owner;
+  }
+
+  ownedBy(owner: Kaja): LiveTable[] {
+    return [...this.#entries.values()].filter((entry) => entry.owner === owner).map((entry) => entry.table);
+  }
+}
+
 export class Kaja {
   readonly _internal: KajaInternal;
   // The query a `kaja://run/<script>?...` link carried, readable as
   // `kaja.input.<name>`. Empty when the script is run any other way.
-  input: { [key: string]: string } = {};
-  // User-defined variables, readable as `kaja.variables.<name>`. These are the
-  // resolved values, including the ones kaja.json only names and this machine
-  // holds - scripts are the desktop only, where there is no remote browser
-  // being handed a value it shouldn't have.
-  variables: { [key: string]: string } = {};
+  readonly input: { [key: string]: string };
+  #host: KajaHost;
   #onAsk: AskRequest;
   #onApprove: ApproveRequest;
   #onBlockUpdate: BlockUpdate;
 
-  constructor(onMethodCallUpdate: MethodCallUpdate, onAsk: AskRequest, onApprove: ApproveRequest, onBlockUpdate: BlockUpdate, onLog: LogSink) {
-    this._internal = new KajaInternal(onMethodCallUpdate, onLog);
-    this.#onAsk = onAsk;
-    this.#onApprove = onApprove;
-    this.#onBlockUpdate = onBlockUpdate;
+  constructor(context: RunContext, host: KajaHost = new KajaHost()) {
+    this._internal = new KajaInternal(context.onMethodCallUpdate, context.onLog);
+    this.#host = host;
+    this.input = context.input ?? {};
+    this.#onAsk = context.onAsk;
+    this.#onApprove = context.onApprove;
+    this.#onBlockUpdate = context.onBlockUpdate;
+  }
+
+  /**
+   * The workspace's variables, readable as `kaja.variables.<name>`. They belong
+   * to the app rather than to the run, so this reads through to the host and
+   * every run in flight sees the same values.
+   */
+  get variables(): { [key: string]: string } {
+    return this.#host.variables;
+  }
+
+  set variables(variables: { [key: string]: string }) {
+    this.#host.variables = variables;
   }
 
   /**
@@ -630,19 +740,14 @@ export class Kaja {
     };
   }
 
-  #tables = new Map<string, LiveTable>();
-
-  #openTable(blockId: string, table: LiveTable): void {
-    if (this.#tables.size >= MAX_LIVE_TABLES) {
-      const oldest = this.#tables.keys().next();
-      if (!oldest.done) this.#tables.delete(oldest.value);
-    }
-    this.#tables.set(blockId, table);
+  // Every run's tables, so the budget is the app's and a page can find its way
+  // back to the run that drew it.
+  get #tables(): LiveTables {
+    return this.#host.tables;
   }
 
-  /** Whether this block's source is still held, which is what Next depends on. */
-  hasLiveTable(blockId: string): boolean {
-    return this.#tables.has(blockId);
+  #openTable(blockId: string, table: LiveTable): void {
+    this.#tables.open(blockId, table, this);
   }
 
   /**
@@ -891,14 +996,17 @@ export class Kaja {
    */
   async settleTables(): Promise<void> {
     for (let pass = 0; pass < 8; pass++) {
-      const pulling = [...this.#tables.values()]
+      // This run's tables only. Another run's first page is its own to wait for,
+      // and waiting on it here would make one script's duration cover another's.
+      const mine = this.#tables.ownedBy(this);
+      const pulling = mine
         .flatMap((table) => [table.first, table.pulling, ...table.running])
         .filter((promise): promise is Promise<void> => promise !== undefined);
       if (pulling.length === 0) return;
       await Promise.all(pulling);
       // The first pull is over once it has been awaited; leaving it here would
       // make every later pass find work that is already done.
-      for (const table of this.#tables.values()) table.first = undefined;
+      for (const table of mine) table.first = undefined;
     }
   }
 
@@ -987,8 +1095,10 @@ class KajaInternal {
    * The scope is the method rather than the run because that is what the button
    * can honestly say: a script that loops over one call is the case this exists
    * for, and one that also writes somewhere else asks again for that. And the
-   * lifetime is the run because anything longer is a policy — cleared by
-   * `runScript`, so the guard is back the next time Run is pressed.
+   * lifetime is the run because anything longer is a policy — this set belongs
+   * to one run's `Kaja` and goes when it does, so the guard is back the next
+   * time Run is pressed and a second script running at the same time can never
+   * be let through on an approval it was not given.
    */
   readonly approvedMethods = new Set<string>();
   /**
@@ -996,14 +1106,13 @@ class KajaInternal {
    * Remembering walks a request and a response with their schemas, and it feeds
    * a completion list that keeps five values per field — so a loop calling one
    * method a thousand times is nine hundred and ninety-five walks for a list
-   * that was full after the first few. Cleared with the approvals, by the run.
+   * that was full after the first few. Per run, like the approvals.
    */
   readonly sampledMethods = new Map<string, number>();
   /**
-   * Where a line the script printed goes. It is here rather than passed into
-   * `runScript` because both doors — the editor's Run and the MCP server's — hold
-   * the one `Kaja`, and the sink outlives any single run the way the rest of this
-   * does.
+   * Where a line the script printed goes — this run's console, since the `Kaja`
+   * it hangs off is this run's. Both doors, the editor's Run and the MCP
+   * server's, build one of these per run and hand it the sink.
    */
   readonly onLog: LogSink;
   #onMethodCallUpdate: MethodCallUpdate;

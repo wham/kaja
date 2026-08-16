@@ -5,13 +5,13 @@ import { runScriptCaptured } from "./scriptRunner";
 import { LogLevel } from "./server/api";
 
 function makeKaja(answer: (question: AskBlock) => string = () => ""): Kaja {
-  return new Kaja(
-    () => {},
-    async (question) => answer(question),
-    async () => "approved" as const,
-    () => {},
-    () => {},
-  );
+  return new Kaja({
+    onMethodCallUpdate: () => {},
+    onAsk: async (question) => answer(question),
+    onApprove: async () => "approved" as const,
+    onBlockUpdate: () => {},
+    onLog: () => {},
+  });
 }
 
 describe("kaja.variables injection", () => {
@@ -247,13 +247,13 @@ describe("kaja.value", () => {
 describe("the console a script sees", () => {
   function withSink(): { kaja: Kaja; lines: { level: LogLevel; message: string }[] } {
     const lines: { level: LogLevel; message: string }[] = [];
-    const kaja = new Kaja(
-      () => {},
-      async () => "",
-      async () => "approved" as const,
-      () => {},
-      (level, message) => void lines.push({ level, message }),
-    );
+    const kaja = new Kaja({
+      onMethodCallUpdate: () => {},
+      onAsk: async () => "",
+      onApprove: async () => "approved" as const,
+      onBlockUpdate: () => {},
+      onLog: (level, message) => void lines.push({ level, message }),
+    });
     return { kaja, lines };
   }
 

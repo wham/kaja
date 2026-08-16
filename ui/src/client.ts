@@ -3,7 +3,7 @@ import type { IMessageType } from "@protobuf-ts/runtime";
 import type { MethodInfo, RpcMetadata, RpcOptions, ServerStreamingCall, UnaryCall } from "@protobuf-ts/runtime-rpc";
 import { TwirpFetchTransport } from "@protobuf-ts/twirp-transport";
 import { appHeaders, transportHeaders } from "./appTypes";
-import { Call, MethodCall, MethodCallHeaders } from "./kaja";
+import { Call, Kaja, MethodCall, MethodCallHeaders } from "./kaja";
 import {
   UPSTREAM_ERROR_TRAILER,
   UPSTREAM_REQUEST_HEADERS_TRAILER,
@@ -11,7 +11,7 @@ import {
   parseUpstreamError,
   parseUpstreamHeaders,
 } from "./upstreamHeaders";
-import { Client, AppRef, Service, serviceId, Transport } from "./apps";
+import { Client, AppRef, Methods, Service, serviceId, Transport } from "./apps";
 import { getBaseUrlForTarget } from "./server/connection";
 import { WailsTransport } from "./server/wails-transport";
 import { Stub } from "./sources";
@@ -69,8 +69,6 @@ function applyErrorMetadata(methodCall: MethodCall, error: unknown): void {
 }
 
 export function createClient(service: Service, stub: Stub, appRef: AppRef): Client {
-  const client: Client = { methods: {} };
-
   const isTwirp = appRef.protocol === Transport.TWIRP;
 
   let transport;
@@ -123,98 +121,119 @@ export function createClient(service: Service, stub: Stub, appRef: AppRef): Clie
     ],
   };
 
-  for (const method of service.methods) {
-    const isServerStreaming = method.serverStreaming && !method.clientStreaming;
-    const inputType: IMessageType<any> | undefined = (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I;
+  // What a method needs that the run has no say in, resolved once rather than
+  // per run: everything below this is the same for every script that calls it.
+  const prepared = service.methods.map((method) => ({
+    method,
+    isServerStreaming: method.serverStreaming && !method.clientStreaming,
+    inputType: (clientStub.methods as MethodInfo[] | undefined)?.find((m) => m.name === method.name)?.I as IMessageType<any> | undefined,
+  }));
 
-    const send = async (input: any) => {
-      // Capture request headers from appRef at request time. They are shown as
-      // configured, with their ${NAME} references intact - the Headers view
-      // reads better that way, and the values behind them stay outside the
-      // browser.
-      const requestHeaders: { [key: string]: string } = appHeaders(appRef.configuration);
+  // Bound methods are kept per run rather than rebuilt per import, and weakly,
+  // so a run's bindings go when the run's Kaja does.
+  const bound = new WeakMap<Kaja, Methods>();
 
-      const methodCall: MethodCall = {
-        id: crypto.randomUUID(),
-        appName: appRef.configuration.name,
-        service,
-        method,
-        input,
-        requestHeaders,
-        url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
-        timestamp: Date.now(),
-      };
-      client.kaja?._internal.methodCallUpdate(methodCall);
+  const bind = (kaja: Kaja): Methods => {
+    const methods: Methods = {};
+    for (const { method, isServerStreaming, inputType } of prepared) {
+      const send = async (input: any) => {
+        // Capture request headers from appRef at request time. They are shown as
+        // configured, with their ${NAME} references intact - the Headers view
+        // reads better that way, and the values behind them stay outside the
+        // browser.
+        const requestHeaders: { [key: string]: string } = appHeaders(appRef.configuration);
 
-      const startedAt = performance.now();
-      const elapsed = () => Math.round(performance.now() - startedAt);
+        const methodCall: MethodCall = {
+          id: crypto.randomUUID(),
+          appName: appRef.configuration.name,
+          service,
+          method,
+          input,
+          requestHeaders,
+          url: isTwirp ? `${appRef.target.replace(/\/$/, "")}/twirp/${serviceId(service)}/${method.name}` : undefined,
+          timestamp: Date.now(),
+        };
+        kaja._internal.methodCallUpdate(methodCall);
 
-      try {
-        // The run's abort signal is read here rather than captured with the
-        // client, so every call a script makes joins the run that issued it.
-        const abort = client.kaja?._internal.abortSignal;
-        // A request is a hand-written object literal, so it is routinely partial:
-        // a deleted field, or a oneof left unset, reaches the serializer as
-        // `undefined` and fails there with an error that names neither. create()
-        // fills those in with the zero values the wire format omits anyway. The
-        // literal itself stays on the method call, so the console and the value
-        // completions keep showing what was actually written.
-        const message = inputType ? inputType.create(input) : input;
-        const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
+        const startedAt = performance.now();
+        const elapsed = () => Math.round(performance.now() - startedAt);
 
-        if (isServerStreaming) {
-          const streamCall = call as ServerStreamingCall<any, any>;
-          methodCall.inputTypeName = streamCall.method?.I?.typeName;
-          methodCall.inputType = streamCall.method?.I;
-          methodCall.outputTypeName = streamCall.method?.O?.typeName;
-          methodCall.outputType = streamCall.method?.O;
-          methodCall.streamOutputs = [];
+        try {
+          // The signal is the one belonging to the run these methods were bound
+          // for, so Stop reaches the calls of that run and no others.
+          const abort = kaja._internal.abortSignal;
+          // A request is a hand-written object literal, so it is routinely partial:
+          // a deleted field, or a oneof left unset, reaches the serializer as
+          // `undefined` and fails there with an error that names neither. create()
+          // fills those in with the zero values the wire format omits anyway. The
+          // literal itself stays on the method call, so the console and the value
+          // completions keep showing what was actually written.
+          const message = inputType ? inputType.create(input) : input;
+          const call = clientStub[lcfirst(method.name)](message, abort ? { ...options, abort } : options);
 
-          for await (const message of streamCall.responses) {
-            // Appended, not copied: the console holds this object rather than a
-            // snapshot of it, so rebuilding the array per message would be a
-            // quadratic cost for a stream nothing is reading differently.
-            methodCall.streamOutputs.push(message);
-            methodCall.output = message;
-            client.kaja?._internal.methodCallUpdate(methodCall);
+          if (isServerStreaming) {
+            const streamCall = call as ServerStreamingCall<any, any>;
+            methodCall.inputTypeName = streamCall.method?.I?.typeName;
+            methodCall.inputType = streamCall.method?.I;
+            methodCall.outputTypeName = streamCall.method?.O?.typeName;
+            methodCall.outputType = streamCall.method?.O;
+            methodCall.streamOutputs = [];
+
+            for await (const message of streamCall.responses) {
+              // Appended, not copied: the console holds this object rather than a
+              // snapshot of it, so rebuilding the array per message would be a
+              // quadratic cost for a stream nothing is reading differently.
+              methodCall.streamOutputs.push(message);
+              methodCall.output = message;
+              kaja._internal.methodCallUpdate(methodCall);
+            }
+            methodCall.streamComplete = true;
+            methodCall.durationMs = elapsed();
+
+            const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
+            collectResponseHeaders(methodCall, headers, trailers);
+          } else {
+            const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
+            methodCall.durationMs = elapsed();
+            methodCall.output = response;
+            methodCall.inputTypeName = call.method?.I?.typeName;
+            methodCall.inputType = call.method?.I;
+            methodCall.outputTypeName = call.method?.O?.typeName;
+            methodCall.outputType = call.method?.O;
+
+            // Capture response headers and trailers
+            collectResponseHeaders(methodCall, headers, trailers);
           }
-          methodCall.streamComplete = true;
+        } catch (error: any) {
           methodCall.durationMs = elapsed();
-
-          const [headers, trailers] = await Promise.all([streamCall.headers, streamCall.trailers]);
-          collectResponseHeaders(methodCall, headers, trailers);
-        } else {
-          const [response, headers, trailers] = await Promise.all([call.response, call.headers, call.trailers]);
-          methodCall.durationMs = elapsed();
-          methodCall.output = response;
-          methodCall.inputTypeName = call.method?.I?.typeName;
-          methodCall.inputType = call.method?.I;
-          methodCall.outputTypeName = call.method?.O?.typeName;
-          methodCall.outputType = call.method?.O;
-
-          // Capture response headers and trailers
-          collectResponseHeaders(methodCall, headers, trailers);
+          methodCall.error = callError(error);
+          applyErrorMetadata(methodCall, error);
         }
-      } catch (error: any) {
-        methodCall.durationMs = elapsed();
-        methodCall.error = callError(error);
-        applyErrorMetadata(methodCall, error);
-      }
 
-      client.kaja?._internal.methodCallUpdate(methodCall);
+        kaja._internal.methodCallUpdate(methodCall);
 
-      return methodCall.output;
-    };
+        return methodCall.output;
+      };
 
-    // A call is handed back rather than made: it goes out when the script awaits
-    // it, or at the end of the tick if nothing has claimed it. `kaja.approve` is
-    // what claims one, and holding it back is the only reason the gap exists —
-    // everything above happens when the call starts, including the row it puts
-    // in the log, so a call that was never approved was never anywhere.
-    client.methods[method.name] = (input: any) => new Call(`${service.name}.${method.name}`, input, () => send(input));
-  }
+      // A call is handed back rather than made: it goes out when the script awaits
+      // it, or at the end of the tick if nothing has claimed it. `kaja.approve` is
+      // what claims one, and holding it back is the only reason the gap exists —
+      // everything above happens when the call starts, including the row it puts
+      // in the log, so a call that was never approved was never anywhere.
+      methods[method.name] = (input: any) => new Call(`${service.name}.${method.name}`, input, () => send(input));
+    }
+    return methods;
+  };
 
-  return client;
+  return {
+    methodsFor(kaja: Kaja): Methods {
+      const held = bound.get(kaja);
+      if (held) return held;
+      const methods = bind(kaja);
+      bound.set(kaja, methods);
+      return methods;
+    },
+  };
 }
 
 function lcfirst(str: string): string {

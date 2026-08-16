@@ -22,7 +22,7 @@ import { Destination, Finder } from "./Finder";
 import { Splitter } from "./Splitter";
 import { answerPlaceholder, answerProblem, normalizeAnswer } from "./ask";
 import { ApproveBlock, ApproveGesture, AskBlock, Block, blockLabel, CellStatus, TableBlock } from "./blocks";
-import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, MethodCall } from "./kaja";
+import { ApprovalRejectedError, ApproveDecision, AskCancelledError, Kaja, KajaHost, MethodCall } from "./kaja";
 import { CellRef, TableView } from "./tableView";
 import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, Service, updateAppRef } from "./apps";
@@ -155,6 +155,31 @@ function applyAppRename(app: AppModel, newConfig: ConfigurationApp): AppModel {
   };
 }
 
+/**
+ * A run in flight, and the `Kaja` its script is running against. The two are
+ * made together and let go together: once a run has settled and nothing it
+ * started is still in the air, dropping this record is what releases the run's
+ * approvals, its sampled methods, its bound clients and its console closures.
+ * The only thing that can hold the `Kaja` past that is a live table the canvas
+ * can still page, and that registry is bounded at MAX_LIVE_TABLES — so a run's
+ * context lives exactly as long as something can call into it.
+ */
+interface LiveRun {
+  run: Run;
+  kaja: Kaja;
+  controller?: AbortController;
+  // The script itself has returned. Its calls may still be landing.
+  settled: boolean;
+}
+
+// Where a run being watched over MCP collects what it did, so the report is
+// built from this run's own calls and blocks rather than from whatever was in
+// flight when it finished.
+interface RunCollector {
+  calls: MethodCall[];
+  blocks: Map<string, Block>;
+}
+
 export function App() {
   const [configuration, setConfiguration] = useState<Configuration>();
   // The running kaja, as opposed to the workspace it serves. It arrives alongside
@@ -212,10 +237,6 @@ export function App() {
    * Only the console subscribes to it, and only on the frame.
    */
   useSyncExternalStore(subscribeConsoleFlags, consoleFlagsVersion);
-  // The run calls are being attributed to. Cleared once the run settles, so a
-  // stray call afterwards starts one of its own rather than joining a run that
-  // is over.
-  const currentRunRef = useRef<Run | null>(null);
   // Whether the finder is open, and where it opened: ⌘P lands on the previous
   // file so ⌘P⏎ goes back, a click on the trigger on the first row.
   const [finder, setFinder] = useState<"first" | "previous">();
@@ -241,12 +262,6 @@ export function App() {
   // Whether an agent is using the server right now, which the footer's plug
   // shows. It outlives the request that set it (see MCP_ACTIVITY_LINGER_MS).
   const [mcpActive, setMcpActive] = useState(false);
-  // While an MCP run_script call is in flight, the method calls it makes are
-  // collected here so they can be returned to the agent.
-  const mcpRunCollectorRef = useRef<MethodCall[] | null>(null);
-  // And what it drew, keyed by block id — a table arrives once per row, so the
-  // last state of each block is what the agent is told about.
-  const mcpBlockCollectorRef = useRef<Map<string, Block> | null>(null);
   const appsRef = useRef(apps);
   appsRef.current = apps;
   const [fileError, setFileError] = useState<string | undefined>();
@@ -293,12 +308,20 @@ export function App() {
   const [bulkScratches, setBulkScratches] = useState<{ verb: "save" | "discard"; scratches: Scratch[] } | null>(null);
   // A `kaja://run/…` link that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
-  // The run in flight, if any: which view issued it, when it started, and the
-  // controller its Stop button aborts. `settled` marks the script itself as
-  // finished — the run is only over once its calls have landed too.
-  const [activeRun, setActiveRun] = useState<{ runId: string; fileId?: string; startedAt: number; controller?: AbortController; settled: boolean } | null>(
-    null,
-  );
+  /**
+   * The runs in flight. There is more than one because there is nothing to stop
+   * there being: ⌘⏎ twice, Run on a second file, a `kaja://` link arriving while
+   * a script is going, an agent calling `run_script` — all of them start a run
+   * without asking what else is going. So a run is a member of a list rather
+   * than the contents of a slot, and each carries the `Kaja` its script is
+   * running against, which is what keeps two of them from meeting.
+   *
+   * `settled` marks the script itself as finished — the run is only over once
+   * its calls have landed too, which is what `settleIfQuiet` waits for.
+   */
+  const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
+  const activeRunsRef = useRef(activeRuns);
+  activeRunsRef.current = activeRuns;
   // A discarded scratch, held long enough to take it back. Nothing was on disk,
   // so discarding is undoable rather than confirmed.
   const [discarded, setDiscarded] = useState<{ scratch: Scratch; runs?: FileConsole } | null>(null);
@@ -397,135 +420,18 @@ export function App() {
     [disposeView, persistViews],
   );
 
-  // One press of Run opens a run; everything the script does lands under it, in
-  // the console of the file it was pressed on. Nothing else creates one, except
-  // a call that arrives with no run open — which gets a run of its own rather
-  // than joining one that is over, under the file the last run came from.
-  const lastRunFileIdRef = useRef<string | undefined>(undefined);
-  const beginRun = useCallback((title: string, fileId?: string, controller?: AbortController, of?: Pick<Run, "origin">): Run => {
-    const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), ...of };
-    currentRunRef.current = run;
-    if (fileId) lastRunFileIdRef.current = fileId;
-    consoles.startRun(run, run.startedAt);
-    setActiveRun({ runId: run.id, fileId, startedAt: run.startedAt, controller, settled: false });
-    return run;
-  }, []);
-
-  const beginRunRef = useRef(beginRun);
-  beginRunRef.current = beginRun;
-
-  // A call arriving with no run open gets one, under the file the last run came
-  // from — that is where a late call almost certainly belongs. A run with no
-  // file at all (an agent running code that was never saved) has no console to
-  // land in and is not kept; the agent still gets its results.
-  const openRun = useCallback(
-    (title: string): Run => {
-      const current = currentRunRef.current;
-      if (current) return current;
-      // Paging a live table fetches after its run is over, and those rows belong
-      // to the run whose canvas asked for them rather than to a run of their own.
-      // A script running at the same time outranks it: that one is definitely
-      // making the call being reported.
-      const pulling = pullRunRef.current;
-      if (pulling) return pulling;
-      return beginRun(title, lastRunFileIdRef.current);
-    },
-    [beginRun],
-  );
-
-  const onMethodCallUpdate = useCallback(
-    (methodCall: MethodCall) => {
-      const collector = mcpRunCollectorRef.current;
-      if (collector) {
-        const i = collector.findIndex((m) => m.id === methodCall.id);
-        if (i > -1) collector[i] = methodCall;
-        else collector.push(methodCall);
-      }
-      // A call a script actually made counts as much as one picked out of the
-      // tree, and more of them are made this way once you are working.
-      recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
-      const run = openRun(methodCall.method.name);
-      consoles.recordCall(run.fileId, run.id, methodCall, Date.now());
-    },
-    [openRun],
-  );
-
-  /**
-   * A line the script printed. It lands in the run it was printed in, so it can
-   * be read against the calls around it, and in kaja.log with its origin
-   * attached — the file is what a TestFlight user can actually send back.
-   *
-   * It is not a verdict: an error-level line says something went wrong in the
-   * script's own reckoning, not that the run failed, so it never colours the
-   * run's dot. Only `onScriptError` below does that.
-   */
-  const onScriptLog = useCallback(
-    (level: LogLevel, message: string) => {
-      logScriptLine(logFileLevel(level), message);
-      const run = openRun("Script output");
-      consoles.recordPrinted(run.fileId, run.id, level, message, Date.now());
-    },
-    [openRun],
-  );
-
-  // Show a failed script run in the console; a script that dies silently looks
-  // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
-  const onScriptError = useCallback(
-    (error: unknown) => {
-      console.error("Script error:", error);
-      const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
-      const run = openRun("Script error");
-      consoles.recordLogs(run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now());
-    },
-    [openRun],
-  );
-
-  // Something the script drew. Blocks arrive more than once — a table paints row
-  // by row — so they are recorded against their own id rather than appended.
-  const onBlockUpdate = useCallback(
-    (blockId: string, block: Block) => {
-      // A run made for the MCP server draws on a canvas nobody is watching, so
-      // what it drew is collected here and reported back as the receipt.
-      mcpBlockCollectorRef.current?.set(blockId, block);
-      const run = openRun("Script output");
-      consoles.recordBlock(run.fileId, run.id, blockId, block, Date.now());
-    },
-    [openRun],
-  );
-
   /**
    * A `kaja.ask*` is answered, and a `kaja.approve(...)` decided, on the canvas
    * of the run it came from — so both promises wait here keyed by the block they
    * were drawn as. One map, because both are the same thing to the run: it is
    * parked until someone says something. A run with no console has no canvas to
-   * draw on — an agent running code that was never saved — and falls back to a
-   * dialog, which needs no surface of its own.
+   * draw on and falls back to a dialog, which needs no surface of its own.
+   *
+   * Each entry remembers which run is parked on it, because Stop is about one
+   * run: cancelling every question on screen would stop a script the button was
+   * never pointing at.
    */
-  const pendingPromptsRef = useRef(new Map<string, { resolve: (answer: string) => void; reject: (error: unknown) => void }>());
-
-  const onAsk = useCallback((question: AskBlock, blockId: string) => {
-    return new Promise<string>((resolve, reject) => {
-      if (!currentRunRef.current?.fileId) {
-        // A select opens on its first option, since the dialog has one field and
-        // it has to hold something.
-        setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", resolve, reject });
-        return;
-      }
-      pendingPromptsRef.current.set(blockId, { resolve, reject });
-    });
-  }, []);
-
-  const onApprove = useCallback((call: ApproveBlock, blockId: string) => {
-    return new Promise<ApproveDecision>((resolve, reject) => {
-      if (!currentRunRef.current?.fileId) {
-        setApprovePrompt({ call, resolve, reject });
-        return;
-      }
-      // The gesture rides back on the same map an answer does — there is one
-      // thing to say, and which of the two approvals it was is the whole of it.
-      pendingPromptsRef.current.set(blockId, { resolve: (gesture) => resolve(gesture === "all" ? "all" : "approved"), reject });
-    });
-  }, []);
+  const pendingPromptsRef = useRef(new Map<string, { runId: string; resolve: (answer: string) => void; reject: (error: unknown) => void }>());
 
   const settlePrompt = useCallback((blockId: string, settle: (pending: { resolve: (answer: string) => void; reject: (error: unknown) => void }) => void) => {
     const pending = pendingPromptsRef.current.get(blockId);
@@ -533,6 +439,132 @@ export function App() {
     pendingPromptsRef.current.delete(blockId);
     settle(pending);
   }, []);
+
+  // What every run is built from and what outlives them all: the workspace's
+  // variables, and the live tables, which are paged from the canvas long after
+  // the run that drew them has ended.
+  const hostRef = useRef<KajaHost>(null);
+  if (!hostRef.current) {
+    hostRef.current = new KajaHost();
+  }
+  const host = hostRef.current;
+
+  /**
+   * Open a run, and with it the `Kaja` its script will be handed.
+   *
+   * This is the one place a run is created, and everything the script goes on to
+   * do — a call, a printed line, a block, a question — is routed by a closure
+   * over the run made here. That is the whole of how two scripts running at once
+   * stay apart: there is no "current run" to read, so there is nothing to read
+   * wrongly. A page fetched from a table's canvas long after the run ended goes
+   * through the same closures, which is why it still lands in the right log.
+   */
+  const beginRun = useCallback(
+    (
+      title: string,
+      fileId?: string,
+      controller?: AbortController,
+      options?: { origin?: Run["origin"]; input?: { [key: string]: string }; collect?: RunCollector },
+    ): LiveRun => {
+      const run: Run = { id: newRunId(), title, fileId, startedAt: Date.now(), origin: options?.origin };
+      consoles.startRun(run, run.startedAt);
+
+      const collect = options?.collect;
+      const kaja = host.run({
+        input: options?.input,
+        onMethodCallUpdate: (methodCall: MethodCall) => {
+          // A run being watched by an agent rather than a person reports its
+          // calls back as well as recording them; the collector is this run's,
+          // so a second run in flight cannot write into it.
+          if (collect) {
+            const i = collect.calls.findIndex((m) => m.id === methodCall.id);
+            if (i > -1) collect.calls[i] = methodCall;
+            else collect.calls.push(methodCall);
+          }
+          // A call a script actually made counts as much as one picked out of the
+          // tree, and more of them are made this way once you are working.
+          recordUse(methodUse(methodCall.appName, methodCall.service, methodCall.method));
+          consoles.recordCall(run.fileId, run.id, methodCall, Date.now());
+        },
+        /**
+         * A line the script printed. It lands in the run it was printed in, so it
+         * can be read against the calls around it, and in kaja.log with its
+         * origin attached — the file is what a TestFlight user can actually send
+         * back.
+         *
+         * It is not a verdict: an error-level line says something went wrong in
+         * the script's own reckoning, not that the run failed, so it never
+         * colours the run's dot. Only `reportScriptError` does that.
+         */
+        onLog: (level: LogLevel, message: string) => {
+          logScriptLine(logFileLevel(level), message);
+          consoles.recordPrinted(run.fileId, run.id, level, message, Date.now());
+        },
+        // Something the script drew. Blocks arrive more than once — a table
+        // paints row by row — so they are recorded against their own id rather
+        // than appended.
+        onBlockUpdate: (blockId: string, block: Block) => {
+          collect?.blocks.set(blockId, block);
+          consoles.recordBlock(run.fileId, run.id, blockId, block, Date.now());
+        },
+        onAsk: (question: AskBlock, blockId: string) =>
+          new Promise<string>((resolve, reject) => {
+            if (!run.fileId) {
+              // A select opens on its first option, since the dialog has one
+              // field and it has to hold something.
+              setAskPrompt({ question, value: question.answerType === "select" ? (question.choices?.[0] ?? "") : "", resolve, reject });
+              return;
+            }
+            pendingPromptsRef.current.set(blockId, { runId: run.id, resolve, reject });
+          }),
+        onApprove: (call: ApproveBlock, blockId: string) =>
+          new Promise<ApproveDecision>((resolve, reject) => {
+            if (!run.fileId) {
+              setApprovePrompt({ call, resolve, reject });
+              return;
+            }
+            // The gesture rides back on the same map an answer does — there is one
+            // thing to say, and which of the two approvals it was is the whole of it.
+            pendingPromptsRef.current.set(blockId, {
+              runId: run.id,
+              resolve: (gesture) => resolve(gesture === "all" ? "all" : "approved"),
+              reject,
+            });
+          }),
+      });
+
+      const live: LiveRun = { run, kaja, controller, settled: false };
+      setActiveRuns((runs) => [...runs, live]);
+      return live;
+    },
+    [host],
+  );
+
+  const beginRunRef = useRef(beginRun);
+  beginRunRef.current = beginRun;
+
+  // The script has returned. Its calls may still be landing, so this is not the
+  // run being over — `settleIfQuiet` decides that once nothing it started is in
+  // the air.
+  const markSettled = useCallback((runId: string) => {
+    setActiveRuns((runs) => runs.map((live) => (live.run.id === runId ? { ...live, settled: true } : live)));
+  }, []);
+
+  const markSettledRef = useRef(markSettled);
+  markSettledRef.current = markSettled;
+
+  // Show a failed script run in the console; a script that dies silently looks
+  // like it succeeded. Mirrored to console.error so it also lands in kaja.log.
+  // It takes the run rather than finding one: the script that failed is the one
+  // whose error this is, however many others are going.
+  const reportScriptError = useCallback(
+    (run: Run) => (error: unknown) => {
+      console.error("Script error:", error);
+      const message = error instanceof Error ? (error.name === "Error" ? error.message : `${error.name}: ${error.message}`) : String(error);
+      consoles.recordLogs(run.fileId, run.id, [{ level: LogLevel.LEVEL_ERROR, message }], Date.now());
+    },
+    [],
+  );
 
   const onAnswerAsk = useCallback((blockId: string, answer: string) => settlePrompt(blockId, (pending) => pending.resolve(answer)), [settlePrompt]);
   const onCancelAsk = useCallback((blockId: string) => settlePrompt(blockId, (pending) => pending.reject(new AskCancelledError())), [settlePrompt]);
@@ -559,11 +591,6 @@ export function App() {
     setAskPrompt(null);
   }, [askPrompt]);
 
-  const kajaRef = useRef<Kaja>(null);
-  if (!kajaRef.current) {
-    kajaRef.current = new Kaja(onMethodCallUpdate, onAsk, onApprove, onBlockUpdate, onScriptLog);
-  }
-
   /**
    * Where each table is paged and searched. This is view state rather than
    * something the run drew, so it is held here instead of in the block — but
@@ -576,30 +603,25 @@ export function App() {
     setTableViews((current) => ({ ...current, [blockId]: view }));
   }, []);
 
-  // The run that a table is being filled for, which is what a call made by the
-  // pull is recorded against.
-  const pullRunRef = useRef<Run | null>(null);
-
   /**
    * Fill a live table further — the next page, or the first page of a new
    * search. A source that is no longer held (a run read back from an earlier
    * session, or one let go to keep the closures bounded) can't be pulled, and
    * the table says so rather than offering a Next that leads nowhere.
+   *
+   * Nothing here says which run the fetch belongs to: the host routes the block
+   * to the `Kaja` that drew it, so the calls are recorded by that run's own
+   * closures however long ago it ended, and a script running right now can't be
+   * mistaken for the one being paged.
    */
   const onTablePull = useCallback(async (blockId: string, search: string, want: number) => {
     const found = consoles.findBlock(blockId);
     const table = found?.block;
     if (!found || table?.kind !== "table") return;
 
-    const previous = pullRunRef.current;
-    pullRunRef.current = found.run;
-    try {
-      const live = await kajaRef.current!.pullTable(blockId, search, want);
-      if (!live) {
-        consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now());
-      }
-    } finally {
-      pullRunRef.current = previous;
+    const live = await hostRef.current!.pullTable(blockId, search, want);
+    if (!live) {
+      consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, live: false, expired: true }, Date.now());
     }
   }, []);
 
@@ -614,15 +636,9 @@ export function App() {
     const table = found?.block;
     if (!found || table?.kind !== "table") return;
 
-    const previous = pullRunRef.current;
-    pullRunRef.current = found.run;
-    try {
-      const held = await kajaRef.current!.pullCells(blockId, cells);
-      if (!held) {
-        consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, expired: true }, Date.now());
-      }
-    } finally {
-      pullRunRef.current = previous;
+    const held = await hostRef.current!.pullCells(blockId, cells);
+    if (!held) {
+      consoles.recordBlock(found.fileId, found.run.id, blockId, { ...table, expired: true }, Date.now());
     }
   }, []);
 
@@ -858,20 +874,21 @@ export function App() {
     const variables = configuration?.variables ?? {};
     setVariables(variables);
     registerKajaModule(Object.keys(variables));
-    if (!kajaRef.current) return;
+    if (!hostRef.current) return;
     // Scripts read resolved values, including the ones kaja.json only names.
     // That is the desktop only: its UI runs inside the app's own process, so
     // there is no remote browser being handed a value it shouldn't have. On the
     // web the configuration's own text is all there is — and no scripts to read
-    // it.
+    // it. They belong to the host rather than to a run, so a run in flight reads
+    // the same values as one started afterwards.
     if (isWailsEnvironment()) {
       ResolvedVariables()
         .then((resolved) => {
-          if (kajaRef.current) kajaRef.current.variables = resolved;
+          if (hostRef.current) hostRef.current.variables = resolved;
         })
         .catch((error) => console.error("Failed to read the resolved variables", error));
     } else {
-      kajaRef.current.variables = variables;
+      hostRef.current.variables = variables;
     }
   }, [configuration?.variables]);
 
@@ -1280,16 +1297,17 @@ export function App() {
     try {
       const file = await ReadScriptFile(prompt.script.path);
       if (!file) return;
-      const kaja = kajaRef.current!;
-      kaja.input = prompt.input;
-      const run = beginRun(file.name, file.path);
-      runScript(file.content, kaja, apps, onScriptError)
+      // The link's parameters are what this run was started with, not something
+      // written onto a shared object — so a second link arriving mid-run, or a
+      // Run pressed beside it, cannot take them or leave its own behind.
+      const { run, kaja } = beginRun(file.name, file.path, undefined, { input: prompt.input });
+      runScript(file.content, kaja, apps, reportScriptError(run))
         .then(() => kaja.settleTables())
-        .finally(() => setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active)));
+        .finally(() => markSettled(run.id));
     } catch (err) {
       showFileError(`Run failed: ${err}`);
     }
-  }, [linkPrompt, apps, showFileError, onScriptError, beginRun]);
+  }, [linkPrompt, apps, showFileError, reportScriptError, beginRun, markSettled]);
 
   // ⏎ runs what the link asked for. The dialog has nothing to type into, and
   // the whole point of a link is that it is one gesture away from a run.
@@ -1503,7 +1521,7 @@ export function App() {
   useEffect(() => {
     if (!isWailsEnvironment()) return;
     const unsub = EventsOn("mcp:runScript", async (payload: { id: string; path: string; code: string }) => {
-      const report = (result: McpRunReport) => MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
+      const reportResult = (result: McpRunReport) => MCPScriptResult(payload.id, JSON.stringify(result)).catch(() => {});
 
       let source = payload.code;
       if (payload.path) {
@@ -1511,7 +1529,7 @@ export function App() {
           const file = await ReadScriptFile(payload.path);
           source = file?.content ?? "";
         } catch (err) {
-          report({ console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] });
+          reportResult({ console: [], error: err instanceof Error ? err.message : String(err), methodCalls: [] });
           return;
         }
       }
@@ -1521,35 +1539,28 @@ export function App() {
       // agent exploring is not a different kind of event from a person doing it.
       const scratch = payload.path ? undefined : agentScratchRef.current(source);
       const fileId = payload.path || scratch?.id;
-      const collected: MethodCall[] = [];
-      mcpRunCollectorRef.current = collected;
-      const drawn = new Map<string, Block>();
-      mcpBlockCollectorRef.current = drawn;
+      // This run's own receipt. Two agents calling run_script at once each get
+      // what their own script did, because the collector reaches the run through
+      // its closures rather than through a slot the later one would take.
+      const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
+      const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
       let result: McpRunReport;
-      const run = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
+      const { run, kaja } = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
         origin: "agent",
+        collect,
       });
       try {
-        const kaja = kajaRef.current!;
-        kaja.input = {};
         const captured = await runScriptCaptured(source, kaja, appsRef.current);
         // An agent's table has nobody to page it, so its receipt is the first
         // page — which is exactly what it says it is.
         await kaja.settleTables();
-        result = { ...captured, methodCalls: collected.map(toMethodCallLog), blocks: [...drawn.values()].map(toBlockLog) };
+        result = { ...captured, ...report() };
       } catch (err) {
-        result = {
-          console: [],
-          error: err instanceof Error ? err.message : String(err),
-          methodCalls: collected.map(toMethodCallLog),
-          blocks: [...drawn.values()].map(toBlockLog),
-        };
+        result = { console: [], error: err instanceof Error ? err.message : String(err), ...report() };
       } finally {
-        mcpRunCollectorRef.current = null;
-        mcpBlockCollectorRef.current = null;
-        setActiveRun((active) => (active?.runId === run.id ? { ...active, settled: true } : active));
+        markSettledRef.current(run.id);
       }
-      report(result);
+      reportResult(result);
     });
     return () => unsub();
   }, []);
@@ -1826,22 +1837,21 @@ export function App() {
     // Run names reuse the derived script names, so the console and the sidebar
     // speak the same language.
     const title = view.type === "script" ? view.script.name : (deriveScratchTitle(code) ?? viewIdentity(view, scratchesRef.current).name);
-    beginRun(title, view.type === "script" ? view.script.path : view.scratchId, controller);
-    // Pressing Run carries no input, so whatever a link left behind goes: the
-    // last link's parameters must not ride along on the next run.
-    kajaRef.current!.input = {};
+    // Pressing Run carries no input, and this run's Kaja was born without any —
+    // there is nothing a previous link could have left behind to clear.
+    const { run, kaja } = beginRun(title, view.type === "script" ? view.script.path : view.scratchId, controller);
     // A live table draws its first page itself, and those calls are the run's:
     // the script is not over until they have landed, or the run would report a
     // duration that stops before the work it started.
-    runScript(code, kajaRef.current!, apps, onScriptError, controller.signal)
-      .then(() => kajaRef.current!.settleTables())
-      .finally(() => setActiveRun((run) => (run?.controller === controller ? { ...run, settled: true } : run)));
+    runScript(code, kaja, apps, reportScriptError(run), controller.signal)
+      .then(() => kaja.settleTables())
+      .finally(() => markSettled(run.id));
     // A run is the punctuation that settles a scratch: it is when the title is
     // re-read from the code, rather than jittering as you type.
     if (view.type === "scratch") {
       updateScratch(view.scratchId, (scratch) => markRun(scratch, code, Date.now()));
     }
-  }, [apps, beginRun, onScriptError, updateScratch]);
+  }, [apps, beginRun, reportScriptError, updateScratch, markSettled]);
 
   /**
    * A generated method-call script issues its call without awaiting it, so the
@@ -1853,29 +1863,31 @@ export function App() {
    * It hangs off the store rather than off a render, because the alternative is
    * asking the question again for every call a run makes.
    */
-  const activeRunRef = useRef(activeRun);
-  activeRunRef.current = activeRun;
-
   const settleIfQuiet = useCallback(() => {
-    const run = activeRunRef.current;
-    if (!run?.settled) return;
-    if (consoles.hasWorkInFlight(run.fileId, run.runId)) return;
+    // Every run in flight is asked, because they finish in whatever order their
+    // work does — the second one pressed is routinely the first one over.
+    const done = activeRunsRef.current.filter((live) => live.settled && !consoles.hasWorkInFlight(live.run.fileId, live.run.id));
+    if (done.length === 0) return;
 
-    if (run.fileId) {
-      const now = Date.now();
-      if (consoles.settleRun(run.fileId, run.runId, now - run.startedAt, now)) {
+    const now = Date.now();
+    for (const { run } of done) {
+      if (!run.fileId) continue;
+      if (consoles.settleRun(run.fileId, run.id, now - run.startedAt, now)) {
         const settled = consoles.file(run.fileId);
         saveRuns(run.fileId, settled.runs, settled.allItems(), now);
       }
     }
-    if (currentRunRef.current?.id === run.runId) currentRunRef.current = null;
-    setActiveRun(null);
+    // Letting the record go is what releases the run's `Kaja` — its approvals,
+    // its sampled methods and its bound clients with it. A live table it drew
+    // holds it past this point, and nothing else can.
+    const over = new Set(done.map((live) => live.run.id));
+    setActiveRuns((runs) => runs.filter((live) => !over.has(live.run.id)));
   }, []);
 
   useEffect(() => consoles.subscribeQuiet(settleIfQuiet), [settleIfQuiet]);
   // The script returning is the other half: a run whose calls all landed while
   // it was still going has nothing left to report it.
-  useEffect(settleIfQuiet, [activeRun, settleIfQuiet]);
+  useEffect(settleIfQuiet, [activeRuns, settleIfQuiet]);
 
   // Which file the console is reporting on. Everything below the editor is that
   // file's: its runs, where it was left pointing, and what it was showing.
@@ -1888,17 +1900,26 @@ export function App() {
     consoles.adoptStoredRuns(currentFileId, loadRuns(currentFileId), Date.now());
   }, [currentFileId]);
 
-  // Stop aborts the calls the run has in flight; the script itself stops at the
-  // call it was awaiting. A run parked on a question — or on a call waiting to
-  // be approved — is awaiting the user rather than a call, so Stop has to end
-  // that too or the script never returns.
+  /**
+   * Stop aborts the calls the run has in flight; the script itself stops at the
+   * call it was awaiting. A run parked on a question — or on a call waiting to
+   * be approved — is awaiting the user rather than a call, so Stop has to end
+   * that too or the script never returns.
+   *
+   * It reaches the runs of the file the button is on and no others. Cancelling
+   * every question on screen was how one Stop used to end a script nobody had
+   * pointed at.
+   */
   const onStopActiveRun = useCallback(() => {
-    for (const blockId of [...pendingPromptsRef.current.keys()]) onCancelAsk(blockId);
-    setActiveRun((run) => {
-      run?.controller?.abort();
-      return null;
-    });
-  }, [onCancelAsk]);
+    const stopping = activeRunsRef.current.filter((live) => live.run.fileId === currentFileId);
+    if (stopping.length === 0) return;
+    const ids = new Set(stopping.map((live) => live.run.id));
+    for (const [blockId, pending] of [...pendingPromptsRef.current.entries()]) {
+      if (ids.has(pending.runId)) onCancelAsk(blockId);
+    }
+    for (const live of stopping) live.controller?.abort();
+    setActiveRuns((runs) => runs.filter((live) => !ids.has(live.run.id)));
+  }, [onCancelAsk, currentFileId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2233,18 +2254,15 @@ export function App() {
     [bulkScratches, scripts],
   );
 
-  // Stop aborts what the button is showing, so it tracks the active run rather
+  // Stop aborts what the button is showing, so it tracks this file's runs rather
   // than the file's in-flight state — a run started elsewhere says so in the
-  // sidebar instead.
-  const running = currentFileId !== undefined && activeRun?.fileId === currentFileId;
+  // sidebar instead. The counter reads from the oldest of them, so pressing Run
+  // again while one is going extends the count rather than restarting it.
+  const runsHere = currentFileId === undefined ? [] : activeRuns.filter((live) => live.run.fileId === currentFileId);
+  const running = runsHere.length > 0;
+  const runningSince = running ? Math.min(...runsHere.map((live) => live.run.startedAt)) : undefined;
   const action = currentIsEditor ? (
-    <RunButton
-      onRun={onRunCurrentTab}
-      onStop={onStopActiveRun}
-      running={running}
-      startedAt={running ? activeRun?.startedAt : undefined}
-      error={syntaxErrors.first}
-    />
+    <RunButton onRun={onRunCurrentTab} onStop={onStopActiveRun} running={running} startedAt={runningSince} error={syntaxErrors.first} />
   ) : jsonView ? (
     <IconButton
       icon={Code}

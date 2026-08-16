@@ -114,9 +114,19 @@ export interface Clients {
   [key: string]: Client;
 }
 
+export interface Methods {
+  [key: string]: (input: any) => Call<any>;
+}
+
 export interface Client {
-  kaja?: Kaja;
-  methods: { [key: string]: (input: any) => Call<any> };
+  /**
+   * The service's methods, bound to one run. A client is built once per app and
+   * shared by every run that imports it, so the run cannot be a field on it —
+   * that field is what used to make two scripts running at once report their
+   * calls to each other. Binding is memoized per `Kaja`, so the ten imports of
+   * one run share one object.
+   */
+  methodsFor(kaja: Kaja): Methods;
 }
 
 export function serviceId(service: Service): string {

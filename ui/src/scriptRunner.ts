@@ -85,10 +85,10 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
           const service = app.services.find((s) => s.name === name && s.sourcePath === source.importPath);
           if (service) {
             const client = app.clients[serviceId(service)];
-            if (client) {
-              client.kaja = kaja;
-              args[alias] = client.methods;
-            }
+            // Bound to this run's Kaja, not assigned onto the shared client:
+            // two scripts running at once import the same client and must not
+            // be able to take each other's run out from under it.
+            if (client) args[alias] = client.methodsFor(kaja);
           } else if (source.enums[name]) {
             args[alias] = source.enums[name].object;
           }
@@ -105,15 +105,12 @@ function prepareTask(code: string, kaja: Kaja, apps: App[]): { args: { [key: str
 // runScript runs a script and resolves once it settles, so the caller can show it
 // as running. Passing a signal lets the caller abort the calls it makes.
 export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error: unknown) => void, signal?: AbortSignal): Promise<void> {
-  const clearSignal = () => {
-    if (kaja._internal.abortSignal === signal) {
-      kaja._internal.abortSignal = undefined;
-    }
-  };
+  // A standing approval covers the run it was given in and nothing further, and
+  // that is now the shape of the thing rather than a rule to remember: the Kaja
+  // is this run's, so its approvals and its signal are born and die with it.
+  // Clearing them here used to be the only guard, and it was the wrong one — it
+  // revoked whatever another run in flight had been granted.
   kaja._internal.abortSignal = signal;
-  // A standing approval covers the run it was given in and nothing further.
-  kaja._internal.approvedMethods.clear();
-  kaja._internal.sampledMethods.clear();
 
   let result: any;
   try {
@@ -136,21 +133,18 @@ export function runScript(code: string, kaja: Kaja, apps: App[], onError: (error
 
     result = func(...Object.values(args), scriptConsole(kaja._internal.onLog, deviceConsole));
   } catch (err) {
-    clearSignal();
     onError(err);
     return Promise.resolve();
   }
-  return Promise.resolve(result)
-    .then(
-      () => {},
-      (err: unknown) => {
-        // A cancelled prompt, a call that wasn't approved, or an aborted run
-        // simply stops the script; surface everything else.
-        if (err instanceof AskCancelledError || err instanceof ApprovalRejectedError || signal?.aborted) return;
-        onError(err);
-      },
-    )
-    .finally(clearSignal);
+  return Promise.resolve(result).then(
+    () => {},
+    (err: unknown) => {
+      // A cancelled prompt, a call that wasn't approved, or an aborted run
+      // simply stops the script; surface everything else.
+      if (err instanceof AskCancelledError || err instanceof ApprovalRejectedError || signal?.aborted) return;
+      onError(err);
+    },
+  );
 }
 
 export interface CapturedRun {
@@ -172,9 +166,6 @@ export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): 
     lines.push(message);
     kaja._internal.onLog(level, message);
   }, deviceConsole);
-
-  kaja._internal.approvedMethods.clear();
-  kaja._internal.sampledMethods.clear();
 
   try {
     const { args, runCode } = prepareTask(code, kaja, apps);
