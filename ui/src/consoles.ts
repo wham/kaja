@@ -355,7 +355,7 @@ export class FileConsole {
     this.touchedAt = now;
   }
 
-  // A scratch saved to disk, or a script renamed: same console, new name.
+  // A draft saved to disk, or a script renamed: same console, new name.
   rename(fileId: string): void {
     this.runs = this.runs.map((run) => ({ ...run, fileId }));
     for (const run of this.runs) {
@@ -579,7 +579,7 @@ export class Consoles {
     this.#flagsChanged();
   }
 
-  // Taking a console out, and putting it back — discarding a scratch is
+  // Taking a console out, and putting it back — discarding a draft is
   // undoable, so its runs have to be able to come back with it.
   takeFile(fileId: string): FileConsole | undefined {
     const file = this.#files.get(fileId);

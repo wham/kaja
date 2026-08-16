@@ -326,13 +326,13 @@ export function Sidebar({
                                   >
                                     {method.name}
                                     <TreeView.TrailingVisual>
-                                      {/* Adding a call to the scratch you already have open is
+                                      {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. */}
                                       {(touch || hoveredMethod === mId) && (
                                         <RowAction
                                           icon={PlusIcon}
-                                          label={`Add ${method.name} to the open scratch`}
+                                          label={`Add ${method.name} to the open draft`}
                                           onClick={() => onSelect(method, service, app, "append")}
                                         />
                                       )}

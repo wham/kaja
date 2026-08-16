@@ -8,8 +8,8 @@ function view(id: string, seq: number): View {
   return { type: "compiler", id, seq };
 }
 
-function scratchView(id: string, scratchId: string): View {
-  return { type: "scratch", id, seq: 1, scratchId, model: {} as any };
+function draftView(id: string, draftId: string): View {
+  return { type: "draft", id, seq: 1, draftId, model: {} as any };
 }
 
 describe("visit", () => {
@@ -64,9 +64,9 @@ describe("the mounted cache", () => {
 });
 
 describe("viewIdentity", () => {
-  it("takes a scratch's name from the store, so the two can't drift apart", () => {
-    const scratch = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
-    const identity = viewIdentity(scratchView("scratch-1", "s1"), [scratch]);
+  it("takes a draft's name from the store, so the two can't drift apart", () => {
+    const draft = { id: "s1", title: "GetShow · vera-lune", originAppName: "theatre" } as any;
+    const identity = viewIdentity(draftView("draft-1", "s1"), [draft]);
 
     expect(identity.name).toBe("GetShow · vera-lune");
     expect(identity.path).toBe("Drafts");
@@ -75,25 +75,25 @@ describe("viewIdentity", () => {
 });
 
 describe("serializeViews", () => {
-  it("stores which scratch a view shows, never its code", () => {
-    const views: View[] = [scratchView("scratch-1", "s1")];
+  it("stores which draft a view shows, never its code", () => {
+    const views: View[] = [draftView("draft-1", "s1")];
     const result = serializeViews(views, () => undefined);
 
-    expect(result.views).toEqual([{ type: "scratch", scratchId: "s1", viewState: undefined }]);
+    expect(result.views).toEqual([{ type: "draft", draftId: "s1", viewState: undefined }]);
   });
 
   // The log reports on this session's apps, so it is not somewhere kaja can
   // start: it is left out on the way down, and skipped on the way back up when
   // an older build wrote one.
   it("leaves the compile log out, and doesn't restore a stored one", () => {
-    const views: View[] = [view("compiler-1", 1), scratchView("scratch-1", "s1")];
-    expect(serializeViews(views, () => undefined).views).toEqual([{ type: "scratch", scratchId: "s1", viewState: undefined }]);
+    const views: View[] = [view("compiler-1", 1), draftView("draft-1", "s1")];
+    expect(serializeViews(views, () => undefined).views).toEqual([{ type: "draft", draftId: "s1", viewState: undefined }]);
 
     expect(restoreViews({ views: [{ type: "compiler" } as any] }, [])).toEqual([]);
   });
 
   it("uses live editor view state over stored view state", () => {
     const live = { cursorState: [{ position: { lineNumber: 5 } }] } as any;
-    expect((serializeViews([scratchView("scratch-1", "s1")], () => live).views[0] as any).viewState).toBe(live);
+    expect((serializeViews([draftView("draft-1", "s1")], () => live).views[0] as any).viewState).toBe(live);
   });
 });

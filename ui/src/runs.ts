@@ -20,7 +20,7 @@ export interface Run {
   // header says `Run 3`, so it has to survive the oldest runs being trimmed —
   // a position in the list would renumber underneath you.
   number?: number;
-  // The file it came from — a scratch id or a script path. The console belongs
+  // The file it came from — a draft id or a script path. The console belongs
   // to the file, so this is what decides which console a run lands in. ("Source"
   // is taken: it means an app's generated proto TypeScript.)
   fileId?: string;

@@ -6,7 +6,7 @@ import { deserializeFile, pruneArchive, RunArchive, serializeFile, StoredFile } 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-const run: Run = { id: "r1", title: "ListShows", fileId: "scratch-1", startedAt: NOW, durationMs: 212 };
+const run: Run = { id: "r1", title: "ListShows", fileId: "draft-1", startedAt: NOW, durationMs: 212 };
 
 function call(output: unknown, runId = run.id, id = "item-1"): ConsoleItem {
   const methodCall = {

@@ -72,7 +72,7 @@ type CatalogMethod struct {
 	HTTP      string `json:"http,omitempty"`
 	Streaming string `json:"streaming,omitempty"`
 	// The call Kaja writes for this method — the same code clicking it in the tree
-	// puts in a scratch.
+	// puts in a draft.
 	Example string `json:"example"`
 }
 

@@ -7,21 +7,21 @@ import ts from "typescript";
 const SMALL_REQUEST_FIELDS = 3;
 const MAX_SUBJECT = 24;
 
-// A call a scratch makes, in source order.
-export interface ScratchCall {
+// A call a draft makes, in source order.
+export interface DraftCall {
   service: string;
   method: string;
   // The first literal bound to an identifying field, if the call fills one in.
   subject?: string;
 }
 
-// The calls a scratch makes. Receivers are matched against what the file
+// The calls a draft makes. Receivers are matched against what the file
 // imports, so `console.log` and friends are never mistaken for a service call.
-export function readCalls(code: string): ScratchCall[] {
-  const file = ts.createSourceFile("scratch.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
+export function readCalls(code: string): DraftCall[] {
+  const file = ts.createSourceFile("draft.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
   const imported = importedNames(file);
   const runtime = runtimeNames(file);
-  const calls: ScratchCall[] = [];
+  const calls: DraftCall[] = [];
 
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
@@ -137,8 +137,8 @@ function truncate(value: string): string {
 }
 
 /**
- * What a scratch is called, read from the code it holds. Undefined when it
- * calls nothing yet — the caller falls back to a plain "Scratch".
+ * What a draft is called, read from the code it holds. Undefined when it
+ * calls nothing yet — the caller falls back to a plain "Draft".
  *
  * This is why Kaja can name these better than a chat app names conversations:
  * the content is typed code against a known schema, so the title is a
@@ -166,7 +166,7 @@ export function proposeFileName(title: string, taken: Iterable<string> = []): st
     title
       .replace(/[^A-Za-z0-9]+/g, " ")
       .trim()
-      .split(" ")[0] || "scratch";
+      .split(" ")[0] || "draft";
   const base = word.charAt(0).toLowerCase() + word.slice(1);
   const used = new Set([...taken].map((name) => name.replace(/\.ts$/, "").toLowerCase()));
   if (!used.has(base.toLowerCase())) return base;
@@ -188,12 +188,12 @@ export function proposeFileNames(titles: string[], taken: Iterable<string> = [])
   });
 }
 
-export function deriveScratchTitle(code: string): string | undefined {
+export function deriveDraftTitle(code: string): string | undefined {
   const calls = readCalls(code);
   if (calls.length === 0) return undefined;
 
   // Calling one method three times is still about that one method.
-  const distinct: ScratchCall[] = [];
+  const distinct: DraftCall[] = [];
   for (const call of calls) {
     if (!distinct.some((other) => other.service === call.service && other.method === call.method)) distinct.push(call);
   }

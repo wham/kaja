@@ -491,10 +491,10 @@ describe("run numbering", () => {
 
 describe("renaming, taking and dropping a file", () => {
   it("moves a console to the name the file now has", () => {
-    const created = start("scratch-1");
-    store.renameFile("scratch-1", "/scripts/show.ts");
+    const created = start("draft-1");
+    store.renameFile("draft-1", "/scripts/show.ts");
 
-    expect(store.file("scratch-1").runs).toHaveLength(0);
+    expect(store.file("draft-1").runs).toHaveLength(0);
     expect(store.file("/scripts/show.ts").runs[0].id).toBe(created.id);
     expect(store.file("/scripts/show.ts").runs[0].fileId).toBe("/scripts/show.ts");
   });
@@ -507,15 +507,15 @@ describe("renaming, taking and dropping a file", () => {
   });
 
   it("hands the console back so a discard can be undone", () => {
-    start("scratch-1");
-    const taken = store.takeFile("scratch-1");
+    start("draft-1");
+    const taken = store.takeFile("draft-1");
 
-    expect(store.file("scratch-1").runs).toHaveLength(0);
+    expect(store.file("draft-1").runs).toHaveLength(0);
     expect(taken?.runs).toHaveLength(1);
 
-    store.putFile("scratch-1", taken!);
+    store.putFile("draft-1", taken!);
 
-    expect(store.file("scratch-1").runs).toHaveLength(1);
+    expect(store.file("draft-1").runs).toHaveLength(1);
   });
 
   it("drops a file outright", () => {

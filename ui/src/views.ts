@@ -2,7 +2,7 @@ import { Braces, FileCode, PenLine, ScrollText, Settings, type LucideIcon } from
 import * as monaco from "monaco-editor";
 import { appType, appTypeLabel, getAppType } from "./appTypes";
 import { Script } from "./apps";
-import { isUntouched, Scratch } from "./scratches";
+import { isUntouched, Draft } from "./drafts";
 import { ConfigurationApp } from "./server/api";
 
 // How many views the pane keeps mounted. There is no "open files" set: this is
@@ -25,12 +25,12 @@ export interface CompilerView extends ViewBase {
   type: "compiler";
 }
 
-// A window onto a scratch. The scratch itself lives in the scratch store and
+// A window onto a draft. The draft itself lives in the draft store and
 // outlives the view — navigating away puts the buffer down, it doesn't throw
 // the work out.
-export interface ScratchView extends ViewBase {
-  type: "scratch";
-  scratchId: string;
+export interface DraftView extends ViewBase {
+  type: "draft";
+  draftId: string;
   model: monaco.editor.ITextModel;
   viewState?: monaco.editor.ICodeEditorViewState;
 }
@@ -69,7 +69,7 @@ export interface VariablesView extends ViewBase {
   editMode: "table" | "json";
 }
 
-export type View = CompilerView | ScratchView | DefinitionView | AppFormView | ScriptView | VariablesView;
+export type View = CompilerView | DraftView | DefinitionView | AppFormView | ScriptView | VariablesView;
 
 let sequence = 0;
 
@@ -78,7 +78,7 @@ function nextView(type: string): ViewBase {
   return { id: `${type}-${sequence}`, seq: sequence };
 }
 
-// A scratch keeps the same model URI across sessions, so its identity in the
+// A draft keeps the same model URI across sessions, so its identity in the
 // editor is the same one the store uses.
 function editorModel(uri: string, code: string): monaco.editor.ITextModel {
   const parsed = monaco.Uri.parse("ts:/" + uri + ".ts");
@@ -118,7 +118,7 @@ function show(views: View[], view: View): View[] {
 
 // Taking a view out of the cache: the document it showed is untouched, this
 // only stops rendering it (the app it belonged to went away, a preview was
-// switched off, the scratch was deleted).
+// switched off, the draft was deleted).
 export function dropView(views: View[], id: string): View[] {
   return views.filter((view) => view.id !== id);
 }
@@ -129,11 +129,11 @@ function update<T extends View>(views: View[], id: string, type: T["type"], chan
 
 // --- Opening ---
 
-export function showScratch(views: View[], scratch: Scratch): View[] {
-  const existing = views.find((view) => view.type === "scratch" && view.scratchId === scratch.id);
+export function showDraft(views: View[], draft: Draft): View[] {
+  const existing = views.find((view) => view.type === "draft" && view.draftId === draft.id);
   if (existing) return visit(views, existing.id);
 
-  return show(views, { ...nextView("scratch"), type: "scratch", scratchId: scratch.id, model: editorModel(scratch.id, scratch.code) });
+  return show(views, { ...nextView("draft"), type: "draft", draftId: draft.id, model: editorModel(draft.id, draft.code) });
 }
 
 export function showScript(views: View[], script: Script, content: string): View[] {
@@ -196,19 +196,19 @@ export interface ViewIdentity {
   provisional?: boolean;
 }
 
-export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentity {
+export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
   switch (view.type) {
-    case "scratch": {
-      // The scratch store owns the name — it is read from the code, so the view
+    case "draft": {
+      // The draft store owns the name — it is read from the code, so the view
       // can't have its own copy without the two drifting apart. Same vocabulary
       // as a saved script: only the icon says it isn't on disk.
-      const scratch = scratches.find((candidate) => candidate.id === view.scratchId);
+      const draft = drafts.find((candidate) => candidate.id === view.draftId);
       return {
-        name: scratch?.title ?? "Scratch",
+        name: draft?.title ?? "Draft",
         path: "Drafts",
-        origin: scratch?.originAppName ?? "",
+        origin: draft?.originAppName ?? "",
         icon: PenLine,
-        provisional: scratch !== undefined && isUntouched(scratch),
+        provisional: draft !== undefined && isUntouched(draft),
       };
     }
     case "script":
@@ -251,9 +251,9 @@ function appFormIcon(view: AppFormView): LucideIcon {
 
 // --- Persistence ---
 
-interface PersistedScratchView {
-  type: "scratch";
-  scratchId: string;
+interface PersistedDraftView {
+  type: "draft";
+  draftId: string;
   viewState?: object;
 }
 
@@ -266,7 +266,25 @@ interface PersistedScriptView {
   viewState?: object;
 }
 
-type PersistedView = PersistedScratchView | PersistedScriptView;
+/**
+ * What a build from before the word changed wrote for a draft. Read, never
+ * written: the rename is in the code and in the UI, and a workspace that had
+ * drafts open is not the place to make the point.
+ */
+interface LegacyScratchView {
+  type: "scratch";
+  scratchId: string;
+  viewState?: object;
+}
+
+type PersistedView = PersistedDraftView | PersistedScriptView | LegacyScratchView;
+
+// The draft a persisted view is a window onto, under either spelling.
+export function persistedDraftId(view: PersistedView): string | undefined {
+  if (view.type === "draft") return view.draftId;
+  if (view.type === "scratch") return view.scratchId;
+  return undefined;
+}
 
 // The visit order is the order of the list, so nothing else has to be stored:
 // what was on screen is what restores first.
@@ -284,8 +302,8 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
   const serialized: PersistedView[] = [];
 
   for (const view of views) {
-    if (view.type === "scratch") {
-      serialized.push({ type: "scratch", scratchId: view.scratchId, viewState: (getViewState(view.id) ?? view.viewState) as object | undefined });
+    if (view.type === "draft") {
+      serialized.push({ type: "draft", draftId: view.draftId, viewState: (getViewState(view.id) ?? view.viewState) as object | undefined });
     } else if (view.type === "script") {
       serialized.push({
         type: "script",
@@ -301,7 +319,7 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
   return { views: serialized };
 }
 
-export function restoreViews(state: PersistedViewState | undefined, scratches: Scratch[]): View[] {
+export function restoreViews(state: PersistedViewState | undefined, drafts: Draft[]): View[] {
   const views: View[] = [];
 
   for (const persisted of state?.views ?? []) {
@@ -318,17 +336,18 @@ export function restoreViews(state: PersistedViewState | undefined, scratches: S
     }
 
     // State written by a build that persisted the compile log still names it.
-    if (persisted.type !== "scratch") continue;
+    const draftId = persistedDraftId(persisted);
+    if (draftId === undefined) continue;
 
-    // A scratch pruned while its view was cached simply doesn't come back.
-    const scratch = scratches.find((candidate) => candidate.id === persisted.scratchId);
-    if (!scratch) continue;
+    // A draft pruned while its view was cached simply doesn't come back.
+    const draft = drafts.find((candidate) => candidate.id === draftId);
+    if (!draft) continue;
 
     views.push({
-      ...nextView("scratch"),
-      type: "scratch",
-      scratchId: scratch.id,
-      model: editorModel(scratch.id, scratch.code),
+      ...nextView("draft"),
+      type: "draft",
+      draftId: draft.id,
+      model: editorModel(draft.id, draft.code),
       viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
     });
   }

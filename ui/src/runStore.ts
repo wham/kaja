@@ -248,7 +248,7 @@ export function loadRuns(fileId: string, now = Date.now()): LoadedRuns | undefin
   return stored ? deserializeFile(stored) : undefined;
 }
 
-// A scratch saved to disk, or a script renamed: same console, new name.
+// A draft saved to disk, or a script renamed: same console, new name.
 export function renameStoredFile(oldId: string, newId: string): void {
   const archive = readArchive();
   const stored = archive[oldId];
