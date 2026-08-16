@@ -23,6 +23,7 @@ export namespace main {
 	export class ScriptFile {
 	    path: string;
 	    name: string;
+	    folder: string;
 	    content: string;
 	
 	    static createFrom(source: any = {}) {
@@ -33,6 +34,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.name = source["name"];
+	        this.folder = source["folder"];
 	        this.content = source["content"];
 	    }
 	}

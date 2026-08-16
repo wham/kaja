@@ -56,7 +56,7 @@ export interface AppFormView extends ViewBase {
 
 export interface ScriptView extends ViewBase {
   type: "script";
-  // File-backed script in the global scripts directory; content auto-saves to disk.
+  // A file in the workspace's scripts directory; its content auto-saves to disk.
   script: Script;
   model: monaco.editor.ITextModel;
   viewState?: monaco.editor.ICodeEditorViewState;
@@ -184,7 +184,7 @@ export function setVariablesEditMode(views: View[], id: string, editMode: "table
 
 export interface ViewIdentity {
   name: string;
-  // Where it sits, for the finder's list: "benchling / Folders", "Scripts".
+  // Where it sits, for the finder's list: "benchling / Folders", "Drafts".
   path: string;
   // The qualifier the trigger carries beside the name, empty where the name is
   // already the whole answer.
@@ -205,14 +205,21 @@ export function viewIdentity(view: View, scratches: Scratch[] = []): ViewIdentit
       const scratch = scratches.find((candidate) => candidate.id === view.scratchId);
       return {
         name: scratch?.title ?? "Scratch",
-        path: "Scripts",
+        path: "Drafts",
         origin: scratch?.originAppName ?? "",
         icon: PenLine,
         provisional: scratch !== undefined && isUntouched(scratch),
       };
     }
     case "script":
-      return { name: view.script.name, path: "Scripts", origin: "", icon: FileCode };
+      // The folder is the qualifier, which is what tells two same-named files
+      // in different folders apart.
+      return {
+        name: view.script.name,
+        path: view.script.folder ? `Files / ${view.script.folder}` : "Files",
+        origin: view.script.folder,
+        icon: FileCode,
+      };
     case "definition":
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
     case "appForm":
@@ -254,6 +261,7 @@ interface PersistedScriptView {
   type: "script";
   scriptPath: string;
   scriptName: string;
+  scriptFolder?: string;
   code: string;
   viewState?: object;
 }
@@ -283,6 +291,7 @@ export function serializeViews(views: View[], getViewState: (id: string) => mona
         type: "script",
         scriptPath: view.script.path,
         scriptName: view.script.name,
+        scriptFolder: view.script.folder,
         code: view.model.getValue(),
         viewState: (getViewState(view.id) ?? view.viewState) as object | undefined,
       });
@@ -301,7 +310,7 @@ export function restoreViews(state: PersistedViewState | undefined, scratches: S
       views.push({
         ...view,
         type: "script",
-        script: { path: persisted.scriptPath, name: persisted.scriptName },
+        script: { path: persisted.scriptPath, name: persisted.scriptName, folder: persisted.scriptFolder ?? "" },
         model: editorModel(view.id, persisted.code),
         viewState: persisted.viewState as monaco.editor.ICodeEditorViewState | undefined,
       });

@@ -15,10 +15,11 @@ import (
 type fakeBridge struct {
 	scripts  map[string]string // path -> content
 	catalog  Catalog
-	lastRun  string
-	runErr   error
-	runValue RunResult
-	activity []int // in-flight counts, in the order they were reported
+	lastRun    string
+	lastClient string
+	runErr     error
+	runValue   RunResult
+	activity   []int // in-flight counts, in the order they were reported
 }
 
 // The fake catalog is shaped like a real one: an OpenAPI app whose methods carry
@@ -136,12 +137,13 @@ func (f *fakeBridge) RenameScript(path, newName string) (ScriptInfo, error) {
 	return ScriptInfo{Path: np, Name: newName, Content: c}, nil
 }
 func (f *fakeBridge) DeleteScript(path string) error { delete(f.scripts, path); return nil }
-func (f *fakeBridge) RunScript(_ context.Context, path, code string) (RunResult, error) {
+func (f *fakeBridge) RunScript(_ context.Context, path, code, client string) (RunResult, error) {
 	if path != "" {
 		f.lastRun = path
 	} else {
 		f.lastRun = code
 	}
+	f.lastClient = client
 	return f.runValue, f.runErr
 }
 func (f *fakeBridge) Catalog() Catalog { return f.catalog }
@@ -506,6 +508,32 @@ func TestCallTool_CRUD(t *testing.T) {
 	tool(t, srv, "delete_script", map[string]string{"path": "/s/new"})
 	if _, ok := bridge.scripts["/s/new"]; ok {
 		t.Errorf("script was not deleted")
+	}
+}
+
+// The draft an inline run lands in is labelled with the agent that ran it, so
+// the name it announced at the handshake has to reach the run.
+func TestRunScriptCarriesTheClientName(t *testing.T) {
+	bridge := newFakeBridge()
+	srv := NewServer(bridge, token)
+
+	// Before any handshake there is still a row to label.
+	tool(t, srv, "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "Agent" {
+		t.Errorf("client = %q, want the fallback", bridge.lastClient)
+	}
+
+	// A title is what a person reads; the identifier is the fallback.
+	call(t, srv, "initialize", map[string]interface{}{"clientInfo": map[string]string{"name": "claude-code", "title": "Claude Code"}})
+	tool(t, srv, "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "Claude Code" {
+		t.Errorf("client = %q, want Claude Code", bridge.lastClient)
+	}
+
+	call(t, srv, "initialize", map[string]interface{}{"clientInfo": map[string]string{"name": "cursor-vscode"}})
+	tool(t, srv, "run_script", map[string]string{"code": "1"})
+	if bridge.lastClient != "cursor-vscode" {
+		t.Errorf("client = %q, want cursor-vscode", bridge.lastClient)
 	}
 }
 

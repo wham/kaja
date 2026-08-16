@@ -1,31 +1,48 @@
 import ts from "typescript";
 import { deriveScratchTitle } from "./scratchTitle";
 
-// A scratch that was opened, never edited and never run is a browsing buffer,
-// not work. It is dropped once it is this old.
-const STALE_DAYS = 14;
+// A draft that was opened, never edited and never run is a browsing buffer, not
+// work. The sweep drops one this old — weekly by default, because the steady
+// state of a pile that grows one row per method clicked is otherwise only ever
+// upward.
+export const SWEEP_DAYS = 7;
+
+// How many drafts the sidebar draws before the rest become `n more…`. The pile
+// is capped rather than scrolled so the Scripts region stays a predictable share
+// of the panel however many calls you have browsed.
+export const VISIBLE_DRAFTS = 8;
 
 /**
- * A scratch is the unit of exploration: unlimited, kept in the app, and named
- * from its own code. It is not a file — saving it as a script is what puts it
- * on disk, where agents and other tools can see it.
+ * A draft is the unit of exploration: unlimited, kept in the app, and named from
+ * its own code. It has no name and no place, and that is the entire difference
+ * between it and a file — not durability, since a draft survives quit, crash and
+ * reopen exactly as a file does. Naming one is what gives it both and moves it
+ * into Files.
+ *
+ * "Scratch" is the name in the code, where it says precisely which storage tier
+ * this is; the UI says Draft.
  */
 export interface Scratch {
   id: string;
-  // Always read from the code — there is no rename, because naming a script and
-  // saving it are the same act.
+  // Always read from the code — there is no rename, because naming a draft and
+  // filing it are the same act.
   title: string;
   code: string;
-  // What the scratch was born as. While the code still matches this and nothing
-  // has been run, the next method click takes this scratch over instead of
+  // What the draft was born as. While the code still matches this and nothing
+  // has been run, the next method click takes this draft over instead of
   // starting another one.
   generatedCode: string;
   ran: boolean;
   // The app the call it was generated from belongs to, and nothing more: it is
   // the qualifier beside the title, which is what tells two same-named calls in
-  // different apps apart. A scratch is not bound to the method it came from and
+  // different apps apart. A draft is not bound to the method it came from and
   // is free to grow past it.
   originAppName?: string;
+  // What an agent calls itself, on the one draft an MCP client writes in. It is
+  // the row's label — an actor you recognise rather than a mechanism you
+  // translate — and it is what pins the row above your own drafts, outside the
+  // count and outside the sweep.
+  agentClient?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -60,7 +77,7 @@ export function isUntouched(scratch: Scratch): boolean {
 // twice: same code, same title, same dimmed row. So a call reopens the buffer
 // that already holds it rather than adding another beside it.
 export function findUntouched(scratches: Scratch[], code: string, originAppName: string | undefined): Scratch | undefined {
-  return scratches.find((scratch) => isUntouched(scratch) && scratch.code === code && scratch.originAppName === originAppName);
+  return scratches.find((scratch) => !isAgentScratch(scratch) && isUntouched(scratch) && scratch.code === code && scratch.originAppName === originAppName);
 }
 
 // Reopening is not work, so it settles nothing — it only says this buffer is
@@ -99,11 +116,40 @@ export function markRun(scratch: Scratch, code: string, now: number): Scratch {
   };
 }
 
+// The agent's draft is one row, pinned above your own. It is excluded from the
+// count and from the sweep: it persists with no client connected, because that
+// is how you read what the last one did, and clearing it is one deliberate act.
+export function isAgentScratch(scratch: Scratch): boolean {
+  return scratch.agentClient !== undefined;
+}
+
+/**
+ * The order the Drafts group reads in: the agent's row first, then edited drafts
+ * — work never hides behind generated calls — then the browsing buffers, each
+ * half most recently opened first.
+ */
+export function orderScratches(scratches: Scratch[]): Scratch[] {
+  const rank = (scratch: Scratch) => (isAgentScratch(scratch) ? 0 : isUntouched(scratch) ? 2 : 1);
+  return [...scratches].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+}
+
+// Clearing untouched drafts removes nothing you wrote: clicking the method again
+// regenerates the same code, which is why it needs no confirm.
+export function untouchedScratches(scratches: Scratch[]): Scratch[] {
+  return scratches.filter((scratch) => !isAgentScratch(scratch) && isUntouched(scratch));
+}
+
+export function editedScratches(scratches: Scratch[]): Scratch[] {
+  return scratches.filter((scratch) => !isAgentScratch(scratch) && !isUntouched(scratch));
+}
+
 // Unlimited only works if the browsing buffers clear themselves out. Anything
-// run or edited is kept forever.
-export function pruneScratches(scratches: Scratch[], now: number, openIds: Set<string>): Scratch[] {
-  const cutoff = now - STALE_DAYS * 24 * 60 * 60 * 1000;
-  return scratches.filter((scratch) => openIds.has(scratch.id) || !isUntouched(scratch) || scratch.updatedAt >= cutoff);
+// run or edited is kept forever, and so is the agent's row, which nothing but a
+// deliberate clear removes.
+export function pruneScratches(scratches: Scratch[], now: number, openIds: Set<string>, sweep = true): Scratch[] {
+  if (!sweep) return scratches;
+  const cutoff = now - SWEEP_DAYS * 24 * 60 * 60 * 1000;
+  return scratches.filter((scratch) => openIds.has(scratch.id) || isAgentScratch(scratch) || !isUntouched(scratch) || scratch.updatedAt >= cutoff);
 }
 
 /**

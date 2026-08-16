@@ -39,12 +39,24 @@ export function updateAppRef(appRef: AppRef, configuration: ConfigurationApp, ta
   if (protocol !== undefined) appRef.protocol = protocol;
 }
 
-// A script file in the global, flat scripts directory (desktop only).
+// A file in the workspace's scripts directory. A file has a name and a place;
+// that is the whole of what makes it one rather than a draft.
 export interface Script {
-  // Absolute on-disk path of the script file.
+  // Absolute on-disk path of the script file. It is what identifies the script
+  // — its console and its stored runs are keyed on it.
   path: string;
   // Filename (basename), e.g. "ping.ts".
   name: string;
+  // The folder it is filed in, relative to the scripts root and with forward
+  // slashes. Empty for one at the root; a real directory either way.
+  folder: string;
+}
+
+// A script's name within the scripts folder — "churn.ts" at the root,
+// "reports/churn.ts" filed away. It is what every write takes, because on disk
+// renaming a file and moving it are one operation.
+export function scriptName(script: { name: string; folder: string }): string {
+  return script.folder ? `${script.folder}/${script.name}` : script.name;
 }
 
 export interface App {

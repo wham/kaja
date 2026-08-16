@@ -749,12 +749,13 @@ export interface StoredValueResponse {
     variableStatus: VariableStatus[];
 }
 /**
- * A script the workspace ships: a .ts file in the flat `scripts` folder beside
- * kaja.json. The desktop app reads that folder off disk directly; these two RPCs
- * are how a browser reaches the same folder, which is what puts a script mounted
- * into a container in the sidebar. The server never writes one - saving is the
- * verb a workspace it does not own doesn't offer - so there is no counterpart to
- * the desktop's write, create, rename and delete.
+ * A script the workspace ships: a .ts file anywhere under the `scripts` folder
+ * beside kaja.json. The desktop app reads that folder off disk directly; these
+ * two RPCs are how a browser reaches the same folder, which is what puts a
+ * script mounted into a container in the sidebar. The server never writes one -
+ * saving is the verb a workspace it does not own doesn't offer - so there is no
+ * counterpart to the desktop's write, create, rename and delete, and no way for
+ * a browser to make a folder either.
  *
  * @generated from protobuf message Script
  */
@@ -777,6 +778,13 @@ export interface Script {
      * @generated from protobuf field: string content = 3
      */
     content: string;
+    /**
+     * The folder the script is filed in, relative to the scripts root and with
+     * forward slashes. Empty for one at the root.
+     *
+     * @generated from protobuf field: string folder = 4
+     */
+    folder: string;
 }
 /**
  * @generated from protobuf message ListScriptsRequest
@@ -793,7 +801,8 @@ export interface ListScriptsResponse {
     scripts: Script[];
 }
 /**
- * ReadScript reads one script by its bare file name. A name is not a path: it is
+ * ReadScript reads one script by its name within the scripts folder, which may
+ * name a folder ("reports/churn.ts"). It is never joined onto anything: it is
  * resolved inside the scripts folder, which is the whole access boundary.
  *
  * @generated from protobuf message ReadScriptRequest
@@ -3428,7 +3437,8 @@ class Script$Type extends MessageType<Script> {
         super("Script", [
             { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "content", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "folder", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Script>): Script {
@@ -3436,6 +3446,7 @@ class Script$Type extends MessageType<Script> {
         message.path = "";
         message.name = "";
         message.content = "";
+        message.folder = "";
         if (value !== undefined)
             reflectionMergePartial<Script>(this, message, value);
         return message;
@@ -3453,6 +3464,9 @@ class Script$Type extends MessageType<Script> {
                     break;
                 case /* string content */ 3:
                     message.content = reader.string();
+                    break;
+                case /* string folder */ 4:
+                    message.folder = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3475,6 +3489,9 @@ class Script$Type extends MessageType<Script> {
         /* string content = 3; */
         if (message.content !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.content);
+        /* string folder = 4; */
+        if (message.folder !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.folder);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
