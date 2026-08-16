@@ -159,7 +159,7 @@ export interface CapturedRun {
 export async function runScriptCaptured(code: string, kaja: Kaja, apps: App[]): Promise<CapturedRun> {
   const lines: string[] = [];
   // The same console the editor's Run installs, teed into the report. An agent's
-  // snippet runs in the agent's scratch, so its lines belong in that scratch's
+  // snippet runs in the agent's draft, so its lines belong in that draft's
   // console as well as in the answer: a run nobody is watching is still a run
   // somebody can go and look at.
   const captureConsole = scriptConsole((level, message) => {

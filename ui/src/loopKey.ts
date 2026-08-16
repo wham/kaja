@@ -1,6 +1,6 @@
 /**
  * Fields whose value identifies the thing a call is about. One definition, read
- * twice: `scratchTitle` reads it off the source to name a script, and the run
+ * twice: `draftTitle` reads it off the source to name a script, and the run
  * log reads it off the request to tell two hundred calls to the same method
  * apart. Ordered — an explicit id beats a name.
  */

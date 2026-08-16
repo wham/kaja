@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { buildScriptTree, fileRowCount, filterScripts, folderNameError, folderPaths, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, fileRowCount, filterScripts, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 
 function script(folder: string, name: string): Script {
   return { path: `/w/scripts/${folder ? folder + "/" : ""}${name}`, name, folder };
@@ -55,6 +55,16 @@ describe("fileRowCount", () => {
   it("counts folders and files, which is what decides whether the filter earns its row", () => {
     expect(fileRowCount([script("reports/weekly", "usage.ts")], [])).toBe(3);
     expect(fileRowCount([], ["a", "b"])).toBe(2);
+  });
+});
+
+describe("scriptNameParts", () => {
+  it("splits the extension off, and leaves a name that has none alone", () => {
+    expect(scriptNameParts("churn.ts")).toEqual({ base: "churn", extension: ".ts" });
+    expect(scriptNameParts("markdown-log-entry.ts")).toEqual({ base: "markdown-log-entry", extension: ".ts" });
+    expect(scriptNameParts("notes.d.ts")).toEqual({ base: "notes.d", extension: ".ts" });
+    expect(scriptNameParts("README")).toEqual({ base: "README", extension: "" });
+    expect(scriptNameParts(".gitignore")).toEqual({ base: ".gitignore", extension: "" });
   });
 });
 

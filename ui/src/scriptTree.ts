@@ -118,6 +118,19 @@ export function fileRowCount(scripts: Script[], folders: string[]): number {
   return paths.size + scripts.length;
 }
 
+/**
+ * A file's name split from its type. The sidebar is one list of names in one
+ * font — mono was doing the work of saying "this one is on disk" and the group
+ * label says that now — so the extension is drawn dim rather than dropped: it is
+ * the same three characters on every row, and a file still looks like a file
+ * without shouting. A name with no extension (or one that is nothing but an
+ * extension) is all name.
+ */
+export function scriptNameParts(name: string): { base: string; extension: string } {
+  const at = name.lastIndexOf(".");
+  return at <= 0 ? { base: name, extension: "" } : { base: name.slice(0, at), extension: name.slice(at) };
+}
+
 export function folderName(path: string): string {
   const at = path.lastIndexOf("/");
   return at === -1 ? path : path.slice(at + 1);

@@ -15,7 +15,7 @@ export interface RecentFile {
 
 interface NoFileBlankslateProps {
   onOpenFinder: () => void;
-  onNewScratch: () => void;
+  onNewDraft: () => void;
   // The last few things you looked at. This is the only moment the cache behind
   // the finder is worth showing as a list.
   recent: RecentFile[];
@@ -32,7 +32,7 @@ interface NoFileBlankslateProps {
  * absent rather than an empty box, which is the right amount for someone who has
  * nothing yet.
  */
-export function NoFileBlankslate({ onOpenFinder, onNewScratch, recent }: NoFileBlankslateProps) {
+export function NoFileBlankslate({ onOpenFinder, onNewDraft, recent }: NoFileBlankslateProps) {
   const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
 
   return (
@@ -63,7 +63,7 @@ export function NoFileBlankslate({ onOpenFinder, onNewScratch, recent }: NoFileB
           <span className="font-mono">{modifier}P</span> find a call
         </button>
         <div className="h-3 w-px bg-border" />
-        <button type="button" onClick={onNewScratch} className="text-xs text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onNewDraft} className="text-xs text-muted-foreground hover:text-foreground">
           <span className="font-mono">{modifier}N</span> blank script
         </button>
       </div>

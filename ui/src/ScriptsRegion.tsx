@@ -21,29 +21,45 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { IconButton } from "./components/icon-button";
 import { Spinner } from "./components/spinner";
 import { Script } from "./apps";
-import { isAgentScratch, isUntouched, orderScratches, Scratch, untouchedScratches, VISIBLE_DRAFTS } from "./scratches";
-import { titleParts } from "./scratchTitle";
-import { buildScriptTree, filterScripts, FolderNode, folderNameError, TreeNode, visibleRows } from "./scriptTree";
+import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
+import { titleParts } from "./draftTitle";
+import { buildScriptTree, filterScripts, FolderNode, folderNameError, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
 
 /**
- * The Scripts region: two labelled groups, and four rules holding them together.
+ * Scripts: one section, two labelled groups, and four rules holding them
+ * together.
  *
  * 1. **A draft has no name and no place. A file has both.** That is the entire
  *    difference, and the group label states it. Drafts are as durable as files,
  *    so nothing about them is styled as a warning — the amber dot is gone.
  * 2. **Files never turn into drafts on their own.** Editing a saved file leaves
- *    it a file, in place, with a modified dot. There is one way into Drafts:
- *    run something that has no file yet.
+ *    it a file, in place, auto-saving as you type. There is one way into
+ *    Drafts: run something that has no file yet.
  * 3. **Naming a draft moves it into Files**, which is the one moment the model
  *    is visible.
  * 4. **Discarding is safe by default**: untouched drafts are swept without
  *    asking, edited ones are never removed without a confirm that names them.
  *
- * Only one dot survives: the hollow modified marker on a file with unsaved
- * edits. The run indicators sit in the trailing slot beside it, which is fixed,
- * so nothing under the cursor moves as a run starts.
+ * **The section is what makes those two groups one thing.** Drafts and Files
+ * are halves of a single question — what you run — and a reader who meets them
+ * as two headers floating above the app tree has to work that out. So the
+ * region says its own name once, at the top, in the register the app rows below
+ * use; the groups nest visibly under it, and the filter belongs to it rather
+ * than to either half. It is a title, not a node: both groups already fold, and
+ * a third chevron would only be a shortcut for pressing those two.
+ *
+ * **And it is one list of names, in one font.** Mono on a file row was doing
+ * double duty as the tell for "this one is on disk" — the group label carries
+ * that now, and mono inside a nav list reads as code, which is the wrong
+ * register. Every row here is the UI font; only the extension is dimmed, so a
+ * file still looks like a file without shouting. Mono belongs to content — the
+ * editor, the payload panes, the naming field — not to navigation.
+ *
+ * No dot survives at all: a draft has nothing at risk and a file auto-saves.
+ * The run indicators have the trailing slot to themselves, and it is a fixed
+ * width, so nothing under the cursor moves as a run starts.
  */
 
 // Once the region passes this many rows it earns a filter. Below it the list is
@@ -57,6 +73,10 @@ const DEPTH_INDENT = 14;
 // The chevron column a folder row spends and a file row doesn't.
 const CHEVRON_SLOT = 18;
 
+// The region's own name, in the register the app rows below use: 13px and
+// foreground, so Scripts and an app read as peers across the hairline. It takes
+// no chevron — the two groups under it already fold.
+const SECTION_TITLE = "flex h-[22px] select-none items-center px-2 text-[13px] font-medium text-foreground";
 const GROUP_HEADER = "flex h-[22px] w-full cursor-pointer select-none items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50";
 const ROW = "group flex h-[22px] cursor-pointer select-none items-center gap-1.5 pr-1 text-[13px] outline-none focus-visible:bg-accent/50";
 const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
@@ -64,8 +84,8 @@ const ROW_ACTION = "size-[18px] min-h-0 min-w-0 [&_svg]:size-3";
 export interface ScriptsRegionProps {
   scripts: Script[];
   folders: string[];
-  scratches: Scratch[];
-  currentScratchId?: string;
+  drafts: Draft[];
+  currentDraftId?: string;
   currentScriptPath?: string;
   runningFileIds?: ReadonlySet<string>;
   agentFileIds?: ReadonlySet<string>;
@@ -75,9 +95,9 @@ export interface ScriptsRegionProps {
   // one, so it grows none of the controls for them either.
   canWrite: boolean;
 
-  onScratchSelect: (scratch: Scratch) => void;
-  onNameScratch: (scratch: Scratch) => void;
-  onDiscardScratch: (scratch: Scratch) => void;
+  onDraftSelect: (draft: Draft) => void;
+  onNameDraft: (draft: Draft) => void;
+  onDiscardDraft: (draft: Draft) => void;
   // The two sweeps on the Drafts header, each confirmed against the list it is
   // about to touch. Neither can reach a file.
   onClearUntouched: () => void;
@@ -99,7 +119,7 @@ export interface ScriptsRegionProps {
 }
 
 export function ScriptsRegion(props: ScriptsRegionProps) {
-  const { scripts, folders, scratches, canWrite } = props;
+  const { scripts, folders, drafts, canWrite } = props;
   const [draftsOpen, setDraftsOpen] = usePersistedState("draftsExpanded", true);
   const [filesOpen, setFilesOpen] = usePersistedState("filesExpanded", true);
   const [openFolders, setOpenFolders] = usePersistedState<string[]>("openScriptFolders", []);
@@ -108,11 +128,11 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const touch = useMediaQuery("(hover: none)");
 
-  const ordered = useMemo(() => orderScratches(scratches), [scratches]);
-  const agentDraft = ordered.find(isAgentScratch);
+  const ordered = useMemo(() => orderDrafts(drafts), [drafts]);
+  const agentDraft = ordered.find(isAgentDraft);
   // The agent's row is pinned above your own and outside the count: it isn't
   // yours, and it is not what the number is about.
-  const ownDrafts = useMemo(() => ordered.filter((scratch) => !isAgentScratch(scratch)), [ordered]);
+  const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
   const rowCount = useMemo(() => scripts.length + folders.length + ownDrafts.length, [scripts, folders, ownDrafts]);
@@ -127,7 +147,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   // rename is the same row, so the interaction is learned once.
   const [folderEdit, setFolderEdit] = useState<{ parent: string; path?: string; name: string } | null>(null);
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
-  const [draftMenu, setDraftMenu] = useState<{ scratch: Scratch; top: number; left: number } | null>(null);
+  const [draftMenu, setDraftMenu] = useState<{ draft: Draft; top: number; left: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ path: string; top: number; left: number } | null>(null);
   const [filesMenu, setFilesMenu] = useState<{ top: number; left: number } | null>(null);
   const [draftsMenu, setDraftsMenu] = useState<{ top: number; left: number } | null>(null);
@@ -153,13 +173,21 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [props.onCreateFolder]);
 
-  const hasAnything = scripts.length > 0 || scratches.length > 0 || folders.length > 0;
+  const hasAnything = scripts.length > 0 || drafts.length > 0 || folders.length > 0;
   if (!hasAnything) return null;
 
   const active = (key: string) => touch || hovered === key;
 
   return (
-    <nav aria-label="Scripts">
+    <nav aria-labelledby="scripts-section">
+      {/* Said once, at the top: Drafts and Files are two halves of one thing,
+          and this is the thing. The filter below belongs to it rather than to
+          either group, which is why it searches both. It names the nav region
+          too, so the heading is stated once rather than twice. */}
+      <h2 id="scripts-section" className={SECTION_TITLE}>
+        Scripts
+      </h2>
+
       {/* The filter appears once the region is big enough to need one. It
           matches names and folder paths, flattens the result, and says how many
           it found — the one place a count lives outside the group headers,
@@ -176,7 +204,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
               aria-label="Filter scripts"
               className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
             />
-            {filtering && <span className="shrink-0 font-mono text-xs text-muted-foreground">{matches.scripts.length + matches.drafts.length}</span>}
+            {filtering && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{matches.scripts.length + matches.drafts.length}</span>}
           </div>
         </div>
       )}
@@ -188,7 +216,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
           <GroupHeader
             label="Drafts"
             count={ownDrafts.length}
-            open={draftsOpen && !filtering}
+            // A filter opens both groups — the body below renders either way, so
+            // the chevron has to agree with it rather than report the fold.
+            open={draftsOpen || filtering}
             onToggle={() => setDraftsOpen((open) => !open)}
             action={
               ownDrafts.length > 0
@@ -200,33 +230,33 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             <ul role="tree" aria-label="Drafts" className="select-none">
               {agentDraft && !filtering && (
                 <AgentRow
-                  scratch={agentDraft}
-                  current={props.currentScratchId === agentDraft.id}
+                  draft={agentDraft}
+                  current={props.currentDraftId === agentDraft.id}
                   running={props.runningFileIds?.has(agentDraft.id)}
                   waiting={props.waitingFileIds?.has(agentDraft.id)}
                   active={active(`draft:${agentDraft.id}`)}
                   canWrite={canWrite}
                   onHover={(on) => setHovered(on ? `draft:${agentDraft.id}` : null)}
-                  onSelect={() => props.onScratchSelect(agentDraft)}
-                  onName={() => props.onNameScratch(agentDraft)}
-                  onDiscard={() => props.onDiscardScratch(agentDraft)}
+                  onSelect={() => props.onDraftSelect(agentDraft)}
+                  onName={() => props.onNameDraft(agentDraft)}
+                  onDiscard={() => props.onDiscardDraft(agentDraft)}
                 />
               )}
-              {draftsShown.map((scratch) => (
+              {draftsShown.map((draft) => (
                 <DraftRow
-                  key={scratch.id}
-                  scratch={scratch}
-                  current={props.currentScratchId === scratch.id}
-                  running={props.runningFileIds?.has(scratch.id)}
-                  agent={props.agentFileIds?.has(scratch.id)}
-                  waiting={props.waitingFileIds?.has(scratch.id)}
-                  active={active(`draft:${scratch.id}`)}
+                  key={draft.id}
+                  draft={draft}
+                  current={props.currentDraftId === draft.id}
+                  running={props.runningFileIds?.has(draft.id)}
+                  agent={props.agentFileIds?.has(draft.id)}
+                  waiting={props.waitingFileIds?.has(draft.id)}
+                  active={active(`draft:${draft.id}`)}
                   canWrite={canWrite}
-                  onHover={(on) => setHovered(on ? `draft:${scratch.id}` : null)}
-                  onSelect={() => props.onScratchSelect(scratch)}
-                  onName={() => props.onNameScratch(scratch)}
-                  onDiscard={() => props.onDiscardScratch(scratch)}
-                  onMenu={(event) => setDraftMenu({ scratch, top: event.clientY, left: event.clientX })}
+                  onHover={(on) => setHovered(on ? `draft:${draft.id}` : null)}
+                  onSelect={() => props.onDraftSelect(draft)}
+                  onName={() => props.onNameDraft(draft)}
+                  onDiscard={() => props.onDiscardDraft(draft)}
+                  onMenu={(event) => setDraftMenu({ draft, top: event.clientY, left: event.clientX })}
                 />
               ))}
               {hiddenDrafts > 0 && (
@@ -248,7 +278,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
       <GroupHeader
         label="Files"
         count={scripts.length}
-        open={filesOpen && !filtering}
+        open={filesOpen || filtering}
         onToggle={() => setFilesOpen((open) => !open)}
         action={
           canWrite && (props.onCreateFolder || props.onRevealScripts)
@@ -361,7 +391,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             them removes nothing you wrote, so it needs no confirm. */}
         <DropdownMenuItem onSelect={props.onClearUntouched}>
           Clear untouched
-          <span className="ml-auto pl-4 text-xs text-muted-foreground">{untouchedScratches(scratches).length}</span>
+          <span className="ml-auto pl-4 text-xs text-muted-foreground">{untouchedDrafts(drafts).length}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={props.onClearAllDrafts}>
           Clear all
@@ -418,14 +448,14 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <CursorMenu at={draftMenu} onClose={() => setDraftMenu(null)}>
         {canWrite && (
-          <DropdownMenuItem onSelect={() => draftMenu && props.onNameScratch(draftMenu.scratch)}>
+          <DropdownMenuItem onSelect={() => draftMenu && props.onNameDraft(draftMenu.draft)}>
             <Save size={16} />
             Name…
           </DropdownMenuItem>
         )}
         {/* Nothing is on disk to remove, so this is a discard rather than a
             delete: neutral, and undoable instead of confirmed. */}
-        <DropdownMenuItem onSelect={() => draftMenu && props.onDiscardScratch(draftMenu.scratch)}>
+        <DropdownMenuItem onSelect={() => draftMenu && props.onDiscardDraft(draftMenu.draft)}>
           <X size={16} />
           Discard
         </DropdownMenuItem>
@@ -520,13 +550,13 @@ function GroupHeader({
           }}
         />
       )}
-      <span className="min-w-3 shrink-0 text-right font-mono">{count}</span>
+      <span className="min-w-3 shrink-0 text-right tabular-nums">{count}</span>
     </div>
   );
 }
 
 function DraftRow({
-  scratch,
+  draft,
   current,
   running,
   agent,
@@ -539,7 +569,7 @@ function DraftRow({
   onDiscard,
   onMenu,
 }: {
-  scratch: Scratch;
+  draft: Draft;
   current: boolean;
   running?: boolean;
   agent?: boolean;
@@ -552,8 +582,8 @@ function DraftRow({
   onDiscard: () => void;
   onMenu: (event: React.MouseEvent) => void;
 }) {
-  const { name, qualifier } = titleParts(scratch.title);
-  const browsing = isUntouched(scratch);
+  const { name, qualifier } = titleParts(draft.title);
+  const browsing = isUntouched(draft);
 
   return (
     <li role="treeitem" aria-current={current || undefined}>
@@ -586,14 +616,14 @@ function DraftRow({
           className={cn("flex-1 truncate", browsing && !current && "text-muted-foreground")}
         >
           {name}
-          {qualifier && <span className="ml-1 font-mono text-muted-foreground opacity-70">{qualifier}</span>}
+          {qualifier && <span className="ml-1 text-muted-foreground opacity-70">{qualifier}</span>}
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={active}>
           {active && (
             <>
-              {canWrite && <RowAction icon={Save} label={`Name ${scratch.title}`} onClick={onName} />}
-              <RowAction icon={X} label={`Discard ${scratch.title}`} onClick={onDiscard} />
-              <RowAction icon={Ellipsis} label={`Actions for ${scratch.title}`} onClick={onMenu} />
+              {canWrite && <RowAction icon={Save} label={`Name ${draft.title}`} onClick={onName} />}
+              <RowAction icon={X} label={`Discard ${draft.title}`} onClick={onDiscard} />
+              <RowAction icon={Ellipsis} label={`Actions for ${draft.title}`} onClick={onMenu} />
             </>
           )}
         </RowTrailing>
@@ -610,7 +640,7 @@ function DraftRow({
  * another one.
  */
 function AgentRow({
-  scratch,
+  draft,
   current,
   running,
   waiting,
@@ -621,7 +651,7 @@ function AgentRow({
   onName,
   onDiscard,
 }: {
-  scratch: Scratch;
+  draft: Draft;
   current: boolean;
   running?: boolean;
   waiting?: boolean;
@@ -649,21 +679,21 @@ function AgentRow({
         }}
       >
         <Plug size={13} className="shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate" title={`${scratch.agentClient} is writing here · ${scratch.title}`}>
-          {scratch.agentClient}
+        <span className="flex-1 truncate" title={`${draft.agentClient} is writing here · ${draft.title}`}>
+          {draft.agentClient}
         </span>
         <span className="flex w-6 shrink-0 items-center justify-end gap-0.5">
           {active ? (
             <>
-              {canWrite && <RowAction icon={Save} label={`Name what ${scratch.agentClient} wrote`} onClick={onName} />}
-              <RowAction icon={X} label={`Clear ${scratch.agentClient}'s draft`} onClick={onDiscard} />
+              {canWrite && <RowAction icon={Save} label={`Name what ${draft.agentClient} wrote`} onClick={onName} />}
+              <RowAction icon={X} label={`Clear ${draft.agentClient}'s draft`} onClick={onDiscard} />
             </>
           ) : waiting ? (
             <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
           ) : running ? (
             // The only live indicator in the sidebar: it goes out the moment the
             // call finishes and the row stays, name and all.
-            <span aria-hidden title={`${scratch.agentClient} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
+            <span aria-hidden title={`${draft.agentClient} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
           ) : null}
         </span>
       </div>
@@ -848,6 +878,8 @@ function FileRow({
   onSelect: () => void;
   onMenu: (event: React.MouseEvent) => void;
 }) {
+  const { base, extension } = scriptNameParts(script.name);
+
   return (
     <li role="treeitem" aria-current={current || undefined}>
       <div
@@ -869,9 +901,15 @@ function FileRow({
           }
         }}
       >
-        <span className="flex-1 truncate font-mono">
-          {script.name}
-          {suffix && <span className="ml-1.5 font-sans text-xs text-muted-foreground">{suffix}</span>}
+        {/* The same font as a draft, a folder and the app tree below — one
+            list of names. The extension is the same three characters on every
+            row, so it is dimmed rather than shouted or dropped: the row still
+            reads as a file, and the UI font is narrower, so more of a long name
+            survives the truncation. */}
+        <span className="flex-1 truncate">
+          {base}
+          {extension && <span className="text-muted-foreground">{extension}</span>}
+          {suffix && <span className="ml-1.5 text-xs text-muted-foreground">{suffix}</span>}
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={false}>
           {active && hasMenu && <RowAction icon={Ellipsis} label={`Actions for ${script.name}`} onClick={onMenu} />}
@@ -961,7 +999,7 @@ function CursorMenu({
 
 // Filtering matches both groups at once and flattens each: a tree of one match
 // per branch is a worse answer than a list.
-function filterAll(scripts: Script[], drafts: Scratch[], query: string): { scripts: Script[]; drafts: Scratch[] } {
+function filterAll(scripts: Script[], drafts: Draft[], query: string): { scripts: Script[]; drafts: Draft[] } {
   const needle = query.trim().toLowerCase();
   if (!needle) return { scripts, drafts };
   return {

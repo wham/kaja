@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { deriveScratchTitle, proposeFileName, proposeFileNames, readCalls, titleParts } from "./scratchTitle";
+import { deriveDraftTitle, proposeFileName, proposeFileNames, readCalls, titleParts } from "./draftTitle";
 
 const generated = (body: string, names = "TheKajaTheatre") => `import { ${names} } from "theatre/service";\n\n${body}\n`;
 
@@ -19,74 +19,74 @@ describe("readCalls", () => {
   });
 });
 
-describe("deriveScratchTitle", () => {
+describe("deriveDraftTitle", () => {
   it("is the method when the call is about nothing in particular", () => {
-    expect(deriveScratchTitle(generated(`TheKajaTheatre.ListShows({});`))).toBe("ListShows");
+    expect(deriveDraftTitle(generated(`TheKajaTheatre.ListShows({});`))).toBe("ListShows");
   });
 
   // The generated request only holds zero values, so a title only gains a
   // subject once the user has actually filled something in.
   it("ignores the zero values a generated request starts with", () => {
-    expect(deriveScratchTitle(generated(`TheKajaTheatre.GetShow({ id: "", limit: 0 });`))).toBe("GetShow");
+    expect(deriveDraftTitle(generated(`TheKajaTheatre.GetShow({ id: "", limit: 0 });`))).toBe("GetShow");
   });
 
   it("adds the identifying value once one is typed", () => {
-    expect(deriveScratchTitle(generated(`TheKajaTheatre.GetShow({ id: "vera-lune" });`))).toBe("GetShow · vera-lune");
+    expect(deriveDraftTitle(generated(`TheKajaTheatre.GetShow({ id: "vera-lune" });`))).toBe("GetShow · vera-lune");
   });
 
   it("prefers an id over a name, and finds one nested", () => {
-    expect(deriveScratchTitle(generated(`TheKajaTheatre.GetShow({ name: "Neon", show: { id: 42 } });`))).toBe("GetShow · 42");
+    expect(deriveDraftTitle(generated(`TheKajaTheatre.GetShow({ name: "Neon", show: { id: 42 } });`))).toBe("GetShow · 42");
   });
 
   it("truncates a long subject", () => {
     const code = generated(`TheKajaTheatre.GetShow({ id: "an-extremely-long-identifier-value" });`);
-    expect(deriveScratchTitle(code)).toBe("GetShow · an-extremely-long-ident…");
+    expect(deriveDraftTitle(code)).toBe("GetShow · an-extremely-long-ident…");
   });
 
   // Two explorations of the same call usually differ in their arguments, which
   // is what tells the two rows apart.
   it("describes a small request by the values that were filled in", () => {
-    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, b: 3 });`, "Add"))).toBe("Sum · 5, 3");
-    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, b: 0 });`, "Add"))).toBe("Sum · 5");
-    expect(deriveScratchTitle(generated(`Add.Sum({ a: 0, b: 0 });`, "Add"))).toBe("Sum");
+    expect(deriveDraftTitle(generated(`Add.Sum({ a: 5, b: 3 });`, "Add"))).toBe("Sum · 5, 3");
+    expect(deriveDraftTitle(generated(`Add.Sum({ a: 5, b: 0 });`, "Add"))).toBe("Sum · 5");
+    expect(deriveDraftTitle(generated(`Add.Sum({ a: 0, b: 0 });`, "Add"))).toBe("Sum");
   });
 
   it("stays quiet about a request too big to read at a glance", () => {
     const code = generated(`TheKajaTheatre.ListShows({ genre: "jazz", limit: 10, offset: 0, page: 1 });`);
-    expect(deriveScratchTitle(code)).toBe("ListShows");
+    expect(deriveDraftTitle(code)).toBe("ListShows");
   });
 
   it("stays quiet when a small request holds something that isn't a scalar", () => {
-    expect(deriveScratchTitle(generated(`Add.Sum({ a: 5, rest: [1, 2] });`, "Add"))).toBe("Sum");
+    expect(deriveDraftTitle(generated(`Add.Sum({ a: 5, rest: [1, 2] });`, "Add"))).toBe("Sum");
   });
 
   it("reads two methods as a sequence", () => {
     const code = generated(`TheKajaTheatre.ListShows({});\nTheKajaTheatre.GetShow({});`);
-    expect(deriveScratchTitle(code)).toBe("ListShows → GetShow");
+    expect(deriveDraftTitle(code)).toBe("ListShows → GetShow");
   });
 
   it("counts the rest past two", () => {
     const code = generated(`TheKajaTheatre.CreateShow({});\nTheKajaTheatre.ListShows({});\nTheKajaTheatre.GetShow({});`);
-    expect(deriveScratchTitle(code)).toBe("CreateShow +2");
+    expect(deriveDraftTitle(code)).toBe("CreateShow +2");
   });
 
   it("treats the same method called repeatedly as one method", () => {
     const code = generated(`TheKajaTheatre.GetShow({ id: "a" });\nTheKajaTheatre.GetShow({ id: "b" });`);
-    expect(deriveScratchTitle(code)).toBe("GetShow · a");
+    expect(deriveDraftTitle(code)).toBe("GetShow · a");
   });
 
   it('ignores a 64-bit zero, which is generated as the string "0"', () => {
     const code = generated(`Add.Sum({ a: "0", b: "0" });`, "Add");
-    expect(deriveScratchTitle(code)).toBe("Sum");
+    expect(deriveDraftTitle(code)).toBe("Sum");
   });
 
   it("still reads a filled 64-bit value", () => {
     const code = generated(`Add.Sum({ a: "5", b: "3" });`, "Add");
-    expect(deriveScratchTitle(code)).toBe("Sum · 5, 3");
+    expect(deriveDraftTitle(code)).toBe("Sum · 5, 3");
   });
 
   it("has nothing to say about code that calls nothing", () => {
-    expect(deriveScratchTitle(`const x = 1;`)).toBeUndefined();
+    expect(deriveDraftTitle(`const x = 1;`)).toBeUndefined();
   });
 });
 
@@ -109,9 +109,9 @@ describe("proposeFileName", () => {
     expect(proposeFileName("ListShows → GetShow")).toBe("listShows");
   });
 
-  it("has something to call a scratch that names nothing", () => {
-    expect(proposeFileName("")).toBe("scratch");
-    expect(proposeFileName("· · ·")).toBe("scratch");
+  it("has something to call a draft that names nothing", () => {
+    expect(proposeFileName("")).toBe("draft");
+    expect(proposeFileName("· · ·")).toBe("draft");
   });
 
   it("steps past what is already on disk, extension or not", () => {
@@ -136,16 +136,16 @@ describe("scripts that draw", () => {
   // is the script drawing rather than a call it made.
   it("is not named after the canvas verbs", () => {
     const code = `import { kaja } from "kaja";\nkaja.text("hello");\nkaja.table(["id"]);\nkaja.code("SELECT 1", "sql");`;
-    expect(deriveScratchTitle(code)).toBeUndefined();
+    expect(deriveDraftTitle(code)).toBeUndefined();
   });
 
   it("still names the call a drawing script makes", () => {
     const code = `import { kaja } from "kaja";\nimport { Shows } from "theatre/shows";\nkaja.text("listing");\nawait Shows.ListShows({});`;
-    expect(deriveScratchTitle(code)).toBe("ListShows");
+    expect(deriveDraftTitle(code)).toBe("ListShows");
   });
 
   it("follows the runtime through an alias", () => {
     const code = `import { kaja as k } from "kaja";\nk.text("hello");`;
-    expect(deriveScratchTitle(code)).toBeUndefined();
+    expect(deriveDraftTitle(code)).toBeUndefined();
   });
 });

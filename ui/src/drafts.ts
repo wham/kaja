@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { deriveScratchTitle } from "./scratchTitle";
+import { deriveDraftTitle } from "./draftTitle";
 
 // A draft that was opened, never edited and never run is a browsing buffer, not
 // work. The sweep drops one this old — weekly by default, because the steady
@@ -19,10 +19,11 @@ export const VISIBLE_DRAFTS = 8;
  * reopen exactly as a file does. Naming one is what gives it both and moves it
  * into Files.
  *
- * "Scratch" is the name in the code, where it says precisely which storage tier
- * this is; the UI says Draft.
+ * One word, in the code and in the UI alike. "Scratch" was the name here while
+ * the storage tier was the thing worth naming; the tier is an implementation
+ * detail and the draft is the object, so the object's word won.
  */
-export interface Scratch {
+export interface Draft {
   id: string;
   // Always read from the code — there is no rename, because naming a draft and
   // filing it are the same act.
@@ -49,15 +50,15 @@ export interface Scratch {
 
 let sequence = 0;
 
-export function newScratchId(): string {
+export function newDraftId(): string {
   sequence++;
-  return `scratch-${Date.now().toString(36)}-${sequence}`;
+  return `draft-${Date.now().toString(36)}-${sequence}`;
 }
 
-export function createScratch(code: string, originAppName: string | undefined, now: number): Scratch {
+export function createDraft(code: string, originAppName: string | undefined, now: number): Draft {
   return {
-    id: newScratchId(),
-    title: deriveScratchTitle(code) ?? "Scratch",
+    id: newDraftId(),
+    title: deriveDraftTitle(code) ?? "Draft",
     code,
     generatedCode: code,
     ran: false,
@@ -68,29 +69,29 @@ export function createScratch(code: string, originAppName: string | undefined, n
 }
 
 // Untouched means: still exactly what was generated, and never run. Clicking
-// another method takes such a scratch over rather than leaving a trail.
-export function isUntouched(scratch: Scratch): boolean {
-  return !scratch.ran && scratch.code === scratch.generatedCode;
+// another method takes such a draft over rather than leaving a trail.
+export function isUntouched(draft: Draft): boolean {
+  return !draft.ran && draft.code === draft.generatedCode;
 }
 
-// Two untouched scratches of the same call are one browsing buffer written
+// Two untouched drafts of the same call are one browsing buffer written
 // twice: same code, same title, same dimmed row. So a call reopens the buffer
 // that already holds it rather than adding another beside it.
-export function findUntouched(scratches: Scratch[], code: string, originAppName: string | undefined): Scratch | undefined {
-  return scratches.find((scratch) => !isAgentScratch(scratch) && isUntouched(scratch) && scratch.code === code && scratch.originAppName === originAppName);
+export function findUntouched(drafts: Draft[], code: string, originAppName: string | undefined): Draft | undefined {
+  return drafts.find((draft) => !isAgentDraft(draft) && isUntouched(draft) && draft.code === code && draft.originAppName === originAppName);
 }
 
 // Reopening is not work, so it settles nothing — it only says this buffer is
 // the one being browsed, which is what keeps it at the top of the list and out
 // of the way of the pruner.
-export function reopen(scratch: Scratch, now: number): Scratch {
-  return { ...scratch, updatedAt: now };
+export function reopen(draft: Draft, now: number): Draft {
+  return { ...draft, updatedAt: now };
 }
 
-export function takeOver(scratch: Scratch, code: string, originAppName: string | undefined, now: number): Scratch {
+export function takeOver(draft: Draft, code: string, originAppName: string | undefined, now: number): Draft {
   return {
-    ...scratch,
-    title: deriveScratchTitle(code) ?? "Scratch",
+    ...draft,
+    title: deriveDraftTitle(code) ?? "Draft",
     code,
     generatedCode: code,
     originAppName,
@@ -100,17 +101,17 @@ export function takeOver(scratch: Scratch, code: string, originAppName: string |
 
 // Adding a call is as deliberate as running one, so it settles the title the
 // same way. Typing does not — that would rename the row under the cursor.
-export function withCode(scratch: Scratch, code: string, now: number): Scratch {
-  return { ...scratch, code, title: deriveScratchTitle(code) ?? scratch.title, updatedAt: now };
+export function withCode(draft: Draft, code: string, now: number): Draft {
+  return { ...draft, code, title: deriveDraftTitle(code) ?? draft.title, updatedAt: now };
 }
 
-// A run is the punctuation that settles a scratch, so it is when the title is
+// A run is the punctuation that settles a draft, so it is when the title is
 // re-read. Doing it on every keystroke would rename the row while you type.
-export function markRun(scratch: Scratch, code: string, now: number): Scratch {
+export function markRun(draft: Draft, code: string, now: number): Draft {
   return {
-    ...scratch,
+    ...draft,
     code,
-    title: deriveScratchTitle(code) ?? scratch.title,
+    title: deriveDraftTitle(code) ?? draft.title,
     ran: true,
     updatedAt: now,
   };
@@ -119,8 +120,8 @@ export function markRun(scratch: Scratch, code: string, now: number): Scratch {
 // The agent's draft is one row, pinned above your own. It is excluded from the
 // count and from the sweep: it persists with no client connected, because that
 // is how you read what the last one did, and clearing it is one deliberate act.
-export function isAgentScratch(scratch: Scratch): boolean {
-  return scratch.agentClient !== undefined;
+export function isAgentDraft(draft: Draft): boolean {
+  return draft.agentClient !== undefined;
 }
 
 /**
@@ -128,32 +129,32 @@ export function isAgentScratch(scratch: Scratch): boolean {
  * — work never hides behind generated calls — then the browsing buffers, each
  * half most recently opened first.
  */
-export function orderScratches(scratches: Scratch[]): Scratch[] {
-  const rank = (scratch: Scratch) => (isAgentScratch(scratch) ? 0 : isUntouched(scratch) ? 2 : 1);
-  return [...scratches].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+export function orderDrafts(drafts: Draft[]): Draft[] {
+  const rank = (draft: Draft) => (isAgentDraft(draft) ? 0 : isUntouched(draft) ? 2 : 1);
+  return [...drafts].sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
 }
 
 // Clearing untouched drafts removes nothing you wrote: clicking the method again
 // regenerates the same code, which is why it needs no confirm.
-export function untouchedScratches(scratches: Scratch[]): Scratch[] {
-  return scratches.filter((scratch) => !isAgentScratch(scratch) && isUntouched(scratch));
+export function untouchedDrafts(drafts: Draft[]): Draft[] {
+  return drafts.filter((draft) => !isAgentDraft(draft) && isUntouched(draft));
 }
 
-export function editedScratches(scratches: Scratch[]): Scratch[] {
-  return scratches.filter((scratch) => !isAgentScratch(scratch) && !isUntouched(scratch));
+export function editedDrafts(drafts: Draft[]): Draft[] {
+  return drafts.filter((draft) => !isAgentDraft(draft) && !isUntouched(draft));
 }
 
 // Unlimited only works if the browsing buffers clear themselves out. Anything
 // run or edited is kept forever, and so is the agent's row, which nothing but a
 // deliberate clear removes.
-export function pruneScratches(scratches: Scratch[], now: number, openIds: Set<string>, sweep = true): Scratch[] {
-  if (!sweep) return scratches;
+export function pruneDrafts(drafts: Draft[], now: number, openIds: Set<string>, sweep = true): Draft[] {
+  if (!sweep) return drafts;
   const cutoff = now - SWEEP_DAYS * 24 * 60 * 60 * 1000;
-  return scratches.filter((scratch) => openIds.has(scratch.id) || isAgentScratch(scratch) || !isUntouched(scratch) || scratch.updatedAt >= cutoff);
+  return drafts.filter((draft) => openIds.has(draft.id) || isAgentDraft(draft) || !isUntouched(draft) || draft.updatedAt >= cutoff);
 }
 
 /**
- * Add a generated call to a scratch that already holds one, merging the import
+ * Add a generated call to a draft that already holds one, merging the import
  * lines instead of stacking a second copy. Edits the existing text rather than
  * reprinting it, so whatever the author wrote keeps its formatting.
  */

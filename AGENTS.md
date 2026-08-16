@@ -49,9 +49,13 @@ labelled groups, and four rules hold the whole thing together.
    generated call) are cleared without asking; edited ones are never removed
    without a confirm that names them.
 
-**"Scratch" is the name in the code**, where it says precisely which storage tier
-this is (`scratches.ts`, `Scratch`, IndexedDB, unlimited, web and desktop alike);
-the UI says **Draft**, everywhere.
+**One word, in the code and in the UI alike: a draft** (`drafts.ts`, `Draft`,
+`draftTitle.ts`, IndexedDB, unlimited, web and desktop alike). "Scratch" was the
+name in the code while the storage tier was the thing worth naming; the tier is
+an implementation detail and the draft is the object, so the object's word won
+and the second vocabulary is gone. The persisted keys moved with it (`drafts`,
+`agentDraftId`, a view of `type: "draft"`) and the old ones are still **read**
+once — a rename is not a reason to lose somebody's work.
 
 - **Five verbs, each on exactly one object.** You **name** a draft, **save** a
   file, **clear** drafts, **delete** a file, and **revert** a file to saved.
@@ -80,7 +84,7 @@ the UI says **Draft**, everywhere.
   would otherwise sit on one line. The editor wraps rather than scrolling
   sideways — the pane is short on purpose, and horizontal scrolling is worse
   than vertical.
-- **A draft names itself from its own code** (`scratchTitle.ts`), which Kaja
+- **A draft names itself from its own code** (`draftTitle.ts`), which Kaja
   can do better than a chat app names conversations: the content is typed code
   against a known schema, so the title is a formatting job rather than a
   summarization one, and it comes out the same every time. `ListShows`,
@@ -109,12 +113,34 @@ the UI says **Draft**, everywhere.
   alone — they just stop compiling. Only a *rename* is followed, so the imports
   keep resolving.
 
-### The two groups
+### One section, two groups
 
 `ScriptsRegion.tsx` is the whole region; `Sidebar.tsx` is the API's catalog below
 the hairline and hands the region in as a node, because the two are different
 lists that share nothing but the panel.
 
+- **The section says its own name once, at the top.** Drafts and Files are two
+  halves of one question — what you run — and two headers floating above the app
+  tree left that to be worked out. So the region opens with **Scripts**, a 22px
+  row at `text-[13px] font-medium text-foreground`: the same register the app
+  rows below use, so Scripts and an app read as peers across the hairline. It is
+  a **title, not a node** — no chevron, and it names the `nav` through
+  `aria-labelledby` rather than repeating itself as a label. Both groups already
+  fold, so a third chevron would only be a shortcut for pressing those two, and
+  nothing indents: the title sits at 8px, left of the group chevrons, and no row
+  moves.
+- **One list of names, in one font.** Mono on a file row was doing double duty as
+  the tell for "this one is on disk"; the group label carries that now, and mono
+  inside a nav list reads as code, which is the wrong register. So every row in
+  the region — draft, file, folder, and the app tree below — is the UI font, and
+  only the **extension** is dimmed (`scriptNameParts`, `text-muted-foreground`),
+  so a file still looks like a file without shouting. Dropping `.ts` altogether
+  was the other candidate and gives up the last cue that these are things on
+  disk; keeping mono for the extension alone puts two fonts inside one word,
+  which sits unevenly at 13px. The UI font is narrower, so truncation improves
+  as well. **Mono belongs to content** — the editor, the payload panes, variable
+  values, the naming field — not to navigation, which is why the counts beside
+  the group labels are `tabular-nums` rather than mono too.
 - **Group headers are 22px rows too**, at `text-xs`, their chevrons in the same
   column as the app rows' below, and their rows indent to 24px so the group label
   and the row text share a left edge. Both groups collapse, and a collapsed one
@@ -163,17 +189,21 @@ lists that share nothing but the panel.
   one, not the one you fall into. Either way the bar offers an undo.
 - **The pile is capped, not scrolled.** Drafts draws `VISIBLE_DRAFTS` (8) rows,
   most recently opened first, with **edited ones pinned above the browsing
-  buffers** (`orderScratches`) so work never hides behind generated calls; the
+  buffers** (`orderDrafts`) so work never hides behind generated calls; the
   rest are `n more…`, which expands in place. That is what keeps the region a
   predictable share of the panel: its height is bounded by folder depth in Files,
   not by draft accumulation.
-- **The sweep is what makes unlimited work.** `pruneScratches` drops drafts that
+- **The sweep is what makes unlimited work.** `pruneDrafts` drops drafts that
   were never run and never edited past their generated form after `SWEEP_DAYS`
   (7), never touches one that is on screen, never touches the agent's row, and is
   off entirely when `sweepDrafts` is off. Anything run or edited is kept forever.
-- **A filter appears when the region earns one** — past ~15 rows. It matches names
-  and folder paths, **flattens** both groups (a tree of one match per branch is a
-  worse answer than a list), and shows the folder as a dim suffix on each hit.
+- **A filter appears when the region earns one** — past ~15 rows
+  (`FILTER_THRESHOLD`). It belongs to the **section** rather than to either
+  group, which is why it sits directly under the Scripts title and searches
+  both: it matches names and folder paths, **flattens** them (a tree of one
+  match per branch is a worse answer than a list), and shows the folder as a dim
+  suffix on each hit. Below the threshold the list is the answer, and a search
+  box is a control you have to go looking past.
 - **Empty states.** Zero drafts hides the Drafts group entirely rather than
   showing an empty label — there is nothing there and nothing to say about it.
   Zero files keeps its header and says one line: where files come from.
@@ -254,7 +284,7 @@ this".
   `clientInfo.name`, else `Agent` — captured in `desktop/mcp/server.go` and
   carried into the run), so the row reads `Claude` rather than "MCP workspace": an
   actor you recognise instead of a mechanism you translate. `agentClient` on the
-  `Scratch` is the whole of it, and `isAgentScratch` is what pins the row,
+  `Draft` is the whole of it, and `isAgentDraft` is what pins the row,
   excludes it from the count and spares it from the sweep. The `Plug` icon is
   already MCP in the status bar.
 - **The emerald dot is the only live indicator in the sidebar.** It goes out the
@@ -266,7 +296,7 @@ this".
   new one.
 - **Naming it works the same way** and does the same thing — a name and a folder —
   except the file is yours from then on. `create_script` also consumes it when
-  what was saved is exactly what was last run (`consumeAgentScratch`), on the same
+  what was saved is exactly what was last run (`consumeAgentDraft`), on the same
   rule a person's Name follows: the buffer became the file, so it doesn't linger
   as a copy, and its console follows it to the path.
 
@@ -641,7 +671,7 @@ selection, the tab and the view as they were left.
 - **Two extra channels on every row, and no third.** The **loop key**
   (`loopKey.ts`) is the identifying value read off the request — the only thing
   making two hundred identical method names tellable apart — and it shares its
-  field list with `scratchTitle` so "what identifies a call" is defined once. The
+  field list with `draftTitle` so "what identifies a call" is defined once. The
   **duration bar** is drawn against the slowest call in the run, so finding the
   slow one is a shape you see rather than four digits you read; a run with
   nothing to compare gets no bars.
@@ -1264,7 +1294,7 @@ shared between them but the protocol's name.
 - **The canvas is the output; `console.log` is where an agent probes.** Both channels exist, but they are not a pair to pick from: a script is a file someone opens and presses Run on, so what it has to say goes on the canvas, and the transcript is read by the agent that asked for the run and by nobody else. Naming them side by side is what taught an agent to end every script with `console.log(response)` — so the guide's first example draws with `kaja.text`, `runtimeNote` states the canvas first and gives `console.log` its scope (probe with it, leave it out of a script you keep), and both say the thing that makes it unnecessary: **`run_script` already reports every call's request and response**, so the only value worth printing is one the script computed. It is not removed and not discouraged in a snippet — that is the one place it is the right tool.
 - **A run reports what it drew.** An agent's run has a canvas and nobody looking at it, so `RunResult.Blocks` is the receipt — each block's kind, and a table's columns and row count (`toBlockLog` in `App.tsx`, collected through `mcpBlockCollectorRef` as the blocks are emitted). The contents are not echoed: the agent produced them.
 - **The guide is not the only channel.** `initialize` returns `instructions` (the embedded `guide.md`) and `kaja://guide` is a resource, but a client may drop or summarise either. So the script runtime contract an agent would otherwise discover by probing — top-level `await` works, there is **no return value**, `kaja.text`/`kaja.code`/`kaja.table` are the canvas a script draws its output on and `console.log` is the transcript to probe with, imports are `<app>/<path>` and **named imports only**, `prompt`/`alert`/`confirm` do nothing — is repeated in `run_script`'s **tool description**, which no client can drop.
-- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's draft** (`agentScratch` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row pinned at the top of Drafts under the client's own name, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one draft, which is what makes them comparable, rather than eight rows. It is an ordinary draft in every other way — nameable, discardable — except that it is outside the count and outside the sweep; if it is cleared the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentScratch`, matched on content), on the same rule a person's Name follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path. The client's name arrives with the run (`RunScript(ctx, path, code, client)`), read off the `initialize` handshake — see **The agent's draft**.
+- **An inline run is not anonymous.** An agent probing with small snippets is the right behaviour — declarations say what the shape is, and only a real call says what the data is — so `run_script` with `code` stays cheap. What it may not be is *invisible*: an inline snippet is run in **the agent's draft** (`agentDraft` in `App.tsx`), so it has a file, and therefore a title read off its own code, a row pinned at the top of Drafts under the client's own name, and a console its runs land in beside the user's. **One buffer, reused**: eight tries at a call are eight runs of one draft, which is what makes them comparable, rather than eight rows. It is an ordinary draft in every other way — nameable, discardable — except that it is outside the count and outside the sweep; if it is cleared the next snippet starts another. `create_script` **consumes** it when what was saved is exactly what was last run (`consumeAgentDraft`, matched on content), on the same rule a person's Name follows: the buffer became the file, so it doesn't linger as a copy, and its console follows it to the path. The client's name arrives with the run (`RunScript(ctx, path, code, client)`), read off the `initialize` handshake — see **The agent's draft**.
 - **The footer says when the server is being used.** An agent works in a window nobody is watching, so the plug in the status bar is the one thing that reports it: while a request is being served it goes emerald and a ring pings out of it (`animate-signal`, sized to stay inside the 30px bar rather than Tailwind's own `ping`, which doubles the element). The **server** counts requests in flight and reports each change through `Bridge.Activity`, which the desktop emits as `mcp:activity`; the **UI** decides how long it lingers, because that is a question about being seen rather than about the protocol. A `ping` is a keepalive and doesn't count. Calls arrive in bursts of a few milliseconds, so the mark holds for `MCP_ACTIVITY_LINGER_MS` (2.5s) after the last one is answered — without it a whole burst would come and go inside one frame — and it stays lit for the whole of a long `run_script` rather than expiring under it.
 - **Nothing yet stops an agent writing.** Visibility is the whole of it for now: a snippet's calls are shown, not gated, and the `read`/`write` mark in `list_services` plus the guide's "confirm before running a write" are advice an agent may ignore. A gate belongs at the one place every call goes through (`client.ts`), keyed on something the run carries — that is where to put it when it is wanted.
 - **A failure says what to do about it.** `ui/src/callFailure.ts` classifies a call error while it still has its shape — an HTTP status, a gRPC/Twirp code, or neither — into `INVALID_REQUEST` / `UNAUTHORIZED` / `NOT_FOUND` / `RATE_LIMITED` / `SERVER` / `TRANSPORT`. Neither a status nor a code means the exchange itself broke, which is the one case where retrying with a different request is guaranteed waste. `run.go` turns each kind into the sentence that says so. **A rejected call does not throw** — it is reported and the script carries on with `undefined` in place of the response — so a script that stopped stopped on its own, usually on that `undefined` a line later, and the report says as much.

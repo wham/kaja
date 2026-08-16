@@ -29,20 +29,20 @@ import { appHeaders, appParameters, appType, buildApp } from "./appTypes";
 import { createPendingApp, getDefaultMethod, Method, App as AppModel, Script, scriptName, Service, updateAppRef } from "./apps";
 import {
   appendCall,
-  createScratch,
-  editedScratches,
+  createDraft,
+  editedDrafts,
   findUntouched,
-  isAgentScratch,
+  isAgentDraft,
   isUntouched,
   markRun,
-  pruneScratches,
+  pruneDrafts,
   reopen,
-  Scratch,
+  Draft,
   takeOver,
-  untouchedScratches,
+  untouchedDrafts,
   withCode,
-} from "./scratches";
-import { deriveScratchTitle, proposeFileName, proposeFileNames } from "./scratchTitle";
+} from "./drafts";
+import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitle";
 import { methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
 import { buildMcpCatalog } from "./mcpCatalog";
@@ -65,6 +65,7 @@ import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } fr
 import { getApiClient } from "./server/connection";
 import {
   dropView,
+  persistedDraftId,
   PersistedViewState,
   restoreViews,
   serializeViews,
@@ -73,7 +74,7 @@ import {
   showAppForm,
   showCompiler,
   showDefinition,
-  showScratch,
+  showDraft,
   showScript,
   showVariables,
   View,
@@ -107,7 +108,7 @@ import { MCPScriptResult, MCPServerInfo, MCPSetCatalog, ResolvedVariables, Scrip
 import { main } from "./wailsjs/go/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
 
-// How long a discarded scratch is held before it is really gone. Nothing was on
+// How long a discarded draft is held before it is really gone. Nothing was on
 // disk, so this is undo rather than a confirmation.
 const UNDO_DISCARD_MS = 8000;
 
@@ -116,11 +117,23 @@ const UNDO_DISCARD_MS = 8000;
 // the indicator would be gone before it was seen.
 const MCP_ACTIVITY_LINGER_MS = 2500;
 
-// Scratch ids the last session had open, so start-up pruning can't drop one
+// Draft ids the last session had open, so start-up pruning can't drop one
 // that is about to reopen.
-function openScratchIds(): string[] {
+function openDraftIds(): string[] {
   const persisted = getPersistedValue<PersistedViewState>("views");
-  return (persisted?.views ?? []).flatMap((view) => ("scratchId" in view ? [view.scratchId] : []));
+  return (persisted?.views ?? []).flatMap((view) => {
+    const id = persistedDraftId(view);
+    return id === undefined ? [] : [id];
+  });
+}
+
+/**
+ * The pile, read back. Drafts were called scratches in the code until the UI's
+ * word won, so the key they were written under is read once more: a rename is
+ * not a reason to lose somebody's work.
+ */
+function persistedDrafts(): Draft[] {
+  return getPersistedValue<Draft[]>("drafts") ?? getPersistedValue<Draft[]>("scratches") ?? [];
 }
 
 // Vertical padding the editor reserves around the code (see Editor.tsx).
@@ -204,7 +217,7 @@ interface NameSheet {
   folder: string;
   // The draft being named, and its code.
   content?: string;
-  scratchId?: string;
+  draftId?: string;
   // The file being renamed or moved.
   script?: Script;
 }
@@ -238,21 +251,19 @@ export function App() {
   const variablesStateRef = useRef(variablesState);
   variablesStateRef.current = variablesState;
   const [apps, setApps] = useState<AppModel[]>([]);
-  // Every scratch ever made, newest activity first — unlimited, kept in the
+  // Every draft ever made, newest activity first — unlimited, kept in the
   // app, named from its own code. Independent of what is open: closing a view
-  // puts a scratch away, it doesn't throw it out.
+  // puts a draft away, it doesn't throw it out.
   // The weekly sweep of untouched drafts. It is what keeps an unlimited pile —
   // one row per method clicked — at a steady size, and it is read here before
   // anything else because start-up is when it runs.
   const [sweepDrafts, setSweepDrafts] = usePersistedState("sweepDrafts", true);
-  const [scratches, setScratches] = useState<Scratch[]>(() =>
-    pruneScratches(getPersistedValue<Scratch[]>("scratches") ?? [], Date.now(), new Set(openScratchIds()), getPersistedValue<boolean>("sweepDrafts") ?? true),
+  const [drafts, setDrafts] = useState<Draft[]>(() =>
+    pruneDrafts(persistedDrafts(), Date.now(), new Set(openDraftIds()), getPersistedValue<boolean>("sweepDrafts") ?? true),
   );
   // The open files, most-recently-visited first: views[0] is what the window is
   // showing. Nothing else records which file is current.
-  const [views, setViews] = useState<View[]>(() =>
-    restoreViews(getPersistedValue<PersistedViewState>("views"), getPersistedValue<Scratch[]>("scratches") ?? []),
-  );
+  const [views, setViews] = useState<View[]>(() => restoreViews(getPersistedValue<PersistedViewState>("views"), persistedDrafts()));
   // A tree of names at 22px a row needs less width than one of icons at 34px.
   const [sidebarWidth, setSidebarWidth] = usePersistedState("sidebarWidth", 240);
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistedState("sidebarCollapsed", false);
@@ -285,11 +296,11 @@ export function App() {
   const [finder, setFinder] = useState<"first" | "previous">();
   const viewsRef = useRef(views);
   viewsRef.current = views;
-  const scratchesRef = useRef(scratches);
-  scratchesRef.current = scratches;
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
   const editorRegistryRef = useRef(new Map<string, monaco.editor.IStandaloneCodeEditor>());
   const hasViewMemory = useRef(getPersistedValue<PersistedViewState>("views") !== undefined);
-  const viewsRestoredRef = useRef(views.some((view) => view.type === "scratch"));
+  const viewsRestoredRef = useRef(views.some((view) => view.type === "draft"));
   const [scripts, setScripts] = useState<Script[]>();
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
@@ -357,7 +368,7 @@ export function App() {
   // Clearing the pile of drafts, confirmed only when it costs something: the
   // dialog appears when work would go, and names it. Nothing here can reach a
   // file.
-  const [clearDrafts, setClearDrafts] = useState<{ all: Scratch[]; edited: Scratch[] } | null>(null);
+  const [clearAllPrompt, setClearAllPrompt] = useState<{ all: Draft[]; edited: Draft[] } | null>(null);
   // A `kaja://run/…` link that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   /**
@@ -374,9 +385,9 @@ export function App() {
   const [activeRuns, setActiveRuns] = useState<LiveRun[]>([]);
   const activeRunsRef = useRef(activeRuns);
   activeRunsRef.current = activeRuns;
-  // A discarded scratch, held long enough to take it back. Nothing was on disk,
+  // A discarded draft, held long enough to take it back. Nothing was on disk,
   // so discarding is undoable rather than confirmed.
-  const [discarded, setDiscarded] = useState<{ scratches: { scratch: Scratch; runs?: FileConsole }[]; label: string } | null>(null);
+  const [discarded, setDiscarded] = useState<{ drafts: { draft: Draft; runs?: FileConsole }[]; label: string } | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending debounced disk writes for open script views, keyed by view id.
   const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -384,8 +395,8 @@ export function App() {
   // refreshOpenScriptEditors) or text that just came off disk, not a user edit —
   // skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
-  // Pending debounced writes of scratch text back to the store, keyed by scratch id.
-  const scratchSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Pending debounced writes of draft text back to the store, keyed by draft id.
+  const draftSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const showFileError = useCallback((message: string) => {
     setFileError(message);
@@ -399,26 +410,26 @@ export function App() {
     );
   }, []);
 
-  // Every change to a scratch goes through here: the list is kept newest-first
-  // and written straight through, because a scratch has no save step — it is
+  // Every change to a draft goes through here: the list is kept newest-first
+  // and written straight through, because a draft has no save step — it is
   // already kept.
-  const applyScratches = useCallback((update: (scratches: Scratch[]) => Scratch[]) => {
-    const next = update(scratchesRef.current);
-    if (next === scratchesRef.current) return;
+  const applyDrafts = useCallback((update: (drafts: Draft[]) => Draft[]) => {
+    const next = update(draftsRef.current);
+    if (next === draftsRef.current) return;
     const ordered = [...next].sort((a, b) => b.updatedAt - a.updatedAt);
-    scratchesRef.current = ordered;
-    setScratches(ordered);
-    setPersistedValue("scratches", ordered);
+    draftsRef.current = ordered;
+    setDrafts(ordered);
+    setPersistedValue("drafts", ordered);
   }, []);
 
-  const updateScratch = useCallback(
-    (id: string, change: (scratch: Scratch) => Scratch) => {
-      applyScratches((list) => {
-        const index = list.findIndex((scratch) => scratch.id === id);
-        return index === -1 ? list : list.map((scratch, i) => (i === index ? change(scratch) : scratch));
+  const updateDraft = useCallback(
+    (id: string, change: (draft: Draft) => Draft) => {
+      applyDrafts((list) => {
+        const index = list.findIndex((draft) => draft.id === id);
+        return index === -1 ? list : list.map((draft, i) => (i === index ? change(draft) : draft));
       });
     },
-    [applyScratches],
+    [applyDrafts],
   );
 
   // Flush a script view's pending debounced write immediately (e.g. before its
@@ -437,7 +448,7 @@ export function App() {
 
   const disposeView = useCallback(
     (view: View) => {
-      if (view.type !== "scratch" && view.type !== "script") return;
+      if (view.type !== "draft" && view.type !== "script") return;
       flushScriptWrite(view);
       editorRegistryRef.current.delete(view.id);
       setEditorContentHeights(({ [view.id]: _removed, ...rest }) => rest);
@@ -453,7 +464,7 @@ export function App() {
     (update: (views: View[]) => View[]) => {
       const previous = viewsRef.current;
       const current = previous[0];
-      if (current?.type === "scratch" || current?.type === "script") {
+      if (current?.type === "draft" || current?.type === "script") {
         const editor = editorRegistryRef.current.get(current.id);
         if (editor) current.viewState = editor.saveViewState() ?? undefined;
       }
@@ -768,9 +779,9 @@ export function App() {
   }, []);
 
   // Refresh open task editors to trigger re-validation
-  const refreshOpenScratchEditors = useCallback(() => {
+  const refreshOpenDraftEditors = useCallback(() => {
     viewsRef.current.forEach((view) => {
-      if (view.type === "scratch") {
+      if (view.type === "draft") {
         const value = view.model.getValue();
         view.model.setValue(value);
       }
@@ -888,19 +899,19 @@ export function App() {
       setApps((prevApps) => {
         const { updatedApps, renames } = syncAppsFromConfiguration(newConfiguration, prevApps, previousVariables);
 
-        // A scratch isn't bound to an app — deleting one leaves the scratch
+        // A draft isn't bound to an app — deleting one leaves the draft
         // alone, it just stops compiling. Only a rename needs following, so the
         // imports keep resolving.
         if (renames.size > 0) {
           viewsRef.current.forEach((view) => {
-            if (view.type !== "scratch") return;
+            if (view.type !== "draft") return;
             let value = view.model.getValue();
             for (const [oldName, newName] of renames) {
               value = remapEditorCode(value, oldName, newName);
             }
             if (value !== view.model.getValue()) {
               view.model.setValue(value);
-              updateScratch(view.scratchId, (scratch) => ({ ...scratch, code: value }));
+              updateDraft(view.draftId, (draft) => ({ ...draft, code: value }));
             }
           });
         }
@@ -908,7 +919,7 @@ export function App() {
         return updatedApps;
       });
     },
-    [syncAppsFromConfiguration, updateScratch],
+    [syncAppsFromConfiguration, updateDraft],
   );
 
   // Toggling the Apps preview adds or removes the configured apps from the sidebar
@@ -970,15 +981,15 @@ export function App() {
     document.documentElement.classList.toggle("dark", colorMode === "night");
   }, [colorMode]);
 
-  // A scratch names itself from its own code, so the window follows the list
+  // A draft names itself from its own code, so the window follows the list
   // rather than the view: running or appending re-derives the title without the
   // view itself changing, and reading it through a ref would leave the window on
   // the name the row has already stopped showing.
   useEffect(() => {
     const current = views[0];
     let title = "Kaja";
-    if (current?.type === "scratch") {
-      title = `${viewIdentity(current, scratches).name} - Kaja`;
+    if (current?.type === "draft") {
+      title = `${viewIdentity(current, drafts).name} - Kaja`;
     } else if (current?.type === "script") {
       title = `${current.script.name} - Kaja`;
     }
@@ -986,7 +997,7 @@ export function App() {
     if (isWailsEnvironment()) {
       WindowSetTitle(title);
     }
-  }, [views, scratches]);
+  }, [views, drafts]);
 
   // Load the global scripts directory. Scripts are independent of apps; they
   // bind to an app at run time via their import paths. The folder is read
@@ -1033,7 +1044,7 @@ export function App() {
       // A blank script — the other half of "pick a call and Kaja writes one".
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "n") {
         e.preventDefault();
-        onNewScratchRef.current();
+        onNewDraftRef.current();
         return;
       }
       // The same key as the </> button in the command row, on every file that
@@ -1116,11 +1127,11 @@ export function App() {
         return;
       }
 
-      // Restored scratches were created before the source models existed, so
+      // Restored drafts were created before the source models existed, so
       // poke their editors to revalidate now that the imports resolve.
       if (viewsRestoredRef.current) {
         viewsRestoredRef.current = false;
-        refreshOpenScratchEditors();
+        refreshOpenDraftEditors();
         return;
       }
 
@@ -1146,10 +1157,10 @@ export function App() {
   });
 
   /**
-   * Clicking a method never asks what to do with it. The current scratch
+   * Clicking a method never asks what to do with it. The current draft
    * decides: an untouched one is a browsing buffer and gets taken over, a
-   * worked-in one is left alone and the call starts a new scratch — unless an
-   * untouched scratch already holds exactly this call, which is reopened rather
+   * worked-in one is left alone and the call starts a new draft — unless an
+   * untouched draft already holds exactly this call, which is reopened rather
    * than made a second time. Appending to what you already have is the
    * deliberate gesture (⌥click, or the + on the row), so it can't happen by
    * drifting.
@@ -1168,41 +1179,41 @@ export function App() {
       recordUse(methodUse(originAppName, service, method));
       const now = Date.now();
       const current = viewsRef.current[0];
-      const currentScratch = current?.type === "scratch" ? scratchesRef.current.find((s) => s.id === current.scratchId) : undefined;
+      const currentDraft = current?.type === "draft" ? draftsRef.current.find((s) => s.id === current.draftId) : undefined;
 
-      if (mode === "append" && current?.type === "scratch" && currentScratch) {
+      if (mode === "append" && current?.type === "draft" && currentDraft) {
         const merged = await formatTypeScript(appendCall(current.model.getValue(), code));
         current.model.setValue(merged);
-        updateScratch(currentScratch.id, (scratch) => withCode(scratch, merged, now));
+        updateDraft(currentDraft.id, (draft) => withCode(draft, merged, now));
         return;
       }
 
-      // An untouched scratch holding exactly this call is the buffer this click
+      // An untouched draft holding exactly this call is the buffer this click
       // would produce, so it is reopened instead. This is decided before the
       // takeover, which would otherwise be the thing that made the duplicate.
-      const held = findUntouched(scratchesRef.current, code, originAppName);
+      const held = findUntouched(draftsRef.current, code, originAppName);
       if (held) {
-        updateScratch(held.id, (scratch) => reopen(scratch, now));
-        applyViews((views) => showScratch(views, held));
+        updateDraft(held.id, (draft) => reopen(draft, now));
+        applyViews((views) => showDraft(views, held));
         return;
       }
 
-      if (currentScratch && isUntouched(currentScratch)) {
-        current.type === "scratch" && current.model.setValue(code);
-        updateScratch(currentScratch.id, (scratch) => takeOver(scratch, code, originAppName, now));
+      if (currentDraft && isUntouched(currentDraft)) {
+        current.type === "draft" && current.model.setValue(code);
+        updateDraft(currentDraft.id, (draft) => takeOver(draft, code, originAppName, now));
         return;
       }
 
-      const scratch = createScratch(code, originAppName, now);
-      applyScratches((list) => [scratch, ...list]);
-      applyViews((views) => showScratch(views, scratch));
+      const draft = createDraft(code, originAppName, now);
+      applyDrafts((list) => [draft, ...list]);
+      applyViews((views) => showDraft(views, draft));
     },
-    [applyScratches, applyViews, updateScratch],
+    [applyDrafts, applyViews, updateDraft],
   );
 
-  const onScratchSelect = useCallback(
-    (scratch: Scratch) => {
-      applyViews((views) => showScratch(views, scratch));
+  const onDraftSelect = useCallback(
+    (draft: Draft) => {
+      applyViews((views) => showDraft(views, draft));
     },
     [applyViews],
   );
@@ -1213,55 +1224,55 @@ export function App() {
    * the same mechanism for one row and for a sweep of the whole pile, because
    * they cost the same — nothing.
    */
-  const clearScratches = useCallback(
-    (list: Scratch[], label: string) => {
+  const discardDrafts = useCallback(
+    (list: Draft[], label: string) => {
       if (list.length === 0) return;
-      const ids = new Set(list.map((scratch) => scratch.id));
-      applyViews((views) => views.filter((view) => !(view.type === "scratch" && ids.has(view.scratchId))));
-      applyScratches((current) => current.filter((scratch) => !ids.has(scratch.id)));
+      const ids = new Set(list.map((draft) => draft.id));
+      applyViews((views) => views.filter((view) => !(view.type === "draft" && ids.has(view.draftId))));
+      applyDrafts((current) => current.filter((draft) => !ids.has(draft.id)));
       // The console goes with the draft, and is held alongside it so taking the
       // discard back brings the runs back too.
-      const held = list.map((scratch) => ({ scratch, runs: consoles.takeFile(scratch.id) }));
-      for (const scratch of list) dropStoredFile(scratch.id);
+      const held = list.map((draft) => ({ draft, runs: consoles.takeFile(draft.id) }));
+      for (const draft of list) dropStoredFile(draft.id);
       if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-      setDiscarded({ scratches: held, label });
+      setDiscarded({ drafts: held, label });
       discardTimerRef.current = setTimeout(() => setDiscarded(null), UNDO_DISCARD_MS);
     },
-    [applyScratches, applyViews],
+    [applyDrafts, applyViews],
   );
 
-  const onDiscardScratch = useCallback((scratch: Scratch) => clearScratches([scratch], `Discarded ${scratch.title}`), [clearScratches]);
+  const onDiscardDraft = useCallback((draft: Draft) => discardDrafts([draft], `Discarded ${draft.title}`), [discardDrafts]);
 
   const onUndoDiscard = useCallback(() => {
     if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
     setDiscarded((held) => {
       if (held) {
-        applyScratches((list) => [...held.scratches.map((entry) => entry.scratch), ...list]);
-        for (const { scratch, runs } of held.scratches) {
+        applyDrafts((list) => [...held.drafts.map((entry) => entry.draft), ...list]);
+        for (const { draft, runs } of held.drafts) {
           if (!runs) continue;
-          consoles.putFile(scratch.id, runs);
-          saveRuns(scratch.id, runs.runs, runs.allItems());
+          consoles.putFile(draft.id, runs);
+          saveRuns(draft.id, runs.runs, runs.allItems());
         }
       }
       return null;
     });
-  }, [applyScratches]);
+  }, [applyDrafts]);
 
   // A blank script, for when you know what you want to write and don't need a
   // call to start it. The empty state names the key, so it has to exist.
-  const onNewScratch = useCallback(() => {
-    const scratch = createScratch("", undefined, Date.now());
-    applyScratches((list) => [scratch, ...list]);
-    applyViews((views) => showScratch(views, scratch));
-  }, [applyScratches, applyViews]);
-  const onNewScratchRef = useRef(onNewScratch);
-  onNewScratchRef.current = onNewScratch;
+  const onNewDraft = useCallback(() => {
+    const draft = createDraft("", undefined, Date.now());
+    applyDrafts((list) => [draft, ...list]);
+    applyViews((views) => showDraft(views, draft));
+  }, [applyDrafts, applyViews]);
+  const onNewDraftRef = useRef(onNewDraft);
+  onNewDraftRef.current = onNewDraft;
 
   /**
    * The buffer an agent explores in. A snippet it sends has no file of its own,
    * so it is given the same one every time: eight tries at a call are eight runs
-   * of one scratch — which is what makes them comparable in the history — rather
-   * than a trail of eight rows in the sidebar. It is an ordinary scratch in every
+   * of one draft — which is what makes them comparable in the history — rather
+   * than a trail of eight rows in the sidebar. It is an ordinary draft in every
    * other way, titled from its own code and free to be named or discarded; if it
    * goes, the next snippet starts another. Which one it is outlives the window,
    * or every restart would leave one more buffer behind that nothing reuses.
@@ -1270,28 +1281,28 @@ export function App() {
    * name, which pins the row above your drafts, outside the count and outside
    * the sweep, and labels it with an actor you recognise.
    */
-  const agentScratchIdRef = useRef<string | undefined>(getPersistedValue<string>("agentScratchId"));
-  const agentScratch = useCallback(
-    (code: string, client: string): Scratch => {
+  const agentDraftIdRef = useRef<string | undefined>(getPersistedValue<string>("agentDraftId") ?? getPersistedValue<string>("agentScratchId"));
+  const agentDraft = useCallback(
+    (code: string, client: string): Draft => {
       const now = Date.now();
-      const held = scratchesRef.current.find((scratch) => scratch.id === agentScratchIdRef.current);
-      // A run is the punctuation that settles a scratch, and one is about to
+      const held = draftsRef.current.find((draft) => draft.id === agentDraftIdRef.current);
+      // A run is the punctuation that settles a draft, and one is about to
       // happen — so the title is re-read from the code now, as any run does.
       // The client comes with the run, so the row wears the name of whichever
       // agent touched it last.
-      const scratch = { ...markRun(held ?? createScratch(code, undefined, now), code, now), agentClient: client };
-      agentScratchIdRef.current = scratch.id;
-      setPersistedValue("agentScratchId", scratch.id);
-      applyScratches((list) => (held ? list.map((candidate) => (candidate.id === scratch.id ? scratch : candidate)) : [scratch, ...list]));
+      const draft = { ...markRun(held ?? createDraft(code, undefined, now), code, now), agentClient: client };
+      agentDraftIdRef.current = draft.id;
+      setPersistedValue("agentDraftId", draft.id);
+      applyDrafts((list) => (held ? list.map((candidate) => (candidate.id === draft.id ? draft : candidate)) : [draft, ...list]));
       // If the buffer is on screen, it shows what is about to run in it.
-      const view = viewsRef.current.find((candidate) => candidate.type === "scratch" && candidate.scratchId === scratch.id);
-      if (view?.type === "scratch" && view.model.getValue() !== code) view.model.setValue(code);
-      return scratch;
+      const view = viewsRef.current.find((candidate) => candidate.type === "draft" && candidate.draftId === draft.id);
+      if (view?.type === "draft" && view.model.getValue() !== code) view.model.setValue(code);
+      return draft;
     },
-    [applyScratches],
+    [applyDrafts],
   );
-  const agentScratchRef = useRef(agentScratch);
-  agentScratchRef.current = agentScratch;
+  const agentDraftRef = useRef(agentDraft);
+  agentDraftRef.current = agentDraft;
 
   /**
    * The agent saved its buffer as a file, so the buffer goes with it rather than
@@ -1300,20 +1311,20 @@ export function App() {
    * script the agent wrote differently from what it ran is a new one, and the
    * buffer it explored in stays where it is.
    */
-  const consumeAgentScratch = useCallback(
+  const consumeAgentDraft = useCallback(
     (script: Script, content: string) => {
-      const id = agentScratchIdRef.current;
-      const scratch = id ? scratchesRef.current.find((candidate) => candidate.id === id) : undefined;
-      if (!id || !scratch || scratch.code !== content) return;
-      agentScratchIdRef.current = undefined;
-      setPersistedValue("agentScratchId", undefined);
-      const shown = viewsRef.current.find((view) => view.type === "scratch" && view.scratchId === id);
+      const id = agentDraftIdRef.current;
+      const draft = id ? draftsRef.current.find((candidate) => candidate.id === id) : undefined;
+      if (!id || !draft || draft.code !== content) return;
+      agentDraftIdRef.current = undefined;
+      setPersistedValue("agentDraftId", undefined);
+      const shown = viewsRef.current.find((view) => view.type === "draft" && view.draftId === id);
       applyViews((views) => (shown ? dropView(showScript(views, script, content), shown.id) : views));
-      applyScratches((list) => list.filter((candidate) => candidate.id !== id));
+      applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
       consoles.renameFile(id, script.path);
       renameStoredFile(id, script.path);
     },
-    [applyScratches, applyViews],
+    [applyDrafts, applyViews],
   );
 
   /**
@@ -1325,24 +1336,24 @@ export function App() {
    * your own and stops following. The agent keeps its row and carries on.
    */
   const agentViewClient = useCallback(
-    (scratchId: string) => scratchesRef.current.find((scratch) => scratch.id === scratchId && isAgentScratch(scratch))?.agentClient,
+    (draftId: string) => draftsRef.current.find((draft) => draft.id === draftId && isAgentDraft(draft))?.agentClient,
     // The list is read through the ref, so this only has to re-run when it moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scratches],
+    [drafts],
   );
 
   const onTakeOverAgentDraft = useCallback(
-    (scratchId: string) => {
-      const held = scratchesRef.current.find((scratch) => scratch.id === scratchId);
+    (draftId: string) => {
+      const held = draftsRef.current.find((draft) => draft.id === draftId);
       if (!held) return;
       const now = Date.now();
       // A copy of the code, and nothing of the attribution: it is yours from
       // here, and it counts as work rather than as another browsing buffer.
-      const mine = { ...createScratch(held.code, held.originAppName, now), title: held.title, generatedCode: "", ran: false };
-      applyScratches((list) => [mine, ...list]);
-      applyViews((views) => showScratch(views, mine));
+      const mine = { ...createDraft(held.code, held.originAppName, now), title: held.title, generatedCode: "", ran: false };
+      applyDrafts((list) => [mine, ...list]);
+      applyViews((views) => showDraft(views, mine));
     },
-    [applyScratches, applyViews],
+    [applyDrafts, applyViews],
   );
 
   const onScriptSelect = useCallback(
@@ -1528,27 +1539,27 @@ export function App() {
   const onRequestSave = useCallback(() => {
     if (!canWriteScripts()) return;
     const view = viewsRef.current[0];
-    if (view?.type !== "scratch") return;
-    const scratch = scratchesRef.current.find((candidate) => candidate.id === view.scratchId);
+    if (view?.type !== "draft") return;
+    const draft = draftsRef.current.find((candidate) => candidate.id === view.draftId);
     openNameSheet({
       verb: "name",
-      name: proposeFileName(viewIdentity(view, scratchesRef.current).name, takenNames("")),
+      name: proposeFileName(viewIdentity(view, draftsRef.current).name, takenNames("")),
       folder: lastFolderRef.current,
       content: view.model.getValue(),
-      scratchId: view.scratchId,
-      title: scratch && isAgentScratch(scratch) ? `Name what ${scratch.agentClient} wrote` : "Name this draft",
+      draftId: view.draftId,
+      title: draft && isAgentDraft(draft) ? `Name what ${draft.agentClient} wrote` : "Name this draft",
     });
   }, [openNameSheet, takenNames]);
 
-  const onNameScratch = useCallback(
-    (scratch: Scratch) =>
+  const onNameDraft = useCallback(
+    (draft: Draft) =>
       openNameSheet({
         verb: "name",
-        name: proposeFileName(scratch.title, takenNames("")),
+        name: proposeFileName(draft.title, takenNames("")),
         folder: lastFolderRef.current,
-        content: scratch.code,
-        scratchId: scratch.id,
-        title: isAgentScratch(scratch) ? `Name what ${scratch.agentClient} wrote` : "Name this draft",
+        content: draft.code,
+        draftId: draft.id,
+        title: isAgentDraft(draft) ? `Name what ${draft.agentClient} wrote` : "Name this draft",
       }),
     [openNameSheet, takenNames],
   );
@@ -1561,20 +1572,20 @@ export function App() {
    * names the work at stake.
    */
   const onClearUntouched = useCallback(() => {
-    const list = untouchedScratches(scratchesRef.current);
-    if (list.length > 0) clearScratches(list, `${list.length} untouched ${list.length === 1 ? "draft" : "drafts"} cleared`);
-  }, [clearScratches]);
+    const list = untouchedDrafts(draftsRef.current);
+    if (list.length > 0) discardDrafts(list, `${list.length} untouched ${list.length === 1 ? "draft" : "drafts"} cleared`);
+  }, [discardDrafts]);
 
   const onClearAllDrafts = useCallback(() => {
-    const all = scratchesRef.current.filter((scratch) => !isAgentScratch(scratch));
+    const all = draftsRef.current.filter((draft) => !isAgentDraft(draft));
     if (all.length === 0) return;
-    const edited = editedScratches(all);
+    const edited = editedDrafts(all);
     if (edited.length === 0) {
-      clearScratches(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
+      discardDrafts(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
       return;
     }
-    setClearDrafts({ all, edited });
-  }, [clearScratches]);
+    setClearAllPrompt({ all, edited });
+  }, [discardDrafts]);
 
   const onRequestSaveRef = useRef(onRequestSave);
   onRequestSaveRef.current = onRequestSave;
@@ -1651,15 +1662,15 @@ export function App() {
       // A saved script runs in its own console under its own name. A snippet has
       // no file, so it is given one: exploration in Kaja is a draft, and an
       // agent exploring is not a different kind of event from a person doing it.
-      const scratch = payload.path ? undefined : agentScratchRef.current(source, payload.client || "Agent");
-      const fileId = payload.path || scratch?.id;
+      const draft = payload.path ? undefined : agentDraftRef.current(source, payload.client || "Agent");
+      const fileId = payload.path || draft?.id;
       // This run's own receipt. Two agents calling run_script at once each get
       // what their own script did, because the collector reaches the run through
       // its closures rather than through a slot the later one would take.
       const collect: RunCollector = { calls: [], blocks: new Map<string, Block>() };
       const report = () => ({ methodCalls: collect.calls.map(toMethodCallLog), blocks: [...collect.blocks.values()].map(toBlockLog) });
       let result: McpRunReport;
-      const { run, kaja } = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (scratch?.title ?? "Agent script"), fileId, undefined, {
+      const { run, kaja } = beginRunRef.current(payload.path ? payload.path.split("/").pop()! : (draft?.title ?? "Agent script"), fileId, undefined, {
         origin: "agent",
         collect,
       });
@@ -1716,15 +1727,15 @@ export function App() {
         applyViews((views) => {
           const shown = showScript(views, script, content);
           // The draft became the file, so it doesn't linger as a copy.
-          const source = sheet.scratchId && shown.find((view) => view.type === "scratch" && view.scratchId === sheet.scratchId);
+          const source = sheet.draftId && shown.find((view) => view.type === "draft" && view.draftId === sheet.draftId);
           return source ? dropView(shown, source.id) : shown;
         });
-        if (sheet.scratchId) {
-          const id = sheet.scratchId;
-          applyScratches((list) => list.filter((candidate) => candidate.id !== id));
-          if (id === agentScratchIdRef.current) {
-            agentScratchIdRef.current = undefined;
-            setPersistedValue("agentScratchId", undefined);
+        if (sheet.draftId) {
+          const id = sheet.draftId;
+          applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
+          if (id === agentDraftIdRef.current) {
+            agentDraftIdRef.current = undefined;
+            setPersistedValue("agentDraftId", undefined);
           }
           // Naming changes what the file is called, not what it is, so its runs
           // come along to the path it now lives at.
@@ -1749,7 +1760,7 @@ export function App() {
     } catch (err) {
       setNameSheetError(String(err));
     }
-  }, [nameSheet, applyScratches, applyViews, applyScriptRename, flushScriptWrite]);
+  }, [nameSheet, applyDrafts, applyViews, applyScriptRename, flushScriptWrite]);
 
   const onRenameScript = useCallback(
     (script: Script) => openNameSheet({ verb: "rename", name: script.name.replace(/\.ts$/, ""), folder: script.folder, script, title: "Rename file" }),
@@ -1890,7 +1901,7 @@ export function App() {
             const script: Script = { path: payload.path, name: payload.name ?? "", folder: payload.folder ?? "" };
             setScripts((prev) => (prev && !prev.some((s) => s.path === script.path) ? sortScripts([...prev, script]) : prev));
             if (script.folder) setScriptFolders((prev) => (prev.includes(script.folder) ? prev : [...prev, script.folder].sort()));
-            consumeAgentScratch(script, payload.content ?? "");
+            consumeAgentDraft(script, payload.content ?? "");
             break;
           }
           case "rename":
@@ -1905,7 +1916,7 @@ export function App() {
       },
     );
     return () => unsub();
-  }, [applyScriptRename, applyViews, removeScriptFromUI, persistViews, consumeAgentScratch]);
+  }, [applyScriptRename, applyViews, removeScriptFromUI, persistViews, consumeAgentDraft]);
 
   const onGoToDefinition = (model: monaco.editor.ITextModel, startLineNumber: number, startColumn: number) => {
     applyViews((views) => showDefinition(views, model, startLineNumber, startColumn));
@@ -1956,22 +1967,22 @@ export function App() {
         if (!editorInstance.hasTextFocus()) return;
 
         const view = viewsRef.current.find((candidate) => candidate.id === viewId);
-        if (view?.type !== "scratch") return;
-        // A scratch has no save step, so its text is written back as it is
+        if (view?.type !== "draft") return;
+        // A draft has no save step, so its text is written back as it is
         // typed — debounced, because every keystroke would be a store write.
-        const pending = scratchSaveTimers.current.get(view.scratchId);
+        const pending = draftSaveTimers.current.get(view.draftId);
         if (pending) clearTimeout(pending);
-        scratchSaveTimers.current.set(
-          view.scratchId,
+        draftSaveTimers.current.set(
+          view.draftId,
           setTimeout(() => {
-            scratchSaveTimers.current.delete(view.scratchId);
-            updateScratch(view.scratchId, (scratch) => ({ ...scratch, code: view.model.getValue(), updatedAt: Date.now() }));
+            draftSaveTimers.current.delete(view.draftId);
+            updateDraft(view.draftId, (draft) => ({ ...draft, code: view.model.getValue(), updatedAt: Date.now() }));
           }, 400),
         );
       });
       editorInstance.onDidChangeModel(report);
     },
-    [applyViews, updateScratch],
+    [applyViews, updateDraft],
   );
 
   // The </> button in the command row edits the current file as JSON: same
@@ -2000,13 +2011,13 @@ export function App() {
   toggleJsonViewRef.current = toggleJsonView;
   // The file on screen is the one Run runs, so its errors are the ones the row
   // reports — on the trigger, and as Run's reason for being disabled.
-  const syntaxErrors = useSyntaxErrors(currentView?.type === "scratch" || currentView?.type === "script" ? currentView.model : undefined);
+  const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
 
   // Run the current file's editor contents. Triggered by Run in the command
   // row, by ⌘⏎ and by F5.
   const onRunCurrentTab = useCallback(() => {
     const view = viewsRef.current[0];
-    if (!view || (view.type !== "scratch" && view.type !== "script")) {
+    if (!view || (view.type !== "draft" && view.type !== "script")) {
       return;
     }
     const editor = editorRegistryRef.current.get(view.id);
@@ -2017,22 +2028,22 @@ export function App() {
     const controller = new AbortController();
     // Run names reuse the derived script names, so the console and the sidebar
     // speak the same language.
-    const title = view.type === "script" ? view.script.name : (deriveScratchTitle(code) ?? viewIdentity(view, scratchesRef.current).name);
+    const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
     // Pressing Run carries no input, and this run's Kaja was born without any —
     // there is nothing a previous link could have left behind to clear.
-    const { run, kaja } = beginRun(title, view.type === "script" ? view.script.path : view.scratchId, controller);
+    const { run, kaja } = beginRun(title, view.type === "script" ? view.script.path : view.draftId, controller);
     // A live table draws its first page itself, and those calls are the run's:
     // the script is not over until they have landed, or the run would report a
     // duration that stops before the work it started.
     runScript(code, kaja, apps, reportScriptError(run), controller.signal)
       .then(() => kaja.settleTables())
       .finally(() => markSettled(run.id));
-    // A run is the punctuation that settles a scratch: it is when the title is
+    // A run is the punctuation that settles a draft: it is when the title is
     // re-read from the code, rather than jittering as you type.
-    if (view.type === "scratch") {
-      updateScratch(view.scratchId, (scratch) => markRun(scratch, code, Date.now()));
+    if (view.type === "draft") {
+      updateDraft(view.draftId, (draft) => markRun(draft, code, Date.now()));
     }
-  }, [apps, beginRun, reportScriptError, updateScratch, markSettled]);
+  }, [apps, beginRun, reportScriptError, updateDraft, markSettled]);
 
   /**
    * A generated method-call script issues its call without awaiting it, so the
@@ -2072,7 +2083,7 @@ export function App() {
 
   // Which file the console is reporting on. Everything below the editor is that
   // file's: its runs, where it was left pointing, and what it was showing.
-  const currentFileId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "scratch" ? currentView.scratchId : undefined;
+  const currentFileId = currentView?.type === "script" ? currentView.script.path : currentView?.type === "draft" ? currentView.draftId : undefined;
 
   // Reopening a script gives you its code and, if we still hold them, the runs
   // it last made. They are read once and sit underneath anything run since.
@@ -2277,7 +2288,7 @@ export function App() {
     if (response.configuration) {
       applyConfiguration(response.configuration);
       // Refresh remaining editors to show broken import errors
-      refreshOpenScratchEditors();
+      refreshOpenDraftEditors();
     }
   };
 
@@ -2286,7 +2297,7 @@ export function App() {
   // the inset.
   const commandRowInset = isDesktopMac && sidebarCollapsed ? TRAFFIC_LIGHTS_INSET : 12;
 
-  const currentIsEditor = currentView?.type === "scratch" || currentView?.type === "script";
+  const currentIsEditor = currentView?.type === "draft" || currentView?.type === "script";
   const isHorizontalLayout = editorLayout === "horizontal" && currentIsEditor;
 
   const currentEditorContentHeight = currentIsEditor ? editorContentHeights[currentView.id] : undefined;
@@ -2300,7 +2311,7 @@ export function App() {
   // Where you have been, most recent first. This is the mounted-view cache read
   // as history, which is all "recent" ever meant.
   const recent: Destination[] = views.map((view) => ({
-    ...viewIdentity(view, scratches),
+    ...viewIdentity(view, drafts),
     key: view.id,
     go: () => onGoToView(view.id),
   }));
@@ -2308,7 +2319,7 @@ export function App() {
   // Everywhere else you can go. Typing narrows across both, which is what makes
   // the finder the only surface that can search the calls.
   const elsewhere = useMemo<Destination[]>(() => {
-    const shownScratches = new Set(views.filter((view) => view.type === "scratch").map((view) => view.scratchId));
+    const shownDrafts = new Set(views.filter((view) => view.type === "draft").map((view) => view.draftId));
     const shownScripts = new Set(views.filter((view) => view.type === "script").map((view) => view.script.path));
     const destinations: Destination[] = [];
 
@@ -2330,16 +2341,16 @@ export function App() {
       });
     }
 
-    for (const scratch of scratches) {
-      if (shownScratches.has(scratch.id)) continue;
+    for (const draft of drafts) {
+      if (shownDrafts.has(draft.id)) continue;
       destinations.push({
-        key: `scratch:${scratch.id}`,
-        name: scratch.title,
+        key: `draft:${draft.id}`,
+        name: draft.title,
         path: "Drafts",
-        origin: scratch.agentClient ?? scratch.originAppName ?? "",
-        icon: isAgentScratch(scratch) ? Plug : PenLine,
-        provisional: isUntouched(scratch),
-        go: () => onScratchSelect(scratch),
+        origin: draft.agentClient ?? draft.originAppName ?? "",
+        icon: isAgentDraft(draft) ? Plug : PenLine,
+        provisional: isUntouched(draft),
+        go: () => onDraftSelect(draft),
       });
     }
 
@@ -2372,7 +2383,7 @@ export function App() {
     }
 
     return destinations;
-  }, [apps, scratches, scripts, views, onScratchSelect, onScriptSelect, onMethodSelect, onVariablesClick, onShowCompileLog]);
+  }, [apps, drafts, scripts, views, onDraftSelect, onScriptSelect, onMethodSelect, onVariablesClick, onShowCompileLog]);
 
   // Which files have something in the air, so a run started on one script says
   // so while you are looking at another. Three sets the store keeps rather than
@@ -2382,20 +2393,20 @@ export function App() {
   // What the empty state offers instead of an illustration: the last few things
   // you were in. On a first run there are none and the list is simply absent.
   const recentFiles = useMemo<RecentFile[]>(() => {
-    const files: RecentFile[] = scratches.slice(0, 3).map((scratch) => ({
-      key: scratch.id,
-      name: scratch.title,
+    const files: RecentFile[] = drafts.slice(0, 3).map((draft) => ({
+      key: draft.id,
+      name: draft.title,
       icon: PenLine,
-      updatedAt: scratch.updatedAt,
+      updatedAt: draft.updatedAt,
       saved: false,
-      go: () => onScratchSelect(scratch),
+      go: () => onDraftSelect(draft),
     }));
     for (const script of scripts ?? []) {
       if (files.length >= 3) break;
       files.push({ key: script.path, name: script.name, icon: FileCode, saved: true, go: () => void onScriptSelect(script) });
     }
     return files;
-  }, [scratches, scripts, onScratchSelect, onScriptSelect]);
+  }, [drafts, scripts, onDraftSelect, onScriptSelect]);
 
   /**
    * The pair you reach for mid-edit, beside the name of what it acts on: `Name`,
@@ -2403,7 +2414,7 @@ export function App() {
    * buffer with it. Both are absent on a file, which is already on disk and
    * stays there as you type, and on the web, where nothing can write one.
    */
-  const currentDraft = currentView?.type === "scratch" ? scratches.find((scratch) => scratch.id === currentView.scratchId) : undefined;
+  const currentDraft = currentView?.type === "draft" ? drafts.find((draft) => draft.id === currentView.draftId) : undefined;
   const fileActions =
     currentDraft && canWriteScripts() ? (
       <div className="flex shrink-0 items-center gap-1">
@@ -2422,7 +2433,7 @@ export function App() {
           variant="ghost"
           size="sm"
           className="size-6 [&_svg]:size-[13px]"
-          onClick={() => onDiscardScratch(currentDraft)}
+          onClick={() => onDiscardDraft(currentDraft)}
         />
       </div>
     ) : undefined;
@@ -2491,16 +2502,16 @@ export function App() {
                   <ScriptsRegion
                     scripts={scripts ?? []}
                     folders={scriptFolders}
-                    scratches={scratches}
-                    currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
+                    drafts={drafts}
+                    currentDraftId={currentView?.type === "draft" ? currentView.draftId : undefined}
                     currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
                     runningFileIds={runningFiles}
                     agentFileIds={agentFiles}
                     waitingFileIds={waitingFiles}
                     canWrite={canWriteScripts()}
-                    onScratchSelect={onScratchSelect}
-                    onNameScratch={onNameScratch}
-                    onDiscardScratch={onDiscardScratch}
+                    onDraftSelect={onDraftSelect}
+                    onNameDraft={onNameDraft}
+                    onDiscardDraft={onDiscardDraft}
                     onClearUntouched={onClearUntouched}
                     onClearAllDrafts={onClearAllDrafts}
                     sweepDrafts={sweepDrafts}
@@ -2548,7 +2559,7 @@ export function App() {
               <FirstAppBlankslate onNewAppClick={onNewAppClick} canUpdateConfiguration={runtime.canUpdateConfiguration} />
             )}
             {views.length === 0 && configurationLoaded && apps.length > 0 && (
-              <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewScratch={onNewScratch} recent={recentFiles} />
+              <NoFileBlankslate onOpenFinder={() => setFinder("first")} onNewDraft={onNewDraft} recent={recentFiles} />
             )}
             {views.length > 0 && (
               <div style={{ flex: 1, display: "flex", flexDirection: isHorizontalLayout ? "row" : "column", minHeight: 0 }}>
@@ -2577,19 +2588,19 @@ export function App() {
                           expandApp={compileLogExpandApp}
                         />
                       )}
-                      {(view.type === "scratch" || view.type === "script") && (
+                      {(view.type === "draft" || view.type === "script") && (
                         <div className="relative flex min-h-0 flex-1 flex-col">
                           {/* Somebody else is writing in this one, so the editor
                               follows rather than pretending you can type into a
                               buffer that is being rewritten under you. */}
-                          {view.type === "scratch" && agentViewClient(view.scratchId) && (
+                          {view.type === "draft" && agentViewClient(view.draftId) && (
                             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
                               <Plug size={13} className="shrink-0 text-muted-foreground" />
-                              <span className="shrink-0 text-sm text-foreground">{agentViewClient(view.scratchId)}</span>
+                              <span className="shrink-0 text-sm text-foreground">{agentViewClient(view.draftId)}</span>
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                agent draft · following {agentViewClient(view.scratchId)}
+                                agent draft · following {agentViewClient(view.draftId)}
                               </span>
-                              <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.scratchId)}>
+                              <Button variant="outline" size="sm" className="h-6 shrink-0" onClick={() => onTakeOverAgentDraft(view.draftId)}>
                                 Take over
                               </Button>
                             </div>
@@ -2603,9 +2614,7 @@ export function App() {
                             onMount={(editor) => onEditorReady(view.id, editor)}
                             onGoToDefinition={onGoToDefinition}
                             viewState={view.viewState}
-                            readOnly={
-                              (view.type === "script" && !canWriteScripts()) || (view.type === "scratch" && agentViewClient(view.scratchId) !== undefined)
-                            }
+                            readOnly={(view.type === "script" && !canWriteScripts()) || (view.type === "draft" && agentViewClient(view.draftId) !== undefined)}
                           />
                         </div>
                       )}
@@ -2899,39 +2908,39 @@ export function App() {
           names the work at stake. Its two buttons are both actions, so closing
           it — Esc, the backdrop, the X — clears nothing: the safe path is the
           fast one, not the one you fall into. */}
-      {clearDrafts && (
+      {clearAllPrompt && (
         <Dialog
-          title={`Clear ${clearDrafts.all.length} ${clearDrafts.all.length === 1 ? "draft" : "drafts"}?`}
-          onClose={() => setClearDrafts(null)}
+          title={`Clear ${clearAllPrompt.all.length} ${clearAllPrompt.all.length === 1 ? "draft" : "drafts"}?`}
+          onClose={() => setClearAllPrompt(null)}
           footerButtons={[
             {
-              content: `Keep edited (${clearDrafts.all.length - clearDrafts.edited.length})`,
+              content: `Keep edited (${clearAllPrompt.all.length - clearAllPrompt.edited.length})`,
               onClick: () => {
-                const untouched = clearDrafts.all.filter((scratch) => !clearDrafts.edited.includes(scratch));
-                setClearDrafts(null);
-                clearScratches(untouched, `${untouched.length} untouched ${untouched.length === 1 ? "draft" : "drafts"} cleared`);
+                const untouched = clearAllPrompt.all.filter((draft) => !clearAllPrompt.edited.includes(draft));
+                setClearAllPrompt(null);
+                discardDrafts(untouched, `${untouched.length} untouched ${untouched.length === 1 ? "draft" : "drafts"} cleared`);
               },
             },
             {
-              content: `Clear all ${clearDrafts.all.length}`,
+              content: `Clear all ${clearAllPrompt.all.length}`,
               variant: "destructive",
               onClick: () => {
-                const all = clearDrafts.all;
-                setClearDrafts(null);
-                clearScratches(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
+                const all = clearAllPrompt.all;
+                setClearAllPrompt(null);
+                discardDrafts(all, `${all.length} ${all.length === 1 ? "draft" : "drafts"} cleared`);
               },
             },
           ]}
         >
           <div className="flex flex-col gap-3">
             <span className="text-sm text-muted-foreground">
-              {untouchedSentence(clearDrafts.all.length - clearDrafts.edited.length)} {clearDrafts.edited.length}{" "}
-              {clearDrafts.edited.length === 1 ? "has edits that aren't" : "have edits that aren't"} saved anywhere:
+              {untouchedSentence(clearAllPrompt.all.length - clearAllPrompt.edited.length)} {clearAllPrompt.edited.length}{" "}
+              {clearAllPrompt.edited.length === 1 ? "has edits that aren't" : "have edits that aren't"} saved anywhere:
             </span>
             <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-card p-2">
-              {clearDrafts.edited.map((scratch) => (
-                <span key={scratch.id} className="truncate text-sm text-foreground">
-                  {scratch.title}
+              {clearAllPrompt.edited.map((draft) => (
+                <span key={draft.id} className="truncate text-sm text-foreground">
+                  {draft.title}
                 </span>
               ))}
             </div>

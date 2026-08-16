@@ -48,7 +48,7 @@ export interface McpMethod {
   http?: string;
   streaming?: "server" | "client" | "bidirectional";
   // The generated call, which is the same code clicking the method in the tree
-  // writes into a scratch. Not a second example generator: one method, one
+  // writes into a draft. Not a second example generator: one method, one
   // starting point, wherever you came at it from.
   example: string;
 }
