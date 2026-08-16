@@ -3,7 +3,21 @@ import { cn } from "./cn";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "./components/dropdown-menu";
 import { IconButton } from "./components/icon-button";
 import { TreeView } from "./components/tree-view";
-import { Braces, ChevronRight, CircleX, Ellipsis, Plus, Plus as PlusIcon, RotateCw, Settings, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  Braces,
+  ChevronDown,
+  ChevronRight,
+  CircleX,
+  Ellipsis,
+  Plus,
+  Plus as PlusIcon,
+  RotateCw,
+  Settings,
+  Trash2,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
+import { usePersistedState } from "./usePersistedState";
 import { appType } from "./appTypes";
 import { AppTypeIcon } from "./AppTypeIcon";
 import { Method, App, Service, methodId } from "./apps";
@@ -27,6 +41,33 @@ import {
   subtreeNodes,
   TreeApp,
 } from "./treeExpansion";
+
+/**
+ * The panel is two labelled sections, Scripts and Apps, and the label is the
+ * whole of what makes them two.
+ *
+ * Scripts used to be the only heading in the panel, so everything below it —
+ * the apps and their services — read as being inside it, and the 40px band at
+ * the top read as governing the whole panel because it held the actions of both
+ * halves: **+** made an app, `{ }` opened the workspace's variables, and neither
+ * said which list it was about. The asymmetry was the problem, not the amount of
+ * content.
+ *
+ * So Apps gets the same band Scripts has. A 40px bar with a name says "a new
+ * thing starts here" in a way a hairline never will, and it gives each section
+ * somewhere to put the verbs that belong to it and to nothing else: **+** on
+ * Apps makes an app, **+** on Scripts makes a draft. Nothing else moves — the
+ * groups, the rows and their indents are exactly where they were.
+ *
+ * Both bands fold, which is the escape valve when one section gets long, and
+ * each section scrolls inside itself, so a hundred methods can't push the
+ * Scripts band off the top of the panel.
+ *
+ * Tabs were the other candidate and were cut: the core loop is clicking a method
+ * in Apps and landing in a draft under Scripts, and tabs hide one half of that
+ * loop at the moment it matters. They are worth it if a third section ever
+ * appears, not before.
+ */
 
 // Width the macOS traffic lights occupy at the window's left edge. The desktop
 // window hides its title bar, so whatever sits in that corner has to clear them.
@@ -60,8 +101,10 @@ function RowAction({ icon, label, onClick }: { icon: LucideIcon; label: string; 
 interface SidebarProps {
   apps: App[];
   // The Scripts region — Drafts and Files — built by App and handed in whole.
-  // The sidebar's own subject is the API's catalog below the hairline; the two
-  // are different lists and share nothing but the panel.
+  // The sidebar's own subject is the API's catalog under the Apps band; the two
+  // are different lists and share nothing but the panel. The band above each is
+  // the sidebar's, because a section's name and a section's verbs belong
+  // together and only the panel knows where the traffic lights are.
   scriptsRegion?: React.ReactNode;
   // A read-only configuration doesn't disable the verbs that change apps, it
   // doesn't offer them: New and Delete both go, so there is no way to reach a
@@ -77,6 +120,9 @@ interface SidebarProps {
   onRecompileApp: (appName: string) => void;
   // Opens the create form to add an app (gRPC, Twirp, or a built-in integration).
   onNewAppClick: () => void;
+  // Starts a blank draft — the same thing ⌘N does, on the band of the section
+  // the new row lands in.
+  onNewScript?: () => void;
   // Opens the variables manager tab.
   onVariablesClick?: () => void;
   // One-shot signal to auto-expand a just-added app (and its first service).
@@ -96,12 +142,17 @@ export function Sidebar({
   onShowCompileLog,
   onRecompileApp,
   onNewAppClick,
+  onNewScript,
   onVariablesClick,
   autoExpandApp,
   reserveTrafficLights = false,
   onEditApp,
   onDeleteApp,
 }: SidebarProps) {
+  // Folding a whole section is the escape valve when the other one gets long,
+  // so it is remembered like every other fold in the panel.
+  const [scriptsOpen, setScriptsOpen] = usePersistedState("scriptsSectionExpanded", true);
+  const [appsOpen, setAppsOpen] = usePersistedState("appsSectionExpanded", true);
   // Right-click context menu for an app, anchored at the cursor.
   const [appMenu, setAppMenu] = useState<{ appName: string; top: number; left: number } | null>(null);
   const appMenuAnchorRef = useRef<HTMLDivElement>(null);
@@ -205,180 +256,188 @@ export function Sidebar({
   };
 
   return (
-    <div className="bg-chrome" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div
-        // 40px, the same as the command row next to it, so the two line up
-        // across the seam.
-        style={
-          reserveTrafficLights
-            ? ({
-                display: "flex",
-                alignItems: "center",
-                flexShrink: 0,
-                height: 40,
-                paddingLeft: TRAFFIC_LIGHTS_INSET,
-                paddingRight: 8,
-                "--wails-draggable": "drag",
-              } as React.CSSProperties)
-            : { display: "flex", alignItems: "center", height: 40, padding: "0 12px", flexShrink: 0 }
+    <div className="flex min-h-0 flex-1 flex-col bg-chrome">
+      {/* The panel's top band, which is the Scripts band: 40px, the same as the
+          command row next to it, so the two line up across the seam, and on
+          macOS the band the traffic lights sit in. What it holds is what Scripts
+          is about — a new draft, and the variables scripts read. */}
+      <SectionBand
+        id="scripts-section"
+        title="Scripts"
+        open={scriptsOpen}
+        onToggle={() => setScriptsOpen((open) => !open)}
+        reserveTrafficLights={reserveTrafficLights}
+        actions={
+          <>
+            {onNewScript && <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New script" onClick={onNewScript} />}
+            {onVariablesClick && <IconButton icon={Braces} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
+          </>
         }
-      >
-        <div
-          style={
-            reserveTrafficLights
-              ? ({ display: "flex", alignItems: "center", "--wails-draggable": "no-drag" } as React.CSSProperties)
-              : { display: "flex", alignItems: "center" }
-          }
-        >
-          {canUpdateConfiguration && <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />}
-          {onVariablesClick && <IconButton icon={Braces} size="sm" variant="ghost" aria-label="Variables" onClick={onVariablesClick} />}
-        </div>
-        {/* Nothing on the right. Fold All and Unfold All lived here and were both
-            about managing a view of the tree, which stopped being something you
-            do: the tree opens on what you call, and ⌥click on a row takes its
-            whole subtree. The left side makes things; that is the whole header. */}
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "4px 0", minHeight: 0 }}>
-        {/* Your scripts and the API's catalog are two different lists, and two
-            rows can carry the same name across the seam. A rule keeps nobody
-            reading them as one. */}
-        {scriptsRegion}
-        {scriptsRegion && apps.length > 0 && <div className="my-1 h-px bg-border" />}
-        {apps.map((app, appIndex) => {
-          const appName = app.configuration.name;
-          const treeApp = treeApps[appIndex];
-          const appId = appNodeId(appName);
-          const isExpanded = isOpen(folds, appId);
-          // The row's own highlight stays the cursor's; only the verb on it is
-          // unconditional where there is no cursor to reveal it with.
-          const active = hoveredApp === appName || appMenu?.appName === appName;
+      />
+      {scriptsOpen && (
+        // Content-sized, so a short list of scripts leaves the room to the apps
+        // below rather than claiming half the panel; it shrinks and scrolls
+        // inside itself once there is more of it than there is room. It never
+        // grows: the Apps band belongs directly under the last file, not pinned
+        // to the bottom of the panel where it would read as a footer.
+        <div className="min-h-0 flex-[0_1_auto] overflow-y-auto py-1">{scriptsRegion}</div>
+      )}
 
-          return (
-            <nav
-              key={appName}
-              ref={(el) => {
-                if (el) elementRefs.current.set(appId, el);
-                else elementRefs.current.delete(appId);
-              }}
-              aria-label="Services and methods"
-            >
-              {/* The app keeps its icon: it is the one place in the tree where
+      {/* The same band, and that is the whole fix: Apps is a section rather than
+          whatever is left below Scripts. Its + is the one that makes an app —
+          it used to sit in the panel's header, where it read as belonging to
+          everything. */}
+      <SectionBand
+        id="apps-section"
+        title="Apps"
+        open={appsOpen}
+        onToggle={() => setAppsOpen((open) => !open)}
+        seam
+        actions={canUpdateConfiguration && <IconButton icon={Plus} size="sm" variant="ghost" aria-label="New app" onClick={onNewAppClick} />}
+      />
+      {appsOpen && (
+        <div className="min-h-0 flex-1 overflow-y-auto py-1">
+          {apps.length === 0 && (
+            <div className="px-2 py-1 text-xs text-muted-foreground">
+              {canUpdateConfiguration ? "Add an app to explore its API." : "Apps named in kaja.json appear here."}
+            </div>
+          )}
+          {apps.map((app, appIndex) => {
+            const appName = app.configuration.name;
+            const treeApp = treeApps[appIndex];
+            const appId = appNodeId(appName);
+            const isExpanded = isOpen(folds, appId);
+            // The row's own highlight stays the cursor's; only the verb on it is
+            // unconditional where there is no cursor to reveal it with.
+            const active = hoveredApp === appName || appMenu?.appName === appName;
+
+            return (
+              <nav
+                key={appName}
+                ref={(el) => {
+                  if (el) elementRefs.current.set(appId, el);
+                  else elementRefs.current.delete(appId);
+                }}
+                aria-label="Services and methods"
+              >
+                {/* The app keeps its icon: it is the one place in the tree where
                   the glyph says something the indent can't — gRPC or OpenAPI or
                   Folder. Everything below repeats itself, so it goes. */}
-              <div
-                className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
-                onMouseEnter={() => setHoveredApp(appName)}
-                onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
-                onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
-                onContextMenu={(e: React.MouseEvent) => {
-                  e.preventDefault();
-                  setAppMenu({ appName, top: e.clientY, left: e.clientX });
-                }}
-              >
-                <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
-                <AppTypeIcon type={appType(app.configuration)} size={13} />
-                <span className="truncate">{appName}</span>
-                <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
-                <span className="ml-auto flex w-6 shrink-0 items-center justify-center">
-                  {(touch || active) && (
-                    <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
-                  )}
-                </span>
-              </div>
-              {isExpanded && (
-                <TreeView guide aria-label="Services and methods">
-                  {app.compilation.status === "running" || app.compilation.status === "pending" ? (
-                    <LoadingTreeViewItem />
-                  ) : (
-                    (() => {
-                      const multiplePackages = hasMultiplePackages(app.services);
+                <div
+                  className={cn(SECTION_ROW, active ? "bg-accent" : "hover:bg-accent/50")}
+                  onMouseEnter={() => setHoveredApp(appName)}
+                  onMouseLeave={() => setHoveredApp((prev) => (prev === appName ? null : prev))}
+                  onClick={(e: React.MouseEvent) => setFold(treeApp, appId, isExpanded ? "shut" : "open", e.altKey)}
+                  onContextMenu={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    setAppMenu({ appName, top: e.clientY, left: e.clientX });
+                  }}
+                >
+                  <ChevronRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform duration-[120ms]", isExpanded && "rotate-90")} />
+                  <AppTypeIcon type={appType(app.configuration)} size={13} />
+                  <span className="truncate">{appName}</span>
+                  <AppCompileMarker app={app} onShowCompileLog={onShowCompileLog} />
+                  <span className="ml-auto flex w-6 shrink-0 items-center justify-center">
+                    {(touch || active) && (
+                      <RowAction icon={Ellipsis} label={`Actions for ${appName}`} onClick={(e) => setAppMenu({ appName, top: e.clientY, left: e.clientX })} />
+                    )}
+                  </span>
+                </div>
+                {isExpanded && (
+                  <TreeView guide aria-label="Services and methods">
+                    {app.compilation.status === "running" || app.compilation.status === "pending" ? (
+                      <LoadingTreeViewItem />
+                    ) : (
+                      (() => {
+                        const multiplePackages = hasMultiplePackages(app.services);
 
-                      const renderServiceItem = (service: Service) => {
-                        const svcId = serviceNodeId(appName, service);
-                        return (
-                          <TreeView.Item
-                            id={svcId}
-                            key={svcId}
-                            ref={(el: HTMLElement | null) => {
-                              if (el) elementRefs.current.set(svcId, el);
-                              else elementRefs.current.delete(svcId);
-                            }}
-                            expanded={isOpen(folds, svcId)}
-                            onExpandedChange={(expanded, event) => setFold(treeApp, svcId, expanded ? "open" : "shut", event.altKey)}
-                          >
-                            {service.name}
-                            <TreeView.SubTree leaf>
-                              {service.methods.map((method) => {
-                                const mId = methodId(service, method);
-                                return (
-                                  <TreeView.Item
-                                    id={mId}
-                                    key={mId}
-                                    ref={(el: HTMLElement | null) => {
-                                      if (el) {
-                                        elementRefs.current.set(mId, el);
-                                        // TreeView.Item doesn't forward these, so attach them to the node.
-                                        el.onmouseenter = () => setHoveredMethod(mId);
-                                        el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
-                                      } else elementRefs.current.delete(mId);
-                                    }}
-                                    onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
-                                  >
-                                    {method.name}
-                                    <TreeView.TrailingVisual>
-                                      {/* Adding a call to the draft you already have open is
+                        const renderServiceItem = (service: Service) => {
+                          const svcId = serviceNodeId(appName, service);
+                          return (
+                            <TreeView.Item
+                              id={svcId}
+                              key={svcId}
+                              ref={(el: HTMLElement | null) => {
+                                if (el) elementRefs.current.set(svcId, el);
+                                else elementRefs.current.delete(svcId);
+                              }}
+                              expanded={isOpen(folds, svcId)}
+                              onExpandedChange={(expanded, event) => setFold(treeApp, svcId, expanded ? "open" : "shut", event.altKey)}
+                            >
+                              {service.name}
+                              <TreeView.SubTree leaf>
+                                {service.methods.map((method) => {
+                                  const mId = methodId(service, method);
+                                  return (
+                                    <TreeView.Item
+                                      id={mId}
+                                      key={mId}
+                                      ref={(el: HTMLElement | null) => {
+                                        if (el) {
+                                          elementRefs.current.set(mId, el);
+                                          // TreeView.Item doesn't forward these, so attach them to the node.
+                                          el.onmouseenter = () => setHoveredMethod(mId);
+                                          el.onmouseleave = () => setHoveredMethod((previous) => (previous === mId ? null : previous));
+                                        } else elementRefs.current.delete(mId);
+                                      }}
+                                      onSelect={(event) => onSelect(method, service, app, event?.altKey ? "append" : "go")}
+                                    >
+                                      {method.name}
+                                      <TreeView.TrailingVisual>
+                                        {/* Adding a call to the draft you already have open is
                                           deliberate, so it gets its own target rather than
                                           happening because you clicked in the wrong mood. */}
-                                      {(touch || hoveredMethod === mId) && (
-                                        <RowAction
-                                          icon={PlusIcon}
-                                          label={`Add ${method.name} to the open draft`}
-                                          onClick={() => onSelect(method, service, app, "append")}
-                                        />
-                                      )}
-                                    </TreeView.TrailingVisual>
-                                  </TreeView.Item>
-                                );
-                              })}
-                            </TreeView.SubTree>
-                          </TreeView.Item>
-                        );
-                      };
+                                        {(touch || hoveredMethod === mId) && (
+                                          <RowAction
+                                            icon={PlusIcon}
+                                            label={`Add ${method.name} to the open draft`}
+                                            onClick={() => onSelect(method, service, app, "append")}
+                                          />
+                                        )}
+                                      </TreeView.TrailingVisual>
+                                    </TreeView.Item>
+                                  );
+                                })}
+                              </TreeView.SubTree>
+                            </TreeView.Item>
+                          );
+                        };
 
-                      if (!multiplePackages) {
-                        return <>{app.services.map(renderServiceItem)}</>;
-                      }
+                        if (!multiplePackages) {
+                          return <>{app.services.map(renderServiceItem)}</>;
+                        }
 
-                      const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
-                        const packageId = packageNodeId(appName, packageName);
-                        return (
-                          <TreeView.Item
-                            id={packageId}
-                            key={packageId}
-                            ref={(el: HTMLElement | null) => {
-                              if (el) elementRefs.current.set(packageId, el);
-                              else elementRefs.current.delete(packageId);
-                            }}
-                            expanded={isOpen(folds, packageId)}
-                            onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
-                          >
-                            {/* No icon: every package row carried the same one,
+                        const packageNodes = groupServicesByPackage(app.services).map(([packageName, services]) => {
+                          const packageId = packageNodeId(appName, packageName);
+                          return (
+                            <TreeView.Item
+                              id={packageId}
+                              key={packageId}
+                              ref={(el: HTMLElement | null) => {
+                                if (el) elementRefs.current.set(packageId, el);
+                                else elementRefs.current.delete(packageId);
+                              }}
+                              expanded={isOpen(folds, packageId)}
+                              onExpandedChange={(expanded, event) => setFold(treeApp, packageId, expanded ? "open" : "shut", event.altKey)}
+                            >
+                              {/* No icon: every package row carried the same one,
                                 which is 20px per row spent saying what the guide
                                 already says. */}
-                            <span className="text-muted-foreground">{packageName}</span>
-                            <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
-                          </TreeView.Item>
-                        );
-                      });
-                      return <>{packageNodes}</>;
-                    })()
-                  )}
-                </TreeView>
-              )}
-            </nav>
-          );
-        })}
-      </div>
+                              <span className="text-muted-foreground">{packageName}</span>
+                              <TreeView.SubTree>{services.map(renderServiceItem)}</TreeView.SubTree>
+                            </TreeView.Item>
+                          );
+                        });
+                        return <>{packageNodes}</>;
+                      })()
+                    )}
+                  </TreeView>
+                )}
+              </nav>
+            );
+          })}
+        </div>
+      )}
       <div ref={appMenuAnchorRef} style={{ position: "fixed", top: appMenu?.top ?? 0, left: appMenu?.left ?? 0, width: 1, height: 1, pointerEvents: "none" }} />
       <DropdownMenu open={!!appMenu} onOpenChange={(open) => !open && setAppMenu(null)}>
         <DropdownMenuContent align="start" anchor={appMenuAnchorRef} className="w-48">
@@ -414,6 +473,68 @@ export function Sidebar({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+    </div>
+  );
+}
+
+/**
+ * A section's band: 40px, its name, and the verbs that belong to that section
+ * and to nothing else. Both sections wear the same one, which is the point —
+ * two labelled regions read as peers, where one label above everything reads as
+ * a title for the panel.
+ *
+ * The name is the fold, not the whole band: on macOS the top band is the window's
+ * title bar, so the rest of it has to stay draggable, and a window dragged by
+ * its sidebar must not fold a section on the way. The chevron is revealed by the
+ * cursor while the section is open and stays put once it is shut, which is when
+ * it is the only way back. It holds its space either way, so the name never
+ * moves.
+ */
+function SectionBand({
+  id,
+  title,
+  open,
+  onToggle,
+  actions,
+  seam,
+  reserveTrafficLights,
+}: {
+  id: string;
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  actions?: React.ReactNode;
+  // The rule that seats a band against the section above it. The top one has
+  // nothing above it and takes none.
+  seam?: boolean;
+  reserveTrafficLights?: boolean;
+}) {
+  const noDrag = reserveTrafficLights ? ({ "--wails-draggable": "no-drag" } as React.CSSProperties) : undefined;
+  return (
+    <div
+      className={cn("flex h-10 shrink-0 items-center gap-1 pr-1.5", seam && "border-t border-border")}
+      style={reserveTrafficLights ? ({ paddingLeft: TRAFFIC_LIGHTS_INSET, "--wails-draggable": "drag" } as React.CSSProperties) : undefined}
+    >
+      <h2 id={id} className="flex min-w-0" style={noDrag}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="group/band flex h-[22px] min-w-0 cursor-pointer select-none items-center gap-1 rounded px-2 text-[13px] font-medium text-foreground outline-none hover:bg-accent/50 focus-visible:bg-accent/50"
+        >
+          <span className="truncate">{title}</span>
+          <ChevronDown
+            size={12}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-[transform,opacity] duration-[120ms]",
+              open ? "opacity-0 group-hover/band:opacity-100 group-focus-visible/band:opacity-100" : "-rotate-90",
+            )}
+          />
+        </button>
+      </h2>
+      <div className="ml-auto flex shrink-0 items-center" style={noDrag}>
+        {actions}
+      </div>
     </div>
   );
 }
