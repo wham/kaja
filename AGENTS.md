@@ -40,8 +40,8 @@ labelled groups, and four rules hold the whole thing together.
    nothing about one is styled as a warning. The amber dot is gone from the
    sidebar entirely.
 2. **Files never turn into drafts on their own.** Editing a saved file leaves it
-   a file, in place, with a modified dot. There is exactly one way into Drafts —
-   run something that has no file yet, a method or `⌘N` — so there is no
+   a file, in place, auto-saving as you type. There is exactly one way into
+   Drafts — run something that has no file yet, a method or `⌘N` — so there is no
    branching and no forking: a variant of a file is a copy of the file.
 3. **Naming a draft moves it into Files.** The naming sheet asks for a name and a
    folder, nothing else. The row leaves Drafts and appears where you filed it.
@@ -126,13 +126,13 @@ lists that share nothing but the panel.
   are load-bearing — which also frees that edge for the hover actions. The filter
   is the one exception: it states its hit count, since there is no other way to
   see the size of a result.
-- **Only one dot survives**, the hollow modified marker on a file with unsaved
-  edits. The run indicators (spinner, the amber waiting ring, the agent's emerald
-  dot) share the trailing slot with it, which is a fixed 24px whatever is in it —
-  so a run starting under the cursor never moves the label out from under it. The
-  row that carries three buttons widens the slot instead. Nothing is drawn in a
-  leading slot any more: with the amber dot retired there was nothing left to put
-  there, and 18px of indent is better spent on the name.
+- **No dot survives.** The amber one went with the split, and a file auto-saves,
+  so there is no unsaved state left to mark either. What the trailing slot holds
+  is the run indicators — spinner, the amber waiting ring, the agent's emerald dot
+  — and it is a fixed 24px whatever is in it, so a run starting under the cursor
+  never moves the label out from under it; the row that carries three buttons
+  widens the slot instead. Nothing is drawn in a leading slot any more: there was
+  nothing left to put there, and 18px of indent is better spent on the name.
 - **Header actions live on the group they act on**: `Trash2` on Drafts, an
   overflow menu on Files (`New folder… ⇧⌘N`, `Reveal in Finder`). Both are
   revealed by the cursor and always present for the keyboard.
@@ -143,9 +143,9 @@ lists that share nothing but the panel.
   **file** row keeps only the kebab: taking a file off disk is not the loop this
   is for, and it still asks first.
 - **Delete and discard are different words for different consequences.** A file
-  row's menu is `Save ⌘S` / `Revert to saved` (both only while it has edits) /
-  `Copy Link` / `Rename…` / `Move to…` / **`Delete file`**, destructive and
-  confirmed, because it takes a file off disk — the only action in the sidebar
+  row's menu is `Copy Link` / `Rename…` / `Move to…` / **`Delete file`**,
+  destructive and confirmed, because it takes a file off disk — the only action
+  in the sidebar
   that does, and the only one in `text-destructive`. A draft row's is `Name…` /
   **`Discard`**, neutral and **undoable** — the row goes and a bar offers it back
   for eight seconds (`UNDO_DISCARD_MS`) — because nothing was anywhere to remove.
@@ -211,24 +211,21 @@ lists that share nothing but the panel.
 
 ### Saving, and what the web hasn't got
 
-- **A file is saved, not auto-saved.** The buffer and the disk are two things:
-  `ScriptView.savedContent` is what is on disk, the gap between them is the
-  modified dot, `⌘S` closes it and `Revert to saved` throws the buffer away. Both
-  verbs are **absent** — not disabled — while there is no gap. Nothing is written
-  on quit either: unsaved edits ride in the view cache and come back with their
-  dot, because writing a file somebody hasn't saved is exactly what the dot exists
-  to say we don't do. A file re-read on start-up only takes disk's text when the
-  buffer matches what we last saved.
-- **The one you are editing has the pair beside its name**, in the command row.
-  On a draft it is `Name ⌘S` and a discard; on a file, a dot, `Save ⌘S` and a
-  revert. Same verbs as the sidebar row, answering a different moment (mid-edit,
-  versus tidying up after).
-- **The web is the same app minus the verbs that write a file, and minus the
-  state those verbs produce.** Drafts are IndexedDB on both platforms, so the
-  list, the titles, the clearing and the history are identical; Name, Save,
-  Rename, Move, Delete file and New folder are missing, because the server serves
-  a workspace it does not own. The **modified dot** goes with them — no row can
-  reach that state — and so do the row's ⋯ and the command row's pair.
+- **A file auto-saves; a draft has no save step at all.** Neither has an unsaved
+  state, which is why neither has a dot: an open file view writes to disk 500ms
+  after you stop typing (and on quit, on close, and before a rename, which is
+  what `flushScriptWrite` is for), and a draft is written straight through to its
+  store. **Saving is not one of the five verbs** — you name a draft, and after
+  that the file keeps itself.
+- **The one you are editing has the pair beside its name**, in the command row —
+  `Name ⌘S` and a discard, on a **draft**. A file has neither, because it is
+  already on disk and stays there as you type. Same verbs as the draft's sidebar
+  row, answering a different moment (mid-edit, versus tidying up after).
+- **The web is the same app minus the verbs that write a file.** Drafts are
+  IndexedDB on both platforms, so the list, the titles, the clearing and the
+  history are identical; Name, Rename, Move, Delete file and New folder are
+  missing, because the server serves a workspace it does not own — and the row's
+  ⋯ and the command row's pair go with them rather than opening onto nothing.
 - **The reads are not one of those verbs, so the web has the workspace's own
   scripts** (`scriptFiles.ts`). The `scripts` folder beside kaja.json is read
   wherever it is, at any depth: the desktop opens the files itself, a browser goes
@@ -1072,10 +1069,10 @@ sidebar toggle · finder · the file's own pair · spacer · action ·
 hairline · search · layout. There are
 no recent chips — with one pane and a finder, they were the last echo of a tab
 strip. Nothing else may be added to it; new controls go in the sidebar header or
-the console header. The file's own pair — `Name`/discard on a draft, `Save`/revert
-on a file with edits — is the one exception, and it earned it by belonging to the
-file the trigger just named rather than to the window; it is absent whenever
-there is nothing to save, which is most of the time. The sidebar header is 40px too, so the two line up
+the console header. The draft's own pair — `Name` and a discard — is the one
+exception, and it earned it by belonging to the file the trigger just named
+rather than to the window; it is absent on a file, which is already on disk, and
+so most of the time. The sidebar header is 40px too, so the two line up
 across the seam, and the macOS traffic lights stay in it (the row takes over the
 inset only when the sidebar is collapsed).
 
@@ -1083,7 +1080,7 @@ inset only when the sidebar is collapsed).
   (`desktop/traffic_lights_darwin.m`). AppKit centres the three window buttons
   on the 28pt title bar, six points above the centre of the 40px band, so the
   window's top-left corner read as two staggered baselines — the lights on one,
-  and **+**, `{ }`, the panel toggle and the file's own Save on the other. There
+  and **+**, `{ }`, the panel toggle and the draft's own Name on the other. There
   is no position to set: `mac.TitleBar` is six booleans, and Wails has had the
   request open since v2. So the title bar container is made as tall as the band
   and the buttons are centred in it, which is what Electron's
@@ -1165,8 +1162,8 @@ inset only when the sidebar is collapsed).
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
   with itself.
 - **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
-  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` save a
-  file, or name a draft. `⌃Tab`, `⌘1–9` and
+  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a
+  draft (a file is already saved, so it does nothing on one). `⌃Tab`, `⌘1–9` and
   `⌘W` are gone: there are no positions to number and nothing to close.
 - **Split panes are cut, not deferred.** The pane holds one thing by
   construction; splitting it reintroduces "which one is current", which is the

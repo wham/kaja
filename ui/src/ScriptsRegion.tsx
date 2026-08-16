@@ -13,7 +13,6 @@ import {
   Save,
   Search,
   Trash2,
-  Undo2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -68,9 +67,6 @@ export interface ScriptsRegionProps {
   scratches: Scratch[];
   currentScratchId?: string;
   currentScriptPath?: string;
-  // Files with edits that are not on disk yet. A file with edits is still a
-  // file, in place — the dot is the whole of what changes.
-  modifiedScriptPaths?: ReadonlySet<string>;
   runningFileIds?: ReadonlySet<string>;
   agentFileIds?: ReadonlySet<string>;
   waitingFileIds?: ReadonlySet<string>;
@@ -90,8 +86,6 @@ export interface ScriptsRegionProps {
   onToggleSweepDrafts: () => void;
 
   onScriptSelect: (script: Script) => void;
-  onSaveScript?: (script: Script) => void;
-  onRevertScript?: (script: Script) => void;
   onRenameScript?: (script: Script) => void;
   onMoveScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
@@ -272,7 +266,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                   depth={0}
                   suffix={script.folder}
                   current={props.currentScriptPath === script.path}
-                  modified={props.modifiedScriptPaths?.has(script.path)}
                   running={props.runningFileIds?.has(script.path)}
                   agent={props.agentFileIds?.has(script.path)}
                   waiting={props.waitingFileIds?.has(script.path)}
@@ -322,7 +315,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                     script={node.script}
                     depth={node.depth}
                     current={props.currentScriptPath === node.script.path}
-                    modified={props.modifiedScriptPaths?.has(node.script.path)}
                     running={props.runningFileIds?.has(node.script.path)}
                     agent={props.agentFileIds?.has(node.script.path)}
                     waiting={props.waitingFileIds?.has(node.script.path)}
@@ -440,22 +432,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
       </CursorMenu>
 
       <CursorMenu at={scriptMenu} onClose={() => setScriptMenu(null)}>
-        {/* Save and Revert are the file-side verbs, and they only exist while
-            the file has edits. There is no route from here into Drafts: that
+        {/* No Save and no Revert: a file is already on disk and stays there as
+            you type. And there is no route from here into Drafts either — that
             group is for things that have never had a name. */}
-        {props.onSaveScript && scriptMenu && props.modifiedScriptPaths?.has(scriptMenu.script.path) && (
-          <DropdownMenuItem onSelect={() => props.onSaveScript?.(scriptMenu.script)}>
-            <Save size={16} />
-            Save
-            <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">⌘S</span>
-          </DropdownMenuItem>
-        )}
-        {props.onRevertScript && scriptMenu && props.modifiedScriptPaths?.has(scriptMenu.script.path) && (
-          <DropdownMenuItem onSelect={() => props.onRevertScript?.(scriptMenu.script)}>
-            <Undo2 size={16} />
-            Revert to saved
-          </DropdownMenuItem>
-        )}
         {/* A script's address outside Kaja — paste it into a launcher, a
             Shortcut, a shell, and append the parameters where the values that
             fill them come from. */}
@@ -846,7 +825,6 @@ function FileRow({
   depth,
   suffix,
   current,
-  modified,
   running,
   agent,
   waiting,
@@ -861,7 +839,6 @@ function FileRow({
   // The folder, shown dim beside the name in a flattened filter result.
   suffix?: string;
   current: boolean;
-  modified?: boolean;
   running?: boolean;
   agent?: boolean;
   waiting?: boolean;
@@ -896,7 +873,7 @@ function FileRow({
           {script.name}
           {suffix && <span className="ml-1.5 font-sans text-xs text-muted-foreground">{suffix}</span>}
         </span>
-        <RowTrailing running={running} agent={agent} waiting={waiting} modified={modified} wide={false}>
+        <RowTrailing running={running} agent={agent} waiting={waiting} wide={false}>
           {active && hasMenu && <RowAction icon={Ellipsis} label={`Actions for ${script.name}`} onClick={onMenu} />}
         </RowTrailing>
       </div>
@@ -909,22 +886,20 @@ function FileRow({
  * truncation point doesn't shift as a run starts under the cursor or a kebab
  * appears — the one row that carries three buttons widens the slot instead.
  *
- * The marks that live here are what is left after the amber dot went: a run in
- * the air, a run parked on a question, and the hollow modified marker on a file
- * with unsaved edits. Nothing here is a warning.
+ * Only the run indicators live here now: the amber dot went with the drafts /
+ * files split, and a file auto-saves, so there is no unsaved state to mark.
+ * Nothing in this region is a warning.
  */
 function RowTrailing({
   running,
   agent,
   waiting,
-  modified,
   wide,
   children,
 }: {
   running?: boolean;
   agent?: boolean;
   waiting?: boolean;
-  modified?: boolean;
   wide?: boolean;
   children?: React.ReactNode;
 }) {
@@ -937,8 +912,6 @@ function RowTrailing({
           <span className="flex" title={agent ? "An agent is running this" : "Running"}>
             <Spinner className="size-3" />
           </span>
-        ) : modified ? (
-          <span aria-hidden title="Edited — not saved to disk" className="size-[5px] rounded-full border border-muted-foreground" />
         ) : null)}
     </span>
   );

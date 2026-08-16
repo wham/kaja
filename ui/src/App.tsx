@@ -7,7 +7,7 @@ import { FormControl } from "./components/form-control";
 import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/select";
-import { Braces, Code, FileCode, Folder, PenLine, Plug, Save as SaveIcon, ScrollText, Undo2, X } from "lucide-react";
+import { Braces, Code, FileCode, Folder, PenLine, Plug, Save as SaveIcon, ScrollText, X } from "lucide-react";
 import * as monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "./cn";
@@ -65,7 +65,6 @@ import { Configuration, ConfigurationApp, LogLevel, Runtime, VariableStatus } fr
 import { getApiClient } from "./server/connection";
 import {
   dropView,
-  markScriptSaved,
   PersistedViewState,
   restoreViews,
   serializeViews,
@@ -298,10 +297,6 @@ export function App() {
   // to be inferred from, and it persists all the same — it is a directory, not a
   // UI grouping.
   const [scriptFolders, setScriptFolders] = useState<string[]>([]);
-  // Files whose buffer differs from what is on disk. Editing a file leaves it a
-  // file, in place; this is the hollow dot that says so, and the only dot left
-  // in the sidebar.
-  const [modifiedScripts, setModifiedScripts] = useState<Set<string>>(new Set());
   // "Preview Apps" toggle: reveals the experimental built-in app types in the New
   // dialog (openapi/openai/folder). gRPC/Twirp are always available.
   const [previewApps, setPreviewApps] = usePersistedState("featurePreview:previewApps", false);
@@ -383,8 +378,11 @@ export function App() {
   // so discarding is undoable rather than confirmed.
   const [discarded, setDiscarded] = useState<{ scratches: { scratch: Scratch; runs?: FileConsole }[]; label: string } | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pending debounced disk writes for open script views, keyed by view id.
+  const scriptSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // Tab ids whose next content change is a programmatic revalidation poke (see
-  // refreshOpenScriptEditors) or text that just came off disk, not a user edit.
+  // refreshOpenScriptEditors) or text that just came off disk, not a user edit —
+  // skip the debounced disk save.
   const suppressScriptSave = useRef(new Set<string>());
   // Pending debounced writes of scratch text back to the store, keyed by scratch id.
   const scratchSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -423,12 +421,30 @@ export function App() {
     [applyScratches],
   );
 
-  const disposeView = useCallback((view: View) => {
-    if (view.type !== "scratch" && view.type !== "script") return;
-    editorRegistryRef.current.delete(view.id);
-    setEditorContentHeights(({ [view.id]: _removed, ...rest }) => rest);
-    view.model.dispose();
-  }, []);
+  // Flush a script view's pending debounced write immediately (e.g. before its
+  // model is disposed). No-op if nothing is pending.
+  const flushScriptWrite = useCallback(
+    (view: View) => {
+      if (view.type !== "script" || !canWriteScripts()) return;
+      const timer = scriptSaveTimers.current.get(view.id);
+      if (!timer) return;
+      clearTimeout(timer);
+      scriptSaveTimers.current.delete(view.id);
+      writeScriptFile(view.script, view.model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+    },
+    [showFileError],
+  );
+
+  const disposeView = useCallback(
+    (view: View) => {
+      if (view.type !== "scratch" && view.type !== "script") return;
+      flushScriptWrite(view);
+      editorRegistryRef.current.delete(view.id);
+      setEditorContentHeights(({ [view.id]: _removed, ...rest }) => rest);
+      view.model.dispose();
+    },
+    [flushScriptWrite],
+  );
 
   // Every change to the open files goes through here, which makes this the one
   // place that has to remember the rest: the file being left keeps its cursor,
@@ -1034,9 +1050,14 @@ export function App() {
 
   useEffect(() => {
     const handler = () => {
-      // Nothing is written to disk here. A file with edits keeps them in the
-      // view cache and comes back with its modified dot, because writing a file
-      // somebody hasn't saved is exactly what the dot exists to say we don't do.
+      // Flush any pending debounced script auto-saves before the page goes away.
+      for (const view of viewsRef.current) {
+        if (view.type === "script" && scriptSaveTimers.current.has(view.id)) {
+          clearTimeout(scriptSaveTimers.current.get(view.id)!);
+          writeScriptFile(view.script, view.model.getValue()).catch(() => {});
+        }
+      }
+      scriptSaveTimers.current.clear();
       persistViews();
       flushPersistedWrites();
     };
@@ -1419,92 +1440,44 @@ export function App() {
   }, [scripts]);
 
   /**
-   * Editing a file leaves it a file, in place, with a modified dot. So there is
-   * no auto-save: the buffer and the disk are two things, and this is what
-   * watches the gap between them.
-   *
-   * There is exactly one way into Drafts — running something that has no file
-   * yet — and this is the rule that keeps it: no edit to a file ever forks one
-   * off. If you want a variant of a file, save a copy of the file.
+   * A file auto-saves as you edit it (debounced), which is the other half of
+   * rule 2: editing a file leaves it a file, in place. There is exactly one way
+   * into Drafts — running something that has no file yet — so no edit to a file
+   * ever forks one off, and there is no unsaved state for one to be in either.
    */
   useEffect(() => {
+    if (!canWriteScripts()) return;
     const disposables: monaco.IDisposable[] = [];
-    const mark = (path: string, modified: boolean) =>
-      setModifiedScripts((current) => {
-        if (current.has(path) === modified) return current;
-        const next = new Set(current);
-        if (modified) next.add(path);
-        else next.delete(path);
-        return next;
-      });
-
     for (const view of views) {
       if (view.type !== "script") continue;
-      mark(view.script.path, view.model.getValue() !== view.savedContent);
-      disposables.push(view.model.onDidChangeContent(() => mark(view.script.path, view.model.getValue() !== view.savedContent)));
+      const { id, model, script } = view;
+      disposables.push(
+        model.onDidChangeContent(() => {
+          if (suppressScriptSave.current.has(id)) return;
+          const existing = scriptSaveTimers.current.get(id);
+          if (existing) clearTimeout(existing);
+          scriptSaveTimers.current.set(
+            id,
+            setTimeout(() => {
+              scriptSaveTimers.current.delete(id);
+              writeScriptFile(script, model.getValue()).catch((err) => showFileError(`Save failed: ${err}`));
+            }, 500),
+          );
+        }),
+      );
     }
     return () => disposables.forEach((disposable) => disposable.dispose());
-  }, [views]);
+  }, [views, showFileError]);
 
-  // Writing the buffer to disk. Saving a file is the plain verb it sounds like:
-  // the name and the place are already settled, which is what makes it a file.
-  const saveScriptView = useCallback(
-    async (view: View) => {
-      if (view.type !== "script" || !canWriteScripts()) return;
-      const content = view.model.getValue();
-      try {
-        await writeScriptFile(view.script, content);
-      } catch (err) {
-        showFileError(`Save failed: ${err}`);
-        return;
-      }
-      applyViews((views) => markScriptSaved(views, view.id, content));
-      setModifiedScripts((current) => {
-        if (!current.has(view.script.path)) return current;
-        const next = new Set(current);
-        next.delete(view.script.path);
-        return next;
-      });
-    },
-    [applyViews, showFileError],
-  );
-
-  // Revert, not discard, is the file-side verb: there is something to go back
-  // to, which is the whole difference from a draft.
-  const revertScriptView = useCallback(
-    async (view: View) => {
-      if (view.type !== "script") return;
-      try {
-        const file = await readScriptFile(view.script);
-        if (!file) return;
-        suppressScriptSave.current.add(view.id);
-        view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: file.content }], () => null);
-        suppressScriptSave.current.delete(view.id);
-        applyViews((views) => markScriptSaved(views, view.id, file.content));
-      } catch (err) {
-        showFileError(`Revert failed: ${err}`);
-      }
-    },
-    [applyViews, showFileError],
-  );
-
-  const scriptViewFor = useCallback((script: Script) => viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path), []);
-
-  const onSaveScript = useCallback(
-    (script: Script) => void saveScriptView(scriptViewFor(script) ?? ({ type: "none" } as never)),
-    [saveScriptView, scriptViewFor],
-  );
-  const onRevertScript = useCallback(
-    (script: Script) => void revertScriptView(scriptViewFor(script) ?? ({ type: "none" } as never)),
-    [revertScriptView, scriptViewFor],
-  );
-
-  // The persisted view cache can go stale while the app is closed — an MCP
-  // write_script, an external editor, or another window can change the file — so
-  // on mount each restored file view is read back from disk. A buffer holding
-  // edits that were never saved keeps them: those exist nowhere else, and the
-  // dot is what says the two differ. Only what we last saved is refreshed, which
-  // is what makes the dot honest afterwards.
+  // Script views are file-backed, so disk is their source of truth. The persisted
+  // view-state cache can go stale while the app is closed — an MCP write_script, an
+  // external editor, or another window can change the file — so on mount re-read
+  // each restored script view from disk and reconcile its model. Without this a
+  // reload would show the cached copy captured before the file last changed. The
+  // beforeunload handler flushes pending saves, so disk is never behind the cache.
+  // A browser reads through the server rather than off disk, and it is the case
+  // that goes stale hardest: nothing there can write the file, so every change to
+  // one arrived from somewhere this session never saw.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1513,14 +1486,11 @@ export function App() {
         if (view.type !== "script") continue;
         try {
           const file = await readScriptFile(view.script);
-          if (cancelled || !file || view.savedContent === file.content) continue;
-          const clean = view.model.getValue() === view.savedContent;
-          if (clean) {
-            suppressScriptSave.current.add(view.id);
-            view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: file.content }], () => null);
-            suppressScriptSave.current.delete(view.id);
-          }
-          applyViews((views) => markScriptSaved(views, view.id, file.content));
+          if (cancelled || !file || view.model.getValue() === file.content) continue;
+          // Suppress the auto-save this edit would trigger — the content is disk's.
+          suppressScriptSave.current.add(view.id);
+          view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: file.content }], () => null);
+          suppressScriptSave.current.delete(view.id);
           reconciled = true;
         } catch {
           // File missing or unreadable (e.g. deleted while closed); keep the
@@ -1551,19 +1521,14 @@ export function App() {
   const takenNames = useCallback((folder: string) => (scriptsRef.current ?? []).filter((script) => script.folder === folder).map((script) => script.name), []);
 
   /**
-   * ⌘S. On a file it is a save: the name and the place are settled, so there is
-   * nothing to ask. On a draft it opens the naming sheet, because naming it is
-   * what makes it a file — and that is the one moment the model is visible.
+   * ⌘S names a draft, which is what makes it a file. A file has nothing to ask
+   * about and nothing to write — it is already on disk, and stays there as you
+   * type — so the key does nothing on one.
    */
   const onRequestSave = useCallback(() => {
     if (!canWriteScripts()) return;
     const view = viewsRef.current[0];
-    if (!view) return;
-    if (view.type === "script") {
-      void saveScriptView(view);
-      return;
-    }
-    if (view.type !== "scratch") return;
+    if (view?.type !== "scratch") return;
     const scratch = scratchesRef.current.find((candidate) => candidate.id === view.scratchId);
     openNameSheet({
       verb: "name",
@@ -1573,7 +1538,7 @@ export function App() {
       scratchId: view.scratchId,
       title: scratch && isAgentScratch(scratch) ? `Name what ${scratch.agentClient} wrote` : "Name this draft",
     });
-  }, [saveScriptView, openNameSheet, takenNames]);
+  }, [openNameSheet, takenNames]);
 
   const onNameScratch = useCallback(
     (scratch: Scratch) =>
@@ -1720,13 +1685,6 @@ export function App() {
     (oldPath: string, renamed: Script) => {
       setScripts((prev) => sortScripts((prev ?? []).map((script) => (script.path === oldPath ? renamed : script))));
       applyViews((views) => views.map((view) => (view.type === "script" && view.script.path === oldPath ? { ...view, script: renamed } : view)));
-      setModifiedScripts((current) => {
-        if (!current.has(oldPath)) return current;
-        const next = new Set(current);
-        next.delete(oldPath);
-        next.add(renamed.path);
-        return next;
-      });
       // The file is the console's key, so a rename moves it rather than losing it.
       consoles.renameFile(oldPath, renamed.path);
       renameStoredFile(oldPath, renamed.path);
@@ -1774,6 +1732,10 @@ export function App() {
           renameStoredFile(id, script.path);
         }
       } else if (sheet.script) {
+        // Flush the pending auto-save to the current path, so the rename moves
+        // what is in the buffer rather than what disk caught up to.
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === sheet.script!.path);
+        if (open) flushScriptWrite(open);
         const renamed = await renameScriptFile(sheet.script, name, folder);
         applyScriptRename(sheet.script.path, renamed);
         if (folder) setScriptFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder].sort()));
@@ -1787,7 +1749,7 @@ export function App() {
     } catch (err) {
       setNameSheetError(String(err));
     }
-  }, [nameSheet, applyScratches, applyViews, applyScriptRename]);
+  }, [nameSheet, applyScratches, applyViews, applyScriptRename, flushScriptWrite]);
 
   const onRenameScript = useCallback(
     (script: Script) => openNameSheet({ verb: "rename", name: script.name.replace(/\.ts$/, ""), folder: script.folder, script, title: "Rename file" }),
@@ -1809,7 +1771,15 @@ export function App() {
       dropStoredFile(path);
       applyViews((views) => {
         const shown = views.find((candidate) => candidate.type === "script" && candidate.script.path === path);
-        return shown ? dropView(views, shown.id) : views;
+        if (!shown) return views;
+        // Cancel the pending auto-save so dropping the view can't recreate the
+        // file that was just deleted.
+        const timer = scriptSaveTimers.current.get(shown.id);
+        if (timer) {
+          clearTimeout(timer);
+          scriptSaveTimers.current.delete(shown.id);
+        }
+        return dropView(views, shown.id);
       });
     },
     [applyViews],
@@ -1910,7 +1880,6 @@ export function App() {
               suppressScriptSave.current.add(view.id);
               view.model.pushEditOperations([], [{ range: view.model.getFullModelRange(), text: content }], () => null);
               suppressScriptSave.current.delete(view.id);
-              applyViews((views) => markScriptSaved(views, view.id, content));
               // Keep the persisted view-state cache in step so a reload restores this
               // content, not the stale copy captured before the write.
               persistViews();
@@ -2429,57 +2398,34 @@ export function App() {
   }, [scratches, scripts, onScratchSelect, onScriptSelect]);
 
   /**
-   * The pair you reach for mid-edit, beside the name of what it acts on.
-   *
-   * On a draft it is Name — naming it is what makes it a file — and a discard
-   * that closes the buffer with it. On a file it is Save and Revert, and both
-   * are absent until the buffer differs from disk, so a saved file's row is just
-   * its name and Run. The dot is the same hollow marker the sidebar row carries.
-   *
-   * The whole group is absent on the web, where nothing can write a file and it
-   * could never collapse.
+   * The pair you reach for mid-edit, beside the name of what it acts on: `Name`,
+   * which is what turns a draft into a file, and a discard that closes the
+   * buffer with it. Both are absent on a file, which is already on disk and
+   * stays there as you type, and on the web, where nothing can write one.
    */
   const currentDraft = currentView?.type === "scratch" ? scratches.find((scratch) => scratch.id === currentView.scratchId) : undefined;
-  const currentModified = currentView?.type === "script" && modifiedScripts.has(currentView.script.path);
-  const saveKey = navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S";
-  const fileActions = !canWriteScripts() ? undefined : currentDraft ? (
-    <div className="flex shrink-0 items-center gap-1">
-      <button type="button" onClick={onRequestSave} className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent">
-        <SaveIcon size={12} />
-        Name
-        <span className="font-mono text-muted-foreground">{saveKey}</span>
-      </button>
-      <IconButton
-        icon={X}
-        aria-label={`Discard ${currentDraft.title}`}
-        variant="ghost"
-        size="sm"
-        className="size-6 [&_svg]:size-[13px]"
-        onClick={() => onDiscardScratch(currentDraft)}
-      />
-    </div>
-  ) : currentModified && currentView?.type === "script" ? (
-    <div className="flex shrink-0 items-center gap-1">
-      <span aria-hidden title="Edited — not saved to disk" className="size-[5px] shrink-0 rounded-full border border-muted-foreground" />
-      <button
-        type="button"
-        onClick={() => void saveScriptView(currentView)}
-        className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
-      >
-        <SaveIcon size={12} />
-        Save
-        <span className="font-mono text-muted-foreground">{saveKey}</span>
-      </button>
-      <IconButton
-        icon={Undo2}
-        aria-label={`Revert ${currentView.script.name} to saved`}
-        variant="ghost"
-        size="sm"
-        className="size-6 [&_svg]:size-[13px]"
-        onClick={() => void revertScriptView(currentView)}
-      />
-    </div>
-  ) : undefined;
+  const fileActions =
+    currentDraft && canWriteScripts() ? (
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={onRequestSave}
+          className="flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs text-foreground hover:bg-accent"
+        >
+          <SaveIcon size={12} />
+          Name
+          <span className="font-mono text-muted-foreground">{navigator.platform.startsWith("Mac") ? "⌘S" : "Ctrl+S"}</span>
+        </button>
+        <IconButton
+          icon={X}
+          aria-label={`Discard ${currentDraft.title}`}
+          variant="ghost"
+          size="sm"
+          className="size-6 [&_svg]:size-[13px]"
+          onClick={() => onDiscardScratch(currentDraft)}
+        />
+      </div>
+    ) : undefined;
 
   // Stop aborts what the button is showing, so it tracks this file's runs rather
   // than the file's in-flight state — a run started elsewhere says so in the
@@ -2548,7 +2494,6 @@ export function App() {
                     scratches={scratches}
                     currentScratchId={currentView?.type === "scratch" ? currentView.scratchId : undefined}
                     currentScriptPath={currentView?.type === "script" ? currentView.script.path : undefined}
-                    modifiedScriptPaths={modifiedScripts}
                     runningFileIds={runningFiles}
                     agentFileIds={agentFiles}
                     waitingFileIds={waitingFiles}
@@ -2561,8 +2506,6 @@ export function App() {
                     sweepDrafts={sweepDrafts}
                     onToggleSweepDrafts={() => setSweepDrafts((on) => !on)}
                     onScriptSelect={onScriptSelect}
-                    onSaveScript={canWriteScripts() ? onSaveScript : undefined}
-                    onRevertScript={canWriteScripts() ? onRevertScript : undefined}
                     onRenameScript={canWriteScripts() ? onRenameScript : undefined}
                     onMoveScript={canWriteScripts() ? onMoveScript : undefined}
                     onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
