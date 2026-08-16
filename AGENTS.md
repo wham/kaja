@@ -317,6 +317,42 @@ service*), and it never ran again: whatever you got on day one you kept forever.
 with everything it produced under it. One script can make three calls, and three
 unrelated rows say nothing about the thing you actually pressed.
 
+**And there is more than one run at a time, because there is nothing to stop
+there being.** ⌘⏎ twice, Run on a second file, a `kaja://` link arriving while a
+script is going, an agent calling `run_script` — none of them asks what else is
+running. So the run is **lexical, not ambient**: `beginRun` mints the run *and*
+the `Kaja` its script is handed (`KajaHost.run`, `RunContext`), and every callback
+that run will ever fire is a closure over it. There is no "current run" to read,
+so there is nothing to read wrongly. Everything that used to stand in for one is
+gone — `currentRunRef`, `openRun`, `pullRunRef`, `Client.kaja`, and the MCP
+collectors; the abort signal, the standing approvals and `kaja.input` are fields
+of one run's `Kaja` rather than of the app's. A client is shared by every run
+that imports it, so its methods are **bound per run** (`Client.methodsFor(kaja)`,
+memoized in a `WeakMap`) rather than pointed at whichever run assigned itself
+last. That single assignment was what made two scripts report their calls into
+each other's console, and made one script's `kaja.approve("every CreateShow")`
+send another script's writes without asking.
+
+- **What belongs to the app rather than to a run lives on `KajaHost`**: the
+  workspace's variables, and `LiveTables`. Both are shared on purpose —
+  `kaja.variables` is the same for a run in flight and one started after it, and
+  `MAX_LIVE_TABLES` is a budget for the app, not one each run gets its own copy
+  of.
+- **A page fetched from a canvas belongs to the run that drew the table**, which
+  is now structural rather than arranged: the host routes a block id to its
+  owning `Kaja` and the calls land in that run's log however long ago it ended.
+  `settleTables` waits for that run's tables alone, so one script's duration
+  can't cover another's work.
+- **A run's context lives exactly as long as something can call into it.**
+  `settleIfQuiet` asks every run in flight — they finish in whatever order their
+  work does, and the second one pressed is routinely the first one over — and
+  dropping the settled record releases that run's `Kaja`, its approvals, its
+  sampled methods and its bound clients. The one thing that can hold it past
+  that is a live table the canvas can still page, and that registry is bounded.
+- **Stop is about one run**: it aborts the runs of the file the button is on and
+  cancels only the questions those runs are parked on. Cancelling every prompt
+  on screen was how one Stop used to end a script nobody had pointed at.
+
 **And a run has two views of that, because they want opposite things.** The
 **log** is the flat audit log — one row per call, in wall order, always
 complete; that is what makes it scannable at two hundred rows and lets every row

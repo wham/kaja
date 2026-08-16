@@ -7,13 +7,13 @@ import { bodyMinHeight, tableSummary, tableWindow } from "./tableView";
 // is: a block that keeps being handed back with more in it.
 function draw() {
   const blocks = new Map<string, Block>();
-  const kaja = new Kaja(
-    () => {},
-    () => Promise.reject(new Error("not asked")),
-    () => Promise.reject(new Error("not approved")),
-    (blockId, block) => void blocks.set(blockId, block),
-    () => {},
-  );
+  const kaja = new Kaja({
+    onMethodCallUpdate: () => {},
+    onAsk: () => Promise.reject(new Error("not asked")),
+    onApprove: () => Promise.reject(new Error("not approved")),
+    onBlockUpdate: (blockId, block) => void blocks.set(blockId, block),
+    onLog: () => {},
+  });
   const only = (): TableBlock => {
     const block = [...blocks.values()].find((block) => block.kind === "table");
     if (block?.kind !== "table") throw new Error("no table was drawn");

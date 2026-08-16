@@ -8,16 +8,16 @@ import { ApprovalRejectedError, ApproveDecision, Call, Kaja } from "./kaja";
 function held(decide: (call: ApproveBlock) => Promise<ApproveDecision>) {
   const blocks = new Map<string, Block>();
   const asked: string[] = [];
-  const kaja = new Kaja(
-    () => {},
-    () => Promise.reject(new Error("not asked")),
-    (call) => {
+  const kaja = new Kaja({
+    onMethodCallUpdate: () => {},
+    onAsk: () => Promise.reject(new Error("not asked")),
+    onApprove: (call) => {
       asked.push(call.method);
       return decide(call);
     },
-    (blockId, block) => void blocks.set(blockId, block),
-    () => {},
-  );
+    onBlockUpdate: (blockId, block) => void blocks.set(blockId, block),
+    onLog: () => {},
+  });
   const approvals = (): ApproveBlock[] => [...blocks.values()].filter((block): block is ApproveBlock => block.kind === "approve");
   const only = (): ApproveBlock => {
     const block = approvals()[0];

@@ -138,13 +138,13 @@ test("defaultInput generates a request that serializes", () => {
   // The generated code calls the kaja builders, which a script gets from the
   // runtime object; supply the real one so what is serialized is what a run sends.
   const generated = new Function("kaja", `return ${expr.replace(/;\s*$/, "")}`)(
-    new Kaja(
-      () => {},
-      async () => "",
-      async () => "approved" as const,
-      () => {},
-      () => {},
-    ),
+    new Kaja({
+      onMethodCallUpdate: () => {},
+      onAsk: async () => "",
+      onApprove: async () => "approved" as const,
+      onBlockUpdate: () => {},
+      onLog: () => {},
+    }),
   );
 
   expect(() => request.toBinary(generated)).not.toThrow();
