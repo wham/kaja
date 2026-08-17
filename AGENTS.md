@@ -120,9 +120,9 @@ catalog, the band over both sections and the header over each — and it takes t
 region in as a node, because the two lists share nothing but the panel.
 
 - **A control's scope decides where it lives, and that settles what the band
-  is.** **+** is local, so there is one on Scripts and one on Apps; the search
-  and `{ }` are about the window rather than about either list, so they are in
-  the band above both. What the band is *not* is a header for the first section
+  is.** **+** is local, so there is one on Scripts and one on Apps; `{ }` is
+  about the window rather than about either list, so it is in the band above
+  both. What the band is *not* is a header for the first section
   — which is exactly how it read while it was titled **Scripts** and carried
   that section's verbs, since everything below it, the app tree included,
   appeared to be inside it. It is the panel's own 40px row (`GlobalBand`),
@@ -185,9 +185,9 @@ region in as a node, because the two lists share nothing but the panel.
   collapsed and because the number answers a question you do ask: how much is in
   here that I haven't filed. Folder rows carry **nothing** on the right — a count
   next to `billing` answers a question nobody asked and collides with the two that
-  are load-bearing — which also frees that edge for the hover actions. The filter
-  is the one exception: it states its hit count, since there is no other way to
-  see the size of a result.
+  are load-bearing — which also frees that edge for the hover actions. Each says
+  what is in its group, always: there is nothing that narrows these lists, so a
+  count can't disagree with the rows under it.
 - **No dot survives.** The amber one went with the split, and a file auto-saves,
   so there is no unsaved state left to mark either. What the trailing slot holds
   is the run indicators — spinner, the amber waiting ring, the agent's emerald dot
@@ -234,39 +234,36 @@ region in as a node, because the two lists share nothing but the panel.
   (7), never touches one that is on screen, never touches the agent's row, and is
   off entirely when `sweepDrafts` is off. Anything run or edited is kept forever.
 - **Empty states.** Zero drafts hides the Drafts group entirely rather than
-  showing an empty label — there is nothing there and nothing to say about it,
-  and a search that matched no draft is the same nothing. Zero files keeps its
-  header and says one line: where files come from, or that nothing matched.
+  showing an empty label — there is nothing there and nothing to say about it.
+  Zero files keeps its header and says one line: where files come from.
 
-### The search over both lists
+### There is one search, and it is the finder
 
-**The search belongs to the panel, not to either section**, which is why it is
-in the band and why it reaches the Scripts region through a context
-(`sidebarFilter.ts`) rather than as a prop — the region is handed to the sidebar
-as a node, and this is the one thing that spans both lists.
+**Searching is `⌘P`, and nothing in the sidebar competes with it.** The panel
+briefly had a magnifying glass in its band, filtering the scripts and the app
+tree in place — a good filter over a strict subset of what the finder already
+reaches, sitting one seam from the finder's own trigger. Two magnifying glasses
+in one window is a question the reader has to answer before either of them is
+useful, so the panel's is gone (`sidebarFilter.ts`, `appFilter.ts` and
+`filterScripts` with it) and the finder is the whole answer.
 
-- **At rest it is the icon; in use it is the field.** Clicking it turns the icon
-  into a real input filling whatever the platform's corner leaves — snug beside
-  the traffic lights, comfortable in a browser — and the wordmark gives way to it,
-  since the mark alone still says whose window this is. `Esc`, the ✕, or leaving
-  it empty puts it back. It is never persisted: a filter left on from last week
-  is a list that is silently incomplete. There is no row-count threshold any
-  more; a global tool is either there or it isn't.
-- **It matches, then flattens, in both halves.** Scripts match on name and folder
-  path and show the folder as a dim suffix (`filterScripts`); the catalog matches
-  a method by its own name, by `Service.Method`, by its service's name, or by its
-  app's — matching a container means everything in it — and draws the hits as
-  flat rows under their app with the service as a dim suffix (`appFilter.ts`,
-  unit-tested). A tree of one match per branch is a worse answer than a list, in
-  a catalog of forty methods most of all: that tree is what this was built for.
-- **One number, in the field.** The sidebar counts its own catalog and the region
-  reports what it matched (`reportHits`), so a search over two lists states one
-  total. The group counts beside **Drafts** and **Files** report hits rather than
-  totals while it is on, so what is on screen and what the number says can't
-  disagree.
-- **A query outranks the folds.** Both sections open while one is on, because the
-  body renders either way and a fold that hid the answer would be reporting a
-  state nobody asked about.
+- **The finder strictly dominates**, which is what makes this a deletion rather
+  than a trade. It matches every method by name, service and app, every file by
+  name and folder, every draft by title, plus Variables and the compile log —
+  and its rows are flat, keyboard-driven, and reached from either `⌘P` or a
+  trigger that also says where you are. The panel filter matched less, from a
+  second place, with no keyboard route in.
+- **What went with it is browsing a filtered catalog in place**, with the row
+  verbs still on the rows: `⌥click` and the row's **+** append to the open
+  draft, and a finder row only goes. Appending is a tree gesture, and the tree
+  is where you browse; if that turns out to be the loss that matters, the fix is
+  `⌥⏎` in the finder, not a second field in the panel.
+- **The band keeps its wordmark permanently.** It gave way to the field while
+  there was a field; with the search gone the corner is the mark, the lights, or
+  nothing, and the band holds `{ }` alone.
+- **The folds are the folds again.** Nothing forces a section open, no group
+  count reports hits instead of totals, and neither list has an empty state for
+  a query that matched nothing.
 
 ### Folders
 
@@ -1171,17 +1168,17 @@ sidebar's band is 40px too, so the two line up across the seam, and the macOS
 traffic lights stay in it (the row takes over the inset only when the sidebar is
 collapsed).
 
-- **There is no search icon in the row.** It opened the same finder its own
-  trigger opens, which is why it was the first thing dropped as the row narrowed
-  — and once the sidebar's band grew a search of its own, over the scripts and
-  the app tree, two magnifying glasses in one 40px line meant two different
-  searches. The one with a trigger beside it is the one that could go; `⌘P` is
-  unaffected.
+- **There is no search icon in the row, and none in the sidebar's band either.**
+  The row's opened the same finder its own trigger opens, which is why it was
+  the first thing dropped as the row narrowed. The sidebar's was a different
+  search over a subset of the same rows, which was worse: two magnifying glasses
+  in one window, neither of which says which it is. What is left is the finder,
+  its trigger, and `⌘P`.
 - **The lights move to the band, not the band to the lights**
   (`desktop/traffic_lights_darwin.m`). AppKit centres the three window buttons
   on the 28pt title bar, six points above the centre of the 40px band, so the
   window's top-left corner read as two staggered baselines — the lights on one,
-  and the search, `{ }`, the panel toggle and the draft's own Name on the other. There
+  and `{ }`, the panel toggle and the draft's own Name on the other. There
   is no position to set: `mac.TitleBar` is six booleans, and Wails has had the
   request open since v2. So the title bar container is made as tall as the band
   and the buttons are centred in it, which is what Electron's
