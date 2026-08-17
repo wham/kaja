@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { buildScriptTree, filterScripts, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 
 function script(folder: string, name: string): Script {
   return { path: `/w/scripts/${folder ? folder + "/" : ""}${name}`, name, folder };
@@ -38,16 +38,6 @@ describe("visibleRows", () => {
     expect(visibleRows(tree, new Set()).map(label)).toEqual(["reports", "root.ts"]);
     expect(visibleRows(tree, new Set(["reports"])).map(label)).toEqual(["reports", "reports/weekly", "root.ts"]);
     expect(visibleRows(tree, new Set(["reports", "reports/weekly"])).map(label)).toEqual(["reports", "reports/weekly", "usage.ts", "root.ts"]);
-  });
-});
-
-describe("filterScripts", () => {
-  const scripts = [script("reports", "churn.ts"), script("billing", "churn-rate.ts"), script("", "seat-map.ts")];
-
-  it("matches names and folder paths, and flattens", () => {
-    expect(filterScripts(scripts, "churn").map((s) => s.name)).toEqual(["churn.ts", "churn-rate.ts"]);
-    expect(filterScripts(scripts, "billing").map((s) => s.name)).toEqual(["churn-rate.ts"]);
-    expect(filterScripts(scripts, "  ").length).toBe(3);
   });
 });
 

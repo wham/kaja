@@ -43,7 +43,7 @@ import {
   withCode,
 } from "./drafts";
 import { deriveDraftTitle, proposeFileName, proposeFileNames } from "./draftTitle";
-import { methodUse, recordUse } from "./treeExpansion";
+import { hasMultiplePackages, methodUse, recordUse } from "./treeExpansion";
 import { generateMethodEditorCode } from "./appLoader";
 import { buildMcpCatalog } from "./mcpCatalog";
 import { classifyFailure } from "./callFailure";
@@ -2368,12 +2368,20 @@ export function App() {
     }
 
     for (const app of apps) {
+      // The tree says which package a service is in by where the row sits; a
+      // flat list has to say it, and only where an app has more than one — that
+      // is what tells two `Quirks.Sum` rows apart.
+      const packages = hasMultiplePackages(app.services);
       for (const service of app.services) {
+        const qualified = packages ? `${service.packageName}.${service.name}` : service.name;
         for (const method of service.methods) {
           destinations.push({
-            key: `call:${app.configuration.name}/${service.name}/${method.name}`,
+            // The package is part of the key for the same reason: without it the
+            // two `Quirks.Sum` rows share one, and React renders whichever it
+            // already had wherever the other belongs.
+            key: `call:${app.configuration.name}/${service.packageName}.${service.name}/${method.name}`,
             name: method.name,
-            path: `${app.configuration.name} / ${service.name}`,
+            path: `${app.configuration.name} / ${qualified}`,
             origin: app.configuration.name,
             icon: FileCode,
             go: () => void onMethodSelect(method, service, app),

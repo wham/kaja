@@ -97,20 +97,6 @@ export function visibleRows(nodes: TreeNode[], openFolders: ReadonlySet<string>)
 }
 
 /**
- * Filtering flattens: a hit is shown wherever it is, with its folder as a dim
- * suffix, because a tree of one match per branch is a worse answer than a list.
- * Folder paths match too, so `reports` finds everything filed there.
- */
-export function filterScripts(scripts: Script[], query: string): Script[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return scripts;
-  return scripts.filter((script) => {
-    const haystack = script.folder ? `${script.folder}/${script.name}` : script.name;
-    return haystack.toLowerCase().includes(needle);
-  });
-}
-
-/**
  * A file's name split from its type. The sidebar is one list of names in one
  * font — mono was doing the work of saying "this one is on disk" and the group
  * label says that now — so the extension is drawn dim rather than dropped: it is

@@ -22,9 +22,8 @@ import { Spinner } from "./components/spinner";
 import { Script } from "./apps";
 import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
-import { buildScriptTree, filterScripts, FolderNode, folderNameError, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, FolderNode, folderNameError, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 import { usePersistedState } from "./usePersistedState";
-import { useSidebarFilter } from "./sidebarFilter";
 import { useMediaQuery } from "./useMediaQuery";
 
 /**
@@ -49,12 +48,11 @@ import { useMediaQuery } from "./useMediaQuery";
  * sidebar's to draw: that header and the one over Apps are the same row, and it
  * takes the section's own **+** with it. What is left here is the two groups.
  *
- * **The search is the panel's, not the section's**, so it is read from the
- * sidebar's context rather than drawn here: it spans the scripts and the app
- * tree alike, which is why it sits in the band over both. What this region owes
- * it is the count of what it matched — the two group counts state that while a
- * query is on, since a result set is the one thing whose size can't be read off
- * the rows.
+ * **There is no filter over these rows.** Finding something by name is `⌘P`,
+ * which reaches these two groups and the app catalog alike; a field in the panel
+ * searched a subset of that from a second place, and the pair of them competed
+ * for one gesture. So the two counts state what is in each group and nothing
+ * else.
  *
  * **And it is one list of names, in one font.** Mono on a file row was doing
  * double duty as the tell for "this one is on disk" — the group label carries
@@ -122,7 +120,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [filesOpen, setFilesOpen] = usePersistedState("filesExpanded", true);
   const [openFolders, setOpenFolders] = usePersistedState<string[]>("openScriptFolders", []);
   const [showAllDrafts, setShowAllDrafts] = useState(false);
-  const { query, reportHits } = useSidebarFilter();
   const [hovered, setHovered] = useState<string | null>(null);
   const touch = useMediaQuery("(hover: none)");
 
@@ -133,17 +130,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
-  const filtering = query.trim().length > 0;
-  const matches = useMemo(() => filterAll(scripts, ownDrafts, query), [scripts, ownDrafts, query]);
-
-  // What the panel's field states, for the half of the search that lives here.
-  useEffect(() => {
-    reportHits("scripts", filtering ? matches.scripts.length + matches.drafts.length : 0);
-  }, [filtering, matches, reportHits]);
-
   const rows = useMemo(() => visibleRows(tree, new Set(openFolders)), [tree, openFolders]);
-  const draftsShown = filtering ? matches.drafts : showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
-  const hiddenDrafts = filtering || showAllDrafts ? 0 : ownDrafts.length - draftsShown.length;
+  const draftsShown = showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
+  const hiddenDrafts = showAllDrafts ? 0 : ownDrafts.length - draftsShown.length;
 
   // The folder being named, which is a real row from the first keystroke. A
   // rename is the same row, so the interaction is learned once.
@@ -182,17 +171,13 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     // once rather than twice.
     <nav aria-labelledby="scripts-section">
       {/* Zero drafts hides the group rather than showing an empty label: there
-          is nothing there and nothing to say about it. A search that matched no
-          draft is the same nothing, so it hides the group too — the field
-          already said how many it found in all. */}
-      {(filtering ? matches.drafts.length > 0 : agentDraft !== undefined || ownDrafts.length > 0) && (
+          is nothing there and nothing to say about it. */}
+      {(agentDraft !== undefined || ownDrafts.length > 0) && (
         <>
           <GroupHeader
             label="Drafts"
-            count={filtering ? matches.drafts.length : ownDrafts.length}
-            // A filter opens both groups — the body below renders either way, so
-            // the chevron has to agree with it rather than report the fold.
-            open={draftsOpen || filtering}
+            count={ownDrafts.length}
+            open={draftsOpen}
             onToggle={() => setDraftsOpen((open) => !open)}
             action={
               ownDrafts.length > 0
@@ -200,9 +185,9 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 : undefined
             }
           />
-          {(draftsOpen || filtering) && (
+          {draftsOpen && (
             <ul role="tree" aria-label="Drafts" className="select-none">
-              {agentDraft && !filtering && (
+              {agentDraft && (
                 <AgentRow
                   draft={agentDraft}
                   current={props.currentDraftId === agentDraft.id}
@@ -251,8 +236,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <GroupHeader
         label="Files"
-        count={filtering ? matches.scripts.length : scripts.length}
-        open={filesOpen || filtering}
+        count={scripts.length}
+        open={filesOpen}
         onToggle={() => setFilesOpen((open) => !open)}
         action={
           canWrite && (props.onCreateFolder || props.onRevealScripts)
@@ -260,76 +245,58 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             : undefined
         }
       />
-      {(filesOpen || filtering) && (
+      {filesOpen && (
         <ul role="tree" aria-label="Files" className="select-none">
-          {filtering
-            ? matches.scripts.map((script) => (
-                <FileRow
-                  key={script.path}
-                  script={script}
-                  depth={0}
-                  suffix={script.folder}
-                  current={props.currentScriptPath === script.path}
-                  running={props.runningFileIds?.has(script.path)}
-                  agent={props.agentFileIds?.has(script.path)}
-                  waiting={props.waitingFileIds?.has(script.path)}
-                  active={active(`file:${script.path}`)}
-                  hasMenu={canWrite}
-                  onHover={(on) => setHovered(on ? `file:${script.path}` : null)}
-                  onSelect={() => props.onScriptSelect(script)}
-                  onMenu={(event) => setScriptMenu({ script, top: event.clientY, left: event.clientX })}
+          {rows.map((node) =>
+            node.kind === "folder" ? (
+              <Fragment key={node.path}>
+                <FolderRow
+                  node={node}
+                  open={openFolders.includes(node.path)}
+                  editing={folderEdit?.path === node.path}
+                  active={active(`folder:${node.path}`)}
+                  hasMenu={canWrite && props.onCreateFolder !== undefined}
+                  siblingNames={siblingFolderNames(tree, node.path)}
+                  onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
+                  onToggle={() => toggleFolder(node.path)}
+                  onMenu={(event) => setFolderMenu({ path: node.path, top: event.clientY, left: event.clientX })}
+                  onRename={async (name) => {
+                    await props.onRenameFolder?.(node.path, name);
+                    setFolderEdit(null);
+                  }}
+                  onCancelRename={() => setFolderEdit(null)}
                 />
-              ))
-            : rows.map((node) =>
-                node.kind === "folder" ? (
-                  <Fragment key={node.path}>
-                    <FolderRow
-                      node={node}
-                      open={openFolders.includes(node.path)}
-                      editing={folderEdit?.path === node.path}
-                      active={active(`folder:${node.path}`)}
-                      hasMenu={canWrite && props.onCreateFolder !== undefined}
-                      siblingNames={siblingFolderNames(tree, node.path)}
-                      onHover={(on) => setHovered(on ? `folder:${node.path}` : null)}
-                      onToggle={() => toggleFolder(node.path)}
-                      onMenu={(event) => setFolderMenu({ path: node.path, top: event.clientY, left: event.clientX })}
-                      onRename={async (name) => {
-                        await props.onRenameFolder?.(node.path, name);
-                        setFolderEdit(null);
-                      }}
-                      onCancelRename={() => setFolderEdit(null)}
-                    />
-                    {/* The new row sits inside the folder it is being made in,
-                        which is what lets you see where it lands as you type. */}
-                    {folderEdit?.parent === node.path && folderEdit.path === undefined && (
-                      <NewFolderRow
-                        depth={node.depth + 1}
-                        siblingNames={childFolderNames(tree, node.path)}
-                        onCommit={async (name) => {
-                          await props.onCreateFolder?.(`${node.path}/${name}`);
-                          setFolderEdit(null);
-                        }}
-                        onCancel={() => setFolderEdit(null)}
-                      />
-                    )}
-                  </Fragment>
-                ) : (
-                  <FileRow
-                    key={node.script.path}
-                    script={node.script}
-                    depth={node.depth}
-                    current={props.currentScriptPath === node.script.path}
-                    running={props.runningFileIds?.has(node.script.path)}
-                    agent={props.agentFileIds?.has(node.script.path)}
-                    waiting={props.waitingFileIds?.has(node.script.path)}
-                    active={active(`file:${node.script.path}`)}
-                    hasMenu={canWrite}
-                    onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
-                    onSelect={() => props.onScriptSelect(node.script)}
-                    onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
+                {/* The new row sits inside the folder it is being made in,
+                    which is what lets you see where it lands as you type. */}
+                {folderEdit?.parent === node.path && folderEdit.path === undefined && (
+                  <NewFolderRow
+                    depth={node.depth + 1}
+                    siblingNames={childFolderNames(tree, node.path)}
+                    onCommit={async (name) => {
+                      await props.onCreateFolder?.(`${node.path}/${name}`);
+                      setFolderEdit(null);
+                    }}
+                    onCancel={() => setFolderEdit(null)}
                   />
-                ),
-              )}
+                )}
+              </Fragment>
+            ) : (
+              <FileRow
+                key={node.script.path}
+                script={node.script}
+                depth={node.depth}
+                current={props.currentScriptPath === node.script.path}
+                running={props.runningFileIds?.has(node.script.path)}
+                agent={props.agentFileIds?.has(node.script.path)}
+                waiting={props.waitingFileIds?.has(node.script.path)}
+                active={active(`file:${node.script.path}`)}
+                hasMenu={canWrite}
+                onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
+                onSelect={() => props.onScriptSelect(node.script)}
+                onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
+              />
+            ),
+          )}
           {folderEdit && folderEdit.parent === "" && folderEdit.path === undefined && (
             <NewFolderRow
               depth={0}
@@ -347,13 +314,6 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             <li role="treeitem">
               <div style={{ paddingLeft: ROW_INDENT }} className="flex min-h-[22px] items-center py-1 pr-3 text-xs text-muted-foreground">
                 {canWrite ? "Name a draft to file it here." : "Scripts in the workspace's folder appear here."}
-              </div>
-            </li>
-          )}
-          {filtering && matches.scripts.length === 0 && (
-            <li role="treeitem">
-              <div style={{ paddingLeft: ROW_INDENT }} className="flex h-[22px] items-center text-xs text-muted-foreground">
-                No files match “{query.trim()}”
               </div>
             </li>
           )}
@@ -827,7 +787,6 @@ function FolderNameField({
 function FileRow({
   script,
   depth,
-  suffix,
   current,
   running,
   agent,
@@ -840,8 +799,6 @@ function FileRow({
 }: {
   script: Script;
   depth: number;
-  // The folder, shown dim beside the name in a flattened filter result.
-  suffix?: string;
   current: boolean;
   running?: boolean;
   agent?: boolean;
@@ -883,7 +840,6 @@ function FileRow({
         <span className="flex-1 truncate">
           {base}
           {extension && <span className="text-muted-foreground">{extension}</span>}
-          {suffix && <span className="ml-1.5 text-xs text-muted-foreground">{suffix}</span>}
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={false}>
           {active && hasMenu && <RowAction icon={Ellipsis} label={`Actions for ${script.name}`} onClick={onMenu} />}
@@ -969,17 +925,6 @@ function CursorMenu({
       </DropdownMenu>
     </>
   );
-}
-
-// Filtering matches both groups at once and flattens each: a tree of one match
-// per branch is a worse answer than a list.
-function filterAll(scripts: Script[], drafts: Draft[], query: string): { scripts: Script[]; drafts: Draft[] } {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return { scripts, drafts };
-  return {
-    scripts: filterScripts(scripts, query),
-    drafts: drafts.filter((draft) => draft.title.toLowerCase().includes(needle)),
-  };
 }
 
 function childFolderNames(tree: TreeNode[], parent: string): string[] {
