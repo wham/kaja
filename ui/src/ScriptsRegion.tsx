@@ -11,7 +11,6 @@ import {
   Pencil,
   Plug,
   Save,
-  Search,
   Trash2,
   X,
   type LucideIcon,
@@ -25,6 +24,7 @@ import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE
 import { titleParts } from "./draftTitle";
 import { buildScriptTree, filterScripts, FolderNode, folderNameError, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 import { usePersistedState } from "./usePersistedState";
+import { useSidebarFilter } from "./sidebarFilter";
 import { useMediaQuery } from "./useMediaQuery";
 
 /**
@@ -45,11 +45,16 @@ import { useMediaQuery } from "./useMediaQuery";
  * **The section is what makes those two groups one thing.** Drafts and Files
  * are halves of a single question — what you run — and a reader who meets them
  * as two headers floating above the app tree has to work that out. So the
- * section says its own name once, in the band above these rows, which is the
- * sidebar's to draw: the band and the one over Apps are the same band, and it
- * takes the traffic lights and the section's own verbs with it. What is left
- * here is the two groups and the filter, which belongs to the section rather
- * than to either half — which is why it searches both.
+ * section says its own name once, in the header above these rows, which is the
+ * sidebar's to draw: that header and the one over Apps are the same row, and it
+ * takes the section's own **+** with it. What is left here is the two groups.
+ *
+ * **The search is the panel's, not the section's**, so it is read from the
+ * sidebar's context rather than drawn here: it spans the scripts and the app
+ * tree alike, which is why it sits in the band over both. What this region owes
+ * it is the count of what it matched — the two group counts state that while a
+ * query is on, since a result set is the one thing whose size can't be read off
+ * the rows.
  *
  * **And it is one list of names, in one font.** Mono on a file row was doing
  * double duty as the tell for "this one is on disk" — the group label carries
@@ -62,10 +67,6 @@ import { useMediaQuery } from "./useMediaQuery";
  * The run indicators have the trailing slot to themselves, and it is a fixed
  * width, so nothing under the cursor moves as a run starts.
  */
-
-// Once the region passes this many rows it earns a filter. Below it the list is
-// the answer and a search box is a control you have to go looking past.
-const FILTER_THRESHOLD = 15;
 
 // The base indent of a row inside a group, so the group's label and its rows
 // share a left edge, and one level of folder depth.
@@ -121,7 +122,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const [filesOpen, setFilesOpen] = usePersistedState("filesExpanded", true);
   const [openFolders, setOpenFolders] = usePersistedState<string[]>("openScriptFolders", []);
   const [showAllDrafts, setShowAllDrafts] = useState(false);
-  const [query, setQuery] = useState("");
+  const { query, reportHits } = useSidebarFilter();
   const [hovered, setHovered] = useState<string | null>(null);
   const touch = useMediaQuery("(hover: none)");
 
@@ -132,9 +133,13 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
-  const rowCount = useMemo(() => scripts.length + folders.length + ownDrafts.length, [scripts, folders, ownDrafts]);
   const filtering = query.trim().length > 0;
   const matches = useMemo(() => filterAll(scripts, ownDrafts, query), [scripts, ownDrafts, query]);
+
+  // What the panel's field states, for the half of the search that lives here.
+  useEffect(() => {
+    reportHits("scripts", filtering ? matches.scripts.length + matches.drafts.length : 0);
+  }, [filtering, matches, reportHits]);
 
   const rows = useMemo(() => visibleRows(tree, new Set(openFolders)), [tree, openFolders]);
   const draftsShown = filtering ? matches.drafts : showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
@@ -176,34 +181,15 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
     // Named by the band above it, which is the sidebar's: the heading is stated
     // once rather than twice.
     <nav aria-labelledby="scripts-section">
-      {/* The filter appears once the region is big enough to need one. It
-          matches names and folder paths, flattens the result, and says how many
-          it found — the one place a count lives outside the group headers,
-          because there is no other way to see the size of a result. */}
-      {rowCount > FILTER_THRESHOLD && (
-        <div className="px-2 pb-1 pt-0.5">
-          <div className="flex h-[26px] items-center gap-1.5 rounded-md border border-input bg-background px-2">
-            <Search size={13} className="shrink-0 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => event.key === "Escape" && setQuery("")}
-              placeholder="Filter scripts"
-              aria-label="Filter scripts"
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            {filtering && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{matches.scripts.length + matches.drafts.length}</span>}
-          </div>
-        </div>
-      )}
-
       {/* Zero drafts hides the group rather than showing an empty label: there
-          is nothing there and nothing to say about it. */}
-      {(agentDraft !== undefined || ownDrafts.length > 0) && (
+          is nothing there and nothing to say about it. A search that matched no
+          draft is the same nothing, so it hides the group too — the field
+          already said how many it found in all. */}
+      {(filtering ? matches.drafts.length > 0 : agentDraft !== undefined || ownDrafts.length > 0) && (
         <>
           <GroupHeader
             label="Drafts"
-            count={ownDrafts.length}
+            count={filtering ? matches.drafts.length : ownDrafts.length}
             // A filter opens both groups — the body below renders either way, so
             // the chevron has to agree with it rather than report the fold.
             open={draftsOpen || filtering}
@@ -265,7 +251,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
       <GroupHeader
         label="Files"
-        count={scripts.length}
+        count={filtering ? matches.scripts.length : scripts.length}
         open={filesOpen || filtering}
         onToggle={() => setFilesOpen((open) => !open)}
         action={

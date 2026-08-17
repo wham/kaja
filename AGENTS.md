@@ -16,7 +16,7 @@
 - When I prompt you to make changes that are radically different from what's documented here, please update this file accordingly.
 - Don't commit changes to `kaja.json`
 - The server serves its workspace read-only; `scripts/server --editable` is what lets the UI write to `kaja.json`. The desktop app owns its workspace and is always editable. This is decided at startup only — a configuration file never says whether it may be edited.
-  - **A read-only configuration doesn't offer the verbs that write it.** Editing an app can be refused halfway — the form is still worth opening to read what an app is configured as, so it keeps its banner and its fields are disabled. Creating one can't: there is nothing to read in a blank form whose only button can never be pressed. So `canUpdateConfiguration` false takes the **+** off the sidebar's Apps band and an app's **Delete** away entirely rather than disabling them, and the no-apps blankslate becomes a screen that says where apps come from instead of a button that leads nowhere. **Settings** stays, on the same rule the app form does.
+  - **A read-only configuration doesn't offer the verbs that write it.** Editing an app can be refused halfway — the form is still worth opening to read what an app is configured as, so it keeps its banner and its fields are disabled. Creating one can't: there is nothing to read in a blank form whose only button can never be pressed. So `canUpdateConfiguration` false takes the **+** off the sidebar's Apps header and an app's **Delete** away entirely rather than disabling them, and the no-apps blankslate becomes a screen that says where apps come from instead of a button that leads nowhere. **Settings** stays, on the same rule the app form does.
 - `Configuration` is the file and nothing else; `Runtime` is the running kaja — `can_update_configuration`, `git_ref`, `build_number`, `variable_store_available`. Everything in `Runtime` is settled when the process starts, is never read from or written to `kaja.json`, and is never accepted as input; it rides alongside the configuration on `GetConfigurationResponse`, so saving can't round-trip it. `variable_status` is a third thing again — the result of resolving one against the other. Retired fields are reserved on `Configuration` *and* stripped in `migrateConfiguration`: reserving only stops the schema reusing them, while protojson still fails the whole file on the unknown key.
 - Use past tense in pull request titles and commit messages (e.g., "Fix bug" → "Fixed bug").
 - Use capitalized "Kaja" for user-facing labels (titles, headings, UI text). Keep lowercase "kaja" for code, terminal commands, and file paths.
@@ -116,37 +116,47 @@ once — a rename is not a reason to lose somebody's work.
 ### One section, two groups
 
 `ScriptsRegion.tsx` is the two groups; `Sidebar.tsx` is the panel — the API's
-catalog, and the band over each section — and it takes the region in as a node,
-because the two lists share nothing but the panel.
+catalog, the band over both sections and the header over each — and it takes the
+region in as a node, because the two lists share nothing but the panel.
 
-- **The section says its own name once, in a band the other section also
-  wears.** Drafts and Files are two halves of one question — what you run — and
-  two headers floating above the app tree left that to be worked out. So the
-  panel opens with **Scripts** and the app tree opens with **Apps**, and it is
-  the *same* 40px band both times (`SectionBand` in `Sidebar.tsx`): a name at
-  `text-[13px] font-medium text-foreground`, and on the right the verbs of that
-  section and no other. The band lives in the sidebar rather than in the region
-  because it is one component drawn twice — two labelled regions read as peers,
-  where one label above everything reads as a title for the panel — and because
-  only the panel knows where the macOS traffic lights are. It still names the
+- **A control's scope decides where it lives, and that settles what the band
+  is.** **+** is local, so there is one on Scripts and one on Apps; the search
+  and `{ }` are about the window rather than about either list, so they are in
+  the band above both. What the band is *not* is a header for the first section
+  — which is exactly how it read while it was titled **Scripts** and carried
+  that section's verbs, since everything below it, the app tree included,
+  appeared to be inside it. It is the panel's own 40px row (`GlobalBand`),
+  holding the global tools and nothing else.
+- **The left of the band belongs to the platform, which is what makes the two
+  builds one app.** macOS puts the traffic lights there, so the band takes their
+  inset and stays draggable except where a control is; everywhere else — the
+  browser, and a desktop window whose buttons are on the right — the **Kaja mark
+  and wordmark** take that corner (`KajaTrace`, the real mark rather than a
+  logotype of its own). The tools sit flush right either way, so the cluster
+  never moves between builds and desktop and browser differ by exactly one
+  element.
+- **Both sections are the same in-list header**, 22px like the rows under them
+  (`SectionHeader`): a name at `text-[13px] font-medium text-foreground`, and on
+  the right the one verb that belongs to that list — **+** on Scripts starts a
+  draft (⌘N), **+** on Apps makes an app. That is what makes them peers; a 40px
+  bar over one and a row over the other reads as a title for the panel and a
+  heading inside it. A hairline seats Apps against the section above it, which is
+  enough now that the band says nothing about either. The header still names the
   region's `nav` through `aria-labelledby`, so the heading is stated once.
   Nothing indents: the name sits at 8px, left of the group chevrons, and no row
   under it moves.
-- **The band is where each section's verbs finally have a home.** **+** on
-  Scripts starts a draft (⌘N), `{ }` opens the workspace's variables that
-  scripts read; **+** on Apps makes an app. All three used to sit in one bar at
-  the top of the panel, which is exactly why that bar read as governing
-  everything: it held the actions of both halves and said which of them it meant
-  about none of them.
-- **The name is the fold, not the whole band.** Clicking it collapses the
+- **The two + are permanent; everything else in a header is revealed by the
+  cursor.** Making a draft and adding an app are the verbs somebody comes to
+  this panel for, and they were permanent while the band was theirs. The group
+  actions below them (`Trash2` on Drafts, the Files kebab) keep the hover rule.
+- **The name is the fold, not the whole row.** Clicking it collapses the
   section — the escape valve when the other one gets long — and the chevron is
   revealed by the cursor while the section is open, then stays put once it is
   shut, which is when it is the only way back; it holds its space either way, so
-  the name never moves. The band itself is not the target because on macOS the
-  top one is the window's title bar, and a window dragged by its sidebar must
-  not fold a section on the way.
+  the name never moves. The name rather than the row, so a header can carry a
+  button without the two competing.
 - **Each section scrolls inside itself**, so a hundred methods can't push the
-  Scripts band off the top of the panel. Scripts is content-sized and shrinks
+  Scripts header off the top of the panel. Scripts is content-sized and shrinks
   (`flex-[0_1_auto]`) — a short list of files leaves the room to the apps rather
   than claiming half the panel — and Apps takes what is left; with Apps folded
   away there is nothing to leave room for, so Scripts takes the rest.
@@ -223,16 +233,40 @@ because the two lists share nothing but the panel.
   were never run and never edited past their generated form after `SWEEP_DAYS`
   (7), never touches one that is on screen, never touches the agent's row, and is
   off entirely when `sweepDrafts` is off. Anything run or edited is kept forever.
-- **A filter appears when the region earns one** — past ~15 rows
-  (`FILTER_THRESHOLD`). It belongs to the **section** rather than to either
-  group, which is why it sits directly under the Scripts title and searches
-  both: it matches names and folder paths, **flattens** them (a tree of one
-  match per branch is a worse answer than a list), and shows the folder as a dim
-  suffix on each hit. Below the threshold the list is the answer, and a search
-  box is a control you have to go looking past.
 - **Empty states.** Zero drafts hides the Drafts group entirely rather than
-  showing an empty label — there is nothing there and nothing to say about it.
-  Zero files keeps its header and says one line: where files come from.
+  showing an empty label — there is nothing there and nothing to say about it,
+  and a search that matched no draft is the same nothing. Zero files keeps its
+  header and says one line: where files come from, or that nothing matched.
+
+### The search over both lists
+
+**The search belongs to the panel, not to either section**, which is why it is
+in the band and why it reaches the Scripts region through a context
+(`sidebarFilter.ts`) rather than as a prop — the region is handed to the sidebar
+as a node, and this is the one thing that spans both lists.
+
+- **At rest it is the icon; in use it is the field.** Clicking it turns the icon
+  into a real input filling whatever the platform's corner leaves — snug beside
+  the traffic lights, comfortable in a browser — and the wordmark gives way to it,
+  since the mark alone still says whose window this is. `Esc`, the ✕, or leaving
+  it empty puts it back. It is never persisted: a filter left on from last week
+  is a list that is silently incomplete. There is no row-count threshold any
+  more; a global tool is either there or it isn't.
+- **It matches, then flattens, in both halves.** Scripts match on name and folder
+  path and show the folder as a dim suffix (`filterScripts`); the catalog matches
+  a method by its own name, by `Service.Method`, by its service's name, or by its
+  app's — matching a container means everything in it — and draws the hits as
+  flat rows under their app with the service as a dim suffix (`appFilter.ts`,
+  unit-tested). A tree of one match per branch is a worse answer than a list, in
+  a catalog of forty methods most of all: that tree is what this was built for.
+- **One number, in the field.** The sidebar counts its own catalog and the region
+  reports what it matched (`reportHits`), so a search over two lists states one
+  total. The group counts beside **Drafts** and **Files** report hits rather than
+  totals while it is on, so what is on screen and what the number says can't
+  disagree.
+- **A query outranks the folds.** Both sections open while one is on, because the
+  body renders either way and a fold that hid the answer would be reporting a
+  state nobody asked about.
 
 ### Folders
 
@@ -390,13 +424,13 @@ what buys the horizontal room:
   chevron slot they would never fill, so methods start where the eye already is
   rather than 20px right of it.
 - **Rows are full-bleed** — no radius, no inset — so the panel edge is the row
-  edge and hover reads as a band. The hairline that used to separate your
-  scripts from the API's catalog is gone: the **Apps** band says "a new thing
-  starts here" in a way a 1px rule never could, and it keeps one rule of its own
-  along its top to seat it against the section above.
-- The section bands **stay 40px** regardless, because the top one lines up with
-  the command row across the seam and the second one has to match it to read as
-  its peer.
+  edge and hover reads as a band. The one hairline in the panel separates your
+  scripts from the API's catalog, above the **Apps** header, which is all that is
+  needed to say "a new thing starts here" now that both sections wear the same
+  22px header.
+- The panel's **band stays 40px**, because it lines up with the command row
+  across the seam — one row across the whole window, holding the traffic lights
+  or the mark at one end and the file's own controls at the other.
 
 ## What the tree opens with
 
@@ -447,7 +481,7 @@ service*), and it never ran again: whatever you got on day one you kept forever.
   one gesture that could write `shut` over everything at once and mute the whole
   model from a button in the header. **⌥click a row** takes its subtree instead —
   the same verb, scoped to where the cursor already is, at no cost in chrome.
-  Folding the **Apps** band is not that verb back: it hides the section whole,
+  Folding the **Apps** section is not that verb back: it hides the section whole,
   which is a question about the panel's two halves rather than about the tree,
   and it writes nothing into the fold map.
 - The old `expandedApps`/`expandedServices` keys are **not migrated**. Their ids
@@ -1126,22 +1160,28 @@ illustration, and it degrades correctly: on a first run the recent list is
 whatever you last selected — and the window's right side opens with one 40px
 **command row** (`CommandRow.tsx`) that replaced the old top bar and tab strip:
 sidebar toggle · finder · the file's own pair · spacer · action ·
-hairline · search · layout. There are
+hairline · layout. There are
 no recent chips — with one pane and a finder, they were the last echo of a tab
-strip. Nothing else may be added to it; new controls go on the band of the
-sidebar section they are about, or in the console header. The draft's own pair —
-`Name` and a discard — is the one exception, and it earned it by belonging to
-the file the trigger just named rather than to the window; it is absent on a
-file, which is already on disk, and so most of the time. The sidebar's
-**Scripts** band is 40px too, so the two line up across the seam, and the macOS
+strip. Nothing else may be added to it; new controls go on the sidebar's band or
+on the header of the section they are about, or in the console header. The
+draft's own pair — `Name` and a discard — is the one exception, and it earned it
+by belonging to the file the trigger just named rather than to the window; it is
+absent on a file, which is already on disk, and so most of the time. The
+sidebar's band is 40px too, so the two line up across the seam, and the macOS
 traffic lights stay in it (the row takes over the inset only when the sidebar is
 collapsed).
 
+- **There is no search icon in the row.** It opened the same finder its own
+  trigger opens, which is why it was the first thing dropped as the row narrowed
+  — and once the sidebar's band grew a search of its own, over the scripts and
+  the app tree, two magnifying glasses in one 40px line meant two different
+  searches. The one with a trigger beside it is the one that could go; `⌘P` is
+  unaffected.
 - **The lights move to the band, not the band to the lights**
   (`desktop/traffic_lights_darwin.m`). AppKit centres the three window buttons
   on the 28pt title bar, six points above the centre of the 40px band, so the
   window's top-left corner read as two staggered baselines — the lights on one,
-  and **+**, `{ }`, the panel toggle and the draft's own Name on the other. There
+  and the search, `{ }`, the panel toggle and the draft's own Name on the other. There
   is no position to set: `mac.TitleBar` is six booleans, and Wails has had the
   request open since v2. So the title bar container is made as tall as the band
   and the buttons are centred in it, which is what Electron's

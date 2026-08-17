@@ -1,4 +1,4 @@
-import { Columns2, PanelLeftClose, PanelLeftOpen, Rows2, Search } from "lucide-react";
+import { Columns2, PanelLeftClose, PanelLeftOpen, Rows2 } from "lucide-react";
 import { cn } from "./cn";
 import { IconButton } from "./components/icon-button";
 import { SimpleTooltip } from "./components/tooltip";
@@ -19,22 +19,26 @@ interface CommandRowProps {
   // form. A file is never both, so they share the slot and the row keeps its
   // shape.
   action?: React.ReactNode;
-  onSearch: () => void;
   layout: "vertical" | "horizontal";
   onToggleLayout: () => void;
 }
 
 // One 40px row instead of a top bar and a tab strip: sidebar toggle · finder ·
-// the file's own save/discard · spacer · action · hairline · search · layout.
-// Nothing else may be added to it — new controls go in the sidebar header or the
-// console header.
+// the file's own save/discard · spacer · action · hairline · layout. Nothing
+// else may be added to it — new controls go on the band of the sidebar section
+// they are about, or in the console header.
+//
+// There is no search icon here. It said nothing the finder trigger beside it
+// doesn't already say, and once the sidebar's band grew a search of its own —
+// over the scripts and the app tree, which is a different thing entirely — two
+// magnifying glasses in one 40px line meant two different searches. The one that
+// had a trigger beside it is the one that could go.
 //
 // As the row narrows, things leave in order of what they are worth, the way the
-// console header's do: the keyboard hint on Run first (there is no keyboard on
-// the screen this narrows for), then the search icon, whose verb the trigger
-// beside it already carries. The finder truncates through all of it, because
-// with the sidebar collapsed it is the only thing saying where you are.
-export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, onSearch, layout, onToggleLayout }: CommandRowProps) {
+// console header's do: the keyboard hint on Run first, there being no keyboard
+// on the screen this narrows for. The finder truncates through all of it,
+// because with the sidebar collapsed it is the only thing saying where you are.
+export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finder, fileActions, action, layout, onToggleLayout }: CommandRowProps) {
   const modifier = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl+";
 
   return (
@@ -63,19 +67,6 @@ export function CommandRow({ leftInset, sidebarCollapsed, onToggleSidebar, finde
       <div className="flex shrink-0 items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
         {action}
         {action && <Hairline />}
-        {/* The trigger beside it opens the same finder, so on a row this narrow
-            the icon is the one thing here that says nothing new. */}
-        <SimpleTooltip text={`Find a file (${modifier}K)`} side="bottom">
-          <IconButton
-            icon={Search}
-            aria-label="Find a file"
-            onClick={onSearch}
-            size="sm"
-            variant="ghost"
-            className="size-[26px] @max-[380px]:hidden"
-            tooltip={false}
-          />
-        </SimpleTooltip>
         <SimpleTooltip text={layout === "vertical" ? "Side-by-side layout" : "Top-bottom layout"} side="bottom">
           <IconButton
             icon={layout === "vertical" ? Columns2 : Rows2}
