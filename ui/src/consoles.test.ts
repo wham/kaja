@@ -294,6 +294,21 @@ describe("settleRun", () => {
 
     expect(store.settleRun("a.ts", "gone", 10, NOW)).toBe(false);
   });
+
+  // What Stop does: a run parked on a question nobody is going to answer has
+  // nothing left to settle it, so the duration is what ends it — and it has to
+  // end it everywhere, or the spinner it left behind turns until the window is
+  // reloaded.
+  it("ends a run that is still parked on a question", () => {
+    const created = start("a.ts");
+    store.recordBlock("a.ts", created.id, "block-1", { kind: "ask", question: "which?", answerType: "str" }, NOW);
+
+    store.settleRun("a.ts", created.id, 1200, NOW);
+
+    expect(store.file("a.ts").group(created.id)!.running).toBe(false);
+    expect(store.file("a.ts").running).toBe(false);
+    expect([...store.flagSets().running]).toEqual([]);
+  });
 });
 
 describe("hasWorkInFlight", () => {
