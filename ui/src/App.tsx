@@ -2549,7 +2549,6 @@ export function App() {
               }
               fileActions={fileActions}
               action={action}
-              onSearch={() => setFinder("first")}
               layout={editorLayout}
               onToggleLayout={onToggleEditorLayout}
             />

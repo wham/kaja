@@ -110,14 +110,6 @@ export function filterScripts(scripts: Script[], query: string): Script[] {
   });
 }
 
-/** How many rows the Files group would draw fully expanded, which is what decides whether the filter is worth its row. */
-export function fileRowCount(scripts: Script[], folders: string[]): number {
-  const paths = new Set<string>();
-  for (const folder of folders) addFolderPath(paths, folder);
-  for (const script of scripts) addFolderPath(paths, script.folder);
-  return paths.size + scripts.length;
-}
-
 /**
  * A file's name split from its type. The sidebar is one list of names in one
  * font — mono was doing the work of saying "this one is on disk" and the group

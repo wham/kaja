@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Script } from "./apps";
-import { buildScriptTree, fileRowCount, filterScripts, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, filterScripts, folderNameError, folderPaths, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
 
 function script(folder: string, name: string): Script {
   return { path: `/w/scripts/${folder ? folder + "/" : ""}${name}`, name, folder };
@@ -48,13 +48,6 @@ describe("filterScripts", () => {
     expect(filterScripts(scripts, "churn").map((s) => s.name)).toEqual(["churn.ts", "churn-rate.ts"]);
     expect(filterScripts(scripts, "billing").map((s) => s.name)).toEqual(["churn-rate.ts"]);
     expect(filterScripts(scripts, "  ").length).toBe(3);
-  });
-});
-
-describe("fileRowCount", () => {
-  it("counts folders and files, which is what decides whether the filter earns its row", () => {
-    expect(fileRowCount([script("reports/weekly", "usage.ts")], [])).toBe(3);
-    expect(fileRowCount([], ["a", "b"])).toBe(2);
   });
 });
 
