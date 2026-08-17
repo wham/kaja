@@ -2046,6 +2046,31 @@ export function App() {
   }, [apps, beginRun, reportScriptError, updateDraft, markSettled]);
 
   /**
+   * A run is over. Its wall duration is known, what it produced is worth keeping
+   * for the next time the file is opened, and it leaves the list of live ones —
+   * which is what releases its `Kaja`, its approvals, its sampled methods and
+   * its bound clients with it. A live table it drew holds that past this point,
+   * and nothing else can.
+   *
+   * Settling and dropping the record are one act, because they were two: a run
+   * taken off the list without a duration is one nothing can ever settle — the
+   * list is where the settle check looks — and a run without a duration is a
+   * running run to everything that reports one. So this is the only way out of
+   * the list, and there is no shape of it that leaves a spinner turning.
+   */
+  const endRuns = useCallback((over: LiveRun[], now: number) => {
+    if (over.length === 0) return;
+    for (const { run } of over) {
+      if (!run.fileId) continue;
+      if (!consoles.settleRun(run.fileId, run.id, now - run.startedAt, now)) continue;
+      const settled = consoles.file(run.fileId);
+      saveRuns(run.fileId, settled.runs, settled.allItems(), now);
+    }
+    const ids = new Set(over.map((live) => live.run.id));
+    setActiveRuns((runs) => runs.filter((live) => !ids.has(live.run.id)));
+  }, []);
+
+  /**
    * A generated method-call script issues its call without awaiting it, so the
    * script's own promise settles well before the response lands. The run is over
    * once the script has settled and nothing it started is still in flight — a
@@ -2059,22 +2084,8 @@ export function App() {
     // Every run in flight is asked, because they finish in whatever order their
     // work does — the second one pressed is routinely the first one over.
     const done = activeRunsRef.current.filter((live) => live.settled && !consoles.hasWorkInFlight(live.run.fileId, live.run.id));
-    if (done.length === 0) return;
-
-    const now = Date.now();
-    for (const { run } of done) {
-      if (!run.fileId) continue;
-      if (consoles.settleRun(run.fileId, run.id, now - run.startedAt, now)) {
-        const settled = consoles.file(run.fileId);
-        saveRuns(run.fileId, settled.runs, settled.allItems(), now);
-      }
-    }
-    // Letting the record go is what releases the run's `Kaja` — its approvals,
-    // its sampled methods and its bound clients with it. A live table it drew
-    // holds it past this point, and nothing else can.
-    const over = new Set(done.map((live) => live.run.id));
-    setActiveRuns((runs) => runs.filter((live) => !over.has(live.run.id)));
-  }, []);
+    endRuns(done, Date.now());
+  }, [endRuns]);
 
   useEffect(() => consoles.subscribeQuiet(settleIfQuiet), [settleIfQuiet]);
   // The script returning is the other half: a run whose calls all landed while
@@ -2101,6 +2112,14 @@ export function App() {
    * It reaches the runs of the file the button is on and no others. Cancelling
    * every question on screen was how one Stop used to end a script nobody had
    * pointed at.
+   *
+   * **Stop ends the run, rather than asking the script to end it.** Waiting for
+   * the script to unwind is waiting on the thing that was stopped: a run parked
+   * on a question that will never be asked again has nothing left to settle it,
+   * and one sleeping between two calls settles whenever it feels like it. So the
+   * run is ended here, which is what stops the spinner in the pill, the mark in
+   * the tail bar and the sidebar's own — a stopped run used to turn all three
+   * until the window was reloaded.
    */
   const onStopActiveRun = useCallback(() => {
     const stopping = activeRunsRef.current.filter((live) => live.run.fileId === currentFileId);
@@ -2110,8 +2129,8 @@ export function App() {
       if (ids.has(pending.runId)) onCancelAsk(blockId);
     }
     for (const live of stopping) live.controller?.abort();
-    setActiveRuns((runs) => runs.filter((live) => !ids.has(live.run.id)));
-  }, [onCancelAsk, currentFileId]);
+    endRuns(stopping, Date.now());
+  }, [onCancelAsk, currentFileId, endRuns]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

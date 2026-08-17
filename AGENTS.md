@@ -523,9 +523,20 @@ send another script's writes without asking.
   dropping the settled record releases that run's `Kaja`, its approvals, its
   sampled methods and its bound clients. The one thing that can hold it past
   that is a live table the canvas can still page, and that registry is bounded.
+- **A run leaves the live list one way, and that way gives it its duration**
+  (`endRuns`). Settling it and dropping the record are one act because they were
+  two: the list is where the settle check looks, so a record taken off it without
+  a duration is a run nothing can ever settle — and a run without a duration is a
+  *running* run to everything that reports one, which is a spinner that turns
+  until the window is reloaded.
 - **Stop is about one run**: it aborts the runs of the file the button is on and
   cancels only the questions those runs are parked on. Cancelling every prompt
   on screen was how one Stop used to end a script nobody had pointed at.
+- **Stop ends the run rather than asking the script to end it.** Waiting for the
+  script to unwind is waiting on the thing that was stopped: a run parked on a
+  question that will never be asked again has nothing left to settle it, and one
+  sleeping between two calls settles whenever it feels like it. So Stop is what
+  closes the record, on the one door above.
 
 **And a run has two views of that, because they want opposite things.** The
 **log** is the flat audit log — one row per call, in wall order, always
