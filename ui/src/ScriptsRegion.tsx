@@ -400,12 +400,13 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             you type. And there is no route from here into Drafts either — that
             group is for things that have never had a name. */}
         {/* A script's address outside Kaja — paste it into a launcher, a
-            Shortcut, a shell, and append the parameters where the values that
-            fill them come from. */}
+            Shortcut, a shell. It opens a sheet rather than copying straight to
+            the clipboard: the URL is worth reading before it leaves, and the
+            parameters are worth filling in while it is being built. */}
         {props.onCopyScriptLink && (
           <DropdownMenuItem onSelect={() => scriptMenu && props.onCopyScriptLink?.(scriptMenu.script)}>
             <Link2 size={16} />
-            Copy Link
+            Copy Link…
           </DropdownMenuItem>
         )}
         {props.onRenameScript && (

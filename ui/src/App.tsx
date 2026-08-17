@@ -103,7 +103,9 @@ import {
   renameScriptFolder,
   writeScriptFile,
 } from "./scriptFiles";
-import { isLinkedScript, parseScriptLink, scriptLink } from "./scriptLink";
+import { isLinkedScript, parseScriptLink } from "./scriptLink";
+import { readInputKeys } from "./scriptInputs";
+import { CopyLinkSheet } from "./CopyLinkSheet";
 import { MCPScriptResult, MCPServerInfo, MCPSetCatalog, ResolvedVariables, ScriptsFolder, ShowFileInFinder } from "./wailsjs/go/main/App";
 import { main } from "./wailsjs/go/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
@@ -371,6 +373,8 @@ export function App() {
   const [clearAllPrompt, setClearAllPrompt] = useState<{ all: Draft[]; edited: Draft[] } | null>(null);
   // A `kaja://run/…` link that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
+  // The link a script is being copied from, and the parameters it takes.
+  const [linkSheet, setLinkSheet] = useState<{ script: Script; parameters: string[] } | null>(null);
   /**
    * The runs in flight. There is more than one because there is nothing to stop
    * there being: ⌘⏎ twice, Run on a second file, a `kaja://` link arriving while
@@ -1369,11 +1373,24 @@ export function App() {
     [applyViews, showFileError],
   );
 
-  // Right-click → the `kaja://run/<script>` link that runs this script, for
-  // whatever the link is going to be pasted into.
-  const onCopyScriptLink = useCallback((script: Script) => {
-    navigator.clipboard?.writeText(scriptLink(scriptName(script))).catch(() => {});
-  }, []);
+  // Right-click → the `kaja://run/<script>` link that runs this script, shown
+  // before it is copied: nobody has seen one of these before, and the half of
+  // it worth having is the query, which a silent copy can't carry. The
+  // parameters are read out of the script's own source, so the sheet asks for
+  // what this script actually takes — from the open buffer when it is open,
+  // since that is the script as it is now rather than as disk caught up to it.
+  const onCopyScriptLink = useCallback(
+    async (script: Script) => {
+      try {
+        const open = viewsRef.current.find((view) => view.type === "script" && view.script.path === script.path);
+        const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
+        setLinkSheet({ script, parameters: content ? readInputKeys(content) : [] });
+      } catch (err) {
+        showFileError(`Copy link failed: ${err}`);
+      }
+    },
+    [showFileError],
+  );
 
   // A `kaja://run/…` link opens the script it names and asks. Anything that can
   // open a URL can arrive here — a launcher, a Shortcut, a web page — so the
@@ -2529,7 +2546,7 @@ export function App() {
                     onRenameScript={canWriteScripts() ? onRenameScript : undefined}
                     onMoveScript={canWriteScripts() ? onMoveScript : undefined}
                     onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
-                    onCopyScriptLink={isWailsEnvironment() ? onCopyScriptLink : undefined}
+                    onCopyScriptLink={isWailsEnvironment() ? (script) => void onCopyScriptLink(script) : undefined}
                     onCreateFolder={canWriteScripts() ? onCreateFolder : undefined}
                     onRenameFolder={canWriteScripts() ? onRenameFolder : undefined}
                     onDeleteFolder={canWriteScripts() ? (path) => setDeleteFolder(path) : undefined}
@@ -2897,6 +2914,7 @@ export function App() {
           </div>
         </Dialog>
       )}
+      {linkSheet && <CopyLinkSheet script={linkSheet.script} parameters={linkSheet.parameters} onClose={() => setLinkSheet(null)} />}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
       {deleteScript && (
         <ConfirmationDialog

@@ -205,7 +205,7 @@ region in as a node, because the two lists share nothing but the panel.
   **file** row keeps only the kebab: taking a file off disk is not the loop this
   is for, and it still asks first.
 - **Delete and discard are different words for different consequences.** A file
-  row's menu is `Copy Link` / `Rename…` / `Move to…` / **`Delete file`**,
+  row's menu is `Copy Link…` / `Rename…` / `Move to…` / **`Delete file`**,
   destructive and confirmed, because it takes a file off disk — the only action
   in the sidebar
   that does, and the only one in `text-destructive`. A draft row's is `Name…` /
@@ -396,9 +396,38 @@ shell. Kaja integrates with none of them and reaches none of them.
   (`main.go`). It rides on a Wails event in each direction rather than a bound
   method, which is what keeps the generated bindings out of it.
 - **The link comes from the row that runs it**: right-click a script → **Copy
-  Link**, which is where the pin used to be. Nobody types one of these by hand,
-  and the parameters are appended wherever it is pasted, since that is where the
-  values that fill them come from.
+  Link…**, which is where the pin used to be. Nobody types one of these by hand.
+- **And it is shown before it is copied** (`CopyLinkSheet.tsx`), because the
+  clipboard is the wrong shape for this on its own: nobody has seen a `kaja://`
+  URL before, so a silent copy hands over a string that says nothing about what
+  it is or where it can be pasted — and the half of it worth having is the
+  query, which a copy of the bare address can't carry at all. So the sheet's
+  headline **is the URL**, whole, at body size, in one line of mono with the
+  scheme and the keys dimmed: it teaches the scheme, the script's address and
+  the query syntax at once, and nothing on screen has to explain any of them.
+  One line under it says what opens a URL — a Raycast quicklink, an Alfred
+  workflow, a Shortcut, `open` from a shell — and the clipboard is the only
+  exit. **Run now was designed and cut**: with two verbs the sheet is no longer
+  about copying, and running is two feet away in the command row with a console
+  attached to catch the output.
+- **The parameters are the script's own, read at the language level**
+  (`scriptInputs.ts`). `readInputKeys` walks the AST rather than the text, which
+  is the only way to be right about any of it: `kaja` is an ordinary local
+  binding, so what names it is what the file imported (`scriptBindings.ts`,
+  shared with `draftTitle`), and a key is written four ways a pattern over the
+  source would miss or invent — `kaja.input.url`, `kaja.input["order id"]`,
+  `const { url: link } = kaja.input`, and an alias a line above any of them. A
+  key the script computes is left out rather than guessed at, and a
+  `kaja.input.x` in a comment or a string is not a parameter. The keys are
+  **labels, not fields**: they come from the source, and an empty key/value grid
+  would ask for the thing the sheet exists to tell you. A blank value still
+  ships its `?key=` — that trailing equals is where a launcher's own token goes.
+  A script that reads nothing still gets the sheet, minus the block: the URL is
+  the whole point of it.
+- **The link the sheet shows is the link it copies, by construction.**
+  `scriptLinkParts` is what `scriptLink` is built from rather than a second
+  reading of it, so the dimming can't drift from the string, and each pair is
+  encoded by the same `URLSearchParams` that writes the whole query.
 - **Desktop only**, because registering a scheme is a bundle's to do
   (`info.protocols` in `wails.json` → `CFBundleURLTypes`). The web has no such
   door and grows no menu item for one.
