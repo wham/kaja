@@ -1,4 +1,5 @@
 import { SUBJECT_FIELDS } from "./loopKey";
+import { importedNames, runtimeNames } from "./scriptBindings";
 import ts from "typescript";
 
 // A request small enough to read at a glance is described by its values, which
@@ -44,29 +45,6 @@ export function readCalls(code: string): DraftCall[] {
   ts.forEachChild(file, visit);
 
   return calls;
-}
-
-function importedNames(file: ts.SourceFile): Set<string> {
-  return boundNames(file, () => true);
-}
-
-// Whatever the kaja runtime was bound to in this file, alias included — Monaco's
-// auto-import can write the relative form of the module.
-function runtimeNames(file: ts.SourceFile): Set<string> {
-  return boundNames(file, (path) => path === "kaja" || path === "./kaja");
-}
-
-function boundNames(file: ts.SourceFile, wanted: (modulePath: string) => boolean): Set<string> {
-  const names = new Set<string>();
-  for (const statement of file.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
-    if (!ts.isStringLiteral(statement.moduleSpecifier) || !wanted(statement.moduleSpecifier.text)) continue;
-    const bindings = statement.importClause?.namedBindings;
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) names.add(element.name.text);
-    }
-  }
-  return names;
 }
 
 // The generated request only ever holds zero values, so an empty string, a 0 or

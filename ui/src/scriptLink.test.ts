@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isLinkedScript, linkName, parseScriptLink, scriptLink } from "./scriptLink";
+import { isLinkedScript, linkName, parseScriptLink, scriptLink, scriptLinkParts } from "./scriptLink";
 
 function parsed(text: string) {
   const result = parseScriptLink(text);
@@ -79,6 +79,33 @@ describe("scriptLink", () => {
   test("round-trips what it built", () => {
     const input = { url: "https://example.com/x y", "odd key": "a&b=c" };
     expect(parsed(scriptLink("thread.ts", input))).toEqual({ script: "thread", input });
+  });
+
+  // What the sheet is for: a key with nothing behind it is where a launcher's
+  // own token goes, so the link has to carry it.
+  test("keeps a key whose value is blank", () => {
+    expect(scriptLink("thread.ts", { url: "", note: "" })).toBe("kaja://run/thread?url=&note=");
+  });
+});
+
+describe("scriptLinkParts", () => {
+  test("is the link it splits", () => {
+    const input = { url: "https://example.com/a?b=1", note: "" };
+    expect(
+      scriptLinkParts("reports/weekly usage.ts", input)
+        .map((part) => part.text)
+        .join(""),
+    ).toBe(scriptLink("reports/weekly usage.ts", input));
+  });
+
+  test("separates what the scheme says from what the script says", () => {
+    expect(scriptLinkParts("thread.ts", { url: "abc", note: "" })).toEqual([
+      { kind: "scheme", text: "kaja://run/" },
+      { kind: "script", text: "thread" },
+      { kind: "key", text: "?url=" },
+      { kind: "value", text: "abc" },
+      { kind: "key", text: "&note=" },
+    ]);
   });
 });
 

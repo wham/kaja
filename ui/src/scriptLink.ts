@@ -44,13 +44,40 @@ export function isLinkedScript(scriptName: string, named: string): boolean {
 
 /** The link that runs a script. What the sidebar's Copy Link puts on the clipboard. */
 export function scriptLink(fileName: string, input?: { [key: string]: string }): string {
+  return scriptLinkParts(fileName, input)
+    .map((part) => part.text)
+    .join("");
+}
+
+/**
+ * The same link, split into what it is made of. The sheet shows the URL whole
+ * and dims everything that is the scheme rather than the script's own — so the
+ * link it displays is the link it copies, by construction rather than by two
+ * functions agreeing.
+ */
+export type LinkPart = { kind: "scheme" | "script" | "key" | "value"; text: string };
+
+export function scriptLinkParts(fileName: string, input?: { [key: string]: string }): LinkPart[] {
   const path = linkName(fileName)
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  const link = `${LINK_SCHEME}://run/${path}`;
-  const query = new URLSearchParams(input ?? {}).toString();
-  return query ? `${link}?${query}` : link;
+  const parts: LinkPart[] = [
+    { kind: "scheme", text: `${LINK_SCHEME}://run/` },
+    { kind: "script", text: path },
+  ];
+
+  const entries = Object.entries(input ?? {});
+  entries.forEach(([name, value], index) => {
+    // Encoded a pair at a time, by the same URLSearchParams that writes the
+    // whole query, so splitting the link up can't change what it says.
+    const pair = new URLSearchParams([[name, value]]).toString();
+    const equals = pair.indexOf("=");
+    parts.push({ kind: "key", text: `${index === 0 ? "?" : "&"}${pair.slice(0, equals + 1)}` });
+    if (equals + 1 < pair.length) parts.push({ kind: "value", text: pair.slice(equals + 1) });
+  });
+
+  return parts;
 }
 
 function baseName(path: string): string {
