@@ -83,6 +83,13 @@ Rules that matter:
   script keeps going, with `undefined` where the response would have been — so a
   script with three calls in it reports all three. What stops a script is reading
   a property off that `undefined`; check a response before you use it.
+- **Comment the tricky part, and there usually isn't one.** A call names its
+  method, the declarations say what its fields are, and the canvas says what came
+  out, so a comment restating any of those is a line the reader has to check
+  against the code. Write one where the code cannot say *why*: a magic value the
+  API insists on, a workaround for something that is broken upstream, an ordering
+  that matters. Not a header block over the file, not a banner over each section,
+  and not a line above a call saying which call it is.
 
 ## A script has no return value
 
