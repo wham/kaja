@@ -18,6 +18,7 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"`console.log(...)` writes the log back to you - use it to probe while you work, and leave it out of a script " +
 	"you keep; every call's request and response is reported to you without it. Every level is recorded as itself (debug/log/info/warn/error), " +
 	"every other console method goes to devtools only, and there is no `kaja.log` - the standard console is the logging API. " +
+	commentsNote + " " +
 	"A table can also be handed its rows - `kaja.table(columns, rows)` for an array, or an async generator that yields rows, " +
 	"which the table pulls a page at a time as the reader pages through it (declare a `search` parameter and it is restarted for each search). " +
 	"Your run draws its first page and reports `more: true`; nobody is there to page it, so read the rest with an ordinary loop if you need it. " +
@@ -26,6 +27,13 @@ const runtimeNote = "Scripts are TypeScript run inside Kaja: top-level await wor
 	"There is no interactive input: `prompt`/`alert`/`confirm` do nothing. " +
 	"`kaja.askStr(q)`, `kaja.askInt(q)`, `kaja.askSelect(q, options)` and `kaja.approve(Service.Method({…}))`, which holds a call back " +
 	"until it is approved, all park the run on a human, so use them only when a person is at the app."
+
+// What a comment in a script is worth saying. A script's calls name their own
+// methods and its declarations state their own fields, so the comments an agent
+// writes are mostly a second copy of the code beside it.
+const commentsNote = "Keep comments sparse: the calls and the declarations already say what a script does, so comment only what the code cannot say - " +
+	"a magic value the API insists on, a workaround, an ordering that matters. No header block over the file, no banner over a section, " +
+	"and no line above a call restating which call it is."
 
 // toolDefinitions is the static tools/list payload. Schemas are hand-written
 // JSON Schema; keep them in sync with handleToolCall below.
@@ -84,7 +92,7 @@ func toolDefinitions() []map[string]interface{} {
 		},
 		{
 			"name":        "write_script",
-			"description": "Overwrite the contents of an existing script identified by its path.",
+			"description": "Overwrite the contents of an existing script identified by its path. " + commentsNote,
 			"inputSchema": obj(map[string]interface{}{
 				"path":    str("Absolute path of the script to overwrite."),
 				"content": str("New TypeScript contents."),
@@ -93,7 +101,8 @@ func toolDefinitions() []map[string]interface{} {
 		{
 			"name": "create_script",
 			"description": "Create a new script. Fails if one with the same name already exists. " +
-				"Scripts live in folders: name a folder in the path to file it there, and the folder is created if it doesn't exist.",
+				"Scripts live in folders: name a folder in the path to file it there, and the folder is created if it doesn't exist. " +
+				commentsNote,
 			"inputSchema": obj(map[string]interface{}{
 				"name":    str("File name, e.g. \"sync-users\" or \"reports/weekly-usage\". A .ts extension is added if missing."),
 				"content": str("Initial TypeScript contents."),
