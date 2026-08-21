@@ -1,9 +1,11 @@
 # Kaja for agents
 
-Kaja is a desktop client for APIs — gRPC, Twirp and OpenAPI services the user has
+Kaja is a client for APIs — gRPC, Twirp and OpenAPI services the user has
 configured as **apps**. Every app exposes **services** with **methods**, and a
-**script** is a TypeScript file that calls them. This MCP server lets you read,
-write and run those scripts.
+**script** is a TypeScript file that calls them. This MCP server lets you read
+and run those scripts, and — where Kaja owns the workspace it opened — write
+them. `tools/list` is what says which: a Kaja serving a workspace it does not own
+lists no tool that writes a file.
 
 ## The loop
 
@@ -13,7 +15,8 @@ write and run those scripts.
    method's signature names, whether the call reads or writes, and a call to
    start from. `describe_type "Show"` looks one type up on its own, and
    `describe_type "kaja"` is the runtime a script writes its output with.
-3. `run_script` with `code` to try it, then `create_script` to keep it.
+3. `run_script` with `code` to try it, then `create_script` to keep it — where
+   there is one.
 
 **Everything you are shown is TypeScript**, because that is all a script is: the
 declarations come out of the generated code your script is checked against, so
@@ -32,6 +35,15 @@ rather than leaving a copy behind. The user can clear it like any draft; the nex
 snippet you run makes another.
 
 Write your snippets as if someone is reading them, because someone can.
+
+## A script runs in the user's window
+
+Not on the server. The script runtime and the service clients live in Kaja's own
+window, so `run_script` is forwarded to it. Against a Kaja served over the web
+that window is a browser tab the user has open: if none is, `run_script` says so
+and nothing else is affected — `list_services`, `describe_method` and
+`describe_type` go on answering. Take that answer at face value rather than
+retrying; the fix is the user opening Kaja, not a different request.
 
 ## Where a script goes
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/wham/kaja/desktop/mcp"
+	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 // MCP wiring. The MCP server lets an agent read, write, and run the user's saved
@@ -299,6 +299,12 @@ func (b mcpBridge) RunScript(ctx context.Context, path, code, client string) (mc
 
 func (b mcpBridge) Catalog() mcp.Catalog {
 	return b.app.catalog()
+}
+
+// CanWriteScripts is the desktop's answer to the question a deployed kaja
+// answers the other way: this process owns the workspace it opened.
+func (b mcpBridge) CanWriteScripts() bool {
+	return true
 }
 
 func (b mcpBridge) Activity(inFlight int) {

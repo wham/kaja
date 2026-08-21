@@ -14,6 +14,7 @@ import (
 	assets "github.com/wham/kaja/v2"
 	"github.com/wham/kaja/v2/internal/grpc"
 	"github.com/wham/kaja/v2/internal/ui"
+	"github.com/wham/kaja/v2/pkg/agent"
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/apps"
 )
@@ -53,6 +54,19 @@ func main() {
 	apiService := api.NewApiService(configurationPath, *editable, GitRef, "", nil)
 	twirpHandler := api.NewApiServer(apiService)
 	mux.Handle(twirpHandler.PathPrefix(), twirpHandler)
+
+	// The agent session. A script runs in a browser, so a deployed kaja can only
+	// answer an agent by forwarding the run to a window that has offered itself.
+	// The window makes up the token and holds the stream; this server holds
+	// nothing at rest, and a token no window has attached with is unknown.
+	agentSessions := agent.NewRegistry(agent.NewWorkspaceScripts(apiService))
+	mux.HandleFunc("GET /agent-session", agentSessions.ServeInfo)
+	mux.HandleFunc("POST /agent-session/attach", agentSessions.ServeAttach)
+	mux.HandleFunc("POST /agent-session/detach", agentSessions.ServeDetach)
+	mux.HandleFunc("POST /agent-session/focus", agentSessions.ServeFocus)
+	mux.HandleFunc("POST /agent-session/catalog", agentSessions.ServeCatalog)
+	mux.HandleFunc("POST /agent-session/result", agentSessions.ServeResult)
+	mux.HandleFunc("POST /mcp", agentSessions.ServeMCP)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

@@ -30,8 +30,7 @@ import (
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/apps"
 	"github.com/wham/kaja/v2/pkg/grpc"
-
-	"github.com/wham/kaja/desktop/mcp"
+	"github.com/wham/kaja/v2/pkg/mcp"
 )
 
 // GitRef is the git commit hash or tag, set at build time via ldflags

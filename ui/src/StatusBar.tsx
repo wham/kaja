@@ -12,7 +12,6 @@ import { FeaturePreview, FeaturePreviews } from "./FeaturePreviews";
 import { CompileStatus } from "./CompileStatus";
 import { summarizeCompilation } from "./compileSummary";
 import { App } from "./apps";
-import { main } from "./wailsjs/go/models";
 
 export type ColorMode = "day" | "night";
 
@@ -27,15 +26,39 @@ interface StatusBarProps {
   buildNumber?: string;
   featurePreviews: FeaturePreview[];
   onToggleFeaturePreview: (key: string) => void;
-  mcpInfo?: main.MCPInfo;
+  mcpInfo?: McpConnection;
   mcpActive?: boolean;
+  agent?: AgentFooter;
   apps: App[];
   configurationLoaded: boolean;
   onShowCompileLog: (appName?: string) => void;
   onRecompile: (appName?: string) => void;
 }
 
-// McpClient is one way to connect an agent to the local MCP server. Each client
+// McpConnection is a live MCP endpoint and the token that reaches it, whichever
+// build produced it: the desktop process, which starts a server of its own, or
+// the session this browser holds against a deployed one. main.MCPInfo satisfies
+// it, which is why it is a shape rather than that type.
+export interface McpConnection {
+  enabled: boolean;
+  url: string;
+  token: string;
+  error: string;
+  configurationPaths?: Record<string, string>;
+}
+
+// AgentFooter is the web's half: a session is something this window offers, so
+// the footer is where it is offered, taken back, and reported on.
+export interface AgentFooter {
+  connected: boolean;
+  attached: boolean;
+  onDuty: boolean;
+  error?: string;
+  connect: () => void;
+  disconnect: () => void;
+}
+
+// McpClient is one way to connect an agent to the MCP server. Each client
 // turns the live endpoint + token into a copy-pasteable snippet. Add new clients
 // here and they show up as another tab in the popup.
 interface McpClient {
@@ -49,7 +72,7 @@ interface McpClient {
   // it stays with the client it belongs to.
   hint: (file: React.ReactNode) => React.ReactNode;
   // snippet renders the connection instructions for the running server.
-  snippet: (info: main.MCPInfo) => string;
+  snippet: (info: McpConnection) => string;
 }
 
 const mcpClients: McpClient[] = [
@@ -119,20 +142,21 @@ function ConfigurationFileLink({ path }: { path: string }) {
   );
 }
 
-// MCPStatus surfaces the localhost MCP endpoint and, per client, the snippet to
-// connect it to an agent. Shown once the server is up, which on the desktop is
-// for the whole of the session.
+// MCPStatus surfaces the MCP endpoint and, per client, the snippet to connect it
+// to an agent. On the desktop the server is up for the whole of the session, so
+// there is always an endpoint to show; on the web there is one only once this
+// browser has connected, and until then the popup is the offer to.
 //
 // `active` is an agent talking to the server right now: the plug goes emerald
 // and a ring pings out of it, which is the one thing in the footer that says
 // something is happening somewhere you aren't looking.
-function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
+function MCPStatus({ info, active, agent }: { info?: McpConnection; active: boolean; agent?: AgentFooter }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
   const client = mcpClients[selected];
-  const snippet = client.snippet(info);
-  const configurationPath = client.configuration ? info.configurationPaths?.[client.configuration.key] : undefined;
+  const snippet = info ? client.snippet(info) : "";
+  const configurationPath = client.configuration ? info?.configurationPaths?.[client.configuration.key] : undefined;
   const configurationFile = client.configuration ? (
     configurationPath ? (
       <ConfigurationFileLink path={configurationPath} />
@@ -171,7 +195,7 @@ function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
             variant="ghost"
             tooltip={false}
             icon={Plug}
-            aria-label={active ? "MCP server · in use" : "MCP server"}
+            aria-label={active ? "MCP server · in use" : agent && !agent.connected ? "MCP server · connect an agent" : "MCP server"}
             className={cn(statusBarIconClass, active && "text-emerald-600 dark:text-emerald-400")}
           />
         </PopoverTrigger>
@@ -179,21 +203,62 @@ function MCPStatus({ info, active }: { info: main.MCPInfo; active: boolean }) {
       <PopoverContent align="end" side="top" className="p-3">
         <div className="flex max-w-[420px] flex-col gap-2">
           <span className="text-xs font-semibold text-foreground">MCP server</span>
-          <SegmentedControl aria-label="MCP client">
-            {mcpClients.map((c, index) => (
-              <SegmentedControl.Button key={c.label} selected={index === selected} onClick={() => select(index)}>
-                {c.label}
-              </SegmentedControl.Button>
-            ))}
-          </SegmentedControl>
-          <span className="text-[11px] text-muted-foreground">{client.hint(configurationFile)}</span>
-          <pre className="m-0 whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">{snippet}</pre>
-          <Button variant="outline" size="sm" onClick={copy}>
-            {copied ? "Copied" : "Copy"}
-          </Button>
+          {info ? (
+            <>
+              <SegmentedControl aria-label="MCP client">
+                {mcpClients.map((c, index) => (
+                  <SegmentedControl.Button key={c.label} selected={index === selected} onClick={() => select(index)}>
+                    {c.label}
+                  </SegmentedControl.Button>
+                ))}
+              </SegmentedControl>
+              <span className="text-[11px] text-muted-foreground">{client.hint(configurationFile)}</span>
+              <pre className="m-0 whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">{snippet}</pre>
+              <Button variant="outline" size="sm" onClick={copy}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              An agent can read this workspace's scripts, see what its apps can call, and run a script — in this window, which is where a script runs. Connect
+              one and this browser gets a token of its own.
+            </span>
+          )}
+          {agent && <AgentSessionRow agent={agent} />}
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// AgentSessionRow is the state of this browser's session and the one verb that
+// changes it. Attaching is what makes the token mean anything, so it is stated
+// rather than assumed — and which window is on duty is stated too, because the
+// console of a run is held in the window that ran it.
+function AgentSessionRow({ agent }: { agent: AgentFooter }) {
+  const status = !agent.connected
+    ? undefined
+    : agent.attached
+      ? agent.onDuty
+        ? "Attached · runs land in this window"
+        : "Attached · another window of yours is on duty"
+      : (agent.error ?? "Connecting…");
+
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+      <span className={cn("text-[11px]", agent.connected && !agent.attached ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>{status}</span>
+      {agent.connected ? (
+        // Disconnecting rolls the token, so the one that was pasted somewhere
+        // names nothing afterwards.
+        <Button variant="ghost" size="sm" onClick={agent.disconnect}>
+          Disconnect
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={agent.connect}>
+          Connect an agent
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -222,6 +287,7 @@ export function StatusBar({
   onToggleFeaturePreview,
   mcpInfo,
   mcpActive = false,
+  agent,
   apps,
   configurationLoaded,
   onShowCompileLog,
@@ -286,7 +352,9 @@ export function StatusBar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
-        {mcpInfo?.enabled && mcpInfo.url && <MCPStatus info={mcpInfo} active={mcpActive} />}
+        {(agent || (mcpInfo?.enabled && mcpInfo.url)) && (
+          <MCPStatus info={mcpInfo?.enabled && mcpInfo.url ? mcpInfo : undefined} active={mcpActive} agent={agent} />
+        )}
         {mcpInfo?.error && <MCPError message={mcpInfo.error} />}
         <IconButton size="xs" variant="ghost" icon={MessagesSquare} aria-label="Feedback" onClick={openFeedback} className={statusBarIconClass} />
         <FeaturePreviews features={featurePreviews} onToggle={onToggleFeaturePreview} className={statusBarIconClass} />
