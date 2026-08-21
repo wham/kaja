@@ -389,6 +389,24 @@ names which kind.
   `run` without knowing any of this exists. Putting the script in a `?script=`
   of its own is what would have created that collision, and the first script to
   want the name would have found it taken.
+- **A page can't register a scheme, so the web says the same thing after a
+  `#`**: `https://kaja.example.com/#run/slack-thread?url=…&note=…`. The fragment
+  is the `kaja://` link minus its scheme, which is why this is one grammar and
+  one parser rather than a second feature — `parseScriptLink` puts the scheme
+  back on and reads what it always read, and everything downstream (the arrived
+  sheet, `isLinkedScript`, `kaja.input`) never learns which door it came
+  through. It is the **fragment** rather than a path, because a fragment is
+  never sent to a server: nothing about how Kaja is served, or under what base
+  path, has to know deeplinks exist — no route to add, no SPA fallback, and the
+  relative `./main.js` and `./monaco.ts.worker.js` the page already loads stay
+  correct. A `?run=` of its own was the other candidate and is out for the
+  reason the desktop's host is the verb: a query key named here is one a script
+  can never take.
+- **The base is the one thing that differs, so it is the one thing passed in.**
+  `linkBase()` is the single function here that asks what it is running in —
+  `kaja://run/` under Wails, this page's own href minus its fragment in a
+  browser — and `scriptLink`/`scriptLinkParts` take it as an argument, so
+  everything else in `scriptLink.ts` is pure and unit-tested against both forms.
 - **The address carries no extension; a filename always does.** Two different
   things are being named, so there are two rules rather than one. The path
   segment is how the app finds the script (`linkName`, `isLinkedScript`), and a
@@ -494,9 +512,11 @@ then what this script is once the run is over.
   substitution — a draft has no deeplink *because* it has no name, so the item
   in that slot is the one that fixes it — and it is what lets the caret stay on
   everywhere without being a stub kept for alignment.
-- **`Copy deeplink…` and `Reveal in Finder` are desktop-only**: the web can't
-  register a scheme and doesn't own the disk. `⌘⇧C` falls through to the
-  browser's own Copy wherever the item isn't there.
+- **`Reveal in Finder` is desktop-only**, because the web doesn't own the disk.
+  `Copy deeplink…` is not: a file has an address on either platform, so it is on
+  a script row and in the caret's menu wherever there is a file. `⌘⇧C` falls
+  through to the browser's own Copy wherever the item isn't there — a draft, or
+  anything that isn't a script.
 - **A read-only file's answer is `Duplicate as draft`**, which is the one place
   a file may become a draft. Files never turn into drafts on their own and there
   is no forking — but a server serving a workspace it does not own has no second
@@ -525,13 +545,36 @@ then what this script is once the run is over.
   On a cold launch macOS delivers the URL long before there is a webview to hear
   it, so `openLink` buffers until the UI emits `link:ready` and then flushes
   (`main.go`). It rides on a Wails event in each direction rather than a bound
-  method, which is what keeps the generated bindings out of it.
+  method, which is what keeps the generated bindings out of it. Registering the
+  scheme is a bundle's to do (`info.protocols` in `wails.json` →
+  `CFBundleURLTypes`), which is the whole of why the web needs a form of its
+  own.
+- **The web needs no buffer, because the URL is one.** There is nothing to
+  deliver a link with: the link *is* the page load, or — Kaja already being open
+  in a tab — a `hashchange`, which the browser makes without reloading anything.
+  Both go through one door (`takeLinkFromLocation`), and a fragment that arrives
+  before the script list is in is simply **left where it is** until the same
+  readiness the desktop flushes on, which is the buffering done by not doing it.
+- **The fragment is cleared once it has been handed over**
+  (`history.replaceState`, which fires no `hashchange`, so clearing can't come
+  back around as a second arrival). The URL is a door, not a location: this
+  window shows whatever you last selected, and an address bar still naming a
+  script you have since navigated away from is claiming something false. Making
+  it a location would mean routing the whole app, which is a different feature.
 - **It comes from the row that runs it**: right-click a script → **Copy
   deeplink…**, which is where the pin used to be, and from the caret beside Run
   on the file already open. Nobody types one of these by hand.
-- **Desktop only**, because registering a scheme is a bundle's to do
-  (`info.protocols` in `wails.json` → `CFBundleURLTypes`). The web has no such
-  door and grows no menu item for one.
+- **The sheet says who can open one, and nothing else moves.** The `copy` door's
+  closing line is the one platform-dependent sentence — "anything on this Mac"
+  against "anything that opens a URL", a Shortcut against a bookmark — because
+  that is the one thing that genuinely differs. The URL line above it, the
+  parameter grid and the verb are the same either way.
+- **The web is the broader door, which is what the `arrived` sheet was already
+  for.** Anything that can open a URL can now reach a Kaja that is merely
+  served — a link in an email, a page you didn't write — so the rule that a
+  deeplink is never permission by itself, and that there is deliberately **no
+  "don't ask again"**, stops being belt-and-braces and becomes the thing holding
+  the door.
 
 ## A filename is one object, so it reads one way
 
@@ -1484,7 +1527,7 @@ the footer's plug. A port already in use is still reported through `MCPInfo.Erro
 rather than falling back to a random one; freeing the port and restarting is the
 fix, since there is no longer a toggle to cycle.
 
-- **Deeplinks** — `kaja://run/<script>?key=value&key=value` runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`, desktop only — a URL scheme is a bundle's to register). It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Deeplinks, and the sheet that asks** below.
+- **Deeplinks** — `kaja://run/<script>?key=value&key=value` on the desktop, `https://<kaja>/#run/<script>?key=value` on the web, runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`). A URL scheme is a bundle's to register, so the web says the same thing in a fragment — same grammar, same parser, no server route. It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Deeplinks, and the sheet that asks** below.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Folder app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp/OpenAPI always; the experimental built-ins (mcp/openai/folder) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load, as is a legacy `"markdown"` app — the same folder on disk, behind methods that each rendered one Markdown construct — which becomes a `"folder"` app.
 
 ### Apps architecture

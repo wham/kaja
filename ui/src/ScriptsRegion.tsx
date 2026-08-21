@@ -291,7 +291,10 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 agent={props.agentFileIds?.has(node.script.path)}
                 waiting={props.waitingFileIds?.has(node.script.path)}
                 active={active(`file:${node.script.path}`)}
-                hasMenu={canWrite}
+                // A file the web is serving is read-only, but it still has an
+                // address — so the row keeps its menu wherever there is an
+                // item to put in it.
+                hasMenu={canWrite || props.onCopyScriptLink !== undefined}
                 onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
                 onSelect={() => props.onScriptSelect(node.script)}
                 onMenu={(event) => setScriptMenu({ script: node.script, top: event.clientY, left: event.clientX })}
