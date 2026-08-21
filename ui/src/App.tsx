@@ -378,6 +378,11 @@ export function App() {
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
   // The deeplink a script is being copied from, and the parameters it takes.
   const [linkSheet, setLinkSheet] = useState<{ script: Script; parameters: string[] } | null>(null);
+  // The run a deeplink started, waiting to be shown. Nobody pressed Run for it —
+  // it arrived from a launcher, a hotkey or a Shortcut — so what it draws takes
+  // the window rather than sitting in a panel behind the editor. The console
+  // hands it back once it has been shown, and once it is clear it never will be.
+  const [presentRunId, setPresentRunId] = useState<string>();
   // Run, asking for `kaja.input` first. The same sheet the deeplink doors use,
   // minus the URL — which is what makes a script written for a deeplink whole
   // to run in the app.
@@ -1439,6 +1444,7 @@ export function App() {
         // mid-run, or a Run pressed beside it, cannot take them or leave its
         // own behind.
         const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
+        setPresentRunId(run.id);
         runScript(file.content, kaja, apps, reportScriptError(run))
           .then(() => kaja.settleTables())
           .finally(() => markSettled(run.id));
@@ -2549,7 +2555,10 @@ export function App() {
   const runsHere = currentFileId === undefined ? [] : activeRuns.filter((live) => live.run.fileId === currentFileId);
   const running = runsHere.length > 0;
   const runningSince = running ? Math.min(...runsHere.map((live) => live.run.startedAt)) : undefined;
-  const action = currentIsEditor ? (
+  // One button, in two places: the command row, and the bar of a canvas that has
+  // taken the window. Reimplementing it there would be a second thing to keep in
+  // step with what the file can do.
+  const runButton = currentIsEditor ? (
     <RunButton
       onRun={() => onRunCurrentTab()}
       onStop={onStopActiveRun}
@@ -2561,17 +2570,20 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
     />
-  ) : jsonView ? (
-    <IconButton
-      icon={Code}
-      aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
-      variant="ghost"
-      size="sm"
-      className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
-      disabled={jsonView.showing && !viewJsonValid}
-      onClick={toggleJsonView}
-    />
   ) : undefined;
+  const action =
+    runButton ??
+    (jsonView ? (
+      <IconButton
+        icon={Code}
+        aria-label={jsonView.showing ? jsonView.back : "Edit as JSON (⌘J)"}
+        variant="ghost"
+        size="sm"
+        className={cn("size-[26px]", jsonView.showing && "bg-accent text-foreground")}
+        disabled={jsonView.showing && !viewJsonValid}
+        onClick={toggleJsonView}
+      />
+    ) : undefined);
 
   // Bodies render in creation order, so bringing a file to the front never moves
   // a live editor in the DOM.
@@ -2798,6 +2810,9 @@ export function App() {
                         onTablePull={onTablePull}
                         onTableCells={onTableCells}
                         onClear={currentFileId ? () => onClearConsole(currentFileId) : undefined}
+                        presentRunId={presentRunId}
+                        onPresented={() => setPresentRunId(undefined)}
+                        runControl={runButton}
                       />
                     </div>
                   </>

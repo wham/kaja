@@ -12,7 +12,19 @@ import { Spinner } from "./components/spinner";
 import { consoles } from "./consoles";
 import { JsonViewerHandle } from "./JsonViewer";
 import { RunLog } from "./RunLog";
-import { callRows, ConsoleItem, ConsoleTab, ConsoleView, defaultView, followSelection, LogFloor, printedCounts, RunGroup, RunSelection } from "./runs";
+import {
+  callRows,
+  ConsoleItem,
+  ConsoleTab,
+  ConsoleView,
+  defaultView,
+  followSelection,
+  LogFloor,
+  presentRun,
+  printedCounts,
+  RunGroup,
+  RunSelection,
+} from "./runs";
 import { runShortcutLabel } from "./RunButton";
 import { CellRef, TableView } from "./tableView";
 
@@ -46,6 +58,15 @@ interface ConsoleProps {
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
   onClear?: () => void;
+  // A run that was launched rather than pressed, and is therefore worth showing
+  // rather than leaving in a panel: the canvas takes the window as soon as it
+  // draws. One-shot — `onPresented` is called once it has been shown, and once
+  // it is clear it never will be.
+  presentRunId?: string;
+  onPresented?: () => void;
+  // Run/Stop for the file this console belongs to, so a run can be started again
+  // from full screen rather than only from the command row the canvas covers.
+  runControl?: React.ReactNode;
 }
 
 /**
@@ -69,6 +90,9 @@ export function Console({
   onTablePull,
   onTableCells,
   onClear,
+  presentRunId,
+  onPresented,
+  runControl,
 }: ConsoleProps) {
   useSyncExternalStore(
     useCallback((notify: () => void) => (fileId === undefined ? () => {} : consoles.subscribeFile(fileId, notify)), [fileId]),
@@ -125,6 +149,17 @@ export function Console({
   const onSelect = useCallback((next: RunSelection | null) => consoles.setSelection(fileId, next, Date.now()), [fileId]);
   const onTabChange = useCallback((tab: ConsoleTab) => consoles.setTab(fileId, tab, Date.now()), [fileId]);
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
+
+  /**
+   * Full screen is the canvas with the whole window, so taking it settles the
+   * view as well as the size. Without that the next run — pressed from the bar
+   * this screen now carries — has drawn nothing yet, the view falls back to the
+   * calls, and the screen you pressed Run on closes under you.
+   */
+  const enterFullScreen = useCallback(() => {
+    onViewChange("canvas");
+    setFullScreen(true);
+  }, [onViewChange]);
 
   // The file and run the console has followed, which is what tells a run
   // arriving apart from a call arriving inside the one already on screen — and
@@ -219,12 +254,37 @@ export function Console({
     if (activeView !== "canvas") setFullScreen(false);
   }, [activeView]);
 
+  /**
+   * A run that arrived from a deeplink is one nobody pressed Run for, so it is
+   * shown rather than left in a panel behind whatever was last on screen: the
+   * moment it draws, the canvas takes the window. It waits for that first block
+   * rather than opening on an empty screen, and a run that ends without drawing
+   * is simply an ordinary run — the request is dropped and the console it landed
+   * in is where it stays.
+   *
+   * Declared after the two that clear full screen, so a fresh file's reset
+   * cannot land on top of the presentation it was opened for.
+   */
+  useEffect(() => {
+    if (presentRunId === undefined) return;
+    const group = groups.find((candidate) => candidate.run.id === presentRunId);
+    const presentation = presentRun(group);
+    if (presentation === "wait") return;
+    if (presentation === "present" && group) {
+      if (selection?.runId !== group.run.id) onSelect({ runId: group.run.id, itemId: group.calls[group.calls.length - 1]?.id });
+      enterFullScreen();
+    }
+    onPresented?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentRunId, file.version]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
         if (activeView !== "canvas" || !selectedGroup) return;
         event.preventDefault();
-        setFullScreen((on) => !on);
+        if (fullScreen) setFullScreen(false);
+        else enterFullScreen();
         return;
       }
       // Esc is the canvas's only when nothing else wanted it: a focused ask
@@ -236,7 +296,7 @@ export function Console({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeView, selectedGroup, fullScreen]);
+  }, [activeView, selectedGroup, fullScreen, enterFullScreen]);
 
   // Picking a row is a decision to read it, so the log stops moving under it.
   const selectRow = useCallback(
@@ -269,7 +329,7 @@ export function Console({
       onCancelAsk={onCancelAsk}
       onDecide={onDecide}
       onSelectCall={selectFromCanvas}
-      onFullScreen={() => setFullScreen(true)}
+      onFullScreen={enterFullScreen}
       scrollRef={canvasScroll}
       tableViews={tableViews}
       onTableView={onTableView}
@@ -280,7 +340,13 @@ export function Console({
 
   if (fullScreen && selectedGroup && activeView === "canvas") {
     return (
-      <Console.FullScreen group={selectedGroup} reserveTrafficLights={reserveTrafficLights} now={now} onLeave={() => setFullScreen(false)}>
+      <Console.FullScreen
+        group={selectedGroup}
+        reserveTrafficLights={reserveTrafficLights}
+        now={now}
+        runControl={runControl}
+        onLeave={() => setFullScreen(false)}
+      >
         {canvas}
       </Console.FullScreen>
     );
@@ -341,7 +407,7 @@ export function Console({
                 size="sm"
                 className={utilityButtonClass}
                 data-testid="console-fullscreen"
-                onClick={() => setFullScreen(true)}
+                onClick={enterFullScreen}
               />
             ) : (
               <>
@@ -474,6 +540,10 @@ interface FullScreenProps {
   group: RunGroup;
   reserveTrafficLights?: boolean;
   now: number;
+  // Run/Stop for the file behind the canvas. It is the command row's own button,
+  // rendered here as well rather than reimplemented, so the two can never
+  // disagree about whether the file can run or why it can't.
+  runControl?: React.ReactNode;
   onLeave: () => void;
   children: React.ReactNode;
 }
@@ -483,9 +553,10 @@ interface FullScreenProps {
  * run strip and status bar all covered. It is a view state rather than a second
  * window — the run keeps running and the log keeps recording behind it — so the
  * only chrome left is a 40px bar that keeps the window's traffic lights and says
- * three things: which script, which run, and the way out.
+ * three things: which script, which run, and the way out — plus the one verb the
+ * canvas is worth having in front of it, Run.
  */
-Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, children }: FullScreenProps) {
+Console.FullScreen = function ({ group, reserveTrafficLights, now, runControl, onLeave, children }: FullScreenProps) {
   const waiting = group.awaiting !== undefined;
   const time = formatClockTime(group.run.startedAt);
 
@@ -507,16 +578,27 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, onLeave, chil
             <span className="font-mono text-xs text-amber-600 dark:text-amber-400">waiting for you</span>
           </div>
         ) : group.running ? (
-          <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
-            <Spinner className="size-3" />
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
-          </div>
+          // The Run button in this bar is Stop mid-run, with the same spinner
+          // and the same counter, so the chip is only drawn when it isn't there.
+          runControl ? null : (
+            <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
+              <Spinner className="size-3" />
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatElapsed(now - group.run.startedAt)}</span>
+            </div>
+          )
         ) : (
           <span className={cn("shrink-0 font-mono text-xs", group.status === "error" ? "text-destructive" : "text-muted-foreground")}>
             {group.status === "error" ? "failed" : formatDuration(group.run.durationMs)}
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-3">
+          {/* Running a script again used to mean leaving full screen and coming
+              back, which is two gestures around the one thing this screen is
+              for. It is the command row's own button, so the caret's
+              Run-with-parameters is here too — which is how a script launched
+              from a deeplink is run again with the values it was launched with. */}
+          {runControl}
+          {runControl && <div className="h-4 w-px bg-border" />}
           <span className="font-mono text-xs text-muted-foreground">Esc</span>
           <IconButton
             icon={Minimize}

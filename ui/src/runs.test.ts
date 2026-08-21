@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { MethodCall } from "./kaja";
 import { Block } from "./blocks";
-import { callRows, callStatus, ConsoleItem, ItemStats, itemStatus, printedCounts, printedLevel, RunGroup, slowestOf, worstStatus } from "./runs";
+import { callRows, callStatus, ConsoleItem, ItemStats, itemStatus, presentRun, printedCounts, printedLevel, RunGroup, slowestOf, worstStatus } from "./runs";
 import { LogLevel } from "./server/api";
 
 const NOW = 1_700_000_000_000;
@@ -266,5 +266,28 @@ describe("printedCounts", () => {
   it("counts the lines and the errors among them", () => {
     const only = group(printed("p1", NOW, LogLevel.LEVEL_INFO), printed("p2", NOW, LogLevel.LEVEL_ERROR), printed("p3", NOW, LogLevel.LEVEL_ERROR));
     expect(printedCounts(only)).toEqual({ lines: 3, errors: 2 });
+  });
+});
+
+describe("presentRun", () => {
+  const running = (changes: Partial<RunGroup> = {}) => ({ drew: false, running: true, ...changes }) as RunGroup;
+
+  // The canvas is the only thing there is to present, so a run that has drawn
+  // nothing yet waits for its first block rather than opening on empty space.
+  it("waits for the run to arrive, and then for it to draw", () => {
+    expect(presentRun(undefined)).toBe("wait");
+    expect(presentRun(running())).toBe("wait");
+  });
+
+  it("presents the run the moment it draws", () => {
+    expect(presentRun(running({ drew: true }))).toBe("present");
+    // Still worth presenting once it is over: the output is why it was launched.
+    expect(presentRun(running({ drew: true, running: false }))).toBe("present");
+  });
+
+  // A script that only made calls reads as an ordinary run, in the console it
+  // already landed in.
+  it("drops a run that ended without drawing", () => {
+    expect(presentRun(running({ running: false }))).toBe("drop");
   });
 });

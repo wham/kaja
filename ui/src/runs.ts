@@ -418,6 +418,24 @@ export function defaultView(group: RunGroup | undefined): ConsoleView {
   return group?.drew ? "canvas" : "calls";
 }
 
+/**
+ * What a run that was launched rather than pressed is worth showing.
+ *
+ * A deeplink comes from outside Kaja — a hotkey, a launcher, a Shortcut — so the
+ * window is brought forward for what the run draws and for nothing else, which
+ * is what full screen is. But the canvas is the only thing there is to present:
+ * a run that has drawn nothing yet is `"wait"` rather than an empty screen, and
+ * one that ended without drawing is `"drop"` — it reads as an ordinary run, in
+ * the console it already landed in.
+ */
+export type Presentation = "present" | "wait" | "drop";
+
+export function presentRun(group: RunGroup | undefined): Presentation {
+  if (!group) return "wait";
+  if (group.drew) return "present";
+  return group.running ? "wait" : "drop";
+}
+
 // The measure a set of calls is drawn against, kept for reading a list that is
 // already complete. A live run counts it as it goes (`ItemStats`).
 export function slowestOf(items: ConsoleItem[]): number | undefined {
