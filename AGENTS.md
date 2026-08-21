@@ -205,7 +205,7 @@ region in as a node, because the two lists share nothing but the panel.
   **file** row keeps only the kebab: taking a file off disk is not the loop this
   is for, and it still asks first.
 - **Delete and discard are different words for different consequences.** A file
-  row's menu is `Copy Link…` / `Rename…` / `Move to…` / **`Delete file`**,
+  row's menu is `Copy link…` / `Rename…` / `Move to…` / **`Delete file`**,
   destructive and confirmed, because it takes a file off disk — the only action
   in the sidebar
   that does, and the only one in `text-destructive`. A draft row's is `Name…` /
