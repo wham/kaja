@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="Three surfaces Kaja reads on the left, an agent and your approval on the right, all meeting in Kaja.">
+  <style>
+    .card { fill: #fafafa; stroke: #e5e5e5; }
+    .gate { fill: #f59e0b; fill-opacity: 0.08; stroke: #f59e0b; stroke-opacity: 0.4; }
+    .wire { fill: none; stroke: #d4d4d4; stroke-width: 1.5; }
+    .name { fill: #171717; font: 600 15px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .gate-name { fill: #b45309; font: 600 15px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .brand { fill: #171717; font: 700 21px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -0.5px; }
+    .said { fill: #737373; font: 400 13px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .kind { fill: #737373; font: 400 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    @media (prefers-color-scheme: dark) {
+      .card { fill: #171717; stroke: #2e2e2e; }
+      .wire { stroke: #3a3a3a; }
+      .name, .brand { fill: #fafafa; }
+      .gate-name { fill: #fbbf24; }
+      .said, .kind { fill: #a3a3a3; }
+    }
+  </style>
+
+  <defs>
+    <linearGradient id="kajaMark" x1="4" y1="24" x2="44" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B0503F" />
+      <stop offset="1" stop-color="#8A35D8" />
+    </linearGradient>
+  </defs>
+
+  <path class="wire" d="M212 44 C 300 44, 350 150, 420 150" />
+  <path class="wire" d="M212 150 H 420" />
+  <path class="wire" d="M212 256 C 300 256, 350 150, 420 150" />
+  <path class="wire" d="M580 150 C 660 150, 710 72, 788 72" />
+  <path class="wire" d="M580 150 C 660 150, 710 228, 788 228" />
+
+  <g>
+    <rect class="card" x="16" y="18" width="196" height="52" rx="10" />
+    <circle cx="34" cy="44" r="3.5" fill="#8A35D8" />
+    <text class="name" x="48" y="49">gRPC</text>
+    <text class="kind" x="196" y="49" text-anchor="end">.proto</text>
+  </g>
+
+  <g>
+    <rect class="card" x="16" y="124" width="196" height="52" rx="10" />
+    <circle cx="34" cy="150" r="3.5" fill="#B0503F" />
+    <text class="name" x="48" y="155">OpenAPI</text>
+    <text class="kind" x="196" y="155" text-anchor="end">schema</text>
+  </g>
+
+  <g>
+    <rect class="card" x="16" y="230" width="196" height="52" rx="10" />
+    <circle cx="34" cy="256" r="3.5" fill="#4A9EDA" />
+    <text class="name" x="48" y="261">MCP</text>
+    <text class="kind" x="196" y="261" text-anchor="end">tools</text>
+  </g>
+
+  <g>
+    <rect class="card" x="420" y="118" width="160" height="64" rx="12" />
+    <g transform="translate(470 150) scale(0.55) translate(-24 -24)">
+      <path d="M4 29 H13 L19 13 L28 35 L33 24 H44" stroke="url(#kajaMark)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    </g>
+    <text class="brand" x="492" y="157">Kaja</text>
+  </g>
+
+  <g>
+    <rect class="card" x="788" y="41" width="196" height="62" rx="10" />
+    <text class="name" x="806" y="66">An agent</text>
+    <text class="said" x="806" y="87">writes and runs the script</text>
+  </g>
+
+  <g>
+    <rect class="gate" x="788" y="197" width="196" height="62" rx="10" />
+    <text class="gate-name" x="806" y="222">You approve</text>
+    <text class="said" x="806" y="243">if the script asks you to</text>
+  </g>
+</svg>
