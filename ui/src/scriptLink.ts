@@ -1,14 +1,16 @@
 /**
- * `kaja://run/<script>?key=value&key=value` — the link that runs a script.
+ * `kaja://run/<script>?key=value&key=value` — the deeplink that runs a script.
  *
  * The verb is the host and the script is the path, which is what leaves the
  * whole query string to the script: there are no reserved parameter names, so
  * a script is free to take one called `script` or `run` without knowing this
  * file exists. A script reads them as `kaja.input.<key>`.
  *
- * The link is a handle for whatever can open a URL — a Raycast quicklink, an
- * Alfred workflow, a Shortcut on a hotkey, `open` from a shell — so it carries
- * text and only text, and every value arrives as a string.
+ * It is a handle for whatever can open a URL — a Raycast quicklink, an Alfred
+ * workflow, a Shortcut on a hotkey, `open` from a shell — so it carries text
+ * and only text, and every value arrives as a string. "Deeplink" is the word
+ * for it in the UI, because it is the word the launcher on the other end of it
+ * already uses; "link" names a browser URL, a file alias and a share sheet too.
  */
 
 export const LINK_SCHEME = "kaja";
@@ -23,9 +25,16 @@ export interface ScriptLink {
 export type ParsedScriptLink = { ok: true; link: ScriptLink } | { ok: false; error: string };
 
 /**
- * The name a link spells a script with: its name within the scripts folder,
+ * The name a deeplink spells a script with: its name within the scripts folder,
  * without the `.ts`. A file in a folder keeps the folder — `reports/churn` —
  * because that is its name, and two files can share a base name.
+ *
+ * The extension is off the path because a deeplink is meant to outlive the
+ * file: rename the `.ts`, or move the script, and the quicklink somebody saved
+ * a month ago should still fire. An extension in the path reads as "fetch this
+ * file" too, which is not what the URL does — it launches a script by name.
+ * The cost is that two scripts can't share a name across extensions, which the
+ * sidebar's own list already says.
  */
 export function linkName(fileName: string): string {
   return fileName.replace(/\.ts$/, "");
@@ -42,7 +51,7 @@ export function isLinkedScript(scriptName: string, named: string): boolean {
   return !wanted.includes("/") && baseName(linkName(scriptName)) === wanted;
 }
 
-/** The link that runs a script. What the sidebar's Copy link puts on the clipboard. */
+/** The deeplink that runs a script. What Copy deeplink puts on the clipboard. */
 export function scriptLink(fileName: string, input?: { [key: string]: string }): string {
   return scriptLinkParts(fileName, input)
     .map((part) => part.text)
@@ -50,7 +59,7 @@ export function scriptLink(fileName: string, input?: { [key: string]: string }):
 }
 
 /**
- * The same link, split into what it is made of. The sheet shows the URL whole
+ * The same deeplink, split into what it is made of. The sheet shows it whole
  * and dims everything that is the scheme rather than the script's own — so the
  * link it displays is the link it copies, by construction rather than by two
  * functions agreeing.

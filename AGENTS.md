@@ -169,8 +169,10 @@ region in as a node, because the two lists share nothing but the panel.
   the tell for "this one is on disk"; the group label carries that now, and mono
   inside a nav list reads as code, which is the wrong register. So every row in
   the region — draft, file, folder, and the app tree below — is the UI font, and
-  only the **extension** is dimmed (`scriptNameParts`, `text-muted-foreground`),
-  so a file still looks like a file without shouting. Dropping `.ts` altogether
+  only the **extension** is dimmed (`FileName`, `text-muted-foreground`) — the
+  same two-tone name the trigger, the finder and every sheet title now draw, so
+  one object never reads two ways one line apart (see **A filename is one
+  object**). A file still looks like a file without shouting. Dropping `.ts` altogether
   was the other candidate and gives up the last cue that these are things on
   disk; keeping mono for the extension alone puts two fonts inside one word,
   which sits unevenly at 13px. The UI font is narrower, so truncation improves
@@ -205,7 +207,7 @@ region in as a node, because the two lists share nothing but the panel.
   **file** row keeps only the kebab: taking a file off disk is not the loop this
   is for, and it still asks first.
 - **Delete and discard are different words for different consequences.** A file
-  row's menu is `Copy link…` / `Rename…` / `Move to…` / **`Delete file`**,
+  row's menu is `Copy deeplink…` / `Rename…` / `Move to…` / **`Delete file`**,
   destructive and confirmed, because it takes a file off disk — the only action
   in the sidebar
   that does, and the only one in `text-destructive`. A draft row's is `Name…` /
@@ -357,7 +359,7 @@ this".
   rule a person's Name follows: the buffer became the file, so it doesn't linger
   as a copy, and its console follows it to the path.
 
-## Script links
+## Deeplinks, and the sheet that asks
 
 **`kaja://run/<script>?key=value&key=value` is a script's address outside Kaja**
 (`scriptLink.ts`). It replaced the macOS "Run Kaja Script" text service, which
@@ -368,48 +370,84 @@ build, so being addressable is the whole feature: a Raycast quicklink with
 `{clipboard}` in it, an Alfred workflow, a Shortcut on a hotkey, `open` from a
 shell. Kaja integrates with none of them and reaches none of them.
 
+**The word is deeplink**, in the menu item, both sheet titles and the footer
+verb. It is the established term for this exact object and the one the launcher
+on the other end already uses — Raycast names its `raycast://` command URLs
+deeplinks and ships a `Copy Deeplink` action on `⌘⇧C`, the same gesture and the
+same idea; Slack, Spotify and Figma use it for app-scheme URLs too. `Link` was
+what shipped, and it is also what a browser URL, a file alias and a share sheet
+are called, so nothing in the phrase said "this launches Kaja". `URI` is spec
+vocabulary — Apple's own docs say "custom URL scheme" — and belongs in developer
+prose, not in a menu. Everywhere the sentence is about the string itself it
+still says **URL**, which stays correct: the deeplink is a URL, the word just
+names which kind.
+
 - **The verb is the host and the script is the path, which is what leaves the
   query to the script.** `kaja://run/slack-thread?url=…&note=…`: nothing in the
   query string is reserved, so a script may take a parameter called `script` or
   `run` without knowing any of this exists. Putting the script in a `?script=`
   of its own is what would have created that collision, and the first script to
-  want the name would have found it taken. The `.ts` is implied — `CreateScript`
-  already reads a name that way — so the link says `slack-thread`.
+  want the name would have found it taken.
+- **The address carries no extension; a filename always does.** Two different
+  things are being named, so there are two rules rather than one. The path
+  segment is how the app finds the script (`linkName`, `isLinkedScript`), and a
+  deeplink is meant to outlive the file: rename or move the script and the
+  quicklink somebody saved a month ago should still fire. `.ts` in the path also
+  reads as "fetch this file", which is not what the URL does. The cost is that
+  two scripts can't share a name across extensions — already true of the sidebar
+  list, so the constraint is not new. A link written *with* `.ts` is still read,
+  because links written before this rule existed are not worth breaking.
 - **Every value is text, and `kaja.input` is a map of them** (`kaja.input.url`),
   empty when the script is run any other way. Not `undefined` when empty: a
   parameter that wasn't sent is undefined either way, and `kaja.input?.url` on
-  every line would be noise for a distinction nothing acts on. Pressing Run
-  clears it, so the last link's parameters can never ride along on a run that
-  carried none. A script that reads `kaja.input.url ?? await kaja.askStr(…)`
-  works from a link and from the editor alike, which is the shape to write.
-- **The door is open to anything that can open a URL, so a link states what it
-  wants and stops.** The script is opened *behind* the dialog — reading it is
-  the reason the question is worth asking — and the dialog names the script and
-  every parameter it is about to hand over. `⏎` runs it, because a link that
-  arrived from a hotkey is one gesture from a run and should stay that way.
-  There is **no "don't ask again"**: a remembered answer is a policy, on the same
-  rule that keeps `kaja.approve`'s standing approval inside its own run, and this
-  door is the one place where the thing on the other side may not be a person.
-- **A link is what launches Kaja as often as not, so the desktop holds it.** On
-  a cold launch macOS delivers the URL long before there is a webview to hear
-  it, so `openLink` buffers until the UI emits `link:ready` and then flushes
-  (`main.go`). It rides on a Wails event in each direction rather than a bound
-  method, which is what keeps the generated bindings out of it.
-- **The link comes from the row that runs it**: right-click a script → **Copy
-  Link…**, which is where the pin used to be. Nobody types one of these by hand.
-- **And it is shown before it is copied** (`CopyLinkSheet.tsx`), because the
-  clipboard is the wrong shape for this on its own: nobody has seen a `kaja://`
-  URL before, so a silent copy hands over a string that says nothing about what
-  it is or where it can be pasted — and the half of it worth having is the
-  query, which a copy of the bare address can't carry at all. So the sheet's
-  headline **is the URL**, whole, at body size, in one line of mono with the
-  scheme and the keys dimmed: it teaches the scheme, the script's address and
-  the query syntax at once, and nothing on screen has to explain any of them.
-  One line under it says what opens a URL — a Raycast quicklink, an Alfred
-  workflow, a Shortcut, `open` from a shell — and the clipboard is the only
-  exit. **Run now was designed and cut**: with two verbs the sheet is no longer
-  about copying, and running is two feet away in the command row with a console
-  attached to catch the output.
+  every line would be noise for a distinction nothing acts on. A run carries
+  what it was started with and nothing else — the input is a field of that run's
+  `Kaja`, so a plain Run beside a parameterised one carries none of its values.
+  A script that reads `kaja.input.url ?? await kaja.askStr(…)` works from a
+  deeplink and from the editor alike, which is the shape to write.
+
+### One parameter block, three doors
+
+**Every flow that needs values for a script shows the same middle**
+(`ParameterSheet.tsx`): a `Parameters` grid whose keys are read from the source
+and whose values are always real text fields. Only the header, the one line of
+guidance and the footer verb change — `copy` builds a deeplink, `arrived`
+confirms one that came in, `run` is the Run button asking first. Three sheets
+that differed in the middle is what let the incoming one render its values as
+static mono text, which pushed a pasted URL out through the side of the dialog.
+
+- **A value is always a field, never a line of text.** A field clips at its own
+  edge, scrolls on focus, and stays correctable right up to the run; a text box
+  can do none of the three. That is the whole of what the `arrived` door needed,
+  and the reason the block is shared rather than reimplemented per door. The
+  tail a clipped field still hides is one hover away, in a `SimpleTooltip`.
+- **`copy` — the deeplink being built.** The URL is the headline rather than a
+  caption: shown whole, at body size, in mono with the scheme and the keys
+  dimmed, it teaches the scheme, the script's address and the query syntax at
+  once, and nothing on screen has to explain any of them. A value typed here is
+  baked in; left blank the key still ships, and that trailing `=` is where a
+  launcher's own token goes. One line under it says what opens a URL, and the
+  clipboard is the only exit. **Run now was designed and cut**: with two verbs
+  the sheet is no longer about copying, and running is two feet away in the
+  command row with a console attached to catch the output.
+- **`arrived` — the deeplink that came in.** Anything that can open a URL can
+  get this far, so it states what it wants and stops. The script is opened
+  *behind* the sheet — reading it is the reason the question is worth asking —
+  the URL is shown wrapped rather than clipped, and every value it carried is a
+  field, so a wrong one is corrected before the run rather than after it. `⏎`
+  runs it, because a deeplink that arrived from a hotkey is one gesture from a
+  run and should stay that way. There is **no "don't ask again"**: a remembered
+  answer is a policy, on the same rule that keeps `kaja.approve`'s standing
+  approval inside its own run, and this door is the one place where the thing on
+  the other side may not be a person.
+- **`run` — the Run button asking first.** The same block with no URL line. It
+  closes the gap that made a script written for a deeplink only half runnable in
+  the app: a manual Run could not supply `kaja.input` at all. Fields start
+  **blank** — a value from three days ago riding along on a run is worse than
+  typing it again — and the last run is *offered* instead, as one
+  `Use last run's values` link inside the sheet, shown only when there is
+  something to offer that isn't already typed (`runInput.ts`, per file, capped,
+  and it follows a file through a rename the way its console does).
 - **The parameters are the script's own, read at the language level**
   (`scriptInputs.ts`). `readInputKeys` walks the AST rather than the text, which
   is the only way to be right about any of it: `kaja` is an ordinary local
@@ -418,19 +456,63 @@ shell. Kaja integrates with none of them and reaches none of them.
   source would miss or invent — `kaja.input.url`, `kaja.input["order id"]`,
   `const { url: link } = kaja.input`, and an alias a line above any of them. A
   key the script computes is left out rather than guessed at, and a
-  `kaja.input.x` in a comment or a string is not a parameter. The keys are
-  **labels, not fields**: they come from the source, and an empty key/value grid
-  would ask for the thing the sheet exists to tell you. A blank value still
-  ships its `?key=` — that trailing equals is where a launcher's own token goes.
-  A script that reads nothing still gets the sheet, minus the block: the URL is
-  the whole point of it.
-- **The link the sheet shows is the link it copies, by construction.**
+  `kaja.input.x` in a comment or a string is not a parameter. For the file on
+  screen they are read from the **buffer** (`useInputKeys`, debounced), because
+  the script as it is now is the one Run runs. A script that reads nothing still
+  gets the `copy` sheet, minus the block: the URL is the whole point of it.
+- **The deeplink the sheet shows is the one it copies, by construction.**
   `scriptLinkParts` is what `scriptLink` is built from rather than a second
   reading of it, so the dimming can't drift from the string, and each pair is
   encoded by the same `URLSearchParams` that writes the whole query.
+
+### The Run button, split
+
+**Plain Run keeps its place, its shape and its `⌘⏎`** — the one-click path is
+untouched, and pressing Run still never opens anything. A 22px caret beside it
+(`RunButton.tsx`) opens the second gesture: `Run ⌘⏎` · `Run with parameters…
+⇧⌘⏎` · `Copy deeplink… ⌘⇧C`, the three doors in one menu so they read as one
+feature.
+
+- **The caret is what the file reads, not a permanent fixture.** A script that
+  names no `kaja.input` key has nothing to be asked for, so it gets a bare Run
+  button, exactly as before. Mid-run the button is Stop, which is one thing to
+  press and nothing to choose between.
+- **`Copy deeplink…` is desktop-only and file-only**: a draft has no address,
+  and the web can't register a scheme. `⌘⇧C` falls through to the browser's own
+  Copy wherever the item isn't there.
+- **Prefill is not a menu item.** The last run's values live only as the link
+  inside the sheet, so the menu stays two gestures.
+
+### Where the rest of it lives
+
+- **A deeplink is what launches Kaja as often as not, so the desktop holds it.**
+  On a cold launch macOS delivers the URL long before there is a webview to hear
+  it, so `openLink` buffers until the UI emits `link:ready` and then flushes
+  (`main.go`). It rides on a Wails event in each direction rather than a bound
+  method, which is what keeps the generated bindings out of it.
+- **It comes from the row that runs it**: right-click a script → **Copy
+  deeplink…**, which is where the pin used to be, and from the caret beside Run
+  on the file already open. Nobody types one of these by hand.
 - **Desktop only**, because registering a scheme is a bundle's to do
   (`info.protocols` in `wails.json` → `CFBundleURLTypes`). The web has no such
   door and grows no menu item for one.
+
+## A filename is one object, so it reads one way
+
+**The name at full weight and the extension quiet behind it** (`FileName.tsx`,
+over `scriptNameParts`), in every place a file is named: the sidebar row, the
+command row's trigger and the finder's rows, and every sheet title that points
+at one. The dimmed extension was already the sidebar's treatment and was applied
+nowhere else, so one object read two ways one line apart.
+
+- The extension **stays present and stays quiet**. It says which language the
+  file is in without competing with the name that is actually scanned for, and
+  dropping it gives up the last cue that these are things on disk.
+- **It is stated, not read off the dot.** A draft's title is a call rather than
+  a file — `Sum · 5, 3` has no extension to find — so `file` is a flag on
+  `ViewIdentity` and on a finder `Destination`, set for script views only.
+- It is a fragment rather than an element, so the caller owns the truncation,
+  the font and the weight: the same name is 13px in a row and mono in a title.
 
 ## The tree is an index, so it reads as a list of names
 
@@ -1298,11 +1380,15 @@ collapsed).
   file is never both a script and a form. Run is absent (not disabled) on
   non-script surfaces. Its disabled state and the trigger's `N errors` state come
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
-  with itself.
+  with itself. Run is a **split button** on a file that reads `kaja.input` — see
+  **The Run button, split** — and a plain one everywhere else; the caret is the
+  only thing that ever grew here, and it belongs to the file rather than to the
+  row.
 - **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
-  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a
-  draft (a file is already saved, so it does nothing on one). `⌃Tab`, `⌘1–9` and
-  `⌘W` are gone: there are no positions to number and nothing to close.
+  `⇧⌘N` new folder · `⌘⏎`/F5 run · `⇧⌘⏎` run with parameters · `⌘⇧C` copy
+  deeplink · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a draft (a file is
+  already saved, so it does nothing on one). `⌃Tab`, `⌘1–9` and `⌘W` are gone:
+  there are no positions to number and nothing to close.
 - **Split panes are cut, not deferred.** The pane holds one thing by
   construction; splitting it reintroduces "which one is current", which is the
   exact question removing the strip answered — two panes, one trigger, one `⌘P`.
@@ -1332,7 +1418,7 @@ the footer's plug. A port already in use is still reported through `MCPInfo.Erro
 rather than falling back to a random one; freeing the port and restarting is the
 fix, since there is no longer a toggle to cycle.
 
-- **Script links** — `kaja://run/<script>?key=value&key=value` runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`, desktop only — a URL scheme is a bundle's to register). It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Script links** below.
+- **Deeplinks** — `kaja://run/<script>?key=value&key=value` runs a script and hands it the query as `kaja.input.<key>` (`scriptLink.ts`, desktop only — a URL scheme is a bundle's to register). It replaced the macOS "Run Kaja Script" text service, which could only be reached from a *selection*, could only carry one unnamed string, and could only ever run the one script that was pinned. See **Deeplinks, and the sheet that asks** below.
 - **Apps** (`featurePreview:previewApps`, labeled "Preview Apps") — **everything is an app.** A gRPC or Twirp service is an app of type `"grpc"`/`"twirp"`; built-in integrations like `"openapi"`, `"openai"`, `"folder"`, `"mcp"` are apps too. There is a single `apps` list in `kaja.json`. `ConfigurationApp` is a `name` plus a typed `oneof app { GrpcApp grpc; TwirpApp twirp; OpenApiApp openapi; OpenAiApp openai; FolderApp folder; McpApp mcp; }`, so an app reads `{ "name": "...", "grpc": { "url": "...", "proto_dir": "...", "headers": {...} } }`: the set field *is* the type, two types can never be mixed in one app (protojson rejects two oneof members), and each type's message declares exactly its own params — including `headers` (every type but the local Folder app forwards them). No separate `projects` list. The server flattens the set variant's scalar fields (the `headers` map is excluded — it is forwarded per request, not a creation param) to a `map[string]string` at the `OpenApp`/`App.Open` boundary (`flattenApp` via protoreflect), so the in-process app contract stays uniform. The sidebar's "+" button opens one **New** dialog whose list offers gRPC/Twirp/OpenAPI always; the experimental built-ins (mcp/openai/folder) appear only when the preview is on and carry a "Preview" pill. Picking a type opens the app settings tab for a new app of that type; the type is fixed at creation. Legacy `kaja.json` files with a top-level `projects` list are migrated to apps on load, as is a legacy `"markdown"` app — the same folder on disk, behind methods that each rendered one Markdown construct — which becomes a `"folder"` app.
 
 ### Apps architecture

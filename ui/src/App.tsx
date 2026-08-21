@@ -105,7 +105,10 @@ import {
 } from "./scriptFiles";
 import { isLinkedScript, parseScriptLink } from "./scriptLink";
 import { readInputKeys } from "./scriptInputs";
-import { CopyLinkSheet } from "./CopyLinkSheet";
+import { useInputKeys } from "./useInputKeys";
+import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
+import { ParameterSheet } from "./ParameterSheet";
+import { FileName } from "./FileName";
 import { MCPScriptResult, MCPServerInfo, MCPSetCatalog, ResolvedVariables, ScriptsFolder, ShowFileInFinder } from "./wailsjs/go/main/App";
 import { main } from "./wailsjs/go/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
@@ -371,10 +374,14 @@ export function App() {
   // dialog appears when work would go, and names it. Nothing here can reach a
   // file.
   const [clearAllPrompt, setClearAllPrompt] = useState<{ all: Draft[]; edited: Draft[] } | null>(null);
-  // A `kaja://run/…` link that arrived and is waiting to be let through.
+  // A `kaja://run/…` deeplink that arrived and is waiting to be let through.
   const [linkPrompt, setLinkPrompt] = useState<{ script: Script; input: { [key: string]: string } } | null>(null);
-  // The link a script is being copied from, and the parameters it takes.
+  // The deeplink a script is being copied from, and the parameters it takes.
   const [linkSheet, setLinkSheet] = useState<{ script: Script; parameters: string[] } | null>(null);
+  // Run, asking for `kaja.input` first. The same sheet the deeplink doors use,
+  // minus the URL — which is what makes a script written for a deeplink whole
+  // to run in the app.
+  const [runPrompt, setRunPrompt] = useState<{ fileId: string; fileName: string; parameters: string[] } | null>(null);
   /**
    * The runs in flight. There is more than one because there is nothing to stop
    * there being: ⌘⏎ twice, Run on a second file, a `kaja://` link arriving while
@@ -1327,6 +1334,7 @@ export function App() {
       applyDrafts((list) => list.filter((candidate) => candidate.id !== id));
       consoles.renameFile(id, script.path);
       renameStoredFile(id, script.path);
+      moveRunInput(id, script.path);
     },
     [applyDrafts, applyViews],
   );
@@ -1386,7 +1394,7 @@ export function App() {
         const content = open?.type === "script" ? open.model.getValue() : (await readScriptFile(script))?.content;
         setLinkSheet({ script, parameters: content ? readInputKeys(content) : [] });
       } catch (err) {
-        showFileError(`Copy link failed: ${err}`);
+        showFileError(`Copy deeplink failed: ${err}`);
       }
     },
     [showFileError],
@@ -1418,38 +1426,28 @@ export function App() {
   const openScriptLinkRef = useRef(openScriptLink);
   openScriptLinkRef.current = openScriptLink;
 
-  // Run what the link asked for, with its query as `kaja.input`.
-  const onConfirmScriptLink = useCallback(async () => {
-    const prompt = linkPrompt;
-    setLinkPrompt(null);
-    if (!prompt) return;
-    try {
-      const file = await readScriptFile(prompt.script);
-      if (!file) return;
-      // The link's parameters are what this run was started with, not something
-      // written onto a shared object — so a second link arriving mid-run, or a
-      // Run pressed beside it, cannot take them or leave its own behind.
-      const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input: prompt.input });
-      runScript(file.content, kaja, apps, reportScriptError(run))
-        .then(() => kaja.settleTables())
-        .finally(() => markSettled(run.id));
-    } catch (err) {
-      showFileError(`Run failed: ${err}`);
-    }
-  }, [linkPrompt, apps, showFileError, reportScriptError, beginRun, markSettled]);
-
-  // ⏎ runs what the link asked for. The dialog has nothing to type into, and
-  // the whole point of a link is that it is one gesture away from a run.
-  useEffect(() => {
-    if (!linkPrompt) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      void onConfirmScriptLink();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [linkPrompt, onConfirmScriptLink]);
+  // Run what the deeplink asked for, with what the sheet holds as `kaja.input`
+  // — which is the deeplink's own query unless it was corrected before the run.
+  const onConfirmScriptLink = useCallback(
+    async (script: Script, input: { [key: string]: string }) => {
+      try {
+        const file = await readScriptFile(script);
+        if (!file) return;
+        rememberRunInput(file.script.path, input);
+        // The deeplink's parameters are what this run was started with, not
+        // something written onto a shared object — so a second one arriving
+        // mid-run, or a Run pressed beside it, cannot take them or leave its
+        // own behind.
+        const { run, kaja } = beginRun(file.script.name, file.script.path, undefined, { input });
+        runScript(file.content, kaja, apps, reportScriptError(run))
+          .then(() => kaja.settleTables())
+          .finally(() => markSettled(run.id));
+      } catch (err) {
+        showFileError(`Run failed: ${err}`);
+      }
+    },
+    [apps, showFileError, reportScriptError, beginRun, markSettled],
+  );
 
   useEffect(() => {
     if (!isWailsEnvironment()) return;
@@ -1716,6 +1714,7 @@ export function App() {
       // The file is the console's key, so a rename moves it rather than losing it.
       consoles.renameFile(oldPath, renamed.path);
       renameStoredFile(oldPath, renamed.path);
+      moveRunInput(oldPath, renamed.path);
     },
     [applyViews],
   );
@@ -1758,6 +1757,7 @@ export function App() {
           // come along to the path it now lives at.
           consoles.renameFile(id, script.path);
           renameStoredFile(id, script.path);
+          moveRunInput(id, script.path);
         }
       } else if (sheet.script) {
         // Flush the pending auto-save to the current path, so the rename moves
@@ -2029,38 +2029,48 @@ export function App() {
   // The file on screen is the one Run runs, so its errors are the ones the row
   // reports — on the trigger, and as Run's reason for being disabled.
   const syntaxErrors = useSyntaxErrors(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
+  // The parameters the file on screen reads. A script that reads none has
+  // nothing to be asked for, so Run stays a bare button.
+  const inputKeys = useInputKeys(currentView?.type === "draft" || currentView?.type === "script" ? currentView.model : undefined);
 
   // Run the current file's editor contents. Triggered by Run in the command
-  // row, by ⌘⏎ and by F5.
-  const onRunCurrentTab = useCallback(() => {
-    const view = viewsRef.current[0];
-    if (!view || (view.type !== "draft" && view.type !== "script")) {
-      return;
-    }
-    const editor = editorRegistryRef.current.get(view.id);
-    if (!editor) {
-      return;
-    }
-    const code = editor.getValue();
-    const controller = new AbortController();
-    // Run names reuse the derived script names, so the console and the sidebar
-    // speak the same language.
-    const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
-    // Pressing Run carries no input, and this run's Kaja was born without any —
-    // there is nothing a previous link could have left behind to clear.
-    const { run, kaja } = beginRun(title, view.type === "script" ? view.script.path : view.draftId, controller);
-    // A live table draws its first page itself, and those calls are the run's:
-    // the script is not over until they have landed, or the run would report a
-    // duration that stops before the work it started.
-    runScript(code, kaja, apps, reportScriptError(run), controller.signal)
-      .then(() => kaja.settleTables())
-      .finally(() => markSettled(run.id));
-    // A run is the punctuation that settles a draft: it is when the title is
-    // re-read from the code, rather than jittering as you type.
-    if (view.type === "draft") {
-      updateDraft(view.draftId, (draft) => markRun(draft, code, Date.now()));
-    }
-  }, [apps, beginRun, reportScriptError, updateDraft, markSettled]);
+  // row, by ⌘⏎ and by F5, and by the parameter sheet the caret beside Run
+  // opens — which is the only way a manual run carries `kaja.input`.
+  const onRunCurrentTab = useCallback(
+    (input?: { [key: string]: string }) => {
+      const view = viewsRef.current[0];
+      if (!view || (view.type !== "draft" && view.type !== "script")) {
+        return;
+      }
+      const editor = editorRegistryRef.current.get(view.id);
+      if (!editor) {
+        return;
+      }
+      const code = editor.getValue();
+      const controller = new AbortController();
+      // Run names reuse the derived script names, so the console and the sidebar
+      // speak the same language.
+      const title = view.type === "script" ? view.script.name : (deriveDraftTitle(code) ?? viewIdentity(view, draftsRef.current).name);
+      const fileId = view.type === "script" ? view.script.path : view.draftId;
+      // Whatever a run is started with is this run's, born with its Kaja rather
+      // than written onto a shared object — so a plain Run beside it carries
+      // nothing, and neither takes the other's parameters.
+      if (input) rememberRunInput(fileId, input);
+      const { run, kaja } = beginRun(title, fileId, controller, input ? { input } : undefined);
+      // A live table draws its first page itself, and those calls are the run's:
+      // the script is not over until they have landed, or the run would report a
+      // duration that stops before the work it started.
+      runScript(code, kaja, apps, reportScriptError(run), controller.signal)
+        .then(() => kaja.settleTables())
+        .finally(() => markSettled(run.id));
+      // A run is the punctuation that settles a draft: it is when the title is
+      // re-read from the code, rather than jittering as you type.
+      if (view.type === "draft") {
+        updateDraft(view.draftId, (draft) => markRun(draft, code, Date.now()));
+      }
+    },
+    [apps, beginRun, reportScriptError, updateDraft, markSettled],
+  );
 
   /**
    * A run is over. Its wall duration is known, what it produced is worth keeping
@@ -2149,11 +2159,60 @@ export function App() {
     endRuns(stopping, Date.now());
   }, [onCancelAsk, currentFileId, endRuns]);
 
+  /**
+   * Run, asking first. The same sheet the deeplink doors use, minus the URL —
+   * which is what closes the gap a script written for a deeplink used to fall
+   * into: it could be launched with parameters and only half run in the app.
+   */
+  const onRunWithParameters = useCallback(() => {
+    const view = viewsRef.current[0];
+    if (!view || (view.type !== "draft" && view.type !== "script")) return;
+    if (inputKeys.length === 0) return;
+    setRunPrompt({
+      fileId: view.type === "script" ? view.script.path : view.draftId,
+      fileName: view.type === "script" ? view.script.name : viewIdentity(view, draftsRef.current).name,
+      parameters: inputKeys,
+    });
+  }, [inputKeys]);
+  const onRunWithParametersRef = useRef(onRunWithParameters);
+  onRunWithParametersRef.current = onRunWithParameters;
+
+  // The same sheet the sidebar's Copy deeplink opens, on the file already on
+  // screen — so its parameters are read from the buffer rather than from disk.
+  // A draft has no address, and neither does anything the web is serving.
+  const onCopyCurrentLink = useMemo(() => {
+    if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
+    const script = currentView.script;
+    return () => setLinkSheet({ script, parameters: inputKeys });
+  }, [currentView, inputKeys]);
+  const onCopyCurrentLinkRef = useRef(onCopyCurrentLink);
+  onCopyCurrentLinkRef.current = onCopyCurrentLink;
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "F5" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
+      // A sheet on top of the editor answers ⏎ itself, and its Run is the one
+      // that was asked for — so the file's own Run stays out of it.
+      if (event.defaultPrevented) return;
+      if (event.key === "F5" || ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === "Enter")) {
         event.preventDefault();
         onRunCurrentTab();
+        return;
+      }
+      // The second gesture: Run, asking for the script's parameters first.
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "Enter") {
+        event.preventDefault();
+        onRunWithParametersRef.current();
+        return;
+      }
+      // The script's address outside Kaja, on the gesture Raycast uses for the
+      // same thing.
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && (event.key === "c" || event.key === "C")) {
+        const copy = onCopyCurrentLinkRef.current;
+        // Only when there is a file to have an address; otherwise this is the
+        // browser's own Copy and stays it.
+        if (!copy) return;
+        event.preventDefault();
+        copy();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -2373,6 +2432,7 @@ export function App() {
         path: script.folder ? `Files / ${script.folder}` : "Files",
         origin: script.folder,
         icon: FileCode,
+        file: true,
         go: () => void onScriptSelect(script),
       });
     }
@@ -2490,7 +2550,17 @@ export function App() {
   const running = runsHere.length > 0;
   const runningSince = running ? Math.min(...runsHere.map((live) => live.run.startedAt)) : undefined;
   const action = currentIsEditor ? (
-    <RunButton onRun={onRunCurrentTab} onStop={onStopActiveRun} running={running} startedAt={runningSince} error={syntaxErrors.first} />
+    <RunButton
+      onRun={() => onRunCurrentTab()}
+      onStop={onStopActiveRun}
+      running={running}
+      startedAt={runningSince}
+      error={syntaxErrors.first}
+      // The caret is there because this file reads `kaja.input`; without that
+      // there is nothing behind it worth opening.
+      onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
+      onCopyDeeplink={onCopyCurrentLink}
+    />
   ) : jsonView ? (
     <IconButton
       icon={Code}
@@ -2903,37 +2973,43 @@ export function App() {
         </Dialog>
       )}
       {linkPrompt && (
-        // Anything that can open a URL can get this far, so the link states
+        // Anything that can open a URL can get this far, so the deeplink states
         // what it wants and stops. The script is open behind this, which is the
-        // reading that makes the decision worth asking for.
-        <Dialog
-          title="Run from a link"
+        // reading that makes the decision worth asking for — and every value it
+        // carried is a field, correctable before the run.
+        <ParameterSheet
+          // A second deeplink arriving while this one is on screen is a
+          // different question, so it gets a different sheet rather than the
+          // first one's fields.
+          key={`${linkPrompt.script.path}?${new URLSearchParams(linkPrompt.input).toString()}`}
+          door="arrived"
+          fileName={linkPrompt.script.name}
+          address={scriptName(linkPrompt.script)}
+          parameters={Object.keys(linkPrompt.input)}
+          values={linkPrompt.input}
+          onRun={(input) => void onConfirmScriptLink(linkPrompt.script, input)}
           onClose={() => setLinkPrompt(null)}
-          footerButtons={[
-            { content: "Cancel", onClick: () => setLinkPrompt(null) },
-            { content: "Run", variant: "default", onClick: () => void onConfirmScriptLink() },
-          ]}
-        >
-          <div className="flex flex-col gap-2 font-mono text-xs">
-            <div className="text-foreground">{linkPrompt.script.name}</div>
-            {Object.keys(linkPrompt.input).length > 0 ? (
-              <div className="flex max-h-64 flex-col gap-1 overflow-auto rounded-md border border-border bg-background px-2.5 py-2">
-                {Object.entries(linkPrompt.input).map(([name, value]) => (
-                  <div key={name} className="flex gap-2 leading-relaxed">
-                    <span className="shrink-0 text-muted-foreground">{name}</span>
-                    <span className="truncate text-foreground" title={value}>
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-muted-foreground">No parameters.</div>
-            )}
-          </div>
-        </Dialog>
+        />
       )}
-      {linkSheet && <CopyLinkSheet script={linkSheet.script} parameters={linkSheet.parameters} onClose={() => setLinkSheet(null)} />}
+      {linkSheet && (
+        <ParameterSheet
+          door="copy"
+          fileName={linkSheet.script.name}
+          address={scriptName(linkSheet.script)}
+          parameters={linkSheet.parameters}
+          onClose={() => setLinkSheet(null)}
+        />
+      )}
+      {runPrompt && (
+        <ParameterSheet
+          door="run"
+          fileName={runPrompt.fileName}
+          parameters={runPrompt.parameters}
+          lastRun={lastRunInput(runPrompt.fileId)}
+          onRun={(input) => onRunCurrentTab(input)}
+          onClose={() => setRunPrompt(null)}
+        />
+      )}
       {newAppOpen && <NewAppDialog appsPreviewEnabled={previewApps} onClose={() => setNewAppOpen(false)} onSelect={onSelectAppType} />}
       {deleteScript && (
         <ConfirmationDialog
@@ -2946,7 +3022,11 @@ export function App() {
             if (gesture === "confirm" && script) onConfirmDeleteScript(script);
           }}
         >
-          Permanently delete <strong>{deleteScript.name}</strong>?
+          Permanently delete{" "}
+          <strong>
+            <FileName name={deleteScript.name} />
+          </strong>
+          ?
         </ConfirmationDialog>
       )}
       {/* The dialog appears only when clearing costs something, and then it

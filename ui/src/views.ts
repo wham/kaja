@@ -194,6 +194,10 @@ export interface ViewIdentity {
   // next call you pick takes it over. Wherever it is named it is dimmed, which
   // is the only tell that rule has.
   provisional?: boolean;
+  // The name is a filename, so its extension is dimmed wherever it is drawn.
+  // A draft's title is a call, not a file, and a `Sum · 5.3` has no extension
+  // to find — which is why this is stated rather than read off the dot.
+  file?: boolean;
 }
 
 export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
@@ -219,6 +223,7 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
         path: view.script.folder ? `Files / ${view.script.folder}` : "Files",
         origin: view.script.folder,
         icon: FileCode,
+        file: true,
       };
     case "definition":
       return { name: fileName(view.model.uri.path), path: "Definition", origin: "", icon: FileCode };
