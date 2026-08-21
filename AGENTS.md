@@ -439,7 +439,12 @@ static mono text, which pushed a pasted URL out through the side of the dialog.
   run and should stay that way. There is **no "don't ask again"**: a remembered
   answer is a policy, on the same rule that keeps `kaja.approve`'s standing
   approval inside its own run, and this door is the one place where the thing on
-  the other side may not be a person.
+  the other side may not be a person. **What it runs is presented**: nobody
+  pressed Run for it and nothing else on screen is what they came for, so the
+  moment the run draws, the canvas takes the whole window — see **A run nobody
+  pressed Run for is presented rather than left in a panel**. Which is also why
+  that screen carries Run: a script launched from a hotkey is one somebody runs
+  more than once.
 - **`run` — the Run button asking first.** The same block with no URL line. It
   closes the gap that made a script written for a deeplink only half runnable in
   the app: a manual Run could not supply `kaja.input` at all. Fields start
@@ -910,8 +915,10 @@ selection, the tab and the view as they were left.
   quietly produced a poor one; if it comes back it should be per block — a table's
   own affordance producing TSV — not one button claiming to serialise a document.
   The Calls view keeps its Copy, because a payload is one thing and copying it
-  means something. Stop is not in this header either: it is `RunButton` in the
-  CommandRow, which already swaps to a spinner, "Stop" and an elapsed counter.
+  means something. The console header carries no Run either: it is `RunButton` in
+  the CommandRow, which already swaps to a spinner, "Stop" and an elapsed counter
+  — and the one place that button is drawn a second time is the full-screen bar,
+  which is the only screen that covers the CommandRow.
 - **Full-screen is a size, not a mode** (`Console.FullScreen`). The canvas takes
   the whole window — sidebar, editor, splitters, console header, run strip and
   status bar all covered — and the only chrome left is a 40px bar that keeps the
@@ -924,11 +931,39 @@ selection, the tab and the view as they were left.
     wants it** — a focused ask field cancels its question first and a held call
     refuses itself first, both by `preventDefault` on the document, which is why
     the canvas checks `defaultPrevented` before claiming it. The second Esc leaves.
+  - **The bar carries Run, because this screen is one you sit in.** Running a
+    script again used to mean leaving full screen and coming back — two gestures
+    around the one thing the screen is for, and the one control it covered that
+    anybody wanted. It is the CommandRow's own `RunButton` element, passed down
+    as `runControl` rather than reimplemented, so the two can never disagree
+    about whether the file can run or why it can't: the same Stop with the same
+    counter mid-run, and the same caret, which is how a script launched from a
+    deeplink is run again with the values it was launched with. The bar's own
+    running chip gives way to it — the button already spins and counts — while
+    "waiting for you" and the settled duration stay, since the button says
+    nothing about either.
+  - **Taking the screen settles the view as well as the size**
+    (`enterFullScreen`, the one door all four ways in go through). Full screen is
+    the canvas with the whole window, so it writes `canvas` as the file's choice.
+    Without that the next run has drawn nothing yet, `defaultView` falls back to
+    the calls, and the screen you just pressed Run on closes under you — which is
+    exactly what `⌘⏎` did here before the button existed.
   - **It belongs to the run you were reading**, so it is component state and
     nothing else: not persisted, dropped when the file changes and when the view
     goes back to Calls. The Calls view has no full-screen at all — a flat list of
     calls gains nothing from the room and the splitter already sizes it. The canvas's
     scroll offset is carried across in a ref, so leaving lands where you left.
+  - **A run nobody pressed Run for is presented rather than left in a panel.** A
+    deeplink arrives from outside Kaja — a hotkey, a launcher, a Shortcut — so
+    what it draws takes the window: `onConfirmScriptLink` names the run it just
+    started (`presentRunId`) and the console shows it. The decision is
+    `presentRun` in `runs.ts` and is unit-tested, because it is three states and
+    not one: the canvas is the only thing there is to present, so a run that has
+    drawn nothing yet **waits** for its first block rather than opening on an
+    empty screen, one that has drawn **presents**, and one that ended without
+    drawing is **dropped** — an ordinary run, in the console it already landed
+    in. It is one-shot: the console hands the request back once it has been
+    honoured, and once it is clear it never will be.
 
 ## The canvas is what a run drew
 
