@@ -42,7 +42,7 @@ export function isLinkedScript(scriptName: string, named: string): boolean {
   return !wanted.includes("/") && baseName(linkName(scriptName)) === wanted;
 }
 
-/** The link that runs a script. What the sidebar's Copy Link puts on the clipboard. */
+/** The link that runs a script. What the sidebar's Copy link puts on the clipboard. */
 export function scriptLink(fileName: string, input?: { [key: string]: string }): string {
   return scriptLinkParts(fileName, input)
     .map((part) => part.text)

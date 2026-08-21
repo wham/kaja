@@ -406,7 +406,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
         {props.onCopyScriptLink && (
           <DropdownMenuItem onSelect={() => scriptMenu && props.onCopyScriptLink?.(scriptMenu.script)}>
             <Link2 size={16} />
-            Copy Link…
+            Copy link…
           </DropdownMenuItem>
         )}
         {props.onRenameScript && (
