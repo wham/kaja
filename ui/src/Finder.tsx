@@ -2,6 +2,7 @@ import { ChevronsUpDown, CircleAlert, Search, type LucideIcon } from "lucide-rea
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
+import { FileName } from "./FileName";
 
 // The trigger caps here; over it the app label goes first, then the name
 // truncates from the left so its tail — the part that identifies the call —
@@ -27,6 +28,9 @@ export interface Destination {
   // A browsing buffer — still exactly its generated code and never run. Dimmed
   // here and in the sidebar, because the next call you pick takes it over.
   provisional?: boolean;
+  // The name is a filename, so its extension is dimmed — the same two-tone name
+  // the sidebar row draws, because it is the same object.
+  file?: boolean;
   go: () => void;
 }
 
@@ -218,7 +222,7 @@ function DestinationRow({
     >
       <Icon size={13} className={cn("shrink-0 text-muted-foreground", destination.provisional && "opacity-60")} />
       <span className={cn("shrink-0 truncate text-sm", recent && !destination.provisional ? "text-foreground" : "text-muted-foreground")}>
-        {destination.name}
+        {destination.file ? <FileName name={destination.name} /> : destination.name}
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{destination.path}</span>
       {highlighted && <span className="shrink-0 font-mono text-xs text-muted-foreground">⏎</span>}
@@ -261,7 +265,7 @@ function TriggerContent({ destination, errorCount }: { destination?: Destination
         // qualified one.
         style={{ direction: "rtl", textAlign: "left" }}
       >
-        {destination.name}
+        {destination.file ? <FileName name={destination.name} /> : destination.name}
       </span>
       {/* The probe drops it when the name alone fills the trigger; the container
           query drops it when the row is too narrow for the trigger to be that

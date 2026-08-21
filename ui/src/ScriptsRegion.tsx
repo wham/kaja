@@ -22,7 +22,8 @@ import { Spinner } from "./components/spinner";
 import { Script } from "./apps";
 import { isAgentDraft, isUntouched, orderDrafts, Draft, untouchedDrafts, VISIBLE_DRAFTS } from "./drafts";
 import { titleParts } from "./draftTitle";
-import { buildScriptTree, FolderNode, folderNameError, scriptNameParts, TreeNode, visibleRows } from "./scriptTree";
+import { buildScriptTree, FolderNode, folderNameError, TreeNode, visibleRows } from "./scriptTree";
+import { FileName } from "./FileName";
 import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
 
@@ -400,13 +401,16 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
             you type. And there is no route from here into Drafts either — that
             group is for things that have never had a name. */}
         {/* A script's address outside Kaja — paste it into a launcher, a
-            Shortcut, a shell. It opens a sheet rather than copying straight to
-            the clipboard: the URL is worth reading before it leaves, and the
-            parameters are worth filling in while it is being built. */}
+            Shortcut, a shell. "Deeplink" is what a launcher on the other end of
+            it calls the same object, and it names one specific thing where
+            "link" names a browser URL, a file alias and a share sheet too. It
+            opens a sheet rather than copying straight to the clipboard: the URL
+            is worth reading before it leaves, and the parameters are worth
+            filling in while it is being built. */}
         {props.onCopyScriptLink && (
           <DropdownMenuItem onSelect={() => scriptMenu && props.onCopyScriptLink?.(scriptMenu.script)}>
             <Link2 size={16} />
-            Copy link…
+            Copy deeplink…
           </DropdownMenuItem>
         )}
         {props.onRenameScript && (
@@ -810,8 +814,6 @@ function FileRow({
   onSelect: () => void;
   onMenu: (event: React.MouseEvent) => void;
 }) {
-  const { base, extension } = scriptNameParts(script.name);
-
   return (
     <li role="treeitem" aria-current={current || undefined}>
       <div
@@ -837,10 +839,11 @@ function FileRow({
             list of names. The extension is the same three characters on every
             row, so it is dimmed rather than shouted or dropped: the row still
             reads as a file, and the UI font is narrower, so more of a long name
-            survives the truncation. */}
+            survives the truncation. The same two-tone name is drawn in the
+            command row's trigger, in the finder and in every sheet title, so
+            one object never reads two ways. */}
         <span className="flex-1 truncate">
-          {base}
-          {extension && <span className="text-muted-foreground">{extension}</span>}
+          <FileName name={script.name} />
         </span>
         <RowTrailing running={running} agent={agent} waiting={waiting} wide={false}>
           {active && hasMenu && <RowAction icon={Ellipsis} label={`Actions for ${script.name}`} onClick={onMenu} />}
