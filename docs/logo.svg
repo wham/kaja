@@ -1,9 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="316" height="88" viewBox="0 0 316 88" fill="none" role="img" aria-label="Kaja">
   <defs><linearGradient id="kajaLock" x1="4" y1="24" x2="44" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#B0503F"></stop><stop offset="1" stop-color="#8A35D8"></stop></linearGradient></defs>
-  
+
+  <style>
+    .wordmark { fill: #171717; }
+
+    @media (prefers-color-scheme: dark) {
+      .wordmark { fill: #FAFAFA; }
+    }
+  </style>
+
   <g transform="translate(4 -22) scale(2.75)">
     <path d="M4 29 H13 L19 13 L28 35 L33 24 H44" stroke="url(#kajaLock)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>
   </g>
-  
-  <text x="152" y="63" font-family="Figtree, &#39;Plus Jakarta Sans&#39;, &#39;Segoe UI&#39;, system-ui, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.2" fill="#FAFAFA">Kaja</text>
+
+  <text class="wordmark" x="152" y="63" font-family="Figtree, &#39;Plus Jakarta Sans&#39;, &#39;Segoe UI&#39;, system-ui, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.2">Kaja</text>
 </svg>
