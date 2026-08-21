@@ -2194,6 +2194,45 @@ export function App() {
   const onCopyCurrentLinkRef = useRef(onCopyCurrentLink);
   onCopyCurrentLinkRef.current = onCopyCurrentLink;
 
+  // The file itself rather than the folder it sits in, which is what the Files
+  // group's own Reveal already does. `ShowFileInFinder` selects the file and
+  // falls back to the nearest folder that exists, so a script written but not
+  // yet flushed still lands somewhere useful.
+  const onRevealCurrentScript = useMemo(() => {
+    if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
+    const script = currentView.script;
+    return () => {
+      ScriptsFolder()
+        .then((folder) => ShowFileInFinder(`${folder}/${scriptName(script)}`))
+        .catch(() => {});
+    };
+  }, [currentView]);
+
+  /**
+   * The copy of a read-only file, in the one place it can be edited. A file
+   * never becomes a draft on its own — that is what keeps Drafts the group for
+   * things that have never had a name — but a server serving a workspace it
+   * does not own has no second file to copy this one into, so a draft is the
+   * whole of what "take a copy of this and change it" can mean there. On the
+   * desktop a file is writable and forking is deliberately not a gesture, so
+   * this is absent.
+   *
+   * The buffer rather than the disk, on the same rule Run follows: the script
+   * as it is now is the one being copied.
+   */
+  const onDuplicateAsDraft = useCallback(() => {
+    const view = viewsRef.current[0];
+    if (view?.type !== "script") return;
+    const code = editorRegistryRef.current.get(view.id)?.getValue() ?? "";
+    const now = Date.now();
+    // A copy is work, not a browsing buffer: an empty `generatedCode` is what
+    // keeps the next method click from taking it over and the sweep from
+    // dropping it.
+    const draft = { ...createDraft(code, undefined, now), generatedCode: "" };
+    applyDrafts((list) => [draft, ...list]);
+    applyViews((views) => showDraft(views, draft));
+  }, [applyDrafts, applyViews]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // A sheet on top of the editor answers ⏎ itself, and its Run is the one
@@ -2565,10 +2604,17 @@ export function App() {
       running={running}
       startedAt={runningSince}
       error={syntaxErrors.first}
-      // The caret is there because this file reads `kaja.input`; without that
-      // there is nothing behind it worth opening.
+      // Only when this file reads `kaja.input`; there is nothing to ask for
+      // otherwise, and a greyed item would make people hunt for the way to
+      // enable it. The caret itself is on either way.
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
+      onRevealInFinder={onRevealCurrentScript}
+      // A draft's two verbs, the same pair the command row carries beside its
+      // name — answering the moment you are already at this end of the row.
+      onNameDraft={currentDraft && canWriteScripts() ? onRequestSave : undefined}
+      onDiscardDraft={currentDraft ? () => onDiscardDraft(currentDraft) : undefined}
+      onDuplicateAsDraft={currentView?.type === "script" && !canWriteScripts() ? onDuplicateAsDraft : undefined}
     />
   ) : undefined;
   const action =

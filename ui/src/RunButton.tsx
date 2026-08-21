@@ -9,6 +9,7 @@ const isMac = navigator.platform.startsWith("Mac");
 export const runShortcutLabel = isMac ? "⌘⏎" : "Ctrl+⏎";
 export const runWithParametersShortcutLabel = isMac ? "⇧⌘⏎" : "Ctrl+Shift+⏎";
 export const copyDeeplinkShortcutLabel = isMac ? "⌘⇧C" : "Ctrl+Shift+C";
+export const nameShortcutLabel = isMac ? "⌘S" : "Ctrl+S";
 
 interface RunButtonProps {
   onRun: () => void;
@@ -18,13 +19,23 @@ interface RunButtonProps {
   startedAt?: number;
   // The first error stopping the run, if any. Run goes disabled and says so.
   error?: string;
-  // The second gesture, and the whole reason there is a caret: this file reads
-  // `kaja.input`, so there is something to ask for before it runs. A script
-  // that reads nothing gets a bare Run button, as before.
+  // The second gesture: this file reads `kaja.input`, so there is something to
+  // ask for before it runs. Omitted rather than disabled on a script that reads
+  // nothing — a greyed item makes people hunt for the way to enable it.
   onRunWithParameters?: () => void;
-  // A file's address outside Kaja. Absent on a draft, which has none, and on
-  // the web, which can't register a scheme.
+  // A file's address outside Kaja. Absent on the web, which can't register a
+  // scheme.
   onCopyDeeplink?: () => void;
+  // The file itself, on the disk this process owns.
+  onRevealInFinder?: () => void;
+  // What a draft has instead of an address: the sheet that gives it one, and
+  // the discard that closes the buffer. Absent on a file, which is already on
+  // disk and stays there as you type.
+  onNameDraft?: () => void;
+  onDiscardDraft?: () => void;
+  // A read-only file's only route to a copy you can change. Absent wherever a
+  // file can simply be copied to another file.
+  onDuplicateAsDraft?: () => void;
 }
 
 // Run is the last control before the utility icons in the command row: the same
@@ -35,12 +46,41 @@ interface RunButtonProps {
 // Plain Run keeps its place and its ⌘⏎ — the one-click path is untouched. The
 // caret beside it is where the gestures that need a sheet first live, so
 // pressing Run never opens anything.
-export function RunButton({ onRun, onStop, running, startedAt, error, onRunWithParameters, onCopyDeeplink }: RunButtonProps) {
+//
+// The caret is the script's action menu rather than a parameters affordance, so
+// it is on for every script and the menu is what varies. Keying it to
+// `kaja.input` instead is what made the pill two widths: it stepped 23px wider
+// the moment you moved from a script that declares a key to one that doesn't,
+// which is a control moving under the cursor for a reason nothing on screen
+// explains — and it also left `Copy deeplink…` in a menu that a file with no
+// parameters had no way to open.
+//
+// What fills the second group is what this script is once the run is over, and
+// every script has an answer to that: a file offers the address it has, a draft
+// offers the sheet that gives it one. That is why the group is never empty and
+// the caret never has to disappear.
+export function RunButton({
+  onRun,
+  onStop,
+  running,
+  startedAt,
+  error,
+  onRunWithParameters,
+  onCopyDeeplink,
+  onRevealInFinder,
+  onNameDraft,
+  onDiscardDraft,
+  onDuplicateAsDraft,
+}: RunButtonProps) {
   const elapsedMs = useElapsed(running, startedAt);
   const disabled = !running && error !== undefined;
+  // What the second group holds, which decides whether there is a separator
+  // above it.
+  const aboutTheScript = [onCopyDeeplink, onRevealInFinder, onNameDraft, onDiscardDraft, onDuplicateAsDraft].some(Boolean);
   // Mid-run the button is Stop, which is one thing to press and nothing to
-  // choose between.
-  const split = !running && onRunWithParameters !== undefined;
+  // choose between. Otherwise the caret is on whenever the menu says more than
+  // the button already does — which, by the rule above, is always.
+  const split = !running && (aboutTheScript || onRunWithParameters !== undefined);
 
   return (
     <div
@@ -86,20 +126,44 @@ export function RunButton({ onRun, onStop, running, startedAt, error, onRunWithP
                 <span className="flex-1">Run</span>
                 <Shortcut label={runShortcutLabel} />
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onRunWithParameters()}>
-                <span className="flex-1">Run with parameters…</span>
-                <Shortcut label={runWithParametersShortcutLabel} />
-              </DropdownMenuItem>
+              {onRunWithParameters && (
+                <DropdownMenuItem onSelect={() => onRunWithParameters()}>
+                  <span className="flex-1">Run with parameters…</span>
+                  <Shortcut label={runWithParametersShortcutLabel} />
+                </DropdownMenuItem>
+              )}
+              {aboutTheScript && <DropdownMenuSeparator />}
               {/* The same sheet with the URL line, so the three doors sit in
                   one menu and read as one feature. */}
               {onCopyDeeplink && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => onCopyDeeplink()}>
-                    <span className="flex-1">Copy deeplink…</span>
-                    <Shortcut label={copyDeeplinkShortcutLabel} />
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem onSelect={() => onCopyDeeplink()}>
+                  <span className="flex-1">Copy deeplink…</span>
+                  <Shortcut label={copyDeeplinkShortcutLabel} />
+                </DropdownMenuItem>
+              )}
+              {onRevealInFinder && (
+                <DropdownMenuItem onSelect={() => onRevealInFinder()}>
+                  <span className="flex-1">Reveal in Finder</span>
+                </DropdownMenuItem>
+              )}
+              {/* A draft's counterpart to the address a file has: it has no
+                  deeplink because it has no name, and this is the sheet that
+                  fixes that. */}
+              {onNameDraft && (
+                <DropdownMenuItem onSelect={() => onNameDraft()}>
+                  <span className="flex-1">Name…</span>
+                  <Shortcut label={nameShortcutLabel} />
+                </DropdownMenuItem>
+              )}
+              {onDiscardDraft && (
+                <DropdownMenuItem onSelect={() => onDiscardDraft()}>
+                  <span className="flex-1">Discard</span>
+                </DropdownMenuItem>
+              )}
+              {onDuplicateAsDraft && (
+                <DropdownMenuItem onSelect={() => onDuplicateAsDraft()}>
+                  <span className="flex-1">Duplicate as draft</span>
+                </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

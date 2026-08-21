@@ -328,7 +328,8 @@ useful, so the panel's is gone (`sidebarFilter.ts`, `appFilter.ts` and
   buffer nothing would keep — the same shape as an app form whose fields are
   disabled, and the same reason. A draft beside it is unaffected: it lives in
   the browser, so it is as writable there as anywhere, and `⌘N` is the way to
-  take a copy of a script somewhere you can change it.
+  take a copy of a script somewhere you can change it — `Duplicate as draft`, in
+  the Run caret's menu, is that gesture with the file's own code in it.
 
 ### The agent's draft
 
@@ -474,19 +475,49 @@ static mono text, which pushed a pasted URL out through the side of the dialog.
 
 **Plain Run keeps its place, its shape and its `⌘⏎`** — the one-click path is
 untouched, and pressing Run still never opens anything. A 22px caret beside it
-(`RunButton.tsx`) opens the second gesture: `Run ⌘⏎` · `Run with parameters…
-⇧⌘⏎` · `Copy deeplink… ⌘⇧C`, the three doors in one menu so they read as one
-feature.
+(`RunButton.tsx`) opens the script's action menu: the run gestures, then a rule,
+then what this script is once the run is over.
 
-- **The caret is what the file reads, not a permanent fixture.** A script that
-  names no `kaja.input` key has nothing to be asked for, so it gets a bare Run
-  button, exactly as before. Mid-run the button is Stop, which is one thing to
-  press and nothing to choose between.
-- **`Copy deeplink…` is desktop-only and file-only**: a draft has no address,
-  and the web can't register a scheme. `⌘⇧C` falls through to the browser's own
-  Copy wherever the item isn't there.
+- **The caret is the script's action menu, not a parameters affordance, so it is
+  on for every script and the menu is what varies.** Keying it to `kaja.input`
+  was what gave the pill two widths — it stepped 23px wider the moment you moved
+  from a script that declares a key to one that doesn't, a control moving under
+  the cursor for a reason nothing on screen explains — and it also left
+  `Copy deeplink…` sitting in a menu that a file with no parameters had no way
+  to open. Mid-run the button is Stop, which is one thing to press and nothing
+  to choose between, so the caret is gone there and only there.
+- **The second group is never empty, because every script has an answer to
+  "what is this once the run is over".** A **file** offers the address it has —
+  `Copy deeplink… ⌘⇧C` and `Reveal in Finder`, the file itself rather than the
+  folder the Files group already reveals. A **draft** offers the sheet that
+  gives it one: `Name… ⌘S`, and the `Discard` beside it. That is the whole
+  substitution — a draft has no deeplink *because* it has no name, so the item
+  in that slot is the one that fixes it — and it is what lets the caret stay on
+  everywhere without being a stub kept for alignment.
+- **`Copy deeplink…` and `Reveal in Finder` are desktop-only**: the web can't
+  register a scheme and doesn't own the disk. `⌘⇧C` falls through to the
+  browser's own Copy wherever the item isn't there.
+- **A read-only file's answer is `Duplicate as draft`**, which is the one place
+  a file may become a draft. Files never turn into drafts on their own and there
+  is no forking — but a server serving a workspace it does not own has no second
+  file to copy this one into, so on the **web** a draft is the whole of what
+  "take a copy and change it" can mean. `⌘N` was already named as that route
+  and only ever gave you a blank script; this is the same route with the file's
+  own code in it. On the desktop a file is writable, so the item is absent.
+  The copy is taken from the **buffer**, on the rule Run follows, and lands with
+  an empty `generatedCode` so a deliberate copy is work rather than a browsing
+  buffer the next method click would take over.
+- **Omit, don't disable.** `Run with parameters…` is absent on a script that
+  declares no key rather than greyed, since a greyed item makes people hunt for
+  the way to enable it. Absent, the menu just reads as short.
+- **The draft's two verbs are in two places on purpose.** The command row
+  carries `Name` and the discard beside the file's name, which is the pair you
+  reach for mid-edit; the menu restates them at the other end of the row, which
+  is where your hand already is once you have pressed Run. `Name` is in four
+  places now (row hover, row menu, command row, this menu) and that was already
+  the status quo for it.
 - **Prefill is not a menu item.** The last run's values live only as the link
-  inside the sheet, so the menu stays two gestures.
+  inside the sheet, so the run half of the menu stays two gestures.
 
 ### Where the rest of it lives
 
@@ -1415,10 +1446,10 @@ collapsed).
   file is never both a script and a form. Run is absent (not disabled) on
   non-script surfaces. Its disabled state and the trigger's `N errors` state come
   from the same `useSyntaxErrors` (`RunButton.tsx`), so the row never disagrees
-  with itself. Run is a **split button** on a file that reads `kaja.input` — see
-  **The Run button, split** — and a plain one everywhere else; the caret is the
-  only thing that ever grew here, and it belongs to the file rather than to the
-  row.
+  with itself. Run is a **split button** on every script — see **The Run button,
+  split** — and a plain one only while a run is in flight; the caret is the only
+  thing that ever grew here, and it belongs to the file rather than to the row,
+  which is why its menu changes as the file does and its width never does.
 - **Shortcuts** — `⌘P` finder on the previous place · `⌘N` blank script ·
   `⇧⌘N` new folder · `⌘⏎`/F5 run · `⇧⌘⏎` run with parameters · `⌘⇧C` copy
   deeplink · `⌘J` JSON view · `⌘B` sidebar · `⌘S` name a draft (a file is
