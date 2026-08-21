@@ -7,7 +7,7 @@ import { IconButton } from "./components/icon-button";
 import { Input } from "./components/input";
 import { SimpleTooltip } from "./components/tooltip";
 import { FileName } from "./FileName";
-import { scriptLinkParts } from "./scriptLink";
+import { LINK_SCHEME, scriptLinkParts } from "./scriptLink";
 
 /**
  * The three doors that need values for a script.
@@ -59,12 +59,16 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
   const input = useMemo(() => Object.fromEntries(parameters.map((key) => [key, entered[key] ?? ""])), [parameters, entered]);
   const parts = useMemo(() => (address === undefined ? [] : scriptLinkParts(address, input)), [address, input]);
   const link = parts.map((part) => part.text).join("");
+  // The desktop's own scheme, versus this page's address with the script in
+  // its fragment. The link is the same sentence either way; who can open one
+  // is not, so the closing line differs and nothing else does.
+  const schemeLink = link.startsWith(`${LINK_SCHEME}:`);
 
   // An illustration rather than the link again: the URL is already on screen
   // whole, and this line is about the shell, not about this script's values.
   const shellExample = useMemo(() => {
     const bare = parts
-      .filter((part) => part.kind === "scheme" || part.kind === "script")
+      .filter((part) => part.kind === "base" || part.kind === "script")
       .map((part) => part.text)
       .join("");
     const firstKey = parts.find((part) => part.kind === "key");
@@ -124,12 +128,12 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
       <div className={cn("flex flex-col py-3", parameters.length > 0 ? "gap-4" : "gap-3")}>
         {door === "copy" && (
           // The URL is the headline rather than a caption: shown whole, at body
-          // size, it teaches the scheme, the script's address and the query
+          // size, it teaches where Kaja is, the script's address and the query
           // syntax at once, and nothing on screen has to explain any of them.
           <div className="relative rounded-md border border-border bg-muted/40 p-3 pr-10">
             <p className="m-0 break-all font-mono text-sm leading-[1.55] text-foreground">
               {parts.map((part, index) => (
-                <span key={index} className={part.kind === "scheme" || part.kind === "key" ? "text-muted-foreground" : undefined}>
+                <span key={index} className={part.kind === "base" || part.kind === "key" ? "text-muted-foreground" : undefined}>
                   {part.text}
                 </span>
               ))}
@@ -203,7 +207,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
           (parameters.length > 0 ? (
             <div className="rounded-md border border-border px-3 py-2">
               <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
-                Anything on this Mac that opens a URL can run this script: a Raycast quicklink, an Alfred workflow, a Shortcut, or{" "}
+                {schemeLink ? "Anything on this Mac that opens a URL can run this script" : "Anything that opens a URL can run this script"}: a{" "}
+                {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}
                 <span className="font-mono text-foreground">open &ldquo;{shellExample}&rdquo;</span> in a shell.
               </p>
             </div>
@@ -211,7 +216,8 @@ export function ParameterSheet({ door, fileName, address, parameters, values, la
             // A script that takes nothing still gets the sheet: the URL is the
             // whole point of it, and this is the shortest version of the lesson.
             <p className="m-0 text-xs leading-[1.6] text-muted-foreground">
-              This script takes no parameters. Anything that opens a URL can run it — a Raycast quicklink, an Alfred workflow, a Shortcut, or{" "}
+              This script takes no parameters. Anything that opens a URL can run it — a{" "}
+              {schemeLink ? "Raycast quicklink, an Alfred workflow, a Shortcut" : "bookmark, a Raycast quicklink, a link in a document"}, or{" "}
               <span className="font-mono text-foreground">open</span> in a shell.
             </p>
           ))}

@@ -103,7 +103,7 @@ import {
   renameScriptFolder,
   writeScriptFile,
 } from "./scriptFiles";
-import { isLinkedScript, parseScriptLink } from "./scriptLink";
+import { hasScriptLink, isLinkedScript, parseScriptLink } from "./scriptLink";
 import { readInputKeys } from "./scriptInputs";
 import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
@@ -1423,6 +1423,12 @@ export function App() {
       }
       // Open it first, so the question is asked over the script it is about.
       void onScriptSelect(script);
+      // And nothing may open over it. A first-time window with no view memory
+      // opens the first method it finds once the apps have compiled, which
+      // lands after this and takes the pane — on the web that is every new
+      // browser, and arriving by URL is exactly when somebody has none. A link
+      // naming a script is a stronger statement than the guess that rule makes.
+      hasViewMemory.current = true;
       setLinkPrompt({ script, input: parsed.link.input });
     },
     [onScriptSelect, showFileError],
@@ -1461,15 +1467,45 @@ export function App() {
     return () => unsub();
   }, []);
 
+  const linksReadyRef = useRef(false);
+
+  // On the web there is nothing to deliver a link: the link *is* the page load,
+  // or — Kaja already being open in a tab — a change of fragment, which the
+  // browser makes without reloading anything. Both are the same door.
+  //
+  // The fragment is cleared once it has been handed over, because the URL is a
+  // door rather than a location: this window shows whatever you last selected,
+  // and an address bar still naming a script you have since navigated away from
+  // is claiming something false. A `replaceState` fires no `hashchange`, so
+  // clearing it can't come back around as a second arrival.
+  //
+  // The desktop holds a link that arrives before the UI is listening; the web
+  // needs no buffer, because the URL is one — a fragment that arrives too
+  // early is simply left where it is, and the readiness effect below reads it.
+  const takeLinkFromLocation = useCallback(() => {
+    if (!linksReadyRef.current || !hasScriptLink(window.location.href)) return;
+    const href = window.location.href;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    openScriptLinkRef.current(href);
+  }, []);
+
+  useEffect(() => {
+    if (isWailsEnvironment()) return;
+    const onHashChange = () => takeLinkFromLocation();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [takeLinkFromLocation]);
+
   // A link that launched the app arrived long before any of this existed, and
   // the desktop holds those until we say we are here — which is once the script
-  // list is in, since before that there is nothing for a link to name.
-  const linksReadyRef = useRef(false);
+  // list is in, since before that there is nothing for a link to name. The web
+  // reaches the same moment by reading its own URL.
   useEffect(() => {
-    if (!isWailsEnvironment() || linksReadyRef.current || scripts === undefined) return;
+    if (linksReadyRef.current || scripts === undefined) return;
     linksReadyRef.current = true;
-    EventsEmit("link:ready");
-  }, [scripts]);
+    if (isWailsEnvironment()) EventsEmit("link:ready");
+    else takeLinkFromLocation();
+  }, [scripts, takeLinkFromLocation]);
 
   /**
    * A file auto-saves as you edit it (debounced), which is the other half of
@@ -2185,9 +2221,10 @@ export function App() {
 
   // The same sheet the sidebar's Copy deeplink opens, on the file already on
   // screen — so its parameters are read from the buffer rather than from disk.
-  // A draft has no address, and neither does anything the web is serving.
+  // A draft has no address; a file has one on either platform, since the web's
+  // is this page's own URL.
   const onCopyCurrentLink = useMemo(() => {
-    if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
+    if (currentView?.type !== "script") return undefined;
     const script = currentView.script;
     return () => setLinkSheet({ script, parameters: inputKeys });
   }, [currentView, inputKeys]);
@@ -2693,7 +2730,7 @@ export function App() {
                     onRenameScript={canWriteScripts() ? onRenameScript : undefined}
                     onMoveScript={canWriteScripts() ? onMoveScript : undefined}
                     onDeleteScript={canWriteScripts() ? (script) => setDeleteScript(script) : undefined}
-                    onCopyScriptLink={isWailsEnvironment() ? (script) => void onCopyScriptLink(script) : undefined}
+                    onCopyScriptLink={(script) => void onCopyScriptLink(script)}
                     onCreateFolder={canWriteScripts() ? onCreateFolder : undefined}
                     onRenameFolder={canWriteScripts() ? onRenameFolder : undefined}
                     onDeleteFolder={canWriteScripts() ? (path) => setDeleteFolder(path) : undefined}

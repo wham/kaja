@@ -19,18 +19,29 @@ export function getApiClient(): ApiClient {
 }
 
 export function getBaseUrlForApi(): string {
-  const currentUrl = trimTrailingSlash(window.location.href);
-  return `${currentUrl}/twirp`;
+  return `${servedFrom()}/twirp`;
 }
 
 export function getBaseUrlForTarget(): string {
-  const currentUrl = trimTrailingSlash(window.location.href);
-  return `${currentUrl}/target`;
+  return `${servedFrom()}/target`;
 }
 
 export function getBaseUrlForAi(): string {
-  const currentUrl = trimTrailingSlash(window.location.href);
-  return `${currentUrl}/ai`;
+  return `${servedFrom()}/ai`;
+}
+
+/**
+ * Where this page is served from, which is not the same as where it currently
+ * points. A deeplink names its script in the fragment (`/#run/<script>?…`), and
+ * appending `/twirp` to a URL that carries a query or a fragment puts the path
+ * inside one — `…/#run/nightly/twirp` resolves back to `/`, so every call lands
+ * on index.html and comes back as a protobuf that won't decode.
+ */
+function servedFrom(): string {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  return trimTrailingSlash(url.href);
 }
 
 function trimTrailingSlash(s: string): string {

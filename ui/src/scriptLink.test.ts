@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { isLinkedScript, linkName, parseScriptLink, scriptLink, scriptLinkParts } from "./scriptLink";
+import { DESKTOP_LINK_BASE, hasScriptLink, isLinkedScript, linkName, parseScriptLink, scriptLink, scriptLinkParts } from "./scriptLink";
+
+// The desktop's form, stated rather than read off whatever the test runner has
+// for a `window`: `scriptLink` defaults to a link to *this* Kaja, which is the
+// question these tests are not asking.
+const desktopLink = (fileName: string, input?: { [key: string]: string }) => scriptLink(fileName, input, DESKTOP_LINK_BASE);
+const desktopParts = (fileName: string, input?: { [key: string]: string }) => scriptLinkParts(fileName, input, DESKTOP_LINK_BASE);
 
 function parsed(text: string) {
   const result = parseScriptLink(text);
@@ -40,9 +46,11 @@ describe("parseScriptLink", () => {
     expect(parsed("kaja://RUN/nightly").script).toBe("nightly");
   });
 
-  test("refuses another scheme", () => {
-    const result = parseScriptLink("https://example.com/run/nightly");
-    expect(result.ok).toBe(false);
+  test("refuses an http link that carries nothing after its #", () => {
+    // The path is the page's, not Kaja's: only the fragment is a deeplink.
+    expect(parseScriptLink("https://example.com/run/nightly").ok).toBe(false);
+    expect(parseScriptLink("https://kaja.example.com/").ok).toBe(false);
+    expect(parseScriptLink("https://kaja.example.com/#somewhere-else").ok).toBe(false);
   });
 
   test("refuses a verb Kaja doesn't have", () => {
@@ -69,22 +77,22 @@ describe("parseScriptLink", () => {
 
 describe("scriptLink", () => {
   test("names the script without its extension", () => {
-    expect(scriptLink("nightly.ts")).toBe("kaja://run/nightly");
+    expect(desktopLink("nightly.ts")).toBe("kaja://run/nightly");
   });
 
   test("encodes the name and the input", () => {
-    expect(scriptLink("a night out.ts", { url: "https://example.com/a?b=1" })).toBe("kaja://run/a%20night%20out?url=https%3A%2F%2Fexample.com%2Fa%3Fb%3D1");
+    expect(desktopLink("a night out.ts", { url: "https://example.com/a?b=1" })).toBe("kaja://run/a%20night%20out?url=https%3A%2F%2Fexample.com%2Fa%3Fb%3D1");
   });
 
   test("round-trips what it built", () => {
     const input = { url: "https://example.com/x y", "odd key": "a&b=c" };
-    expect(parsed(scriptLink("thread.ts", input))).toEqual({ script: "thread", input });
+    expect(parsed(desktopLink("thread.ts", input))).toEqual({ script: "thread", input });
   });
 
   // What the sheet is for: a key with nothing behind it is where a launcher's
   // own token goes, so the link has to carry it.
   test("keeps a key whose value is blank", () => {
-    expect(scriptLink("thread.ts", { url: "", note: "" })).toBe("kaja://run/thread?url=&note=");
+    expect(desktopLink("thread.ts", { url: "", note: "" })).toBe("kaja://run/thread?url=&note=");
   });
 });
 
@@ -92,15 +100,15 @@ describe("scriptLinkParts", () => {
   test("is the link it splits", () => {
     const input = { url: "https://example.com/a?b=1", note: "" };
     expect(
-      scriptLinkParts("reports/weekly usage.ts", input)
+      desktopParts("reports/weekly usage.ts", input)
         .map((part) => part.text)
         .join(""),
-    ).toBe(scriptLink("reports/weekly usage.ts", input));
+    ).toBe(desktopLink("reports/weekly usage.ts", input));
   });
 
-  test("separates what the scheme says from what the script says", () => {
-    expect(scriptLinkParts("thread.ts", { url: "abc", note: "" })).toEqual([
-      { kind: "scheme", text: "kaja://run/" },
+  test("separates what Kaja's address says from what the script says", () => {
+    expect(desktopParts("thread.ts", { url: "abc", note: "" })).toEqual([
+      { kind: "base", text: DESKTOP_LINK_BASE },
       { kind: "script", text: "thread" },
       { kind: "key", text: "?url=" },
       { kind: "value", text: "abc" },
@@ -126,7 +134,7 @@ describe("isLinkedScript", () => {
 // can share a base name, and the link has to say which one it means.
 describe("a script in a folder", () => {
   test("keeps the folder in the link, with each segment encoded on its own", () => {
-    expect(scriptLink("reports/weekly usage.ts")).toBe("kaja://run/reports/weekly%20usage");
+    expect(desktopLink("reports/weekly usage.ts")).toBe("kaja://run/reports/weekly%20usage");
     expect(parseScriptLink("kaja://run/reports/weekly%20usage")).toEqual({ ok: true, link: { script: "reports/weekly usage", input: {} } });
   });
 
@@ -134,5 +142,54 @@ describe("a script in a folder", () => {
     expect(isLinkedScript("reports/churn.ts", "reports/churn")).toBe(true);
     expect(isLinkedScript("reports/churn.ts", "churn")).toBe(true);
     expect(isLinkedScript("billing/churn.ts", "reports/churn")).toBe(false);
+  });
+});
+
+// The web's own form. A page can't register a scheme, so the link is the page
+// again with the deeplink in its fragment — the same grammar after the `#`.
+describe("the web's link", () => {
+  const base = "https://kaja.example.com/#run/";
+
+  test("says the same thing after a #", () => {
+    const input = { url: "https://example.com/p1", note: "later" };
+    expect(scriptLink("slack-thread.ts", input, base)).toBe("https://kaja.example.com/#run/slack-thread?url=https%3A%2F%2Fexample.com%2Fp1&note=later");
+    expect(parsed(scriptLink("slack-thread.ts", input, base))).toEqual({ script: "slack-thread", input });
+  });
+
+  test("round-trips a script in a folder, and one whose name had to be encoded", () => {
+    expect(parsed(scriptLink("reports/weekly usage.ts", {}, base)).script).toBe("reports/weekly usage");
+  });
+
+  test("reads a link served from a base path, which is what keeps it out of the server", () => {
+    expect(parsed("https://example.com/tools/kaja/#run/nightly?tag=q3")).toEqual({ script: "nightly", input: { tag: "q3" } });
+  });
+
+  test("leaves the page's own query alone", () => {
+    // Everything before the `#` belongs to whoever is serving Kaja; the
+    // script's parameters are the ones inside the fragment.
+    expect(parsed("https://kaja.example.com/?theme=dark#run/nightly?tag=q3").input).toEqual({ tag: "q3" });
+  });
+
+  test("reads the verb whatever case it was written in", () => {
+    expect(parsed("https://kaja.example.com/#RUN/nightly").script).toBe("nightly");
+  });
+
+  test("refuses a fragment that names no script", () => {
+    expect(parseScriptLink("https://kaja.example.com/#run").ok).toBe(false);
+    expect(parseScriptLink("https://kaja.example.com/#run/").ok).toBe(false);
+  });
+});
+
+// A page is handed every fragment it is ever opened with, so it has to be able
+// to say "not mine" about somebody else's anchor without reporting an error.
+describe("hasScriptLink", () => {
+  test("knows a deeplink from any other fragment", () => {
+    expect(hasScriptLink("https://kaja.example.com/#run/nightly?tag=q3")).toBe(true);
+    expect(hasScriptLink("https://kaja.example.com/#run")).toBe(true);
+    expect(hasScriptLink("https://kaja.example.com/#RUN/nightly")).toBe(true);
+    expect(hasScriptLink("https://kaja.example.com/")).toBe(false);
+    expect(hasScriptLink("https://kaja.example.com/#section-2")).toBe(false);
+    expect(hasScriptLink("https://kaja.example.com/#running-late")).toBe(false);
+    expect(hasScriptLink("not a url")).toBe(false);
   });
 });
