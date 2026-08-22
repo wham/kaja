@@ -39,16 +39,13 @@ const MAX_VISIBLE_RUN_ROWS = 8;
 // beside them.
 const utilityButtonClass = "h-6 w-6 rounded-md hover:bg-accent hover:text-foreground";
 
-// The room the macOS traffic lights need in the full-screen bar, which is the
-// only chrome left once the canvas has the window.
+// The room the macOS traffic lights need in the full-screen bar.
 const TRAFFIC_LIGHTS_INSET = 78;
 
 interface ConsoleProps {
-  // Which file's console this is. It is the whole scope: the runs are that
-  // file's runs, and changing it swaps consoles rather than reporting a new run.
+  // The whole scope: the runs are that file's runs, and changing it swaps consoles
+  // rather than reporting a new run.
   fileId?: string;
-  // Whether the window's own traffic lights sit in the top-left, which the
-  // full-screen bar has to keep clear.
   reserveTrafficLights?: boolean;
   onAnswer: (blockId: string, answer: string) => void;
   onCancelAsk: (blockId: string) => void;
@@ -58,26 +55,21 @@ interface ConsoleProps {
   onTablePull: (blockId: string, search: string, want: number) => void;
   onTableCells: (blockId: string, cells: CellRef[]) => void;
   onClear?: () => void;
-  // A run that was launched rather than pressed, and is therefore worth showing
-  // rather than leaving in a panel: the canvas takes the window as soon as it
-  // draws. One-shot — `onPresented` is called once it has been shown, and once
-  // it is clear it never will be.
+  // A run nobody pressed Run for, worth showing rather than leaving in a panel.
+  // One-shot — `onPresented` is called once it has been shown, and once it is clear
+  // it never will be.
   presentRunId?: string;
   onPresented?: () => void;
-  // Run/Stop for the file this console belongs to, so a run can be started again
-  // from full screen rather than only from the command row the canvas covers.
+  // So a run can be started again from full screen rather than only from the command
+  // row the canvas covers.
   runControl?: React.ReactNode;
 }
 
 /**
- * A console belongs to a script and holds its runs; a run has two views of the
- * same data. The list is the flat audit log — one row per call, in wall order,
- * always complete. The canvas is the rendered output. One segmented control
- * switches them, and everything else about the header stops moving.
- *
- * What it reads is not React state: a run is a buffer the store appends to, and
- * this is the only thing in the window that subscribes to it. A thousand calls
- * repaint the console, and nothing else.
+ * A console belongs to a script and holds its runs; a run has two views. What it
+ * reads is not React state — a run is a buffer the store appends to, and this is the
+ * only thing in the window that subscribes to it, so a thousand calls repaint the
+ * console and nothing else.
  */
 export function Console({
   fileId,
@@ -108,13 +100,11 @@ export function Console({
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
   /**
-   * Whether the log is following the run, like a terminal. It stops the moment
-   * you scroll off the bottom and starts again when you come back to it.
+   * Whether the log is following the run, like a terminal.
    *
-   * The ref is the answer and the state is only what redraws the chip. A run
-   * appends between two of your wheel events, and anything that read this from a
-   * render would still be following on the frame that scrolls the log back down
-   * under your hands.
+   * The ref is the answer and the state only redraws the chip: a run appends between
+   * two of your wheel events, and anything reading this from a render would still be
+   * following on the frame that scrolls the log back down under your hands.
    */
   const tailingRef = useRef(true);
   const [tailing, setTailingState] = useState(true);
@@ -126,18 +116,16 @@ export function Console({
 
   const jsonViewerRef = useRef<JsonViewerHandle | null>(null);
   /**
-   * Whether the canvas has the whole window. It is a size rather than a mode —
-   * the run keeps running, the log keeps recording — so it is held here and
-   * nowhere else: it belongs to the run being read, not to the workspace, and
-   * nothing about it is worth surviving a restart.
+   * Whether the canvas has the whole window. A size rather than a mode — the run keeps
+   * running, the log keeps recording — so it belongs to the run being read and nothing
+   * about it survives a restart.
    */
   const [fullScreen, setFullScreen] = useState(false);
   // Carried across entering and leaving, so the way back lands where you left.
   const canvasScroll = useRef(0);
 
-  // A settled call shows the wall-clock time it was made, which never changes —
-  // so the clock only runs while something is still going, counting up in tenths
-  // for the run and the call that are.
+  // A settled call shows the wall-clock time it was made, which never changes, so the
+  // clock only runs while something is still going.
   const ticking = groups.some((group) => group.running || group.inFlight);
 
   useEffect(() => {
@@ -151,19 +139,17 @@ export function Console({
   const onViewChange = useCallback((view: ConsoleView) => consoles.setView(fileId, view, Date.now()), [fileId]);
 
   /**
-   * Full screen is the canvas with the whole window, so taking it settles the
-   * view as well as the size. Without that the next run — pressed from the bar
-   * this screen now carries — has drawn nothing yet, the view falls back to the
-   * calls, and the screen you pressed Run on closes under you.
+   * Taking full screen settles the view as well as the size. Without that the next run
+   * — pressed from the bar this screen now carries — has drawn nothing yet, the view
+   * falls back to the calls, and the screen you pressed Run on closes under you.
    */
   const enterFullScreen = useCallback(() => {
     onViewChange("canvas");
     setFullScreen(true);
   }, [onViewChange]);
 
-  // The file and run the console has followed, which is what tells a run
-  // arriving apart from a call arriving inside the one already on screen — and
-  // both apart from the console being handed a different file altogether.
+  // What tells a run arriving apart from a call arriving inside the one already on
+  // screen, and both apart from the console being handed a different file.
   const followedRef = useRef<{ fileId?: string; runId?: string }>({});
 
   useEffect(() => {
@@ -171,26 +157,20 @@ export function Console({
     const isNewRun = sameFile && followedRef.current.runId !== newest?.run.id;
     const arrived = !sameFile || isNewRun;
     followedRef.current = { fileId, runId: newest?.run.id };
-    // Pressing Run is a request to watch what it does, and so is opening another
-    // file: either way the log goes back to following.
+    // Pressing Run is a request to watch what it does, and so is opening another file.
     if (arrived) setTailing(true);
-    // Arriving at another file is not a run arriving: its own selection has just
-    // been restored, and only a selection with nothing left to point at is
-    // moved on to the newest run.
+    // Arriving at another file is not a run arriving: its own selection has just been
+    // restored.
     const next = followSelection(selection, groups, isNewRun, tailingRef.current);
     if (next?.runId !== selection?.runId || next?.itemId !== selection?.itemId) onSelect(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId, file.version, tailing]);
 
   const selectedGroup = groups.find((group) => group.run.id === selection?.runId);
   const logFloor = file.logFloor;
-  // The merge is a walk of two ordered lists, so it is cheap — but it is read on
-  // every repaint of a run that may be thousands long, and both sides only ever
-  // grow at the end. Memoizing on the lengths is what makes a repaint that
-  // changed nothing cost nothing.
+  // The merge is a walk of two ordered lists, but it is read on every repaint of a run
+  // that may be thousands long, and both sides only ever grow at the end.
   const rows = useMemo(
     () => (selectedGroup ? callRows(selectedGroup, logFloor) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedGroup, selectedGroup?.calls.length, selectedGroup?.printed.length, logFloor],
   );
   const printed = useMemo(() => (selectedGroup ? printedCounts(selectedGroup) : { lines: 0, errors: 0 }), [selectedGroup, selectedGroup?.printed.length]);
@@ -208,8 +188,7 @@ export function Console({
     [onSelect],
   );
 
-  // ⌃↑ / ⌃↓ step through this file's runs without opening the dropdown, which is
-  // what makes one go at a call comparable against the last.
+  // ⌃↑ / ⌃↓ step through this file's runs without opening the dropdown.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey || event.metaKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
@@ -230,9 +209,7 @@ export function Console({
     setTimeout(() => setCopied(false), 1200);
   }, []);
 
-  // Clicking a mark on the strip, or a failure the run said nothing about, is a
-  // request for that call's complete record — which only the log has, so it
-  // takes you there rather than unrolling a payload into the canvas.
+  // A request for that call's complete record, which only the log has.
   const selectFromCanvas = useCallback(
     (itemId: string) => {
       if (!selectedGroup) return;
@@ -244,8 +221,8 @@ export function Console({
     [selectedGroup, onSelect, onViewChange],
   );
 
-  // Full-screen belongs to the run you were reading: another script is another
-  // run, and the log is a flat list that gains nothing from the room.
+  // Full-screen belongs to the run you were reading, and the log is a flat list that
+  // gains nothing from the room.
   useEffect(() => {
     setFullScreen(false);
   }, [fileId]);
@@ -255,14 +232,11 @@ export function Console({
   }, [activeView]);
 
   /**
-   * A run that arrived from a deeplink is one nobody pressed Run for, so it is
-   * shown rather than left in a panel behind whatever was last on screen: the
-   * moment it draws, the canvas takes the window. It waits for that first block
-   * rather than opening on an empty screen, and a run that ends without drawing
-   * is simply an ordinary run — the request is dropped and the console it landed
-   * in is where it stays.
+   * A run that arrived from a deeplink is shown rather than left in a panel: the moment
+   * it draws, the canvas takes the window. It waits for that first block rather than
+   * opening on an empty screen, and a run that ends without drawing is dropped.
    *
-   * Declared after the two that clear full screen, so a fresh file's reset
+   * Declared after the two effects that clear full screen, so a fresh file's reset
    * cannot land on top of the presentation it was opened for.
    */
   useEffect(() => {
@@ -275,7 +249,6 @@ export function Console({
       enterFullScreen();
     }
     onPresented?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentRunId, file.version]);
 
   useEffect(() => {
@@ -287,8 +260,8 @@ export function Console({
         else enterFullScreen();
         return;
       }
-      // Esc is the canvas's only when nothing else wanted it: a focused ask
-      // field cancels its question first, and a held call refuses itself.
+      // Esc is the canvas's only when nothing else wanted it: a focused ask field cancels
+      // its question first, and a held call refuses itself.
       if (event.key === "Escape" && fullScreen && !event.defaultPrevented) {
         event.preventDefault();
         setFullScreen(false);
@@ -308,9 +281,7 @@ export function Console({
     [selectedGroup, onSelect],
   );
 
-  // With no run there is no selection to show and no views to choose between:
-  // a selected Response over an empty panel implies a state the console doesn't
-  // have. The empty line is the only thing that should speak.
+  // A selected Response over an empty panel implies a state the console doesn't have.
   if (groups.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background text-xs text-muted-foreground">
@@ -477,12 +448,8 @@ const FLOOR_LABELS: { floor: LogFloor; label: string; note: string }[] = [
 ];
 
 /**
- * How much of what the script printed the calls view mixes in.
- *
- * A floor rather than a checkbox per level: the levels are ordered, and
- * "warnings but not errors" is not a question anyone asks. It is one control
- * because four switches over a list that is usually empty is more chrome than
- * the thing it configures.
+ * A floor rather than a checkbox per level: the levels are ordered, and "warnings but
+ * not errors" is not a question anyone asks.
  */
 Console.LogFloorSelect = function ({
   floor,
@@ -540,21 +507,17 @@ interface FullScreenProps {
   group: RunGroup;
   reserveTrafficLights?: boolean;
   now: number;
-  // Run/Stop for the file behind the canvas. It is the command row's own button,
-  // rendered here as well rather than reimplemented, so the two can never
-  // disagree about whether the file can run or why it can't.
+  // The command row's own button, rendered here rather than reimplemented, so the two
+  // can never disagree about whether the file can run or why it can't.
   runControl?: React.ReactNode;
   onLeave: () => void;
   children: React.ReactNode;
 }
 
 /**
- * The canvas with the whole window: sidebar, editor, splitters, console header,
- * run strip and status bar all covered. It is a view state rather than a second
- * window — the run keeps running and the log keeps recording behind it — so the
- * only chrome left is a 40px bar that keeps the window's traffic lights and says
- * three things: which script, which run, and the way out — plus the one verb the
- * canvas is worth having in front of it, Run.
+ * The canvas with the whole window. A view state rather than a second window — the
+ * run keeps running and the log keeps recording behind it — so the only chrome left
+ * is a 40px bar: which script, which run, the way out, and Run.
  */
 Console.FullScreen = function ({ group, reserveTrafficLights, now, runControl, onLeave, children }: FullScreenProps) {
   const waiting = group.awaiting !== undefined;
@@ -578,8 +541,8 @@ Console.FullScreen = function ({ group, reserveTrafficLights, now, runControl, o
             <span className="font-mono text-xs text-amber-600 dark:text-amber-400">waiting for you</span>
           </div>
         ) : group.running ? (
-          // The Run button in this bar is Stop mid-run, with the same spinner
-          // and the same counter, so the chip is only drawn when it isn't there.
+          // The Run button in this bar is Stop mid-run, with the same spinner and counter, so
+          // the chip is only drawn when it isn't there.
           runControl ? null : (
             <div className="flex h-[20px] shrink-0 items-center gap-1.5 rounded-md bg-muted px-2">
               <Spinner className="size-3" />
@@ -624,11 +587,8 @@ interface RunSelectProps {
   now: number;
 }
 
-/**
- * Run identity stays in the one place it already lives, and the header keeps its
- * shape. The pill inherits the status of the run it names, so a waiting or
- * failed run is legible without opening the menu.
- */
+// The pill inherits the status of the run it names, so a waiting or failed run is
+// legible without opening the menu.
 Console.RunSelect = function ({ groups, selectedGroup, onSelect, onClear, now }: RunSelectProps) {
   const [open, setOpen] = useState(false);
   const summary = selectedGroup ? runSummary(selectedGroup, groups, now) : undefined;
@@ -705,8 +665,8 @@ interface RunRowProps extends RunSummaryLine {
   onSelect: () => void;
 }
 
-// Memoized so the tick that counts up an in-flight run only re-renders that
-// run's row; every settled row holds a value that no longer changes.
+// Memoized so the tick that counts up an in-flight run only re-renders that run's
+// row; every settled row holds a value that no longer changes.
 Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, waiting, agent, stale, isSelected, onSelect }: RunRowProps) {
   return (
     <DropdownMenuItem
@@ -726,25 +686,21 @@ Console.RunRow = memo(function RunRow({ name, detail, dotClass: dot, pending, wa
 
 interface RunSummaryLine {
   name: string;
-  // When it ran and how it went, in one string: `14:03 · 1.2 s`, `13:51 ·
-  // waiting`, `13:44 · failed`.
+  // `14:03 · 1.2 s`, `13:51 · waiting`, `13:44 · failed`.
   detail?: string;
   dotClass: string;
   pending: boolean;
   waiting: boolean;
-  // Whether an agent pressed Run rather than a person. A console holds runs of
-  // both, so it is the run that says it, not the file.
+  // A console holds runs of both, so it is the run that says it, not the file.
   agent: boolean;
 }
 
-// The columns every row in the history shares — the pill shows them for the
-// selected run, the list for all of them.
 function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummaryLine {
   const waiting = group.awaiting !== undefined;
   const time = group.run.stale ? formatStaleTime(group.run.startedAt) : formatClockTime(group.run.startedAt);
-  // Still going is a state of the run, not of a call: a script sleeping between
-  // two of them is running, and a verdict read off the calls so far would be one
-  // the run has not reached.
+  // Still going is a state of the run, not of a call: a script sleeping between two of
+  // them is running, and a verdict read off the calls so far would be one the run has
+  // not reached.
   const outcome = waiting
     ? "waiting"
     : group.running
@@ -764,9 +720,9 @@ function runSummary(group: RunGroup, groups: RunGroup[], now: number): RunSummar
 }
 
 /**
- * A console holds one script's runs, so naming each one after that script says
- * the same thing every row. They are numbered instead, and the number is the
- * run's own — a position would renumber as the oldest runs are trimmed.
+ * A console holds one script's runs, so naming each after that script says the same
+ * thing every row. The number is the run's own — a position would renumber as the
+ * oldest runs are trimmed.
  */
 function runName(group: RunGroup, groups: RunGroup[]): string {
   return `Run ${group.run.number ?? groups.indexOf(group) + 1}`;
@@ -775,14 +731,12 @@ function runName(group: RunGroup, groups: RunGroup[]): string {
 interface DayGroupedRow {
   group: RunGroup;
   summary: RunSummaryLine;
-  // Set on the first row of a day other than today, which is where the list
-  // says what day it has moved to.
+  // Set on the first row of a day other than today.
   dayLabel?: string;
 }
 
-// Newest first, so a label lands on the first row of each day the list moves
-// back into; today needs none. Everything under a date header is by definition
-// not live.
+// Newest first, so a label lands on the first row of each day the list moves back
+// into; today needs none. Everything under a date header is by definition not live.
 function dayGroupedRows(groups: RunGroup[], now: number): DayGroupedRow[] {
   const rows = [...groups].reverse().map((group) => ({ group, summary: runSummary(group, groups, now) }));
   let previousTimestamp = now;
@@ -794,8 +748,7 @@ function dayGroupedRows(groups: RunGroup[], now: number): DayGroupedRow[] {
   });
 }
 
-// A run that isn't live is dated rather than clocked, because the time of day it
-// happened on some other day is not the thing you need to read.
+// A run that isn't live is dated rather than clocked.
 function formatStaleTime(timestamp: number): string {
   return isSameDay(timestamp, Date.now()) ? formatClockTime(timestamp) : formatDayLabel(timestamp);
 }
