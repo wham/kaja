@@ -123,44 +123,89 @@ func (b *Bundle) FS() fs.FS {
 // Extract writes the entries under prefix into dir, keeping their layout. The
 // apps read their proto surface as files on disk, so the frozen surface is put
 // back on disk rather than every app being taught to read a zip.
+//
+// A bundle arrives from wherever it arrived from — it is made to be handed
+// around — so every entry is treated as a name somebody else chose. The
+// containment is checked twice and in the two ways that can each be wrong on
+// their own: the name is refused unless it is a local, relative path, and the
+// joined result is refused unless it is still inside dir. The second is what
+// holds when the first is fooled, which is the whole history of this class of
+// bug.
 func (b *Bundle) Extract(prefix string, dir string) error {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+
 	for _, file := range b.reader.File {
 		if file.FileInfo().IsDir() || !strings.HasPrefix(file.Name, prefix) {
 			continue
 		}
-		// The name comes out of a file somebody else may have written, so it is
-		// checked rather than joined: an entry naming its way out of the directory
-		// is the oldest trick there is.
-		relative := strings.TrimPrefix(file.Name, prefix)
-		relative = strings.TrimPrefix(relative, "/")
+		relative := strings.TrimPrefix(strings.TrimPrefix(file.Name, prefix), "/")
 		if relative == "" {
 			continue
 		}
-		if !fs.ValidPath(path.Clean(relative)) || strings.HasPrefix(relative, "../") {
-			return fmt.Errorf("bundle entry %q is not a valid path", file.Name)
+		target, err := containedPath(root, relative)
+		if err != nil {
+			return fmt.Errorf("bundle entry %q: %w", file.Name, err)
 		}
-		target := filepath.Join(dir, filepath.FromSlash(path.Clean(relative)))
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		source, err := file.Open()
-		if err != nil {
-			return err
-		}
-		out, err := os.Create(target)
-		if err != nil {
-			source.Close()
-			return err
-		}
-		_, err = io.Copy(out, source)
-		source.Close()
-		out.Close()
-		if err != nil {
+		if err := writeEntry(file, target); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// containedPath resolves one archive entry's name inside root, and refuses
+// anything that does not stay there.
+func containedPath(root string, name string) (string, error) {
+	cleaned := path.Clean(name)
+	// filepath.IsLocal rejects absolute paths, "..", and anything that would
+	// climb out; fs.ValidPath rules out the shapes a zip is allowed to hold but
+	// a file name is not.
+	if !fs.ValidPath(cleaned) || !filepath.IsLocal(filepath.FromSlash(cleaned)) {
+		return "", fmt.Errorf("is not a path inside the bundle")
+	}
+	target := filepath.Join(root, filepath.FromSlash(cleaned))
+	// And the answer itself is checked, rather than the name it was derived from.
+	inside, err := filepath.Rel(root, target)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("would be written outside the destination")
+	}
+	return target, nil
+}
+
+func writeEntry(file *zip.File, target string) error {
+	source, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	out, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// A bundle is made here and read here, so an entry claiming to be a gigabyte
+	// is a bundle that was tampered with rather than one that is merely large.
+	if _, err := io.Copy(out, io.LimitReader(source, maxEntrySize)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// maxEntrySize is what one entry may unpack to. The largest thing a bundle
+// legitimately holds is the stub, which is a few hundred kilobytes for a big
+// API.
+const maxEntrySize = 64 << 20
 
 // Close releases the file the bundle was read from, if it owns one.
 func (b *Bundle) Close() error {

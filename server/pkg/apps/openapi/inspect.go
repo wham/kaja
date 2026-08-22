@@ -81,7 +81,7 @@ func Inspect(parameters map[string]string, log func(string)) (*Document, *Proble
 			return nil, &Problem{Kind: string(problemUnreachable), Message: "That isn't a URL kaja can fetch", Detail: err.Error()}
 		}
 		log("Fetching OpenAPI spec from " + specURL)
-		s, p = loadSpec(specURL, specFetchCredentials(parameters), log)
+		s, _, p = loadSpec(specURL, specFetchCredentials(parameters), log)
 	default:
 		return nil, &Problem{Kind: string(problemNotADocument), Message: "No document yet", Detail: "Give a URL, or upload a file."}
 	}
