@@ -2,9 +2,9 @@ import { SUBJECT_FIELDS } from "./loopKey";
 import { importedNames, runtimeNames } from "./scriptBindings";
 import ts from "typescript";
 
-// A request small enough to read at a glance is described by its values, which
-// is usually where two explorations of the same call differ. A bigger one stays
-// quiet rather than picking an arbitrary field out of a crowd.
+// A request small enough to read at a glance is described by its values, which is
+// usually where two explorations of the same call differ. A bigger one stays quiet
+// rather than picking an arbitrary field out of a crowd.
 const SMALL_REQUEST_FIELDS = 3;
 const MAX_SUBJECT = 24;
 
@@ -16,8 +16,8 @@ export interface DraftCall {
   subject?: string;
 }
 
-// The calls a draft makes. Receivers are matched against what the file
-// imports, so `console.log` and friends are never mistaken for a service call.
+// Receivers are matched against what the file imports, so `console.log` and friends
+// are never mistaken for a service call.
 export function readCalls(code: string): DraftCall[] {
   const file = ts.createSourceFile("draft.ts", code, ts.ScriptTarget.Latest, /*setParentNodes*/ false, ts.ScriptKind.TS);
   const imported = importedNames(file);
@@ -28,14 +28,14 @@ export function readCalls(code: string): DraftCall[] {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
       const service = node.expression.expression.text;
       // The kaja runtime is imported like a service and called like one, but
-      // `kaja.table(...)` is the script drawing rather than a call it made — a
-      // script that only draws would otherwise be titled `text +3`.
+      // `kaja.table(...)` is the script drawing rather than a call it made — a script that
+      // only draws would otherwise be titled `text +3`.
       if (runtime.has(service)) {
         ts.forEachChild(node, visit);
         return;
       }
-      // With no imports to check against (a hand-written script), fall back to
-      // the shape a service call has: a capitalized receiver.
+      // With no imports to check against (a hand-written script), fall back to the shape a
+      // service call has: a capitalized receiver.
       if (imported.size > 0 ? imported.has(service) : /^[A-Z]/.test(service)) {
         calls.push({ service, method: node.expression.name.text, subject: subjectOf(node.arguments[0]) });
       }
@@ -47,8 +47,8 @@ export function readCalls(code: string): DraftCall[] {
   return calls;
 }
 
-// The generated request only ever holds zero values, so an empty string, a 0 or
-// a false is the absence of an answer rather than one worth showing.
+// The generated request only ever holds zero values, so an empty string, a 0 or a
+// false is the absence of an answer rather than one worth showing.
 function subjectOf(argument: ts.Expression | undefined): string | undefined {
   if (!argument || !ts.isObjectLiteralExpression(argument)) return undefined;
 
@@ -60,9 +60,8 @@ function subjectOf(argument: ts.Expression | undefined): string | undefined {
   return filled ? truncate(filled.join(", ")) : undefined;
 }
 
-// The values of a small, all-scalar request that have actually been filled in.
-// Undefined for anything bigger or nested, so a large body never gets a title
-// made of whichever field happened to come first.
+// Undefined for anything bigger or nested, so a large body never gets a title made of
+// whichever field happened to come first.
 function filledValues(object: ts.ObjectLiteralExpression): string[] | undefined {
   if (object.properties.length === 0 || object.properties.length > SMALL_REQUEST_FIELDS) return undefined;
 
@@ -102,9 +101,8 @@ function findLiteral(object: ts.ObjectLiteralExpression, pattern: RegExp, depth:
   return undefined;
 }
 
-// A 64-bit field is generated as a string, so its zero value is the text "0"
-// rather than the number — without this a request nobody has filled in gets
-// titled `Sum · 0, 0`.
+// A 64-bit field is generated as a string, so its zero value is the text "0" rather
+// than the number — without this a request nobody has filled in is titled `Sum · 0, 0`.
 function isZeroText(text: string): boolean {
   const trimmed = text.trim();
   return trimmed === "" || /^-?0+$/.test(trimmed);
@@ -115,18 +113,9 @@ function truncate(value: string): string {
 }
 
 /**
- * What a draft is called, read from the code it holds. Undefined when it
- * calls nothing yet — the caller falls back to a plain "Draft".
- *
- * This is why Kaja can name these better than a chat app names conversations:
- * the content is typed code against a known schema, so the title is a
- * formatting job rather than a summarization one, and it comes out the same
- * every time.
- */
-/**
- * The title is one string wherever it is stored, but a row can dim the part that
- * only qualifies it. That is what tells an unsaved script apart from the method
- * of the same name a few rows below it in the tree.
+ * The title is one string wherever it is stored, but a row can dim the part that only
+ * qualifies it. That is what tells a draft apart from the method of the same name a
+ * few rows below it in the tree.
  */
 export function titleParts(title: string): { name: string; qualifier?: string } {
   const at = title.indexOf(" · ");
@@ -134,10 +123,9 @@ export function titleParts(title: string): { name: string; qualifier?: string } 
 }
 
 /**
- * The filename a script is proposed under. Naming a script and saving it are the
- * same act, so the derived title decides it and the section converges on one
- * convention. `taken` settles collisions, which saving the whole pile at once
- * produces even where saving one at a time wouldn't.
+ * The filename a script is proposed under. Naming a script and saving it are the same
+ * act, so the derived title decides it. `taken` settles collisions, which saving the
+ * whole pile at once produces even where saving one at a time wouldn't.
  */
 export function proposeFileName(title: string, taken: Iterable<string> = []): string {
   const word =
@@ -154,9 +142,8 @@ export function proposeFileName(title: string, taken: Iterable<string> = []): st
   }
 }
 
-// Names a whole pile at once, each one disambiguated against what is on disk and
-// against the ones named before it — so the list the confirm shows is the list
-// that gets written.
+// Each disambiguated against what is on disk and against the ones named before it, so
+// the list the confirm shows is the list that gets written.
 export function proposeFileNames(titles: string[], taken: Iterable<string> = []): string[] {
   const used = [...taken];
   return titles.map((title) => {
@@ -166,6 +153,13 @@ export function proposeFileNames(titles: string[], taken: Iterable<string> = [])
   });
 }
 
+/**
+ * What a draft is called, read from the code it holds. Undefined when it calls
+ * nothing yet — the caller falls back to a plain "Draft".
+ *
+ * The content is typed code against a known schema, so the title is a formatting job
+ * rather than a summarization one, and it comes out the same every time.
+ */
 export function deriveDraftTitle(code: string): string | undefined {
   const calls = readCalls(code);
   if (calls.length === 0) return undefined;

@@ -15,8 +15,7 @@ import { App } from "./apps";
 
 export type ColorMode = "day" | "night";
 
-// Every icon in the status bar is the same 14px glyph on the same hit area; the
-// row has no per-icon size overrides and no vertical offsets.
+// Every icon in the status bar is the same 14px glyph on the same hit area.
 export const statusBarIconClass = "h-6 w-6 [&_svg]:size-[14px]";
 
 interface StatusBarProps {
@@ -35,10 +34,8 @@ interface StatusBarProps {
   onRecompile: (appName?: string) => void;
 }
 
-// McpConnection is a live MCP endpoint and the token that reaches it, whichever
-// build produced it: the desktop process, which starts a server of its own, or
-// the session this browser holds against a deployed one. main.MCPInfo satisfies
-// it, which is why it is a shape rather than that type.
+// McpConnection is a live MCP endpoint and the token that reaches it, whichever build
+// produced it. main.MCPInfo satisfies it, which is why it is a shape rather than that type.
 export interface McpConnection {
   enabled: boolean;
   url: string;
@@ -47,8 +44,8 @@ export interface McpConnection {
   configurationPaths?: Record<string, string>;
 }
 
-// AgentFooter is the web's half: a session is something this window offers, so
-// the footer is where it is offered, taken back, and reported on.
+// AgentFooter is the web's half: a session is something this window offers, so the
+// footer is where it is offered, taken back, and reported on.
 export interface AgentFooter {
   connected: boolean;
   attached: boolean;
@@ -58,20 +55,16 @@ export interface AgentFooter {
   disconnect: () => void;
 }
 
-// McpClient is one way to connect an agent to the MCP server. Each client
-// turns the live endpoint + token into a copy-pasteable snippet. Add new clients
-// here and they show up as another tab in the popup.
+// McpClient is one way to connect an agent to the MCP server. Add one here and it
+// shows up as another tab in the popup.
 interface McpClient {
   label: string;
-  // configuration is the file the snippet is pasted into: the key the desktop
-  // resolved a path under, and the name to fall back to when it couldn't. A
-  // client told to run a command instead has none.
+  // The file the snippet is pasted into: the key the desktop resolved a path under, and
+  // the name to fall back to when it couldn't. A client told to run a command has none.
   configuration?: { key: string; name: string };
-  // hint says what to do with the snippet. It is handed the configuration file
-  // it names — a link that reveals it, or its bare name — so the sentence around
-  // it stays with the client it belongs to.
+  // hint is handed the configuration file it names — a link that reveals it, or its
+  // bare name — so the sentence around it stays with the client it belongs to.
   hint: (file: React.ReactNode) => React.ReactNode;
-  // snippet renders the connection instructions for the running server.
   snippet: (info: McpConnection) => string;
 }
 
@@ -82,10 +75,10 @@ const mcpClients: McpClient[] = [
     snippet: (info) => `claude mcp add --transport http kaja ${info.url} --header "Authorization: Bearer ${info.token}"`,
   },
   {
-    // The connector UI connects from Anthropic's servers, which can't reach
-    // localhost, so Desktop goes through the mcp-remote stdio bridge instead.
-    // The header is passed via an env var because Claude Desktop splits args on
-    // spaces, which would otherwise mangle "Bearer <token>".
+    // The connector UI connects from Anthropic's servers, which can't reach localhost, so
+    // Desktop goes through the mcp-remote stdio bridge instead. The header is passed via
+    // an env var because Claude Desktop splits args on spaces, which would otherwise
+    // mangle "Bearer <token>".
     label: "Claude Desktop",
     configuration: { key: "claudeDesktop", name: "claude_desktop_config.json" },
     hint: (file) => <>Add this to {file}, which bridges through mcp-remote:</>,
@@ -105,8 +98,8 @@ const mcpClients: McpClient[] = [
       ),
   },
   {
-    // Cursor talks to the server itself, so it takes the endpoint and the token
-    // as they are — no bridge, unlike Claude Desktop.
+    // Cursor talks to the server itself, so it takes the endpoint and the token as they
+    // are — no bridge, unlike Claude Desktop.
     label: "Cursor",
     configuration: { key: "cursor", name: "mcp.json" },
     hint: (file) => <>Add this to {file}:</>,
@@ -127,9 +120,8 @@ const mcpClients: McpClient[] = [
   },
 ];
 
-// ConfigurationFileLink shows the file a snippet goes into and opens it in the
-// system file browser with the file selected, the way Show Config in Finder does
-// for kaja.json. A file the client hasn't written yet opens its directory.
+// Opens the file in the system file browser with the file selected. A file the client
+// hasn't written yet opens its directory.
 function ConfigurationFileLink({ path }: { path: string }) {
   return (
     <button
@@ -142,14 +134,11 @@ function ConfigurationFileLink({ path }: { path: string }) {
   );
 }
 
-// MCPStatus surfaces the MCP endpoint and, per client, the snippet to connect it
-// to an agent. On the desktop the server is up for the whole of the session, so
-// there is always an endpoint to show; on the web there is one only once this
-// browser has connected, and until then the popup is the offer to.
+// MCPStatus surfaces the MCP endpoint and, per client, the snippet to connect it to
+// an agent. On the desktop there is always an endpoint; on the web there is one only
+// once this browser has connected, and until then the popup is the offer to.
 //
-// `active` is an agent talking to the server right now: the plug goes emerald
-// and a ring pings out of it, which is the one thing in the footer that says
-// something is happening somewhere you aren't looking.
+// `active` is an agent talking to the server right now.
 function MCPStatus({ info, active, agent }: { info?: McpConnection; active: boolean; agent?: AgentFooter }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -232,9 +221,8 @@ function MCPStatus({ info, active, agent }: { info?: McpConnection; active: bool
 }
 
 // AgentSessionRow is the state of this browser's session and the one verb that
-// changes it. Attaching is what makes the token mean anything, so it is stated
-// rather than assumed — and which window is on duty is stated too, because the
-// console of a run is held in the window that ran it.
+// changes it. Which window is on duty is stated too, because a run's console is held
+// in the window that ran it.
 function AgentSessionRow({ agent }: { agent: AgentFooter }) {
   const status = !agent.connected
     ? undefined
@@ -248,8 +236,8 @@ function AgentSessionRow({ agent }: { agent: AgentFooter }) {
     <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
       <span className={cn("text-[11px]", agent.connected && !agent.attached ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>{status}</span>
       {agent.connected ? (
-        // Disconnecting rolls the token, so the one that was pasted somewhere
-        // names nothing afterwards.
+        // Disconnecting rolls the token, so the one that was pasted somewhere names nothing
+        // afterwards.
         <Button variant="ghost" size="sm" onClick={agent.disconnect}>
           Disconnect
         </Button>
@@ -262,9 +250,8 @@ function AgentSessionRow({ agent }: { agent: AgentFooter }) {
   );
 }
 
-// MCPError surfaces a server that couldn't start (e.g. the fixed port is already
-// in use). It reuses the plug icon so the footer keeps the same shape, tinted red
-// to signal the failure, instead of silently dropping the connection command.
+// MCPError surfaces a server that couldn't start (e.g. the fixed port is in use). It
+// reuses the plug icon so the footer keeps the same shape.
 function MCPError({ message }: { message: string }) {
   return <IconButton size="xs" variant="ghost" tooltip={false} icon={Plug} aria-label={message} className={cn(statusBarIconClass, "text-destructive")} />;
 }
@@ -303,9 +290,8 @@ export function StatusBar({
     }
   };
 
-  // The left cluster is whatever this build has to say about itself, separated by
-  // rules. The compile status sits at the end so its label can grow and shrink
-  // without moving the ref and the build around.
+  // The compile status sits at the end so its label can grow and shrink without moving
+  // the ref and the build around.
   const leftItems: React.ReactNode[] = [];
   if (githubUrl && shortRef) {
     leftItems.push(
@@ -338,9 +324,9 @@ export function StatusBar({
   // The right padding is 11, not 12: these glyphs are smaller than the rest of the
   // chrome's, so they need one pixel less to land on the same 16px right line.
   //
-  // sticky left keeps the bar where the window is on a screen too narrow to hold
-  // the panes side by side: the app pans horizontally there, and a footer that
-  // pans with it takes its own buttons off the screen.
+  // sticky left keeps the bar where the window is on a screen too narrow to hold the
+  // panes side by side: the app pans horizontally there, and a footer that pans with it
+  // takes its own buttons off the screen.
   return (
     <div className="sticky left-0 flex h-[30px] shrink-0 items-center border-t border-border bg-chrome pl-3 pr-[11px]">
       <div className="flex min-w-0 items-center gap-2">

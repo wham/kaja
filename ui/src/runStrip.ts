@@ -1,30 +1,24 @@
 import { ConsoleItem } from "./runs";
 
 /**
- * The run's calls, as one row. It is the only place the canvas states them —
- * calls stopped being blocks, so a document of six kinds of block no longer has
- * a seventh kind that is just the log again at 90°.
+ * The run's calls, as one row — the only place the canvas states them.
  *
- * It has two modes and one rule between them: one tick per call for exactly as
- * long as a tick can still be a tick, and buckets past that. So a narrow panel
- * turns into a histogram sooner than a wide one, which is the honest thing —
- * the width is what decides whether sixty marks can each be a call.
+ * Two modes, one rule between them: one tick per call for exactly as long as a tick
+ * can still be a tick, and buckets past that. So a narrow panel turns into a histogram
+ * sooner than a wide one, because the width is what decides whether sixty marks can
+ * each be a call.
  */
 
-// A tick and the gap after it. Everything about the strip's width is this
-// number: the slot count is the room divided by it.
+// A tick and the gap after it. Everything about the strip's width is this number:
+// the slot count is the room divided by it.
 export const SLOT_WIDTH = 5;
 export const TICK_WIDTH = 4;
 export const TICK_HEIGHT = 9;
-// A bar is drawn against the run's slowest call, and never disappears: a bucket
-// whose calls were all fast still has to be hittable.
+// A bar never disappears: a bucket whose calls were all fast still has to be hittable.
 export const BAR_MIN_HEIGHT = 3;
 export const BAR_MAX_HEIGHT = 11;
-/**
- * The most slots the strip is ever given. Past 200 a tick is under a pixel of
- * information and the strip stops being able to count, so the extra room goes to
- * the label instead.
- */
+// Past 200 a tick is under a pixel of information and the strip stops being able to
+// count, so the extra room goes to the label instead.
 export const MAX_SLOTS = 200;
 // Below this the strip is dropped entirely and only the counts remain.
 export const MIN_STRIP_WIDTH = 240;
@@ -40,16 +34,14 @@ export interface StripSlot {
   itemId: string;
   calls: number;
   failures: number;
-  // The slowest call in it, which is what a bar's height is drawn against. Zero
-  // while nothing under it has settled.
+  // What a bar's height is drawn against. Zero while nothing under it has settled.
   slowest: number;
-  // What the hover names. Only a mark that is one call can name one.
+  // Only a mark that is one call can name one.
   method?: string;
 }
 
 export interface StripView {
-  // Ticks while every call still has a mark of its own; bars once they have to
-  // share. The switch is invisible beyond the marks changing shape.
+  // Ticks while every call still has a mark of its own; bars once they have to share.
   mode: "ticks" | "bars";
   slots: StripSlot[];
 }
@@ -63,22 +55,22 @@ interface Bucket {
 }
 
 interface Seen {
-  // Where the call sits in the run, which is what its bucket is derived from —
-  // a position never moves, so merging buckets doesn't have to find anything.
+  // Where the call sits in the run, which is what its bucket is derived from — a
+  // position never moves, so merging buckets doesn't have to find anything.
   ordinal: number;
   failed: boolean;
   duration?: number;
 }
 
 /**
- * The buckets, built as the run happens. A call updates one bucket on arrival
- * and never walks the ones before it; when there are more buckets than the strip
- * can ever draw, adjacent pairs are merged and the capacity doubles, which is
- * O(slots) and happens log(N) times over a run of any length.
+ * The buckets, built as the run happens. A call updates one bucket on arrival and
+ * never walks the ones before it; when there are more buckets than the strip can ever
+ * draw, adjacent pairs are merged and the capacity doubles — O(slots), log(N) times
+ * over a run of any length.
  */
 export class RunStrip {
   #buckets: Bucket[] = [];
-  // How many calls one bucket holds. One means the strip is still a list.
+  // One means the strip is still a list.
   #capacity = 1;
   #of = new Map<string, Seen>();
   #methods = new Map<string, number>();
@@ -93,11 +85,8 @@ export class RunStrip {
     return this.#failures;
   }
 
-  /**
-   * A call, as it is issued and again as it settles. `add` is idempotent for the
-   * same item: the second arrival is what it failed with and how long it took,
-   * not another call.
-   */
+  // `add` is idempotent for the same item: the second arrival is what it failed with
+  // and how long it took, not another call.
   add(item: ConsoleItem): void {
     const call = item.call;
     if (call === undefined) return;
@@ -126,9 +115,9 @@ export class RunStrip {
   }
 
   /**
-   * What the strip draws in the room it has. The buckets are merged down to the
-   * slot count on the way out rather than rebuilt, so resizing the panel costs a
-   * pass over at most 200 buckets and never over the calls themselves.
+   * What the strip draws in the room it has. The buckets are merged down to the slot
+   * count on the way out rather than rebuilt, so resizing costs a pass over at most 200
+   * buckets and never over the calls themselves.
    */
   view(slots: number): StripView {
     if (slots <= 0 || this.#buckets.length === 0) return { mode: "ticks", slots: [] };
@@ -139,9 +128,9 @@ export class RunStrip {
   }
 
   /**
-   * The two methods the run called most, with their counts — the one thing that
-   * says what a strip of two hundred identical marks was actually doing. A
-   * method called once is named without a count, since `×1` is noise.
+   * The two methods the run called most — the one thing that says what a strip of two
+   * hundred identical marks was actually doing. A method called once is named without a
+   * count, since `×1` is noise.
    */
   get methodLabel(): string | undefined {
     if (this.#methods.size === 0) return undefined;
@@ -166,8 +155,8 @@ export class RunStrip {
     this.#buckets.push({ itemId, calls: 1, failures: 0, slowest: 0, method: this.#capacity === 1 ? method : undefined });
   }
 
-  // Pairs, so a bucket still holds a contiguous run of calls and a call's bucket
-  // is still `floor(ordinal / capacity)`.
+  // Pairs, so a bucket still holds a contiguous run of calls and a call's bucket is
+  // still `floor(ordinal / capacity)`.
   #merge(): void {
     this.#buckets = mergeEvery(this.#buckets, 2);
     this.#capacity *= 2;
@@ -189,9 +178,9 @@ function mergeEvery(buckets: Bucket[], factor: number): Bucket[] {
 }
 
 /**
- * How tall a bar is drawn, against the slowest call in the run. A bucket nothing
- * has settled in yet is drawn at the floor rather than at nothing — the strip is
- * the run's shape, and a gap in it would read as calls that never happened.
+ * How tall a bar is drawn, against the slowest call in the run. A bucket nothing has
+ * settled in yet is drawn at the floor rather than at nothing — a gap would read as
+ * calls that never happened.
  */
 export function barHeight(slowest: number, runSlowest: number | undefined): number {
   if (runSlowest === undefined || runSlowest <= 0 || slowest <= 0) return BAR_MIN_HEIGHT;
