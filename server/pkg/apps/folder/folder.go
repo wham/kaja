@@ -1,17 +1,12 @@
-// Package folder implements the built-in "folder" app: it binds to a folder on
-// disk and exposes the essential file operations inside it - list, create, read
-// and append.
+// Package folder implements the built-in "folder" app: it binds to the folder named
+// by the "path" creation parameter and exposes list, create, read and append inside
+// it. On the sandboxed macOS desktop that folder is reached through a security-scoped
+// bookmark saved when the user picks it.
 //
-// The app has one creation parameter, "path", the absolute path to the folder.
-// On the sandboxed macOS desktop the folder is reached through a security-scoped
-// bookmark saved when the user picks it; the operations themselves are plain
-// file operations, the same on every platform.
-//
-// Every method names a path relative to the folder (e.g. "team/notes.md"), and
-// every path the app reports can be handed straight back to another method. The
-// folder is the whole access boundary: os.Root enforces it at the syscall level,
-// symlinks included. Nothing here knows about file formats: content is written
-// and read verbatim.
+// Every method names a path relative to the folder ("team/notes.md"), and every path
+// the app reports can be handed straight back to another method. os.Root is the whole
+// access boundary, enforced at the syscall level, symlinks included. Nothing here
+// knows about file formats: content is written and read verbatim.
 package folder
 
 import (
@@ -100,10 +95,8 @@ service Folder {
 }
 `
 
-// maxEntries bounds one listing. A recursive walk of a folder with a .git in it
-// would otherwise answer a question nobody asked; the walk is breadth-first, so
-// what a truncated listing reports is the top of the tree rather than whatever
-// sorted first, and it says so.
+// maxEntries bounds one listing. The walk is breadth-first, so a truncated listing
+// reports the top of the tree rather than whatever sorted first, and it says so.
 const maxEntries = 10000
 
 // App is the folder app factory. Register it with the apps.Manager.
@@ -301,15 +294,13 @@ func (in *instance) dispatch(name string, req, resp *dynamicpb.Message) error {
 	return fmt.Errorf("unhandled method %q", name)
 }
 
-// listFolder lists one folder, or the whole tree under it. Paths come back
-// relative to the app's folder, so anything it reports addresses the same file
-// in any other method without being joined to something first.
+// listFolder lists one folder, or the whole tree under it. Paths come back relative
+// to the app's folder, so anything it reports addresses the same file in any other
+// method without being joined to something first.
 //
-// The walk is breadth-first and stops at in.limit entries, which is what keeps a
-// recursive listing of a folder with a .git in it from being an answer nobody
-// can read. Nothing is filtered on the way: a listing that hides what is on disk
-// is worse than one that says where it stopped, and folder is how a caller
-// narrows it.
+// The walk is breadth-first and stops at in.limit entries. Nothing is filtered on the
+// way: a listing that hides what is on disk is worse than one that says where it
+// stopped, and folder is how a caller narrows it.
 func (in *instance) listFolder(folder string, recursive bool) (files, folders []string, truncated bool, err error) {
 	root, err := os.OpenRoot(in.folder)
 	if err != nil {
@@ -350,11 +341,10 @@ func (in *instance) listFolder(folder string, recursive bool) (files, folders []
 	return files, folders, false, nil
 }
 
-// readDir reads one folder's entries through the root, so a listing is held to
-// the same boundary every other operation is. File.ReadDir hands back whatever
-// order the filesystem holds them in, where the os.ReadDir this replaced sorted;
-// a listing that reorders itself between two calls is one nothing can be
-// compared against, so the sort is kept.
+// readDir reads one folder's entries through the root, holding a listing to the same
+// boundary every other operation is. File.ReadDir hands back filesystem order where
+// the os.ReadDir this replaced sorted, and a listing that reorders itself between two
+// calls is one nothing can be compared against — so the sort is kept.
 func readDir(root *os.Root, folder string) ([]os.DirEntry, error) {
 	f, err := root.Open(folder)
 	if err != nil {
@@ -369,8 +359,8 @@ func readDir(root *os.Root, folder string) ([]os.DirEntry, error) {
 	return entries, nil
 }
 
-// childPath joins an entry onto the folder it was read from, keeping the app
-// folder itself as the empty prefix rather than a leading "./".
+// childPath joins an entry onto the folder it was read from, keeping the app folder
+// itself as the empty prefix rather than a leading "./".
 func childPath(folder, name string) string {
 	if folder == "." {
 		return name
@@ -379,26 +369,25 @@ func childPath(folder, name string) string {
 }
 
 // clean validates a requested path and returns it relative to the folder,
-// slash-separated. Absolute paths and anything that would climb out are
-// rejected; os.Root in the callers is what enforces the boundary at the syscall
-// level, symlinks included, so this is a lexical check and not the fence itself.
+// slash-separated. A lexical check and not the fence itself: os.Root in the callers
+// enforces the boundary at the syscall level, symlinks included.
 func clean(noun, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("missing %s name", noun)
 	}
 	name = path.Clean(filepath.ToSlash(name))
-	// filepath.IsLocal rejects absolute paths, "..", and anything that would
-	// escape the folder; it is the canonical path-traversal barrier.
+	// filepath.IsLocal rejects absolute paths, "..", and anything that would escape the
+	// folder; it is the canonical path-traversal barrier.
 	if !filepath.IsLocal(filepath.FromSlash(name)) {
 		return "", fmt.Errorf("%s must be a path within the folder, got %q", noun, name)
 	}
 	return name, nil
 }
 
-// resolve is clean for a file. IsLocal admits ".", which is the folder itself
-// and so is never a file, so a path that cleans down to it is refused here
-// rather than by the open that would otherwise follow.
+// resolve is clean for a file. IsLocal admits ".", which is the folder itself and so
+// is never a file, so a path that cleans down to it is refused here rather than by
+// the open that would otherwise follow.
 func resolve(name string) (string, error) {
 	file, err := clean("file", name)
 	if err != nil {
@@ -419,9 +408,8 @@ func resolveFolder(name string) (string, error) {
 	return clean("folder", name)
 }
 
-// makeParents creates the folders a file's path implies. A path is the only way
-// to make a folder here, which is what keeps the app at four methods: there is
-// no CreateFolder to find, and writing to "team/notes.md" means what it says.
+// makeParents creates the folders a file's path implies. A path is the only way to
+// make a folder here, which is what keeps the app at four methods.
 func makeParents(root *os.Root, file string) error {
 	parent := path.Dir(file)
 	if parent == "." {

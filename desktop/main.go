@@ -37,8 +37,8 @@ import (
 var GitRef string
 
 // headerBandHeight is the 40px row the sidebar header and the command row share
-// across the seam (Sidebar.tsx, CommandRow.tsx). The window buttons are centred
-// on it rather than on the title bar AppKit would measure against.
+// across the seam. The window buttons are centred on it rather than on the title bar
+// AppKit would measure against.
 const headerBandHeight = 40
 
 //go:embed all:frontend/dist
@@ -47,7 +47,6 @@ var assets embed.FS
 //go:embed wails.json
 var wailsJSON []byte
 
-// WailsConfig represents the wails.json configuration
 type WailsConfig struct {
 	Info struct {
 		ProductName    string `json:"productName"`
@@ -67,9 +66,9 @@ func init() {
 var cfBundleVersionRe = regexp.MustCompile(`(?s)<key>CFBundleVersion</key>\s*<string>([^<]*)</string>`)
 
 // buildNumber returns the TestFlight/App Store build number stamped into the
-// bundle's Info.plist (CFBundleVersion). The testflight script overrides
-// CFBundleVersion with the build number; a plain `wails build` leaves it equal
-// to the product version, so we only report it when the two differ.
+// bundle's Info.plist (CFBundleVersion). The testflight script overrides it; a plain
+// `wails build` leaves it equal to the product version, so it is only reported when
+// the two differ.
 func buildNumber() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -95,7 +94,6 @@ func buildNumber() string {
 	return version
 }
 
-// App struct
 type App struct {
 	ctx                  context.Context
 	twirpHandler         api.TwirpServer
@@ -121,7 +119,6 @@ type App struct {
 	mcpPending map[string]chan mcp.RunResult
 }
 
-// NewApp creates a new App application struct
 func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurationWatcher *api.ConfigurationWatcher, bookmarkStore *BookmarkStore, workspaceDir string) *App {
 	return &App{
 		twirpHandler:         twirpHandler,
@@ -133,8 +130,7 @@ func NewApp(twirpHandler api.TwirpServer, apiService *api.ApiService, configurat
 	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+// startup saves the context so the runtime methods can be called.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
@@ -144,7 +140,6 @@ func (a *App) startup(ctx context.Context) {
 	// The MCP server's lifetime is the process's: the UI only reports it.
 	a.startMCPServer()
 
-	// Subscribe to configuration changes and emit Wails events
 	if a.configurationWatcher != nil {
 		a.configurationWatcher.Subscribe(func() {
 			runtime.EventsEmit(ctx, "configuration:changed")
@@ -158,10 +153,9 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 // openLink is what macOS hands a kaja:// link to. It is held until the UI is
-// listening rather than emitted at once: a link is what launches the app as
-// often as not, and on a cold launch this runs long before there is a webview
-// to hear it. What the link means is the UI's to decide (scriptLink.ts) — the
-// whole of it travels as text.
+// listening rather than emitted at once: a link is what launches the app as often as
+// not, and on a cold launch this runs long before there is a webview to hear it.
+// What the link means is the UI's to decide (scriptLink.ts).
 func (a *App) openLink(link string) {
 	a.linkMu.Lock()
 	if !a.linksReady {
@@ -236,10 +230,9 @@ func (a *App) showLogsInFinder() {
 	revealInFinder(dir)
 }
 
-// ShowFileInFinder reveals a file in the system file browser with the file
-// selected, the way Show Config in Finder does for kaja.json. A path that isn't
-// there yet — an MCP client's configuration file before that client has written
-// one — opens the nearest directory that is, so the link always lands somewhere.
+// ShowFileInFinder reveals a file in the system file browser with the file selected.
+// A path that isn't there yet opens the nearest directory that is, so the link always
+// lands somewhere.
 func (a *App) ShowFileInFinder(path string) {
 	if strings.TrimSpace(path) == "" {
 		return
@@ -261,10 +254,9 @@ func (a *App) ShowFileInFinder(path string) {
 	}
 }
 
-// LogFromUI appends a log line from the frontend to <kajaHome>/logs/kaja.log.
-// Lines are tagged "[ui]" so the file can also hold server logs later; the
-// webview console is otherwise only reachable through Web Inspector, so this
-// lets TestFlight users capture frontend errors and share them for debugging.
+// LogFromUI appends a log line from the frontend to <kajaHome>/logs/kaja.log, tagged
+// "[ui]". The webview console is otherwise only reachable through Web Inspector, so
+// this is how a TestFlight user captures frontend errors.
 func (a *App) LogFromUI(level string, message string) error {
 	dir := filepath.Join(a.workspaceDir, "logs")
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -280,17 +272,16 @@ func (a *App) LogFromUI(level string, message string) error {
 	return err
 }
 
-// OpenDirectoryDialog opens a native directory picker dialog.
-// On macOS, it saves a security-scoped bookmark so the sandbox remembers
-// access across app restarts.
-// ResolvedVariables returns every configured variable's value, including the
-// ones kaja.json only names. Scripts read them as kaja.variables.<name>. This is
-// the desktop only: its UI runs inside this process, so there is no remote
-// browser being handed a value it shouldn't have.
+// ResolvedVariables returns every configured variable's value, including the ones
+// kaja.json only names. Scripts read them as kaja.variables.<name>. Desktop only: its
+// UI runs inside this process, so there is no remote browser being handed a value it
+// shouldn't have.
 func (a *App) ResolvedVariables() (map[string]string, error) {
 	return a.api.Variables().Values(), nil
 }
 
+// OpenDirectoryDialog opens a native directory picker. On macOS it saves a
+// security-scoped bookmark so the sandbox remembers access across app restarts.
 func (a *App) OpenDirectoryDialog() (string, error) {
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Workspace Directory",
@@ -308,9 +299,9 @@ func (a *App) OpenDirectoryDialog() (string, error) {
 	return dir, nil
 }
 
-// OpenFileDialog opens a native file picker for a single file. On macOS it saves
-// a security-scoped bookmark for the chosen file so a sandboxed app (e.g. a gRPC
-// app reading its certificates) can read it across restarts.
+// OpenFileDialog opens a native file picker for a single file. On macOS it saves a
+// security-scoped bookmark so a sandboxed app (e.g. a gRPC app reading its
+// certificates) can read the file across restarts.
 func (a *App) OpenFileDialog() (string, error) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select File",
@@ -360,10 +351,9 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 	response := recorder.Body.Bytes()
 	slog.Info("Twirp response", "status", recorder.Code, "response_length", len(response))
 
-	// A failed call answers with a Twirp error - JSON, not the protobuf the
-	// caller is about to decode - so it travels as an error instead of a body.
-	// It is the same JSON the browser's fetch transport reads, so both transports
-	// arrive at the same RpcError instead of one of them at a decoding failure.
+	// A failed call answers with a Twirp error — JSON, not the protobuf the caller is
+	// about to decode — so it travels as an error instead of a body. It is the same JSON
+	// the browser's fetch transport reads, so both transports arrive at the same RpcError.
 	if recorder.Code != http.StatusOK {
 		if len(response) == 0 {
 			return nil, errors.New(http.StatusText(recorder.Code))
@@ -375,8 +365,8 @@ func (a *App) Twirp(method string, req []byte) ([]byte, error) {
 }
 
 // TargetResult holds the response from a Target call, including HTTP status for
-// Twirp. RequestHeaders/ResponseHeaders, when set, are the headers an in-process
-// app exchanged with its upstream service, surfaced in the client's Headers view.
+// Twirp. RequestHeaders/ResponseHeaders are what an in-process app exchanged with its
+// upstream, surfaced in the Headers view.
 type TargetResult struct {
 	Body            []byte            `json:"body"`
 	StatusCode      int               `json:"statusCode"`
@@ -385,11 +375,9 @@ type TargetResult struct {
 	ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
 }
 
-// Target proxies external API calls to configured endpoints (similar to /target/{method...} in web server)
-// The protocol parameter indicates which transport to use:
-// - 1 = gRPC
-// - 2 = Twirp
-// The headersJson parameter is a JSON-encoded map of headers to forward to the target.
+// Target proxies external API calls to configured endpoints (the desktop's
+// counterpart to /target/{method...}). protocol is 1 for gRPC and 2 for Twirp;
+// headersJson is a JSON-encoded map of headers to forward.
 func (a *App) Target(target string, method string, req []byte, protocol int, headersJson string) (*TargetResult, error) {
 	slog.Info("Target called", "target", target, "method", method, "protocol", protocol, "req_length", len(req), "headers", headersJson)
 
@@ -398,7 +386,6 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		return nil, fmt.Errorf("nil request")
 	}
 
-	// Parse headers from JSON
 	headers := make(map[string]string)
 	if headersJson != "" && headersJson != "{}" {
 		if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
@@ -411,16 +398,16 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	// it is what the credential and the transport are looked up by.
 	appName := apps.TakeAppName(headers)
 
-	// App targets (kaja-app://<id>) are invoked in-process by the app manager.
-	// InvokeApp expands the ${NAME} references the headers still carry and masks
-	// the resolved values back out of what it reports exchanging.
+	// App targets (kaja-app://<id>) are invoked in-process by the app manager. InvokeApp
+	// expands the ${NAME} references the headers still carry and masks the resolved
+	// values back out of what it reports exchanging.
 	if apps.IsAppTarget(target) {
 		result, err := a.api.InvokeApp(target, method, req, headers)
 		var upstream *apps.UpstreamError
 		if errors.As(err, &upstream) {
-			// Hand the structured upstream failure to the transport instead of
-			// rejecting the promise with a flat string. The exchanged headers ride
-			// along so the Headers view is populated even on a failure (e.g. 401).
+			// Hand the structured upstream failure to the transport instead of rejecting the
+			// promise with a flat string. The exchanged headers ride along so the Headers view is
+			// populated even on a failure.
 			return &TargetResult{
 				Body:            upstream.JSON(),
 				StatusCode:      upstream.Status,
@@ -439,7 +426,6 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 		}, nil
 	}
 
-	// Use the transport to determine which handler to use
 	headers = a.api.Variables().ExpandAll(headers)
 	// The app's own credential is applied here rather than sent from the webview,
 	// so a "${secret}" token stays where kaja keeps it.
@@ -459,7 +445,6 @@ func (a *App) Target(target string, method string, req []byte, protocol int, hea
 	}
 }
 
-// targetGRPC handles gRPC protocol calls using the shared gRPC client
 func (a *App) targetGRPC(target string, method string, req []byte, headers map[string]string, options grpc.TLSOptions) ([]byte, error) {
 	slog.Info("Invoking gRPC target", "target", target, "method", method, "headers", len(headers))
 
@@ -481,14 +466,13 @@ func (a *App) targetGRPC(target string, method string, req []byte, headers map[s
 	return response, nil
 }
 
-// targetTwirp handles Twirp protocol calls over HTTP
 func (a *App) targetTwirp(target string, method string, req []byte, headers map[string]string) (*TargetResult, error) {
 	var url string
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		// Already a valid HTTP URL
+		// Already a valid HTTP URL.
 		url = target + "/twirp/" + method
 	} else {
-		// Assume it's a host:port format, add http://
+		// Assume host:port.
 		url = "http://" + target + "/twirp/" + method
 	}
 
@@ -498,15 +482,12 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 		return nil, err
 	}
 
-	// Set appropriate headers for Twirp
 	httpReq.Header.Set("Content-Type", "application/protobuf")
 
-	// Forward configured headers to target
 	for name, value := range headers {
 		httpReq.Header.Set(name, value)
 	}
 
-	// Create HTTP client and make the request
 	client := &http.Client{}
 	resp, err := client.Do(httpReq)
 	if err != nil {
@@ -515,7 +496,6 @@ func (a *App) targetTwirp(target string, method string, req []byte, headers map[
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	var responseBuffer bytes.Buffer
 	_, err = responseBuffer.ReadFrom(resp.Body)
 	if err != nil {
@@ -644,7 +624,6 @@ func main() {
 		slog.Warn("Failed to create scripts directory", "error", err)
 	}
 
-	// Create empty kaja.json if it doesn't exist
 	if _, err := os.Stat(configurationPath); os.IsNotExist(err) {
 		if err := os.WriteFile(configurationPath, []byte("{}"), 0644); err != nil {
 			slog.Error("Failed to create configuration file", "path", configurationPath, "error", err)
@@ -653,7 +632,6 @@ func main() {
 		}
 	}
 
-	// Restore sandbox bookmarks for directories referenced in the configuration
 	bookmarkStore := NewBookmarkStore(filepath.Join(kajaDir, "bookmarks.json"))
 	restoreBookmarks(bookmarkStore, configurationPath)
 
@@ -662,29 +640,25 @@ func main() {
 	apiService := api.NewApiService(configurationPath, true, GitRef, buildNumber(), NewKeychainStore(configurationPath))
 	twirpHandler := api.NewApiServer(apiService)
 
-	// Start configuration file watcher
 	configurationWatcher, err := api.NewConfigurationWatcher(configurationPath)
 	if err != nil {
 		slog.Warn("Failed to start configuration watcher", "error", err)
 	}
 
-	// Create application with options
 	app := NewApp(twirpHandler, apiService, configurationWatcher, bookmarkStore, kajaDir)
 
 	appMenu := app.buildAppMenu()
 
-	// The window buttons are part of the same row as the sidebar header and the
-	// command row, so they sit on the same line as everything in it. Asked for
-	// here rather than from the startup hook, which runs on a goroutine of its
-	// own and behind whatever else that hook does: this is the window's
-	// geometry, so it is queued before the app runs rather than racing the
-	// first frame.
+	// The window buttons are part of the same row as the sidebar header and the command
+	// row. Asked for here rather than from the startup hook, which runs on a goroutine of
+	// its own and behind whatever else that hook does: this is the window's geometry, so
+	// it is queued before the app runs rather than racing the first frame.
 	alignTrafficLights(headerBandHeight)
 
 	err = wails.Run(&options.App{
 		Title: "Kaja",
-		// The size VS Code and its forks open a workspace window at, and the
-		// minimum they allow. Wails centers the window on the display for us.
+		// The size VS Code and its forks open a workspace window at, and the minimum they
+		// allow. Wails centers the window on the display for us.
 		Width:     1440,
 		Height:    900,
 		MinWidth:  400,

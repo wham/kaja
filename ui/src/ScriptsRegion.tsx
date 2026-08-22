@@ -28,47 +28,29 @@ import { usePersistedState } from "./usePersistedState";
 import { useMediaQuery } from "./useMediaQuery";
 
 /**
- * Scripts: one section, two labelled groups, and four rules holding them
- * together.
+ * Scripts: one section, two labelled groups, and four rules holding them together.
  *
- * 1. **A draft has no name and no place. A file has both.** That is the entire
- *    difference, and the group label states it. Drafts are as durable as files,
- *    so nothing about them is styled as a warning — the amber dot is gone.
- * 2. **Files never turn into drafts on their own.** Editing a saved file leaves
- *    it a file, in place, auto-saving as you type. There is one way into
- *    Drafts: run something that has no file yet.
- * 3. **Naming a draft moves it into Files**, which is the one moment the model
- *    is visible.
- * 4. **Discarding is safe by default**: untouched drafts are swept without
- *    asking, edited ones are never removed without a confirm that names them.
+ * 1. A draft has no name and no place; a file has both. Drafts are as durable as
+ *    files, so nothing about them is styled as a warning.
+ * 2. Files never turn into drafts on their own. Editing a saved file leaves it a file,
+ *    auto-saving in place; the one way into Drafts is running something with no file.
+ * 3. Naming a draft moves it into Files.
+ * 4. Discarding is safe: untouched drafts are swept without asking, edited ones are
+ *    never removed without a confirm that names them.
  *
- * **The section is what makes those two groups one thing.** Drafts and Files
- * are halves of a single question — what you run — and a reader who meets them
- * as two headers floating above the app tree has to work that out. So the
- * section says its own name once, in the header above these rows, which is the
- * sidebar's to draw: that header and the one over Apps are the same row, and it
- * takes the section's own **+** with it. What is left here is the two groups.
+ * The section header — the one over Apps, and its **+** — belongs to the sidebar; what
+ * is left here is the two groups. There is no filter over these rows: finding
+ * something by name is `⌘P`, so the two counts state what is in each group and
+ * nothing else.
  *
- * **There is no filter over these rows.** Finding something by name is `⌘P`,
- * which reaches these two groups and the app catalog alike; a field in the panel
- * searched a subset of that from a second place, and the pair of them competed
- * for one gesture. So the two counts state what is in each group and nothing
- * else.
- *
- * **And it is one list of names, in one font.** Mono on a file row was doing
- * double duty as the tell for "this one is on disk" — the group label carries
- * that now, and mono inside a nav list reads as code, which is the wrong
- * register. Every row here is the UI font; only the extension is dimmed, so a
- * file still looks like a file without shouting. Mono belongs to content — the
- * editor, the payload panes, the naming field — not to navigation.
- *
- * No dot survives at all: a draft has nothing at risk and a file auto-saves.
- * The run indicators have the trailing slot to themselves, and it is a fixed
- * width, so nothing under the cursor moves as a run starts.
+ * One list of names, in one font: every row is the UI font with only the extension
+ * dimmed. Mono belongs to content — the editor, the payload panes, the naming field —
+ * not to navigation. No dot survives; the run indicators have the trailing slot to
+ * themselves, at a fixed width, so nothing under the cursor moves as a run starts.
  */
 
-// The base indent of a row inside a group, so the group's label and its rows
-// share a left edge, and one level of folder depth.
+// The base indent of a row inside a group, so the group's label and its rows share a
+// left edge, and one level of folder depth.
 const ROW_INDENT = 24;
 const DEPTH_INDENT = 14;
 // The chevron column a folder row spends and a file row doesn't.
@@ -87,16 +69,14 @@ export interface ScriptsRegionProps {
   runningFileIds?: ReadonlySet<string>;
   agentFileIds?: ReadonlySet<string>;
   waitingFileIds?: ReadonlySet<string>;
-  // Whether this platform can write the workspace. The web reads the same
-  // folder and runs the same files; it just has none of the verbs that change
-  // one, so it grows none of the controls for them either.
+  // The web reads the same folder and runs the same files; it just has none of the
+  // verbs that change one, so it grows none of the controls for them either.
   canWrite: boolean;
 
   onDraftSelect: (draft: Draft) => void;
   onNameDraft: (draft: Draft) => void;
   onDiscardDraft: (draft: Draft) => void;
-  // The two sweeps on the Drafts header, each confirmed against the list it is
-  // about to touch. Neither can reach a file.
+  // Each confirmed against the list it is about to touch. Neither can reach a file.
   onClearUntouched: () => void;
   onClearAllDrafts: () => void;
   sweepDrafts: boolean;
@@ -107,8 +87,8 @@ export interface ScriptsRegionProps {
   onMoveScript?: (script: Script) => void;
   onDeleteScript?: (script: Script) => void;
   onCopyScriptLink?: (script: Script) => void;
-  // Inline, because the row is a real row from the first keystroke: you can see
-  // where it lands while you type.
+  // Inline, because the row is a real row from the first keystroke: you can see where
+  // it lands while you type.
   onCreateFolder?: (path: string) => Promise<void>;
   onRenameFolder?: (path: string, name: string) => Promise<void>;
   onDeleteFolder?: (path: string) => void;
@@ -126,8 +106,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 
   const ordered = useMemo(() => orderDrafts(drafts), [drafts]);
   const agentDraft = ordered.find(isAgentDraft);
-  // The agent's row is pinned above your own and outside the count: it isn't
-  // yours, and it is not what the number is about.
+  // The agent's row is pinned above your own and outside the count.
   const ownDrafts = useMemo(() => ordered.filter((draft) => !isAgentDraft(draft)), [ordered]);
 
   const tree = useMemo(() => buildScriptTree(scripts, folders), [scripts, folders]);
@@ -135,8 +114,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const draftsShown = showAllDrafts ? ownDrafts : ownDrafts.slice(0, VISIBLE_DRAFTS);
   const hiddenDrafts = showAllDrafts ? 0 : ownDrafts.length - draftsShown.length;
 
-  // The folder being named, which is a real row from the first keystroke. A
-  // rename is the same row, so the interaction is learned once.
+  // A real row from the first keystroke. A rename is the same row, so the interaction
+  // is learned once.
   const [folderEdit, setFolderEdit] = useState<{ parent: string; path?: string; name: string } | null>(null);
   const [scriptMenu, setScriptMenu] = useState<{ script: Script; top: number; left: number } | null>(null);
   const [draftMenu, setDraftMenu] = useState<{ draft: Draft; top: number; left: number } | null>(null);
@@ -168,8 +147,7 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
   const active = (key: string) => touch || hovered === key;
 
   return (
-    // Named by the band above it, which is the sidebar's: the heading is stated
-    // once rather than twice.
+    // Named by the band above it, which is the sidebar's: the heading is stated once.
     <nav aria-labelledby="scripts-section">
       {/* Zero drafts hides the group rather than showing an empty label: there
           is nothing there and nothing to say about it. */}
@@ -291,9 +269,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
                 agent={props.agentFileIds?.has(node.script.path)}
                 waiting={props.waitingFileIds?.has(node.script.path)}
                 active={active(`file:${node.script.path}`)}
-                // A file the web is serving is read-only, but it still has an
-                // address — so the row keeps its menu wherever there is an
-                // item to put in it.
+                // A file the web is serving is read-only, but it still has an address — so the row
+                // keeps its menu wherever there is an item to put in it.
                 hasMenu={canWrite || props.onCopyScriptLink !== undefined}
                 onHover={(on) => setHovered(on ? `file:${node.script.path}` : null)}
                 onSelect={() => props.onScriptSelect(node.script)}
@@ -442,10 +419,8 @@ export function ScriptsRegion(props: ScriptsRegionProps) {
 }
 
 /**
- * A group header is a 22px row like the ones under it, at text-xs, with its
- * chevron in the same column as the app rows' below. Its count earns its place
- * because the group collapses: `Drafts 12` is still readable when folded away.
- * The action beside it acts on that group and nothing else.
+ * A group header is a 22px row like the ones under it, its chevron in the same column
+ * as the app rows' below. Its count earns its place because the group collapses.
  */
 function GroupHeader({
   label,
@@ -465,9 +440,8 @@ function GroupHeader({
       className={cn(GROUP_HEADER, "group/header mt-1")}
       onClick={onToggle}
       role="button"
-      // Named explicitly, because the row holds a button of its own: without it
-      // the group's name would absorb its action's, and neither could be
-      // addressed on its own.
+      // Named explicitly, because the row holds a button of its own: without it the
+      // group's name would absorb its action's, and neither could be addressed on its own.
       aria-label={label}
       aria-expanded={open}
       tabIndex={0}
@@ -575,11 +549,9 @@ function DraftRow({
 }
 
 /**
- * The agent's draft. One row, shared by every client, wearing the name of
- * whichever one touched it last — an actor you recognise instead of a mechanism
- * you translate — with the Plug that already means MCP in the status bar. It
- * can be discarded like any other draft; the next snippet an agent runs makes
- * another one.
+ * The agent's draft. One row, shared by every client, wearing the name of whichever
+ * one touched it last. It can be discarded like any other draft; the next snippet an
+ * agent runs makes another.
  */
 function AgentRow({
   draft,
@@ -633,8 +605,8 @@ function AgentRow({
           ) : waiting ? (
             <span aria-hidden title="Waiting for an answer" className="size-[5px] rounded-full bg-amber-500 ring-[3px] ring-amber-500/25" />
           ) : running ? (
-            // The only live indicator in the sidebar: it goes out the moment the
-            // call finishes and the row stays, name and all.
+            // The only live indicator in the sidebar: it goes out the moment the call finishes
+            // and the row stays, name and all.
             <span aria-hidden title={`${draft.agentClient} is running this`} className="size-[5px] rounded-full bg-emerald-500" />
           ) : null}
         </span>
@@ -725,9 +697,9 @@ function NewFolderRow({
 }
 
 /**
- * Naming a folder is no dialog: the row is a real row from the first keystroke,
- * so you can see where it lands while you type. Enter creates the directory,
- * Esc or an empty name cancels, and a duplicate refuses Enter and says so.
+ * Naming a folder is no dialog: the row is real from the first keystroke, so you can
+ * see where it lands while you type. Enter creates the directory, Esc or an empty name
+ * cancels, and a duplicate refuses Enter and says so.
  */
 function FolderNameField({
   depth,
@@ -857,13 +829,9 @@ function FileRow({
 }
 
 /**
- * A row's right edge. It is a fixed width whatever is in it, so a label's
- * truncation point doesn't shift as a run starts under the cursor or a kebab
- * appears — the one row that carries three buttons widens the slot instead.
- *
- * Only the run indicators live here now: the amber dot went with the drafts /
- * files split, and a file auto-saves, so there is no unsaved state to mark.
- * Nothing in this region is a warning.
+ * A row's right edge. A fixed width whatever is in it, so a label's truncation point
+ * doesn't shift as a run starts under the cursor or a kebab appears — the one row that
+ * carries three buttons widens the slot instead.
  */
 function RowTrailing({
   running,
