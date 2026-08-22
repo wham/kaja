@@ -110,7 +110,17 @@ import { useInputKeys } from "./useInputKeys";
 import { lastRunInput, moveRunInput, rememberRunInput } from "./runInput";
 import { ParameterSheet } from "./ParameterSheet";
 import { FileName } from "./FileName";
-import { MCPScriptResult, MCPServerInfo, MCPSetCatalog, ResolvedVariables, ScriptsFolder, ShowFileInFinder } from "./wailsjs/go/main/App";
+import {
+  ExportScriptAsApp,
+  MCPScriptResult,
+  MCPServerInfo,
+  MCPSetCatalog,
+  ResolvedVariables,
+  RevealExportedApp,
+  ScriptsFolder,
+  ShowFileInFinder,
+} from "./wailsjs/go/main/App";
+import { ExportedAppDialog } from "./ExportedAppDialog";
 import { main } from "./wailsjs/go/models";
 import { runScript, runScriptCaptured } from "./scriptRunner";
 
@@ -2304,6 +2314,36 @@ export function App() {
   }, [currentView]);
 
   /**
+   * The script as something that runs without Kaja. It is a file rather than a
+   * link — a deeplink needs this Kaja to be there to answer it — so it is only
+   * offered where there is a disk this process owns and a runner it was built
+   * with, which is the desktop.
+   *
+   * The export itself is Go's: opening the apps, compiling their protos and
+   * freezing what they read is what Kaja already does on every start, and the
+   * exporter does it once. What comes back is worth a dialog rather than a
+   * toast, because two of the three things it says — where it runs, and what
+   * did not travel — can only be acted on before the file is handed to
+   * somebody.
+   */
+  const [exportedApp, setExportedApp] = useState<main.ExportedApp | null>(null);
+  const onExportApp = useMemo(() => {
+    if (!isWailsEnvironment() || currentView?.type !== "script") return undefined;
+    const script = currentView.script;
+    return () => {
+      ExportScriptAsApp(scriptName(script))
+        .then((exported) => {
+          // A cancelled save dialog is not a failure, and says nothing.
+          if (exported) setExportedApp(exported);
+        })
+        .catch((error: unknown) => {
+          console.error("Export failed:", error);
+          showFileError(error instanceof Error ? error.message : String(error));
+        });
+    };
+  }, [currentView, showFileError]);
+
+  /**
    * The copy of a read-only file, in the one place it can be edited. A file
    * never becomes a draft on its own — that is what keeps Drafts the group for
    * things that have never had a name — but a server serving a workspace it
@@ -2705,6 +2745,7 @@ export function App() {
       onRunWithParameters={inputKeys.length > 0 ? onRunWithParameters : undefined}
       onCopyDeeplink={onCopyCurrentLink}
       onRevealInFinder={onRevealCurrentScript}
+      onExportApp={onExportApp}
       // A draft's two verbs, the same pair the command row carries beside its
       // name — answering the moment you are already at this end of the row.
       onNameDraft={currentDraft && canWriteScripts() ? onRequestSave : undefined}
@@ -3242,6 +3283,16 @@ export function App() {
         >
           Delete <strong>{deleteFolder}</strong>? Only an empty folder can go — the files in one are deleted a file at a time.
         </ConfirmationDialog>
+      )}
+      {exportedApp && (
+        <ExportedAppDialog
+          app={exportedApp}
+          onReveal={() => {
+            void RevealExportedApp(exportedApp.path);
+            setExportedApp(null);
+          }}
+          onClose={() => setExportedApp(null)}
+        />
       )}
       {fileError && (
         <div style={{ position: "fixed", top: 36, left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: 640 }}>

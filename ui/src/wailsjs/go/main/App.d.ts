@@ -12,6 +12,8 @@ export function DeleteScript(arg1:string):Promise<void>;
 
 export function DeleteScriptFolder(arg1:string):Promise<void>;
 
+export function ExportScriptAsApp(arg1:string):Promise<main.ExportedApp>;
+
 export function ListScriptFolders():Promise<Array<string>>;
 
 export function ListScripts():Promise<Array<main.ScriptFile>>;
@@ -35,6 +37,8 @@ export function RenameScript(arg1:string,arg2:string):Promise<main.ScriptFile>;
 export function RenameScriptFolder(arg1:string,arg2:string):Promise<string>;
 
 export function ResolvedVariables():Promise<Record<string, string>>;
+
+export function RevealExportedApp(arg1:string):Promise<void>;
 
 export function ScriptsFolder():Promise<string>;
 

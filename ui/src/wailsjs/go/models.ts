@@ -1,5 +1,25 @@
 export namespace main {
 	
+	export class ExportedApp {
+	    path: string;
+	    name: string;
+	    size: number;
+	    platform: string;
+	    warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportedApp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.size = source["size"];
+	        this.platform = source["platform"];
+	        this.warnings = source["warnings"];
+	    }
+	}
 	export class MCPInfo {
 	    enabled: boolean;
 	    url: string;

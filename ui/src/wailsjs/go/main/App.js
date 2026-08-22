@@ -22,6 +22,10 @@ export function DeleteScriptFolder(arg1) {
   return window['go']['main']['App']['DeleteScriptFolder'](arg1);
 }
 
+export function ExportScriptAsApp(arg1) {
+  return window['go']['main']['App']['ExportScriptAsApp'](arg1);
+}
+
 export function ListScriptFolders() {
   return window['go']['main']['App']['ListScriptFolders']();
 }
@@ -68,6 +72,10 @@ export function RenameScriptFolder(arg1, arg2) {
 
 export function ResolvedVariables() {
   return window['go']['main']['App']['ResolvedVariables']();
+}
+
+export function RevealExportedApp(arg1) {
+  return window['go']['main']['App']['RevealExportedApp'](arg1);
 }
 
 export function ScriptsFolder() {

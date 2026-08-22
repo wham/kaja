@@ -77,6 +77,36 @@ type App interface {
 	Open(parameters map[string]string, protoDir string, log func(string)) (*Opened, error)
 }
 
+// Freezer is an app that can write down what it read, so a copy of it opens
+// from what travels with it rather than from the network. An export asks every
+// app type for this and takes what it gets: an app that reads a document can
+// carry the document, an app that talks to a server can only be that server's
+// client, and the difference is the app's to state rather than the exporter's
+// to guess.
+//
+// It returns the parameters to change — a value of "" removes one, which is how
+// a frozen app stops reading the source it was frozen from.
+type Freezer interface {
+	Freeze(parameters map[string]string) (map[string]string, error)
+}
+
+// Freeze asks the named app type to freeze what it read. An app type that can't
+// reports nothing to change and no error: needing the network at startup is a
+// fact about the app, not a failure of the export.
+func (m *Manager) Freeze(appType string, parameters map[string]string) (map[string]string, error) {
+	m.mu.Lock()
+	app, ok := m.types[appType]
+	m.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("unknown app type %q", appType)
+	}
+	freezer, ok := app.(Freezer)
+	if !ok {
+		return nil, nil
+	}
+	return freezer.Freeze(parameters)
+}
+
 // Opened is the result of opening an app: where its proto surface lives and how
 // its methods are invoked.
 type Opened struct {
