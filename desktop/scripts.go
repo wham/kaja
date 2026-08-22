@@ -9,14 +9,13 @@ import (
 	"strings"
 )
 
-// The workspace's scripts folder, and the directories inside it. A folder in
-// Files is a real directory under that root: creating one, renaming it and
-// moving a file all hit disk immediately, so there is no staged state to
-// reconcile and an import has a stable path to reference.
+// The workspace's scripts folder, and the directories inside it. A folder in Files is
+// a real directory under that root: creating one, renaming it and moving a file all
+// hit disk immediately, so there is no staged state to reconcile.
 //
-// Every name crossing this boundary is relative to the root and is opened
-// through an os.Root, which is the whole access boundary — a path is a name to
-// resolve inside the folder, never a handle to follow out of it.
+// Every name crossing this boundary is relative to the root and is opened through an
+// os.Root, which is the whole access boundary — a path is a name to resolve inside the
+// folder, never a handle to follow out of it.
 
 // ScriptFile is the on-disk representation of a Kaja script.
 // For ListScripts only Path, Name and Folder are populated; Content is fetched
@@ -24,15 +23,12 @@ import (
 type ScriptFile struct {
 	Path string `json:"path"`
 	Name string `json:"name"`
-	// The directory the file sits in, relative to the scripts root and with
-	// forward slashes. Empty for a file at the root.
+	// Relative to the scripts root, forward-slashed. Empty for a file at the root.
 	Folder  string `json:"folder"`
 	Content string `json:"content"`
 }
 
-// scriptsDir is the scripts folder living next to kaja.json. It is a tree now
-// rather than a flat list, but it is still one folder and still derived from
-// the workspace directory alone.
+// scriptsDir is the scripts folder living next to kaja.json.
 func (a *App) scriptsDir() string {
 	return filepath.Join(a.workspaceDir, "scripts")
 }
@@ -43,9 +39,8 @@ func (a *App) ScriptsFolder() string {
 	return a.scriptsDir()
 }
 
-// ListScripts returns every *.ts file under the scripts directory, at any depth,
-// each with the folder it sits in. A missing folder is not a failure: most
-// workspaces ship no scripts.
+// ListScripts returns every *.ts file under the scripts directory, at any depth. A
+// missing folder is not a failure: most workspaces ship no scripts.
 func (a *App) ListScripts() ([]ScriptFile, error) {
 	root := a.scriptsDir()
 	scripts := make([]ScriptFile, 0, 16)
@@ -63,9 +58,9 @@ func (a *App) ListScripts() ([]ScriptFile, error) {
 	return scripts, nil
 }
 
-// ListScriptFolders returns every directory under the scripts root, relative and
-// slash-separated, sorted. An empty directory is in the list: it is a directory,
-// not a UI grouping, so it persists whether or not anything is filed in it.
+// ListScriptFolders returns every directory under the scripts root, relative,
+// slash-separated and sorted. An empty directory is in the list: it is a directory,
+// not a UI grouping.
 func (a *App) ListScriptFolders() ([]string, error) {
 	folders := []string{}
 	if err := walkScripts(a.scriptsDir(), nil, func(relative string) { folders = append(folders, relative) }); err != nil {
@@ -117,9 +112,8 @@ func (a *App) WriteScriptFile(name string, content string) error {
 }
 
 // CreateScript writes a new script and returns it. The name may name a folder
-// ("reports/weekly-usage.ts"): naming a draft asks for a name and a folder, and
-// the two arrive here as one relative path. A .ts extension is added if the name
-// doesn't carry one, and the folder is created if it doesn't exist yet.
+// ("reports/weekly-usage.ts"). A .ts extension is added if the name doesn't carry one,
+// and the folder is created if it doesn't exist yet.
 func (a *App) CreateScript(name string, content string) (*ScriptFile, error) {
 	dir := a.scriptsDir()
 	relative, err := newScriptPath(dir, name)
@@ -168,9 +162,9 @@ func (a *App) DeleteScript(name string) error {
 	return root.Remove(relative)
 }
 
-// RenameScript renames a script and, when the new name carries a folder, moves
-// it there. Renaming and moving are one operation because on disk they are one:
-// the file's path is its name.
+// RenameScript renames a script and, when the new name carries a folder, moves it
+// there. Renaming and moving are one operation because on disk they are one: the
+// file's path is its name.
 func (a *App) RenameScript(name string, newName string) (*ScriptFile, error) {
 	dir := a.scriptsDir()
 	from, err := relativeScriptPath(dir, name)
@@ -213,7 +207,7 @@ func (a *App) RenameScript(name string, newName string) (*ScriptFile, error) {
 }
 
 // CreateScriptFolder makes a directory under the scripts root and returns its
-// relative path. A folder is a directory, so it exists the moment it is named.
+// relative path.
 func (a *App) CreateScriptFolder(name string) (string, error) {
 	dir := a.scriptsDir()
 	relative, err := relativeFolderPath(name)
@@ -238,8 +232,8 @@ func (a *App) CreateScriptFolder(name string) (string, error) {
 	return relative, nil
 }
 
-// RenameScriptFolder renames a directory. newName is a folder name, not a path:
-// a folder is renamed where it is, and moving one is not offered.
+// RenameScriptFolder renames a directory. newName is a folder name, not a path: a
+// folder is renamed where it is, and moving one is not offered.
 func (a *App) RenameScriptFolder(name string, newName string) (string, error) {
 	from, err := relativeFolderPath(name)
 	if err != nil {
@@ -274,9 +268,8 @@ func (a *App) RenameScriptFolder(name string, newName string) (string, error) {
 	return to, nil
 }
 
-// DeleteScriptFolder removes an empty directory. A folder holding scripts is
-// never removed as a side effect of tidying the sidebar — the files in it are
-// deleted one at a time, which is the only place a file leaves disk.
+// DeleteScriptFolder removes an empty directory. A folder holding scripts is never
+// removed as a side effect of tidying the sidebar.
 func (a *App) DeleteScriptFolder(name string) error {
 	relative, err := relativeFolderPath(name)
 	if err != nil {
@@ -291,9 +284,8 @@ func (a *App) DeleteScriptFolder(name string) error {
 }
 
 // scriptPath is the absolute path a name resolves to, which is what identifies a
-// script to the UI — its console and its stored runs are keyed on it. A name
-// that resolves to nothing inside the folder is reported back as it arrived, so
-// the caller's own error is the one that gets shown.
+// script to the UI — its console and its stored runs are keyed on it. A name that
+// resolves to nothing is reported back as it arrived, so the caller's own error shows.
 func (a *App) scriptPath(name string) string {
 	if strings.TrimSpace(name) == "" {
 		return ""
@@ -304,8 +296,6 @@ func (a *App) scriptPath(name string) string {
 	}
 	return filepath.Join(a.scriptsDir(), filepath.FromSlash(relative))
 }
-
-// --- Paths -----------------------------------------------------------------
 
 // relativeScriptPath reduces whatever the caller has — an absolute path from a
 // listing, or a relative one from an agent — to a name inside the scripts root.
@@ -388,8 +378,7 @@ func isScriptName(name string) bool {
 // --- Disk ------------------------------------------------------------------
 
 // walkScripts visits every script and every directory under root, relative and
-// slash-separated. Dot-directories are stepped over whole: they are not part of
-// the workspace's scripts, and neither is anything under them.
+// slash-separated. Dot-directories are stepped over whole.
 func walkScripts(root string, onFile func(relative string), onFolder func(relative string)) error {
 	entries, err := os.Stat(root)
 	if err != nil {
@@ -443,4 +432,3 @@ func sortScripts(scripts []ScriptFile) {
 		return strings.ToLower(scripts[i].Name) < strings.ToLower(scripts[j].Name)
 	})
 }
-
