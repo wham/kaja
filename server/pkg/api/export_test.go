@@ -226,3 +226,25 @@ func TestExportedConfigurationIsTheAppItCameFrom(t *testing.T) {
 		t.Errorf("type = %q", appType)
 	}
 }
+
+// Everything an export writes is named after the script, and the script's name
+// arrives from outside — a request field, an argument on a command line. It is
+// reduced to a name at the one place it is established, so nothing downstream
+// has to be careful about joining it onto a directory.
+func TestOneSegment(t *testing.T) {
+	for name, want := range map[string]string{
+		"movies.ts":               "movies",
+		"billing/report.ts":       "report",
+		"../../../etc/passwd":     "passwd",
+		"..":                      "script",
+		".":                       "script",
+		"":                        "script",
+		"/":                       "script",
+		"/absolute/path/thing.ts": "thing",
+		"a-night-out.ts":          "a-night-out",
+	} {
+		if got := oneSegment(name); got != want {
+			t.Errorf("oneSegment(%q) = %q, want %q", name, got, want)
+		}
+	}
+}

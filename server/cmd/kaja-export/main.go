@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wham/kaja/v2/pkg/api"
 	"github.com/wham/kaja/v2/pkg/bundle"
@@ -54,7 +55,9 @@ func main() {
 	// The one file an exported app is. Nothing is compiled to make it: the runner
 	// is prebuilt for its platform and the bundle is data appended to a copy of
 	// it, which is the same operation whatever the target.
-	app := filepath.Join(filepath.Dir(result.Path), result.Manifest.Name)
+	// Named from the bundle this is made of rather than composed out of the
+	// manifest again: the destination is the one the export was already given.
+	app := strings.TrimSuffix(result.Path, filepath.Ext(result.Path))
 	if err := bundle.AppendTo(*runner, result.Path, app); err != nil {
 		fmt.Fprintln(os.Stderr, "cannot write the app:", err)
 		os.Exit(1)
