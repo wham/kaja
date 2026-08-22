@@ -5,19 +5,17 @@ import { Script } from "./apps";
 import { isUntouched, Draft } from "./drafts";
 import { ConfigurationApp } from "./server/api";
 
-// How many views the pane keeps mounted. There is no "open files" set: this is
-// a cache, so that going back to something is instant and keeps its cursor.
-// It has no UI, nothing can be closed out of it, and its size is a performance
-// choice rather than anything the user manages.
+// How many views the pane keeps mounted. There is no "open files" set: this is a
+// cache, so going back to something is instant and keeps its cursor. It has no UI and
+// nothing can be closed out of it.
 const MOUNTED_LIMIT = 10;
 
-// One view per thing you can look at. They live in most-recently-visited order
-// — `views[0]` is what the window is showing, `views[1]` is what ⌘P⏎ goes back
-// to — and the tail is evicted once the cache is full.
+// Most-recently-visited order — `views[0]` is what the window is showing, `views[1]`
+// is what ⌘P⏎ goes back to — and the tail is evicted once the cache is full.
 interface ViewBase {
   id: string;
-  // Creation order. Bodies are rendered in it, so a live Monaco editor is never
-  // moved in the DOM when the visit order changes.
+  // Creation order. Bodies are rendered in it, so a live Monaco editor is never moved
+  // in the DOM when the visit order changes.
   seq: number;
 }
 
@@ -25,9 +23,7 @@ export interface CompilerView extends ViewBase {
   type: "compiler";
 }
 
-// A window onto a draft. The draft itself lives in the draft store and
-// outlives the view — navigating away puts the buffer down, it doesn't throw
-// the work out.
+// The draft itself lives in the draft store and outlives the view.
 export interface DraftView extends ViewBase {
   type: "draft";
   draftId: string;
@@ -42,21 +38,20 @@ export interface DefinitionView extends ViewBase {
   startColumn: number;
 }
 
-// An app's settings. The view is the app: it is named after it, and a new app
-// is simply the unsaved instance of the same document.
+// The view is the app: it is named after it, and a new app is the unsaved instance
+// of the same document.
 export interface AppFormView extends ViewBase {
   type: "appForm";
   mode: "create" | "edit";
   editingAppName?: string;
   initialData?: ConfigurationApp;
-  // Which view of the app is showing. It lives here rather than in the form
-  // because the command row owns the control that switches it.
+  // Lives here rather than in the form because the command row owns the control that
+  // switches it.
   editMode: "form" | "json";
 }
 
 export interface ScriptView extends ViewBase {
   type: "script";
-  // A file in the workspace's scripts directory; its content auto-saves to disk.
   script: Script;
   model: monaco.editor.ITextModel;
   viewState?: monaco.editor.ICodeEditorViewState;
@@ -64,8 +59,7 @@ export interface ScriptView extends ViewBase {
 
 export interface VariablesView extends ViewBase {
   type: "variables";
-  // Like the app form's, this lives here because the command row owns the
-  // control that switches it.
+  // Like the app form's, this lives here because the command row owns the control.
   editMode: "table" | "json";
 }
 
@@ -78,8 +72,8 @@ function nextView(type: string): ViewBase {
   return { id: `${type}-${sequence}`, seq: sequence };
 }
 
-// A draft keeps the same model URI across sessions, so its identity in the
-// editor is the same one the store uses.
+// A draft keeps the same model URI across sessions, so its identity in the editor is
+// the one the store uses.
 function editorModel(uri: string, code: string): monaco.editor.ITextModel {
   const parsed = monaco.Uri.parse("ts:/" + uri + ".ts");
   const existing = monaco.editor.getModel(parsed);
@@ -90,13 +84,10 @@ function editorModel(uri: string, code: string): monaco.editor.ITextModel {
   return monaco.editor.createModel(code, "typescript", parsed);
 }
 
-// A form holds edits that exist nowhere else, so it is never evicted to make
-// room — navigating away from it and back has to find it as you left it.
+// A form holds edits that exist nowhere else, so it is never evicted to make room.
 function holdsWork(view: View): boolean {
   return view.type === "variables" || view.type === "appForm";
 }
-
-// --- Visiting ---
 
 // Bringing a view to the front is the only way one becomes current.
 export function visit(views: View[], id: string): View[] {
@@ -116,9 +107,7 @@ function show(views: View[], view: View): View[] {
   return next;
 }
 
-// Taking a view out of the cache: the document it showed is untouched, this
-// only stops rendering it (the app it belonged to went away, a preview was
-// switched off, the draft was deleted).
+// The document it showed is untouched; this only stops rendering it.
 export function dropView(views: View[], id: string): View[] {
   return views.filter((view) => view.id !== id);
 }
@@ -126,8 +115,6 @@ export function dropView(views: View[], id: string): View[] {
 function update<T extends View>(views: View[], id: string, type: T["type"], changes: Partial<T>): View[] {
   return views.map((view) => (view.id === id && view.type === type ? ({ ...view, ...changes } as View) : view));
 }
-
-// --- Opening ---
 
 export function showDraft(views: View[], draft: Draft): View[] {
   const existing = views.find((view) => view.type === "draft" && view.draftId === draft.id);
@@ -180,32 +167,27 @@ export function setVariablesEditMode(views: View[], id: string, editMode: "table
   return update<VariablesView>(views, id, "variables", { editMode });
 }
 
-// --- What a view is called ---
-
 export interface ViewIdentity {
   name: string;
   // Where it sits, for the finder's list: "benchling / Folders", "Drafts".
   path: string;
-  // The qualifier the trigger carries beside the name, empty where the name is
-  // already the whole answer.
+  // Empty where the name is already the whole answer.
   origin: string;
   icon: LucideIcon;
-  // A browsing buffer: still exactly its generated code and never run, so the
-  // next call you pick takes it over. Wherever it is named it is dimmed, which
-  // is the only tell that rule has.
+  // A browsing buffer: still exactly its generated code and never run, so the next call
+  // you pick takes it over. Wherever it is named it is dimmed.
   provisional?: boolean;
-  // The name is a filename, so its extension is dimmed wherever it is drawn.
-  // A draft's title is a call, not a file, and a `Sum · 5.3` has no extension
-  // to find — which is why this is stated rather than read off the dot.
+  // The name is a filename, so its extension is dimmed wherever it is drawn. Stated
+  // rather than read off the dot, because a draft's title is a call — `Sum · 5.3` has
+  // no extension to find.
   file?: boolean;
 }
 
 export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
   switch (view.type) {
     case "draft": {
-      // The draft store owns the name — it is read from the code, so the view
-      // can't have its own copy without the two drifting apart. Same vocabulary
-      // as a saved script: only the icon says it isn't on disk.
+      // The draft store owns the name — it is read from the code, so the view can't have
+      // its own copy without the two drifting apart.
       const draft = drafts.find((candidate) => candidate.id === view.draftId);
       return {
         name: draft?.title ?? "Draft",
@@ -216,8 +198,8 @@ export function viewIdentity(view: View, drafts: Draft[] = []): ViewIdentity {
       };
     }
     case "script":
-      // The folder is the qualifier, which is what tells two same-named files
-      // in different folders apart.
+      // The folder is the qualifier, which tells two same-named files in different folders
+      // apart.
       return {
         name: view.script.name,
         path: view.script.folder ? `Files / ${view.script.folder}` : "Files",
@@ -242,7 +224,6 @@ function fileName(path: string): string {
 
 function appFormName(view: AppFormView): string {
   if (view.mode === "edit" && view.editingAppName) {
-    // The view is the app, so it is named after it.
     return view.editingAppName;
   }
   // In create mode the type is picked in the New dialog, so name it for that.
@@ -253,8 +234,6 @@ function appFormName(view: AppFormView): string {
 function appFormIcon(view: AppFormView): LucideIcon {
   return (view.initialData ? getAppType(appType(view.initialData))?.icon : undefined) ?? Settings;
 }
-
-// --- Persistence ---
 
 interface PersistedDraftView {
   type: "draft";
@@ -272,9 +251,7 @@ interface PersistedScriptView {
 }
 
 /**
- * What a build from before the word changed wrote for a draft. Read, never
- * written: the rename is in the code and in the UI, and a workspace that had
- * drafts open is not the place to make the point.
+ * What a build from before the word changed wrote for a draft. Read, never written.
  */
 interface LegacyScratchView {
   type: "scratch";
@@ -291,14 +268,11 @@ export function persistedDraftId(view: PersistedView): string | undefined {
   return undefined;
 }
 
-// The visit order is the order of the list, so nothing else has to be stored:
-// what was on screen is what restores first.
+// The visit order is the order of the list, so nothing else has to be stored.
 //
-// The compile log is not among them. It is a report on this session's apps, not
-// a document, so starting on it means starting on an account of a compilation
-// that hasn't run — and with no apps, on one that never can, which is a
-// switcher naming a file whose body is the no-apps blankslate. Nothing is open
-// instead, which is the screen that says picking a call writes you a script.
+// The compile log is not among them: it is a report on this session's apps rather
+// than a document, so starting on it means starting on an account of a compilation
+// that hasn't run — and with no apps, on one that never can.
 export interface PersistedViewState {
   views: PersistedView[];
 }
