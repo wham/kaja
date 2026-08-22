@@ -1087,7 +1087,7 @@ paths:
 			}))
 			defer srv.Close()
 
-			s, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{token: tc.token, username: tc.user, password: tc.password}, func(string) {})
+			s, _, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{token: tc.token, username: tc.user, password: tc.password}, func(string) {})
 			if problem != nil {
 				t.Fatalf("loadSpec: %v", problem)
 			}
@@ -1113,7 +1113,7 @@ func TestLoadSpecReportsLoginRedirect(t *testing.T) {
 	defer srv.Close()
 
 	var logs []string
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(m string) { logs = append(logs, m) })
+	_, _, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(m string) { logs = append(logs, m) })
 	if problem == nil {
 		t.Fatal("expected a problem for an unauthenticated fetch")
 	}
@@ -1135,7 +1135,7 @@ func TestLoadSpecReportsUnauthorizedStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	_, _, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
 	if problem == nil || problem.Kind != problemUnauthorized {
 		t.Fatalf("problem = %v, want kind %q", problem, problemUnauthorized)
 	}
@@ -1151,7 +1151,7 @@ func TestLoadSpecNonYAMLErrorIncludesSnippet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
+	_, _, problem := loadSpec(srv.URL+"/openapi.yaml", fetchCredentials{}, func(string) {})
 	if problem == nil {
 		t.Fatal("expected a problem for a non-spec body")
 	}

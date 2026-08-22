@@ -30,11 +30,7 @@ func (a *App) Freeze(parameters map[string]string) (map[string]string, error) {
 		return nil, err
 	}
 
-	body, contentType, p := fetchSpec(specURL, specFetchCredentials(parameters), func(string) {})
-	if p != nil {
-		return nil, p
-	}
-	s, p := readSpec(body, contentType)
+	s, body, p := loadSpec(specURL, specFetchCredentials(parameters), func(string) {})
 	if p != nil {
 		return nil, p
 	}
